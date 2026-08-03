@@ -6,6 +6,7 @@ use agent_diva_core::config::schema::{
     WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
+use agent_diva_core::governance::ApprovalCoordinator;
 use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
@@ -109,7 +110,42 @@ impl AppState {
         command_approvals: CommandApprovalCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
     ) -> anyhow::Result<Self> {
-        let workspace_root = workspace_root.into();
+        Self::new_with_runtime_governance_inner(
+            api_tx,
+            bus,
+            workspace_root.into(),
+            command_approvals,
+            memory_authority_mode,
+            None,
+        )
+    }
+
+    pub fn new_with_runtime_governance(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+        command_approvals: CommandApprovalCoordinator,
+        memory_authority_mode: MemoryAuthorityMode,
+        governance: ApprovalCoordinator,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_runtime_governance_inner(
+            api_tx,
+            bus,
+            workspace_root.into(),
+            command_approvals,
+            memory_authority_mode,
+            Some(governance),
+        )
+    }
+
+    fn new_with_runtime_governance_inner(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: PathBuf,
+        command_approvals: CommandApprovalCoordinator,
+        memory_authority_mode: MemoryAuthorityMode,
+        governance: Option<ApprovalCoordinator>,
+    ) -> anyhow::Result<Self> {
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
         let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
@@ -126,10 +162,14 @@ impl AppState {
                 }
             };
         let laputa = LaputaService::open(workspace_root.clone())?;
-        let memory_governance = MemoryGovernanceCoordinator::open_lazy(
-            &workspace_root,
-            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root),
-        )?;
+        let workspace_id =
+            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
+        let memory_governance = match governance {
+            Some(governance) => {
+                MemoryGovernanceCoordinator::governed(&workspace_root, workspace_id, governance)?
+            }
+            None => MemoryGovernanceCoordinator::open_lazy(&workspace_root, workspace_id)?,
+        };
         let state = Self {
             api_tx,
             bus,

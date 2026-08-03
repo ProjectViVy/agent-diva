@@ -10,6 +10,7 @@ use agent_diva_channels::ChannelManager;
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
+use agent_diva_core::governance::ApprovalCoordinator;
 use agent_diva_files::FileManager;
 use agent_diva_providers::{DynamicProvider, ProviderCatalogService, ProviderRegistry};
 use std::path::PathBuf;
@@ -39,6 +40,7 @@ pub struct Manager {
     file_manager: Arc<FileManager>,
     workspace: PathBuf,
     planning_service: Option<Arc<crate::planning_service::PlanningService>>,
+    governance: ApprovalCoordinator,
 }
 
 enum ProviderConfigTarget<'a> {
@@ -78,6 +80,8 @@ impl Manager {
         cron_service: Arc<CronService>,
         file_manager: Arc<FileManager>,
         workspace: PathBuf,
+        governance: ApprovalCoordinator,
+        planning_service: Option<Arc<crate::planning_service::PlanningService>>,
     ) -> Self {
         Self {
             api_rx,
@@ -94,7 +98,8 @@ impl Manager {
             cron_service,
             file_manager,
             workspace,
-            planning_service: None,
+            planning_service,
+            governance,
         }
     }
 
@@ -487,9 +492,21 @@ impl Manager {
         if let Some(ref svc) = self.planning_service {
             return Some(Arc::clone(svc));
         }
-        let arc = Arc::new(crate::planning_service::PlanningService::new(
+        let arc = Arc::new(crate::planning_service::PlanningService::governed(
             self.workspace.clone(),
+            self.governance.clone(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(&self.workspace),
         ));
+        match arc.recover_incomplete().await {
+            Ok(recovered) if recovered > 0 => {
+                tracing::warn!(recovered, "recovered incomplete Plan approvals at startup")
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::error!(%error, "failed to recover Plan approval state");
+                return None;
+            }
+        }
         self.planning_service = Some(Arc::clone(&arc));
         Some(arc)
     }

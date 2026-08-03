@@ -894,6 +894,39 @@ impl PlanningStore for SqlitePlanningStore {
         let now = Utc::now();
         let materialize = request.todo_policy.materializes(request.materialize_todos);
         let mut tx = self.pool.begin().await?;
+        if let Some((approved_by, approved_at, todo_policy, todos_materialized)) =
+            sqlx::query_as::<_, (String, String, String, i64)>(
+                "SELECT approved_by, approved_at, todo_policy, todos_materialized
+                 FROM plan_approvals WHERE plan_id = ? AND revision = ?",
+            )
+            .bind(&plan_id.0)
+            .bind(request.expected_revision)
+            .fetch_optional(&mut *tx)
+            .await?
+        {
+            tx.rollback().await?;
+            let receipt = ApprovalReceipt {
+                plan_id: plan_id.clone(),
+                revision: request.expected_revision,
+                approved_by,
+                approved_at: chrono::DateTime::parse_from_rfc3339(&approved_at)
+                    .map_err(|error| crate::Error::Internal(error.to_string()))?
+                    .with_timezone(&Utc),
+                todo_policy: serde_json::from_str(&todo_policy)?,
+                todos_materialized: todos_materialized != 0,
+            };
+            if receipt.approved_by == request.approved_by
+                && receipt.todo_policy == request.todo_policy
+                && receipt.todos_materialized == materialize
+            {
+                return Ok(receipt);
+            }
+            return Err(PlanningError::ApprovalConflict {
+                plan_id: plan_id.0.clone(),
+                expected_revision: request.expected_revision,
+            }
+            .into());
+        }
         let revision =
             sqlx::query_scalar::<_, i64>("SELECT s.revision FROM plan_submissions s JOIN plans p ON p.id = s.plan_id WHERE s.plan_id = ? AND p.phase = ?")
                 .bind(&plan_id.0)
@@ -1426,6 +1459,21 @@ mod tests {
         assert_eq!(
             store.get_plan(&plan_id).await.unwrap().phase,
             PlanPhase::Execute
+        );
+        assert_eq!(
+            store
+                .approve_plan(
+                    &plan_id,
+                    &ApprovalRequest {
+                        expected_revision: revision,
+                        approved_by: "user".to_string(),
+                        todo_policy: TodoPolicy::Optional,
+                        materialize_todos: false,
+                    },
+                )
+                .await
+                .unwrap(),
+            receipt
         );
         assert!(store
             .approve_plan(

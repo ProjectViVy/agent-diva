@@ -116,7 +116,7 @@ standing policy（非功能债，执行相关验证时遵守）：
       `.laputa/governance.db`，Once 在执行前消费，session 五分钟到期，global rule
       仅在 Rule receipt 后持久化；启动分页撤销当前 workspace 的 Pending/Allowed，
       不保存或重放命令正文。
-    - [ ] **GMH-30B2：Plan/Memory receipt 最终统一**：收口 Plan 审批表与 Memory
+    - [x] **GMH-30B2：Plan/Memory receipt 最终统一**：收口 Plan 审批表与 Memory
       apply 的执行消费和恢复语义。
     suspend/resume、重启恢复、取消、超时、重复响应和多客户端协调。
 - [ ] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`

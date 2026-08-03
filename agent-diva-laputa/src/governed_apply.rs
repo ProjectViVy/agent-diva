@@ -1,13 +1,13 @@
-//! Governed Memory proposal decisions and non-production typed apply boundary.
+//! Governed Memory proposal decisions and receipt-bound typed apply boundary.
 
 use std::{path::Path, str::FromStr, sync::Arc};
 
 use agent_diva_core::{
     evolution::{EvolutionProposal, RiskLevel},
     governance::{
-        evaluate_policy, ApprovalGrant, ApprovalLedgerError, ApprovalReceipt, ApprovalRecord,
-        ApprovalRequest, ApprovalState, ApprovalStatus, AuditCorrelation, AutonomyLevel,
-        Capability, ContentDigest, Decision, DigestAlgorithm, GovernanceLedger, GovernanceSubject,
+        evaluate_policy, ApprovalCoordinator, ApprovalGrant, ApprovalLedgerError, ApprovalReceipt,
+        ApprovalRequest, ApprovalState, ApprovalStatePage, ApprovalStatus, AuditCorrelation,
+        AutonomyLevel, Capability, ContentDigest, Decision, DigestAlgorithm, GovernanceSubject,
         GovernanceSubjectKind, PolicyContext, PolicyEvaluation, ResourceKind, ResourceScope,
         RiskClass, SqliteGovernanceLedger,
     },
@@ -66,7 +66,8 @@ pub struct MemoryGovernanceDecision<'a> {
 pub struct MemoryGovernanceCoordinator {
     workspace_id: String,
     pool: SqlitePool,
-    ledger: Arc<tokio::sync::OnceCell<SqliteGovernanceLedger>>,
+    governance: Option<ApprovalCoordinator>,
+    fallback: Arc<tokio::sync::OnceCell<ApprovalCoordinator>>,
 }
 
 impl std::fmt::Debug for MemoryGovernanceCoordinator {
@@ -95,14 +96,35 @@ impl MemoryGovernanceCoordinator {
         Ok(Self {
             workspace_id: workspace_id.into(),
             pool,
-            ledger: Arc::new(tokio::sync::OnceCell::new()),
+            governance: None,
+            fallback: Arc::new(tokio::sync::OnceCell::new()),
         })
     }
 
-    async fn ledger(&self) -> Result<&SqliteGovernanceLedger, MemoryGovernanceError> {
+    /// Construct Memory governance over the process-wide core coordinator.
+    ///
+    /// The mapping table remains domain-owned, while approval state is written
+    /// only through the injected coordinator and its single ledger authority.
+    pub fn governed(
+        workspace_root: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+        governance: ApprovalCoordinator,
+    ) -> Result<Self, MemoryGovernanceError> {
+        let mut coordinator = Self::open_lazy(workspace_root, workspace_id)?;
+        coordinator.governance = Some(governance);
+        Ok(coordinator)
+    }
+
+    async fn coordinator(&self) -> Result<&ApprovalCoordinator, MemoryGovernanceError> {
         self.initialize_mapping().await?;
-        self.ledger
-            .get_or_try_init(|| async { SqliteGovernanceLedger::new(self.pool.clone()).await })
+        if let Some(governance) = self.governance.as_ref() {
+            return Ok(governance);
+        }
+        self.fallback
+            .get_or_try_init(|| async {
+                let ledger = SqliteGovernanceLedger::new(self.pool.clone()).await?;
+                Ok::<_, ApprovalLedgerError>(ApprovalCoordinator::new(Arc::new(ledger)))
+            })
             .await
             .map_err(Into::into)
     }
@@ -140,16 +162,16 @@ impl MemoryGovernanceCoordinator {
             let old_request: String = row.get("request_id");
             let old_digest: String = row.get("content_digest");
             if old_digest == digest {
-                let state = self.ledger().await?.state(&old_request, now).await?;
+                let state = self.coordinator().await?.state(&old_request, now).await?;
                 return Ok(self.view(proposal, &request, state, now));
             }
-            let ledger = self.ledger().await?;
-            if let Ok(old_state) = ledger.state(&old_request, now).await {
+            let governance = self.coordinator().await?;
+            if let Ok(old_state) = governance.state(&old_request, now).await {
                 if matches!(
                     old_state.status,
                     ApprovalStatus::Pending | ApprovalStatus::Allowed
                 ) {
-                    let _ = ledger
+                    let _ = governance
                         .revoke(
                             &old_request,
                             old_state.version,
@@ -164,17 +186,25 @@ impl MemoryGovernanceCoordinator {
                 }
             }
         }
-        let record =
-            ApprovalRecord::from_request(&request).map_err(ApprovalLedgerError::Validation)?;
         let state = self
-            .ledger()
+            .coordinator()
             .await?
-            .submit(
-                record,
+            .coordinate(
+                &request,
+                &PolicyContext {
+                    evaluated_at: now,
+                    autonomy: AutonomyLevel::L1,
+                    explicit_user_decision: None,
+                    restrictions: Vec::new(),
+                    authorizations: Vec::new(),
+                },
                 &format!("memory-submit:{}", request.correlation.request_id),
-                now,
             )
             .await?;
+        let state = state
+            .pending_state()
+            .cloned()
+            .ok_or(MemoryGovernanceError::ApprovalRequired)?;
         sqlx::query(
             "INSERT INTO memory_proposal_governance(proposal_id, request_id, content_digest, updated_at)
              VALUES (?, ?, ?, ?)
@@ -222,7 +252,7 @@ impl MemoryGovernanceCoordinator {
             grant: input.grant,
         };
         let state = self
-            .ledger()
+            .coordinator()
             .await?
             .decide(
                 &current.request.correlation.request_id,
@@ -261,10 +291,100 @@ impl MemoryGovernanceCoordinator {
         now: DateTime<Utc>,
     ) -> Result<ApprovalState, MemoryGovernanceError> {
         Ok(self
-            .ledger()
+            .coordinator()
             .await?
             .consume_once(request_id, expected_version, idempotency_key, now)
             .await?)
+    }
+
+    pub async fn state(
+        &self,
+        request_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<ApprovalState, MemoryGovernanceError> {
+        Ok(self.coordinator().await?.state(request_id, now).await?)
+    }
+
+    pub async fn revoke(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        actor: GovernanceSubject,
+        now: DateTime<Utc>,
+    ) -> Result<ApprovalState, MemoryGovernanceError> {
+        Ok(self
+            .coordinator()
+            .await?
+            .revoke(request_id, expected_version, idempotency_key, actor, now)
+            .await?)
+    }
+
+    pub async fn expire(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        now: DateTime<Utc>,
+    ) -> Result<ApprovalState, MemoryGovernanceError> {
+        Ok(self
+            .coordinator()
+            .await?
+            .expire(request_id, expected_version, idempotency_key, now)
+            .await?)
+    }
+
+    pub async fn states_page(
+        &self,
+        after_request_id: Option<&str>,
+        limit: u32,
+        now: DateTime<Utc>,
+    ) -> Result<ApprovalStatePage, MemoryGovernanceError> {
+        Ok(self
+            .coordinator()
+            .await?
+            .states_page(after_request_id, limit, now)
+            .await?)
+    }
+
+    pub async fn revoke_and_resubmit(
+        &self,
+        proposal: &EvolutionProposal,
+        state: &ApprovalState,
+        now: DateTime<Utc>,
+    ) -> Result<MemoryGovernanceView, MemoryGovernanceError> {
+        self.coordinator()
+            .await?
+            .revoke(
+                &state.request.correlation.request_id,
+                state.version,
+                &format!(
+                    "memory-recovery-revoke:{}:{}",
+                    proposal.id, state.request.correlation.request_id
+                ),
+                GovernanceSubject {
+                    kind: GovernanceSubjectKind::System,
+                    id: "memory-recovery".to_string(),
+                },
+                now,
+            )
+            .await?;
+        sqlx::query("DELETE FROM memory_proposal_governance WHERE proposal_id = ?")
+            .bind(&proposal.id)
+            .execute(&self.pool)
+            .await?;
+        let request_id = format!(
+            "memory-apply:{}:{}:recovery-{}",
+            proposal.id,
+            proposal_digest(proposal)
+                .value
+                .chars()
+                .take(16)
+                .collect::<String>(),
+            now.timestamp_micros()
+        );
+        self.submit_with_request_id(proposal, None, now, request_id)
+            .await
     }
 
     async fn mapped_state(
@@ -280,7 +400,7 @@ impl MemoryGovernanceCoordinator {
         .fetch_optional(&self.pool)
         .await?;
         let request_id = request_id.ok_or(MemoryGovernanceError::ApprovalRequired)?;
-        Ok(self.ledger().await?.state(&request_id, now).await?)
+        Ok(self.coordinator().await?.state(&request_id, now).await?)
     }
 
     fn request_for(
@@ -291,9 +411,25 @@ impl MemoryGovernanceCoordinator {
     ) -> ApprovalRequest<()> {
         let digest = proposal_digest(proposal);
         let short_digest = digest.value.chars().take(16).collect::<String>();
+        self.request_for_with_id(
+            proposal,
+            session_id,
+            now,
+            format!("memory-apply:{}:{short_digest}", proposal.id),
+        )
+    }
+
+    fn request_for_with_id(
+        &self,
+        proposal: &EvolutionProposal,
+        session_id: Option<&str>,
+        now: DateTime<Utc>,
+        request_id: String,
+    ) -> ApprovalRequest<()> {
+        let digest = proposal_digest(proposal);
         ApprovalRequest {
             correlation: AuditCorrelation {
-                request_id: format!("memory-apply:{}:{short_digest}", proposal.id),
+                request_id,
                 turn_id: format!("proposal:{}", proposal.id),
                 session_id: session_id.unwrap_or("workspace").to_string(),
                 trace_id: proposal.source_run_id.clone(),
@@ -329,6 +465,51 @@ impl MemoryGovernanceCoordinator {
                 .collect(),
             payload: (),
         }
+    }
+
+    async fn submit_with_request_id(
+        &self,
+        proposal: &EvolutionProposal,
+        session_id: Option<&str>,
+        now: DateTime<Utc>,
+        request_id: String,
+    ) -> Result<MemoryGovernanceView, MemoryGovernanceError> {
+        let request = self.request_for_with_id(proposal, session_id, now, request_id);
+        let digest = request.content_digest.value.clone();
+        let outcome = self
+            .coordinator()
+            .await?
+            .coordinate(
+                &request,
+                &PolicyContext {
+                    evaluated_at: now,
+                    autonomy: AutonomyLevel::L1,
+                    explicit_user_decision: None,
+                    restrictions: Vec::new(),
+                    authorizations: Vec::new(),
+                },
+                &format!("memory-submit:{}", request.correlation.request_id),
+            )
+            .await?;
+        let state = outcome
+            .pending_state()
+            .cloned()
+            .ok_or(MemoryGovernanceError::ApprovalRequired)?;
+        sqlx::query(
+            "INSERT INTO memory_proposal_governance(proposal_id, request_id, content_digest, updated_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(proposal_id) DO UPDATE SET
+               request_id=excluded.request_id,
+               content_digest=excluded.content_digest,
+               updated_at=excluded.updated_at",
+        )
+        .bind(&proposal.id)
+        .bind(&request.correlation.request_id)
+        .bind(&digest)
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(self.view(proposal, &request, state, now))
     }
 
     fn view(

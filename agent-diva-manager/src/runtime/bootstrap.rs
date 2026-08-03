@@ -105,7 +105,10 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     ));
     let command_approvals = CommandApprovalCoordinator::default()
         .with_command_rules(command_rules)
-        .governed(governance, workspace.to_string_lossy().into_owned());
+        .governed(
+            governance.clone(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace),
+        );
     let recovered = command_approvals.recover_incomplete().await?;
     if recovered > 0 {
         tracing::warn!(
@@ -163,6 +166,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         file_manager,
         run_store,
         command_approvals,
+        governance,
     })
 }
 

@@ -58,6 +58,7 @@ async fn start_runtime_tasks_inner(
         file_manager,
         run_store,
         command_approvals,
+        governance,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -80,6 +81,21 @@ async fn start_runtime_tasks_inner(
         .then(|| spawn_neuro_link_gui_bridge(bus.clone()));
 
     let (api_tx, api_rx) = mpsc::channel(100);
+    let planning_service = Arc::new(crate::planning_service::PlanningService::governed(
+        workspace.clone(),
+        governance.clone(),
+        agent_diva_core::workspace_identity::canonical_workspace_id(&workspace),
+    ));
+    let recovered_plans = planning_service
+        .recover_incomplete()
+        .await
+        .expect("Plan approval recovery must complete before serving requests");
+    if recovered_plans > 0 {
+        tracing::warn!(
+            recovered_plans,
+            "recovered incomplete Plan approvals at startup"
+        );
+    }
     let manager = Manager::new(
         api_rx,
         bus.clone(),
@@ -94,6 +110,8 @@ async fn start_runtime_tasks_inner(
         Arc::clone(&cron_service),
         file_manager,
         workspace.clone(),
+        governance.clone(),
+        Some(planning_service),
     );
     let api_tx_keepalive = api_tx.clone();
 
@@ -107,14 +125,24 @@ async fn start_runtime_tasks_inner(
     );
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
-    let app_state = AppState::new_with_runtime_memory(
+    let app_state = AppState::new_with_runtime_governance(
         api_tx,
         bus.clone(),
         workspace,
         command_approvals,
         config.memory.authority_mode,
+        governance,
     )
     .expect("manager AppState storage services initialize");
+    let recovered_memory = crate::handlers::laputa::recover_memory_approvals(&app_state)
+        .await
+        .expect("Memory approval recovery must complete before serving requests");
+    if recovered_memory > 0 {
+        tracing::warn!(
+            recovered_memory,
+            "recovered incomplete Memory approvals at startup"
+        );
+    }
     app_state.health.mark_cron_ready();
     let (server_shutdown_tx, server_handle) = match server_runtime {
         ServerRuntime::BoundPort => spawn_server_runtime(port, app_state),

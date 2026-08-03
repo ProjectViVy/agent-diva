@@ -49,8 +49,8 @@ impl CoordinatedApproval {
 /// Shared Plan, Sandbox, and Memory approval coordination boundary.
 ///
 /// Domain payloads are evaluated in memory and reduced to [`ApprovalRecord`]
-/// before persistence. Receipt consumption intentionally remains an executor
-/// responsibility until GMH-30B.
+/// before persistence. Domain executors prepare their replay-safe operation and
+/// consume approve-once receipts through this coordinator before side effects.
 #[derive(Clone)]
 pub struct ApprovalCoordinator {
     ledger: Arc<dyn GovernanceLedger>,

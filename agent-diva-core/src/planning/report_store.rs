@@ -1,8 +1,8 @@
-//! Process-local, session-scoped PLAN runtime state.
+//! Process-local projection of session-scoped PLAN runtime state.
 //!
-//! PLAN drafts, approvals, execution context, and execution TODOs deliberately
-//! live only for the lifetime of this process.  This module has no database
-//! dependency and never restores plan state from session history.
+//! Durable plan revisions and prepared execution contexts live in the canonical
+//! planning store. This registry is rebuilt from those records after restart and
+//! never acts as approval authority.
 
 use anyhow::anyhow;
 use chrono::Utc;
@@ -185,6 +185,30 @@ impl EphemeralPlanRegistry {
         context_policy: ExecutionContextPolicy,
         compacted_context: Option<&str>,
     ) -> anyhow::Result<(PlanRevisionApproval, ExecutionSession)> {
+        self.approve_revision_with_execution_id(
+            session_key,
+            report_id,
+            revision,
+            expected_hash,
+            context_policy,
+            compacted_context,
+            uuid::Uuid::new_v4().to_string(),
+        )
+        .await
+    }
+
+    /// Approve a revision using an execution ID already durably prepared by governance.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn approve_revision_with_execution_id(
+        &self,
+        session_key: &str,
+        report_id: &PlanId,
+        revision: i64,
+        expected_hash: &str,
+        context_policy: ExecutionContextPolicy,
+        compacted_context: Option<&str>,
+        execution_id: String,
+    ) -> anyhow::Result<(PlanRevisionApproval, ExecutionSession)> {
         let mut sessions = self.sessions.write().await;
         let state = sessions
             .get_mut(session_key)
@@ -214,7 +238,7 @@ impl EphemeralPlanRegistry {
             approved_at: now,
         };
         let session = ExecutionSession {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: execution_id,
             report_id: report_id.clone(),
             revision,
             context_policy,

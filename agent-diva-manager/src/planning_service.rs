@@ -1,5 +1,12 @@
-//! Session-scoped, process-local PLAN service for the manager API.
+//! Durable governed PLAN service with a process-local runtime projection.
 
+use agent_diva_core::governance::{
+    ApprovalCoordinator, ApprovalGrant, ApprovalLedgerError, ApprovalReceipt as GovernanceReceipt,
+    ApprovalRequest as GovernanceRequest, ApprovalState, ApprovalStatus, AuditCorrelation,
+    AutonomyLevel, Capability, ContentDigest, Decision, DigestAlgorithm, GovernanceSubject,
+    GovernanceSubjectKind, PolicyContext, ResourceKind, ResourceScope, RiskClass,
+    SqliteGovernanceLedger,
+};
 use agent_diva_core::planning::store::{PlanningStore, SqlitePlanningStore};
 use agent_diva_core::planning::{
     validate_report_markdown, ApprovalRequest, EphemeralPlanRegistry, ExecutionContextPolicy,
@@ -8,7 +15,7 @@ use agent_diva_core::planning::{
     PlanReportStatus, PlanRevision, PlanRevisionAuthor, PlanStatus, PlanStep, PlanSubmission,
     TodoPolicy,
 };
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::{path::PathBuf, sync::Arc};
@@ -58,6 +65,9 @@ pub struct PlanningService {
     registry: Arc<EphemeralPlanRegistry>,
     canonical_store: Arc<OnceCell<Arc<SqlitePlanningStore>>>,
     workspace: PathBuf,
+    governance: Option<ApprovalCoordinator>,
+    fallback_governance: Arc<OnceCell<ApprovalCoordinator>>,
+    workspace_id: String,
 }
 
 impl Default for PlanningService {
@@ -72,10 +82,30 @@ impl PlanningService {
     /// Must use [`EphemeralPlanRegistry::new`] (not a private empty map) so
     /// gateway approve/execution sees drafts created by the agent loop.
     pub fn new(workspace: PathBuf) -> Self {
+        let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(&workspace);
         Self {
             registry: Arc::new(EphemeralPlanRegistry::new()),
             canonical_store: Arc::new(OnceCell::new()),
             workspace,
+            governance: None,
+            fallback_governance: Arc::new(OnceCell::new()),
+            workspace_id,
+        }
+    }
+
+    /// Construct production planning over the process-wide governance coordinator.
+    pub fn governed(
+        workspace: PathBuf,
+        governance: ApprovalCoordinator,
+        workspace_id: String,
+    ) -> Self {
+        Self {
+            registry: Arc::new(EphemeralPlanRegistry::new()),
+            canonical_store: Arc::new(OnceCell::new()),
+            workspace,
+            governance: Some(governance),
+            fallback_governance: Arc::new(OnceCell::new()),
+            workspace_id,
         }
     }
     pub fn registry(&self) -> Arc<EphemeralPlanRegistry> {
@@ -94,11 +124,13 @@ impl PlanningService {
         let Some(revision) = store.get_plan_revision(&plan_id).await? else {
             return Ok(Vec::new());
         };
-        Ok(vec![plan_report_projection(
-            &plan,
-            revision,
-            "restored:active",
-        )?])
+        let session_key = self
+            .plan_session_key(&plan_id, revision)
+            .await?
+            .unwrap_or_else(|| "restored:active".to_string());
+        let detail = plan_report_projection(&plan, revision, &session_key)?;
+        self.ensure_pending_governance(&detail, Utc::now()).await?;
+        Ok(vec![detail])
     }
     pub async fn create_report(
         &self,
@@ -114,6 +146,7 @@ impl PlanningService {
             .create_report(session_key, title, markdown, author)
             .await?;
         self.sync_report_to_canonical_store(&detail).await?;
+        self.ensure_pending_governance(&detail, Utc::now()).await?;
         Ok(detail)
     }
     pub async fn append_report_revision(
@@ -135,6 +168,7 @@ impl PlanningService {
             )
             .await?;
         self.sync_report_to_canonical_store(&detail).await?;
+        self.ensure_pending_governance(&detail, Utc::now()).await?;
         Ok(detail)
     }
     pub async fn approve_report_revision(
@@ -144,6 +178,18 @@ impl PlanningService {
     ) -> anyhow::Result<ExecutionSession> {
         let plan_id = PlanId(report_id.to_string());
         let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        self.recover_incomplete().await?;
+        let existing_context = store
+            .get_execution_context(&plan_id, request.revision)
+            .await?;
+        if let Some(context) = existing_context.as_ref() {
+            if context.initialization_status
+                == agent_diva_core::planning::ExecutionInitializationStatus::Ready
+            {
+                return Ok(execution_session_from_context(context));
+            }
+        }
         if self
             .registry
             .runtime_state_for_session(&request.session_key)
@@ -162,6 +208,104 @@ impl PlanningService {
                 )
                 .await?;
         }
+        let plan = store.get_plan(&plan_id).await?;
+        let revision = store
+            .get_plan_revision(&plan_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("plan is not awaiting approval"))?;
+        let detail = plan_report_projection(&plan, revision, &request.session_key)?;
+        if request.revision != revision
+            || request.revision_hash
+                != agent_diva_core::planning::revision_hash(&detail.revision.markdown)
+        {
+            return Err(anyhow::anyhow!("plan report revision conflict"));
+        }
+        let governance = self.governance().await?;
+        let mut state = self.ensure_pending_governance(&detail, Utc::now()).await?;
+        if state.status == ApprovalStatus::Pending {
+            let receipt = GovernanceReceipt {
+                request_id: state.request.correlation.request_id.clone(),
+                content_digest: state.request.content_digest.clone(),
+                policy_version: state.request.policy_version.clone(),
+                capability: Capability::PlanExecute,
+                resource: state.request.resource.clone(),
+                decision: Decision::Allow,
+                decided_by: GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "desktop-ui".to_string(),
+                },
+                decided_at: Utc::now(),
+                expires_at: state.request.expires_at,
+                grant: ApprovalGrant::Once,
+            };
+            state = governance
+                .decide(
+                    &state.request.correlation.request_id,
+                    state.version,
+                    &format!("plan-allow:{}", state.request.correlation.request_id),
+                    receipt,
+                )
+                .await?;
+        }
+        let mut persisted_context = match existing_context {
+            Some(context) => context,
+            None if state.status == ApprovalStatus::Allowed => {
+                let execution_id = format!("plan-execution:{}", PlanId::new().0);
+                let now = Utc::now();
+                let context = PersistedExecutionContext {
+                    plan_id: plan_id.clone(),
+                    revision: request.revision,
+                    session_key: request.session_key.clone(),
+                    execution_id: execution_id.clone(),
+                    context_policy: request.context_policy,
+                    boundary: None,
+                    compacted_context: request.compacted_context.clone(),
+                    initialization_status:
+                        agent_diva_core::planning::ExecutionInitializationStatus::Pending,
+                    initialization_error: None,
+                    created_at: now,
+                    updated_at: now,
+                };
+                store.create_execution_context(&context).await?;
+                sqlx::query(
+                    "UPDATE plan_governance SET execution_id = ?, context_json = ?, operation_json = ?, updated_at = ?
+                     WHERE plan_id = ? AND revision = ? AND request_id = ?",
+                )
+                .bind(&execution_id)
+                .bind(serde_json::to_string(&context)?)
+                .bind(serde_json::to_string(request)?)
+                .bind(now.to_rfc3339())
+                .bind(&plan_id.0)
+                .bind(request.revision)
+                .bind(&state.request.correlation.request_id)
+                .execute(store.pool())
+                .await?;
+                context
+            }
+            None => {
+                return Err(anyhow::anyhow!(
+                    "consumed plan approval has no prepared execution context"
+                ));
+            }
+        };
+        if state.status == ApprovalStatus::Allowed {
+            let consumed = governance
+                .consume_once(
+                    &state.request.correlation.request_id,
+                    state.version,
+                    &format!("plan-consume:{}", state.request.correlation.request_id),
+                    Utc::now(),
+                )
+                .await?;
+            if consumed.status != ApprovalStatus::Consumed {
+                return Err(anyhow::anyhow!("plan approval receipt was not consumed"));
+            }
+            state = consumed;
+        }
+        if state.status != ApprovalStatus::Consumed {
+            return Err(anyhow::anyhow!("plan approval is not consumable"));
+        }
+        let execution_id = persisted_context.execution_id.clone();
         let receipt = store
             .approve_plan(
                 &plan_id,
@@ -175,13 +319,14 @@ impl PlanningService {
             .await?;
         let (_, session) = self
             .registry
-            .approve_revision(
+            .approve_revision_with_execution_id(
                 &request.session_key,
-                &PlanId(report_id.to_string()),
+                &plan_id,
                 request.revision,
                 &request.revision_hash,
                 request.context_policy,
-                None,
+                request.compacted_context.as_deref(),
+                execution_id,
             )
             .await?;
         if receipt.revision != session.revision {
@@ -189,20 +334,19 @@ impl PlanningService {
                 "canonical approval revision does not match execution session"
             ));
         }
-        let persisted_context = PersistedExecutionContext {
-            plan_id: session.report_id.clone(),
-            revision: session.revision,
-            session_key: request.session_key.clone(),
-            execution_id: session.id.clone(),
-            context_policy: session.context_policy,
-            boundary: session.boundary.clone(),
-            compacted_context: session.compacted_context.clone(),
-            initialization_status: session.initialization_status,
-            initialization_error: session.initialization_error.clone(),
-            created_at: session.created_at,
-            updated_at: session.updated_at,
-        };
-        store.create_execution_context(&persisted_context).await?;
+        persisted_context.initialization_status =
+            agent_diva_core::planning::ExecutionInitializationStatus::Ready;
+        persisted_context.updated_at = Utc::now();
+        store.update_execution_context(&persisted_context).await?;
+        self.registry
+            .update_execution_context(
+                &session.id,
+                session.boundary.clone(),
+                session.compacted_context.clone(),
+                agent_diva_core::planning::ExecutionInitializationStatus::Ready,
+                None,
+            )
+            .await?;
         if request.todo_policy.materializes(request.materialize_todos) {
             let markdown = self
                 .registry
@@ -291,6 +435,392 @@ impl PlanningService {
         self.registry.discard_session(session_key).await;
     }
 
+    pub async fn revoke_approval(
+        &self,
+        plan_id: &PlanId,
+        revision: i64,
+        expected_version: u64,
+        idempotency_key: &str,
+        actor: GovernanceSubject,
+    ) -> anyhow::Result<ApprovalState> {
+        let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        let request_id: String = sqlx::query_scalar(
+            "SELECT request_id FROM plan_governance WHERE plan_id = ? AND revision = ?",
+        )
+        .bind(&plan_id.0)
+        .bind(revision)
+        .fetch_one(store.pool())
+        .await?;
+        Ok(self
+            .governance()
+            .await?
+            .revoke(
+                &request_id,
+                expected_version,
+                idempotency_key,
+                actor,
+                Utc::now(),
+            )
+            .await?)
+    }
+
+    pub async fn expire_approval(
+        &self,
+        plan_id: &PlanId,
+        revision: i64,
+        expected_version: u64,
+        idempotency_key: &str,
+        now: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<ApprovalState> {
+        let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        let request_id: String = sqlx::query_scalar(
+            "SELECT request_id FROM plan_governance WHERE plan_id = ? AND revision = ?",
+        )
+        .bind(&plan_id.0)
+        .bind(revision)
+        .fetch_one(store.pool())
+        .await?;
+        Ok(self
+            .governance()
+            .await?
+            .expire(&request_id, expected_version, idempotency_key, now)
+            .await?)
+    }
+
+    /// Recover durable Plan approval and execution initialization state.
+    pub async fn recover_incomplete(&self) -> anyhow::Result<usize> {
+        let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        let rows = sqlx::query_as::<_, (String, i64, String, String, Option<String>)>(
+            "SELECT plan_id, revision, request_id, session_key, operation_json
+             FROM plan_governance ORDER BY plan_id, revision",
+        )
+        .fetch_all(store.pool())
+        .await?;
+        let governance = self.governance().await?;
+        let now = Utc::now();
+        let mut recovered = 0;
+        for (plan_id, revision, request_id, session_key, operation_json) in rows {
+            let plan_id = PlanId(plan_id);
+            let state = match governance.state(&request_id, now).await {
+                Ok(state) => state,
+                Err(ApprovalLedgerError::NotFound) => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let context = store.get_execution_context(&plan_id, revision).await?;
+            match (state.status, context) {
+                (ApprovalStatus::Pending, _) => {}
+                (ApprovalStatus::Allowed, None) => {
+                    governance
+                        .revoke(
+                            &request_id,
+                            state.version,
+                            &format!("plan-recovery-revoke:{request_id}"),
+                            GovernanceSubject {
+                                kind: GovernanceSubjectKind::System,
+                                id: "planning-recovery".to_string(),
+                            },
+                            now,
+                        )
+                        .await?;
+                    sqlx::query("DELETE FROM plan_governance WHERE plan_id = ? AND revision = ?")
+                        .bind(&plan_id.0)
+                        .bind(revision)
+                        .execute(store.pool())
+                        .await?;
+                    let plan = store.get_plan(&plan_id).await?;
+                    if plan.phase == PlanPhase::AwaitingApproval {
+                        let detail = plan_report_projection(&plan, revision, &session_key)?;
+                        self.ensure_pending_governance(&detail, now).await?;
+                    }
+                    recovered += 1;
+                }
+                (ApprovalStatus::Allowed, Some(context)) => {
+                    let consumed = governance
+                        .consume_once(
+                            &request_id,
+                            state.version,
+                            &format!("plan-consume:{request_id}"),
+                            now,
+                        )
+                        .await?;
+                    if consumed.status == ApprovalStatus::Consumed {
+                        let operation: ApprovePlanReportRequest =
+                            serde_json::from_str(operation_json.as_deref().ok_or_else(|| {
+                                anyhow::anyhow!("prepared plan operation is missing")
+                            })?)?;
+                        self.complete_prepared_plan(&store, &operation, context)
+                            .await?;
+                        recovered += 1;
+                    }
+                }
+                (ApprovalStatus::Consumed, Some(context)) => {
+                    if context.initialization_status
+                        != agent_diva_core::planning::ExecutionInitializationStatus::Ready
+                    {
+                        let operation: ApprovePlanReportRequest =
+                            serde_json::from_str(operation_json.as_deref().ok_or_else(|| {
+                                anyhow::anyhow!("prepared plan operation is missing")
+                            })?)?;
+                        self.complete_prepared_plan(&store, &operation, context)
+                            .await?;
+                        recovered += 1;
+                    }
+                }
+                (ApprovalStatus::Consumed, None) => {
+                    return Err(anyhow::anyhow!(
+                        "consumed plan approval {request_id} has no prepared execution context"
+                    ));
+                }
+                _ => {}
+            }
+        }
+        Ok(recovered)
+    }
+
+    async fn complete_prepared_plan(
+        &self,
+        store: &SqlitePlanningStore,
+        request: &ApprovePlanReportRequest,
+        mut context: PersistedExecutionContext,
+    ) -> anyhow::Result<ExecutionSession> {
+        let plan = store.get_plan(&context.plan_id).await?;
+        let markdown = plan
+            .strategy
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("prepared plan has no persisted markdown"))?;
+        store
+            .approve_plan(
+                &context.plan_id,
+                &ApprovalRequest {
+                    expected_revision: context.revision,
+                    approved_by: "desktop-ui".to_string(),
+                    todo_policy: request.todo_policy,
+                    materialize_todos: request.materialize_todos,
+                },
+            )
+            .await?;
+        context.initialization_status =
+            agent_diva_core::planning::ExecutionInitializationStatus::Ready;
+        context.initialization_error = None;
+        context.updated_at = Utc::now();
+        store.update_execution_context(&context).await?;
+        let session = execution_session_from_context(&context);
+        self.registry
+            .restore_execution(&context.session_key, session.clone(), markdown)
+            .await?;
+        Ok(session)
+    }
+
+    async fn governance(&self) -> anyhow::Result<ApprovalCoordinator> {
+        if let Some(governance) = self.governance.as_ref() {
+            return Ok(governance.clone());
+        }
+        self.fallback_governance
+            .get_or_try_init(|| async {
+                let governance_dir = self.workspace.join(".laputa");
+                std::fs::create_dir_all(&governance_dir)?;
+                let pool = SqlitePoolOptions::new()
+                    .max_connections(4)
+                    .connect_with(
+                        SqliteConnectOptions::new()
+                            .filename(governance_dir.join("governance.db"))
+                            .create_if_missing(true),
+                    )
+                    .await?;
+                Ok::<_, anyhow::Error>(ApprovalCoordinator::new(Arc::new(
+                    SqliteGovernanceLedger::new(pool).await?,
+                )))
+            })
+            .await
+            .cloned()
+    }
+
+    async fn initialize_governance_mapping(
+        &self,
+        store: &SqlitePlanningStore,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS plan_governance (
+                plan_id TEXT NOT NULL,
+                revision INTEGER NOT NULL,
+                request_id TEXT NOT NULL UNIQUE,
+                content_digest TEXT NOT NULL,
+                session_key TEXT NOT NULL,
+                execution_id TEXT,
+                context_json TEXT,
+                operation_json TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(plan_id, revision)
+            )",
+        )
+        .execute(store.pool())
+        .await?;
+        Ok(())
+    }
+
+    async fn plan_session_key(
+        &self,
+        plan_id: &PlanId,
+        revision: i64,
+    ) -> anyhow::Result<Option<String>> {
+        let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        Ok(sqlx::query_scalar(
+            "SELECT session_key FROM plan_governance WHERE plan_id = ? AND revision = ?",
+        )
+        .bind(&plan_id.0)
+        .bind(revision)
+        .fetch_optional(store.pool())
+        .await?)
+    }
+
+    fn governance_request(
+        &self,
+        detail: &PlanReportDetail,
+        request_id: String,
+        now: chrono::DateTime<Utc>,
+    ) -> GovernanceRequest<()> {
+        GovernanceRequest {
+            correlation: AuditCorrelation {
+                request_id,
+                turn_id: format!("plan:{}:{}", detail.report.id.0, detail.revision.revision),
+                session_id: detail.report.session_key.clone(),
+                trace_id: None,
+            },
+            subject: GovernanceSubject {
+                kind: GovernanceSubjectKind::Agent,
+                id: "planning-service".to_string(),
+            },
+            capability: Capability::PlanExecute,
+            resource: ResourceScope {
+                workspace_id: self.workspace_id.clone(),
+                session_id: Some(detail.report.session_key.clone()),
+                kind: ResourceKind::Plan,
+                resource_id: detail.report.id.0.clone(),
+                boundary: Some(format!("revision:{}", detail.revision.revision)),
+            },
+            risk: RiskClass::High,
+            content_digest: ContentDigest {
+                algorithm: DigestAlgorithm::Sha256,
+                value: agent_diva_core::planning::revision_hash(&detail.revision.markdown),
+            },
+            policy_version: "plan-execute-v1".to_string(),
+            created_at: now,
+            expires_at: now + Duration::hours(24),
+            evidence_refs: Vec::new(),
+            payload: (),
+        }
+    }
+
+    async fn ensure_pending_governance(
+        &self,
+        detail: &PlanReportDetail,
+        now: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<ApprovalState> {
+        let store = self.canonical_store().await?;
+        self.initialize_governance_mapping(&store).await?;
+        let governance = self.governance().await?;
+        let digest = agent_diva_core::planning::revision_hash(&detail.revision.markdown);
+        let existing: Option<(String, String)> = sqlx::query_as(
+            "SELECT request_id, content_digest FROM plan_governance
+             WHERE plan_id = ? AND revision = ?",
+        )
+        .bind(&detail.report.id.0)
+        .bind(detail.revision.revision)
+        .fetch_optional(store.pool())
+        .await?;
+        if let Some((request_id, mapped_digest)) = existing {
+            if mapped_digest == digest {
+                let state = governance.state(&request_id, now).await?;
+                if matches!(
+                    state.status,
+                    ApprovalStatus::Pending | ApprovalStatus::Allowed | ApprovalStatus::Consumed
+                ) {
+                    return Ok(state);
+                }
+            }
+        }
+
+        let stale: Vec<String> = sqlx::query_scalar(
+            "SELECT request_id FROM plan_governance WHERE plan_id = ? AND revision != ?",
+        )
+        .bind(&detail.report.id.0)
+        .bind(detail.revision.revision)
+        .fetch_all(store.pool())
+        .await?;
+        for request_id in stale {
+            if let Ok(state) = governance.state(&request_id, now).await {
+                if matches!(
+                    state.status,
+                    ApprovalStatus::Pending | ApprovalStatus::Allowed
+                ) {
+                    governance
+                        .revoke(
+                            &request_id,
+                            state.version,
+                            &format!("plan-revision-revoke:{request_id}"),
+                            GovernanceSubject {
+                                kind: GovernanceSubjectKind::System,
+                                id: "planning-service".to_string(),
+                            },
+                            now,
+                        )
+                        .await?;
+                }
+            }
+        }
+
+        let request_id = format!(
+            "plan-execute:{}:{}:{}",
+            detail.report.id.0,
+            detail.revision.revision,
+            PlanId::new().0
+        );
+        let request = self.governance_request(detail, request_id.clone(), now);
+        let outcome = governance
+            .coordinate(
+                &request,
+                &PolicyContext {
+                    evaluated_at: now,
+                    autonomy: AutonomyLevel::L1,
+                    explicit_user_decision: None,
+                    restrictions: Vec::new(),
+                    authorizations: Vec::new(),
+                },
+                &format!("plan-submit:{request_id}"),
+            )
+            .await?;
+        let state = outcome
+            .pending_state()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("plan execution did not enter human approval"))?;
+        sqlx::query(
+            "INSERT INTO plan_governance(
+                plan_id, revision, request_id, content_digest, session_key, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(plan_id, revision) DO UPDATE SET
+                request_id=excluded.request_id,
+                content_digest=excluded.content_digest,
+                session_key=excluded.session_key,
+                execution_id=NULL,
+                context_json=NULL,
+                operation_json=NULL,
+                updated_at=excluded.updated_at",
+        )
+        .bind(&detail.report.id.0)
+        .bind(detail.revision.revision)
+        .bind(&request_id)
+        .bind(&digest)
+        .bind(&detail.report.session_key)
+        .bind(now.to_rfc3339())
+        .execute(store.pool())
+        .await?;
+        Ok(state)
+    }
+
     async fn canonical_store(&self) -> anyhow::Result<Arc<SqlitePlanningStore>> {
         self.canonical_store
             .get_or_try_init(|| async {
@@ -376,6 +906,22 @@ impl PlanningService {
 fn non_empty(value: String) -> Option<String> {
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_string())
+}
+
+fn execution_session_from_context(context: &PersistedExecutionContext) -> ExecutionSession {
+    ExecutionSession {
+        id: context.execution_id.clone(),
+        report_id: context.plan_id.clone(),
+        revision: context.revision,
+        context_policy: context.context_policy,
+        status: agent_diva_core::planning::ExecutionSessionStatus::Executing,
+        compacted_context: context.compacted_context.clone(),
+        boundary: context.boundary.clone(),
+        initialization_status: context.initialization_status,
+        initialization_error: context.initialization_error.clone(),
+        created_at: context.created_at,
+        updated_at: context.updated_at,
+    }
 }
 
 fn execution_steps_from_markdown(markdown: &str) -> Vec<String> {
@@ -502,20 +1048,8 @@ mod tests {
     use super::*;
     use agent_diva_core::planning::{revision_hash, PlanPhase};
 
-    #[test]
-    fn extracts_materializable_plan_steps_only() {
-        let markdown = "# Plan\n\n## 计划步骤\n1. First\n- Second\n\n## 验证方法\nRun tests";
-        assert_eq!(
-            execution_steps_from_markdown(markdown),
-            vec!["First".to_string(), "Second".to_string()]
-        );
-    }
-
-    #[tokio::test]
-    async fn report_projection_uses_canonical_store_for_revision_approval() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = PlanningService::new(temp.path().to_path_buf());
-        let markdown = [
+    fn plan_markdown() -> String {
+        [
             "# Canonical plan",
             "",
             "## 目标",
@@ -534,7 +1068,41 @@ mod tests {
             "## 验证方法",
             "Run focused tests.",
         ]
-        .join("\n");
+        .join("\n")
+    }
+
+    fn allow_receipt(state: &ApprovalState) -> GovernanceReceipt {
+        GovernanceReceipt {
+            request_id: state.request.correlation.request_id.clone(),
+            content_digest: state.request.content_digest.clone(),
+            policy_version: state.request.policy_version.clone(),
+            capability: Capability::PlanExecute,
+            resource: state.request.resource.clone(),
+            decision: Decision::Allow,
+            decided_by: GovernanceSubject {
+                kind: GovernanceSubjectKind::User,
+                id: "reviewer".to_string(),
+            },
+            decided_at: Utc::now(),
+            expires_at: state.request.expires_at,
+            grant: ApprovalGrant::Once,
+        }
+    }
+
+    #[test]
+    fn extracts_materializable_plan_steps_only() {
+        let markdown = "# Plan\n\n## 计划步骤\n1. First\n- Second\n\n## 验证方法\nRun tests";
+        assert_eq!(
+            execution_steps_from_markdown(markdown),
+            vec!["First".to_string(), "Second".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn report_projection_uses_canonical_store_for_revision_approval() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PlanningService::new(temp.path().to_path_buf());
+        let markdown = plan_markdown();
         let detail = service
             .create_report(
                 "gui:canonical",
@@ -549,6 +1117,19 @@ mod tests {
             store.get_plan(&detail.report.id).await.unwrap().phase,
             PlanPhase::AwaitingApproval
         );
+        let governance_pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(temp.path().join(".laputa").join("governance.db")),
+            )
+            .await
+            .unwrap();
+        let ledger_json: Vec<String> =
+            sqlx::query_scalar("SELECT event_json FROM governance_ledger_events")
+                .fetch_all(&governance_pool)
+                .await
+                .unwrap();
+        assert!(!ledger_json.join("\n").contains(&markdown));
 
         service.registry.discard_session("gui:canonical").await;
         let restarted = PlanningService::new(temp.path().to_path_buf());
@@ -578,6 +1159,297 @@ mod tests {
         assert_eq!(
             restarted.execution_todos(&session.id).await.unwrap().len(),
             2
+        );
+        let governance_state = restarted
+            .ensure_pending_governance(&detail, Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(governance_state.status, ApprovalStatus::Consumed);
+    }
+
+    #[tokio::test]
+    async fn restart_revokes_dangling_plan_allow_and_creates_new_pending() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PlanningService::new(temp.path().to_path_buf());
+        let markdown = plan_markdown();
+        let detail = service
+            .create_report(
+                "gui:dangling",
+                "Dangling plan",
+                &markdown,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        let pending = service
+            .ensure_pending_governance(&detail, Utc::now())
+            .await
+            .unwrap();
+        let governance = service.governance().await.unwrap();
+        let allowed = governance
+            .decide(
+                &pending.request.correlation.request_id,
+                pending.version,
+                "allow-dangling-plan",
+                allow_receipt(&pending),
+            )
+            .await
+            .unwrap();
+        assert_eq!(allowed.status, ApprovalStatus::Allowed);
+
+        let restarted = PlanningService::new(temp.path().to_path_buf());
+        assert_eq!(restarted.recover_incomplete().await.unwrap(), 1);
+        assert_eq!(
+            governance
+                .state(&pending.request.correlation.request_id, Utc::now())
+                .await
+                .unwrap()
+                .status,
+            ApprovalStatus::Revoked
+        );
+        let store = restarted.canonical_store().await.unwrap();
+        let new_request: String = sqlx::query_scalar(
+            "SELECT request_id FROM plan_governance WHERE plan_id = ? AND revision = 1",
+        )
+        .bind(&detail.report.id.0)
+        .fetch_one(store.pool())
+        .await
+        .unwrap();
+        assert_ne!(new_request, pending.request.correlation.request_id);
+        assert_eq!(
+            governance
+                .state(&new_request, Utc::now())
+                .await
+                .unwrap()
+                .status,
+            ApprovalStatus::Pending
+        );
+    }
+
+    #[tokio::test]
+    async fn consumed_prepared_plan_recovers_exactly_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PlanningService::new(temp.path().to_path_buf());
+        let markdown = plan_markdown();
+        let detail = service
+            .create_report(
+                "gui:prepared",
+                "Prepared plan",
+                &markdown,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        let request = ApprovePlanReportRequest {
+            session_key: "gui:prepared".to_string(),
+            revision: 1,
+            revision_hash: revision_hash(&markdown),
+            context_policy: ExecutionContextPolicy::Compact,
+            compacted_context: Some("prepared summary".to_string()),
+            todo_policy: TodoPolicy::Always,
+            materialize_todos: true,
+        };
+        let pending = service
+            .ensure_pending_governance(&detail, Utc::now())
+            .await
+            .unwrap();
+        let governance = service.governance().await.unwrap();
+        let allowed = governance
+            .decide(
+                &pending.request.correlation.request_id,
+                pending.version,
+                "allow-prepared-plan",
+                allow_receipt(&pending),
+            )
+            .await
+            .unwrap();
+        let store = service.canonical_store().await.unwrap();
+        let now = Utc::now();
+        let context = PersistedExecutionContext {
+            plan_id: detail.report.id.clone(),
+            revision: 1,
+            session_key: request.session_key.clone(),
+            execution_id: "execution-prepared".to_string(),
+            context_policy: request.context_policy,
+            boundary: None,
+            compacted_context: request.compacted_context.clone(),
+            initialization_status:
+                agent_diva_core::planning::ExecutionInitializationStatus::Pending,
+            initialization_error: None,
+            created_at: now,
+            updated_at: now,
+        };
+        store.create_execution_context(&context).await.unwrap();
+        sqlx::query(
+            "UPDATE plan_governance SET execution_id = ?, context_json = ?, operation_json = ?
+             WHERE plan_id = ? AND revision = 1",
+        )
+        .bind(&context.execution_id)
+        .bind(serde_json::to_string(&context).unwrap())
+        .bind(serde_json::to_string(&request).unwrap())
+        .bind(&detail.report.id.0)
+        .execute(store.pool())
+        .await
+        .unwrap();
+        governance
+            .consume_once(
+                &pending.request.correlation.request_id,
+                allowed.version,
+                "plan-consume-prepared",
+                Utc::now(),
+            )
+            .await
+            .unwrap();
+
+        let restarted = PlanningService::new(temp.path().to_path_buf());
+        assert_eq!(restarted.recover_incomplete().await.unwrap(), 1);
+        assert_eq!(restarted.recover_incomplete().await.unwrap(), 0);
+        let store = restarted.canonical_store().await.unwrap();
+        assert_eq!(
+            store.get_plan(&detail.report.id).await.unwrap().phase,
+            PlanPhase::Execute
+        );
+        assert_eq!(
+            store
+                .get_todos(&detail.report.id)
+                .await
+                .unwrap()
+                .items
+                .len(),
+            2
+        );
+        assert_eq!(
+            store
+                .get_execution_context(&detail.report.id, 1)
+                .await
+                .unwrap()
+                .unwrap()
+                .initialization_status,
+            agent_diva_core::planning::ExecutionInitializationStatus::Ready
+        );
+    }
+
+    #[tokio::test]
+    async fn plan_revision_edit_revokes_old_request_and_rebinds_digest() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PlanningService::new(temp.path().to_path_buf());
+        let markdown = plan_markdown();
+        let detail = service
+            .create_report(
+                "gui:revision",
+                "Revision plan",
+                &markdown,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        let old = service
+            .ensure_pending_governance(&detail, Utc::now())
+            .await
+            .unwrap();
+        let revised_markdown = markdown.replace("Ship the change.", "Ship the revised change.");
+        let revised = service
+            .append_report_revision(
+                &AppendPlanReportRevisionRequest {
+                    session_key: "gui:revision".to_string(),
+                    expected_revision: 1,
+                    title: "Revision plan".to_string(),
+                    markdown: revised_markdown,
+                },
+                &detail.report.id.0,
+            )
+            .await
+            .unwrap();
+        let governance = service.governance().await.unwrap();
+        assert_eq!(
+            governance
+                .state(&old.request.correlation.request_id, Utc::now())
+                .await
+                .unwrap()
+                .status,
+            ApprovalStatus::Revoked
+        );
+        let current = service
+            .ensure_pending_governance(&revised, Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(current.status, ApprovalStatus::Pending);
+        assert_ne!(current.request.content_digest, old.request.content_digest);
+    }
+
+    #[tokio::test]
+    async fn revoked_and_expired_plan_receipts_never_execute() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PlanningService::new(temp.path().to_path_buf());
+        let markdown = plan_markdown();
+        let revoked_detail = service
+            .create_report(
+                "gui:revoke",
+                "Revoked plan",
+                &markdown,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        let revoked_pending = service
+            .ensure_pending_governance(&revoked_detail, Utc::now())
+            .await
+            .unwrap();
+        let revoked = service
+            .revoke_approval(
+                &revoked_detail.report.id,
+                1,
+                revoked_pending.version,
+                "revoke-plan-test",
+                GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "reviewer".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(revoked.status, ApprovalStatus::Revoked);
+
+        let expired_detail = service
+            .create_report(
+                "gui:expire",
+                "Expired plan",
+                &markdown,
+                PlanRevisionAuthor::Agent,
+            )
+            .await
+            .unwrap();
+        let expired_pending = service
+            .ensure_pending_governance(&expired_detail, Utc::now())
+            .await
+            .unwrap();
+        let expired = service
+            .expire_approval(
+                &expired_detail.report.id,
+                1,
+                expired_pending.version,
+                "expire-plan-test",
+                expired_pending.request.expires_at + Duration::seconds(1),
+            )
+            .await
+            .unwrap();
+        assert_eq!(expired.status, ApprovalStatus::Expired);
+        let store = service.canonical_store().await.unwrap();
+        assert_eq!(
+            store
+                .get_plan(&revoked_detail.report.id)
+                .await
+                .unwrap()
+                .phase,
+            PlanPhase::AwaitingApproval
+        );
+        assert_eq!(
+            store
+                .get_plan(&expired_detail.report.id)
+                .await
+                .unwrap()
+                .phase,
+            PlanPhase::AwaitingApproval
         );
     }
 }

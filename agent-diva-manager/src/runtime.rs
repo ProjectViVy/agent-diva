@@ -357,6 +357,7 @@ struct GatewayBootstrap {
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,
     command_approvals: CommandApprovalCoordinator,
+    governance: agent_diva_core::governance::ApprovalCoordinator,
 }
 
 struct ChannelBootstrap {
