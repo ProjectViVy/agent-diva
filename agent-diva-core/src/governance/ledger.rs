@@ -164,6 +164,13 @@ pub struct ApprovalState {
     pub receipt: Option<ApprovalReceipt>,
 }
 
+/// One bounded, request-id ordered page of replayed approval aggregates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalStatePage {
+    pub states: Vec<ApprovalState>,
+    pub next_cursor: Option<String>,
+}
+
 /// Stable errors returned by ledger operations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ApprovalLedgerError {
@@ -268,6 +275,14 @@ pub trait GovernanceLedger: Send + Sync {
         request_id: &str,
         evaluated_at: DateTime<Utc>,
     ) -> Result<ApprovalState, ApprovalLedgerError>;
+
+    /// Replay a stable page of aggregates at `evaluated_at`.
+    async fn states_page(
+        &self,
+        after_request_id: Option<&str>,
+        limit: u32,
+        evaluated_at: DateTime<Utc>,
+    ) -> Result<ApprovalStatePage, ApprovalLedgerError>;
 
     async fn events(
         &self,
@@ -633,6 +648,45 @@ impl GovernanceLedger for SqliteGovernanceLedger {
         evaluated_at: DateTime<Utc>,
     ) -> Result<ApprovalState, ApprovalLedgerError> {
         self.replay(request_id, evaluated_at).await
+    }
+
+    async fn states_page(
+        &self,
+        after_request_id: Option<&str>,
+        limit: u32,
+        evaluated_at: DateTime<Utc>,
+    ) -> Result<ApprovalStatePage, ApprovalLedgerError> {
+        if limit == 0 || limit > 1_000 {
+            return Err(ApprovalLedgerError::Persistence(
+                "approval state page limit must be between 1 and 1000".into(),
+            ));
+        }
+        let cursor = after_request_id.unwrap_or("");
+        let rows = sqlx::query(
+            "SELECT request_id FROM governance_ledger_events \
+             WHERE version = 1 AND request_id > ? \
+             ORDER BY request_id ASC LIMIT ?",
+        )
+        .bind(cursor)
+        .bind(i64::from(limit) + 1)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(persistence)?;
+        let has_more = rows.len() > limit as usize;
+        let ids: Vec<String> = rows
+            .into_iter()
+            .take(limit as usize)
+            .map(|row| row.get("request_id"))
+            .collect();
+        let next_cursor = has_more.then(|| ids.last().cloned()).flatten();
+        let mut states = Vec::with_capacity(ids.len());
+        for request_id in ids {
+            states.push(self.replay(&request_id, evaluated_at).await?);
+        }
+        Ok(ApprovalStatePage {
+            states,
+            next_cursor,
+        })
     }
 
     async fn events(
@@ -1320,5 +1374,48 @@ mod tests {
                     | Err(ApprovalLedgerError::AlreadyConsumed)
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn state_pages_use_stable_request_id_cursor_and_replay_time() {
+        let ledger = memory_ledger().await;
+        for id in ["request-c", "request-a", "request-b"] {
+            ledger
+                .submit(
+                    ApprovalRecord::from_request(&request(id)).unwrap(),
+                    &format!("submit-{id}"),
+                    now(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let first = ledger.states_page(None, 2, now()).await.unwrap();
+        assert_eq!(
+            first
+                .states
+                .iter()
+                .map(|state| state.request.correlation.request_id.as_str())
+                .collect::<Vec<_>>(),
+            ["request-a", "request-b"]
+        );
+        assert_eq!(first.next_cursor.as_deref(), Some("request-b"));
+
+        let second = ledger
+            .states_page(first.next_cursor.as_deref(), 2, now())
+            .await
+            .unwrap();
+        assert_eq!(second.states.len(), 1);
+        assert_eq!(second.states[0].request.correlation.request_id, "request-c");
+        assert!(second.next_cursor.is_none());
+
+        let expired = ledger
+            .states_page(None, 3, now() + Duration::minutes(6))
+            .await
+            .unwrap();
+        assert!(expired
+            .states
+            .iter()
+            .all(|state| state.status == ApprovalStatus::Expired));
     }
 }

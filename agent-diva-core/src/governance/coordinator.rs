@@ -6,7 +6,8 @@ use chrono::{DateTime, Utc};
 
 use super::{
     evaluate_policy, ApprovalLedgerError, ApprovalReceipt, ApprovalRecord, ApprovalRequest,
-    ApprovalState, Decision, GovernanceLedger, PolicyContext, PolicyEvaluation,
+    ApprovalState, ApprovalStatePage, Decision, GovernanceLedger, GovernanceSubject, PolicyContext,
+    PolicyEvaluation,
 };
 
 /// Result of coordinating one domain-owned request.
@@ -114,6 +115,64 @@ impl ApprovalCoordinator {
         evaluated_at: DateTime<Utc>,
     ) -> Result<ApprovalState, ApprovalLedgerError> {
         self.ledger.state(request_id, evaluated_at).await
+    }
+
+    /// Consume an approve-once receipt before its protected side effect runs.
+    pub async fn consume_once(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        occurred_at: DateTime<Utc>,
+    ) -> Result<ApprovalState, ApprovalLedgerError> {
+        self.ledger
+            .consume_once(request_id, expected_version, idempotency_key, occurred_at)
+            .await
+    }
+
+    /// Revoke a pending or unconsumed allowed approval.
+    pub async fn revoke(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        actor: GovernanceSubject,
+        occurred_at: DateTime<Utc>,
+    ) -> Result<ApprovalState, ApprovalLedgerError> {
+        self.ledger
+            .revoke(
+                request_id,
+                expected_version,
+                idempotency_key,
+                actor,
+                occurred_at,
+            )
+            .await
+    }
+
+    /// Persist explicit expiry for a pending or unconsumed allowed approval.
+    pub async fn expire(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        occurred_at: DateTime<Utc>,
+    ) -> Result<ApprovalState, ApprovalLedgerError> {
+        self.ledger
+            .expire(request_id, expected_version, idempotency_key, occurred_at)
+            .await
+    }
+
+    /// Read a bounded stable page of states replayed at one instant.
+    pub async fn states_page(
+        &self,
+        after_request_id: Option<&str>,
+        limit: u32,
+        evaluated_at: DateTime<Utc>,
+    ) -> Result<ApprovalStatePage, ApprovalLedgerError> {
+        self.ledger
+            .states_page(after_request_id, limit, evaluated_at)
+            .await
     }
 }
 
