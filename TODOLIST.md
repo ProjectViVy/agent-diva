@@ -145,6 +145,10 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 - [x] M0 / M1 / M2 — 见 archive（含 GMH-24 clean-break）
 - [ ] **M3** HITL 闭环（GMH-30..33）
+  - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
+    Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
+    行为、自动化/人工验收和四个阶段停点。权威入口：
+    `docs/dev/governance-m3-goal/README.md`。尚未启动 `/goal` 或修改运行时代码。
 - [ ] **M4** Agent Loop 接入（GMH-40..42）
 - [ ] **M5** 灰度发布（GMH-50..53）
 
