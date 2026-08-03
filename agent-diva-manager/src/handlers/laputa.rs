@@ -1025,7 +1025,7 @@ mod recovery_tests {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
         let proposal = state.laputa.create_proposal(proposal()).unwrap();
-        let now = Utc.with_ymd_and_hms(2026, 7, 30, 12, 1, 0).unwrap();
+        let now = Utc::now();
         let pending = state
             .memory_governance
             .submit(&proposal, None, now)
@@ -1053,7 +1053,7 @@ mod recovery_tests {
             .laputa
             .transition_proposal(&proposal.id, ProposalState::Approved, now)
             .unwrap();
-        let applied_at = Utc.with_ymd_and_hms(2026, 7, 30, 12, 2, 0).unwrap();
+        let applied_at = now + chrono::Duration::seconds(1);
         let committed = state
             .laputa
             .apply_proposal(&proposal.id, "reviewer", applied_at)
@@ -1068,7 +1068,7 @@ mod recovery_tests {
                 proposal_digest: agent_diva_laputa::proposal_digest(&proposal).value,
                 expected_version: allowed.request_version,
                 applied_at,
-                consume_at: Utc.with_ymd_and_hms(2026, 7, 30, 12, 3, 0).unwrap(),
+                consume_at: now + chrono::Duration::seconds(2),
                 state: LegacyApplyState::Prepared,
                 outcome: None,
                 governance: None,
@@ -1080,7 +1080,7 @@ mod recovery_tests {
             State(state.clone()),
             Path(proposal.id.clone()),
             Json(ApplyProposalPayload {
-                governance_request_id: allowed.request_id,
+                governance_request_id: allowed.request_id.clone(),
                 expected_version: allowed.request_version,
                 idempotency_key: "apply-crash".into(),
             }),
@@ -1101,6 +1101,27 @@ mod recovery_tests {
         assert_eq!(journal.state, LegacyApplyState::ReceiptConsumed);
         assert!(journal.outcome.is_some());
         assert!(journal.governance.is_some());
+
+        let replay = apply_laputa_proposal_handler(
+            State(state.clone()),
+            Path(proposal.id.clone()),
+            Json(ApplyProposalPayload {
+                governance_request_id: allowed.request_id,
+                expected_version: allowed.request_version,
+                idempotency_key: "apply-crash".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(replay.0["changelog"]["id"], committed.changelog.id);
+        assert_eq!(
+            state
+                .laputa
+                .list_changelog(ChangelogFilter::default())
+                .unwrap()
+                .total,
+            1
+        );
     }
 }
 

@@ -147,11 +147,10 @@ standing policy（非功能债，执行相关验证时遵守）：
   skipping malformed JSON, with focused invalid-data coverage. Workspace gate
   restoration is verified with the GMH-30A batch.
 
-- [ ] **LAPUTA-RECOVERY-RECEIPT-FIXTURE: restore prepared journal recovery test** `sev-P1`
-  `cargo test -p agent-diva-manager prepared_journal_recovers_commit_then_consumes_receipt --lib`
-  deterministically fails at `agent-diva-manager/src/handlers/laputa.rs:1089` with
-  `approval_required` because the proposal has no allowed approval receipt.
-  Repair the recovery fixture/receipt transition and restore the full `just test` gate.
+- [x] **LAPUTA-RECOVERY-RECEIPT-FIXTURE: restore prepared journal recovery test** `sev-P1`
+  The fixture now creates a non-expired approval revision and proves prepared
+  recovery, one-time receipt consumption, and idempotent replay. Full workspace
+  gate restoration is verified with the GMH-30A batch.
 
 - [ ] **WINDOWS-RELEASE-EXEC-ACCESS: restore local release executable launch** `sev-P1`
   The 2026-08-02 Tauri rebuild produced updated EXE/NSIS/MSI artifacts, but
