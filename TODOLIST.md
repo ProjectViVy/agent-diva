@@ -142,11 +142,10 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
-- [ ] **CLIPPY-LINES-MAP-WHILE: update fallible line iteration** `sev-P2`
-  `just check` on Rust 1.94 rejects `lines().filter_map(Result::ok)` with
-  `clippy::lines_filter_map_ok` at `agent-diva-autodream/src/service.rs:221`.
-  Replace it with `map_while(Result::ok)` (or explicit error propagation), add
-  focused read-error coverage, and restore the workspace Clippy gate.
+- [x] **CLIPPY-LINES-MAP-WHILE: update fallible line iteration** `sev-P2`
+  The run-event reader now propagates line I/O failures explicitly while still
+  skipping malformed JSON, with focused invalid-data coverage. Workspace gate
+  restoration is verified with the GMH-30A batch.
 
 - [ ] **LAPUTA-RECOVERY-RECEIPT-FIXTURE: restore prepared journal recovery test** `sev-P1`
   `cargo test -p agent-diva-manager prepared_journal_recovers_commit_then_consumes_receipt --lib`

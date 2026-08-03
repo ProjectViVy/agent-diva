@@ -37,7 +37,7 @@ fn manual_run_creation_persists_queued_record_and_lock() {
         .exists());
     assert!(temp.path().join(".agent-diva/autodream/lock").exists());
     let metrics = AutoDreamService::metrics_snapshot();
-    assert!(metrics.autodream_runs_total >= before.autodream_runs_total + 1);
+    assert!(metrics.autodream_runs_total > before.autodream_runs_total);
     assert!(metrics.autodream_failures_total >= before.autodream_failures_total);
 }
 

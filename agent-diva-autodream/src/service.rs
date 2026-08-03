@@ -216,12 +216,16 @@ impl AutoDreamService {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(source) => return Err(AutoDreamError::io(path, source)),
         };
-        let mut events = BufReader::new(file)
-            .lines()
-            .filter_map(|line| line.ok())
-            .filter_map(|line| serde_json::from_str::<AutoDreamEvent>(&line).ok())
-            .filter(|event| event.run_id.as_deref() == Some(run_id))
-            .collect::<Vec<_>>();
+        let mut events = Vec::new();
+        for line in BufReader::new(file).lines() {
+            let line = line.map_err(|source| AutoDreamError::io(&path, source))?;
+            let Ok(event) = serde_json::from_str::<AutoDreamEvent>(&line) else {
+                continue;
+            };
+            if event.run_id.as_deref() == Some(run_id) {
+                events.push(event);
+            }
+        }
         events.sort_by(|left, right| left.created_at.cmp(&right.created_at));
         let start = events.len().saturating_sub(limit.clamp(1, 200));
         Ok(events.split_off(start))
@@ -807,4 +811,45 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
     let path = path.as_ref();
     let content = fs::read_to_string(path).map_err(|source| AutoDreamError::io(path, source))?;
     Ok(serde_json::from_str(&content)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use chrono::Utc;
+
+    use super::*;
+
+    #[test]
+    fn run_event_reader_skips_invalid_json_but_propagates_line_read_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = AutoDreamService::open(dir.path()).unwrap();
+        let run = service
+            .trigger_manual_run(ManualRunTriggerRequest::default())
+            .unwrap()
+            .run;
+        let path = service.storage.paths().events_jsonl();
+
+        fs::write(&path, b"not-json\n").unwrap();
+        service
+            .append_event(AutoDreamEvent {
+                id: "event-valid".into(),
+                run_id: Some(run.id.clone()),
+                kind: "test".into(),
+                message: "bounded event".into(),
+                created_at: Utc::now(),
+            })
+            .unwrap();
+        let events = service.list_run_events(&run.id, 10).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].id, "event-valid");
+
+        fs::write(&path, [0xff, b'\n']).unwrap();
+        assert!(matches!(
+            service.list_run_events(&run.id, 10),
+            Err(AutoDreamError::Io { source, .. })
+                if source.kind() == std::io::ErrorKind::InvalidData
+        ));
+    }
 }
