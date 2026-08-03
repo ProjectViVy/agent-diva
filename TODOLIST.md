@@ -154,8 +154,9 @@ standing policy（非功能债，执行相关验证时遵守）：
   - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
     Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
     行为、自动化/人工验收和四个阶段停点。权威入口：
-    `docs/dev/governance-m3-goal/README.md`。GMH-30/31/32/33 已完成，进入最终 M3
-    自动化审计；人工 smoke 仍统一延后到最终候选完成后一次执行。
+    `docs/dev/governance-m3-goal/README.md`。GMH-30/31/32/33、纳入的代码债和最终
+    自动化矩阵均已完成；候选 `2fbb07d3` 等待一次集中人工 smoke。Windows release
+    EXE 在当前自动化会话仍被 OS error 5 拒绝，作为人工矩阵首个硬门禁保留。
 - [ ] **M4** Agent Loop 接入（GMH-40..42）
 - [ ] **M5** 灰度发布（GMH-50..53）
 
