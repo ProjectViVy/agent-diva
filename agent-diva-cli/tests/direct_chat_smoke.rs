@@ -179,3 +179,69 @@ fn chat_help_smoke_lists_light_chat_flags() {
     assert!(stdout.contains("--logs"), "{stdout}");
     assert!(stdout.contains("--no-logs"), "{stdout}");
 }
+
+#[test]
+fn local_headless_queue_fails_closed_with_stable_json_reason() {
+    let temp = tempdir().unwrap();
+    let api_base = spawn_mock_openai_server();
+    let config_path = write_config(temp.path(), &api_base);
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "agent",
+            "--message",
+            "do something",
+            "--approval-mode",
+            "queue",
+            "--json",
+        ])
+        .output()
+        .expect("failed to run headless queue smoke");
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(value["ok"], false);
+    assert_eq!(value["reason_code"], "approval_queue_unavailable");
+}
+
+#[test]
+fn approvals_help_exposes_explicit_review_and_decisions() {
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args(["approvals", "--help"])
+        .output()
+        .expect("failed to run approvals help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    for command in ["list", "decide", "cancel", "review"] {
+        assert!(stdout.contains(command), "missing {command}: {stdout}");
+    }
+}
+
+#[test]
+fn approval_json_transport_failure_is_stable_and_nonzero() {
+    let temp = tempdir().unwrap();
+    let api_base = spawn_mock_openai_server();
+    let config_path = write_config(temp.path(), &api_base);
+    let unavailable = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = unavailable.local_addr().unwrap();
+    drop(unavailable);
+    let output = Command::new(env!("CARGO_BIN_EXE_agent-diva"))
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "--api-url",
+            &format!("http://{address}/api"),
+            "approvals",
+            "list",
+            "--json",
+        ])
+        .output()
+        .expect("failed to run approval JSON failure smoke");
+    assert!(!output.status.success());
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must remain JSON");
+    assert_eq!(value["ok"], false);
+    assert_eq!(value["reason_code"], "approval_queue_unavailable");
+}

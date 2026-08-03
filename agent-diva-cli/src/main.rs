@@ -5,9 +5,12 @@ use agent_diva_agent::{
     agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
     runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
 };
+use agent_diva_cli::approval_commands::{
+    apply_choice, print_human, review_pending, ApprovalChoice, ApprovalCliResult,
+};
 use agent_diva_cli::chat_commands::{
-    build_builtin_tools_config, build_network_tool_config, run_agent, run_agent_remote, run_chat,
-    run_chat_remote,
+    build_builtin_tools_config, build_network_tool_config, run_agent, run_chat, run_chat_remote,
+    AgentRunOptions,
 };
 use agent_diva_cli::cli_runtime::{
     available_provider_names, build_provider, channel_statuses, collect_status_report,
@@ -118,6 +121,12 @@ enum Commands {
         /// Disable streaming reasoning/tool logs
         #[arg(long = "no-logs", action = clap::ArgAction::SetTrue)]
         no_logs: bool,
+        /// Approval behavior for this non-interactive turn
+        #[arg(long, value_enum, default_value_t = HeadlessApprovalMode::Fail)]
+        approval_mode: HeadlessApprovalMode,
+        /// Emit stable machine-readable approval outcomes
+        #[arg(long)]
+        json: bool,
     },
     /// Start lightweight interactive chat
     Chat {
@@ -139,6 +148,11 @@ enum Commands {
         /// Disable streaming reasoning/tool logs
         #[arg(long = "no-logs", action = clap::ArgAction::SetTrue)]
         no_logs: bool,
+    },
+    /// Review and resolve durable approvals through Manager
+    Approvals {
+        #[command(subcommand)]
+        command: ApprovalCommands,
     },
     /// Launch interactive TUI chat
     Tui {
@@ -191,6 +205,49 @@ enum Commands {
         #[command(subcommand)]
         command: MaskCommands,
     },
+}
+
+#[derive(Subcommand)]
+#[command(rename_all = "kebab-case")]
+enum ApprovalCommands {
+    /// List approvals (pending by default)
+    List {
+        #[arg(long, default_value = "pending")]
+        status: String,
+        #[arg(long)]
+        session: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Resolve one request with an explicit decision
+    Decide {
+        request_id: String,
+        #[arg(long)]
+        version: u64,
+        #[arg(long, value_parser = ["allow-once", "allow-session", "allow-rule", "deny"])]
+        decision: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Revoke one pending request
+    Cancel {
+        request_id: String,
+        #[arg(long)]
+        version: u64,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Interactively review all current pending requests
+    Review {
+        #[arg(long)]
+        session: Option<String>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+enum HeadlessApprovalMode {
+    Fail,
+    Queue,
 }
 
 fn command_writes_logs_to_terminal(command: &Commands) -> bool {
@@ -440,6 +497,8 @@ async fn async_main() -> Result<()> {
             no_markdown,
             logs,
             no_logs,
+            approval_mode,
+            json,
         } => {
             let markdown = markdown || !no_markdown;
             let logs = logs && !no_logs;
@@ -448,9 +507,30 @@ async fn async_main() -> Result<()> {
                     info!("Processing message: {}", msg);
                 }
                 if cli.remote {
-                    run_agent_remote(&msg, session, markdown, logs, cli.api_url).await?;
+                    agent_diva_cli::chat_commands::run_agent_remote_governed(
+                        &msg,
+                        session,
+                        markdown,
+                        logs,
+                        cli.api_url,
+                        approval_mode == HeadlessApprovalMode::Queue,
+                        json,
+                    )
+                    .await?;
                 } else {
-                    run_agent(&runtime, &msg, model, session, markdown, logs).await?;
+                    run_agent(
+                        &runtime,
+                        &msg,
+                        AgentRunOptions {
+                            model,
+                            session,
+                            markdown,
+                            logs,
+                            queue: approval_mode == HeadlessApprovalMode::Queue,
+                            json,
+                        },
+                    )
+                    .await?;
                 }
             } else {
                 warn!("No message provided");
@@ -472,6 +552,88 @@ async fn async_main() -> Result<()> {
                 run_chat_remote(model, session, markdown, logs, cli.api_url).await?;
             } else {
                 run_chat(&runtime, model, session, markdown, logs).await?;
+            }
+        }
+        Commands::Approvals { command } => {
+            let client = ApiClient::new(cli.api_url);
+            let json_error = matches!(
+                &command,
+                ApprovalCommands::List { json: true, .. }
+                    | ApprovalCommands::Decide { json: true, .. }
+                    | ApprovalCommands::Cancel { json: true, .. }
+            );
+            let outcome: Result<()> = async {
+                match command {
+                    ApprovalCommands::List {
+                        status,
+                        session,
+                        json,
+                    } => {
+                        let page = client
+                            .list_approvals(Some(&status), session.as_deref())
+                            .await?;
+                        if json {
+                            print_json(&page)?;
+                        } else if page.approvals.is_empty() {
+                            println!("No matching approvals.");
+                        } else {
+                            for approval in &page.approvals {
+                                print_human(approval);
+                            }
+                        }
+                    }
+                    ApprovalCommands::Decide {
+                        request_id,
+                        version,
+                        decision,
+                        json,
+                    } => {
+                        let mut approval = client.get_approval(&request_id).await?;
+                        if approval.version != version {
+                            anyhow::bail!("approval_version_conflict");
+                        }
+                        let choice = ApprovalChoice::parse(&decision)?;
+                        approval = apply_choice(&client, &approval, choice).await?;
+                        if json {
+                            print_json(&approval)?;
+                        } else {
+                            print_human(&approval);
+                        }
+                    }
+                    ApprovalCommands::Cancel {
+                        request_id,
+                        version,
+                        json,
+                    } => {
+                        let approval = client.get_approval(&request_id).await?;
+                        if approval.version != version {
+                            anyhow::bail!("approval_version_conflict");
+                        }
+                        let approval =
+                            apply_choice(&client, &approval, ApprovalChoice::Cancel).await?;
+                        if json {
+                            print_json(&approval)?;
+                        } else {
+                            print_human(&approval);
+                        }
+                    }
+                    ApprovalCommands::Review { session } => {
+                        let resolved = review_pending(&client, session.as_deref()).await?;
+                        println!("Resolved {} approval(s).", resolved.len());
+                    }
+                }
+                Ok(())
+            }
+            .await;
+            if let Err(error) = outcome {
+                if json_error {
+                    print_json(&ApprovalCliResult {
+                        ok: false,
+                        reason_code: Some(error.to_string()),
+                        approval: None,
+                    })?;
+                }
+                return Err(error);
             }
         }
         Commands::Tui { model, session } => {
@@ -1376,6 +1538,7 @@ async fn run_status(runtime: &CliRuntime, json: bool) -> Result<()> {
 
 fn is_structured_output(command: &Commands) -> bool {
     match command {
+        Commands::Agent { json, .. } => *json,
         Commands::Status(args) => args.json,
         Commands::Channels {
             command: ChannelCommands::Status(args),
@@ -1392,6 +1555,12 @@ fn is_structured_output(command: &Commands) -> bool {
             | ConfigCommands::Doctor(args) => args.json,
             ConfigCommands::Show { format } => matches!(format, ConfigOutputFormat::Json),
             _ => false,
+        },
+        Commands::Approvals { command } => match command {
+            ApprovalCommands::List { json, .. }
+            | ApprovalCommands::Decide { json, .. }
+            | ApprovalCommands::Cancel { json, .. } => *json,
+            ApprovalCommands::Review { .. } => false,
         },
         _ => false,
     }
@@ -2109,6 +2278,8 @@ mod tests {
             no_markdown: false,
             logs: false,
             no_logs: false,
+            approval_mode: HeadlessApprovalMode::Fail,
+            json: false,
         };
 
         assert!(!command_writes_logs_to_terminal(&command));

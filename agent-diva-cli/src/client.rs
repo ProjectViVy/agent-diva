@@ -1,3 +1,4 @@
+use crate::approval_commands::{ApprovalListPage, ApprovalView, APPROVAL_QUEUE_UNAVAILABLE};
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
 use anyhow::Result;
@@ -41,6 +42,102 @@ impl ApiClient {
             client: Client::new(),
             base_url: base_url.unwrap_or_else(|| "http://localhost:3000/api".to_string()),
         }
+    }
+
+    pub async fn list_approvals(
+        &self,
+        status: Option<&str>,
+        session: Option<&str>,
+    ) -> Result<ApprovalListPage> {
+        let url = format!("{}/approvals", self.base_url);
+        let mut approvals = Vec::new();
+        let mut cursor: Option<String> = None;
+        for _ in 0..10 {
+            let mut request = self.client.get(&url).query(&[("limit", "100")]);
+            if let Some(status) = status {
+                request = request.query(&[("status", status)]);
+            }
+            if let Some(session) = session {
+                request = request.query(&[("session", session)]);
+            }
+            if let Some(cursor) = &cursor {
+                request = request.query(&[("cursor", cursor)]);
+            }
+            let response = request
+                .send()
+                .await
+                .map_err(|_| anyhow::anyhow!(APPROVAL_QUEUE_UNAVAILABLE))?;
+            let page: ApprovalListPage = parse_response(response).await?;
+            approvals.extend(page.approvals);
+            let Some(next) = page.next_cursor else {
+                return Ok(ApprovalListPage {
+                    approvals,
+                    next_cursor: None,
+                });
+            };
+            cursor = Some(next);
+        }
+        Ok(ApprovalListPage {
+            approvals,
+            next_cursor: cursor,
+        })
+    }
+
+    pub async fn get_approval(&self, request_id: &str) -> Result<ApprovalView> {
+        let url = format!("{}/approvals/{request_id}", self.base_url);
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!(APPROVAL_QUEUE_UNAVAILABLE))?;
+        parse_response(response).await
+    }
+
+    pub async fn decide_approval(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        decision: &str,
+        grant: &str,
+    ) -> Result<ApprovalView> {
+        let url = format!("{}/approvals/{request_id}/decisions", self.base_url);
+        parse_response(
+            self.client
+                .post(url)
+                .json(&serde_json::json!({
+                    "expected_version": expected_version,
+                    "idempotency_key": idempotency_key,
+                    "decision": decision,
+                    "grant": grant,
+                }))
+                .send()
+                .await
+                .map_err(|_| anyhow::anyhow!(APPROVAL_QUEUE_UNAVAILABLE))?,
+        )
+        .await
+    }
+
+    pub async fn cancel_approval(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+    ) -> Result<ApprovalView> {
+        let url = format!("{}/approvals/{request_id}/cancel", self.base_url);
+        parse_response(
+            self.client
+                .post(url)
+                .json(&serde_json::json!({
+                    "expected_version": expected_version,
+                    "idempotency_key": idempotency_key,
+                }))
+                .send()
+                .await
+                .map_err(|_| anyhow::anyhow!(APPROVAL_QUEUE_UNAVAILABLE))?,
+        )
+        .await
     }
 
     pub async fn chat_with_target(
@@ -154,4 +251,20 @@ impl ApiClient {
             .and_then(|v| v.as_bool())
             .unwrap_or(true))
     }
+}
+
+async fn parse_response<T: serde::de::DeserializeOwned>(response: reqwest::Response) -> Result<T> {
+    let status = response.status();
+    let bytes = response.bytes().await?;
+    if !status.is_success() {
+        if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
+            let reason = value
+                .get("reason_code")
+                .and_then(Value::as_str)
+                .unwrap_or("approval_request_failed");
+            anyhow::bail!("{reason}");
+        }
+        anyhow::bail!("Server returned error: {status}");
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }

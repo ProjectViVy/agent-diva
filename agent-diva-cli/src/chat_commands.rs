@@ -1,3 +1,6 @@
+use crate::approval_commands::{
+    print_human, ApprovalCliResult, APPROVAL_QUEUE_UNAVAILABLE, APPROVAL_REQUIRED_NONINTERACTIVE,
+};
 use crate::cli_runtime::{
     build_provider, ensure_workspace_templates, session_channel_and_chat_id, CliRuntime,
 };
@@ -16,11 +19,14 @@ use agent_diva_agent::{
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::governance::{ApprovalCoordinator, SqliteGovernanceLedger};
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
 use dialoguer::Input;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -71,6 +77,7 @@ async fn build_local_cli_agent(
     runtime: &CliRuntime,
     model: Option<String>,
     with_runtime_control: bool,
+    command_approvals: Option<agent_diva_sandbox::CommandApprovalCoordinator>,
 ) -> Result<(
     Config,
     String,
@@ -91,7 +98,7 @@ async fn build_local_cli_agent(
         planning,
         exec_timeout: config.tools.exec.timeout,
         global_timeout_secs: 120,
-        command_approvals: None,
+        command_approvals,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
@@ -221,23 +228,103 @@ async fn run_local_agent_turn(
     Ok(())
 }
 
+pub struct AgentRunOptions {
+    pub model: Option<String>,
+    pub session: Option<String>,
+    pub markdown: bool,
+    pub logs: bool,
+    pub queue: bool,
+    pub json: bool,
+}
+
 pub async fn run_agent(
     runtime: &CliRuntime,
     message: &str,
-    model: Option<String>,
-    session: Option<String>,
-    markdown: bool,
-    logs: bool,
+    options: AgentRunOptions,
 ) -> Result<()> {
+    if options.queue {
+        emit_headless_error(APPROVAL_QUEUE_UNAVAILABLE, options.json)?;
+        anyhow::bail!(APPROVAL_QUEUE_UNAVAILABLE);
+    }
+    let config = runtime.load_config()?;
+    let workspace = runtime.effective_workspace(&config);
+    let governance_dir = workspace.join(".laputa");
+    std::fs::create_dir_all(&governance_dir)?;
+    let governance_pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(governance_dir.join("governance.db"))
+                .create_if_missing(true),
+        )
+        .await?;
+    let governance = ApprovalCoordinator::new(Arc::new(
+        SqliteGovernanceLedger::new(governance_pool).await?,
+    ));
+    let rules = Arc::new(agent_diva_sandbox::CommandRuleStore::open(
+        runtime.config_dir().join("execpolicy.toml"),
+    )?);
+    let coordinator = agent_diva_sandbox::CommandApprovalCoordinator::default()
+        .with_command_rules(rules)
+        .governed(
+            governance,
+            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace),
+        );
+    let mut requests = coordinator.subscribe();
+    let saw_approval = Arc::new(AtomicBool::new(false));
+    let saw_approval_task = saw_approval.clone();
+    let resolver = coordinator.clone();
+    let rejection_task = tokio::spawn(async move {
+        while let Ok(request) = requests.recv().await {
+            saw_approval_task.store(true, Ordering::SeqCst);
+            let _ = resolver
+                .resolve(
+                    &request.approval_id,
+                    agent_diva_sandbox::ApprovalDecision::Reject,
+                )
+                .await;
+        }
+    });
     let (_config, _selected_model, mut agent, _runtime_control_tx) =
-        build_local_cli_agent(runtime, model, false).await?;
+        build_local_cli_agent(runtime, options.model, false, Some(coordinator)).await?;
 
-    let session_key = session.unwrap_or_else(|| "cli:direct".to_string());
+    let session_key = options.session.unwrap_or_else(|| "cli:direct".to_string());
 
-    if logs {
+    if options.logs {
         println!("{}", style("Processing...").cyan());
     }
-    run_local_agent_turn(&mut agent, message, &session_key, markdown, logs, true).await
+    let result = run_local_agent_turn(
+        &mut agent,
+        message,
+        &session_key,
+        options.markdown,
+        options.logs,
+        true,
+    )
+    .await;
+    rejection_task.abort();
+    result?;
+    if saw_approval.load(Ordering::SeqCst) {
+        emit_headless_error(APPROVAL_REQUIRED_NONINTERACTIVE, options.json)?;
+        anyhow::bail!(APPROVAL_REQUIRED_NONINTERACTIVE);
+    }
+    Ok(())
+}
+
+fn emit_headless_error(reason_code: &str, json: bool) -> Result<()> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string(&ApprovalCliResult {
+                ok: false,
+                reason_code: Some(reason_code.to_string()),
+                approval: None,
+            })?
+        );
+    } else {
+        eprintln!("{reason_code}");
+    }
+    Ok(())
 }
 
 async fn run_remote_agent_turn(
@@ -326,6 +413,119 @@ pub async fn run_agent_remote(
     run_remote_agent_turn(&client, message, &session_key, markdown, logs, true).await
 }
 
+pub async fn run_agent_remote_governed(
+    message: &str,
+    session: Option<String>,
+    markdown: bool,
+    logs: bool,
+    api_url: Option<String>,
+    queue: bool,
+    json: bool,
+) -> Result<()> {
+    let client = ApiClient::new(api_url);
+    let session_key = session.unwrap_or_else(|| "cli:direct:remote".to_string());
+    let baseline_page = match client
+        .list_approvals(Some("pending"), Some(&session_key))
+        .await
+    {
+        Ok(page) => page,
+        Err(_) => {
+            let reason = if queue {
+                APPROVAL_QUEUE_UNAVAILABLE
+            } else {
+                APPROVAL_REQUIRED_NONINTERACTIVE
+            };
+            emit_headless_error(reason, json)?;
+            anyhow::bail!(reason);
+        }
+    };
+    let baseline = baseline_page
+        .approvals
+        .into_iter()
+        .map(|approval| approval.request_id)
+        .collect::<std::collections::HashSet<_>>();
+    let (channel, chat_id) = session_channel_and_chat_id(&session_key);
+    let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AgentEvent>();
+    let mut chat = std::pin::pin!(client.chat_with_target(
+        message.to_string(),
+        Some(channel),
+        Some(chat_id),
+        event_tx,
+    ));
+    let mut poll = tokio::time::interval(std::time::Duration::from_millis(100));
+    let mut final_response = String::new();
+    loop {
+        tokio::select! {
+            result = &mut chat => {
+                result?;
+                if !final_response.is_empty() {
+                    render_assistant_response(&final_response, markdown, true);
+                }
+                return Ok(());
+            }
+            _ = poll.tick() => {
+                let pending = match client
+                    .list_approvals(Some("pending"), Some(&session_key))
+                    .await
+                {
+                    Ok(page) => page,
+                    Err(_) => {
+                        let reason = if queue {
+                            APPROVAL_QUEUE_UNAVAILABLE
+                        } else {
+                            APPROVAL_REQUIRED_NONINTERACTIVE
+                        };
+                        emit_headless_error(reason, json)?;
+                        anyhow::bail!(reason);
+                    }
+                };
+                if let Some(approval) = pending.approvals.into_iter()
+                    .find(|approval| !baseline.contains(&approval.request_id))
+                {
+                    if queue {
+                        if approval.domain == "command" {
+                            let key = format!("cli-queue-cancel-{}-v{}", approval.request_id, approval.version);
+                            let _ = client.cancel_approval(&approval.request_id, approval.version, &key).await;
+                            emit_headless_error(APPROVAL_QUEUE_UNAVAILABLE, json)?;
+                            anyhow::bail!(APPROVAL_QUEUE_UNAVAILABLE);
+                        }
+                        if json {
+                            println!("{}", serde_json::to_string(&ApprovalCliResult {
+                                ok: false,
+                                reason_code: Some(APPROVAL_REQUIRED_NONINTERACTIVE.to_string()),
+                                approval: Some(approval),
+                            })?);
+                        } else {
+                            println!("Approval queued; execution has not succeeded.");
+                            print_human(&approval);
+                            println!("status: agent-diva approvals list --session {}", session_key);
+                        }
+                        anyhow::bail!(APPROVAL_REQUIRED_NONINTERACTIVE);
+                    }
+                    let key = format!("cli-headless-cancel-{}-v{}", approval.request_id, approval.version);
+                    let _ = client.cancel_approval(&approval.request_id, approval.version, &key).await;
+                    emit_headless_error(APPROVAL_REQUIRED_NONINTERACTIVE, json)?;
+                    anyhow::bail!(APPROVAL_REQUIRED_NONINTERACTIVE);
+                }
+            }
+            event = event_rx.recv() => {
+                match event {
+                    Some(AgentEvent::AssistantDelta { text }) => {
+                        if logs { print!("{text}"); }
+                        final_response.push_str(&text);
+                    }
+                    Some(AgentEvent::FinalResponse { content }) if final_response.is_empty() => {
+                        final_response = content;
+                    }
+                    Some(AgentEvent::Error { message }) => anyhow::bail!(message),
+                    Some(_) => {}
+                    None => {}
+                }
+            }
+        }
+    }
+}
+
 pub async fn run_chat(
     runtime: &CliRuntime,
     model: Option<String>,
@@ -334,7 +534,7 @@ pub async fn run_chat(
     logs: bool,
 ) -> Result<()> {
     let (config, selected_model, mut agent, runtime_control_tx) =
-        build_local_cli_agent(runtime, model, true).await?;
+        build_local_cli_agent(runtime, model, true, None).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
 
     // Initialize mask registry from workspace/masks/
@@ -583,4 +783,145 @@ pub async fn run_chat_remote(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod approval_mode_tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn pending(domain: &str) -> serde_json::Value {
+        serde_json::json!({
+            "request_id": format!("{domain}-queued"),
+            "version": 1,
+            "domain": domain,
+            "capability": match domain {
+                "command" => "command_execute",
+                "plan" => "plan_execute",
+                _ => "memory_apply"
+            },
+            "resource": {
+                "workspace_id": "workspace",
+                "session_id": "cli:queued",
+                "kind": domain,
+                "resource_id": format!("{domain}-resource"),
+                "boundary": null
+            },
+            "risk": "high",
+            "status": "pending",
+            "expires_at": "2026-08-03T12:05:00Z",
+            "evidence": [{"kind":"test","reference":"fixture"}],
+            "actions": ["allow", "deny", "cancel"],
+            "presentation": {"title": format!("{domain} approval")},
+            "reason_code": null
+        })
+    }
+
+    async fn mount_queued_turn(server: &MockServer, approval: serde_json::Value) {
+        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let response_reads = reads.clone();
+        Mock::given(method("GET"))
+            .and(path("/api/approvals"))
+            .respond_with(move |_request: &wiremock::Request| {
+                let approvals = if response_reads.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Vec::new()
+                } else {
+                    vec![approval.clone()]
+                };
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "approvals": approvals, "next_cursor": null
+                }))
+            })
+            .mount(server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/chat"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_delay(std::time::Duration::from_secs(2))
+                    .set_body_string("event: final\ndata: done\n\n"),
+            )
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn explicit_queue_returns_plan_pending_without_waiting_for_completion() {
+        let server = MockServer::start().await;
+        mount_queued_turn(&server, pending("plan")).await;
+        let result = run_agent_remote_governed(
+            "prepare plan",
+            Some("cli:queued".into()),
+            false,
+            false,
+            Some(format!("{}/api", server.uri())),
+            true,
+            false,
+        )
+        .await;
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains(APPROVAL_REQUIRED_NONINTERACTIVE));
+    }
+
+    #[tokio::test]
+    async fn default_headless_cancels_high_risk_memory_pending() {
+        let server = MockServer::start().await;
+        let approval = pending("memory");
+        mount_queued_turn(&server, approval.clone()).await;
+        Mock::given(method("POST"))
+            .and(path("/api/approvals/memory-queued/cancel"))
+            .respond_with(ResponseTemplate::new(200).set_body_json({
+                let mut value = approval;
+                value["status"] = "revoked".into();
+                value
+            }))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let error = run_agent_remote_governed(
+            "apply memory",
+            Some("cli:queued".into()),
+            false,
+            false,
+            Some(format!("{}/api", server.uri())),
+            false,
+            false,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains(APPROVAL_REQUIRED_NONINTERACTIVE));
+    }
+
+    #[tokio::test]
+    async fn explicit_queue_rejects_command_because_raw_payload_is_not_durable() {
+        let server = MockServer::start().await;
+        let approval = pending("command");
+        mount_queued_turn(&server, approval.clone()).await;
+        Mock::given(method("POST"))
+            .and(path("/api/approvals/command-queued/cancel"))
+            .respond_with(ResponseTemplate::new(200).set_body_json({
+                let mut value = approval;
+                value["status"] = "revoked".into();
+                value
+            }))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let error = run_agent_remote_governed(
+            "run shell",
+            Some("cli:queued".into()),
+            false,
+            false,
+            Some(format!("{}/api", server.uri())),
+            true,
+            false,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains(APPROVAL_QUEUE_UNAVAILABLE));
+    }
 }

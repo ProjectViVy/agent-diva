@@ -128,9 +128,11 @@ standing policy（非功能债，执行相关验证时遵守）：
   全局 pending badge/抽屉与 Chat 就地卡统一消费 Manager projection；支持三域筛选、
   风险/证据/diff/TTL、Command grant、Memory 源页面编辑/应用导航、事件去重、stale
   刷新和 outcome-unknown 禁止重发，并以文字状态、焦点圈与 44px 控件满足键盘边界。
-- [ ] **GMH-33：CLI/headless 行为** `sev-P2`
-  交互可批；非交互 fail/queue，绝不默认放行。Gate G3：shell / Memory 高风险 /
-  Plan 各一条 E2E。
+- [x] **GMH-33：CLI/headless 行为** `sev-P2`
+  `approvals review/list/decide/cancel` 统一消费 Manager projection，批量交互必须显式
+  选择；`agent` 默认 fail-closed，只有 `--approval-mode queue` 且 Manager 可用时才返回
+  可查询的 Plan/Memory Pending，Command queue 因原文不持久化而撤销并返回稳定失败码。
+  shell / Memory 高风险 / Plan、JSON/exit code 与 unavailable 路径均有自动化覆盖。
 - [x] **GMH-40：Agent Loop 单一副作用 seam** `sev-P1`
   组装/pre-call/执行同一治理快照；turn 分段可取消可度量；子代理/cron 禁止提权。
 - [ ] **GMH-41：自治预算与熔断** `sev-P2`
@@ -152,8 +154,8 @@ standing policy（非功能债，执行相关验证时遵守）：
   - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
     Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
     行为、自动化/人工验收和四个阶段停点。权威入口：
-    `docs/dev/governance-m3-goal/README.md`。GMH-30/31/32 已完成，继续执行 GMH-33；
-    人工 smoke 仍统一延后到最终 M3 门禁。
+    `docs/dev/governance-m3-goal/README.md`。GMH-30/31/32/33 已完成，进入最终 M3
+    自动化审计；人工 smoke 仍统一延后到最终候选完成后一次执行。
 - [ ] **M4** Agent Loop 接入（GMH-40..42）
 - [ ] **M5** 灰度发布（GMH-50..53）
 

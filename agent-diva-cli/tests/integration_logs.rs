@@ -62,10 +62,11 @@ fn test_integration_logs() {
     // If we find this string NOT in JSON format, fail.
 
     for line in stdout.lines() {
-        if line.contains("Processing message from") && line.contains("(model:") {
-            if !line.trim().starts_with("{") {
-                panic!("Found naked println!: {}", line);
-            }
+        if line.contains("Processing message from")
+            && line.contains("(model:")
+            && !line.trim().starts_with('{')
+        {
+            panic!("Found naked println!: {}", line);
         }
     }
 }
