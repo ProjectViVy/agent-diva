@@ -1162,37 +1162,34 @@ mod tests {
 
         tokio::spawn(async move {
             while let Some(cmd) = api_rx.recv().await {
-                match cmd {
-                    ManagerCommand::GetSessions(tx) => {
-                        let sessions = vec![
-                            SessionInfo {
-                                key: "gui:with-title".to_string(),
-                                created_at: None,
-                                updated_at: None,
-                                path: "/tmp/a.json".to_string(),
-                                title: Some("Test Session".to_string()),
-                                last_message: Some("Latest reply".to_string()),
-                                message_count: 2,
-                                title_generated: true,
-                                title_manually_set: false,
-                                pinned: false,
-                            },
-                            SessionInfo {
-                                key: "gui:no-title".to_string(),
-                                created_at: None,
-                                updated_at: None,
-                                path: "/tmp/b.json".to_string(),
-                                title: None,
-                                last_message: None,
-                                message_count: 0,
-                                title_generated: false,
-                                title_manually_set: false,
-                                pinned: false,
-                            },
-                        ];
-                        let _ = tx.send(Ok(sessions));
-                    }
-                    _ => {}
+                if let ManagerCommand::GetSessions(tx) = cmd {
+                    let sessions = vec![
+                        SessionInfo {
+                            key: "gui:with-title".to_string(),
+                            created_at: None,
+                            updated_at: None,
+                            path: "/tmp/a.json".to_string(),
+                            title: Some("Test Session".to_string()),
+                            last_message: Some("Latest reply".to_string()),
+                            message_count: 2,
+                            title_generated: true,
+                            title_manually_set: false,
+                            pinned: false,
+                        },
+                        SessionInfo {
+                            key: "gui:no-title".to_string(),
+                            created_at: None,
+                            updated_at: None,
+                            path: "/tmp/b.json".to_string(),
+                            title: None,
+                            last_message: None,
+                            message_count: 0,
+                            title_generated: false,
+                            title_manually_set: false,
+                            pinned: false,
+                        },
+                    ];
+                    let _ = tx.send(Ok(sessions));
                 }
             }
         });
@@ -1217,23 +1214,20 @@ mod tests {
 
         tokio::spawn(async move {
             while let Some(cmd) = api_rx.recv().await {
-                match cmd {
-                    ManagerCommand::GetSessionHistory(key, tx) => {
-                        assert_eq!(key, "gui:test-id");
-                        let session = Session {
-                            key: key.clone(),
-                            messages: vec![ChatMessage::new("user", "Hello")],
-                            created_at: Utc::now(),
-                            updated_at: Utc::now(),
-                            metadata: serde_json::Value::Object(serde_json::Map::new()),
-                            title: Some("History Title".to_string()),
-                            last_consolidated: 0,
-                            last_compacted: 0,
-                            compaction_history: Vec::new(),
-                        };
-                        let _ = tx.send(Ok(Some(session)));
-                    }
-                    _ => {}
+                if let ManagerCommand::GetSessionHistory(key, tx) = cmd {
+                    assert_eq!(key, "gui:test-id");
+                    let session = Session {
+                        key: key.clone(),
+                        messages: vec![ChatMessage::new("user", "Hello")],
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                        metadata: serde_json::Value::Object(serde_json::Map::new()),
+                        title: Some("History Title".to_string()),
+                        last_consolidated: 0,
+                        last_compacted: 0,
+                        compaction_history: Vec::new(),
+                    };
+                    let _ = tx.send(Ok(Some(session)));
                 }
             }
         });

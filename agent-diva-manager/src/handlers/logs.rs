@@ -406,12 +406,9 @@ mod tests {
     #[tokio::test]
     async fn logs_filter_by_range() {
         let temp = tempfile::tempdir().unwrap();
+        let audit_dir = temp.path().join("range-only-audit");
         // Write an event with a very old timestamp
-        let audit_file = temp
-            .path()
-            .join(".agent-diva")
-            .join("audit")
-            .join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
+        let audit_file = audit_dir.join(format!("audit-{}.jsonl", Utc::now().format("%Y-%m-%d")));
         std::fs::create_dir_all(audit_file.parent().unwrap()).unwrap();
         std::fs::write(
             &audit_file,
@@ -420,24 +417,12 @@ mod tests {
         )
         .unwrap();
 
-        let app = test_app_with_dir(temp.path());
+        let (events, next_cursor, stats) =
+            scan_audit_files(&audit_dir, None, Utc::now() - Duration::hours(1), 100, None).unwrap();
 
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/api/logs?range=1h")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        // Old event should be filtered out by the 1h range
-        assert!(value["events"].as_array().unwrap().is_empty());
+        assert!(events.is_empty(), "old events must be outside the 1h range");
+        assert!(next_cursor.is_none());
+        assert_eq!(stats, ScanStats::default());
     }
 
     #[tokio::test]
@@ -488,7 +473,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(&format!("/api/logs?limit=1&cursor={}", cursor))
+                    .uri(format!("/api/logs?limit=1&cursor={}", cursor))
                     .body(axum::body::Body::empty())
                     .unwrap(),
             )

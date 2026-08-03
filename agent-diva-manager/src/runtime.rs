@@ -722,6 +722,8 @@ fn build_cron_callback_with_clock(
     )
 }
 
+// Runtime tests stay beside the composition code while private builders remain below.
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
     use super::*;

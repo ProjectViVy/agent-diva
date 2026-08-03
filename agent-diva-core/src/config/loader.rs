@@ -1009,6 +1009,8 @@ mod tests {
         assert!(missing.is_none(), "mtime should be None for missing file");
     }
 
+    // Environment mutation must remain serialized until the spawned reload work stops.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn test_hot_reload_detects_changes() {
         let _lock = lock_env();
@@ -1049,6 +1051,8 @@ mod tests {
         assert_eq!(diff.hot_reload[0].field, "agents.defaults.model");
     }
 
+    // Environment mutation must remain serialized until the spawned reload work stops.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn test_hot_reload_handle_can_be_aborted() {
         let _lock = lock_env();
@@ -1160,6 +1164,8 @@ mod tests {
             .any(|c| c.field == "gateway.port"));
     }
 
+    // Environment mutation must remain serialized while the callback task is observed.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn test_hot_reload_callback_invoked_on_change() {
         let _lock = lock_env();
@@ -1195,6 +1201,8 @@ mod tests {
         assert!(rx.try_recv().is_err());
     }
 
+    // Environment mutation must remain serialized across the reload timing boundary.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn test_invalid_config_graceful_on_reload() {
         let _lock = lock_env();

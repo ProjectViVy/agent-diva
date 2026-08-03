@@ -971,6 +971,8 @@ fn typed_store_error_response(
     error_response(status, code, error.to_string())
 }
 
+// Recovery fixtures stay adjacent to the handler they exercise.
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod recovery_tests {
     use super::*;

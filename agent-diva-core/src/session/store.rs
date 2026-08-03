@@ -453,6 +453,8 @@ mod compaction_compat {
     }
 }
 
+// Compatibility helpers intentionally follow the tests to keep the public model first.
+#[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -517,7 +517,7 @@ mod tests {
 
         // Save the session
         manager
-            .save_with_hook(&manager.cache.get(&key).unwrap(), |temp_path| {
+            .save_with_hook(manager.cache.get(&key).unwrap(), |temp_path| {
                 assert_eq!(
                     temp_path.parent(),
                     Some(temp_dir.path().join("sessions").as_path())
@@ -545,14 +545,14 @@ mod tests {
         let key = session.key.clone();
 
         // Save it so it exists on disk
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Archive it
         let archived = manager.archive_and_reset(&key).unwrap();
         assert!(archived);
 
         // Check it's removed from cache
-        assert!(manager.cache.get(&key).is_none());
+        assert!(!manager.cache.contains_key(&key));
 
         // Get or create should now be empty
         let new_session = manager.get_or_create("archive:789");
@@ -584,7 +584,7 @@ mod tests {
         let session = manager.get_or_create("gui:chat-1");
         session.add_message("user", "Hello");
         let key = session.key.clone();
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Session is in cache; get_or_load should return it
         let loaded = manager.get_or_load("gui:chat-1");
@@ -602,7 +602,7 @@ mod tests {
         let session = manager.get_or_create("gui:chat-2");
         session.add_message("user", "From disk");
         let key = session.key.clone();
-        manager.save(&manager.cache.get(&key).unwrap()).unwrap();
+        manager.save(manager.cache.get(&key).unwrap()).unwrap();
 
         // Clear cache to simulate "not loaded this run"
         manager.cache.clear();

@@ -1,0 +1,26 @@
+{
+  "request": {
+    "approval_id": "approval-fixture",
+    "command": "echo fixture",
+    "cwd": ".",
+    "reason": "sandbox denied",
+    "scope": {
+      "channel": "fixture",
+      "chat_id": "chat",
+      "session_key": "fixture:chat"
+    },
+    "created_at": "2026-08-03T00:00:00Z",
+    "timeout_seconds": 300
+  },
+  "resolve_body": {
+    "decision": "approve_once"
+  },
+  "resolve_response": {
+    "approval_id": "approval-fixture",
+    "decision": "approve_once",
+    "status": "approved"
+  },
+  "list_envelope_field": "requests",
+  "error_envelope_field": "error",
+  "requested_event_name": "command_approval_requested"
+}

@@ -258,7 +258,7 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["status"], "ok");
-        assert!(value["todo"]["id"].as_str().unwrap().len() > 0);
+        assert!(!value["todo"]["id"].as_str().unwrap().is_empty());
         assert_eq!(value["todo"]["title"], "Test todo");
         assert_eq!(value["todo"]["status"], "pending");
     }

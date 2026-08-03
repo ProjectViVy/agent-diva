@@ -347,7 +347,7 @@ mod tests {
 
     impl AuditClock for FakeClock {
         fn now_utc(&self) -> DateTime<Utc> {
-            self.utc_now.lock().unwrap().clone()
+            *self.utc_now.lock().unwrap()
         }
 
         fn today_local(&self) -> NaiveDate {

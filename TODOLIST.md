@@ -157,19 +157,19 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
-- [ ] **CORE-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
+- [x] **CORE-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
   `cargo clippy -p agent-diva-core --all-targets -- -D warnings` exposes 19
   pre-existing test-target findings across supervised/config/session/audit and
   related modules. The production library target and official `just check`
   pass; repair these warnings in a separate compatibility slice.
 
-- [ ] **MANAGER-LOG-RANGE-FULL-SUITE-FLAKE: isolate shared log state** `sev-P2`
+- [x] **MANAGER-LOG-RANGE-FULL-SUITE-FLAKE: isolate shared log state** `sev-P2`
   The first 2026-08-03 `just test` run failed
   `handlers::logs::tests::logs_filter_by_range` because an unexpected event
   entered the selected range; the focused rerun passed. Isolate its log source
   or clock/range fixture so workspace parallelism cannot contaminate it.
 
-- [ ] **MANAGER-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
+- [x] **MANAGER-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
   `cargo clippy -p agent-diva-manager --all-targets -- -D warnings` exposes six
   pre-existing test-target findings (`items_after_test_module`, needless borrow,
   `len_zero`, and two `single_match` cases). Production `cargo check` and the

@@ -250,7 +250,6 @@ mod tests {
                 );
             }
             drop(outside_dir);
-            return;
         }
 
         #[cfg(unix)]

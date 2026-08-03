@@ -232,6 +232,33 @@ mod tests {
     use tokio::sync::mpsc;
     use tower::ServiceExt;
 
+    #[test]
+    fn current_wire_fixture_remains_compatible() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/command_approval_contract_v0.json"
+        ))
+        .unwrap();
+        let request: agent_diva_sandbox::CommandApprovalRequest =
+            serde_json::from_value(fixture["request"].clone()).unwrap();
+        let decision: ResolveApprovalBody =
+            serde_json::from_value(fixture["resolve_body"].clone()).unwrap();
+        let response: agent_diva_sandbox::ResolveApprovalResponse =
+            serde_json::from_value(fixture["resolve_response"].clone()).unwrap();
+
+        assert_eq!(serde_json::to_value(request).unwrap(), fixture["request"]);
+        assert_eq!(decision.decision, ApprovalDecision::ApproveOnce);
+        assert_eq!(
+            serde_json::to_value(response).unwrap(),
+            fixture["resolve_response"]
+        );
+        assert_eq!(fixture["list_envelope_field"], "requests");
+        assert_eq!(fixture["error_envelope_field"], "error");
+        assert_eq!(
+            fixture["requested_event_name"],
+            "command_approval_requested"
+        );
+    }
+
     fn state() -> AppState {
         let (api_tx, _api_rx) = mpsc::channel(1);
         AppState::new(

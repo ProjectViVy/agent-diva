@@ -1266,7 +1266,7 @@ mod tests {
     async fn test_supervised_heartbeat() {
         let (_dir, store) = setup().await;
         let spec = sample_spec("heartbeat test");
-        let created = store.create(&spec).await.expect("create");
+        store.create(&spec).await.expect("create");
         let claimed = store
             .claim_next_supervised("worker-1")
             .await
@@ -1325,7 +1325,7 @@ mod tests {
     async fn test_supervised_complete() {
         let (_dir, store) = setup().await;
         let spec = sample_spec("complete test");
-        let created = store.create(&spec).await.expect("create");
+        store.create(&spec).await.expect("create");
         let claimed = store
             .claim_next_supervised("worker-1")
             .await
@@ -1371,7 +1371,7 @@ mod tests {
     async fn test_supervised_fail() {
         let (_dir, store) = setup().await;
         let spec = sample_spec("fail test");
-        let created = store.create(&spec).await.expect("create");
+        store.create(&spec).await.expect("create");
         let claimed = store
             .claim_next_supervised("worker-1")
             .await
@@ -1497,7 +1497,7 @@ mod tests {
     async fn test_supervised_mark_lost() {
         let (_dir, store) = setup().await;
         let spec = sample_spec("stale test");
-        let created = store.create(&spec).await.expect("create");
+        store.create(&spec).await.expect("create");
         let claimed = store
             .claim_next_supervised("worker-1")
             .await
@@ -1546,7 +1546,7 @@ mod tests {
     async fn test_supervised_requeue() {
         let (_dir, store) = setup().await;
         let spec = sample_spec("requeue test");
-        let created = store.create(&spec).await.expect("create");
+        store.create(&spec).await.expect("create");
         let claimed = store
             .claim_next_supervised("worker-1")
             .await

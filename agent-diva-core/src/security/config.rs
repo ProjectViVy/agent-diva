@@ -341,8 +341,10 @@ mod tests {
 
     #[test]
     fn test_global_tool_timeout_zero_rejected() {
-        let mut config = SecurityConfig::default();
-        config.global_tool_timeout_secs = 0;
+        let config = SecurityConfig {
+            global_tool_timeout_secs: 0,
+            ..SecurityConfig::default()
+        };
         let err = config.validate().unwrap_err();
         assert!(err.contains("global_tool_timeout_secs"));
     }
