@@ -17,6 +17,12 @@ start:
 diva-gate:
     cargo run --package agent-diva-cli -- gateway run
 
+# Windows: open two new PowerShell windows for local full-stack dev
+#   window 1 -> just diva-gate  (backend gateway)
+#   window 2 -> pnpm tauri dev  (GUI under agent-diva-gui)
+make-diva:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/make-diva.ps1
+
 # Build all crates
 build:
     cargo build --all
