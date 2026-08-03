@@ -27,6 +27,7 @@ import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/deskt
 import type { PlanRuntimeState } from '../api/planning';
 import type { ApprovalDecision, CommandApprovalRequest } from '../api/desktop';
 import type { ToolsConfigShape } from '../types/toolsConfig';
+import type { ApprovalGrant, ApprovalView } from '../api/approvals';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
@@ -122,6 +123,11 @@ interface Props {
   commandApprovals?: CommandApprovalRequest[];
   resolvingApprovalIds?: string[];
   commandApprovalErrors?: Record<string, string>;
+  unifiedApprovals?: ApprovalView[];
+  unifiedApprovalDetails?: Record<string, ApprovalView>;
+  unifiedSubmittingIds?: string[];
+  unifiedOutcomeUnknownIds?: string[];
+  unifiedActionErrors?: Record<string, string>;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -159,6 +165,10 @@ const emit = defineEmits<{
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
   (e: 'resolve-command-approval', payload: { approval_id: string; decision: ApprovalDecision }): void;
+  (e: 'decide-unified-approval', payload: { approval: ApprovalView; decision: 'allow' | 'deny'; grant: ApprovalGrant }): void;
+  (e: 'cancel-unified-approval', approval: ApprovalView): void;
+  (e: 'refresh-unified-approval', requestId: string): void;
+  (e: 'edit-unified-approval', approval: ApprovalView): void;
 }>();
 
 type SidebarSection =
@@ -597,6 +607,9 @@ defineExpose({
   },
   openConsole() {
     navigateTo('console');
+  },
+  openEvolutionProposal(proposalId: string) {
+    openEvolutionDeepLink({ tab: 'inbox', proposalId });
   },
 });
 </script>
@@ -1097,6 +1110,11 @@ defineExpose({
               :command-approvals="commandApprovals"
               :resolving-approval-ids="resolvingApprovalIds"
               :command-approval-errors="commandApprovalErrors"
+              :unified-approvals="unifiedApprovals"
+              :unified-approval-details="unifiedApprovalDetails"
+              :unified-submitting-ids="unifiedSubmittingIds"
+              :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
+              :unified-action-errors="unifiedActionErrors"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"
@@ -1108,6 +1126,10 @@ defineExpose({
               @select-session="(key) => emit('load-session', key)"
               @delete-session="(key) => emit('delete-session', key)"
               @resolve-command-approval="emit('resolve-command-approval', $event)"
+              @decide-unified-approval="emit('decide-unified-approval', $event)"
+              @cancel-unified-approval="emit('cancel-unified-approval', $event)"
+              @refresh-unified-approval="emit('refresh-unified-approval', $event)"
+              @edit-unified-approval="emit('edit-unified-approval', $event)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"

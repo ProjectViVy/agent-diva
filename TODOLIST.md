@@ -124,8 +124,10 @@ standing policy（非功能债，执行相关验证时遵守）：
   typed reason codes 与事件序列。统一 service 投影三域 authority，HTTP 提供稳定
   list/detail/decision/cancel 与 durable cursor SSE；Tauri 仅负责 transport，Rust fixture
   由 TypeScript guard 共用验证，旧 Command/Plan/Laputa wire contract 保留。
-- [ ] **GMH-32：GUI 决策中心与就地审批** `sev-P1`
-  风险/证据/diff/授权时长；Memory edit-and-approve；badge 与重连去重。
+- [x] **GMH-32：GUI 决策中心与就地审批** `sev-P1`
+  全局 pending badge/抽屉与 Chat 就地卡统一消费 Manager projection；支持三域筛选、
+  风险/证据/diff/TTL、Command grant、Memory 源页面编辑/应用导航、事件去重、stale
+  刷新和 outcome-unknown 禁止重发，并以文字状态、焦点圈与 44px 控件满足键盘边界。
 - [ ] **GMH-33：CLI/headless 行为** `sev-P2`
   交互可批；非交互 fail/queue，绝不默认放行。Gate G3：shell / Memory 高风险 /
   Plan 各一条 E2E。
@@ -150,7 +152,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
     Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
     行为、自动化/人工验收和四个阶段停点。权威入口：
-    `docs/dev/governance-m3-goal/README.md`。GMH-30/31 已完成，继续执行 GMH-32/33；
+    `docs/dev/governance-m3-goal/README.md`。GMH-30/31/32 已完成，继续执行 GMH-33；
     人工 smoke 仍统一延后到最终 M3 门禁。
 - [ ] **M4** Agent Loop 接入（GMH-40..42）
 - [ ] **M5** 灰度发布（GMH-50..53）

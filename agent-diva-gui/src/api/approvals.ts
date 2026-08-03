@@ -9,12 +9,20 @@ export type ApprovalReasonCode =
   | 'approval_denied' | 'approval_revoked' | 'approval_invalid_cursor'
   | 'approval_invalid_body' | 'approval_invalid_query';
 
+export interface ApprovalResource {
+  workspace_id: string;
+  session_id: string | null;
+  kind: string;
+  resource_id: string;
+  boundary: string | null;
+}
+
 export interface ApprovalView {
   request_id: string;
   version: number;
   domain: ApprovalDomain;
   capability: string;
-  resource: Record<string, unknown>;
+  resource: ApprovalResource;
   risk: string;
   status: ApprovalStatus;
   created_at: string;
@@ -38,6 +46,20 @@ export interface ApprovalEventView {
   reason: ApprovalReasonCode | null;
   occurred_at: string;
   correlation: Record<string, unknown> | null;
+}
+
+export interface ApprovalListPage {
+  approvals: ApprovalView[];
+  next_cursor: string | null;
+}
+
+export type ApprovalGrant = 'once' | 'session' | 'rule';
+export type ApprovalDecision = 'allow' | 'deny';
+
+export interface UnifiedApprovalApiError {
+  status: number;
+  reason_code: ApprovalReasonCode;
+  message?: string;
 }
 
 const domains = new Set(['command', 'plan', 'memory']);
@@ -86,4 +108,27 @@ export function isApprovalEventView(value: unknown): value is ApprovalEventView 
     && optionalReason(value.reason)
     && typeof value.occurred_at === 'string'
     && (value.correlation === null || object(value.correlation));
+}
+
+export function isApprovalListPage(value: unknown): value is ApprovalListPage {
+  return object(value)
+    && Array.isArray(value.approvals)
+    && value.approvals.every(isApprovalView)
+    && (value.next_cursor === null || typeof value.next_cursor === 'string');
+}
+
+export class ApprovalEventGuard {
+  private readonly seen = new Set<string>();
+
+  constructor(private readonly capacity = 2048) {}
+
+  accept(event: ApprovalEventView, knownVersion: number): boolean {
+    if (this.seen.has(event.event_id) || event.version < knownVersion) return false;
+    this.seen.add(event.event_id);
+    if (this.seen.size > this.capacity) {
+      const oldest = this.seen.values().next().value;
+      if (oldest) this.seen.delete(oldest);
+    }
+    return true;
+  }
 }

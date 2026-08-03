@@ -690,6 +690,12 @@ mod tests {
             .await
             .unwrap();
         let pending = page.approvals.first().unwrap();
+        let detail = service.detail(&pending.request_id).await.unwrap();
+        assert!(detail
+            .presentation
+            .as_ref()
+            .and_then(|value| value["summary"].as_str())
+            .is_some_and(|summary| summary.contains("Unified Plan")));
         let result = service
             .decide(
                 &pending.request_id,
@@ -756,6 +762,11 @@ mod tests {
             .await
             .unwrap();
         let service = ApprovalService::from_state(&state).unwrap();
+        let detail = service.detail(&pending.request_id).await.unwrap();
+        assert_eq!(
+            detail.presentation.as_ref().unwrap()["diff"],
+            proposal.proposed_patch
+        );
         let result = service
             .decide(
                 &pending.request_id,

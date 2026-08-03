@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import NormalMode from "./components/NormalMode.vue";
+import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
@@ -25,6 +26,17 @@ import {
   type PlanStreamEvent,
 } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
+import {
+  ApprovalEventGuard,
+  isApprovalEventView,
+  isApprovalListPage,
+  isApprovalView,
+  type ApprovalEventView,
+  type ApprovalGrant,
+  type ApprovalListPage,
+  type ApprovalView,
+  type UnifiedApprovalApiError,
+} from "./api/approvals";
 import {
   HISTORY_PREFS_KEY,
   SAVED_MODELS_KEY,
@@ -261,11 +273,177 @@ const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 const commandApprovals = ref<CommandApprovalRequest[]>([]);
 const resolvingApprovalIds = ref<string[]>([]);
 const commandApprovalErrors = ref<Record<string, string>>({});
+const approvalCenterOpen = ref(false);
+const unifiedApprovals = ref<ApprovalView[]>([]);
+const approvalDetails = ref<Record<string, ApprovalView>>({});
+const approvalCenterLoading = ref(false);
+const approvalCenterError = ref<string | null>(null);
+const unifiedSubmittingIds = ref<string[]>([]);
+const unifiedOutcomeUnknownIds = ref<string[]>([]);
+const unifiedActionErrors = ref<Record<string, string>>({});
+const approvalEventGuard = new ApprovalEventGuard();
+const approvalVersions = new Map<string, number>();
 
 const unlisteners: UnlistenFn[] = [];
 
 const showWelcomeWizard = ref(false);
 const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
+
+const currentSessionApprovals = computed(() => unifiedApprovals.value.filter((approval) =>
+  approval.status === 'pending' && approval.resource.session_id === currentSessionKey.value,
+));
+
+function upsertUnifiedApproval(approval: ApprovalView) {
+  const current = unifiedApprovals.value.find((item) => item.request_id === approval.request_id);
+  if (current && current.version > approval.version) return;
+  approvalVersions.set(approval.request_id, approval.version);
+  unifiedApprovals.value = [
+    ...unifiedApprovals.value.filter((item) => item.request_id !== approval.request_id),
+    approval,
+  ];
+}
+
+function unifiedError(error: unknown): UnifiedApprovalApiError | null {
+  if (!error || typeof error !== 'object') return null;
+  const value = error as Partial<UnifiedApprovalApiError>;
+  return typeof value.reason_code === 'string' && typeof value.status === 'number'
+    ? value as UnifiedApprovalApiError
+    : null;
+}
+
+function approvalActionMessage(error: unknown): string {
+  const typed = unifiedError(error);
+  if (typed?.reason_code === 'approval_outcome_unknown') return t('approvalCenter.outcomeUnknown');
+  if (typed?.status === 409) return t('approvalCenter.stale');
+  return typed?.message || t('approvalCenter.requestFailed');
+}
+
+async function refreshUnifiedApprovals() {
+  if (!isTauri() || approvalCenterLoading.value) return;
+  approvalCenterLoading.value = true;
+  approvalCenterError.value = null;
+  try {
+    const approvals: ApprovalView[] = [];
+    let cursor: string | null = null;
+    for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+      const raw: ApprovalListPage = await invoke<ApprovalListPage>('list_approvals', {
+        domain: null,
+        status: null,
+        session: null,
+        cursor,
+        limit: 100,
+      });
+      if (!isApprovalListPage(raw)) throw new Error('invalid approval list response');
+      approvals.push(...raw.approvals);
+      cursor = raw.next_cursor;
+      if (!cursor) break;
+      if (pageIndex === 9) approvalCenterError.value = t('approvalCenter.pageLimit');
+    }
+    unifiedApprovals.value = approvals;
+    for (const approval of approvals) approvalVersions.set(approval.request_id, approval.version);
+    const nearestPending = approvals
+      .filter((approval) => approval.status === 'pending')
+      .sort((left, right) => Date.parse(left.expires_at) - Date.parse(right.expires_at))
+      .slice(0, 25);
+    await Promise.allSettled(nearestPending.map((approval) => refreshUnifiedApproval(approval.request_id)));
+  } catch (error) {
+    approvalCenterError.value = approvalActionMessage(error);
+  } finally {
+    approvalCenterLoading.value = false;
+  }
+}
+
+async function refreshUnifiedApproval(requestId: string) {
+  if (!isTauri()) return;
+  try {
+    const detail = await invoke<ApprovalView>('get_approval', { requestId });
+    if (!isApprovalView(detail)) throw new Error('invalid approval detail response');
+    approvalDetails.value = { ...approvalDetails.value, [requestId]: detail };
+    upsertUnifiedApproval(detail);
+    unifiedOutcomeUnknownIds.value = unifiedOutcomeUnknownIds.value.filter((id) => id !== requestId);
+    const errors = { ...unifiedActionErrors.value };
+    delete errors[requestId];
+    unifiedActionErrors.value = errors;
+  } catch (error) {
+    unifiedActionErrors.value = { ...unifiedActionErrors.value, [requestId]: approvalActionMessage(error) };
+  }
+}
+
+function approvalIdempotencyKey(requestId: string, operation: string): string {
+  const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `gui-${operation}-${requestId}-${random}`;
+}
+
+async function decideUnifiedApproval(payload: { approval: ApprovalView; decision: 'allow' | 'deny'; grant: ApprovalGrant }) {
+  const { approval } = payload;
+  if (unifiedSubmittingIds.value.includes(approval.request_id)) return;
+  unifiedSubmittingIds.value = [...unifiedSubmittingIds.value, approval.request_id];
+  try {
+    const result = await invoke<ApprovalView>('decide_approval', {
+      requestId: approval.request_id,
+      payload: {
+        expected_version: approval.version,
+        idempotency_key: approvalIdempotencyKey(approval.request_id, payload.decision),
+        decision: payload.decision,
+        grant: payload.grant,
+      },
+    });
+    if (!isApprovalView(result)) throw new Error('invalid approval decision response');
+    upsertUnifiedApproval(result);
+    approvalDetails.value = { ...approvalDetails.value, [approval.request_id]: result };
+  } catch (error) {
+    const typed = unifiedError(error);
+    if (typed?.reason_code === 'approval_outcome_unknown') {
+      unifiedOutcomeUnknownIds.value = [...new Set([...unifiedOutcomeUnknownIds.value, approval.request_id])];
+    }
+    unifiedActionErrors.value = { ...unifiedActionErrors.value, [approval.request_id]: approvalActionMessage(error) };
+    if (typed?.status === 409 || typed?.status === 404) await refreshUnifiedApproval(approval.request_id);
+  } finally {
+    unifiedSubmittingIds.value = unifiedSubmittingIds.value.filter((id) => id !== approval.request_id);
+  }
+}
+
+async function cancelUnifiedApproval(approval: ApprovalView) {
+  if (unifiedSubmittingIds.value.includes(approval.request_id)) return;
+  unifiedSubmittingIds.value = [...unifiedSubmittingIds.value, approval.request_id];
+  try {
+    const result = await invoke<ApprovalView>('cancel_approval', {
+      requestId: approval.request_id,
+      payload: {
+        expected_version: approval.version,
+        idempotency_key: approvalIdempotencyKey(approval.request_id, 'cancel'),
+      },
+    });
+    if (!isApprovalView(result)) throw new Error('invalid approval cancellation response');
+    upsertUnifiedApproval(result);
+    approvalDetails.value = { ...approvalDetails.value, [approval.request_id]: result };
+  } catch (error) {
+    const typed = unifiedError(error);
+    if (typed?.reason_code === 'approval_outcome_unknown') {
+      unifiedOutcomeUnknownIds.value = [...new Set([...unifiedOutcomeUnknownIds.value, approval.request_id])];
+    }
+    unifiedActionErrors.value = { ...unifiedActionErrors.value, [approval.request_id]: approvalActionMessage(error) };
+  } finally {
+    unifiedSubmittingIds.value = unifiedSubmittingIds.value.filter((id) => id !== approval.request_id);
+  }
+}
+
+function editUnifiedApproval(approval: ApprovalView) {
+  approvalCenterOpen.value = false;
+  if (approval.domain === 'memory') {
+    (normalModeRef.value as null | { openEvolutionProposal: (proposalId: string) => void })
+      ?.openEvolutionProposal(approval.resource.resource_id);
+    return;
+  }
+  if (approval.resource.session_id) void loadSession(approval.resource.session_id);
+  showAppToast(t('approvalCenter.editAtSource'));
+}
+
+async function handleUnifiedApprovalEvent(payload: ApprovalEventView) {
+  const knownVersion = approvalVersions.get(payload.request_id) ?? 0;
+  if (!approvalEventGuard.accept(payload, knownVersion)) return;
+  await refreshUnifiedApproval(payload.request_id);
+}
 
 function sortCommandApprovals(requests: CommandApprovalRequest[]) {
   return [...requests].sort(
@@ -1819,6 +1997,10 @@ onMounted(async () => {
       'command-approval-stream-connected',
       () => void reconcileCommandApprovals(),
     ));
+    unlisteners.push(await listen<unknown>('approval-event', (event) => {
+      if (isApprovalEventView(event.payload)) void handleUnifiedApprovalEvent(event.payload);
+    }));
+    unlisteners.push(await listen('approval-stream-connected', () => void refreshUnifiedApprovals()));
     try {
       await withTimeout(
         invoke("start_background_stream"),
@@ -1836,6 +2018,17 @@ onMounted(async () => {
       );
     } catch (e) {
       console.warn("Failed to start command approval stream:", e);
+    }
+    try {
+      await withTimeout(
+        invoke('start_approval_stream', { initialCursor: null }),
+        STARTUP_TASK_TIMEOUT_MS,
+        'start_approval_stream',
+      );
+      await refreshUnifiedApprovals();
+    } catch (e) {
+      approvalCenterError.value = approvalActionMessage(e);
+      console.warn('Failed to start unified approval stream:', e);
     }
 
     try {
@@ -2269,6 +2462,11 @@ onUnmounted(() => {
       :command-approvals="commandApprovals"
       :resolving-approval-ids="resolvingApprovalIds"
       :command-approval-errors="commandApprovalErrors"
+      :unified-approvals="currentSessionApprovals"
+      :unified-approval-details="approvalDetails"
+      :unified-submitting-ids="unifiedSubmittingIds"
+      :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
+      :unified-action-errors="unifiedActionErrors"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
@@ -2285,6 +2483,26 @@ onUnmounted(() => {
       @load-session="loadSession"
       @delete-session="deleteSession"
       @resolve-command-approval="resolveCommandApproval"
+      @decide-unified-approval="decideUnifiedApproval"
+      @cancel-unified-approval="cancelUnifiedApproval"
+      @refresh-unified-approval="refreshUnifiedApproval"
+      @edit-unified-approval="editUnifiedApproval"
+    />
+    <ApprovalCenterDrawer
+      v-model:open="approvalCenterOpen"
+      :approvals="unifiedApprovals"
+      :details="approvalDetails"
+      :loading="approvalCenterLoading"
+      :error="approvalCenterError"
+      :submitting-ids="unifiedSubmittingIds"
+      :outcome-unknown-ids="unifiedOutcomeUnknownIds"
+      :action-errors="unifiedActionErrors"
+      @refresh="refreshUnifiedApprovals"
+      @inspect="refreshUnifiedApproval"
+      @decide="decideUnifiedApproval"
+      @cancel="cancelUnifiedApproval"
+      @edit="editUnifiedApproval"
+      @refresh-one="refreshUnifiedApproval"
     />
   </div>
 </template>

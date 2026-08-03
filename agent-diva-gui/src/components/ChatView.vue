@@ -10,6 +10,7 @@ import ConversationSidebar from './ConversationSidebar.vue';
 import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
 import ApprovalBanner from './ApprovalBanner.vue';
+import ApprovalCenterCard from './ApprovalCenterCard.vue';
 import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
@@ -34,6 +35,7 @@ import type {
   ChatGovernanceDeepLink,
 } from './chat/governanceCards';
 import type { ToolsConfigShape } from '../types/toolsConfig';
+import type { ApprovalGrant, ApprovalView } from '../api/approvals';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
@@ -150,6 +152,11 @@ const props = defineProps<{
   commandApprovals?: CommandApprovalRequest[];
   resolvingApprovalIds?: string[];
   commandApprovalErrors?: Record<string, string>;
+  unifiedApprovals?: ApprovalView[];
+  unifiedApprovalDetails?: Record<string, ApprovalView>;
+  unifiedSubmittingIds?: string[];
+  unifiedOutcomeUnknownIds?: string[];
+  unifiedActionErrors?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
@@ -168,6 +175,10 @@ const emit = defineEmits<{
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
   (e: 'resolve-command-approval', payload: { approval_id: string; decision: ApprovalDecision }): void;
+  (e: 'decide-unified-approval', payload: { approval: ApprovalView; decision: 'allow' | 'deny'; grant: ApprovalGrant }): void;
+  (e: 'cancel-unified-approval', approval: ApprovalView): void;
+  (e: 'refresh-unified-approval', requestId: string): void;
+  (e: 'edit-unified-approval', approval: ApprovalView): void;
 }>();
 
 const input = ref('');
@@ -540,6 +551,8 @@ const approvalPlan = computed(() => {
   }
   return null;
 });
+const hasUnifiedCommandApproval = computed(() => props.unifiedApprovals?.some((item) => item.domain === 'command'));
+const hasUnifiedPlanApproval = computed(() => props.unifiedApprovals?.some((item) => item.domain === 'plan'));
 
 const planProgressText = computed(() => {
   const plan = props.executingPlan ?? props.activePlanRuntime;
@@ -1005,7 +1018,25 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         </div>
       </div>
 
-      <div v-if="commandApprovals?.length" class="command-approval-list">
+      <div v-if="unifiedApprovals?.length" class="command-approval-list unified-approval-list">
+        <ApprovalCenterCard
+          v-for="approval in unifiedApprovals"
+          :key="approval.request_id"
+          :approval="approval"
+          :detail="unifiedApprovalDetails?.[approval.request_id]"
+          compact
+          :submitting="unifiedSubmittingIds?.includes(approval.request_id)"
+          :outcome-unknown="unifiedOutcomeUnknownIds?.includes(approval.request_id)"
+          :error="unifiedActionErrors?.[approval.request_id]"
+          @inspect="emit('refresh-unified-approval', $event)"
+          @decide="emit('decide-unified-approval', $event)"
+          @cancel="emit('cancel-unified-approval', $event)"
+          @edit="emit('edit-unified-approval', $event)"
+          @refresh="emit('refresh-unified-approval', $event)"
+        />
+      </div>
+
+      <div v-if="commandApprovals?.length && !hasUnifiedCommandApproval" class="command-approval-list">
         <ApprovalBanner
           v-for="request in commandApprovals"
           :key="request.approval_id"
@@ -1019,7 +1050,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
 
       <PlanApprovalCard
-        v-if="approvalPlan"
+        v-if="approvalPlan && !hasUnifiedPlanApproval"
         :plan="approvalPlan"
         :approving="approvingPlan"
         @approve="handleApprovePlan"

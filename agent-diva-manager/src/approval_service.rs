@@ -458,6 +458,7 @@ impl ApprovalService {
                         "cwd": request.cwd,
                         "reason": request.reason,
                         "session_key": request.scope.session_key,
+                        "suggested_prefix": request.suggested_prefix,
                     })
                 })),
             ApprovalDomain::Plan => {
@@ -478,9 +479,10 @@ impl ApprovalService {
                     })
                     .map(|report| {
                         serde_json::json!({
-                        "title": report.revision.title,
+                            "title": report.revision.title,
                             "revision": report.revision.revision,
                             "session_key": report.report.session_key,
+                            "summary": report.revision.markdown.chars().take(600).collect::<String>(),
                         })
                     }))
             }
@@ -499,6 +501,8 @@ impl ApprovalService {
                     "target_section": proposal.target_section,
                     "proposal_type": proposal.proposal_type,
                     "evidence_count": proposal.evidence_refs.len(),
+                    "summary": proposal.proposed_patch.chars().take(600).collect::<String>(),
+                    "diff": proposal.proposed_patch,
                 })))
             }
         }

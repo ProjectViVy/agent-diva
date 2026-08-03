@@ -2888,6 +2888,7 @@ pub struct UnifiedApprovalApiError {
 
 async fn unified_approval_response(
     response: reqwest::Response,
+    mutation: bool,
 ) -> Result<serde_json::Value, UnifiedApprovalApiError> {
     let status = response.status();
     if status.is_success() {
@@ -2896,7 +2897,12 @@ async fn unified_approval_response(
             .await
             .map_err(|error| UnifiedApprovalApiError {
                 status: 0,
-                reason_code: "approval_persistence_failed".into(),
+                reason_code: if mutation {
+                    "approval_outcome_unknown"
+                } else {
+                    "approval_persistence_failed"
+                }
+                .into(),
                 message: format!("invalid approval response: {error}"),
             });
     }
@@ -2965,7 +2971,7 @@ pub async fn list_approvals(
         .send()
         .await
         .map_err(|error| approval_transport_error(error, false))?;
-    unified_approval_response(response).await
+    unified_approval_response(response, false).await
 }
 
 #[tauri::command]
@@ -2983,7 +2989,7 @@ pub async fn get_approval(
         .send()
         .await
         .map_err(|error| approval_transport_error(error, false))?;
-    unified_approval_response(response).await
+    unified_approval_response(response, false).await
 }
 
 #[tauri::command]
@@ -3003,7 +3009,7 @@ pub async fn decide_approval(
         .send()
         .await
         .map_err(|error| approval_transport_error(error, true))?;
-    unified_approval_response(response).await
+    unified_approval_response(response, true).await
 }
 
 #[tauri::command]
@@ -3023,7 +3029,7 @@ pub async fn cancel_approval(
         .send()
         .await
         .map_err(|error| approval_transport_error(error, true))?;
-    unified_approval_response(response).await
+    unified_approval_response(response, true).await
 }
 
 #[tauri::command]
