@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, Sparkles, Cat, GitBranch, ClipboardList } from '@lucide/vue';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, Cat, GitBranch, ClipboardList } from '@lucide/vue';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -157,6 +157,8 @@ const props = defineProps<{
   unifiedSubmittingIds?: string[];
   unifiedOutcomeUnknownIds?: string[];
   unifiedActionErrors?: Record<string, string>;
+  approvalCenterOpen?: boolean;
+  approvalPendingCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -179,6 +181,7 @@ const emit = defineEmits<{
   (e: 'cancel-unified-approval', approval: ApprovalView): void;
   (e: 'refresh-unified-approval', requestId: string): void;
   (e: 'edit-unified-approval', approval: ApprovalView): void;
+  (e: 'update:approval-center-open', open: boolean): void;
 }>();
 
 const input = ref('');
@@ -688,15 +691,35 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
     <!-- Main Chat Area -->
     <div class="chat-main flex flex-col flex-1 min-w-0">
-      <!-- Sidebar Toggle Button (top-right of chat area) -->
-      <button
-        @click="convSidebarOpen = !convSidebarOpen"
-        class="conv-sidebar-toggle"
-        :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
-      >
-        <Clock v-if="convSidebarOpen" :size="18" />
-        <Clock v-else :size="18" />
-      </button>
+      <!-- Corner actions: history + approval center (stacked under history) -->
+      <div class="chat-corner-actions">
+        <button
+          type="button"
+          class="chat-corner-btn"
+          :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+          :aria-label="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+          :aria-expanded="convSidebarOpen"
+          @click="convSidebarOpen = !convSidebarOpen"
+        >
+          <Clock :size="18" />
+        </button>
+        <button
+          type="button"
+          class="chat-corner-btn approval-center-icon-btn"
+          :class="{ active: approvalCenterOpen }"
+          :title="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
+          :aria-label="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
+          :aria-expanded="!!approvalCenterOpen"
+          @click="emit('update:approval-center-open', !approvalCenterOpen)"
+        >
+          <ShieldCheck :size="18" />
+          <strong
+            v-if="approvalPendingCount"
+            class="approval-pending-badge"
+            aria-live="polite"
+          >{{ approvalPendingCount }}</strong>
+        </button>
+      </div>
       <!-- Sakura Effect -->
       <div v-if="themeMode === 'love'" class="chat-sakura">
         <span
@@ -1366,34 +1389,68 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 </template>
 
 <style scoped>
-/* Sidebar Toggle Button */
-.conv-sidebar-toggle {
+/* Chat corner action stack: history + approval center */
+.chat-corner-actions {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 50;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.conv-sidebar-open .chat-corner-actions {
+  right: 292px; /* 280px sidebar + 12px gap */
+}
+
+.chat-corner-btn {
+  position: relative;
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid var(--line, #e5e7eb);
   background: var(--panel-solid, #ffffff);
   color: var(--text-muted, #9ca3af);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: all 0.15s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-/* When sidebar is open, move toggle button to the left edge of sidebar */
-.conv-sidebar-open .conv-sidebar-toggle {
-  right: 292px; /* 280px sidebar + 12px gap */
-}
-
-.conv-sidebar-toggle:hover {
+.chat-corner-btn:hover,
+.chat-corner-btn.active {
   background: var(--nav-hover, rgba(0, 0, 0, 0.04));
   color: var(--text, #111827);
   border-color: var(--brand, #ec4899);
+}
+
+.approval-center-icon-btn.active {
+  color: #b45309;
+  border-color: #f59e0b;
+  background: rgba(255, 251, 235, 0.96);
+}
+
+.approval-pending-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 5px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--panel-solid, #fff);
 }
 
 .active-plan-todo-bar {

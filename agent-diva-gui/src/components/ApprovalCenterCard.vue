@@ -57,6 +57,7 @@ const summary = computed(() => {
 const diff = computed(() => typeof presentation.value.diff === 'string' ? presentation.value.diff : '');
 const can = (action: string) => view.value.actions.includes(action);
 const canUseRuleGrant = computed(() => presentation.value.suggested_prefix != null);
+const scopeText = computed(() => view.value.resource.session_id ?? view.value.resource.workspace_id ?? '—');
 </script>
 
 <template>
@@ -66,7 +67,7 @@ const canUseRuleGrant = computed(() => presentation.value.suggested_prefix != nu
     :aria-label="t('approvalCenter.cardLabel', { domain: view.domain, title })"
   >
     <header class="approval-card-header">
-      <div>
+      <div class="approval-card-heading">
         <div class="approval-card-kicker">
           <span>{{ t(`approvalCenter.domain.${view.domain}`) }}</span>
           <span class="approval-status-text">{{ t(`approvalCenter.status.${view.status}`) }}</span>
@@ -79,25 +80,52 @@ const canUseRuleGrant = computed(() => presentation.value.suggested_prefix != nu
     </header>
 
     <p v-if="summary" class="approval-summary">{{ summary }}</p>
+
     <dl class="approval-meta">
-      <div><dt>{{ t('approvalCenter.scope') }}</dt><dd>{{ view.resource.session_id ?? view.resource.workspace_id }}</dd></div>
-      <div><dt>{{ t('approvalCenter.capability') }}</dt><dd>{{ view.capability }}</dd></div>
-      <div><dt>{{ t('approvalCenter.version') }}</dt><dd>{{ view.version }}</dd></div>
-      <div><dt><Clock3 :size="13" />{{ t('approvalCenter.ttl') }}</dt><dd>{{ remainingSeconds }}s</dd></div>
+      <div class="approval-meta-item">
+        <dt>{{ t('approvalCenter.scope') }}</dt>
+        <dd :title="String(scopeText)">{{ scopeText }}</dd>
+      </div>
+      <div class="approval-meta-item">
+        <dt>{{ t('approvalCenter.capability') }}</dt>
+        <dd :title="view.capability">{{ view.capability }}</dd>
+      </div>
+      <div class="approval-meta-item">
+        <dt>{{ t('approvalCenter.version') }}</dt>
+        <dd>{{ view.version }}</dd>
+      </div>
+      <div class="approval-meta-item">
+        <dt>
+          <Clock3 :size="13" />
+          <span>{{ t('approvalCenter.ttl') }}</span>
+        </dt>
+        <dd>{{ remainingSeconds }}s</dd>
+      </div>
     </dl>
 
-    <button v-if="!detail && !compact" type="button" class="approval-link" @click="emit('inspect', view.request_id)">
+    <button
+      v-if="!detail && !compact"
+      type="button"
+      class="approval-link"
+      @click="emit('inspect', view.request_id)"
+    >
       {{ t('approvalCenter.inspect') }}
     </button>
 
     <div v-if="detail && !compact" class="approval-detail">
-      <p>{{ t('approvalCenter.evidenceCount', { count: view.evidence.length }) }}</p>
-      <pre v-if="diff" class="approval-diff"><FileDiff :size="14" />{{ diff }}</pre>
+      <p class="approval-detail-line">{{ t('approvalCenter.evidenceCount', { count: view.evidence.length }) }}</p>
+      <pre v-if="diff" class="approval-diff"><FileDiff :size="14" class="approval-diff-icon" /><span>{{ diff }}</span></pre>
       <p v-if="view.reason_code" class="approval-reason">{{ view.reason_code }}</p>
     </div>
 
-    <p v-if="highRiskMissingEvidence" class="approval-warning"><AlertTriangle :size="15" />{{ t('approvalCenter.missingEvidence') }}</p>
-    <p v-if="outcomeUnknown" class="approval-warning" role="status"><AlertTriangle :size="15" />{{ t('approvalCenter.outcomeUnknown') }}</p>
+    <p v-if="highRiskMissingEvidence" class="approval-warning">
+      <AlertTriangle :size="15" />
+      <span>{{ t('approvalCenter.missingEvidence') }}</span>
+    </p>
+    <p v-if="outcomeUnknown" class="approval-warning" role="status">
+      <AlertTriangle :size="15" />
+      <span>{{ t('approvalCenter.outcomeUnknown') }}</span>
+    </p>
     <p v-if="error" class="approval-error" role="alert">{{ error }}</p>
 
     <div v-if="view.status === 'pending'" class="approval-actions">
@@ -109,37 +137,321 @@ const canUseRuleGrant = computed(() => presentation.value.suggested_prefix != nu
           <option v-if="canUseRuleGrant" value="rule">{{ t('approvalCenter.grants.rule') }}</option>
         </select>
       </label>
-      <button v-if="can('deny')" type="button" class="deny" :disabled="submitting || outcomeUnknown" @click="emit('decide', { approval: view, decision: 'deny', grant: 'once' })">
-        <ShieldX :size="16" />{{ t('approvalCenter.deny') }}
+      <button
+        v-if="can('deny')"
+        type="button"
+        class="deny"
+        :disabled="submitting || outcomeUnknown"
+        @click="emit('decide', { approval: view, decision: 'deny', grant: 'once' })"
+      >
+        <ShieldX :size="16" />
+        <span>{{ t('approvalCenter.deny') }}</span>
       </button>
-      <button v-if="can('allow')" type="button" class="allow" :disabled="allowDisabled" @click="emit('decide', { approval: view, decision: 'allow', grant })">
-        <ShieldCheck :size="16" />{{ t('approvalCenter.allow') }}
+      <button
+        v-if="can('allow')"
+        type="button"
+        class="allow"
+        :disabled="allowDisabled"
+        @click="emit('decide', { approval: view, decision: 'allow', grant })"
+      >
+        <ShieldCheck :size="16" />
+        <span>{{ t('approvalCenter.allow') }}</span>
       </button>
-      <button v-if="can('edit')" type="button" :disabled="submitting || outcomeUnknown" @click="emit('edit', view)">{{ t('approvalCenter.edit') }}</button>
-      <button v-if="can('cancel')" type="button" :disabled="submitting || outcomeUnknown" @click="emit('cancel', view)">
-        <X :size="16" />{{ t('approvalCenter.cancel') }}
+      <button
+        v-if="can('edit')"
+        type="button"
+        :disabled="submitting || outcomeUnknown"
+        @click="emit('edit', view)"
+      >
+        {{ t('approvalCenter.edit') }}
+      </button>
+      <button
+        v-if="can('cancel')"
+        type="button"
+        :disabled="submitting || outcomeUnknown"
+        @click="emit('cancel', view)"
+      >
+        <X :size="16" />
+        <span>{{ t('approvalCenter.cancel') }}</span>
       </button>
     </div>
     <div v-else-if="view.status === 'allowed' && can('apply')" class="approval-actions">
-      <button type="button" class="allow" :disabled="submitting || outcomeUnknown" @click="emit('edit', view)">
-        <ShieldCheck :size="16" />{{ t('approvalCenter.applyAtSource') }}
+      <button
+        type="button"
+        class="allow"
+        :disabled="submitting || outcomeUnknown"
+        @click="emit('edit', view)"
+      >
+        <ShieldCheck :size="16" />
+        <span>{{ t('approvalCenter.applyAtSource') }}</span>
       </button>
     </div>
-    <button v-if="outcomeUnknown || error" type="button" class="approval-refresh" @click="emit('refresh', view.request_id)">
-      <RefreshCw :size="15" />{{ t('approvalCenter.refreshOnly') }}
+    <button
+      v-if="outcomeUnknown || error"
+      type="button"
+      class="approval-refresh"
+      @click="emit('refresh', view.request_id)"
+    >
+      <RefreshCw :size="15" />
+      <span>{{ t('approvalCenter.refreshOnly') }}</span>
     </button>
   </article>
 </template>
 
 <style scoped>
-.approval-center-card { border: 1px solid var(--line, #d9dce3); border-left-width: 4px; border-radius: 14px; padding: 14px; background: var(--panel-solid, #fff); color: var(--text, #20242d); box-shadow: 0 8px 24px rgba(15, 23, 42, .06); }
-.approval-center-card.risk-high { border-left-color: #dc2626; }.approval-center-card.risk-medium { border-left-color: #d97706; }.approval-center-card.risk-low { border-left-color: #059669; }
-.approval-card-header, .approval-card-kicker, .approval-actions, .approval-warning, .approval-refresh, .approval-meta dt { display: flex; align-items: center; }
-.approval-card-header { justify-content: space-between; gap: 12px; }.approval-card-header h3 { margin: 3px 0 0; font-size: 15px; }.approval-card-kicker { gap: 8px; color: var(--text-muted, #667085); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-.approval-status-text { font-weight: 700; color: var(--text, #20242d); }.approval-risk { border: 1px solid currentColor; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 700; }
-.approval-summary { margin: 10px 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 12px; }.approval-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 10px 0; }.approval-meta div { min-width: 0; }.approval-meta dt { gap: 4px; color: var(--text-muted, #667085); font-size: 10px; }.approval-meta dd { margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; white-space: nowrap; }
-.approval-link { border: 0; padding: 4px 0; color: #2563eb; background: transparent; cursor: pointer; }.approval-detail { margin-top: 10px; font-size: 12px; }.approval-diff { display: flex; max-height: 180px; overflow: auto; gap: 6px; padding: 10px; border-radius: 8px; background: #111827; color: #e5e7eb; white-space: pre-wrap; }.approval-reason { font-family: ui-monospace, monospace; }
-.approval-warning, .approval-error { gap: 7px; margin: 9px 0; border-radius: 8px; padding: 9px; font-size: 12px; }.approval-warning { background: #fff7ed; color: #9a3412; }.approval-error { background: #fef2f2; color: #991b1b; }
-.approval-actions { flex-wrap: wrap; gap: 8px; margin-top: 12px; }.approval-actions button, .approval-refresh { min-height: 44px; border: 1px solid var(--line, #d9dce3); border-radius: 10px; padding: 8px 11px; background: var(--panel-solid, #fff); cursor: pointer; }.approval-actions button:disabled { cursor: not-allowed; opacity: .55; }.approval-actions .allow { border-color: #047857; background: #047857; color: #fff; }.approval-actions .deny { border-color: #b91c1c; color: #b91c1c; }.approval-grant { display: flex; min-height: 44px; align-items: center; gap: 6px; font-size: 11px; }.approval-grant select { min-height: 36px; border: 1px solid var(--line, #d9dce3); border-radius: 8px; background: var(--panel-solid, #fff); }.approval-refresh { gap: 6px; margin-top: 8px; }.compact { box-shadow: none; }
-@media (max-width: 520px) { .approval-meta { grid-template-columns: 1fr; } }
+.approval-center-card {
+  border: 1px solid var(--line, #d9dce3);
+  border-left-width: 4px;
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.approval-center-card.risk-high,
+.approval-center-card.risk-critical,
+.approval-center-card.risk-prohibited {
+  border-left-color: #dc2626;
+}
+
+.approval-center-card.risk-medium,
+.approval-center-card.risk-moderate {
+  border-left-color: #d97706;
+}
+
+.approval-center-card.risk-low {
+  border-left-color: #059669;
+}
+
+.approval-center-card.compact {
+  box-shadow: none;
+  padding: 12px;
+}
+
+.approval-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.approval-card-heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.approval-card-heading h3 {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.approval-card-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted, #667085);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.approval-status-text {
+  font-weight: 700;
+  color: var(--text, #20242d);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.approval-risk {
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.approval-summary {
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text, #20242d);
+}
+
+.approval-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.approval-meta-item {
+  min-width: 0;
+}
+
+.approval-meta-item dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted, #667085);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.approval-meta-item dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--text, #20242d);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-link {
+  display: inline-flex;
+  margin-top: 10px;
+  border: 0;
+  padding: 4px 0;
+  color: #2563eb;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.approval-detail {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.approval-detail-line {
+  margin: 0 0 8px;
+  color: var(--text-muted, #667085);
+}
+
+.approval-diff {
+  display: flex;
+  max-height: 180px;
+  overflow: auto;
+  gap: 8px;
+  margin: 0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #111827;
+  color: #e5e7eb;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.approval-diff-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.approval-reason {
+  margin: 8px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.approval-warning,
+.approval-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.approval-warning {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.approval-error {
+  background: var(--danger-bg, #fef2f2);
+  color: var(--danger, #991b1b);
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.approval-actions button,
+.approval-refresh {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line, #d9dce3);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text, #20242d);
+  background: var(--panel-solid, #fff);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.approval-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.approval-actions .allow {
+  border-color: #047857;
+  background: #047857;
+  color: #fff;
+}
+
+.approval-actions .deny {
+  border-color: #b91c1c;
+  color: #b91c1c;
+  background: transparent;
+}
+
+.approval-grant {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted, #667085);
+}
+
+.approval-grant select {
+  min-height: 36px;
+  border: 1px solid var(--line, #d9dce3);
+  border-radius: 8px;
+  padding: 0 8px;
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
+}
+
+.approval-refresh {
+  margin-top: 8px;
+}
+
+@media (max-width: 520px) {
+  .approval-meta {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

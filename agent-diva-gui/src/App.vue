@@ -292,6 +292,9 @@ const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
 const currentSessionApprovals = computed(() => unifiedApprovals.value.filter((approval) =>
   approval.status === 'pending' && approval.resource.session_id === currentSessionKey.value,
 ));
+const approvalPendingCount = computed(() =>
+  unifiedApprovals.value.filter((approval) => approval.status === 'pending').length,
+);
 
 function upsertUnifiedApproval(approval: ApprovalView) {
   const current = unifiedApprovals.value.find((item) => item.request_id === approval.request_id);
@@ -2467,6 +2470,8 @@ onUnmounted(() => {
       :unified-submitting-ids="unifiedSubmittingIds"
       :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
       :unified-action-errors="unifiedActionErrors"
+      :approval-center-open="approvalCenterOpen"
+      :approval-pending-count="approvalPendingCount"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
@@ -2487,6 +2492,7 @@ onUnmounted(() => {
       @cancel-unified-approval="cancelUnifiedApproval"
       @refresh-unified-approval="refreshUnifiedApproval"
       @edit-unified-approval="editUnifiedApproval"
+      @update:approval-center-open="approvalCenterOpen = $event"
     />
     <ApprovalCenterDrawer
       v-model:open="approvalCenterOpen"

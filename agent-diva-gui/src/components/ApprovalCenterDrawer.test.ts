@@ -22,12 +22,20 @@ afterEach(() => {
 });
 
 describe('ApprovalCenterDrawer', () => {
-  it('renders an exact pending badge and sorts highest risk first', () => {
+  it('does not render a floating page-level trigger button', () => {
+    mount(ApprovalCenterDrawer, {
+      attachTo: document.body,
+      props: { open: false, approvals: [command, memory], details: {} },
+    });
+    expect(document.body.querySelector('.approval-center-trigger')).toBeNull();
+    expect(document.body.querySelector('.approval-center-drawer')).toBeNull();
+  });
+
+  it('sorts highest risk first when the drawer is open', () => {
     mount(ApprovalCenterDrawer, {
       attachTo: document.body,
       props: { open: true, approvals: [command, memory], details: {} },
     });
-    expect(document.body.querySelector('.approval-center-trigger strong')?.textContent).toBe('2');
     const cards = [...document.body.querySelectorAll('.approval-center-card h3')].map((node) => node.textContent);
     expect(cards).toEqual(['Memory change', 'Command execution']);
   });

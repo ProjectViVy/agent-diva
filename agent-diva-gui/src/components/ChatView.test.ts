@@ -47,6 +47,24 @@ describe('ChatView streaming states', () => {
     expect(wrapper.findAllComponents({ name: 'ApprovalBanner' })).toHaveLength(0);
   });
 
+  it('places the approval center icon under history and emits open updates', async () => {
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+        approvalCenterOpen: false,
+        approvalPendingCount: 2,
+      },
+    });
+
+    expect(wrapper.find('.chat-corner-actions').exists()).toBe(true);
+    expect(wrapper.find('.approval-center-icon-btn').exists()).toBe(true);
+    expect(wrapper.find('.approval-pending-badge').text()).toBe('2');
+
+    await wrapper.find('.approval-center-icon-btn').trigger('click');
+    expect(wrapper.emitted('update:approval-center-open')?.[0]).toEqual([true]);
+  });
+
   it('keeps the thinking status separate from its loading dots', () => {
     const wrapper = mountChat([
       {
@@ -87,7 +105,7 @@ describe('ChatView streaming states', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
     const wrapper = mountChat([]);
 
-    await wrapper.find('.conv-sidebar-toggle').trigger('click');
+    await wrapper.find('.chat-corner-actions .chat-corner-btn').trigger('click');
 
     expect(wrapper.find('.conv-sidebar-scrim').exists()).toBe(true);
     expect(wrapper.find('.conv-sidebar-wrapper--overlay').exists()).toBe(true);

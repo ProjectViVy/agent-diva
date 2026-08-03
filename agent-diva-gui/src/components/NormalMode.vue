@@ -128,6 +128,8 @@ interface Props {
   unifiedSubmittingIds?: string[];
   unifiedOutcomeUnknownIds?: string[];
   unifiedActionErrors?: Record<string, string>;
+  approvalCenterOpen?: boolean;
+  approvalPendingCount?: number;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -169,6 +171,7 @@ const emit = defineEmits<{
   (e: 'cancel-unified-approval', approval: ApprovalView): void;
   (e: 'refresh-unified-approval', requestId: string): void;
   (e: 'edit-unified-approval', approval: ApprovalView): void;
+  (e: 'update:approval-center-open', open: boolean): void;
 }>();
 
 type SidebarSection =
@@ -1115,6 +1118,8 @@ defineExpose({
               :unified-submitting-ids="unifiedSubmittingIds"
               :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
               :unified-action-errors="unifiedActionErrors"
+              :approval-center-open="approvalCenterOpen"
+              :approval-pending-count="approvalPendingCount"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"
@@ -1130,6 +1135,7 @@ defineExpose({
               @cancel-unified-approval="emit('cancel-unified-approval', $event)"
               @refresh-unified-approval="emit('refresh-unified-approval', $event)"
               @edit-unified-approval="emit('edit-unified-approval', $event)"
+              @update:approval-center-open="emit('update:approval-center-open', $event)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
