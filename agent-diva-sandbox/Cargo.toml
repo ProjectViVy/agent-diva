@@ -32,6 +32,7 @@ toml = "0.8"  # ExecPolicy rules file parsing
 parking_lot = "0.12"  # ArcSwap dependency (for ExecPolicy)
 chrono = { workspace = true }
 uuid = { workspace = true }
+sha2 = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
@@ -54,3 +55,4 @@ seccompiler = "0.4"  # Seccomp-BPF for syscall filtering
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio-test = { workspace = true }
+sqlx = { workspace = true }
