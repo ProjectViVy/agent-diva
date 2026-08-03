@@ -13,7 +13,7 @@ use std::process::{Command, Stdio};
 fn is_port_3000_occupied() -> bool {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("netstat").args(&["-ano"]).output().ok();
+        let output = Command::new("netstat").args(["-ano"]).output().ok();
 
         if let Some(output) = output {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -51,7 +51,7 @@ fn find_gateway_processes() -> Vec<u32> {
     #[cfg(target_os = "windows")]
     {
         let output = Command::new("tasklist")
-            .args(&["/FI", "IMAGENAME eq agent-diva.exe", "/FO", "CSV", "/NH"])
+            .args(["/FI", "IMAGENAME eq agent-diva.exe", "/FO", "CSV", "/NH"])
             .output()
             .ok();
 
@@ -98,7 +98,7 @@ fn spawn_mock_gateway() -> Option<std::process::Child> {
     #[cfg(target_os = "windows")]
     {
         Command::new("powershell")
-            .args(&[
+            .args([
                 "-Command",
                 "$listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Any, 3000); \
                  $listener.Start(); \

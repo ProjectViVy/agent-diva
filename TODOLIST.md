@@ -164,13 +164,13 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
-- [ ] **GUI-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing Tauri test lint** `sev-P3`
+- [x] **GUI-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing Tauri test lint** `sev-P3`
   `cargo clippy -p agent-diva-gui --all-targets -- -D warnings` 在既有测试构造代码
   `agent-diva-gui/src-tauri/src/lib.rs` 命中 `field_reassign_with_default`。GMH-31 的
   Tauri `cargo check`、前端测试与生产构建均通过；在独立兼容性提交中机械修复，
   不与审批契约功能混合。
 
-- [ ] **WORKSPACE-TEST-UNUSED-FIXTURES: clean two test-only warnings** `sev-P3`
+- [x] **WORKSPACE-TEST-UNUSED-FIXTURES: clean two test-only warnings** `sev-P3`
   `just test` 在既有 `agent-diva-channels/src/feishu.rs` fixture 的 `handler` 与
   `agent-diva-tools/src/filesystem.rs` fixture 的 `temp_dir` 报告未使用变量。全量测试
   与 `just check` 均通过；在独立测试清理提交中移除或以下划线明确保留。
@@ -209,6 +209,11 @@ standing policy（非功能债，执行相关验证时遵守）：
   Windows rejected `Start-Process target/release/agent-diva-gui.exe` with OS
   error 5 (`Access denied`). Diagnose endpoint protection/file policy or the
   post-link hard-link state, then repeat the desktop health smoke.
+  2026-08-03 final-candidate audit rebuilt the complete Tauri release successfully;
+  source and isolated copies have matching SHA-256, permissive ACLs, no Zone.Identifier,
+  and no matching AppLocker/Code Integrity/Defender event, but all ordinary-user launch
+  attempts still return OS error 5. Resolving unsigned-binary trust/endpoint policy needs
+  explicit human/system-policy authorization; the final manual smoke starts with this gate.
 
 - [x] **跨平台 canonical workspace identity 与 identity-only migration** `sev-P1`
   Windows 路径分隔符差异曾使 Migration 与 Manager 对同一 workspace 计算出不同

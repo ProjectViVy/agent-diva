@@ -565,8 +565,10 @@ mod tests {
     #[test]
     fn logging_config_uses_resolved_log_dir() {
         let config_dir = TempDir::new().unwrap();
-        let mut logging = LoggingConfig::default();
-        logging.dir = "logs".to_string();
+        let logging = LoggingConfig {
+            dir: "logs".to_string(),
+            ..LoggingConfig::default()
+        };
 
         let resolved = resolve_logging_config(logging, config_dir.path());
 

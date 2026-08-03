@@ -591,7 +591,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_path_traversal_blocked() {
-        let (security, temp_dir) = create_test_security();
+        let (security, _temp_dir) = create_test_security();
 
         // Create a file outside temp_dir
         let outside_file = std::env::temp_dir().join("agent_diva_test_outside.txt");

@@ -1131,7 +1131,7 @@ mod tests {
         feishu_config.app_secret = "test_secret".to_string();
 
         let config = Config::default();
-        let handler = FeishuHandler::new(feishu_config, config);
+        let _handler = FeishuHandler::new(feishu_config, config);
 
         // Test event_id priority
         let key1 = FeishuHandler::dedupe_event_key(Some("event_123"), Some("msg_456"));
