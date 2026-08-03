@@ -1,3 +1,4 @@
+pub mod approval_service;
 pub mod file_service;
 pub mod handlers;
 pub mod manager;

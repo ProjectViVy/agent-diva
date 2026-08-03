@@ -171,6 +171,20 @@ pub struct ApprovalStatePage {
     pub next_cursor: Option<String>,
 }
 
+/// One immutable ledger event paired with its durable reconnect cursor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalEventItem {
+    pub cursor: String,
+    pub event: ApprovalLedgerEvent,
+}
+
+/// One bounded, append-order page of immutable governance events.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalEventPage {
+    pub events: Vec<ApprovalEventItem>,
+    pub next_cursor: Option<String>,
+}
+
 /// Stable errors returned by ledger operations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ApprovalLedgerError {
@@ -283,6 +297,13 @@ pub trait GovernanceLedger: Send + Sync {
         limit: u32,
         evaluated_at: DateTime<Utc>,
     ) -> Result<ApprovalStatePage, ApprovalLedgerError>;
+
+    /// Read committed events after an opaque durable cursor in append order.
+    async fn events_page(
+        &self,
+        after_cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<ApprovalEventPage, ApprovalLedgerError>;
 
     async fn events(
         &self,
@@ -414,6 +435,49 @@ impl SqliteGovernanceLedger {
             return Ok(None);
         };
         Ok(Some(self.replay(&event.request_id, evaluated_at).await?))
+    }
+
+    async fn events_page(
+        &self,
+        after_cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<ApprovalEventPage, ApprovalLedgerError> {
+        if limit == 0 || limit > 1_000 {
+            return Err(GovernanceValidationError::InvalidPageLimit.into());
+        }
+        let after_rowid = match after_cursor {
+            Some(cursor) => cursor
+                .parse::<i64>()
+                .map_err(|_| GovernanceValidationError::InvalidCursor)?,
+            None => 0,
+        };
+        let rows = sqlx::query(
+            "SELECT rowid AS event_cursor, event_json FROM governance_ledger_events \
+             WHERE rowid > ? ORDER BY rowid ASC LIMIT ?",
+        )
+        .bind(after_rowid)
+        .bind(i64::from(limit) + 1)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(persistence)?;
+        let has_more = rows.len() > limit as usize;
+        let events = rows
+            .into_iter()
+            .take(limit as usize)
+            .map(|row| {
+                Ok(ApprovalEventItem {
+                    cursor: row.get::<i64, _>("event_cursor").to_string(),
+                    event: decode_event(row.get("event_json"))?,
+                })
+            })
+            .collect::<Result<Vec<_>, ApprovalLedgerError>>()?;
+        let next_cursor = has_more
+            .then(|| events.last().map(|item| item.cursor.clone()))
+            .flatten();
+        Ok(ApprovalEventPage {
+            events,
+            next_cursor,
+        })
     }
 }
 
@@ -657,9 +721,7 @@ impl GovernanceLedger for SqliteGovernanceLedger {
         evaluated_at: DateTime<Utc>,
     ) -> Result<ApprovalStatePage, ApprovalLedgerError> {
         if limit == 0 || limit > 1_000 {
-            return Err(ApprovalLedgerError::Persistence(
-                "approval state page limit must be between 1 and 1000".into(),
-            ));
+            return Err(GovernanceValidationError::InvalidPageLimit.into());
         }
         let cursor = after_request_id.unwrap_or("");
         let rows = sqlx::query(
@@ -687,6 +749,14 @@ impl GovernanceLedger for SqliteGovernanceLedger {
             states,
             next_cursor,
         })
+    }
+
+    async fn events_page(
+        &self,
+        after_cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<ApprovalEventPage, ApprovalLedgerError> {
+        SqliteGovernanceLedger::events_page(self, after_cursor, limit).await
     }
 
     async fn events(
@@ -1417,5 +1487,41 @@ mod tests {
             .states
             .iter()
             .all(|state| state.status == ApprovalStatus::Expired));
+        assert_eq!(
+            ledger.states_page(None, 0, now()).await,
+            Err(ApprovalLedgerError::Validation(
+                GovernanceValidationError::InvalidPageLimit
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn event_pages_replay_append_order_after_durable_cursor() {
+        let ledger = memory_ledger().await;
+        for id in ["request-b", "request-a"] {
+            ledger
+                .submit(
+                    ApprovalRecord::from_request(&request(id)).unwrap(),
+                    &format!("submit-{id}"),
+                    now(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let first = ledger.events_page(None, 1).await.unwrap();
+        assert_eq!(first.events.len(), 1);
+        assert_eq!(first.events[0].event.request_id, "request-b");
+        assert_eq!(first.next_cursor, Some(first.events[0].cursor.clone()));
+
+        let second = ledger
+            .events_page(first.next_cursor.as_deref(), 1)
+            .await
+            .unwrap();
+        assert_eq!(second.events.len(), 1);
+        assert_eq!(second.events[0].event.request_id, "request-a");
+        assert!(second.next_cursor.is_none());
+
+        assert!(ledger.events_page(Some("not-a-cursor"), 1).await.is_err());
     }
 }

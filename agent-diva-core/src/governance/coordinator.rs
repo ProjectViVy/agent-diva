@@ -5,9 +5,9 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
 use super::{
-    evaluate_policy, ApprovalLedgerError, ApprovalReceipt, ApprovalRecord, ApprovalRequest,
-    ApprovalState, ApprovalStatePage, Decision, GovernanceLedger, GovernanceSubject, PolicyContext,
-    PolicyEvaluation,
+    evaluate_policy, ApprovalEventPage, ApprovalLedgerError, ApprovalReceipt, ApprovalRecord,
+    ApprovalRequest, ApprovalState, ApprovalStatePage, Decision, GovernanceLedger,
+    GovernanceSubject, PolicyContext, PolicyEvaluation,
 };
 
 /// Result of coordinating one domain-owned request.
@@ -173,6 +173,15 @@ impl ApprovalCoordinator {
         self.ledger
             .states_page(after_request_id, limit, evaluated_at)
             .await
+    }
+
+    /// Read committed ledger events after a durable reconnect cursor.
+    pub async fn events_page(
+        &self,
+        after_cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<ApprovalEventPage, ApprovalLedgerError> {
+        self.ledger.events_page(after_cursor, limit).await
     }
 }
 

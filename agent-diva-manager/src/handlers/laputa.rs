@@ -1188,7 +1188,12 @@ mod recovery_tests {
         ));
         let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(root);
         let command = agent_diva_sandbox::CommandApprovalCoordinator::default()
-            .governed(governance.clone(), workspace_id);
+            .governed(governance.clone(), workspace_id.clone());
+        let planning_service = Arc::new(crate::planning_service::PlanningService::governed(
+            root.to_path_buf(),
+            governance.clone(),
+            workspace_id,
+        ));
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let state = AppState::new_with_runtime_governance(
             api_tx,
@@ -1197,6 +1202,7 @@ mod recovery_tests {
             command,
             MemoryAuthorityMode::Legacy,
             governance.clone(),
+            planning_service,
         )
         .unwrap();
         (state, governance)

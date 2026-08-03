@@ -88,6 +88,11 @@ pub struct ResolveApprovalResponse {
 pub enum ApprovalResolveError {
     NotFound,
     AlreadyResolved,
+    VersionConflict,
+    IdempotencyConflict,
+    Expired,
+    AlreadyConsumed,
+    InvalidTransition,
     InvalidGlobalApproval,
     Persistence,
 }
@@ -343,8 +348,7 @@ impl CommandApprovalCoordinator {
                         .get(&approval_id)
                         .and_then(|pending| pending.governance_state.clone());
                     if let Some(governed) = governed {
-                        let occurred_at =
-                            governed.request.expires_at - chrono::Duration::nanoseconds(1);
+                        let occurred_at = governed.request.expires_at;
                         let _ = governance
                             .expire(
                                 &approval_id,
@@ -379,8 +383,66 @@ impl CommandApprovalCoordinator {
         approval_id: &str,
         decision: ApprovalDecision,
     ) -> Result<ResolveApprovalResponse, ApprovalResolveError> {
+        self.resolve_with_preconditions(approval_id, decision, None, None)
+            .await
+    }
+
+    /// Resolve through the durable coordinator with caller-supplied CAS and
+    /// idempotency preconditions. Legacy callers may omit both via [`Self::resolve`].
+    pub async fn resolve_with_preconditions(
+        &self,
+        approval_id: &str,
+        decision: ApprovalDecision,
+        expected_version: Option<u64>,
+        idempotency_key: Option<&str>,
+    ) -> Result<ResolveApprovalResponse, ApprovalResolveError> {
         let state = self.state.lock().await;
         let Some(pending) = state.pending.get(approval_id) else {
+            drop(state);
+            if let (Some(governance), Some(expected_version), Some(idempotency_key)) =
+                (&self.governance, expected_version, idempotency_key)
+            {
+                if let Ok(current) = governance.state(approval_id, Utc::now()).await {
+                    if let Some(receipt) = current.receipt.clone() {
+                        let matches = match decision {
+                            ApprovalDecision::ApproveOnce => {
+                                receipt.decision == agent_diva_core::governance::Decision::Allow
+                                    && receipt.grant
+                                        == agent_diva_core::governance::ApprovalGrant::Once
+                            }
+                            ApprovalDecision::ApproveSession => {
+                                receipt.decision == agent_diva_core::governance::Decision::Allow
+                                    && receipt.grant
+                                        == agent_diva_core::governance::ApprovalGrant::Session
+                            }
+                            ApprovalDecision::ApproveGlobal => {
+                                receipt.decision == agent_diva_core::governance::Decision::Allow
+                                    && receipt.grant
+                                        == agent_diva_core::governance::ApprovalGrant::Rule
+                            }
+                            ApprovalDecision::Reject => {
+                                receipt.decision == agent_diva_core::governance::Decision::Deny
+                            }
+                        };
+                        if matches {
+                            governance
+                                .decide(approval_id, expected_version, idempotency_key, receipt)
+                                .await
+                                .map_err(map_governance_error)?;
+                            return Ok(ResolveApprovalResponse {
+                                approval_id: approval_id.to_string(),
+                                decision,
+                                status: if decision.allows_execution() {
+                                    CommandApprovalStatus::Approved
+                                } else {
+                                    CommandApprovalStatus::Rejected
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+            let state = self.state.lock().await;
             return if state.resolved.contains(approval_id) {
                 Err(ApprovalResolveError::AlreadyResolved)
             } else {
@@ -400,6 +462,9 @@ impl CommandApprovalCoordinator {
         };
         let mut decided_durable_state = None;
         if let (Some(governance), Some(current)) = (&self.governance, &governed_state) {
+            if expected_version.is_some_and(|expected| expected != current.version) {
+                return Err(ApprovalResolveError::VersionConflict);
+            }
             let governed_request = adapt_command_approval_request(
                 request.clone(),
                 SandboxGovernanceContext {
@@ -427,11 +492,14 @@ impl CommandApprovalCoordinator {
                 .decide(
                     approval_id,
                     current.version,
-                    &format!("sandbox-decide-{approval_id}"),
+                    idempotency_key
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| format!("sandbox-decide-{approval_id}"))
+                        .as_str(),
                     receipt,
                 )
                 .await
-                .map_err(|_| ApprovalResolveError::Persistence)?;
+                .map_err(map_governance_error)?;
             decided_durable_state = Some(if decision == ApprovalDecision::ApproveOnce {
                 governance
                     .consume_once(
@@ -441,7 +509,7 @@ impl CommandApprovalCoordinator {
                         Utc::now(),
                     )
                     .await
-                    .map_err(|_| ApprovalResolveError::Persistence)?
+                    .map_err(map_governance_error)?
             } else {
                 decided
             });
@@ -538,6 +606,46 @@ impl CommandApprovalCoordinator {
         requests
     }
 
+    /// Cancel one pending command through durable CAS and wake its waiter as
+    /// cancelled by dropping the response channel.
+    pub async fn cancel_request(
+        &self,
+        approval_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+        actor: GovernanceSubject,
+    ) -> Result<(), ApprovalResolveError> {
+        let state = self.state.lock().await;
+        let pending = state.pending.get(approval_id).ok_or_else(|| {
+            if state.resolved.contains(approval_id) {
+                ApprovalResolveError::AlreadyResolved
+            } else {
+                ApprovalResolveError::NotFound
+            }
+        })?;
+        let governed = pending.governance_state.clone();
+        drop(state);
+        if let (Some(governance), Some(_current)) = (&self.governance, governed) {
+            governance
+                .revoke(
+                    approval_id,
+                    expected_version,
+                    idempotency_key,
+                    actor,
+                    Utc::now(),
+                )
+                .await
+                .map_err(map_governance_error)?;
+        }
+        let mut state = self.state.lock().await;
+        state
+            .pending
+            .remove(approval_id)
+            .ok_or(ApprovalResolveError::AlreadyResolved)?;
+        state.resolved.insert(approval_id.to_string());
+        Ok(())
+    }
+
     pub async fn cancel_scope(&self, scope: &CommandApprovalScope) -> usize {
         let mut state = self.state.lock().await;
         let ids: Vec<_> = state
@@ -588,6 +696,23 @@ impl CommandApprovalCoordinator {
             );
         }
         ids.len()
+    }
+}
+
+fn map_governance_error(
+    error: agent_diva_core::governance::ApprovalLedgerError,
+) -> ApprovalResolveError {
+    use agent_diva_core::governance::ApprovalLedgerError;
+    match error {
+        ApprovalLedgerError::NotFound => ApprovalResolveError::NotFound,
+        ApprovalLedgerError::VersionConflict => ApprovalResolveError::VersionConflict,
+        ApprovalLedgerError::IdempotencyConflict => ApprovalResolveError::IdempotencyConflict,
+        ApprovalLedgerError::Expired => ApprovalResolveError::Expired,
+        ApprovalLedgerError::AlreadyConsumed => ApprovalResolveError::AlreadyConsumed,
+        ApprovalLedgerError::InvalidTransition => ApprovalResolveError::InvalidTransition,
+        ApprovalLedgerError::Validation(_) | ApprovalLedgerError::Persistence(_) => {
+            ApprovalResolveError::Persistence
+        }
     }
 }
 
@@ -863,6 +988,36 @@ mod tests {
         let persisted = serde_json::to_string(&durable).unwrap();
         assert!(!persisted.contains("echo once"));
         assert!(!persisted.contains("denied"));
+    }
+
+    #[tokio::test]
+    async fn governed_timeout_materializes_expired_event() {
+        let (base, governance) = governed_coordinator().await;
+        let coordinator = CommandApprovalCoordinator {
+            timeout: Duration::from_millis(20),
+            ..base
+        };
+        let (id, status) = coordinator
+            .request(
+                "echo timeout".into(),
+                ".".into(),
+                "denied".into(),
+                scope("timeout"),
+            )
+            .await;
+        assert_eq!(status, CommandApprovalStatus::Expired);
+        let durable = governance.state(&id, Utc::now()).await.unwrap();
+        assert_eq!(durable.status, ApprovalStatus::Expired);
+        assert_eq!(durable.version, 2);
+        let events = governance.events_page(None, 10).await.unwrap();
+        assert_eq!(
+            events
+                .events
+                .iter()
+                .filter(|item| item.event.request_id == id)
+                .count(),
+            2
+        );
     }
 
     #[tokio::test]

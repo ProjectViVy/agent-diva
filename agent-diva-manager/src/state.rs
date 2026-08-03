@@ -72,6 +72,10 @@ pub struct AppState {
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
     pub command_approvals: CommandApprovalCoordinator,
+    /// Process-wide durable governance authority in production.
+    pub governance: Option<ApprovalCoordinator>,
+    /// Canonical Plan service shared with the Manager command loop.
+    pub planning_service: Option<Arc<crate::planning_service::PlanningService>>,
 }
 
 impl AppState {
@@ -117,6 +121,7 @@ impl AppState {
             command_approvals,
             memory_authority_mode,
             None,
+            None,
         )
     }
 
@@ -127,6 +132,7 @@ impl AppState {
         command_approvals: CommandApprovalCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
         governance: ApprovalCoordinator,
+        planning_service: Arc<crate::planning_service::PlanningService>,
     ) -> anyhow::Result<Self> {
         Self::new_with_runtime_governance_inner(
             api_tx,
@@ -135,6 +141,7 @@ impl AppState {
             command_approvals,
             memory_authority_mode,
             Some(governance),
+            Some(planning_service),
         )
     }
 
@@ -145,6 +152,7 @@ impl AppState {
         command_approvals: CommandApprovalCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
         governance: Option<ApprovalCoordinator>,
+        planning_service: Option<Arc<crate::planning_service::PlanningService>>,
     ) -> anyhow::Result<Self> {
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
@@ -164,10 +172,12 @@ impl AppState {
         let laputa = LaputaService::open(workspace_root.clone())?;
         let workspace_id =
             agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
-        let memory_governance = match governance {
-            Some(governance) => {
-                MemoryGovernanceCoordinator::governed(&workspace_root, workspace_id, governance)?
-            }
+        let memory_governance = match governance.as_ref() {
+            Some(governance) => MemoryGovernanceCoordinator::governed(
+                &workspace_root,
+                workspace_id,
+                governance.clone(),
+            )?,
             None => MemoryGovernanceCoordinator::open_lazy(&workspace_root, workspace_id)?,
         };
         let state = Self {
@@ -182,6 +192,8 @@ impl AppState {
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,
+            governance,
+            planning_service,
         };
         match state.autodream.resumable_runs() {
             Ok(runs) if !runs.is_empty() => {

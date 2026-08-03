@@ -105,13 +105,13 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 > Phase 0–2（GMH-00..24）已完成，详见 archive。以下为仍开放 story。
 
-- [ ] **GMH-30：统一审批协调器** `sev-P1`
+- [x] **GMH-30：统一审批协调器** `sev-P1`
   Plan / Sandbox / Memory 经同一协调接口；执行器只消费有效 receipt。
   suspend/resume、重启恢复、取消、超时、重复响应、多客户端。
   - [x] **GMH-30A：领域协调器与状态机**：core 协调器统一组合纯策略与 append-only
     ledger；Plan/Sandbox/Memory envelope 共用 Pending 入口，安全允许和策略拒绝不制造
     审批记录，decision/state 保持 version CAS、幂等和 payload-free 约束。
-  - [ ] **GMH-30B：receipt 消费与恢复控制**：执行器只消费有效 receipt，并补齐
+  - [x] **GMH-30B：receipt 消费与恢复控制**：执行器只消费有效 receipt，并补齐
     - [x] **GMH-30B1：Sandbox durable receipt 与重启撤销**：命令审批使用统一
       `.laputa/governance.db`，Once 在执行前消费，session 五分钟到期，global rule
       仅在 Rule receipt 后持久化；启动分页撤销当前 workspace 的 Pending/Allowed，
@@ -119,9 +119,11 @@ standing policy（非功能债，执行相关验证时遵守）：
     - [x] **GMH-30B2：Plan/Memory receipt 最终统一**：收口 Plan 审批表与 Memory
       apply 的执行消费和恢复语义。
     suspend/resume、重启恢复、取消、超时、重复响应和多客户端协调。
-- [ ] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`
+- [x] **GMH-31：Manager API / SSE / Tauri 契约** `sev-P1`
   pending/详情/approve/edit/reject/cancel/审计；幂等键与版本前置条件；
-  typed reason codes 与事件序列。
+  typed reason codes 与事件序列。统一 service 投影三域 authority，HTTP 提供稳定
+  list/detail/decision/cancel 与 durable cursor SSE；Tauri 仅负责 transport，Rust fixture
+  由 TypeScript guard 共用验证，旧 Command/Plan/Laputa wire contract 保留。
 - [ ] **GMH-32：GUI 决策中心与就地审批** `sev-P1`
   风险/证据/diff/授权时长；Memory edit-and-approve；badge 与重连去重。
 - [ ] **GMH-33：CLI/headless 行为** `sev-P2`
@@ -148,7 +150,8 @@ standing policy（非功能债，执行相关验证时遵守）：
   - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
     Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
     行为、自动化/人工验收和四个阶段停点。权威入口：
-    `docs/dev/governance-m3-goal/README.md`。尚未启动 `/goal` 或修改运行时代码。
+    `docs/dev/governance-m3-goal/README.md`。GMH-30/31 已完成，继续执行 GMH-32/33；
+    人工 smoke 仍统一延后到最终 M3 门禁。
 - [ ] **M4** Agent Loop 接入（GMH-40..42）
 - [ ] **M5** 灰度发布（GMH-50..53）
 
@@ -156,6 +159,17 @@ standing policy（非功能债，执行相关验证时遵守）：
 `docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
 
 ### Reliability / Test Debt
+
+- [ ] **GUI-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing Tauri test lint** `sev-P3`
+  `cargo clippy -p agent-diva-gui --all-targets -- -D warnings` 在既有测试构造代码
+  `agent-diva-gui/src-tauri/src/lib.rs` 命中 `field_reassign_with_default`。GMH-31 的
+  Tauri `cargo check`、前端测试与生产构建均通过；在独立兼容性提交中机械修复，
+  不与审批契约功能混合。
+
+- [ ] **WORKSPACE-TEST-UNUSED-FIXTURES: clean two test-only warnings** `sev-P3`
+  `just test` 在既有 `agent-diva-channels/src/feishu.rs` fixture 的 `handler` 与
+  `agent-diva-tools/src/filesystem.rs` fixture 的 `temp_dir` 报告未使用变量。全量测试
+  与 `just check` 均通过；在独立测试清理提交中移除或以下划线明确保留。
 
 - [x] **CORE-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing test lints** `sev-P2`
   `cargo clippy -p agent-diva-core --all-targets -- -D warnings` exposes 19

@@ -176,6 +176,17 @@ impl PlanningService {
         request: &ApprovePlanReportRequest,
         report_id: &str,
     ) -> anyhow::Result<ExecutionSession> {
+        self.approve_report_revision_with_preconditions(request, report_id, None, None)
+            .await
+    }
+
+    async fn approve_report_revision_with_preconditions(
+        &self,
+        request: &ApprovePlanReportRequest,
+        report_id: &str,
+        expected_version: Option<u64>,
+        idempotency_key: Option<&str>,
+    ) -> anyhow::Result<ExecutionSession> {
         let plan_id = PlanId(report_id.to_string());
         let store = self.canonical_store().await?;
         self.initialize_governance_mapping(&store).await?;
@@ -223,6 +234,9 @@ impl PlanningService {
         let governance = self.governance().await?;
         let mut state = self.ensure_pending_governance(&detail, Utc::now()).await?;
         if state.status == ApprovalStatus::Pending {
+            if expected_version.is_some_and(|expected| expected != state.version) {
+                return Err(ApprovalLedgerError::VersionConflict.into());
+            }
             let receipt = GovernanceReceipt {
                 request_id: state.request.correlation.request_id.clone(),
                 content_digest: state.request.content_digest.clone(),
@@ -242,7 +256,12 @@ impl PlanningService {
                 .decide(
                     &state.request.correlation.request_id,
                     state.version,
-                    &format!("plan-allow:{}", state.request.correlation.request_id),
+                    idempotency_key
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| {
+                            format!("plan-allow:{}", state.request.correlation.request_id)
+                        })
+                        .as_str(),
                     receipt,
                 )
                 .await?;
@@ -381,6 +400,41 @@ impl PlanningService {
         }
         Ok(session)
     }
+
+    /// Execute a Plan selected through the unified approval API with
+    /// conservative defaults. Domain-specific callers keep their existing
+    /// endpoint when they need explicit context or TODO materialization.
+    pub async fn approve_governed_request(
+        &self,
+        request_id: &str,
+        expected_version: u64,
+        idempotency_key: &str,
+    ) -> anyhow::Result<ExecutionSession> {
+        let governance = self.governance().await?;
+        let state = governance.state(request_id, Utc::now()).await?;
+        let report = self
+            .list_reports()
+            .await?
+            .into_iter()
+            .find(|report| report.report.id.0 == state.request.resource.resource_id)
+            .ok_or_else(|| anyhow::anyhow!("approval payload is unavailable"))?;
+        self.approve_report_revision_with_preconditions(
+            &ApprovePlanReportRequest {
+                session_key: report.report.session_key.clone(),
+                revision: report.revision.revision,
+                revision_hash: agent_diva_core::planning::revision_hash(&report.revision.markdown),
+                context_policy: ExecutionContextPolicy::Clear,
+                compacted_context: None,
+                todo_policy: TodoPolicy::Optional,
+                materialize_todos: false,
+            },
+            &report.report.id.0,
+            Some(expected_version),
+            Some(idempotency_key),
+        )
+        .await
+    }
+
     pub async fn active_execution(&self, session_key: &str) -> Option<ExecutionSession> {
         self.registry
             .active_execution_for_session(session_key)

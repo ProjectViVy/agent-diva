@@ -2879,6 +2879,206 @@ pub async fn start_command_approval_stream(
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedApprovalApiError {
+    pub status: u16,
+    pub reason_code: String,
+    pub message: String,
+}
+
+async fn unified_approval_response(
+    response: reqwest::Response,
+) -> Result<serde_json::Value, UnifiedApprovalApiError> {
+    let status = response.status();
+    if status.is_success() {
+        return response
+            .json()
+            .await
+            .map_err(|error| UnifiedApprovalApiError {
+                status: 0,
+                reason_code: "approval_persistence_failed".into(),
+                message: format!("invalid approval response: {error}"),
+            });
+    }
+    let body = response.json::<serde_json::Value>().await.ok();
+    let reason_code = body
+        .as_ref()
+        .and_then(|body| body.get("reason_code"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("approval_persistence_failed")
+        .to_owned();
+    let message = body
+        .as_ref()
+        .and_then(|body| body.get("error"))
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("approval API returned HTTP {status}"));
+    Err(UnifiedApprovalApiError {
+        status: status.as_u16(),
+        reason_code,
+        message,
+    })
+}
+
+fn approval_transport_error(error: reqwest::Error, mutation: bool) -> UnifiedApprovalApiError {
+    UnifiedApprovalApiError {
+        status: 0,
+        reason_code: if mutation {
+            "approval_outcome_unknown"
+        } else {
+            "approval_queue_unavailable"
+        }
+        .into(),
+        message: format!("approval transport failed: {error}"),
+    }
+}
+
+#[tauri::command]
+pub async fn list_approvals(
+    state: State<'_, AgentState>,
+    domain: Option<String>,
+    status: Option<String>,
+    session: Option<String>,
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> Result<serde_json::Value, UnifiedApprovalApiError> {
+    let mut query = Vec::new();
+    if let Some(value) = domain {
+        query.push(("domain", value));
+    }
+    if let Some(value) = status {
+        query.push(("status", value));
+    }
+    if let Some(value) = session {
+        query.push(("session", value));
+    }
+    if let Some(value) = cursor {
+        query.push(("cursor", value));
+    }
+    if let Some(value) = limit {
+        query.push(("limit", value.to_string()));
+    }
+    let response = state
+        .client
+        .get(format!("{}/approvals", state.api_base_url()))
+        .query(&query)
+        .send()
+        .await
+        .map_err(|error| approval_transport_error(error, false))?;
+    unified_approval_response(response).await
+}
+
+#[tauri::command]
+pub async fn get_approval(
+    state: State<'_, AgentState>,
+    request_id: String,
+) -> Result<serde_json::Value, UnifiedApprovalApiError> {
+    let response = state
+        .client
+        .get(format!(
+            "{}/approvals/{}",
+            state.api_base_url(),
+            urlencoding::encode(request_id.trim())
+        ))
+        .send()
+        .await
+        .map_err(|error| approval_transport_error(error, false))?;
+    unified_approval_response(response).await
+}
+
+#[tauri::command]
+pub async fn decide_approval(
+    state: State<'_, AgentState>,
+    request_id: String,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, UnifiedApprovalApiError> {
+    let response = state
+        .client
+        .post(format!(
+            "{}/approvals/{}/decisions",
+            state.api_base_url(),
+            urlencoding::encode(request_id.trim())
+        ))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| approval_transport_error(error, true))?;
+    unified_approval_response(response).await
+}
+
+#[tauri::command]
+pub async fn cancel_approval(
+    state: State<'_, AgentState>,
+    request_id: String,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, UnifiedApprovalApiError> {
+    let response = state
+        .client
+        .post(format!(
+            "{}/approvals/{}/cancel",
+            state.api_base_url(),
+            urlencoding::encode(request_id.trim())
+        ))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| approval_transport_error(error, true))?;
+    unified_approval_response(response).await
+}
+
+#[tauri::command]
+pub async fn start_approval_stream(
+    window: Window,
+    state: State<'_, AgentState>,
+    shutdown_manager: State<'_, ShutdownManager>,
+    initial_cursor: Option<String>,
+) -> Result<(), String> {
+    let client = state.client.clone();
+    let base_url = state.api_base_url();
+    let cancel_token = shutdown_manager.cancel_token();
+    tauri::async_runtime::spawn(async move {
+        let mut cursor = initial_cursor;
+        loop {
+            let mut request = client.get(format!("{base_url}/approvals/events"));
+            if let Some(value) = cursor.as_ref() {
+                request = request.query(&[("cursor", value)]);
+            }
+            let response = tokio::select! {
+                _ = cancel_token.cancelled() => break,
+                response = request.send() => response,
+            };
+            let response = match response {
+                Ok(response) if response.status().is_success() => response,
+                Ok(_) | Err(_) => {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+            let _ = window.emit("approval-stream-connected", cursor.clone());
+            let mut events = response.bytes_stream().eventsource();
+            while let Some(event) = tokio::select! {
+                _ = cancel_token.cancelled() => None,
+                event = events.next() => event,
+            } {
+                match event {
+                    Ok(event) if event.event.starts_with("approval.") => {
+                        if !event.id.is_empty() {
+                            cursor = Some(event.id.clone());
+                        }
+                        if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&event.data)
+                        {
+                            let _ = window.emit("approval-event", payload);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(_) => break,
+                }
+            }
+        }
+    });
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn check_health(state: State<'_, AgentState>) -> Result<bool, String> {
     let url = format!("{}/health", state.api_base_url());

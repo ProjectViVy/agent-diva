@@ -198,6 +198,10 @@ pub enum GovernanceValidationError {
     DecisionDoesNotAllow,
     #[error("approval receipt is not an approve-once grant")]
     GrantIsNotOnce,
+    #[error("governance cursor is invalid")]
+    InvalidCursor,
+    #[error("governance page limit is invalid")]
+    InvalidPageLimit,
 }
 
 impl<P> ApprovalRequest<P> {

@@ -105,6 +105,25 @@ pub async fn resolve_command_approval_handler(
             }),
         )
             .into_response(),
+        Err(
+            ApprovalResolveError::VersionConflict
+            | ApprovalResolveError::IdempotencyConflict
+            | ApprovalResolveError::Expired
+            | ApprovalResolveError::AlreadyConsumed,
+        ) => (
+            StatusCode::CONFLICT,
+            Json(ApprovalError {
+                error: "approval_already_resolved".into(),
+            }),
+        )
+            .into_response(),
+        Err(ApprovalResolveError::InvalidTransition) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ApprovalError {
+                error: "approval_already_resolved".into(),
+            }),
+        )
+            .into_response(),
         Err(ApprovalResolveError::InvalidGlobalApproval) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ApprovalError {

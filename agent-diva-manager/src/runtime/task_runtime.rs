@@ -111,7 +111,7 @@ async fn start_runtime_tasks_inner(
         file_manager,
         workspace.clone(),
         governance.clone(),
-        Some(planning_service),
+        Some(Arc::clone(&planning_service)),
     );
     let api_tx_keepalive = api_tx.clone();
 
@@ -132,6 +132,7 @@ async fn start_runtime_tasks_inner(
         command_approvals,
         config.memory.authority_mode,
         governance,
+        planning_service,
     )
     .expect("manager AppState storage services initialize");
     let recovered_memory = crate::handlers::laputa::recover_memory_approvals(&app_state)

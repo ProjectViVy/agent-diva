@@ -1,0 +1,54 @@
+{
+  "approval": {
+    "request_id": "request-1",
+    "version": 1,
+    "domain": "command",
+    "capability": "command_execute",
+    "resource": {
+      "workspace_id": "workspace-1",
+      "session_id": "gui:chat",
+      "kind": "command",
+      "resource_id": "request-1",
+      "boundary": null
+    },
+    "risk": "high",
+    "status": "pending",
+    "created_at": "2026-08-03T12:00:00Z",
+    "expires_at": "2026-08-03T12:05:00Z",
+    "subject": { "kind": "agent", "id": "sandbox" },
+    "evidence": [],
+    "receipt": null,
+    "reason_code": null,
+    "actions": ["allow", "deny", "cancel"],
+    "presentation": {
+      "title": "Command execution",
+      "command": "echo ok",
+      "cwd": ".",
+      "reason": "sandbox denied",
+      "session_key": "gui:chat"
+    }
+  },
+  "decision": {
+    "expected_version": 1,
+    "idempotency_key": "decision-1",
+    "decision": "allow",
+    "grant": "once"
+  },
+  "event": {
+    "event_id": "event-1",
+    "cursor": "1",
+    "request_id": "request-1",
+    "version": 1,
+    "domain": "command",
+    "status": "pending",
+    "reason_code": null,
+    "reason": null,
+    "occurred_at": "2026-08-03T12:00:00Z",
+    "correlation": {
+      "request_id": "request-1",
+      "turn_id": "turn-1",
+      "session_id": "gui:chat",
+      "trace_id": null
+    }
+  }
+}
