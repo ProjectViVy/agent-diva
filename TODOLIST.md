@@ -112,6 +112,12 @@ standing policy（非功能债，执行相关验证时遵守）：
   设计：`docs/dev/agent-loop-manager-gui-governance/`。
   与 GMH-40 副作用 seam 有交集时优先走 GMH 故事，避免双轨。
 
+- [ ] **CODE-AUDIT-CLEANUP-PROPOSALS：残留旧代码与死代码清理提案集群** `sev-P2`
+  2026-08-05 完成全盘代码审计并制定提案文档集合（位于 `docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/`）：
+  包含 Wave 1 Legacy Memory 双轨移除、Wave 2 Stub Planning Tools 清理、Wave 3 GUI 双审批通道整合、Wave 4 全局 40+ 处 `dead_code` 压制标记清除、Wave 5 AutoDream / Migration 兼容机制收口。
+  待提案评审通过后按 Wave 1~5 逐步切片实施。
+
+
 ### GMH 未完成（Phase 3–5）
 
 > Phase 0–2（GMH-00..24）已完成，详见 archive。以下为仍开放 story。
