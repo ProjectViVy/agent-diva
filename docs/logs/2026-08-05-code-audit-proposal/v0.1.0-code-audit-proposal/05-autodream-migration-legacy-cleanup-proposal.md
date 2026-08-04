@@ -1,31 +1,43 @@
-# 提案 05：收口 AutoDream 历史格式兼容逻辑与 Migration 边界
+# 提案 05：清理 Migration 1389 行未挂载代码、Tools/Sandbox 及 AutoDream 残留
 
-## 1. 残留代码现状分析
+## 1. 残留代码现状与定位
 
-### 1.1 涉及文件与位置
-- [`agent-diva-autodream/src/service.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-autodream/src/service.rs#L310-L325)
-- [`agent-diva-migration/src/memory_migration.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-migration/src/memory_migration.rs#L20-L40)
+经过对 `agent-diva-migration`, `agent-diva-sandbox`, `agent-diva-files` 及 `agent-diva-autodream` 的深度审计，发现以下重大残留点：
 
-### 1.2 背景与问题点
-1. 在 AutoDream 完成 E0..E7 闭环后，AutoDream 运行记录具有确定性的 Schema 和恢复状态机。但 `service.rs` 中仍保留对旧版本不完整 AutoDream 记录的特殊 `LegacyIncomplete` 代码分支。
-2. `agent-diva-migration` 模块包含早期从旧架构迁移 session/memory 的遗留代码，其中包含了被 `#[allow(dead_code)]` 压制的冗余转换辅助函数。
+### 1.1 `agent-diva-migration` 源码树中积压的 1,389 行未挂载死文件
+- **文件路径**: 
+  - `agent-diva-migration/src/config_migration.rs` (805 行)
+  - `agent-diva-migration/src/memory_migration.rs` (303 行)
+  - `agent-diva-migration/src/session_migration.rs` (281 行)
+- **残留原因**: 
+  `agent-diva-migration/src/main.rs` 中仅声明了 `mod experience; mod typed_memory; mod workspace_identity;`。这 3 个文件**完全没有被 `main.rs` 包含挂载**，属于遗留在源码目录中、不被编译且已被 Laputa 架构废弃的旧版本 Python 迁移死代码（共计 1,389 行）。
+
+### 1.2 `agent-diva-sandbox` 未调用的 API 与死常量
+- **文件路径**: 
+  - `agent-diva-sandbox/src/platform/linux.rs` (L124 `is_wsl()`)
+  - `agent-diva-sandbox/src/platform/windows.rs` (L42 `WRITE_RESTRICTED`)
+- **残留原因**: `is_wsl()` 仅在自身的单测中被调用，实际沙箱构建只使用 `is_wsl1()`；`WRITE_RESTRICTED` 常量带 `#[allow(dead_code)]`，因会导致 Windows Shell 初始化崩溃而被放弃使用。
+
+### 1.3 `agent-diva-files` 未接入的 Metadata Extract Hook
+- **文件路径**: [`agent-diva-files/src/hooks.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-files/src/hooks.rs#L814-L833) (`run_extract_metadata`)
+- **残留原因**: 被标记 `#[allow(dead_code)]`。`FileManager` 存储流水线中仅调用了 `run_validate_metadata`，从未调用 `run_extract_metadata`。
+
+### 1.4 `agent-diva-autodream` 旧 Run 恢复兼容逻辑
+- **文件路径**: [`agent-diva-autodream/src/service.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-autodream/src/service.rs#L306-L323)
+- **残留原因**: 对缺失 `orchestration` 编排元数据的早期历史 AutoDream Run 进行特殊拒绝打标。
 
 ---
 
 ## 2. 拟定的重构与瘦身方案
 
-### 2.1 变更内容 [MODIFY & DELETE]
-
-1. **`agent-diva-autodream`**：
-   - 规范化历史 AutoDream 运行记录的反序列化过程，遇到损坏或旧格式时统一触发 Fail-closed 安全拒绝逻辑，移除多余的兼容转换包装。
-
-2. **`agent-diva-migration`**：
-   - 彻底清理 Migration 内部未使用的结构体和兼容转换函数，保持 Migration CLI 仅聚焦于标准 Workspace Identity 校验与 Laputa 数据迁移。
+### 2.1 变更内容 [PHYSICAL DELETE & CLEAN]
+1. **物理删除** `agent-diva-migration` 中未挂载的 3 个过时文件（精简 1,389 行）。
+2. 删除 `linux.rs` 中未调用的 `is_wsl()` 及 `windows.rs` 中的死常量 `WRITE_RESTRICTED`。
+3. 在 `FileManager::store` 中接入 `run_extract_metadata`，或清理未调用的 Hook 方法。
+4. 收尾 AutoDream 历史旧格式 Run 的安全处理。
 
 ---
 
 ## 3. 收益与风险评估
-
-- **预期收益**：保证 AutoDream 引擎状态机的纯净；消除 Migration Crate 的测试和构建负担。
-- **风险分析**：低。现有自动化集成测试已覆盖完整生命周期。
-- **验证方法**：运行 `cargo test -p agent-diva-autodream` 与 `cargo test -p agent-diva-migration`。
+- **预期收益**：极大瘦身 `agent-diva-migration` 目录（直接清理 1389 行）；消除沙箱与文件索引 Hook 的未用死代码。
+- **风险分析**：无风险。未挂载文件本就不参与当前构建。

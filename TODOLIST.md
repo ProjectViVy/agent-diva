@@ -112,9 +112,9 @@ standing policy（非功能债，执行相关验证时遵守）：
   设计：`docs/dev/agent-loop-manager-gui-governance/`。
   与 GMH-40 副作用 seam 有交集时优先走 GMH 故事，避免双轨。
 
-- [ ] **待决策：代码清理提案集合审批与实施决策** `sev-P3`
+- [ ] **待决策：全仓库代码清理提案集合审批与实施决策** `sev-P3`
   提案集合：[`docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/`](docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/)。
-  需用户决策：是否批准并排期清理（Wave 1 Legacy Memory、Wave 2 Stub Tools、Wave 3 GUI 双通道、Wave 4 Dead Code、Wave 5 AutoDream/Migration）。
+  经 4 路子代理全量深度审计完成：需用户决策是否批准并排期清理（包含 Migration 1389 行未挂载代码、Memory 影子比对逻辑、16 个未用 Tauri Command、10 个废弃 HTTP 路由、Vue 双通道 SSE 与通道死逻辑等 6-Wave 清理案）。
 
 
 ### GMH 未完成（Phase 3–5）

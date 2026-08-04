@@ -1,49 +1,43 @@
-# 提案 04：全仓库无用死代码（dead_code）压制标记专项清理
+# 提案 04：全仓库 通道 (Channels) 与 提供者 (Providers) 死代码专项清理
 
-## 1. 残留代码现状分析
+## 1. 残留代码现状与定位
 
-### 1.1 涉及文件与清单
-经全局搜索，项目中有 40 余处显式使用 `#[allow(dead_code)]` 或 `#![allow(dead_code)]` 掩盖死代码的地方，典型位置包括：
+经过对 `agent-diva-channels` 和 `agent-diva-providers` 的深度审计，发现以下问题：
 
-1. **`agent-diva-channels`** (通讯通道模块)：
-   - `dingtalk.rs` (L80, L92, L125)：未使用的钉钉消息 payload 结构体字段。
-   - `email.rs` (L115, L130)：未使用的邮件 Server 辅助方法。
-   - `manager.rs` (L44, L47)：未使用的 ChannelManager 调试函数。
-   - `neuro_link.rs` (L32, L44, L51)：未调用的链路转换方法。
-   - `qq.rs` (L137, L145)：未使用的 WebSocket 报文结构体字段。
-   - `telegram.rs` (L45, L246, L377)：未使用的 Telegram Bot 命令及响应类型。
-   - `whatsapp.rs` (L59)：未使用的回调封装。
+### 1.1 逻辑重复导致原函数变成死代码 (`email.rs`)
+- **文件路径**: [`agent-diva-channels/src/email.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-channels/src/email.rs#L115-L130)
+- **残留原因**: 辅助函数 `parse_email` 和 `html_to_text` 在生产轮询 `check_inbox` (L234-L253) 中被直接手写内联重写，导致原辅助函数全仓仅在单测中调用，生产代码中变成死代码并被 `#[allow(dead_code)]` 掩盖。
 
-2. **`agent-diva-gui/src-tauri`** (桌面端模块)：
-   - `commands.rs` (L3776, L4470)：旧版的桌面命令辅助方法。
-   - `embedded_server.rs` (L14, L41, L71)：未使用的 Server handle 方法。
-   - `process_utils.rs` (L7 `#![allow(dead_code)]`)：整页压制警告的进程工具。
+### 1.2 未接入的异步任务与废弃函数 (`telegram.rs`)
+- **文件路径**: [`agent-diva-channels/src/telegram.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-channels/src/telegram.rs#L45-L395)
+- **残留原因**: 
+  - `start_typing` 后台循环打字指示器任务从未在任何消息处理流程中触发，`typing_tasks` 始终为空；
+  - 迁移 Teloxide 后遗留的 `handle_text_message` 废弃函数（L246）被压制；
+  - `TelegramHandler.proxy` 字段从不读取。
 
-3. **`agent-diva-core` & `agent-diva-sandbox` & `agent-diva-autodream`**：
-   - `agent-diva-core/src/planning/store.rs` (L1130, L1184, L1230, L1268)：测试辅助以外未被主流程调用的存取函数。
-   - `agent-diva-sandbox/src/platform/windows.rs` (L33, L36, L39, L186)：未使用的 Win32 API 结构体定义。
-   - `agent-diva-autodream/src/outputs.rs` (L306, L323)：未使用的序列化输出模型。
+### 1.3 内联格式化忽略通用方法 (`nextcloud_talk.rs`)
+- **文件路径**: [`agent-diva-channels/src/nextcloud_talk.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-channels/src/nextcloud_talk.rs#L44-L200)
+- **残留原因**: 定义了 `ocs_base(&self)`，但在所有 API 请求中均手动手写格式化拼接 `format!("{}/ocs/v2.php/...", base_url)`，致使 `ocs_base` 被标记 `#[allow(dead_code)]`。
 
-### 1.2 问题点
-滥用 `#[allow(dead_code)]` 会屏蔽 Rust 编译器的真实死代码检查，导致遗留无用代码随着版本更迭越积越多，破坏了代码库的可读性与编译速度。
+### 1.4 无用 Payload 结构体字段与错误结构
+- **涉及文件**: `dingtalk.rs`, `qq.rs`, `feishu.rs`, `discord.rs`, `ollama.rs`
+- **残留原因**:
+  - `qq.rs`: `SessionStartLimit` 与 `GatewayInfo.shards` 解析后从未使用；
+  - `ollama.rs`: 原生 `/api/chat` 请求误带入了 OpenAI 专有的 `stream_options` 节点；
+  - `whatsapp.rs`: 过时的 Python/Bridge 路径注释（L6-L7）与 Map 二次包装冗余转换。
 
 ---
 
 ## 2. 拟定的重构与瘦身方案
 
-### 2.1 变更内容 [DELETE / REFRACTOR]
-
-1. **评估真实使用情况**：
-   - 若字段/函数属于 FFI、外部 API 序列化必需字段（如 Win32 结构体或 QQ/Telegram 协议保留字段），移除 `#[allow(dead_code)]` 并加上下划线 `_` 前缀或属性注释（如 `#[serde(rename = "...")]`）。
-   - 若为纯粹遗留的未调用函数/结构体，直接彻底删除。
-
-2. **移除全页压制**：
-   - 彻底删除 `process_utils.rs` 顶部的 `#![allow(dead_code)]` 全局压制声明。
+### 2.1 变更内容 [REFRACTOR & DELETE]
+1. 重构 `email.rs` 的 `check_inbox`，统一调用 `parse_email`，消除重复逻辑与 `#[allow(dead_code)]`。
+2. 激活或清理 `telegram.rs` 的 `start_typing` 任务，删除废弃的 `handle_text_message` 函数与无用 `proxy` 字段。
+3. 统一 `nextcloud_talk.rs` 的 URL 拼接逻辑至 `ocs_base()`。
+4. 清理 `qq.rs` / `feishu.rs` / `dingtalk.rs` 中未使用的 Payload 字段，修正 `ollama.rs` 中的结构混淆。
 
 ---
 
 ## 3. 收益与风险评估
-
-- **预期收益**：删除数百行无效代码；恢复 Clippy 对 Workspace 代码质量的硬约束能力。
-- **风险分析**：极低。Clippy 与 Cargo test 会在编译期确保所有必需代码完好。
-- **验证方法**：运行 `just check` (`cargo clippy --all -- -D warnings`)。
+- **预期收益**：消除冗余数据解析；修复/激活打字状态功能；清理大量压制标记。
+- **风险分析**：极低。`just check` 可确保无编译告警。

@@ -1,40 +1,37 @@
-# 提案 02：清理 Agent 端失效的计划审批与存根工具 (Stub Tools Clean-up)
+# 提案 02：清理 Agent 端的 Built-in Tools 存根、未注册工具与错置代码
 
-## 1. 残留代码现状分析
+## 1. 残留代码现状与定位
 
-### 1.1 涉及文件与位置
-- [`agent-diva-agent/src/planning/tools.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/planning/tools.rs#L42-L85) (`PlanApproveTool`)
-- [`agent-diva-agent/src/tool_assembly.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/tool_assembly.rs#L205-L215)
+经过对 `agent-diva-tools` 和 `agent-diva-agent` 工具装配链路的审查，发现以下 4 处问题：
 
-### 1.2 背景与问题点
-在 HITL 审批重构（GMH-30..33）后，所有 Plan 审批与风险命令的决策权均转移到了 Manager 统一治理层（HTTP/Tauri/CLI 控件），不再允许 Agent 自行调用工具进行“自审批”。
+### 1.1 未注册的 `MessageTool`
+- **文件路径**: [`agent-diva-tools/src/message.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-tools/src/message.rs#L21-L205)
+- **残留原因**: 实现了 `Tool` Trait，但在 `agent-diva-agent/src/tool_assembly.rs` 中**没有任何注册与实例化逻辑**，Agent 无法感知或调用该工具。
 
-但是在代码中：
-1. `PlanApproveTool` 仍然作为 `Tool` trait 的实现保留在 `planning/tools.rs` 中。
-2. 其 `execute` 方法仅硬编码返回错误：`ToolError::ExecutionFailed("Plans require an explicit revision-bound user approval through runtime control.")`。
-3. `tool_assembly.rs` 在组装工具列表时仍会注入这个只用于报错的 Dummy Stub Tool。
+### 1.2 4 个旧版 Planning Built-in Tools
+- **文件路径**: [`agent-diva-tools/src/planning/mod.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-tools/src/planning/mod.rs#L184-L420)
+- **残留原因**: 包含了早期架构的 `TodoShowTool`, `TodoWriteTool`, `PlanCreateTool`, `PlanSubmitTool`。生产环境已切换为 `ExecutionTodoShowTool` / `UpdatePlanTool`，这 4 个旧工具未注册且未导出。
 
-这类 Dummy Tool 占用 LLM 的 System Prompt 上下文（Tool Definition Token），且增加了理解负担。
+### 1.3 Agent 端存根工具 `PlanApproveTool`
+- **文件路径**: [`agent-diva-agent/src/planning/tools.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/planning/tools.rs#L42-L85)
+- **残留原因**: 仅用于在 Agent 尝试审批时返回 "Unavailable" 错误提示。由于审批早已移至 Manager 控制面，此 Stub Tool 浪费 Token 且无实际功能。
+
+### 1.4 ASCII Logo 打印代码误置在 Tools Crate
+- **文件路径**: [`agent-diva-tools/src/wtf.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-tools/src/wtf.rs#L1-L15)
+- **残留原因**: 仅包含控制台 Logo 打印函数，属于 CLI 控制台 UI 展示代码，仅被 `agent-diva-cli` 调用，不属于 Tool 模块。
 
 ---
 
 ## 2. 拟定的重构与瘦身方案
 
-### 2.1 变更内容 [DELETE]
-
-1. **`agent-diva-agent/src/planning/tools.rs`**：
-   - 彻底删除 `PlanApproveTool` 结构体及 `impl Tool for PlanApproveTool` 块（约 45 行代码）。
-
-2. **`agent-diva-agent/src/tool_assembly.rs`**：
-   - 移除 `PlanApproveTool` 的实例化与注册代码。
-
-3. **Prompt 上下文同步**：
-   - 确认 System Prompt 渲染逻辑不再提及 `plan_approve` 工具。
+### 2.1 变更内容 [DELETE & MOVE]
+1. 移除 `PlanApproveTool` 存根工具及 `tool_assembly.rs` 中的相关注册。
+2. 彻底清理 `agent-diva-tools/src/planning/mod.rs` 中未调用的 4 个旧版 Tool 结构体。
+3. 若 `MessageTool` 已被直接事件推送替代，删除 `message.rs`；若需保留则补齐注册。
+4. 将 `wtf.rs` 中的 ASCII Logo 函数迁移至 `agent-diva-cli` 或 `agent-diva-core` 中。
 
 ---
 
 ## 3. 收益与风险评估
-
-- **预期收益**：减少 LLM Prompt 消耗；避免 Agent 尝试调用不可用工具导致的无效 Turn 浪费。
-- **风险分析**：无风险。底层审批已有 Manager API 坚固保障。
-- **验证方法**：运行 `cargo test -p agent-diva-agent` 确认工具装配逻辑正常。
+- **预期收益**：减少 LLM Tool Calling 上下文开销；保持 `agent-diva-tools` 模块职责纯粹。
+- **风险分析**：无风险。底层审批和事件已有独立架构保证。

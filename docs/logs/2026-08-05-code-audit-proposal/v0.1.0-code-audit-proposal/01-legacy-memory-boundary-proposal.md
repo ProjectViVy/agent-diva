@@ -1,43 +1,50 @@
-# 提案 01：移除 Legacy Memory 兼容层与双轨记忆分支 (Memory Clean-Break)
+# 提案 01：清理 Agent Core & Memory 遗留适配器、影子模式与孤立死代码
 
-## 1. 残留代码现状分析
+## 1. 残留代码现状与定位
 
-### 1.1 涉及文件与位置
-- [`agent-diva-agent/src/memory_boundary.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/memory_boundary.rs#L12-L200)
-- [`agent-diva-core/src/config/schema.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/config/schema.rs#L290-L330)
+经过对 `agent-diva-core` 和 `agent-diva-agent` 两个核心 Crate 的深度审计，梳理出以下 8 处主要残留点：
 
-### 1.2 背景与问题点
-项目架构规定：嵌入式 Laputa (SQLite + FTS5) 是唯一的生产级 Memory 权威存储，旧版 Markdown/File-based Memory 仅作为离线导入源。
+### 1.1 计划审批治理兼容适配层 `governance_adapter.rs`
+- **文件路径**: [`agent-diva-core/src/planning/governance_adapter.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/planning/governance_adapter.rs#L1-L135)
+- **残留原因**: 文件头部明确注释 `//! These functions are not wired into the production planning store.`，全仓除自身单测外 **0 处生产调用**。
 
-然而在当前代码中：
-1. `memory_boundary.rs` 的 `memory_provider_for_mode` 中仍然包含 `MemoryAuthorityMode::Legacy` 与 `MemoryAuthorityMode::Shadow` 路径。
-2. 即使在 Laputa 初始化成功时，`memory_boundary.rs` 内部的数据结构中仍然保留了 `legacy: Arc<MemoryManager>` / `Arc<dyn MemoryProvider>` 字段。
-3. `config/schema.rs` 中定义了 `legacy_memory_config()` 回退函数及配置字段。
+### 1.2 已废弃的全局 Plan 审批控制命令
+- **文件路径**: 
+  - [`agent-diva-agent/src/runtime_control.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/runtime_control.rs#L52-L60) (`ApproveActivePlan`, `ReturnActivePlanToDraft`)
+  - [`agent-diva-agent/src/agent_loop/loop_runtime_control.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/agent_loop/loop_runtime_control.rs#L117-L126)
+- **残留原因**: Handler 中硬编码无条件返回 `"legacy global plan approval has been removed"` 错误，外部无任何发送方构造这两个变体。
 
-这种设计导致：
-- 每次 Memory Prefetch / Recall 时仍需创建旧版 `MemoryManager` 实例；
-- 代码逻辑中包含毫无必要的 Shadow 比对与 Legacy 降级分支，增加了多余的复杂度和内存开销。
+### 1.3 记忆系统 Legacy / Shadow 影子比对逻辑
+- **文件路径**: 
+  - [`agent-diva-agent/src/memory_boundary.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/memory_boundary.rs#L75-L209) (`CutoverMemoryProvider`)
+  - [`agent-diva-core/src/memory/recall.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/memory/recall.rs#L160-L169) (`RecallShadowReport`, `compare_recall_shadow`)
+- **残留原因**: Laputa 嵌入式数据库已是唯一生产权威，过渡期用于对比旧 `MEMORY.md` 和 Laputa typed store 的 Shadow 影子比对器与增量统计函数已完成历史使命。
+
+### 1.4 `SqlitePlanningStore` 内部无用 Row 结构体
+- **文件路径**: [`agent-diva-core/src/planning/store.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/planning/store.rs#L1129-L1280)
+- **残留原因**: `PlanRow`, `StepRow`, `TodoRow`, `EventRow` 四个结构体被标记 `#[allow(dead_code)]`，底层 SQL 查询全部直接绑定参数而未反序列化到这些 Row 类型。
+
+### 1.5 孤立结构体 `NagTracker` & `TodoPlanner` & 安全 Stub
+- **文件路径**: 
+  - [`agent-diva-agent/src/planning/nag.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/planning/nag.rs#L1-L112) (`NagTracker`)
+  - [`agent-diva-agent/src/planning/todo_planner.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-agent/src/planning/todo_planner.rs#L1-L126) (`TodoPlanner`)
+  - [`agent-diva-core/src/security/injection.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/security/injection.rs#L287-L293) (`model_based_check`)
+  - [`agent-diva-core/src/security/pii.rs`](file:///C:/Users/Administrator/Desktop/morediva/agent-diva/agent-diva-core/src/security/pii.rs#L131-L159) (`CustomPiiRule`)
+- **残留原因**: 均属于未与实际业务流程挂钩、无调用的孤立结构体或返回固定空值的 Stub 代码。
 
 ---
 
 ## 2. 拟定的重构与瘦身方案
 
-### 2.1 变更内容 [MODIFY & DELETE]
-
-1. **`agent-diva-agent/src/memory_boundary.rs`**：
-   - 完全移除 `MemoryAuthorityMode::Legacy` 与 `MemoryAuthorityMode::Shadow` 的条件分支。
-   - 移除 `memory_provider_for_mode` 中对 `MemoryManager::new(workspace)` 的引用。
-   - 移除 `LaputaRecallService` 中包裹的 `legacy` 成员。
-   - 如果 Laputa 打开失败或损坏，统一直接返回 `DegradedMemoryProvider`，而不是降级到 Legacy 文件记忆。
-
-2. **`agent-diva-core/src/config/schema.rs`**：
-   - 标记 `MemoryAuthorityMode::Legacy` 为废弃或直接清理，统一默认模式为 `Laputa`。
-   - 移除 `legacy_memory_config` 辅助函数。
+### 2.1 变更内容 [DELETE & REFRACTOR]
+1. 删除 `governance_adapter.rs` 全文件（135 行）。
+2. 从 `RuntimeControlCommand` 中移除 `ApproveActivePlan` / `ReturnActivePlanToDraft` 变体及其 Handler。
+3. 清理 `memory_boundary.rs` 中的 `CutoverMemoryProvider` 及 `recall.rs` 中的影子比对代码。
+4. 删除 `store.rs` 中被 `#[allow(dead_code)]` 压制的 4 个 Row 结构体。
+5. 移除孤立的 `NagTracker`、`TodoPlanner` 以及 `injection.rs` / `pii.rs` 中的未接入 Stub。
 
 ---
 
 ## 3. 收益与风险评估
-
-- **预期收益**：精简约 250 行 Rust 代码；避免运行时初始化未使用的旧版 MemoryManager；巩固 Laputa 单一权威保障。
-- **风险分析**：极低。`just laputa-clean-break-check` 已经禁止旧逻辑进入生产环境。
-- **验证方法**：运行 `just test` 与 `just laputa-clean-break-check`。
+- **预期收益**：精简 Agent Core 模块约 800 行代码，彻底巩固 Laputa 单轨权威，消除运行时多余比对开销。
+- **风险分析**：极低。`just test` 与 `just laputa-clean-break-check` 可确保安全。
