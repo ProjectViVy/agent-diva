@@ -11,7 +11,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-05T00:00:00+08:00`
-- Last Heartbeat: `2026-08-05T01:45:00+08:00`
+- Last Heartbeat: `2026-08-05T12:30:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-08-05T12:30:00+08:00`: Released after docs-only GA memory parity inventory
+  (`docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/`).
 - `2026-08-05T01:45:00+08:00`: Released after fixing GUI sandbox settings save
   (snake_case enum unification). Manual desktop smoke deferred; see TODOLIST.md
   `SANDBOX-SAVE-FIX-DESKTOP-SMOKE`.

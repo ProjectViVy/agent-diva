@@ -19,6 +19,17 @@
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
+- [ ] **GA-MEM-PARITY：GenericAgent 功能对齐 × Memory/Laputa/AutoDream 完全可用** `sev-P0`
+  2026-08-05 完成只读盘点：相对 GenericAgent，Agent 侧记忆管理工具面基本缺失
+  （无 add/list/search/update/remove/distill），prompt 仍承诺 “memory tools”；
+  Laputa/Typed 的 `sync_turn` 多为 pending proposal 而非即时权威；工作记忆、L0–L4
+  分层纪律、主动蒸馏未产品化；AutoDream 有底座与手动 API，自动触发与审查闭合待证。
+  权威入口：
+  [`docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/inventory.md`](docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/inventory.md)。
+  实施按 inventory Wave 0–5；**禁止**回退 Mentle 或 “file_write 即权威”。
+  验收见同目录 `acceptance.md`。Open Questions（即时 durable vs proposal-first 等）
+  须在 Wave 1 编码前冻结。
+
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
   Laputa proposal/统一治理、typed apply、Recall feedback、一体化 GUI、恢复与发布门
