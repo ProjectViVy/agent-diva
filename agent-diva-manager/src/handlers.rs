@@ -70,6 +70,8 @@ pub struct ChatRequest {
     pub plan_id: Option<String>,
     pub plan_revision: Option<i64>,
     pub execution_id: Option<String>,
+    /// Optional approval-policy override ("on-request" / "on-failure" / "unless-trusted" / "never").
+    pub approval_policy: Option<String>,
 }
 
 fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
@@ -79,6 +81,28 @@ fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
         Some("plan") => Some("plan"),
         Some("ask") => Some("ask"),
         Some(_) => Some("ask"),
+    }
+}
+
+pub(crate) fn parse_approval_policy(
+    raw: Option<&str>,
+) -> Option<agent_diva_sandbox::AskForApproval> {
+    match raw.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+        None | Some("") => None,
+        Some("on-request" | "on_request" | "cautious") => {
+            Some(agent_diva_sandbox::AskForApproval::OnRequest)
+        }
+        Some("on-failure" | "on_failure" | "smart") => {
+            Some(agent_diva_sandbox::AskForApproval::OnFailure)
+        }
+        Some("unless-trusted" | "unless_trusted" | "trusted") => {
+            Some(agent_diva_sandbox::AskForApproval::UnlessTrusted)
+        }
+        Some("never") => Some(agent_diva_sandbox::AskForApproval::Never),
+        Some(other) => {
+            tracing::warn!("Unknown approval_policy '{}', ignoring", other);
+            None
+        }
     }
 }
 
@@ -129,6 +153,12 @@ pub async fn chat_handler(
     let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
     if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
         msg = msg.with_metadata("exec_mode", mode);
+    }
+    if let Some(policy) = parse_approval_policy(payload.approval_policy.as_deref()) {
+        msg = msg.with_metadata(
+            "approval_policy",
+            serde_json::to_string(&policy).unwrap_or_else(|_| "on-failure".to_string()),
+        );
     }
     if payload.execution_start.unwrap_or(false) {
         msg = msg.with_metadata("execution_start", true);
@@ -1130,7 +1160,7 @@ mod tests {
     use super::{
         agent_bus_event_to_sse, chat_handler, generate_session_title_handler,
         get_session_history_handler, get_sessions_handler, normalized_exec_mode,
-        update_session_title_handler, AgentEvent, ChatRequest, Sse,
+        parse_approval_policy, update_session_title_handler, AgentEvent, ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::MessageBus;
@@ -1340,6 +1370,7 @@ mod tests {
                 plan_id: None,
                 plan_revision: None,
                 execution_id: None,
+                approval_policy: None,
             }),
         )
         .await;
@@ -1453,5 +1484,36 @@ mod tests {
         assert!(text.contains(expected["args"]["explanation"].as_str().unwrap()));
         assert!(text.contains(expected["args"]["plan"][0]["step"].as_str().unwrap()));
         assert!(text.contains(expected["args"]["plan"][0]["status"].as_str().unwrap()));
+    }
+
+    #[test]
+    fn parse_approval_policy_maps_gui_modes_and_canonical_aliases() {
+        assert_eq!(
+            parse_approval_policy(Some("cautious")),
+            Some(agent_diva_sandbox::AskForApproval::OnRequest)
+        );
+        assert_eq!(
+            parse_approval_policy(Some("smart")),
+            Some(agent_diva_sandbox::AskForApproval::OnFailure)
+        );
+        assert_eq!(
+            parse_approval_policy(Some("trusted")),
+            Some(agent_diva_sandbox::AskForApproval::UnlessTrusted)
+        );
+        assert_eq!(
+            parse_approval_policy(Some("on-request")),
+            Some(agent_diva_sandbox::AskForApproval::OnRequest)
+        );
+        assert_eq!(
+            parse_approval_policy(Some("On_Failure")),
+            Some(agent_diva_sandbox::AskForApproval::OnFailure)
+        );
+        assert_eq!(
+            parse_approval_policy(Some("never")),
+            Some(agent_diva_sandbox::AskForApproval::Never)
+        );
+        assert_eq!(parse_approval_policy(None), None);
+        assert_eq!(parse_approval_policy(Some("")), None);
+        assert_eq!(parse_approval_policy(Some("garbage")), None);
     }
 }

@@ -10,7 +10,7 @@ use agent_diva_core::planning::policy::allows_for_phase;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
-use agent_diva_sandbox::CommandApprovalCoordinator;
+use agent_diva_sandbox::{AskForApproval, CommandApprovalCoordinator};
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
     load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
@@ -51,6 +51,7 @@ pub struct ToolAssembly {
     plan_phase: Option<PlanPhase>,
     execution_session_id: Option<String>,
     command_approvals: Option<CommandApprovalCoordinator>,
+    approval_policy: AskForApproval,
 }
 
 impl ToolAssembly {
@@ -74,6 +75,7 @@ impl ToolAssembly {
             plan_phase: None,
             execution_session_id: None,
             command_approvals: None,
+            approval_policy: AskForApproval::default(),
         }
     }
 
@@ -171,6 +173,14 @@ impl ToolAssembly {
         self
     }
 
+    /// Override the orchestrator's approval policy. Defaults to `OnFailure`.
+    /// GUI modes map as: cautious → `OnRequest`, smart → `OnFailure`,
+    /// trusted → `UnlessTrusted`.
+    pub fn with_approval_policy(mut self, policy: AskForApproval) -> Self {
+        self.approval_policy = policy;
+        self
+    }
+
     pub fn build(self) -> ToolRegistry {
         self.build_internal(false)
     }
@@ -244,7 +254,7 @@ impl ToolAssembly {
                     Some(self.workspace.clone()),
                     self.restrict_to_workspace,
                 )
-                .with_approval_backend(self.command_approvals.clone()),
+                .with_approval_backend(self.command_approvals.clone(), self.approval_policy),
             ));
         }
 

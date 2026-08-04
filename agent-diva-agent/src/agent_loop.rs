@@ -39,6 +39,7 @@ use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use crate::tool_config::PlanningConfig;
+use agent_diva_sandbox::AskForApproval;
 
 mod loop_runtime_control;
 mod loop_tools;
@@ -60,6 +61,9 @@ pub struct ToolConfig {
     pub global_timeout_secs: u64,
     /// Optional command approval backend shared with interactive transports.
     pub command_approvals: Option<CommandApprovalCoordinator>,
+    /// Approval policy forwarded to the ExecTool's orchestrator.
+    /// Defaults to `OnFailure`; GUI cautious → `OnRequest`, trusted → `UnlessTrusted`.
+    pub approval_policy: AskForApproval,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
@@ -87,6 +91,7 @@ impl Default for ToolConfig {
             exec_timeout: 60,
             global_timeout_secs: 120,
             command_approvals: None,
+            approval_policy: AskForApproval::default(),
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
@@ -265,6 +270,7 @@ fn build_agent_tools(
         .with_exec_timeout(tool_config.exec_timeout)
         .with_global_timeout(tool_config.global_timeout_secs)
         .with_command_approvals(tool_config.command_approvals.clone())
+        .with_approval_policy(tool_config.approval_policy)
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
@@ -341,6 +347,52 @@ impl AgentLoop {
                 background_task_context,
             },
         );
+    }
+
+    /// Update the orchestrator approval policy (e.g. cautious → `OnRequest`).
+    /// Rebuilds the active tool surface so the new policy reaches the ExecTool.
+    pub(crate) fn set_approval_policy(&mut self, policy: AskForApproval) {
+        if self.tool_config.approval_policy == policy {
+            return;
+        }
+        self.tool_config.approval_policy = policy;
+        let surface = self.active_tool_surface.clone();
+        let active_mask = self.load_active_mask();
+        self.rebuild_tools_for_turn(
+            active_mask.as_ref(),
+            surface.plan_phase,
+            surface.execution_session_id,
+            surface.background_task_context,
+        );
+    }
+
+    /// Read `metadata["approval_policy"]` from the inbound message and apply it.
+    /// Accepts either a string ("on-request"/"on-failure"/"unless-trusted"/"never")
+    /// or a serialized `AskForApproval` value. Unknown values are ignored so a
+    /// stale GUI cannot break the orchestrator.
+    fn apply_approval_policy_from_metadata(&mut self, msg: &InboundMessage) {
+        let Some(raw) = msg.metadata.get("approval_policy") else {
+            return;
+        };
+        let policy: Option<AskForApproval> = match raw {
+            serde_json::Value::String(s) => {
+                serde_json::from_value(serde_json::Value::String(s.clone()))
+                    .ok()
+                    .or_else(|| match s.to_ascii_lowercase().as_str() {
+                        "cautious" | "on-request" | "on_request" => Some(AskForApproval::OnRequest),
+                        "smart" | "on-failure" | "on_failure" => Some(AskForApproval::OnFailure),
+                        "trusted" | "unless-trusted" | "unless_trusted" => {
+                            Some(AskForApproval::UnlessTrusted)
+                        }
+                        "never" => Some(AskForApproval::Never),
+                        _ => None,
+                    })
+            }
+            _ => None,
+        };
+        if let Some(policy) = policy {
+            self.set_approval_policy(policy);
+        }
     }
 
     /// Create a new agent loop
@@ -734,6 +786,7 @@ impl AgentLoop {
 
     async fn handle_inbound(&mut self, msg: InboundMessage) {
         debug!("Received message from {}:{}", msg.channel, msg.chat_id);
+        self.apply_approval_policy_from_metadata(&msg);
         let event_msg = msg.clone();
         match self.process_inbound_message(msg, None).await {
             Ok(Some(response)) => {

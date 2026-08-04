@@ -303,6 +303,13 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [ ] **Wave 3 residual：background task 上下文与预算继承 E2E** `sev-P2`
 - [ ] **Wave 3 residual：workspace CLI managed-path 与任意路径产品契约** `sev-P3`
   路径穿越已修；managed `config_dir/workspaces/*` 与 runtime 任意路径模型仍分歧。
+- [ ] **Approval dual-channel unification + 超时 UX** `sev-P3`
+  Legacy `command-approval-requested` SSE（`App.vue:2003`）与统一 `approval-event`
+  （`App.vue:2006`）两套通道并存，GUI 同时维护 `commandApprovals` 与 `unifiedApprovals`，
+  容易丢事件。同时 `ApprovalCoordinator` 默认超时后直接 `Expired`，前端无倒计时，
+  用户无法感知剩余审批窗口。2026-08 cautious-mode 修复时仅修了后端透传+escalation，
+  通道合并与倒计时待独立迭代。
+  关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
 - [ ] **UX-DR-3/4/7** `sev-P3`
   Sprint 评审 UX 缺口，待专项设计。
 

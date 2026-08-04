@@ -1181,6 +1181,7 @@ pub async fn send_message(
     mode: Option<String>,
     execution: Option<serde_json::Value>,
     #[allow(non_snake_case)] streamRequestId: String,
+    #[allow(non_snake_case)] approvalPolicy: Option<String>,
     window: Window,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
@@ -1204,7 +1205,8 @@ pub async fn send_message(
             "execution_start": execution.as_ref().map(|_| true),
             "plan_id": execution.as_ref().and_then(|value| value.get("plan_id")),
             "plan_revision": execution.as_ref().and_then(|value| value.get("revision")),
-            "execution_id": execution.as_ref().and_then(|value| value.get("execution_id"))
+            "execution_id": execution.as_ref().and_then(|value| value.get("execution_id")),
+            "approval_policy": approvalPolicy
         }))
         .send()
         .await
@@ -1440,6 +1442,7 @@ pub async fn continue_approved_plan_execution(
             "execution_id": execution_id,
         })),
         streamRequestId,
+        None,
         window,
         state,
     )

@@ -716,6 +716,7 @@ impl ToolOrchestrator {
                 | SandboxError::PlatformUnavailable { .. }
                 | SandboxError::PlatformNotSupported
                 | SandboxError::ApprovalRequired { .. }
+                | SandboxError::ExecutionFailed { .. }
         )
     }
 
@@ -747,6 +748,7 @@ mod tests {
     use super::*;
     use crate::approval::ApprovalStore;
     use crate::guardian::GuardianConfig;
+    use crate::SandboxConfig;
 
     #[test]
     fn test_sandbox_override_default() {
@@ -943,5 +945,27 @@ mod tests {
 
         let result = orchestrator.run("echo hello", &cwd).await.unwrap();
         assert!(result.output.contains("hello"));
+    }
+
+    #[test]
+    fn should_offer_escalation_covers_execution_failed() {
+        let config = SandboxConfig::default();
+        let manager = Arc::new(SandboxManager::new(&config));
+        let orchestrator = ToolOrchestrator::new(manager, AskForApproval::OnFailure);
+
+        let err = SandboxError::ExecutionFailed {
+            code: 1,
+            stdout: String::new(),
+            stderr: "denied".to_string(),
+        };
+        assert!(
+            orchestrator.should_offer_escalation(&err),
+            "ExecutionFailed must escalate to approval instead of silently failing"
+        );
+    }
+
+    #[test]
+    fn on_request_allows_sandbox_failure_retry() {
+        assert!(AskForApproval::OnRequest.allows_sandbox_failure_retry());
     }
 }

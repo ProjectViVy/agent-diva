@@ -2,8 +2,9 @@
 
 use crate::sanitize::sanitize_for_json;
 use agent_diva_sandbox::{
-    CommandApprovalCoordinator, CommandApprovalKey, CommandApprovalScope, CommandApprovalStatus,
-    ReviewDecision, SandboxConfig, SandboxError, SandboxManager, ToolOrchestrator,
+    AskForApproval, CommandApprovalCoordinator, CommandApprovalKey, CommandApprovalScope,
+    CommandApprovalStatus, ReviewDecision, SandboxConfig, SandboxError, SandboxManager,
+    ToolOrchestrator,
 };
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
@@ -93,9 +94,16 @@ impl ExecTool {
     }
 
     /// Route production execution through the sandbox orchestrator.
+    ///
+    /// `approval_policy` controls when the orchestrator prompts the user:
+    /// - `OnFailure` (default): only after sandbox execution fails.
+    /// - `OnRequest`: before every tool call ("cautious" mode in the GUI).
+    /// - `UnlessTrusted`: before every non-trusted command.
+    /// - `Never`: never prompt.
     pub fn with_approval_backend(
         mut self,
         coordinator: Option<CommandApprovalCoordinator>,
+        approval_policy: AskForApproval,
     ) -> Self {
         let workspace = self
             .working_dir
@@ -104,10 +112,7 @@ impl ExecTool {
         let mut config = SandboxConfig::workspace_write(workspace);
         config.timeout_seconds = self.timeout_secs;
         let manager = Arc::new(SandboxManager::new(&config));
-        self.orchestrator = Some(Arc::new(ToolOrchestrator::new(
-            manager,
-            agent_diva_sandbox::AskForApproval::OnFailure,
-        )));
+        self.orchestrator = Some(Arc::new(ToolOrchestrator::new(manager, approval_policy)));
         self.approval_coordinator = coordinator;
         self
     }

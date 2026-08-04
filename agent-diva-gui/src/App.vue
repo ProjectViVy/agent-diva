@@ -445,6 +445,9 @@ function editUnifiedApproval(approval: ApprovalView) {
 async function handleUnifiedApprovalEvent(payload: ApprovalEventView) {
   const knownVersion = approvalVersions.get(payload.request_id) ?? 0;
   if (!approvalEventGuard.accept(payload, knownVersion)) return;
+  if (payload.status === 'pending') {
+    approvalCenterOpen.value = true;
+  }
   await refreshUnifiedApproval(payload.request_id);
 }
 
@@ -456,8 +459,12 @@ function sortCommandApprovals(requests: CommandApprovalRequest[]) {
 
 function upsertCommandApproval(request: CommandApprovalRequest) {
   const byId = new Map(commandApprovals.value.map((item) => [item.approval_id, item]));
+  const isNew = !byId.has(request.approval_id);
   byId.set(request.approval_id, request);
   commandApprovals.value = sortCommandApprovals([...byId.values()]);
+  if (isNew) {
+    approvalCenterOpen.value = true;
+  }
 }
 
 async function reconcileCommandApprovals() {
@@ -1392,7 +1399,7 @@ async function revokePlanExecution(feedback = '') {
   }
 }
 
-async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent') {
+async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent', permissionMode?: 'cautious' | 'smart' | 'trusted') {
   if (!content.trim() && (!attachments || attachments.length === 0)) return;
   if (isTyping.value) return;
   if (content.trim() === '/stop') {
@@ -1448,6 +1455,14 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
         return;
     }
 
+    const approvalPolicy =
+      permissionMode === 'cautious'
+        ? 'on-request'
+        : permissionMode === 'trusted'
+          ? 'unless-trusted'
+          : permissionMode === 'smart'
+            ? 'on-failure'
+            : undefined;
     await invoke("send_message", {
       message: content,
       channel: currentChannel.value,
@@ -1455,6 +1470,7 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
       attachments: attachmentFileIds,
       mode,
       streamRequestId,
+      approvalPolicy,
     });
   } catch (error) {
     console.error("Failed to send message:", error);

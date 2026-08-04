@@ -103,6 +103,10 @@ impl AgentLoop {
                 self.thinking_mode = mode;
                 info!("Thinking mode set to: {:?}", mode);
             }
+            RuntimeControlCommand::SetApprovalPolicy { policy } => {
+                self.set_approval_policy(policy);
+                info!("Approval policy set to: {:?}", policy);
+            }
             RuntimeControlCommand::CompactSession {
                 session_key,
                 reply_tx,

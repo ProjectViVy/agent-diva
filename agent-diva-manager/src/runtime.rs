@@ -1014,6 +1014,7 @@ async fn build_agent_loop(
         exec_timeout: config.tools.exec.timeout,
         global_timeout_secs: 120,
         command_approvals: Some(command_approvals),
+        approval_policy: agent_diva_sandbox::AskForApproval::default(),
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(cron_service),

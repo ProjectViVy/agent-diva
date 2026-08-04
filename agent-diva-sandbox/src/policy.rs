@@ -222,7 +222,7 @@ impl AskForApproval {
     pub fn allows_sandbox_failure_retry(&self) -> bool {
         matches!(
             self,
-            AskForApproval::OnFailure | AskForApproval::UnlessTrusted
+            AskForApproval::OnFailure | AskForApproval::UnlessTrusted | AskForApproval::OnRequest
         )
     }
 }

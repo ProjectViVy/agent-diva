@@ -40,6 +40,10 @@ pub enum RuntimeControlCommand {
     SetThinking {
         mode: agent_diva_core::reasoning::ThinkingMode,
     },
+    /// Update the orchestrator approval policy for subsequent tool calls.
+    SetApprovalPolicy {
+        policy: agent_diva_sandbox::AskForApproval,
+    },
     /// Manually trigger context compaction for a session (/compact command).
     CompactSession {
         session_key: String,

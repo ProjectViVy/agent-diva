@@ -162,7 +162,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
+  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask', permissionMode?: 'cautious' | 'smart' | 'trusted'): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
@@ -301,7 +301,13 @@ const handleSend = () => {
   if (!input.value.trim() && attachments.value.length === 0) return;
   const currentAttachments = [...attachments.value];
   const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
-  emit('send', text, currentAttachments.length > 0 ? currentAttachments : undefined, execMode.value);
+  emit(
+    'send',
+    text,
+    currentAttachments.length > 0 ? currentAttachments : undefined,
+    execMode.value,
+    permissionMode.value,
+  );
   input.value = '';
   attachments.value = [];
   nextTick(() => {
