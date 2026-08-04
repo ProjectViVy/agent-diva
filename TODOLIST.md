@@ -165,6 +165,13 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
+- [ ] **SANDBOX-SAVE-FIX-DESKTOP-SMOKE: manual GUI smoke for sandbox settings save** `sev-P2`
+  2026-08-05 修复了 GUI 沙箱设置保存失败（kebab-case vs snake_case 枚举不匹配，
+  `docs/logs/2026-08-sandbox-settings-save-fix/v0.1.0-sandbox-save-fix/`）。自动化门
+  （vitest 451 用例 + vue-tsc/vite build）已通过，但真实 Tauri 桌面冒烟（切换模式保存、
+  检查 `~/.agent-diva/config.json`、清空 timeout 边界）未在本会话执行，需按
+  `acceptance.md` 步骤人工验收后勾选本项。
+
 - [x] **GUI-RUST-1.94-ALL-TARGETS-CLIPPY: clean pre-existing Tauri test lint** `sev-P3`
   `cargo clippy -p agent-diva-gui --all-targets -- -D warnings` 在既有测试构造代码
   `agent-diva-gui/src-tauri/src/lib.rs` 命中 `field_reassign_with_default`。GMH-31 的

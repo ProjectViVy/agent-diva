@@ -16,8 +16,8 @@ import {
 
 const { t } = useI18n();
 
-const SANDBOX_MODES: SandboxConfig['mode'][] = ['danger-full-access', 'read-only', 'workspace-write'];
-const APPROVAL_POLICIES: SandboxConfig['approval_policy'][] = ['never', 'on-failure', 'on-request', 'unless-trusted'];
+const SANDBOX_MODES: SandboxConfig['mode'][] = ['danger_full_access', 'read_only', 'workspace_write'];
+const APPROVAL_POLICIES: SandboxConfig['approval_policy'][] = ['never', 'on_failure', 'on_request', 'unless_trusted'];
 
 const loading = ref(true);
 const loadError = ref<string | null>(null);
@@ -31,8 +31,8 @@ const denyPatternsText = computed({
 });
 
 const config = ref<SandboxConfig>({
-  mode: 'read-only',
-  approval_policy: 'on-failure',
+  mode: 'read_only',
+  approval_policy: 'on_failure',
   network_access: true,
   writable_roots: [],
   protected_paths: [],
@@ -58,8 +58,8 @@ const loadConfig = async () => {
   try {
     const data = await getSandboxConfig();
     config.value = {
-      mode: data.mode ?? 'read-only',
-      approval_policy: data.approval_policy ?? 'on-failure',
+      mode: data.mode ?? 'read_only',
+      approval_policy: data.approval_policy ?? 'on_failure',
       network_access: data.network_access ?? true,
       writable_roots: data.writable_roots ?? [],
       protected_paths: data.protected_paths ?? [],
@@ -71,8 +71,8 @@ const loadConfig = async () => {
   } catch {
     // Backend command may not exist yet; use defaults so UI is still usable
     config.value = {
-      mode: 'read-only',
-      approval_policy: 'on-failure',
+      mode: 'read_only',
+      approval_policy: 'on_failure',
       network_access: true,
       writable_roots: [],
       protected_paths: [],
@@ -89,13 +89,18 @@ const loadConfig = async () => {
 const saveConfig = async () => {
   if (saving.value || !isDirty.value) return;
   saving.value = true;
+  const rawTimeout = Number(config.value.timeout_seconds);
+  config.value.timeout_seconds = Number.isFinite(rawTimeout) && rawTimeout >= 1
+    ? Math.min(600, Math.floor(rawTimeout))
+    : 60;
   try {
     await saveSandboxConfig({ ...config.value });
     originalSnapshot.value = JSON.stringify(config.value);
     originalMode.value = config.value.mode;
     showAppToast(t('sandbox.saved'), 'success');
-  } catch {
-    showAppToast(t('sandbox.saveFailed'), 'error');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    showAppToast(`${t('sandbox.saveFailed')}: ${detail}`, 'error');
   } finally {
     saving.value = false;
   }

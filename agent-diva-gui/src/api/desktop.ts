@@ -847,8 +847,8 @@ export async function installSkillFromUrl(
 // ============================================================
 
 export interface SandboxConfig {
-  mode: 'danger-full-access' | 'read-only' | 'workspace-write'
-  approval_policy: 'never' | 'on-failure' | 'on-request' | 'unless-trusted'
+  mode: 'danger_full_access' | 'read_only' | 'workspace_write'
+  approval_policy: 'never' | 'on_failure' | 'on_request' | 'unless_trusted'
   network_access: boolean
   writable_roots: string[]
   protected_paths: string[]

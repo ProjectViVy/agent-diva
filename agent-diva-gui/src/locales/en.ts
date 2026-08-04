@@ -1198,15 +1198,15 @@ export default {
     denyPatternsHint: 'Forbidden command prefix patterns, one per line',
     denyPatternsPlaceholder: 'One shell command prefix per line, e.g. rm -rf',
     modes: {
-      'danger-full-access': 'Full Access (No Sandbox)',
-      'read-only': 'Read-Only',
-      'workspace-write': 'Workspace Write',
+      'danger_full_access': 'Full Access (No Sandbox)',
+      'read_only': 'Read-Only',
+      'workspace_write': 'Workspace Write',
     },
     policies: {
       'never': 'Never Ask',
-      'on-failure': 'Ask on Failure',
-      'on-request': 'Ask on Request',
-      'unless-trusted': 'Ask Unless Trusted',
+      'on_failure': 'Ask on Failure',
+      'on_request': 'Ask on Request',
+      'unless_trusted': 'Ask Unless Trusted',
     },
   },
   todoCard: {

@@ -2,29 +2,31 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SandboxSettingsSection from './SandboxSettingsSection.vue';
 
-const { getCommandRules, setCommandRuleEnabled, deleteCommandRule } = vi.hoisted(() => ({
+const { getCommandRules, setCommandRuleEnabled, deleteCommandRule, saveSandboxConfig, showAppToast } = vi.hoisted(() => ({
   getCommandRules: vi.fn(),
   setCommandRuleEnabled: vi.fn(),
   deleteCommandRule: vi.fn(),
+  saveSandboxConfig: vi.fn(),
+  showAppToast: vi.fn(),
 }));
 
 vi.mock('../../api/desktop', () => ({
   getSandboxConfig: vi.fn().mockResolvedValue({
-    mode: 'workspace-write',
-    approval_policy: 'on-failure',
+    mode: 'workspace_write',
+    approval_policy: 'on_failure',
     network_access: false,
     writable_roots: [],
     protected_paths: [],
     deny_patterns: [],
     timeout_seconds: 30,
   }),
-  saveSandboxConfig: vi.fn(),
+  saveSandboxConfig: (...args: unknown[]) => saveSandboxConfig(...args),
   getCommandRules: (...args: unknown[]) => getCommandRules(...args),
   setCommandRuleEnabled: (...args: unknown[]) => setCommandRuleEnabled(...args),
   deleteCommandRule: (...args: unknown[]) => deleteCommandRule(...args),
 }));
 vi.mock('../../utils/appDialog', () => ({ appConfirm: vi.fn().mockResolvedValue(true) }));
-vi.mock('../../utils/appToast', () => ({ showAppToast: vi.fn() }));
+vi.mock('../../utils/appToast', () => ({ showAppToast: (...args: unknown[]) => showAppToast(...args) }));
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
@@ -67,5 +69,51 @@ describe('SandboxSettingsSection command rules', () => {
     expect(deleteCommandRule).toHaveBeenCalledWith(rule);
     expect(wrapper.find('.command-rule-row').exists()).toBe(false);
     expect(wrapper.find('input[placeholder*="command"]').exists()).toBe(false);
+  });
+});
+
+describe('SandboxSettingsSection save', () => {
+  it('saves the config with snake_case enum values after changing the mode', async () => {
+    saveSandboxConfig.mockResolvedValue(undefined);
+    const wrapper = mount(SandboxSettingsSection);
+    await flushPromises();
+
+    await wrapper.findAll('select')[0].setValue('read_only');
+    await wrapper.find('button.settings-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(saveSandboxConfig).toHaveBeenCalledWith({
+      mode: 'read_only',
+      approval_policy: 'on_failure',
+      network_access: false,
+      writable_roots: [],
+      protected_paths: [],
+      deny_patterns: [],
+      timeout_seconds: 30,
+    });
+  });
+
+  it('falls back to the default timeout when the input is cleared', async () => {
+    saveSandboxConfig.mockResolvedValue(undefined);
+    const wrapper = mount(SandboxSettingsSection);
+    await flushPromises();
+
+    await wrapper.find('input[type="number"]').setValue('');
+    await wrapper.find('button.settings-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(saveSandboxConfig).toHaveBeenCalledWith(expect.objectContaining({ timeout_seconds: 60 }));
+  });
+
+  it('shows the backend error message when saving fails', async () => {
+    saveSandboxConfig.mockRejectedValue(new Error('Invalid sandbox config: unknown variant'));
+    const wrapper = mount(SandboxSettingsSection);
+    await flushPromises();
+
+    await wrapper.findAll('select')[1].setValue('unless_trusted');
+    await wrapper.find('button.settings-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(showAppToast).toHaveBeenCalledWith(expect.stringContaining('unknown variant'), 'error');
   });
 });

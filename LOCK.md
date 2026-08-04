@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-03T20:05:00+08:00`
-- Last Heartbeat: `2026-08-03T20:08:00+08:00`
+- Started At: `2026-08-05T00:00:00+08:00`
+- Last Heartbeat: `2026-08-05T01:45:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -30,4 +30,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-08-05T01:45:00+08:00`: Released after fixing GUI sandbox settings save
+  (snake_case enum unification). Manual desktop smoke deferred; see TODOLIST.md
+  `SANDBOX-SAVE-FIX-DESKTOP-SMOKE`.
 - `2026-08-03T20:08:00+08:00`: Released after adding `just make-diva` and verifying dual-window spawn.
