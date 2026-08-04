@@ -315,7 +315,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   用户无法感知剩余审批窗口。2026-08 cautious-mode 修复时仅修了后端透传+escalation，
   通道合并与倒计时待独立迭代。
   关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
-- [ ] **审批 UI 三重显示去重** `sev-P2`
+- [x] **审批 UI 三重显示去重** `sev-P2`  *(v0.5.1 已修)*
   同一 ExecTool 审批请求在 GUI 同时出现三种视觉形态：
   (1) Drawer 内的 `ApprovalCenterCard`（完整样式，`ApprovalCenterDrawer.vue:155`）；
   (2) Chat 消息流底部的内联 `ApprovalCenterCard`（compact，`ChatView.vue:1051`）；
@@ -324,7 +324,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   与写入 governance ledger，前端互斥守卫只盖 legacy Banner。
   修复方案：单通道 + 单渲染点（保留 Drawer 为唯一全量入口，删除 Chat 内联两份重复渲染），
   详见 `~/.qoder-cn/plans/daring-dune-thrush.md`（2026-08 修订版）。
-  关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
+  关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.1-approval-ui-dedup/`.
 - [ ] **UX-DR-3/4/7** `sev-P3`
   Sprint 评审 UX 缺口，待专项设计。
 

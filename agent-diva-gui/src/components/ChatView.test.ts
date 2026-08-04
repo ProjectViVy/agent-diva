@@ -1,8 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import ChatView from './ChatView.vue';
-import fixture from '../../../agent-diva-manager/tests/fixtures/approval_contract_v1.json';
-import type { ApprovalView } from '../api/approvals';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -25,26 +23,14 @@ function mountChat(messages: Array<Record<string, unknown>>) {
 }
 
 describe('ChatView streaming states', () => {
-  it('uses the unified inline projection without duplicating the legacy Command card', () => {
-    const approval = fixture.approval as ApprovalView;
+  it('does not render approval cards inline (approval UI lives in drawer)', () => {
     const wrapper = shallowMount(ChatView, {
       props: {
         messages: [],
         isTyping: false,
-        unifiedApprovals: [approval],
-        commandApprovals: [{
-          approval_id: approval.request_id,
-          command: 'echo ok',
-          cwd: '.',
-          reason: 'sandbox denied',
-          scope: { channel: 'gui', chat_id: 'chat', session_key: 'gui:chat' },
-          created_at: approval.created_at,
-          timeout_seconds: 300,
-        }],
       },
     });
-    expect(wrapper.findAllComponents({ name: 'ApprovalCenterCard' })).toHaveLength(1);
-    expect(wrapper.findAllComponents({ name: 'ApprovalBanner' })).toHaveLength(0);
+    expect(wrapper.findAllComponents({ name: 'ApprovalCenterCard' })).toHaveLength(0);
   });
 
   it('places the approval center icon under history and emits open updates', async () => {

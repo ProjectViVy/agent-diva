@@ -15,9 +15,6 @@ import {
   returnActivePlanToDraft,
   FileAttachmentDto,
   ChecklistItem,
-  type ApprovalDecision,
-  type CommandApprovalRequest,
-  type CommandApprovalResolution,
 } from "./api/desktop";
 import {
   planReportValidationIssues,
@@ -270,9 +267,6 @@ const savedModels = ref<SavedModel[]>([]);
 const providerConfigs = ref<Record<string, ProviderConfigEntry>>({});
 const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
-const commandApprovals = ref<CommandApprovalRequest[]>([]);
-const resolvingApprovalIds = ref<string[]>([]);
-const commandApprovalErrors = ref<Record<string, string>>({});
 const approvalCenterOpen = ref(false);
 const unifiedApprovals = ref<ApprovalView[]>([]);
 const approvalDetails = ref<Record<string, ApprovalView>>({});
@@ -289,9 +283,6 @@ const unlisteners: UnlistenFn[] = [];
 const showWelcomeWizard = ref(false);
 const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
 
-const currentSessionApprovals = computed(() => unifiedApprovals.value.filter((approval) =>
-  approval.status === 'pending' && approval.resource.session_id === currentSessionKey.value,
-));
 const approvalPendingCount = computed(() =>
   unifiedApprovals.value.filter((approval) => approval.status === 'pending').length,
 );
@@ -451,80 +442,6 @@ async function handleUnifiedApprovalEvent(payload: ApprovalEventView) {
   await refreshUnifiedApproval(payload.request_id);
 }
 
-function sortCommandApprovals(requests: CommandApprovalRequest[]) {
-  return [...requests].sort(
-    (left, right) => Date.parse(left.created_at) - Date.parse(right.created_at),
-  );
-}
-
-function upsertCommandApproval(request: CommandApprovalRequest) {
-  const byId = new Map(commandApprovals.value.map((item) => [item.approval_id, item]));
-  const isNew = !byId.has(request.approval_id);
-  byId.set(request.approval_id, request);
-  commandApprovals.value = sortCommandApprovals([...byId.values()]);
-  if (isNew) {
-    approvalCenterOpen.value = true;
-  }
-}
-
-async function reconcileCommandApprovals() {
-  if (!isTauri()) return;
-  try {
-    commandApprovals.value = sortCommandApprovals(
-      await invoke<CommandApprovalRequest[]>('get_command_approvals'),
-    );
-    const pendingIds = new Set(commandApprovals.value.map((request) => request.approval_id));
-    resolvingApprovalIds.value = resolvingApprovalIds.value.filter((id) => pendingIds.has(id));
-    commandApprovalErrors.value = Object.fromEntries(
-      Object.entries(commandApprovalErrors.value).filter(([id]) => pendingIds.has(id)),
-    );
-  } catch (error) {
-    console.warn('Failed to reconcile command approvals:', error);
-  }
-}
-
-function approvalErrorMessage(error: unknown): string {
-  const value = error as { status?: number; code?: string };
-  if (value?.status === 409 || value?.status === 404) return t('approval.noLongerPending');
-  if (value?.status === 422) return t('approval.invalidDecision');
-  return t('approval.requestFailed');
-}
-
-async function resolveCommandApproval(payload: {
-  approval_id: string;
-  decision: ApprovalDecision;
-}) {
-  const request = commandApprovals.value.find((item) => item.approval_id === payload.approval_id);
-  if (!request || request.scope.session_key !== currentSessionKey.value) return;
-  if (resolvingApprovalIds.value.includes(payload.approval_id)) return;
-  resolvingApprovalIds.value = [...resolvingApprovalIds.value, payload.approval_id];
-  const nextErrors = { ...commandApprovalErrors.value };
-  delete nextErrors[payload.approval_id];
-  commandApprovalErrors.value = nextErrors;
-  try {
-    await invoke<CommandApprovalResolution>('resolve_command_approval', {
-      approvalId: payload.approval_id,
-      decision: payload.decision,
-    });
-    commandApprovals.value = commandApprovals.value.filter(
-      (item) => item.approval_id !== payload.approval_id,
-    );
-  } catch (error) {
-    commandApprovalErrors.value = {
-      ...commandApprovalErrors.value,
-      [payload.approval_id]: approvalErrorMessage(error),
-    };
-  } finally {
-    resolvingApprovalIds.value = resolvingApprovalIds.value.filter(
-      (id) => id !== payload.approval_id,
-    );
-    await reconcileCommandApprovals();
-  }
-}
-
-watch(currentSessionKey, () => {
-  void reconcileCommandApprovals();
-});
 
 type WelcomeDonePayload = {
   skipped: boolean;
@@ -1613,7 +1530,6 @@ async function stopMessage() {
       });
     }
     syncCurrentSessionListEntry();
-    await reconcileCommandApprovals();
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1839,7 +1755,6 @@ async function deleteSession(sessionKey: string) {
   locallyDeletedSessionKeys.value.add(sessionKey);
   sessions.value = sessions.value.filter((session) => session.session_key !== sessionKey);
   await refreshSessions();
-  await reconcileCommandApprovals();
   if (wasCurrent) {
     clearMessages();
   }
@@ -2008,14 +1923,6 @@ onMounted(async () => {
   }
 
   try {
-    unlisteners.push(await listen<CommandApprovalRequest>(
-      'command-approval-requested',
-      (event) => upsertCommandApproval(event.payload),
-    ));
-    unlisteners.push(await listen(
-      'command-approval-stream-connected',
-      () => void reconcileCommandApprovals(),
-    ));
     unlisteners.push(await listen<unknown>('approval-event', (event) => {
       if (isApprovalEventView(event.payload)) void handleUnifiedApprovalEvent(event.payload);
     }));
@@ -2121,7 +2028,6 @@ onMounted(async () => {
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
     await restoreActivePlanRuntime();
-    await reconcileCommandApprovals();
 
     // Register cleanup
     onUnmounted(() => {
@@ -2478,14 +2384,6 @@ onUnmounted(() => {
       :pending-approval-plan="pendingApprovalPlan"
       :executing-plan="executingPlan"
       :approving-plan="approvingPlan"
-      :command-approvals="commandApprovals"
-      :resolving-approval-ids="resolvingApprovalIds"
-      :command-approval-errors="commandApprovalErrors"
-      :unified-approvals="currentSessionApprovals"
-      :unified-approval-details="approvalDetails"
-      :unified-submitting-ids="unifiedSubmittingIds"
-      :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
-      :unified-action-errors="unifiedActionErrors"
       :approval-center-open="approvalCenterOpen"
       :approval-pending-count="approvalPendingCount"
       :save-config-action="saveConfig"
@@ -2503,11 +2401,6 @@ onUnmounted(() => {
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"
       @delete-session="deleteSession"
-      @resolve-command-approval="resolveCommandApproval"
-      @decide-unified-approval="decideUnifiedApproval"
-      @cancel-unified-approval="cancelUnifiedApproval"
-      @refresh-unified-approval="refreshUnifiedApproval"
-      @edit-unified-approval="editUnifiedApproval"
       @update:approval-center-open="approvalCenterOpen = $event"
     />
     <ApprovalCenterDrawer

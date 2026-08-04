@@ -57,7 +57,7 @@ export const GUI_CAPABILITIES: readonly GuiCapability[] = [
     authority: 'Manager command approval coordinator',
     risk: 'execute',
     failure: 'Preserve typed 404/409/422 semantics and reconcile pending state.',
-    verification: 'ApprovalBanner.test.ts and command approval contract tests',
+    verification: 'ApprovalCenterCard.test.ts and command approval contract tests',
   },
   {
     id: 'command.rules',

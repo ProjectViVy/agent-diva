@@ -25,9 +25,7 @@ import ChatView from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
-import type { ApprovalDecision, CommandApprovalRequest } from '../api/desktop';
 import type { ToolsConfigShape } from '../types/toolsConfig';
-import type { ApprovalGrant, ApprovalView } from '../api/approvals';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
@@ -120,14 +118,6 @@ interface Props {
   pendingApprovalPlan?: PlanRuntimeState | null;
   executingPlan?: PlanRuntimeState | null;
   approvingPlan?: boolean;
-  commandApprovals?: CommandApprovalRequest[];
-  resolvingApprovalIds?: string[];
-  commandApprovalErrors?: Record<string, string>;
-  unifiedApprovals?: ApprovalView[];
-  unifiedApprovalDetails?: Record<string, ApprovalView>;
-  unifiedSubmittingIds?: string[];
-  unifiedOutcomeUnknownIds?: string[];
-  unifiedActionErrors?: Record<string, string>;
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
   currentSessionKey?: string;
@@ -166,11 +156,6 @@ const emit = defineEmits<{
   (e: 'save-chat-display-prefs', prefs: ChatDisplayPrefs): void;
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
-  (e: 'resolve-command-approval', payload: { approval_id: string; decision: ApprovalDecision }): void;
-  (e: 'decide-unified-approval', payload: { approval: ApprovalView; decision: 'allow' | 'deny'; grant: ApprovalGrant }): void;
-  (e: 'cancel-unified-approval', approval: ApprovalView): void;
-  (e: 'refresh-unified-approval', requestId: string): void;
-  (e: 'edit-unified-approval', approval: ApprovalView): void;
   (e: 'update:approval-center-open', open: boolean): void;
 }>();
 
@@ -1110,14 +1095,6 @@ defineExpose({
               :pending-approval-plan="pendingApprovalPlan"
               :executing-plan="executingPlan"
               :approving-plan="approvingPlan"
-              :command-approvals="commandApprovals"
-              :resolving-approval-ids="resolvingApprovalIds"
-              :command-approval-errors="commandApprovalErrors"
-              :unified-approvals="unifiedApprovals"
-              :unified-approval-details="unifiedApprovalDetails"
-              :unified-submitting-ids="unifiedSubmittingIds"
-              :unified-outcome-unknown-ids="unifiedOutcomeUnknownIds"
-              :unified-action-errors="unifiedActionErrors"
               :approval-center-open="approvalCenterOpen"
               :approval-pending-count="approvalPendingCount"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
@@ -1130,11 +1107,6 @@ defineExpose({
               @regenerate="(id) => emit('regenerate', id)"
               @select-session="(key) => emit('load-session', key)"
               @delete-session="(key) => emit('delete-session', key)"
-              @resolve-command-approval="emit('resolve-command-approval', $event)"
-              @decide-unified-approval="emit('decide-unified-approval', $event)"
-              @cancel-unified-approval="emit('cancel-unified-approval', $event)"
-              @refresh-unified-approval="emit('refresh-unified-approval', $event)"
-              @edit-unified-approval="emit('edit-unified-approval', $event)"
               @update:approval-center-open="emit('update:approval-center-open', $event)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"

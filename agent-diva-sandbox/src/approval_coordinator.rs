@@ -332,7 +332,9 @@ impl CommandApprovalCoordinator {
             "command_approval_requested",
             format!("session={}", request.scope.session_key),
         );
-        let _ = self.request_tx.send(request);
+        if self.governance.is_none() {
+            let _ = self.request_tx.send(request);
+        }
 
         let status = match tokio::time::timeout(self.timeout, response_rx).await {
             Ok(Ok(decision)) if decision.allows_execution() => CommandApprovalStatus::Approved,
