@@ -176,6 +176,7 @@ const emit = defineEmits<{
 
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
+const chatListRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const attachments = ref<FileAttachmentDto[]>([]);
@@ -272,6 +273,15 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   });
   scrollToBottom();
 }, { deep: true });
+
+// 询问卡片 (askUserQuestions) 独立于 messages，需要在其变化或滚动容器高度增长时也自动滚到底部
+watch(
+  () => ({
+    qLen: (props.askUserQuestions?.length) ?? 0,
+    h: chatListRef.value?.scrollHeight ?? 0,
+  }),
+  () => { scrollToBottom(); },
+);
 
 onMounted(() => {
   updateNarrowLayout();
@@ -703,7 +713,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
 
       <!-- Messages List -->
-      <div class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
+      <div ref="chatListRef" class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
