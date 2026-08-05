@@ -2,6 +2,7 @@ use crate::mask::{MaskFile, ToolPolicy};
 use crate::planning::builtin_tool_capability;
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
+use agent_diva_core::ask_user::AskUserCoordinator;
 use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
@@ -13,9 +14,10 @@ use agent_diva_files::FileManager;
 use agent_diva_sandbox::{AskForApproval, CommandApprovalCoordinator};
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::{
-    load_mcp_tools_sync, BackgroundTaskContext, CronTool, EditFileTool, EnqueueBackgroundTaskTool,
-    ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool, ListDirTool, ReadAttachmentTool,
-    ReadFileTool, SpawnTool, UpdatePlanTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
+    EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
+    ListDirTool, ReadAttachmentTool, ReadFileTool, SpawnTool, UpdatePlanTool, WebFetchTool,
+    WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -52,6 +54,7 @@ pub struct ToolAssembly {
     execution_session_id: Option<String>,
     command_approvals: Option<CommandApprovalCoordinator>,
     approval_policy: AskForApproval,
+    ask_user_coordinator: Option<AskUserCoordinator>,
 }
 
 impl ToolAssembly {
@@ -76,6 +79,7 @@ impl ToolAssembly {
             execution_session_id: None,
             command_approvals: None,
             approval_policy: AskForApproval::default(),
+            ask_user_coordinator: None,
         }
     }
 
@@ -170,6 +174,13 @@ impl ToolAssembly {
         coordinator: Option<CommandApprovalCoordinator>,
     ) -> Self {
         self.command_approvals = coordinator;
+        self
+    }
+
+    /// Shared conversational ask-user coordinator; `None` makes the tool
+    /// report `unavailable` (headless runtimes).
+    pub fn with_ask_user_coordinator(mut self, coordinator: Option<AskUserCoordinator>) -> Self {
+        self.ask_user_coordinator = coordinator;
         self
     }
 
@@ -278,6 +289,20 @@ impl ToolAssembly {
             })
         {
             registry.register(Arc::new(WebFetchTool::new()));
+        }
+
+        if self.builtin_config.ask_user && !subagent_mode && self.execution_session_id.is_none() {
+            // Execution sessions stay tool-focused in the MVP; ask_user is a
+            // conversational clarify surface (subagents are disabled via
+            // `for_subagent` in `build_subagent_registry`).
+            match &self.ask_user_coordinator {
+                Some(coordinator) => {
+                    registry.register(Arc::new(AskUserTool::with_coordinator(coordinator.clone())));
+                }
+                None => {
+                    registry.register(Arc::new(AskUserTool::new()));
+                }
+            }
         }
 
         if self.builtin_config.spawn && !subagent_mode && !action_restricted {
@@ -791,5 +816,87 @@ mod tests {
         assert!(!registry.has("read_file"));
         assert!(!registry.has("write_file"));
         assert!(registry.has("list_dir"));
+    }
+
+    #[test]
+    fn tool_assembly_registers_ask_user_tool() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .build();
+
+        assert!(registry.has("ask_user"));
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_headless_ask_user_reports_unavailable() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .build();
+
+        let result = registry
+            .execute("ask_user", serde_json::json!({"question": "Pick?"}))
+            .await;
+        assert!(result.unwrap().contains("\"unavailable\""));
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_subagent_mode_excludes_ask_user() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .build_subagent_registry();
+
+        assert!(!registry.has("ask_user"));
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_execution_session_excludes_ask_user() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let planning = PlanningConfig::open_workspace(temp_dir.path())
+            .await
+            .unwrap();
+        let registry = ToolAssembly::new(temp_dir.path().to_path_buf())
+            .builtin(BuiltInToolsConfig::all())
+            .with_planning_config(Some(planning))
+            .with_plan_phase(Some(PlanPhase::Execute))
+            .with_execution_session(Some("execution-1".to_string()))
+            .build();
+
+        assert!(!registry.has("ask_user"));
+    }
+
+    #[tokio::test]
+    async fn tool_assembly_ask_user_answers_through_coordinator() {
+        let coordinator = agent_diva_core::ask_user::AskUserCoordinator::default();
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .with_ask_user_coordinator(Some(coordinator.clone()))
+            .build();
+
+        let execute = tokio::spawn({
+            let registry = Arc::new(registry);
+            async move {
+                registry
+                    .execute(
+                        "ask_user",
+                        serde_json::json!({
+                            "question": "Which option?",
+                            "choices": ["A", "B"]
+                        }),
+                    )
+                    .await
+            }
+        });
+        let question_id = loop {
+            if let Some(question) = coordinator.pending().await.into_iter().next() {
+                break question.question_id;
+            }
+            tokio::task::yield_now().await;
+        };
+        coordinator
+            .answer(&question_id, Some(1), None)
+            .await
+            .unwrap();
+        let result = execute.await.unwrap().unwrap();
+        assert!(result.contains("\"selected\":\"B\""));
     }
 }

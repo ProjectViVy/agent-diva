@@ -2,6 +2,7 @@
 //!
 //! This crate provides the tool registry and built-in tool implementations.
 
+pub mod ask_user;
 pub mod attachment;
 pub mod base;
 pub mod cron;
@@ -20,6 +21,7 @@ pub mod web;
 pub mod wtf;
 
 pub use agent_diva_tooling::{Result, Tool, ToolError, ToolRegistry};
+pub use ask_user::AskUserTool;
 pub use attachment::ReadAttachmentTool;
 pub use cron::CronTool;
 pub use enqueue_background_task::{BackgroundTaskContext, EnqueueBackgroundTaskTool};

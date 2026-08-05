@@ -575,6 +575,7 @@ fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         attachment: config.tools.builtin.attachment,
         enqueue_background_task: config.tools.builtin.enqueue_background_task,
         update_plan: config.tools.builtin.update_plan,
+        ask_user: config.tools.builtin.ask_user,
     }
 }
 
@@ -1015,6 +1016,7 @@ async fn build_agent_loop(
         global_timeout_secs: 120,
         command_approvals: Some(command_approvals),
         approval_policy: agent_diva_sandbox::AskForApproval::default(),
+        ask_user: None,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(cron_service),

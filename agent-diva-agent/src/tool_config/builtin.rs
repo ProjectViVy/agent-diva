@@ -23,6 +23,8 @@ pub struct BuiltInToolsConfig {
     pub enqueue_background_task: bool,
     #[serde(default = "default_true")]
     pub update_plan: bool,
+    #[serde(default = "default_true")]
+    pub ask_user: bool,
 }
 
 fn default_true() -> bool {
@@ -42,6 +44,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             enqueue_background_task: false,
             update_plan: false,
+            ask_user: false,
         }
     }
 
@@ -57,6 +60,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             enqueue_background_task: false,
             update_plan: false,
+            ask_user: false,
         }
     }
 
@@ -72,6 +76,7 @@ impl BuiltInToolsConfig {
             attachment: true,
             enqueue_background_task: true,
             update_plan: true,
+            ask_user: true,
         }
     }
 
@@ -87,6 +92,7 @@ impl BuiltInToolsConfig {
             attachment: false,
             enqueue_background_task: false,
             update_plan: false,
+            ask_user: false,
         }
     }
 }
@@ -104,6 +110,7 @@ impl Default for BuiltInToolsConfig {
             attachment: true,
             enqueue_background_task: false,
             update_plan: true,
+            ask_user: true,
         }
     }
 }
@@ -120,6 +127,7 @@ mod tests {
         assert!(!config.enqueue_background_task);
         assert!(!config.update_plan);
         assert!(!config.attachment);
+        assert!(!config.ask_user);
         assert!(config.filesystem);
         assert!(config.shell);
         assert!(config.web_search);

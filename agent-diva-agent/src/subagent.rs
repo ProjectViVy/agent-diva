@@ -929,6 +929,7 @@ You are a subagent spawned by the main agent to complete a specific task.
 
 ## What You Cannot Do
 - Send messages directly to users (no message tool available)
+- Ask the user questions (no ask_user tool available)
 - Spawn other subagents
 - Access the main agent's conversation history
 

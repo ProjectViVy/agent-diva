@@ -39,6 +39,7 @@ use crate::tool_assembly::{SubagentSpawner, ToolAssembly};
 use crate::tool_config::builtin::BuiltInToolsConfig;
 use crate::tool_config::network::NetworkToolConfig;
 use crate::tool_config::PlanningConfig;
+use agent_diva_core::ask_user::AskUserCoordinator;
 use agent_diva_sandbox::AskForApproval;
 
 mod loop_runtime_control;
@@ -64,6 +65,9 @@ pub struct ToolConfig {
     /// Approval policy forwarded to the ExecTool's orchestrator.
     /// Defaults to `OnFailure`; GUI cautious → `OnRequest`, trusted → `UnlessTrusted`.
     pub approval_policy: AskForApproval,
+    /// Conversational ask-user coordinator shared with the surface layer.
+    /// `None` (headless) registers the tool in `unavailable` mode.
+    pub ask_user: Option<AskUserCoordinator>,
     /// Whether to restrict file access to workspace
     pub restrict_to_workspace: bool,
     /// Configured MCP servers
@@ -92,6 +96,7 @@ impl Default for ToolConfig {
             global_timeout_secs: 120,
             command_approvals: None,
             approval_policy: AskForApproval::default(),
+            ask_user: None,
             restrict_to_workspace: false,
             mcp_servers: HashMap::new(),
             cron_service: None,
@@ -271,6 +276,7 @@ fn build_agent_tools(
         .with_global_timeout(tool_config.global_timeout_secs)
         .with_command_approvals(tool_config.command_approvals.clone())
         .with_approval_policy(tool_config.approval_policy)
+        .with_ask_user_coordinator(tool_config.ask_user.clone())
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
@@ -356,6 +362,20 @@ impl AgentLoop {
             return;
         }
         self.tool_config.approval_policy = policy;
+        let surface = self.active_tool_surface.clone();
+        let active_mask = self.load_active_mask();
+        self.rebuild_tools_for_turn(
+            active_mask.as_ref(),
+            surface.plan_phase,
+            surface.execution_session_id,
+            surface.background_task_context,
+        );
+    }
+
+    /// Attach (or detach) the conversational ask-user coordinator and rebuild
+    /// the active tool surface so `ask_user` becomes interactive.
+    pub fn set_ask_user_coordinator(&mut self, coordinator: Option<AskUserCoordinator>) {
+        self.tool_config.ask_user = coordinator;
         let surface = self.active_tool_surface.clone();
         let active_mask = self.load_active_mask();
         self.rebuild_tools_for_turn(
@@ -2311,5 +2331,144 @@ mod tests {
         .unwrap();
 
         assert_eq!(agent.effective_model_for_turn(None), "default-model");
+    }
+
+    struct AskUserFlowProvider {
+        calls: Mutex<usize>,
+        ask_user_in_tools: Mutex<bool>,
+        saw_tool_result: Mutex<bool>,
+    }
+
+    impl Default for AskUserFlowProvider {
+        fn default() -> Self {
+            Self {
+                calls: Mutex::new(0),
+                ask_user_in_tools: Mutex::new(false),
+                saw_tool_result: Mutex::new(false),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for AskUserFlowProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            messages: Vec<Message>,
+            tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            if let Some(tools) = &tools {
+                let has_ask_user = tools.iter().any(|tool| {
+                    tool.get("function")
+                        .and_then(|function| function.get("name"))
+                        .and_then(|name| name.as_str())
+                        == Some("ask_user")
+                });
+                if has_ask_user {
+                    *self.ask_user_in_tools.lock().unwrap() = true;
+                }
+            }
+            if messages.iter().any(|message| {
+                message.role == "tool" && message.content.to_text_lossy().contains("answered")
+            }) {
+                *self.saw_tool_result.lock().unwrap() = true;
+            }
+            let call_index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+            let response = if call_index == 0 {
+                LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "ask-user-call-1".to_string(),
+                        call_type: "function".to_string(),
+                        name: "ask_user".to_string(),
+                        arguments: HashMap::from([
+                            ("question".to_string(), serde_json::json!("Which option?")),
+                            ("choices".to_string(), serde_json::json!(["A", "B"])),
+                        ]),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("Done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn ask_user_tool_call_blocks_turn_until_answered() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(AskUserFlowProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(3))
+            .await
+            .unwrap();
+        let coordinator = agent_diva_core::ask_user::AskUserCoordinator::default();
+        agent.set_ask_user_coordinator(Some(coordinator.clone()));
+
+        let run = tokio::spawn(async move {
+            agent
+                .process_direct("Run the survey", "session-ask", "cli", "chat-ask")
+                .await
+                .map_err(|error| error.to_string())
+        });
+
+        let question_id = timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(question) = coordinator.pending().await.into_iter().next() {
+                    return question.question_id;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("ask_user question never registered");
+
+        coordinator
+            .answer(&question_id, Some(1), None)
+            .await
+            .unwrap();
+        let result = run.await.unwrap();
+        assert!(result.is_ok(), "turn should complete after the answer");
+        assert!(*provider.ask_user_in_tools.lock().unwrap());
+        assert!(*provider.saw_tool_result.lock().unwrap());
     }
 }

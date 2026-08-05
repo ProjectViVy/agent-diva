@@ -185,6 +185,14 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
+- [ ] **CLI-WIREMOCK-502-PREEXISTING: CLI approval wiremock tests fail with 502** `sev-P2`
+  2026-08-05 验证 CLARIFY-HITL Phase 1 时 `just test` 命中 6 个既有 CLI 测试失败
+  （`approval_commands::tests::*`、`chat_commands::approval_mode_tests::*`），
+  报 `502 Bad Gateway`（wiremock mock server 未收到匹配请求）。用
+  `git stash` 回到干净树复跑**同样失败**，确认与本迭代变更无关，疑为
+  Windows 系统代理/环境干扰 wiremock 本地端口。需独立迭代排查（代理绕过
+  或 mock 服务器隔离），并在 `just test` 全绿后关闭。
+
 - [ ] **SANDBOX-SAVE-FIX-DESKTOP-SMOKE: manual GUI smoke for sandbox settings save** `sev-P2`
   2026-08-05 修复了 GUI 沙箱设置保存失败（kebab-case vs snake_case 枚举不匹配，
   `docs/logs/2026-08-sandbox-settings-save-fix/v0.1.0-sandbox-save-fix/`）。自动化门

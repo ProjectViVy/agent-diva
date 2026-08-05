@@ -1240,6 +1240,7 @@ async fn run_tui(
         global_timeout_secs: 120,
         command_approvals: None,
         approval_policy: agent_diva_sandbox::AskForApproval::default(),
+        ask_user: None,
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),

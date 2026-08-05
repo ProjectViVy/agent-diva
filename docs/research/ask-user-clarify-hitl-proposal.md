@@ -253,7 +253,9 @@ LLM tool_call(ask_user)
 - [x] 与 M3 Governance HITL 划界  
 - [x] 对照 Hermes / Claude Code / OpenHarness  
 - [x] 写入 `docs/research` + `TODOLIST`  
-- [ ] 用户确认命名、单题 vs 多题、GUI 是否同迭代  
+- [x] 用户确认命名、单题 vs 多题、GUI 是否同迭代  
+  （2026-08-05 拍板：工具名 `ask_user`；单题单轮（Hermes 级）；
+  Phase 1 仅运行时，GUI/CLI 卡下一迭代；挂起默认超时 10 分钟）
 
 ### Phase 1 — 运行时 MVP
 
@@ -301,11 +303,20 @@ Plan 矩阵、subagent 黑名单、UI 与审批区分、可选 messaging clarify
 
 ## 10. 开放问题（实现前拍板）
 
-1. MVP 深度：仅运行时 mock，还是同迭代 GUI？  
-2. 单题（Hermes）vs 多题（Claude）？  
-3. 默认超时（建议 5–15 分钟）与取消策略  
-4. 问答正文是否进审计日志  
-5. 有工具后仍可能纯文本偷懒——需 prompt + 可选评测约束  
+1. ~~MVP 深度：仅运行时 mock，还是同迭代 GUI？~~ → 仅运行时（Phase 1），GUI/CLI 卡 Phase 2
+2. ~~单题（Hermes）vs 多题（Claude）？~~ → 单题单轮（Hermes 级）
+3. ~~默认超时（建议 5–15 分钟）与取消策略~~ → 10 分钟（`DEFAULT_ASK_USER_TIMEOUT`），可配置；
+   取消/超时均不挂死，返回 `cancelled` / `expired` 状态
+4. 问答正文是否进审计日志（建议：MVP 不进，后续按隐私策略评估）
+5. 有工具后仍可能纯文本偷懒——需 prompt + 可选评测约束
+
+> **实现注意（2026-08-05 Phase 1 勘察补充）**：
+> `ToolRegistry` 有全局执行超时（默认 120s，
+> `agent-diva-tooling/src/registry.rs:41`），会杀死阻塞等待的 `ask_user`。
+> `Tool` trait 预留了 `timeout_secs()` 覆盖（`agent-diva-tooling/src/base.rs:18`，
+> 注释即 "long-lived interactive tools"）。`AskUserTool` 必须实现
+> `timeout_secs()` 返回协调器超时（默认 600s），否则提问超过 2 分钟会被强制超时。
+> 另外 `ToolConfig.ask_user` 默认 `None`（headless → unavailable），由运行入口显式注入。
 
 ---
 
