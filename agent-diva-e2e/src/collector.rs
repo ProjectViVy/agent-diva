@@ -135,7 +135,9 @@ impl EventCollector {
                     | AgentEvent::TodoCancelled { .. }
                     | AgentEvent::PlanReadyForApproval { .. }
                     | AgentEvent::PlanReportReadyForApproval { .. }
-                    | AgentEvent::ChatPlanUpdate { .. } => {}
+                    | AgentEvent::ChatPlanUpdate { .. }
+                    | AgentEvent::ProviderRetry { .. }
+                    | AgentEvent::ProviderStalled { .. } => {}
                 }
             }
         })
