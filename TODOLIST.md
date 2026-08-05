@@ -19,6 +19,9 @@
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
+- [ ] **HARNESS-GAP-RESEARCH：Claude Code 对比后的 Agent Harness 演进与优化** `sev-P1`
+  2026-08-05 完成 Claude Code 与 Agent-Diva 基础 Harness 能力全面调研 (文档见 `morediva/claude-code-vs-agent-diva-harness-research.md`)；确定 4 大演进方向：1) Prompt Cache 结构对齐与前缀保护 2) Plan Mode 物理限制状态机 3) TF-IDF 工具按需索引与延迟挂载 4) Subagent Git Worktree 隔离机制。
+
 - [ ] **GA-MEM-PARITY：GenericAgent 功能对齐 × Memory/Laputa/AutoDream 完全可用** `sev-P0`
   2026-08-05 完成只读盘点：相对 GenericAgent，Agent 侧记忆管理工具面基本缺失
   （无 add/list/search/update/remove/distill），prompt 仍承诺 “memory tools”；
@@ -303,9 +306,13 @@ standing policy（非功能债，执行相关验证时遵守）：
   日志：
   [`docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/`](docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/)。
   建议分 Phase：1 运行时 Coordinator+Tool+装配+prompt+mock 测试；2 GUI QuestionCard /
-  CLI；3 Plan/subagent 策略硬化。实现前拍板：工具名（推荐 `ask_user`）、单题 vs 多题、
-  GUI 是否同迭代。对照：Hermes `clarify`、Claude Code `AskUserQuestion`、OpenHarness
-  `ask_user_question`；工程模式可借鉴 `CommandApprovalCoordinator` oneshot。
+  CLI；3 Plan/subagent 策略硬化。**已拍板（2026-08-05）**：工具名 `ask_user`、
+  单题单轮（Hermes 级 question + choices≤4 + allow_other）、Phase 1 仅运行时
+  （GUI/CLI 卡下一迭代）、挂起默认超时 10 分钟。对照：Hermes `clarify`、Claude Code
+  `AskUserQuestion`、OpenHarness `ask_user_question`；工程模式可借鉴
+  `CommandApprovalCoordinator` oneshot。实现注意：`AskUserTool` 必须实现
+  `timeout_secs()` 覆盖 registry 全局 120s 超时（`agent-diva-tooling/src/registry.rs:41`、
+  `base.rs:18`）。
 
 - [ ] **Skill 可视化全生命周期编辑器（延期）** `sev-P3`
   产品对象只有 Skill；SOP 不建立独立类型、标签、入口、DTO、存储或运行时，
