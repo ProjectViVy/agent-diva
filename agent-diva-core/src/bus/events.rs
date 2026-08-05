@@ -118,6 +118,20 @@ pub enum AgentEvent {
     Error {
         message: String,
     },
+    /// The provider reported a transient failure and is retrying with backoff.
+    ProviderRetry {
+        model: String,
+        /// 1-based retry attempt number.
+        attempt: u32,
+        max_retries: u32,
+        delay_ms: u64,
+        reason: String,
+    },
+    /// No bus event for an extended period while a turn is still running.
+    /// Emitted by the manager chat bridge as a non-terminal stall hint.
+    ProviderStalled {
+        model: Option<String>,
+    },
 }
 
 /// Event with context for the bus
@@ -248,6 +262,52 @@ mod tests {
                 assert_eq!(args, sample_update_plan_args());
             }
             other => panic!("expected ChatPlanUpdate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn provider_retry_serde_roundtrip() {
+        let original = AgentEvent::ProviderRetry {
+            model: "deepseek-chat".to_string(),
+            attempt: 2,
+            max_retries: 3,
+            delay_ms: 2000,
+            reason: "unexpected EOF during handshake".to_string(),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let back: AgentEvent = serde_json::from_str(&json).unwrap();
+
+        match back {
+            AgentEvent::ProviderRetry {
+                model,
+                attempt,
+                max_retries,
+                delay_ms,
+                reason,
+            } => {
+                assert_eq!(model, "deepseek-chat");
+                assert_eq!(attempt, 2);
+                assert_eq!(max_retries, 3);
+                assert_eq!(delay_ms, 2000);
+                assert_eq!(reason, "unexpected EOF during handshake");
+            }
+            other => panic!("expected ProviderRetry, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn provider_stalled_serde_roundtrip() {
+        let original = AgentEvent::ProviderStalled {
+            model: Some("deepseek-chat".to_string()),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let back: AgentEvent = serde_json::from_str(&json).unwrap();
+
+        match back {
+            AgentEvent::ProviderStalled { model } => {
+                assert_eq!(model.as_deref(), Some("deepseek-chat"));
+            }
+            other => panic!("expected ProviderStalled, got {:?}", other),
         }
     }
 }
