@@ -1108,6 +1108,20 @@ struct ToolDeltaEvent {
 }
 
 #[derive(Deserialize)]
+struct ProviderRetryEvent {
+    model: String,
+    attempt: u32,
+    max_retries: u32,
+    delay_ms: u64,
+    reason: String,
+}
+
+#[derive(Deserialize)]
+struct ProviderStalledEvent {
+    model: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct BackgroundFinalEvent {
     content: String,
 }
@@ -1116,6 +1130,22 @@ struct BackgroundFinalEvent {
 struct StreamTextPayload {
     request_id: String,
     data: String,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamRetryPayload {
+    request_id: String,
+    model: String,
+    attempt: u32,
+    max_retries: u32,
+    delay_ms: u64,
+    reason: String,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamStalledPayload {
+    request_id: String,
+    model: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -1217,6 +1247,7 @@ pub async fn send_message(
     }
 
     let mut stream = response.bytes_stream().eventsource();
+    let mut saw_terminal = false;
 
     while let Some(event) = stream.next().await {
         match event {
@@ -1240,6 +1271,33 @@ pub async fn send_message(
                             },
                         );
                     }
+                    "provider_retry" => {
+                        if let Ok(data) = serde_json::from_str::<ProviderRetryEvent>(&event.data) {
+                            let _ = window.emit(
+                                "agent-provider-retry",
+                                StreamRetryPayload {
+                                    request_id: stream_request_id.clone(),
+                                    model: data.model,
+                                    attempt: data.attempt,
+                                    max_retries: data.max_retries,
+                                    delay_ms: data.delay_ms,
+                                    reason: data.reason,
+                                },
+                            );
+                        }
+                    }
+                    "provider_stalled" => {
+                        if let Ok(data) = serde_json::from_str::<ProviderStalledEvent>(&event.data)
+                        {
+                            let _ = window.emit(
+                                "agent-provider-stalled",
+                                StreamStalledPayload {
+                                    request_id: stream_request_id.clone(),
+                                    model: data.model,
+                                },
+                            );
+                        }
+                    }
                     "tool_delta" => {
                         if let Ok(data) = serde_json::from_str::<ToolDeltaEvent>(&event.data) {
                             let _ = window.emit(
@@ -1252,6 +1310,7 @@ pub async fn send_message(
                         }
                     }
                     "final" => {
+                        saw_terminal = true;
                         let _ = window.emit(
                             "agent-response-complete",
                             StreamTextPayload {
@@ -1310,6 +1369,7 @@ pub async fn send_message(
                         }
                     }
                     "error" => {
+                        saw_terminal = true;
                         let _ = window.emit(
                             "agent-error",
                             StreamTextPayload {
@@ -1401,6 +1461,7 @@ pub async fn send_message(
             }
             Err(e) => {
                 error!("Stream error: {}", e);
+                saw_terminal = true;
                 let _ = window.emit(
                     "agent-error",
                     StreamTextPayload {
@@ -1410,6 +1471,19 @@ pub async fn send_message(
                 );
             }
         }
+    }
+
+    // The SSE stream ended without a final/error event (e.g. manager-side
+    // disconnect). Notify the frontend so it can recover from the stuck
+    // streaming state instead of waiting forever.
+    if !saw_terminal {
+        let _ = window.emit(
+            "agent-error",
+            StreamTextPayload {
+                request_id: stream_request_id.clone(),
+                data: "与服务器的连接已断开，请重试。".to_string(),
+            },
+        );
     }
 
     Ok(())
@@ -2530,6 +2604,11 @@ pub async fn start_background_stream(
                         }
                         "error" => {
                             let _ = window.emit("agent-error", event.data);
+                        }
+                        "provider_retry" | "provider_stalled" => {
+                            // Background streams have no request_id channel; the
+                            // manager-level stall handling still applies upstream.
+                            debug!("Background provider status event ignored: {}", event.event);
                         }
                         _ => {}
                     },
