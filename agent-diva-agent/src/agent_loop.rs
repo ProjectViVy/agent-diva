@@ -1581,9 +1581,15 @@ mod tests {
         let provider = Arc::new(RetryEmittingProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
 
-        let mut agent = AgentLoop::new(bus.clone(), provider, temp_dir.path().to_path_buf(), None, Some(1))
-            .await
-            .unwrap();
+        let mut agent = AgentLoop::new(
+            bus.clone(),
+            provider,
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(1),
+        )
+        .await
+        .unwrap();
 
         agent
             .handle_inbound(InboundMessage::new("gui", "user", "chat-retry", "Hello"))

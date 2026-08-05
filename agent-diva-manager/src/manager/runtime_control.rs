@@ -713,13 +713,21 @@ mod tests {
             "chat-1".to_string(),
         ));
 
-        bus.publish_event("gui", "chat-1", AgentEvent::AssistantDelta {
-            text: "hi".to_string(),
-        })
+        bus.publish_event(
+            "gui",
+            "chat-1",
+            AgentEvent::AssistantDelta {
+                text: "hi".to_string(),
+            },
+        )
         .unwrap();
-        bus.publish_event("gui", "chat-1", AgentEvent::FinalResponse {
-            content: "done".to_string(),
-        })
+        bus.publish_event(
+            "gui",
+            "chat-1",
+            AgentEvent::FinalResponse {
+                content: "done".to_string(),
+            },
+        )
         .unwrap();
         advance(Duration::from_millis(100)).await;
         tokio::task::yield_now().await;
@@ -747,17 +755,28 @@ mod tests {
             "chat-1".to_string(),
         ));
 
-        bus.publish_event("gui", "chat-other", AgentEvent::FinalResponse {
-            content: "noise".to_string(),
-        })
+        bus.publish_event(
+            "gui",
+            "chat-other",
+            AgentEvent::FinalResponse {
+                content: "noise".to_string(),
+            },
+        )
         .unwrap();
         advance(Duration::from_millis(100)).await;
         tokio::task::yield_now().await;
-        assert!(event_out.try_recv().is_err(), "foreign chat event forwarded");
+        assert!(
+            event_out.try_recv().is_err(),
+            "foreign chat event forwarded"
+        );
 
-        bus.publish_event("gui", "chat-1", AgentEvent::Error {
-            message: "boom".to_string(),
-        })
+        bus.publish_event(
+            "gui",
+            "chat-1",
+            AgentEvent::Error {
+                message: "boom".to_string(),
+            },
+        )
         .unwrap();
         advance(Duration::from_millis(100)).await;
         tokio::task::yield_now().await;

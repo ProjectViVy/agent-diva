@@ -260,10 +260,7 @@ mod tests {
         });
 
         let url = format!("http://{}/retry", addr);
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .build()
-            .unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
 
         let attempts = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let captured = attempts.clone();
@@ -306,10 +303,7 @@ mod tests {
         });
 
         let url = format!("http://{}/ok", addr);
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .build()
-            .unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
         let result = send_with_retry("test-model", None, || {
             let client = client.clone();
             let url = url.clone();
