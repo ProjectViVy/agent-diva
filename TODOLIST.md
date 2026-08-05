@@ -19,6 +19,9 @@
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
+- [ ] **OPENHARNESS-BENCHMARK-RESEARCH：OpenHarness 深度调研与 Agent-Diva 演进提案** `sev-P1`
+  2026-08-05 完成 OpenHarness (`.workspace/OpenHarness`) 源码深度调研 (文档见 `morediva/openharness-claude-code-diva-research.md`)；提出 4 大核心启发提案：1) `agent-diva dry-run` 离线 Pre-flight 预检引擎 2) Workflow Profile 秘钥隔离管理 3) EventBus Trait Hook 管道 4) `ohmo` 个人 Agent 应用扩展。
+
 - [ ] **HARNESS-GAP-RESEARCH：Claude Code 对比后的 Agent Harness 演进与优化** `sev-P1`
   2026-08-05 完成 Claude Code 与 Agent-Diva 基础 Harness 能力全面调研 (文档见 `morediva/claude-code-vs-agent-diva-harness-research.md`)；确定 4 大演进方向：1) Prompt Cache 结构对齐与前缀保护 2) Plan Mode 物理限制状态机 3) TF-IDF 工具按需索引与延迟挂载 4) Subagent Git Worktree 隔离机制。
 
