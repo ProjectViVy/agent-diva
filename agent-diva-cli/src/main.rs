@@ -1059,6 +1059,10 @@ struct TuiApp {
     session_key: String,
     session_title: String,
     model: String,
+    /// Timeline index showing the currently tracked ask_user question.
+    ask_user_line: Option<usize>,
+    /// question_id of the tracked ask_user question awaiting an answer.
+    ask_user_question: Option<String>,
 }
 
 fn chat_id_from_tui_session(session_key: &str) -> String {
@@ -1108,6 +1112,8 @@ impl TuiApp {
             session_key,
             session_title: "(untitled)".to_string(),
             model,
+            ask_user_line: None,
+            ask_user_question: None,
         }
     }
 
@@ -1218,6 +1224,81 @@ impl TuiApp {
     }
 }
 
+/// Answer a pending ask_user question from the TUI input line.
+async fn answer_tui_ask_user(
+    coordinator: &agent_diva_core::ask_user::AskUserCoordinator,
+    question_id: &str,
+    content: &str,
+    app: &mut TuiApp,
+) {
+    let question = coordinator
+        .pending()
+        .await
+        .into_iter()
+        .find(|q| q.question_id == question_id);
+    let Some(question) = question else {
+        app.add_line(
+            TimelineKind::System,
+            "[ask_user] question no longer pending",
+        );
+        app.ask_user_question = None;
+        app.ask_user_line = None;
+        return;
+    };
+
+    let resolved = if let Ok(index) = content.parse::<usize>() {
+        if index >= 1 && index <= question.choices.len() {
+            let result = coordinator.answer(question_id, Some(index - 1), None).await;
+            if result.is_ok() {
+                app.add_line(
+                    TimelineKind::User,
+                    format!("[answer] {}", question.choices[index - 1]),
+                );
+                true
+            } else {
+                false
+            }
+        } else if question.allow_other {
+            let result = coordinator
+                .answer(question_id, None, Some(content.to_string()))
+                .await;
+            if result.is_ok() {
+                app.add_line(TimelineKind::User, format!("[answer] {content}"));
+                true
+            } else {
+                false
+            }
+        } else {
+            app.add_line(
+                TimelineKind::System,
+                format!(
+                    "[ask_user] index out of range (1-{})",
+                    question.choices.len()
+                ),
+            );
+            false
+        }
+    } else if question.allow_other {
+        let result = coordinator
+            .answer(question_id, None, Some(content.to_string()))
+            .await;
+        if result.is_ok() {
+            app.add_line(TimelineKind::User, format!("[answer] {content}"));
+            true
+        } else {
+            false
+        }
+    } else {
+        app.add_line(TimelineKind::System, "[ask_user] enter a choice number");
+        false
+    };
+
+    if resolved {
+        app.ask_user_question = None;
+        app.ask_user_line = None;
+    }
+}
+
 async fn run_tui(
     runtime: &CliRuntime,
     model: Option<String>,
@@ -1231,6 +1312,7 @@ async fn run_tui(
     let bus = MessageBus::new();
     let provider = build_provider(&config, &selected_model)?;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
+    let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
 
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
@@ -1240,7 +1322,7 @@ async fn run_tui(
         global_timeout_secs: 120,
         command_approvals: None,
         approval_policy: agent_diva_sandbox::AskForApproval::default(),
-        ask_user: None,
+        ask_user: Some(ask_user.clone()),
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
@@ -1304,6 +1386,37 @@ async fn run_tui(
     loop {
         while let Ok(evt) = event_rx.try_recv() {
             app.apply_agent_event(evt);
+        }
+
+        // Surface new ask_user questions into the timeline.
+        if app.ask_user_question.is_none() {
+            if let Some(question) = ask_user.pending().await.into_iter().next() {
+                let mut text = format!("[ask_user] {}", question.question);
+                if let Some(context) = &question.context {
+                    text.push_str(&format!(
+                        "
+{}",
+                        context
+                    ));
+                }
+                if !question.choices.is_empty() {
+                    for (index, choice) in question.choices.iter().enumerate() {
+                        text.push_str(&format!(
+                            "
+{}: {}",
+                            index + 1,
+                            choice
+                        ));
+                    }
+                    text.push_str(
+                        "
+(enter a number, or free text if allowed)",
+                    );
+                }
+                app.ask_user_line = Some(app.timeline.len());
+                app.ask_user_question = Some(question.question_id.clone());
+                app.add_line(TimelineKind::Tool, text);
+            }
         }
 
         terminal.draw(|frame| {
@@ -1400,6 +1513,10 @@ async fn run_tui(
                         let content = app.input.trim().to_string();
                         app.input.clear();
                         if content.is_empty() {
+                            continue;
+                        }
+                        if let Some(question_id) = app.ask_user_question.clone() {
+                            answer_tui_ask_user(&ask_user, &question_id, &content, &mut app).await;
                             continue;
                         }
                         if content == "/quit" {

@@ -16,6 +16,7 @@ use agent_diva_agent::{
     tool_config::PlanningConfig,
     AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
+use agent_diva_core::ask_user::AskUserCoordinator;
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
@@ -24,11 +25,13 @@ use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_files::{FileConfig, FileManager};
 use anyhow::Result;
 use console::style;
-use dialoguer::Input;
+use dialoguer::{Input, Select};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use std::time::Duration;
+use tokio::sync::{mpsc, watch};
 
 fn render_assistant_response(response: &str, _markdown: bool, show_header: bool) {
     if show_header {
@@ -84,6 +87,7 @@ async fn build_local_cli_agent(
     String,
     AgentLoop,
     Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    AskUserCoordinator,
 )> {
     let config = runtime.load_config()?;
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
@@ -93,6 +97,7 @@ async fn build_local_cli_agent(
     let bus = MessageBus::new();
     let provider = build_provider(&config, &selected_model)?;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
+    let ask_user = AskUserCoordinator::default();
     let tool_config = ToolConfig {
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
@@ -101,7 +106,7 @@ async fn build_local_cli_agent(
         global_timeout_secs: 120,
         command_approvals,
         approval_policy: agent_diva_sandbox::AskForApproval::default(),
-        ask_user: None,
+        ask_user: Some(ask_user.clone()),
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
@@ -147,10 +152,149 @@ async fn build_local_cli_agent(
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
 
-    Ok((config, selected_model, agent, runtime_control_tx))
+    Ok((config, selected_model, agent, runtime_control_tx, ask_user))
+}
+
+/// Background task that answers pending `ask_user` questions from the terminal.
+///
+/// The turn itself blocks inside the tool call, so this task polls the
+/// coordinator in parallel and resolves questions as the user answers.
+/// Non-interactive runtimes (no TTY) cancel every pending question so a
+/// headless turn cannot hang for the full coordinator timeout.
+pub struct AskUserAnswerer {
+    handle: tokio::task::JoinHandle<()>,
+    stop_tx: watch::Sender<bool>,
+}
+
+impl AskUserAnswerer {
+    pub fn spawn(coordinator: AskUserCoordinator, interactive: bool) -> Self {
+        let (stop_tx, mut stop_rx) = watch::channel(false);
+        let handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = stop_rx.changed() => break,
+                    _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                        let questions = coordinator.pending().await;
+                        for question in questions {
+                            if !interactive {
+                                let _ = coordinator.cancel(&question.question_id).await;
+                                continue;
+                            }
+                            Self::prompt_and_answer(&coordinator, &question).await;
+                        }
+                    }
+                }
+            }
+        });
+        Self { handle, stop_tx }
+    }
+
+    async fn prompt_and_answer(
+        coordinator: &AskUserCoordinator,
+        question: &agent_diva_core::ask_user::AskUserQuestion,
+    ) {
+        println!(
+            "\n{} {}",
+            style("[ask_user]").bold().cyan(),
+            style(&question.question).bold()
+        );
+        if let Some(context) = &question.context {
+            println!("{}", context);
+        }
+
+        if !question.choices.is_empty() {
+            let mut items: Vec<String> = question.choices.clone();
+            if question.allow_other {
+                items.push("Other...".to_string());
+            }
+            let labels: Vec<&str> = items.iter().map(String::as_str).collect();
+            let selection = Select::new()
+                .with_prompt("Your answer")
+                .items(&labels)
+                .default(0)
+                .interact();
+            match selection {
+                Ok(index) if index < question.choices.len() => {
+                    let _ = coordinator
+                        .answer(&question.question_id, Some(index), None)
+                        .await;
+                }
+                Ok(_) => {
+                    if let Ok(text) = Input::<String>::new().with_prompt("Other").interact_text() {
+                        let _ = coordinator
+                            .answer(&question.question_id, None, Some(text))
+                            .await;
+                    }
+                }
+                Err(_) => {
+                    let _ = coordinator.cancel(&question.question_id).await;
+                }
+            }
+        } else if question.allow_other {
+            match Input::<String>::new()
+                .with_prompt("Your answer")
+                .interact_text()
+            {
+                Ok(text) => {
+                    let _ = coordinator
+                        .answer(&question.question_id, None, Some(text))
+                        .await;
+                }
+                Err(_) => {
+                    let _ = coordinator.cancel(&question.question_id).await;
+                }
+            }
+        } else {
+            let _ = coordinator.cancel(&question.question_id).await;
+            println!(
+                "{}",
+                style("[ask_user] no choices provided; question cancelled").yellow()
+            );
+        }
+    }
+
+    /// Stop the polling loop, wait for it to exit, then cancel leftovers so a
+    /// stale question cannot block the next turn for the full timeout.
+    pub async fn finish(self) {
+        let _ = self.stop_tx.send(true);
+        let _ = self.handle.await;
+    }
+}
+
+/// Cancel any question still pending after a turn (e.g. answered from another
+/// surface or abandoned by an interrupted prompt).
+pub async fn cancel_stale_ask_user_questions(coordinator: &AskUserCoordinator) {
+    for question in coordinator.pending().await {
+        let _ = coordinator.cancel(&question.question_id).await;
+    }
 }
 
 async fn run_local_agent_turn(
+    agent: &mut AgentLoop,
+    message: &str,
+    session_key: &str,
+    markdown: bool,
+    logs: bool,
+    show_response_header: bool,
+    ask_user: &AskUserCoordinator,
+) -> Result<()> {
+    let interactive = std::io::stdin().is_terminal();
+    let answerer = AskUserAnswerer::spawn(ask_user.clone(), interactive);
+    let result = run_local_agent_turn_inner(
+        agent,
+        message,
+        session_key,
+        markdown,
+        logs,
+        show_response_header,
+    )
+    .await;
+    answerer.finish().await;
+    cancel_stale_ask_user_questions(ask_user).await;
+    result
+}
+
+async fn run_local_agent_turn_inner(
     agent: &mut AgentLoop,
     message: &str,
     session_key: &str,
@@ -288,7 +432,7 @@ pub async fn run_agent(
                 .await;
         }
     });
-    let (_config, _selected_model, mut agent, _runtime_control_tx) =
+    let (_config, _selected_model, mut agent, _runtime_control_tx, ask_user) =
         build_local_cli_agent(runtime, options.model, false, Some(coordinator)).await?;
 
     let session_key = options.session.unwrap_or_else(|| "cli:direct".to_string());
@@ -303,6 +447,7 @@ pub async fn run_agent(
         options.markdown,
         options.logs,
         true,
+        &ask_user,
     )
     .await;
     rejection_task.abort();
@@ -536,7 +681,7 @@ pub async fn run_chat(
     markdown: bool,
     logs: bool,
 ) -> Result<()> {
-    let (config, selected_model, mut agent, runtime_control_tx) =
+    let (config, selected_model, mut agent, runtime_control_tx, ask_user) =
         build_local_cli_agent(runtime, model, true, None).await?;
     let mut current_session = session.unwrap_or_else(|| "cli:chat".to_string());
 
@@ -629,7 +774,16 @@ pub async fn run_chat(
             _ => {}
         }
 
-        run_local_agent_turn(&mut agent, command, &current_session, markdown, logs, true).await?;
+        run_local_agent_turn(
+            &mut agent,
+            command,
+            &current_session,
+            markdown,
+            logs,
+            true,
+            &ask_user,
+        )
+        .await?;
     }
 
     Ok(())
@@ -786,6 +940,67 @@ pub async fn run_chat_remote(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod ask_user_answerer_tests {
+    use super::*;
+    use agent_diva_core::ask_user::AskUserStatus;
+
+    async fn wait_pending(coordinator: &AskUserCoordinator) -> String {
+        for _ in 0..100 {
+            if let Some(question) = coordinator.pending().await.into_iter().next() {
+                return question.question_id;
+            }
+            tokio::task::yield_now().await;
+        }
+        panic!("no pending question registered");
+    }
+
+    #[tokio::test]
+    async fn headless_answerer_cancels_pending_questions() {
+        let coordinator = AskUserCoordinator::default();
+        let answerer = AskUserAnswerer::spawn(coordinator.clone(), false);
+        let ask = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move { coordinator.request("Proceed?", vec![], false, None).await }
+        });
+        let question_id = wait_pending(&coordinator).await;
+
+        // The headless answerer cancels the question without a TTY (100ms poll).
+        for _ in 0..50 {
+            if coordinator.pending().await.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(coordinator.pending().await.is_empty());
+
+        let response = ask.await.unwrap().unwrap();
+        assert_eq!(response.status, AskUserStatus::Cancelled);
+        assert_eq!(response.question_id, question_id);
+
+        answerer.finish().await;
+    }
+
+    #[tokio::test]
+    async fn finish_cancels_stale_questions() {
+        let coordinator = AskUserCoordinator::default();
+        let answerer = AskUserAnswerer::spawn(coordinator.clone(), false);
+        let ask = tokio::spawn({
+            let coordinator = coordinator.clone();
+            async move { coordinator.request("Stale?", vec![], false, None).await }
+        });
+        let _question_id = wait_pending(&coordinator).await;
+
+        // Stop the answerer and cancel leftovers directly.
+        answerer.finish().await;
+        cancel_stale_ask_user_questions(&coordinator).await;
+        assert!(coordinator.pending().await.is_empty());
+
+        let response = ask.await.unwrap().unwrap();
+        assert_eq!(response.status, AskUserStatus::Cancelled);
+    }
 }
 
 #[cfg(test)]
