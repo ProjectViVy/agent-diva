@@ -56,6 +56,14 @@
 - `agent-diva-gui`：src-tauri 桥 + App.vue/ChatView/i18n。
 - `agent-diva-e2e`：事件收集器穷尽匹配。
 
+## 补充修复（用户回访发现）
+
+- **`cc657a7a` fix(gui)**：询问工具（`ask_user`）卡片出现时未自动滚到底部，
+  需要用户手动滚动。根因：原有 `scrollToBottom` 只监听 `props.messages`，
+  而 `askUserQuestions` 是独立 prop。修复：在 `ChatView.vue` 增加对
+  `chatListRef` 滚动容器与 `askUserQuestions.length` 的 watcher，任一变化
+  触发 `scrollToBottom`（通过 `scrollIntoView({ behavior: 'smooth' })`）。
+
 ## 未做（下一迭代）
 
 - L2854/L3140 两个 plan 流式 Tauri command 的断流兜底（`saw_terminal` 未覆盖，
