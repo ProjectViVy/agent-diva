@@ -6,6 +6,10 @@
   agent-diva 现有 3 个 GUI 模式映射到 4 个后端策略，但「信任」与「谨慎」行为几乎相同、
   「智能」缺少风险分级预判，且 Guardian 自动放行能力在生产路径全部默认关闭 —— 确实"半残"。
   本文给出对齐方案：把「智能、谨慎、信任」实现为真正有差异的三档审批窗口。
+- 证据来源：除官方文档/教程外，已核查本地源码仓库
+  `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\`（CC 源码）
+  与 `learn-claude-code/s03_permission/`（权限教学章节，含源码级剖析），
+  结论以源码为准（见 §1.3）。
 
 ---
 
@@ -48,7 +52,74 @@ Claude Code 提供 6 种权限模式，从最严格到最宽松：
 - 会话内可通过 `/permissions` 等命令查看/调整当前模式与规则。
 - 注意：deny 规则不阻止子进程的间接访问（如脚本内绕行），敏感文件保护需靠 sandbox。
 
-### 1.3 与 agent-diva 的映射直觉
+### 1.3 源码级核查（.workspace/claude-code 实码）
+
+以下结论来自本地 CC 源码（`src/types/permissions.ts`、`src/utils/permissions/permissions.ts`、
+`src/utils/permissions/yoloClassifier.ts`、`src/utils/permissions/PermissionMode.ts`、
+`src/Tool.ts`）与 `learn-claude-code/s03_permission/README.md` 的源码剖析章节。
+
+#### 1.3.1 模式枚举（types/permissions.ts:15-39）
+
+```typescript
+export const EXTERNAL_PERMISSION_MODES = [
+  'acceptEdits', 'bypassPermissions', 'default', 'dontAsk', 'plan',
+] as const
+export type InternalPermissionMode = ExternalPermissionMode | 'auto' | 'bubble'
+// INTERNAL_PERMISSION_MODES = [...EXTERNAL, 'auto']
+```
+
+- **用户可寻址 6 种**：`default` / `plan` / `acceptEdits` / `dontAsk` / `bypassPermissions` / `auto`。
+- `auto` 是内部模式（ant 用户专属），源码注释明确：`auto` 总是可用，但当
+  `TRANSCRIPT_CLASSIFIER` 关闭时分类器不可用，**auto 模式回退为 prompting（询问）**。
+- `bubble` 是子 Agent 内部模式（权限弹窗冒泡到父终端，`forkSubAgent.ts:50`）。
+
+#### 1.3.2 决策结果与规则（types/permissions.ts:45-267）
+
+- 规则行为三值：`PermissionBehavior = 'allow' | 'deny' | 'ask'`。
+- 工具级决策结果四值：`PermissionResult = allow | ask | deny | passthrough`；
+  `passthrough` 表示"工具不表态，交给通用管线"，最终会被转换为 `ask`（兜底询问）。
+- 规则来源 **8 个**（types/permissions.ts:55-63）：`userSettings`（~/.claude/settings.json）、
+  `projectSettings`（.claude/settings.json）、`localSettings`、`flagSettings`（特性开关）、
+  `policySettings`（企业策略）、`cliArg`（--allowedTools/--deniedTools）、`command`、`session`。
+  合并时**高优先级来源覆盖低优先级**（低→高：user < project < local < flag < policy，
+  加上 cliArg/command/session 内存来源）。
+
+#### 1.3.3 核心决策链 hasPermissionsToUseToolInner（permissions.ts:1179-1340）
+
+每次工具调用按以下顺序判定（首个命中即返回）：
+
+| 步 | 条件 | 结果 |
+| --- | --- | --- |
+| 1a | 整工具 deny 规则命中 | `deny` |
+| 1b | 整工具 ask 规则命中 | `ask`（沙箱 Bash 且开启 auto-allow 时例外，落入工具自身判断） |
+| 1c | 工具自身 `checkPermissions()`（可返回 passthrough） | 按返回值 |
+| 1d | 工具自身 deny | `deny` |
+| 1e | `requiresUserInteraction()` 且工具返回 ask | `ask`（bypass 模式也不豁免） |
+| 1f | **内容级 ask 规则**（如 `Bash(npm publish:*)`） | `ask`（**bypass 免疫**） |
+| 1g | **安全路径检查**（.git/、.claude/、.vscode/、shell 配置等） | `ask`（**bypass 免疫**） |
+| 2a | 当前模式为 `bypassPermissions`（或 plan 但可 bypass） | `allow` |
+| 2b | 整工具 allow 规则命中 | `allow` |
+| 3 | 仍是 `passthrough` | 转为 `ask` |
+
+要点：
+- **deny > ask > allow 的优先级由执行顺序保证**（1a/1b 先于 2a/2b），首个匹配生效；
+- deny/ask 规则在 `bypassPermissions` 模式下依然生效（1a-1g 在 2a 之前）——"绕过"只绕默认行为，不绕显式规则；
+- `isDestructive`（Tool.ts:405）**只是 UI 标签**，不参与权限决策。
+
+#### 1.3.4 auto 模式的分类器（yoloClassifier.ts:1020 classifyYoloAction）
+
+- auto 模式不直接询问：把**工具调用 + 对话转录 + CLAUDE.md 上下文**发给一个独立的
+  分类器 LLM（classifier model），返回 `shouldBlock`（是否应拦截）与原因。
+- 拦截时才会进入人工审批；分类器连续拒绝过多会**回退到人工审批**
+  （denialTracking，s03 剖析 §五）。
+- 另有 `bashClassifier.ts`（Bash 专用分类器）与 `autoModeState.ts`。
+
+#### 1.3.5 与教学版（s03）的对应
+
+learn-claude-code 的"三道闸门"（deny list → 规则匹配 → 用户审批）是刻意简化；
+生产版是本节 1.3.3 的多阶段管线 + 8 来源规则 + 分类器 + 冒泡。
+
+### 1.4 与 agent-diva 的映射直觉
 
 | Claude Code | agent-diva 对应物 |
 | --- | --- |
@@ -136,6 +207,7 @@ pub enum AskForApproval {
 | G5 | **模式不持久化** | `ChatView.vue:191` 无存储 | 每次启动回退到智能，用户设置丢失 |
 | G6 | **无 acceptEdits 档** | 无按工具类型（编辑/命令）分流的粒度 | 编辑密集场景缺少"只放行编辑"的档位 |
 | G7 | **auto（AI 分级）缺失** | guardian 的 is_known_safe/read-only/dangerous 是**静态规则**，无 AI 分类器参与 | 智能模式达不到 Claude `auto` 的智能度（可选增强） |
+| G8 | **决策链粒度低于 CC** | CC：9 步决策链 + 内容级规则 + `passthrough` 兜底 + 8 来源规则合并 + bypass 免疫检查（§1.3.3）；agent-diva：exec_policy 3 分支 + guardian 3 分支，规则来源单一（sandbox 规则文件），无内容级规则、无 passthrough 概念 | 规则表达能力不足：无法表达"`npm publish` 必须问"这类内容级规则；无子 Agent 权限冒泡 |
 
 ### 3.2 优势（保留）
 
@@ -188,12 +260,28 @@ pub enum AskForApproval {
 
 ## 6. 参考资料
 
+### 6.1 在线资料
+
 - Claude Code 权限模式官方文档（zh-CN）：https://code.claude.com/docs/zh-CN/permission-modes
 - Claude Code 权限配置（runoob）：https://www.runoob.com/claude-code/claude-code-permission.html
 - Claude Code 权限配置（w3cschool）：https://www.w3cschool.cn/aicodingguide/claude-code-permissions.html
 - Claude Code 的六种授权模式（CSDN）：https://blog.csdn.net/jarvisuni/article/details/161348107
 - Claude Code 权限模式完全指南（腾讯云）：https://cloud.tencent.com/developer/article/2667942
 - Claude Code Auto Mode（claudefa.st）：https://claudefa.st/blog/guide/development/auto-mode
+
+### 6.2 本地源码（主要证据）
+
+- `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\src\types\permissions.ts`
+  （模式枚举 :15-39、规则来源 :55-63、PermissionResult :252-267）
+- `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\src\utils\permissions\permissions.ts`
+  （核心决策链 hasPermissionsToUseToolInner :1179-1340）
+- `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\src\utils\permissions\yoloClassifier.ts`
+  （classifyYoloAction :1020）
+- `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\src\utils\permissions\PermissionMode.ts`
+  （模式显示配置 :41-86）
+- `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\src\Tool.ts`（isDestructive :405）
+- `C:\Users\Administrator\Desktop\morediva\.workspace\learn-claude-code\s03_permission\README.md`
+  （三道闸门教学 + 源码剖析章节）
 
 ## 7. 附录：本文引用的 agent-diva 源码位置
 

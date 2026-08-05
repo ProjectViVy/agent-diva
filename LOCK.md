@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-05T17:30:00+08:00`
-- Last Heartbeat: `2026-08-05T17:50:00+08:00`
+- Started At: `2026-08-05T18:10:00+08:00`
+- Last Heartbeat: `2026-08-05T18:30:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -30,6 +30,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-08-05T18:30:00+08:00`: Released after adding source-level evidence to approval model research
+  (CC source verified in `morediva/.workspace/claude-code/`; doc §1.3 + G8 added).
 - `2026-08-05T17:50:00+08:00`: Released after approval model research (Claude Code vs agent-diva)
   (`docs/research/approval-model-claude-code-vs-agent-diva.md`, `docs/logs/2026-08-approval-model-research/`).
   Three-mode enhancement implementation pending; see TODOLIST `审批三模式完善`.
