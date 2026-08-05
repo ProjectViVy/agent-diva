@@ -315,6 +315,14 @@ standing policy（非功能债，执行相关验证时遵守）：
   用户无法感知剩余审批窗口。2026-08 cautious-mode 修复时仅修了后端透传+escalation，
   通道合并与倒计时待独立迭代。
   关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
+- [ ] **审批三模式完善（对齐 Claude Code 三窗口）** `sev-P2`
+  GUI「智能/谨慎/信任」三模式后端行为趋同，属半残：
+  (1) 信任≡谨慎（`guardian.rs:369` OnRequest|UnlessTrusted 同分支、`exec_policy.rs:299` 同处理）；
+  (2) 智能=盲跑（`guardian.rs:365` OnFailure 直接 Defer，无风险预判）；
+  (3) 自动放行开关生产默认全关（`orchestrator.rs:885` 固定 `GuardianConfig::default()`）；
+  (4) 模式不持久化（`ChatView.vue:191`）。
+  完善方案：谨慎→全问+strict；智能→只读/known-safe 自动放行+危险询问；信任→未知放行+危险询问+自动学习。
+  详见 `docs/research/approval-model-claude-code-vs-agent-diva.md` §4-§5。
 - [x] **审批 UI 三重显示去重** `sev-P2`  *(v0.5.1 已修)*
   同一 ExecTool 审批请求在 GUI 同时出现三种视觉形态：
   (1) Drawer 内的 `ApprovalCenterCard`（完整样式，`ApprovalCenterDrawer.vue:155`）；
