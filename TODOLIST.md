@@ -335,6 +335,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.1-approval-ui-dedup/`.
 - [ ] **UX-DR-3/4/7** `sev-P3`
   Sprint 评审 UX 缺口，待专项设计。
+- [ ] 待任务排期
 
 ---
 
