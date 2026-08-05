@@ -188,6 +188,20 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
+- [ ] **GUI-PROVIDER-RETRY-VISIBILITY: 前端展示 provider 重试/未响应状态** `sev-P2`
+  2026-08-06 用户反馈（与 `GUI-PROVIDER-ERROR-SILENT` 同场景）：期望前端在重试期间
+  显示「未响应，重试中 (1/4)」类状态，而不是静默等待约 128s 后突然失败。
+  现状勘察：`send_with_retry`（`agent-diva-providers/src/retry.rs:76-130`）只有
+  debug/warn 日志，**无任何事件/回调通道**（attempt/max/delay 对外不可见）；
+  `AgentEvent` 无 Retry 变体；chat SSE（`handlers.rs`）、Tauri 桥（`commands.rs`）、
+  前端（App.vue/ChatView）均无重试状态概念。
+  修复方向：provider 层暴露重试回调或事件（attempt/max_retries/model/delay_ms）→
+  `AgentEvent` 新变体（如 `ProviderRetry`）→ chat SSE 事件映射 → Tauri 桥转发 →
+  App.vue 监听 + ChatView 在运行中消息上渲染「未响应，重试 (n/m)」。
+  注意：`chat`/`chat_stream` 是 provider trait 签名，加回调的改动面较大，需评估
+  兼容性（可选注入 callback 或独立事件 sink）。
+  **按用户指示仅记录，待独立迭代修复。**
+
 - [ ] **GUI-PROVIDER-ERROR-SILENT: GUI 对 provider 请求失败（重试耗尽）无提示** `sev-P2`
   2026-08-06 观测：DeepSeek 连接失败（`unexpected EOF during handshake`）重试
   4 次、耗时约 128s 后失败，GUI 全程无任何错误提示（用户只能从日志发现）。
