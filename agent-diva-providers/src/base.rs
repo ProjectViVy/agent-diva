@@ -682,6 +682,13 @@ pub trait LLMProvider: Send + Sync {
 
     /// Get the default model for this provider
     fn get_default_model(&self) -> String;
+
+    /// Attach a listener invoked before each internal retry attempt.
+    ///
+    /// Default implementation ignores the listener; providers that retry
+    /// internally (e.g. via [`crate::retry::send_with_retry`]) should store
+    /// it and invoke it on each attempt so callers can surface progress.
+    fn set_retry_listener(&self, _listener: Option<crate::retry::RetryListener>) {}
 }
 
 #[cfg(test)]

@@ -163,6 +163,8 @@ pub struct AnthropicClient {
     default_model: String,
     extra_headers: HashMap<String, String>,
     provider_name: Option<String>,
+    /// Snapshot by each request to notify retry progress; set per call by the agent.
+    retry_listener: std::sync::Mutex<Option<crate::retry::RetryListener>>,
 }
 
 impl AnthropicClient {
@@ -185,6 +187,7 @@ impl AnthropicClient {
             default_model,
             extra_headers: extra_headers.unwrap_or_default(),
             provider_name,
+            retry_listener: std::sync::Mutex::new(None),
         }
     }
 
@@ -286,6 +289,10 @@ impl AnthropicClient {
 
 #[async_trait]
 impl LLMProvider for AnthropicClient {
+    fn set_retry_listener(&self, listener: Option<crate::retry::RetryListener>) {
+        *self.retry_listener.lock().unwrap() = listener;
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -307,7 +314,8 @@ impl LLMProvider for AnthropicClient {
         let api_key = self.require_api_key()?;
         let body = serde_json::to_string(&request)?;
         let url = format!("{}/v1/messages", self.api_base);
-        let response = retry::send_with_retry(&model, || {
+        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
             let request = self.apply_headers(self.client.post(&url).body(body.clone()), &api_key);
             async move { request.send().await }
         })
@@ -338,7 +346,8 @@ impl LLMProvider for AnthropicClient {
         let api_key = self.require_api_key()?;
         let body = serde_json::to_string(&request)?;
         let url = format!("{}/v1/messages", self.api_base);
-        let response = retry::send_with_retry(&model, || {
+        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
             let request = self.apply_headers(self.client.post(&url).body(body.clone()), &api_key);
             async move { request.send().await }
         })

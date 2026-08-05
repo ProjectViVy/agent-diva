@@ -46,6 +46,10 @@ impl<P> ProviderTap<P> {
 
 #[async_trait]
 impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
+    fn set_retry_listener(&self, listener: Option<crate::retry::RetryListener>) {
+        self.inner.set_retry_listener(listener);
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,

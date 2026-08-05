@@ -173,6 +173,8 @@ pub struct OpenAiCompatibleClient {
     /// Per-provider reasoning configuration for dynamic capability detection
     reasoning_config: Option<agent_diva_core::reasoning::ReasoningConfig>,
     response_protocol: agent_diva_core::config::ProviderResponseProtocol,
+    /// Snapshot by each request to notify retry progress; set per call by the agent.
+    retry_listener: std::sync::Mutex<Option<crate::retry::RetryListener>>,
 }
 
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -322,6 +324,7 @@ impl OpenAiCompatibleClient {
             default_reasoning_effort: derived_reasoning_effort,
             reasoning_config,
             response_protocol,
+            retry_listener: std::sync::Mutex::new(None),
         }
     }
 
@@ -768,6 +771,10 @@ impl OpenAiCompatibleClient {
 
 #[async_trait]
 impl LLMProvider for OpenAiCompatibleClient {
+    fn set_retry_listener(&self, listener: Option<crate::retry::RetryListener>) {
+        *self.retry_listener.lock().unwrap() = listener;
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -835,7 +842,8 @@ impl LLMProvider for OpenAiCompatibleClient {
         );
 
         // Send request with retry on 5xx/network errors + rate limit detection
-        let response = retry::send_with_retry(&resolved_model, || {
+        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let response = retry::send_with_retry(&resolved_model, retry_listener.as_ref(), || {
             let req = self.apply_headers(
                 self.client
                     .post(&url)
@@ -920,7 +928,8 @@ impl LLMProvider for OpenAiCompatibleClient {
         );
 
         // Send request with retry on 5xx/network errors + rate limit detection
-        let response = retry::send_with_retry(&resolved_model, || {
+        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let response = retry::send_with_retry(&resolved_model, retry_listener.as_ref(), || {
             let req = self.apply_headers(
                 self.client
                     .post(&url)

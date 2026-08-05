@@ -10,6 +10,7 @@
 
 use crate::base::{ProviderError, ProviderResult};
 use reqwest::Response;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, warn};
 
@@ -18,6 +19,22 @@ const MAX_RETRIES: u32 = 3;
 
 /// Base delay for exponential backoff in milliseconds (1 second).
 const BASE_DELAY_MS: u64 = 1000;
+
+/// Information about a single retry attempt, delivered to the optional
+/// `on_retry` callback of [`send_with_retry`].
+#[derive(Debug, Clone)]
+pub struct RetryAttempt {
+    pub model: String,
+    /// 1-based retry attempt number.
+    pub attempt: u32,
+    pub max_retries: u32,
+    pub delay_ms: u64,
+    pub reason: String,
+}
+
+/// Callback invoked before each retry attempt so the caller can surface
+/// retry status (e.g. as a GUI event) instead of waiting silently.
+pub type RetryListener = Arc<dyn Fn(RetryAttempt) + Send + Sync>;
 
 /// Calculate exponential backoff delay with ±20% jitter.
 ///
@@ -71,9 +88,14 @@ pub fn parse_retry_after(response: &Response) -> Option<u64> {
 /// The `send_fn` closure is called for each attempt and must return a `reqwest::Response`.
 /// On success, the response is returned. On rate limit (HTTP 429), `RateLimited` is
 /// returned immediately without retrying. On server errors and network failures,
-/// the request is retried up to `MAX_RETRIES` additional times.
+/// the request is retried up to `MAX_RETRIES` additional times. When `on_retry` is
+/// provided, it is invoked before each retry delay so callers can surface progress.
 #[allow(clippy::needless_pass_by_value)]
-pub async fn send_with_retry<F, Fut>(model: &str, send_fn: F) -> ProviderResult<Response>
+pub async fn send_with_retry<F, Fut>(
+    model: &str,
+    on_retry: Option<&RetryListener>,
+    send_fn: F,
+) -> ProviderResult<Response>
 where
     F: Fn() -> Fut,
     Fut: std::future::Future<Output = Result<Response, reqwest::Error>>,
@@ -87,6 +109,18 @@ where
                 "Retry attempt {}/{} for model '{}' (delay: {:?})",
                 attempt, MAX_RETRIES, model, delay
             );
+            if let Some(listener) = on_retry {
+                listener(RetryAttempt {
+                    model: model.to_string(),
+                    attempt,
+                    max_retries: MAX_RETRIES,
+                    delay_ms: delay.as_millis() as u64,
+                    reason: last_error
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| "unknown error".to_string()),
+                });
+            }
             tokio::time::sleep(delay).await;
         }
 
@@ -149,6 +183,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::AsyncReadExt;
 
     #[test]
     fn test_backoff_delay_sequence() {
@@ -203,5 +238,84 @@ mod tests {
 
         let err = ProviderError::RateLimited { retry_after: None };
         assert_eq!(err.to_string(), "Rate limited");
+    }
+
+    #[tokio::test]
+    async fn test_send_with_retry_invokes_listener_per_attempt() {
+        // Local TCP mock: 500, 500, then 200, so two retries occur.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for status in [500u16, 500, 200] {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = sock.read(&mut buf).await;
+                let body = if status == 200 { "ok" } else { "err" };
+                let resp = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = tokio::io::AsyncWriteExt::write_all(&mut sock, resp.as_bytes()).await;
+            }
+        });
+
+        let url = format!("http://{}/retry", addr);
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap();
+
+        let attempts = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = attempts.clone();
+        let listener_cb: RetryListener = std::sync::Arc::new(move |r: RetryAttempt| {
+            captured.lock().unwrap().push(r);
+        });
+
+        let result = send_with_retry("test-model", Some(&listener_cb), || {
+            let client = client.clone();
+            let url = url.clone();
+            async move { client.get(&url).send().await }
+        })
+        .await;
+
+        assert!(result.is_ok(), "expected success on third attempt");
+        let recorded = attempts.lock().unwrap();
+        assert_eq!(recorded.len(), 2, "expected one listener call per retry");
+        assert_eq!(recorded[0].model, "test-model");
+        assert_eq!(recorded[0].attempt, 1);
+        assert_eq!(recorded[1].attempt, 2);
+        assert_eq!(recorded[0].max_retries, 3);
+        assert!(recorded[0].delay_ms >= 1000, "attempt 1 delay >= 1s");
+        assert!(recorded[1].delay_ms >= 2000, "attempt 2 delay >= 2s");
+    }
+
+    #[tokio::test]
+    async fn test_send_with_retry_no_listener_still_succeeds() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            let body = "ok";
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = tokio::io::AsyncWriteExt::write_all(&mut sock, resp.as_bytes()).await;
+        });
+
+        let url = format!("http://{}/ok", addr);
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap();
+        let result = send_with_retry("test-model", None, || {
+            let client = client.clone();
+            let url = url.clone();
+            async move { client.get(&url).send().await }
+        })
+        .await;
+        assert!(result.is_ok());
     }
 }
