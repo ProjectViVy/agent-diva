@@ -188,7 +188,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
-- [ ] **GUI-PROVIDER-RETRY-VISIBILITY: 前端展示 provider 重试/未响应状态** `sev-P2`
+- [x] **GUI-PROVIDER-RETRY-VISIBILITY: 前端展示 provider 重试/未响应状态** `sev-P2`
   2026-08-06 用户反馈（与 `GUI-PROVIDER-ERROR-SILENT` 同场景）：期望前端在重试期间
   显示「未响应，重试中 (1/4)」类状态，而不是静默等待约 128s 后突然失败。
   现状勘察：`send_with_retry`（`agent-diva-providers/src/retry.rs:76-130`）只有
@@ -200,9 +200,13 @@ standing policy（非功能债，执行相关验证时遵守）：
   App.vue 监听 + ChatView 在运行中消息上渲染「未响应，重试 (n/m)」。
   注意：`chat`/`chat_stream` 是 provider trait 签名，加回调的改动面较大，需评估
   兼容性（可选注入 callback 或独立事件 sink）。
-  **按用户指示仅记录，待独立迭代修复。**
+  **已修复（2026-08-06）**：`cf567087`/`78b813c0`/`51c6c949`/`97a2195e`/
+  `5ad64b5e`/`d4050d38`（详见 `docs/logs/2026-08-gui-provider-error-visibility/
+  v0.1.0-provider-error-retry-visibility/`）。实现采用「trait 默认方法
+  `set_retry_listener` + 每次调用前设置/调用后清除」方案，`ProviderTap` 转发，
+  并发安全（设置与 `chat_stream` 调用间无 await）。人工 smoke 待实机执行。
 
-- [ ] **GUI-PROVIDER-ERROR-SILENT: GUI 对 provider 请求失败（重试耗尽）无提示** `sev-P2`
+- [x] **GUI-PROVIDER-ERROR-SILENT: GUI 对 provider 请求失败（重试耗尽）无提示** `sev-P2`
   2026-08-06 观测：DeepSeek 连接失败（`unexpected EOF during handshake`）重试
   4 次、耗时约 128s 后失败，GUI 全程无任何错误提示（用户只能从日志发现）。
   日志证据：`retry.rs:96` attempt 1-3 → `audit.rs:245` ProviderCallCompleted
@@ -216,8 +220,13 @@ standing policy（非功能债，执行相关验证时遵守）：
   （`requestId !== activeStreamRequestId` 即 return，长重试期间前端流状态
   可能已超时/清空导致不匹配被丢弃），或主聊天流桥接在长时间重试后未送达。
   修复方向：排查 activeStreamRequestId 生命周期与桥 stream_request_id 一致性；
-  保证最终失败无论 request_id 是否匹配都渲染错误气泡。**按用户指示仅记录，
-  待独立迭代修复。**
+  保证最终失败无论 request_id 是否匹配都渲染错误气泡。
+  **已修复（2026-08-06）**：真正根因是 manager `handle_chat` 60s 无事件超时
+  静默断开 SSE（重试 128s 期间错误事件丢失）+ Tauri 桥断流时静默 `Ok(())`
+  （前端永久挂起）。修复：`97a2195e`（`forward_chat_events` 双段超时：60s 发
+  `ProviderStalled` 非终止提示、再 60s 发明确断开错误）、`5ad64b5e`（Tauri 桥
+  `saw_terminal` 断流兜底 emit `agent-error`）。App.vue:2349 request_id 过滤为
+  合理防护，未改动。人工 smoke 待实机执行。
 
 - [ ] **CLI-WIREMOCK-502-PREEXISTING: CLI approval wiremock tests fail with 502** `sev-P2`
   2026-08-05 验证 CLARIFY-HITL Phase 1 时 `just test` 命中 6 个既有 CLI 测试失败
@@ -226,6 +235,21 @@ standing policy（非功能债，执行相关验证时遵守）：
   `git stash` 回到干净树复跑**同样失败**，确认与本迭代变更无关，疑为
   Windows 系统代理/环境干扰 wiremock 本地端口。需独立迭代排查（代理绕过
   或 mock 服务器隔离），并在 `just test` 全绿后关闭。
+
+- [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT: plan 流式 Tauri command 断流兜底统一** `sev-P3`
+  2026-08-06 修复 `GUI-PROVIDER-ERROR-SILENT` 时只为主 chat 流
+  （`commands.rs` `send_message` SSE 循环）加了 `saw_terminal` 断流兜底
+  （SSE 无 final/error 结束时 emit `agent-error`）。`commands.rs` 另有
+  两个 plan 相关 SSE 循环（L2854、L3140）仍是「流结束静默返回」，异常断开时
+  前端可能保持挂起。期望行为：与主 chat 流一致，循环退出无终止事件时
+  emit `agent-error`（或等价恢复事件）。本次按计划未动，待独立迭代统一。
+
+- [ ] **PROVIDERS-EXAMPLE-1.94-CLIPPY: pre-existing example clippy lint** `sev-P3`
+  `cargo clippy --all-targets -- -D warnings` 命中 `agent-diva-providers/examples/
+  minimax_sync_tts.rs:99` `useless_conversion`（Rust 1.94 新 lint；
+  `tls.into()` 转为同类型）。该文件本迭代未改动；`just check`/`just ci`
+  （`cargo clippy --all`，不编译 examples）不受影响。修复：移除 `.into()` 或
+  `#[allow]`，独立小提交。
 
 - [ ] **SANDBOX-SAVE-FIX-DESKTOP-SMOKE: manual GUI smoke for sandbox settings save** `sev-P2`
   2026-08-05 修复了 GUI 沙箱设置保存失败（kebab-case vs snake_case 枚举不匹配，
