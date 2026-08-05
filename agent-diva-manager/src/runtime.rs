@@ -357,6 +357,7 @@ struct GatewayBootstrap {
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,
     command_approvals: CommandApprovalCoordinator,
+    ask_user: agent_diva_core::ask_user::AskUserCoordinator,
     governance: agent_diva_core::governance::ApprovalCoordinator,
 }
 
@@ -1005,6 +1006,7 @@ async fn build_agent_loop(
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,
     command_approvals: CommandApprovalCoordinator,
+    ask_user: agent_diva_core::ask_user::AskUserCoordinator,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
@@ -1016,7 +1018,7 @@ async fn build_agent_loop(
         global_timeout_secs: 120,
         command_approvals: Some(command_approvals),
         approval_policy: agent_diva_sandbox::AskForApproval::default(),
-        ask_user: None,
+        ask_user: Some(ask_user),
         restrict_to_workspace: config.tools.restrict_to_workspace,
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(cron_service),

@@ -58,6 +58,7 @@ async fn start_runtime_tasks_inner(
         file_manager,
         run_store,
         command_approvals,
+        ask_user,
         governance,
     } = bootstrap;
     let ChannelBootstrap {
@@ -130,6 +131,7 @@ async fn start_runtime_tasks_inner(
         bus.clone(),
         workspace,
         command_approvals,
+        ask_user,
         config.memory.authority_mode,
         governance,
         planning_service,

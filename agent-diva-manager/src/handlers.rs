@@ -1,4 +1,5 @@
 pub mod approvals;
+pub mod ask_user;
 pub mod audit;
 pub mod autodream;
 pub mod command_approvals;
@@ -16,6 +17,7 @@ pub use todo::{create_todo_handler, query_todos_handler, todo_routes, update_tod
 pub use token_stats::token_stats_routes;
 
 pub use approvals::approval_routes;
+pub use ask_user::ask_user_routes;
 pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
 

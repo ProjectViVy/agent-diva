@@ -206,6 +206,7 @@ mod tests {
             MessageBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
             MemoryAuthorityMode::Shadow,
         )
         .unwrap();

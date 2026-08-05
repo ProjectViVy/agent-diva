@@ -88,6 +88,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(runtime_routes())
         .merge(crate::handlers::command_approval_routes())
         .merge(crate::handlers::approval_routes())
+        .merge(crate::handlers::ask_user_routes())
         .merge(provider_routes())
         .merge(planning_routes())
         .merge(autodream_routes())
@@ -848,6 +849,7 @@ mod tests {
             agent_diva_core::bus::MessageBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
             agent_diva_core::config::schema::MemoryAuthorityMode::Typed,
         )
         .unwrap();

@@ -345,6 +345,7 @@ mod tests {
             MessageBus::new(),
             root,
             command,
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
             MemoryAuthorityMode::Legacy,
             governance,
             planning,

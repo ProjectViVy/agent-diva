@@ -72,6 +72,9 @@ pub struct AppState {
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
     pub command_approvals: CommandApprovalCoordinator,
+    /// Conversational ask-user coordinator shared with the agent loop and the
+    /// ask-user HTTP endpoints.
+    pub ask_user: agent_diva_core::ask_user::AskUserCoordinator,
     /// Process-wide durable governance authority in production.
     pub governance: Option<ApprovalCoordinator>,
     /// Canonical Plan service shared with the Manager command loop.
@@ -98,11 +101,28 @@ impl AppState {
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
     ) -> anyhow::Result<Self> {
+        Self::new_with_ask_user(
+            api_tx,
+            bus,
+            workspace_root,
+            command_approvals,
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
+        )
+    }
+
+    pub fn new_with_ask_user(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+        command_approvals: CommandApprovalCoordinator,
+        ask_user: agent_diva_core::ask_user::AskUserCoordinator,
+    ) -> anyhow::Result<Self> {
         Self::new_with_runtime_memory(
             api_tx,
             bus,
             workspace_root,
             command_approvals,
+            ask_user,
             MemoryAuthorityMode::Legacy,
         )
     }
@@ -112,6 +132,7 @@ impl AppState {
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
+        ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
     ) -> anyhow::Result<Self> {
         Self::new_with_runtime_governance_inner(
@@ -119,6 +140,7 @@ impl AppState {
             bus,
             workspace_root.into(),
             command_approvals,
+            ask_user,
             memory_authority_mode,
             None,
             None,
@@ -130,6 +152,7 @@ impl AppState {
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
+        ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
         governance: ApprovalCoordinator,
         planning_service: Arc<crate::planning_service::PlanningService>,
@@ -139,6 +162,7 @@ impl AppState {
             bus,
             workspace_root.into(),
             command_approvals,
+            ask_user,
             memory_authority_mode,
             Some(governance),
             Some(planning_service),
@@ -150,6 +174,7 @@ impl AppState {
         bus: MessageBus,
         workspace_root: PathBuf,
         command_approvals: CommandApprovalCoordinator,
+        ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
         governance: Option<ApprovalCoordinator>,
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
@@ -192,6 +217,7 @@ impl AppState {
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,
+            ask_user,
             governance,
             planning_service,
         };

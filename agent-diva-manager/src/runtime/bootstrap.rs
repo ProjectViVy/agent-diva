@@ -137,6 +137,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let file_manager = Arc::new(FileManager::new(file_config).await?);
 
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
+    let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
     let agent = build_agent_loop(
         &config,
         bus.clone(),
@@ -147,6 +148,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         Arc::clone(&file_manager),
         Arc::clone(&run_store),
         command_approvals.clone(),
+        ask_user.clone(),
     )
     .await?;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;
@@ -166,6 +168,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         file_manager,
         run_store,
         command_approvals,
+        ask_user,
         governance,
     })
 }
