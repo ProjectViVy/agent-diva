@@ -9,6 +9,8 @@ import { useI18n } from 'vue-i18n';
 import ConversationSidebar from './ConversationSidebar.vue';
 import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
+import AskUserQuestionCard from './AskUserQuestionCard.vue';
+export type { AskUserQuestionView } from './AskUserQuestionCard.vue';
 import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
@@ -25,6 +27,7 @@ import {
   type EvolutionProposal,
   type UiCard,
 } from '../api/desktop';
+import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
 import type { PlanRuntimeState } from '../api/planning';
 import type {
   ChatGovernanceCard as ChatGovernanceCardModel,
@@ -146,6 +149,7 @@ const props = defineProps<{
   approvingPlan?: boolean;
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
+  askUserQuestions?: AskUserQuestionView[];
 }>();
 
 const emit = defineEmits<{
@@ -164,6 +168,8 @@ const emit = defineEmits<{
   (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
   (e: 'update:approval-center-open', open: boolean): void;
+  (e: 'answer-ask-user', payload: { question_id: string; selected_index: number | null; other_text: string | null }): void;
+  (e: 'cancel-ask-user', questionId: string): void;
 }>();
 
 const input = ref('');
@@ -1006,6 +1012,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         @approve="handleApprovePlan"
         @revoke="emit('revoke-plan', $event)"
         @refresh="emit('refresh-plan')"
+      />
+
+      <AskUserQuestionCard
+        v-for="question in askUserQuestions"
+        :key="question.question_id"
+        :question="question"
+        @answer="emit('answer-ask-user', $event)"
+        @cancel="emit('cancel-ask-user', $event)"
       />
 
       <!-- Typing Indicator -->

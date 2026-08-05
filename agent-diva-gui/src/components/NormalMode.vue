@@ -21,7 +21,7 @@ import {
   Zap,
 } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
-import ChatView from './ChatView.vue';
+import ChatView, { type AskUserQuestionView } from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
@@ -120,6 +120,7 @@ interface Props {
   approvingPlan?: boolean;
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
+  askUserQuestions?: AskUserQuestionView[];
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -157,6 +158,8 @@ const emit = defineEmits<{
   (e: 'load-session', sessionKey: string): void;
   (e: 'delete-session', sessionKey: string): void;
   (e: 'update:approval-center-open', open: boolean): void;
+  (e: 'answer-ask-user', payload: { question_id: string; selected_index: number | null; other_text: string | null }): void;
+  (e: 'cancel-ask-user', questionId: string): void;
 }>();
 
 type SidebarSection =
@@ -1097,6 +1100,7 @@ defineExpose({
               :approving-plan="approvingPlan"
               :approval-center-open="approvalCenterOpen"
               :approval-pending-count="approvalPendingCount"
+              :ask-user-questions="askUserQuestions"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"
@@ -1108,6 +1112,8 @@ defineExpose({
               @select-session="(key) => emit('load-session', key)"
               @delete-session="(key) => emit('delete-session', key)"
               @update:approval-center-open="emit('update:approval-center-open', $event)"
+              @answer-ask-user="emit('answer-ask-user', $event)"
+              @cancel-ask-user="emit('cancel-ask-user', $event)"
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"

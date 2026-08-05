@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import type { AskUserQuestionView } from './components/ChatView.vue';
 import NormalMode from "./components/NormalMode.vue";
 import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
@@ -287,6 +288,53 @@ const normalModeRef = ref<InstanceType<typeof NormalMode> | null>(null);
 const approvalPendingCount = computed(() =>
   unifiedApprovals.value.filter((approval) => approval.status === 'pending').length,
 );
+
+const pendingQuestions = ref<AskUserQuestionView[]>([]);
+const askUserSubmittingIds = ref<string[]>([]);
+const askUserError = ref<string | null>(null);
+let askUserPollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function listAskUserQuestions() {
+  if (!isTauri()) return;
+  try {
+    const response = await invoke<{ questions: AskUserQuestionView[] }>('list_ask_user_questions');
+    pendingQuestions.value = Array.isArray(response?.questions) ? response.questions : [];
+  } catch (error) {
+    console.warn('list_ask_user_questions failed:', error);
+  }
+}
+
+async function answerAskUserQuestion(payload: { question_id: string; selected_index: number | null; other_text: string | null }) {
+  if (!isTauri()) return;
+  askUserSubmittingIds.value = [...askUserSubmittingIds.value, payload.question_id];
+  askUserError.value = null;
+  try {
+    await invoke('answer_ask_user_question', {
+      questionId: payload.question_id,
+      selectedIndex: payload.selected_index,
+      otherText: payload.other_text,
+    });
+    await listAskUserQuestions();
+  } catch (error) {
+    askUserError.value = String(error);
+  } finally {
+    askUserSubmittingIds.value = askUserSubmittingIds.value.filter((id) => id !== payload.question_id);
+  }
+}
+
+async function cancelAskUserQuestion(questionId: string) {
+  if (!isTauri()) return;
+  askUserSubmittingIds.value = [...askUserSubmittingIds.value, questionId];
+  askUserError.value = null;
+  try {
+    await invoke('cancel_ask_user_question', { questionId });
+    await listAskUserQuestions();
+  } catch (error) {
+    askUserError.value = String(error);
+  } finally {
+    askUserSubmittingIds.value = askUserSubmittingIds.value.filter((id) => id !== questionId);
+  }
+}
 
 function upsertUnifiedApproval(approval: ApprovalView) {
   const current = unifiedApprovals.value.find((item) => item.request_id === approval.request_id);
@@ -1968,6 +2016,8 @@ onMounted(async () => {
       approvalCenterError.value = approvalActionMessage(e);
       console.warn('Failed to start unified approval stream:', e);
     }
+    askUserPollTimer = setInterval(() => void listAskUserQuestions(), 2000);
+    await listAskUserQuestions();
 
     try {
       const [runtimeConfig, rawConfig, status] = await Promise.allSettled([
@@ -2367,6 +2417,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  if (askUserPollTimer) clearInterval(askUserPollTimer);
   unlisteners.forEach(fn => fn());
 });
 </script>
@@ -2398,6 +2449,7 @@ onUnmounted(() => {
       :approving-plan="approvingPlan"
       :approval-center-open="approvalCenterOpen"
       :approval-pending-count="approvalPendingCount"
+      :ask-user-questions="pendingQuestions"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
@@ -2414,6 +2466,8 @@ onUnmounted(() => {
       @load-session="loadSession"
       @delete-session="deleteSession"
       @update:approval-center-open="onApprovalCenterOpenChange"
+      @answer-ask-user="answerAskUserQuestion"
+      @cancel-ask-user="cancelAskUserQuestion"
     />
     <ApprovalCenterDrawer
       v-model:open="approvalCenterOpen"
