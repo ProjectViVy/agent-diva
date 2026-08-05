@@ -22,7 +22,7 @@ impl Manager {
         let channel = req.msg.channel.clone();
         let chat_id = req.msg.chat_id.clone();
         let event_tx = req.event_tx.clone();
-        let mut event_rx = self.bus.subscribe_events();
+        let event_rx = self.bus.subscribe_events();
 
         if let Err(e) = self.bus.publish_inbound(req.msg) {
             error!("Failed to publish inbound: {}", e);
@@ -32,25 +32,7 @@ impl Manager {
             return;
         }
 
-        tokio::spawn(async move {
-            while let Ok(Ok(bus_event)) =
-                tokio::time::timeout(std::time::Duration::from_secs(60), event_rx.recv()).await
-            {
-                if bus_event.channel == channel && bus_event.chat_id == chat_id {
-                    let event = bus_event.event;
-                    if event_tx.send(event.clone()).is_err() {
-                        break;
-                    }
-
-                    if matches!(
-                        event,
-                        AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
-                    ) {
-                        break;
-                    }
-                }
-            }
-        });
+        tokio::spawn(forward_chat_events(event_rx, event_tx, channel, chat_id));
     }
 
     pub(super) fn handle_stop_chat(
@@ -593,6 +575,54 @@ impl Manager {
     }
 }
 
+/// Idle timeout for chat SSE event forwarding. After one timeout window with no
+/// bus events a non-terminal stall hint is sent; after a second window the stream
+/// is closed with an explicit error so the client never hangs silently.
+const STREAM_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+async fn forward_chat_events(
+    mut event_rx: tokio::sync::broadcast::Receiver<agent_diva_core::bus::AgentBusEvent>,
+    event_tx: tokio::sync::mpsc::UnboundedSender<AgentEvent>,
+    channel: String,
+    chat_id: String,
+) {
+    let mut stalled_notified = false;
+    loop {
+        match tokio::time::timeout(STREAM_IDLE_TIMEOUT, event_rx.recv()).await {
+            Ok(Ok(bus_event)) => {
+                if bus_event.channel == channel && bus_event.chat_id == chat_id {
+                    let event = bus_event.event;
+                    if event_tx.send(event.clone()).is_err() {
+                        break;
+                    }
+                    if matches!(
+                        event,
+                        AgentEvent::FinalResponse { .. } | AgentEvent::Error { .. }
+                    ) {
+                        break;
+                    }
+                }
+            }
+            // Bus dropped (manager shutting down).
+            Ok(Err(_)) => break,
+            Err(_elapsed) => {
+                if !stalled_notified {
+                    // Non-terminal hint: keep waiting so the real terminal event
+                    // (e.g. a provider failure after a long retry window) still arrives.
+                    stalled_notified = true;
+                    let _ = event_tx.send(AgentEvent::ProviderStalled { model: None });
+                } else {
+                    let _ = event_tx.send(AgentEvent::Error {
+                        message: "长时间未收到响应，连接已断开。请检查 Provider 状态或网络后重试。"
+                            .to_string(),
+                    });
+                    break;
+                }
+            }
+        }
+    }
+}
+
 fn set_channel<T>(slot: &mut T, update: &ChannelUpdate) -> anyhow::Result<()>
 where
     T: serde::de::DeserializeOwned + serde::Serialize + ChannelToggle,
@@ -632,3 +662,110 @@ impl_channel_toggle!(
     QQConfig,
     MatrixConfig,
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_diva_core::bus::MessageBus;
+    use tokio::sync::mpsc;
+    use tokio::time::{advance, Duration};
+
+    #[tokio::test(start_paused = true)]
+    async fn forward_chat_events_emits_stall_then_disconnect_error_when_idle() {
+        let bus = MessageBus::new();
+        let event_rx = bus.subscribe_events();
+        let (event_tx, mut event_out) = mpsc::unbounded_channel();
+
+        let handle = tokio::spawn(forward_chat_events(
+            event_rx,
+            event_tx,
+            "gui".to_string(),
+            "chat-1".to_string(),
+        ));
+
+        // Let the forwarder start polling before advancing the clock.
+        tokio::task::yield_now().await;
+        // First idle window: non-terminal stall hint, stream stays open.
+        advance(Duration::from_secs(61)).await;
+        tokio::task::yield_now().await;
+        let first = event_out.try_recv().expect("expected stall hint");
+        assert!(matches!(first, AgentEvent::ProviderStalled { .. }));
+
+        // Second idle window: explicit error and the forwarder terminates.
+        advance(Duration::from_secs(61)).await;
+        tokio::task::yield_now().await;
+        let second = event_out.try_recv().expect("expected disconnect error");
+        assert!(matches!(second, AgentEvent::Error { .. }));
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn forward_chat_events_forwards_events_and_terminates_on_final() {
+        let bus = MessageBus::new();
+        let event_rx = bus.subscribe_events();
+        let (event_tx, mut event_out) = mpsc::unbounded_channel();
+
+        let handle = tokio::spawn(forward_chat_events(
+            event_rx,
+            event_tx,
+            "gui".to_string(),
+            "chat-1".to_string(),
+        ));
+
+        bus.publish_event("gui", "chat-1", AgentEvent::AssistantDelta {
+            text: "hi".to_string(),
+        })
+        .unwrap();
+        bus.publish_event("gui", "chat-1", AgentEvent::FinalResponse {
+            content: "done".to_string(),
+        })
+        .unwrap();
+        advance(Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
+
+        let mut seen = Vec::new();
+        while let Ok(ev) = event_out.try_recv() {
+            seen.push(ev);
+        }
+        assert!(matches!(seen[0], AgentEvent::AssistantDelta { .. }));
+        assert!(matches!(seen[1], AgentEvent::FinalResponse { .. }));
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn forward_chat_events_ignores_other_chat_ids() {
+        let bus = MessageBus::new();
+        let event_rx = bus.subscribe_events();
+        let (event_tx, mut event_out) = mpsc::unbounded_channel();
+
+        let handle = tokio::spawn(forward_chat_events(
+            event_rx,
+            event_tx,
+            "gui".to_string(),
+            "chat-1".to_string(),
+        ));
+
+        bus.publish_event("gui", "chat-other", AgentEvent::FinalResponse {
+            content: "noise".to_string(),
+        })
+        .unwrap();
+        advance(Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
+        assert!(event_out.try_recv().is_err(), "foreign chat event forwarded");
+
+        bus.publish_event("gui", "chat-1", AgentEvent::Error {
+            message: "boom".to_string(),
+        })
+        .unwrap();
+        advance(Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
+        assert!(matches!(
+            event_out.try_recv().unwrap(),
+            AgentEvent::Error { .. }
+        ));
+
+        handle.await.unwrap();
+    }
+}

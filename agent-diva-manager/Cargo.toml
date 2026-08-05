@@ -43,3 +43,4 @@ tokio-util.workspace = true
 [dev-dependencies]
 tempfile = { workspace = true }
 tower = { version = "0.5", features = ["util"] }
+tokio = { workspace = true, features = ["full", "test-util"] }

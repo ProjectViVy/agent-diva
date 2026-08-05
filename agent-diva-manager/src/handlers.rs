@@ -251,6 +251,30 @@ pub async fn chat_handler(
                     .event("turn_plan_updated")
                     .data(serde_json::to_string(&args).unwrap()),
                 AgentEvent::Error { message } => Event::default().event("error").data(message),
+                AgentEvent::ProviderRetry {
+                    model,
+                    attempt,
+                    max_retries,
+                    delay_ms,
+                    reason,
+                } => {
+                    let data = serde_json::json!({
+                        "model": model,
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "delay_ms": delay_ms,
+                        "reason": reason
+                    });
+                    Event::default()
+                        .event("provider_retry")
+                        .data(data.to_string())
+                }
+                AgentEvent::ProviderStalled { model } => {
+                    let data = serde_json::json!({ "model": model });
+                    Event::default()
+                        .event("provider_stalled")
+                        .data(data.to_string())
+                }
                 _ => Event::default().comment("keep-alive"),
             };
             Ok(evt)
