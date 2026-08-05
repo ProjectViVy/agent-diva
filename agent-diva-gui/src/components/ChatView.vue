@@ -677,35 +677,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   <div class="chat-shell flex flex-row h-full relative overflow-hidden" :class="[`theme-${themeMode || 'love'}`, { 'conv-sidebar-open': convSidebarOpen }]">
     <!-- Main Chat Area -->
     <div class="chat-main flex flex-col flex-1 min-w-0">
-      <!-- Corner actions: history + approval center (stacked under history) -->
-      <div class="chat-corner-actions">
-        <button
-          type="button"
-          class="chat-corner-btn"
-          :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
-          :aria-label="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
-          :aria-expanded="convSidebarOpen"
-          @click="convSidebarOpen = !convSidebarOpen"
-        >
-          <Clock :size="18" />
-        </button>
-        <button
-          type="button"
-          class="chat-corner-btn approval-center-icon-btn"
-          :class="{ active: approvalCenterOpen }"
-          :title="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
-          :aria-label="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
-          :aria-expanded="!!approvalCenterOpen"
-          @click="emit('update:approval-center-open', !approvalCenterOpen)"
-        >
-          <ShieldCheck :size="18" />
-          <strong
-            v-if="approvalPendingCount"
-            class="approval-pending-badge"
-            aria-live="polite"
-          >{{ approvalPendingCount }}</strong>
-        </button>
-      </div>
       <!-- Sakura Effect -->
       <div v-if="themeMode === 'love'" class="chat-sakura">
         <span
@@ -1236,6 +1207,37 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </div>
             </div>
           </div>
+
+          <!-- 历史记录 + 审批中心（工具栏右侧） -->
+          <span class="toolbar-divider" />
+          <div class="chat-corner-actions">
+            <button
+              type="button"
+              class="toolbar-btn"
+              :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+              :aria-label="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
+              :aria-expanded="convSidebarOpen"
+              @click="convSidebarOpen = !convSidebarOpen"
+            >
+              <Clock :size="14" />
+            </button>
+            <button
+              type="button"
+              class="toolbar-btn approval-center-icon-btn"
+              :class="{ active: approvalCenterOpen }"
+              :title="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
+              :aria-label="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
+              :aria-expanded="!!approvalCenterOpen"
+              @click="emit('update:approval-center-open', !approvalCenterOpen)"
+            >
+              <ShieldCheck :size="14" />
+              <strong
+                v-if="approvalPendingCount"
+                class="approval-pending-badge"
+                aria-live="polite"
+              >{{ approvalPendingCount }}</strong>
+            </button>
+          </div>
         </div>
 
         <!-- 主输入区 -->
@@ -1345,44 +1347,16 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 </template>
 
 <style scoped>
-/* Chat corner action stack: history + approval center */
+/* Chat corner actions: history + approval center (right side of input toolbar) */
 .chat-corner-actions {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 50;
+  margin-left: auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
-.conv-sidebar-open .chat-corner-actions {
-  right: 292px; /* 280px sidebar + 12px gap */
-}
-
-.chat-corner-btn {
+.approval-center-icon-btn {
   position: relative;
-  display: flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: 8px;
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-  color: var(--text-muted, #9ca3af);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.chat-corner-btn:hover,
-.chat-corner-btn.active {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
-  color: var(--text, #111827);
-  border-color: var(--brand, #ec4899);
 }
 
 .approval-center-icon-btn.active {

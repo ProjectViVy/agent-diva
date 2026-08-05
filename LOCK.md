@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-05T16:10:00+08:00`
-- Last Heartbeat: `2026-08-05T16:25:00+08:00`
+- Started At: `2026-08-05T17:00:00+08:00`
+- Last Heartbeat: `2026-08-05T17:15:00+08:00`
 - Expires At: `released`
 
 ## Lock Rules
@@ -30,6 +30,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-08-05T17:15:00+08:00`: Released after moving history + approval buttons into input toolbar right side
+  (`docs/logs/2026-08-cautious-approval-fix/v0.5.3-corner-actions-position/`). Manual desktop smoke pending.
+- `2026-08-05T16:50:00+08:00`: Released after moving chat corner actions (history + approval center) lower
+  (`docs/logs/2026-08-cautious-approval-fix/v0.5.3-corner-actions-position/`). Manual desktop smoke pending.
 - `2026-08-05T16:25:00+08:00`: Released after approval Drawer auto-close on approve
   (`docs/logs/2026-08-cautious-approval-fix/v0.5.2-approval-drawer-auto-close/`). Manual desktop smoke pending.
 - `2026-08-05T12:30:00+08:00`: Released after docs-only GA memory parity inventory

@@ -91,7 +91,7 @@ describe('ChatView streaming states', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
     const wrapper = mountChat([]);
 
-    await wrapper.find('.chat-corner-actions .chat-corner-btn').trigger('click');
+    await wrapper.find('.chat-corner-actions .toolbar-btn').trigger('click');
 
     expect(wrapper.find('.conv-sidebar-scrim').exists()).toBe(true);
     expect(wrapper.find('.conv-sidebar-wrapper--overlay').exists()).toBe(true);
