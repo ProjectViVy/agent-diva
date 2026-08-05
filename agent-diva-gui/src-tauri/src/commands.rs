@@ -3035,6 +3035,76 @@ pub async fn cancel_approval(
     unified_approval_response(response, true).await
 }
 
+async fn ask_user_response(response: reqwest::Response, post: bool) -> Result<serde_json::Value, String> {
+    let status = response.status();
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("ask_user response parse failed: {error}"))?;
+    if status.is_success() {
+        Ok(body)
+    } else {
+        let verb = if post { "submit" } else { "fetch" };
+        Err(format!("ask_user {verb} failed with HTTP {status}: {body}"))
+    }
+}
+
+#[tauri::command]
+pub async fn list_ask_user_questions(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let response = state
+        .client
+        .get(format!("{}/ask-user/questions", state.api_base_url()))
+        .send()
+        .await
+        .map_err(|error| format!("ask_user transport failed: {error}"))?;
+    ask_user_response(response, false).await
+}
+
+#[tauri::command]
+pub async fn answer_ask_user_question(
+    state: State<'_, AgentState>,
+    question_id: String,
+    selected_index: Option<usize>,
+    other_text: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let payload = serde_json::json!({
+        "selected_index": selected_index,
+        "other_text": other_text,
+    });
+    let response = state
+        .client
+        .post(format!(
+            "{}/ask-user/questions/{}/answer",
+            state.api_base_url(),
+            urlencoding::encode(question_id.trim())
+        ))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| format!("ask_user transport failed: {error}"))?;
+    ask_user_response(response, true).await
+}
+
+#[tauri::command]
+pub async fn cancel_ask_user_question(
+    state: State<'_, AgentState>,
+    question_id: String,
+) -> Result<serde_json::Value, String> {
+    let response = state
+        .client
+        .post(format!(
+            "{}/ask-user/questions/{}/cancel",
+            state.api_base_url(),
+            urlencoding::encode(question_id.trim())
+        ))
+        .send()
+        .await
+        .map_err(|error| format!("ask_user transport failed: {error}"))?;
+    ask_user_response(response, true).await
+}
+
 #[tauri::command]
 pub async fn start_approval_stream(
     window: Window,
