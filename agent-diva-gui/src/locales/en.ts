@@ -51,6 +51,8 @@ export default {
     inputArgs: 'Input Arguments:',
     execResult: 'Execution Result:',
     thinking: 'Thinking deeply...',
+    retrying: 'No response, retrying ({attempt}/{max})',
+    stalled: 'Still waiting for the provider...',
     thinkingProcess: 'Thinking process',
     thoughtProcess: 'Thought Process',
     clearChat: 'Clear Chat',

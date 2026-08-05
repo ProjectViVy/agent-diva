@@ -77,6 +77,8 @@ interface Message {
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
+  retryStatus?: { attempt: number; maxRetries: number; model?: string };
+  stalled?: boolean;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
@@ -922,6 +924,20 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 <div v-else class="markdown-body" v-html="md.render(msg.content)"></div>
                 <!-- 流式光标：内容存在且正在流式输出时显示 -->
                 <span v-if="msg.content && msg.role === 'agent' && msg.isStreaming" class="streaming-cursor"></span>
+              </div>
+
+              <!-- Provider status badges on the streaming agent message -->
+              <div
+                v-if="msg.isStreaming && msg.retryStatus"
+                class="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
+              >
+                {{ t('chat.retrying', { attempt: msg.retryStatus.attempt, max: msg.retryStatus.maxRetries }) }}
+              </div>
+              <div
+                v-else-if="msg.isStreaming && msg.stalled"
+                class="mt-2 inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-500"
+              >
+                {{ t('chat.stalled') }}
               </div>
             </div>
 

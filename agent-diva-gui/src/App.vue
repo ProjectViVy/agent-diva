@@ -71,6 +71,8 @@ interface Message {
   toolResult?: string;
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
+  retryStatus?: { attempt: number; maxRetries: number; model?: string };
+  stalled?: boolean;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
@@ -92,6 +94,20 @@ interface ToolFinishPayload {
 interface StreamTextPayload {
   request_id: string;
   data: string;
+}
+
+interface StreamRetryPayload {
+  request_id: string;
+  model: string;
+  attempt: number;
+  max_retries: number;
+  delay_ms: number;
+  reason: string;
+}
+
+interface StreamStalledPayload {
+  request_id: string;
+  model?: string | null;
 }
 
 interface StreamToolStartPayload extends ToolStartPayload {
@@ -2387,6 +2403,32 @@ onMounted(async () => {
       activeStreamRequestId.value = null;
     }
     syncCurrentSessionListEntry();
+  }));
+
+  // Listen for provider retry progress (shown on the streaming message)
+  unlisteners.push(await listen<StreamRetryPayload>("agent-provider-retry", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
+    const lastMsg = messages.value[messages.value.length - 1];
+    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
+      lastMsg.retryStatus = {
+        attempt: event.payload.attempt,
+        maxRetries: event.payload.max_retries,
+        model: event.payload.model,
+      };
+    }
+  }));
+
+  // Listen for provider stall hints (long idle without a terminal event)
+  unlisteners.push(await listen<StreamStalledPayload>("agent-provider-stalled", (event) => {
+    if (event.payload.request_id !== activeStreamRequestId.value) {
+      return;
+    }
+    const lastMsg = messages.value[messages.value.length - 1];
+    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
+      lastMsg.stalled = true;
+    }
   }));
 
   // Listen for external hook messages

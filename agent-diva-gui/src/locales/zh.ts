@@ -51,6 +51,8 @@ export default {
     inputArgs: '输入参数:',
     execResult: '执行结果:',
     thinking: '正在深度思考...',
+    retrying: '未响应，重试 ({attempt}/{max})',
+    stalled: '仍在等待 Provider 响应...',
     thinkingProcess: '思考过程',
     thoughtProcess: '深度思考过程',
     clearChat: '清除对话',
