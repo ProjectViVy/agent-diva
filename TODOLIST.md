@@ -236,6 +236,14 @@ standing policy（非功能债，执行相关验证时遵守）：
   Windows 系统代理/环境干扰 wiremock 本地端口。需独立迭代排查（代理绕过
   或 mock 服务器隔离），并在 `just test` 全绿后关闭。
 
+- [ ] **GATEWAY-PORT-CONFIG-IGNORED: CLI gateway run 忽略 config.gateway.port** `sev-P3`
+  2026-08-06 做 GUI provider 错误可见性 smoke 时发现：`config.json` 的
+  `gateway.port` 字段已存在，但 `agent-diva-cli/src/main.rs`
+  `build_gateway_runtime_config` 硬编码 `port: DEFAULT_GATEWAY_PORT`（3000），
+  用户配置的端口不生效。导致无法在隔离端口起第二个 gateway 实例做 HTTP SSE
+  smoke（3000 被用户 gateway 占用）。期望行为：`run_gateway` 优先使用
+  `config.gateway.port`（回退 DEFAULT）。修复面小（main.rs 一处），独立提交。
+
 - [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT: plan 流式 Tauri command 断流兜底统一** `sev-P3`
   2026-08-06 修复 `GUI-PROVIDER-ERROR-SILENT` 时只为主 chat 流
   （`commands.rs` `send_message` SSE 循环）加了 `saw_terminal` 断流兜底

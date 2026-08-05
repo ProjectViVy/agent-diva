@@ -22,19 +22,26 @@
 该文件本迭代未改动；`just check`/`just ci` 不编译 examples，不受影响），
 已记 TODOLIST。
 
-## 人工 smoke（待实机执行）
+## 人工 smoke（已执行部分）
 
-`smoke-test-required-for-user-visible-change` + `gui-changes-need-gui-smoke`：
+执行环境：隔离 config（`gateway.port=3111`、`deepseek.api_base → 127.0.0.1:3110`），
+独立 `target-smoke` 构建（用户正在运行的 `agent-diva.exe gateway run`（PID 8856）
+占用 `target\debug` 与 3000 端口，未触碰）。
 
-1. **错误路径（复现原 bug 场景）**：把默认 Provider 的 api_base 指向一个不可达
-   地址（或断网），在 GUI 发送消息：
-   - 预期：约 1s/2s/4s 重试间隔内，流式消息上出现「未响应，重试 (1/3)」徽标，
-     随后 (2/3)、(3/3) 更新；
-   - 重试耗尽后（或 60s 无事件时）出现「仍在等待 Provider 响应」提示；
-   - 最终出现明确错误气泡（重试耗尽错误，或「长时间未收到响应，连接已断开」），
-     `isTyping` 恢复、可再次发送。
-2. **正常路径（无回归）**：正常对话 → 无重试徽标、无错误气泡，流式输出正常。
-3. **CLI 对照**：`agent-diva chat` 错误 provider 场景日志可见重试 warn，行为不受影响。
+1. **重试链路（CLI 非交互，真实运行时）**：本地 mock 服务器对每个请求返回 500，
+   `agent-diva agent --message "hi"`（隔离 config）：
+   - mock 请求计数 = **4**（1 次初始 + 3 次重试，与 `MAX_RETRIES=3` 一致）；
+   - 最终 CLI 输出 `Error: Failed to process message: API error: HTTP 500
+     Internal Server Error: {"error":"simulated server error"}`——错误正确传播；
+   - 无挂死（约 10s 内完成，含 1s/2s/4s 退避）。
+2. **HTTP SSE 端到端（未完成）**：隔离 gateway 因 CLI 硬编码
+   `DEFAULT_GATEWAY_PORT=3000`（`build_gateway_runtime_config` 忽略
+   `config.gateway.port`）与用户 gateway 端口冲突，无法在隔离端口起第二个
+   实例——HTTP/SSE 层的 `provider_retry` 事件观察留待 GUI 实机验收
+   （`acceptance.md` 场景 A）。该缺口已记 TODOLIST
+   `GATEWAY-PORT-CONFIG-IGNORED`。
+3. **GUI 实机（待执行）**：`smoke-test-required-for-user-visible-change` +
+   `gui-changes-need-gui-smoke`——需真实 Tauri 桌面（当前会话仅自动化验证）。
 
 ## 观察点（实机时记录）
 
