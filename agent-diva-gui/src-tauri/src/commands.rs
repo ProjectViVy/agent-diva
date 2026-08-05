@@ -3035,7 +3035,10 @@ pub async fn cancel_approval(
     unified_approval_response(response, true).await
 }
 
-async fn ask_user_response(response: reqwest::Response, post: bool) -> Result<serde_json::Value, String> {
+async fn ask_user_response(
+    response: reqwest::Response,
+    post: bool,
+) -> Result<serde_json::Value, String> {
     let status = response.status();
     let body: serde_json::Value = response
         .json()

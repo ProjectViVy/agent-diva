@@ -147,6 +147,7 @@ impl AppState {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_runtime_governance(
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
@@ -169,6 +170,7 @@ impl AppState {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn new_with_runtime_governance_inner(
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
