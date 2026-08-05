@@ -9,8 +9,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T01:10:00+08:00'
-- Last Heartbeat: '2026-08-06T01:15:00+08:00'
+- Started At: '2026-08-06T03:15:00+08:00'
+- Last Heartbeat: '2026-08-06T03:15:00+08:00'
 - Expires At: `released`
 
 ## Lock Rules
@@ -28,6 +28,19 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-08-06T03:15:00+08:00`: Released after GUI provider error/retry visibility fix
+  (ERROR-SILENT + RETRY-VISIBILITY): 10 commits — core AgentEvent variants, providers
+  retry listener channel (Arc callback + trait hook + ProviderTap forward), agent
+  per-call listener injection, manager dual-stage idle timeout + SSE mapping, Tauri
+  bridge provider events + broken-stream fallback, GUI retry/stall badges, e2e
+  collector match, fmt, docs+TODOLIST. All gates green (fmt/check; core 678 /
+  providers 127 / agent 372 / manager 109 / e2e 61 / GUI vitest 454 + vue-tsc).
+  CLI smoke vs local 500-mock confirmed 1+3 retries + error propagation. HTTP SSE
+  end-to-end + GUI desktop smoke pending (blocked by hardcoded gateway port 3000
+  while user gateway PID 8856 holds it; recorded GATEWAY-PORT-CONFIG-IGNORED).
+  New TODOs: GUI-TAURI-PLAN-STREAM-DISCONNECT, PROVIDERS-EXAMPLE-1.94-CLIPPY,
+  GATEWAY-PORT-CONFIG-IGNORED. User gateway/GUI processes untouched.
 
 - `2026-08-06T01:15:00+08:00`: Released after recording GUI-PROVIDER-RETRY-VISIBILITY
   backlog entry (TODOLIST.md) per user instruction - record only, no fix.
