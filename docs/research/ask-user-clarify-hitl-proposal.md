@@ -266,10 +266,11 @@ LLM tool_call(ask_user)
 
 ### Phase 2 — 表面闭环
 
-1. AgentEvent + Manager/Tauri 投影  
-2. GUI QuestionCard  
-3. CLI interactive  
-4. 人工 smoke：互动调研必须出现 tool call  
+1. [x] Manager HTTP API + 注入链（`2b6283c8`：3 端点 + AppState/bootstrap 注入）  
+2. [x] GUI QuestionCard（`cf268e5e`：AskUserQuestionCard 聊天内联 + 2s 轮询；Tauri 桥 `342807a1`）  
+3. [x] CLI interactive（`be43c130`：AskUserAnswerer + dialoguer；TUI 内联）  
+4. [ ] 人工 smoke：互动调研必须出现 tool call（步骤见
+   `docs/logs/2026-08-ask-user-hitl-research/v0.2.0-ask-user-surface/acceptance.md`）
 
 ### Phase 3 — 策略硬化
 

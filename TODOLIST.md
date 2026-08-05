@@ -315,15 +315,17 @@ standing policy（非功能债，执行相关验证时遵守）：
   权威提案：
   [`docs/research/ask-user-clarify-hitl-proposal.md`](docs/research/ask-user-clarify-hitl-proposal.md)；
   日志：
-  [`docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/`](docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/)。
-  建议分 Phase：1 运行时 Coordinator+Tool+装配+prompt+mock 测试；2 GUI QuestionCard /
-  CLI；3 Plan/subagent 策略硬化。**已拍板（2026-08-05）**：工具名 `ask_user`、
-  单题单轮（Hermes 级 question + choices≤4 + allow_other）、Phase 1 仅运行时
-  （GUI/CLI 卡下一迭代）、挂起默认超时 10 分钟。对照：Hermes `clarify`、Claude Code
-  `AskUserQuestion`、OpenHarness `ask_user_question`；工程模式可借鉴
-  `CommandApprovalCoordinator` oneshot。实现注意：`AskUserTool` 必须实现
-  `timeout_secs()` 覆盖 registry 全局 120s 超时（`agent-diva-tooling/src/registry.rs:41`、
-  `base.rs:18`）。
+  [`docs/logs/2026-08-ask-user-hitl-research/`](docs/logs/2026-08-ask-user-hitl-research/)。
+  **进度**：Phase 1 运行时 MVP 完成（`956bdd66`）；Phase 2 表面闭环完成
+  （`2b6283c8` manager API、`be43c130` CLI interactive、`342807a1` Tauri 桥、
+  `cf268e5e` GUI QuestionCard）——仅剩人工 smoke（真实 LLM 触发 ask_user 的
+  CLI/GUI 验收，步骤见 `v0.2.0-ask-user-surface/acceptance.md`）。**已拍板
+  （2026-08-05）**：工具名 `ask_user`、单题单轮、挂起默认超时 10 分钟。
+  对照：Hermes `clarify`、Claude Code `AskUserQuestion`、OpenHarness
+  `ask_user_question`。实现注意：`AskUserTool` 必须实现 `timeout_secs()` 覆盖
+  registry 全局 120s 超时（`agent-diva-tooling/src/registry.rs:41`、`base.rs:18`）。
+  Phase 3 待办：Plan 矩阵细化、subagent 黑名单断言、UI 与审批抽屉区分、
+  可选 messaging clarify。
 
 - [ ] **Skill 可视化全生命周期编辑器（延期）** `sev-P3`
   产品对象只有 Skill；SOP 不建立独立类型、标签、入口、DTO、存储或运行时，

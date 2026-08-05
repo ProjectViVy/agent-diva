@@ -9,8 +9,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-05T21:00:00+08:00'
-- Last Heartbeat: '2026-08-05T21:40:00+08:00'
+- Started At: '2026-08-05T22:00:00+08:00'
+- Last Heartbeat: '2026-08-05T22:35:00+08:00'
 - Expires At: `released`
 
 ## Lock Rules
@@ -28,6 +28,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-08-05T22:35:00+08:00`: Released after CLARIFY-HITL Phase 2 surface closed loop
+  (ask_user): manager HTTP API + injection, CLI interactive (chat/tui), Tauri bridge,
+  GUI QuestionCard with 2s polling; 4 feature commits + style cleanup; manager 106 /
+  core 676 / tools 94 / agent 371 tests pass, GUI vitest 451 + vue-tsc clean,
+  clippy -D warnings clean. Remaining: manual smoke with a real LLM (acceptance.md).
 
 - `2026-08-05T21:40:00+08:00`: Released after CLARIFY-HITL Phase 1 运行时 MVP
   （ask_user 工具）：core `AskUserCoordinator`、tools `AskUserTool`、装配+配置+
