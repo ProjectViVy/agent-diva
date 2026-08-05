@@ -166,7 +166,8 @@ standing policy（非功能债，执行相关验证时遵守）：
 里程碑（更新后）：
 
 - [x] M0 / M1 / M2 — 见 archive（含 GMH-24 clean-break）
-- [ ] **M3** HITL 闭环（GMH-30..33）
+- [ ] **M3** 审批 HITL 闭环（GMH-30..33）— **仅** Plan/Sandbox/Memory 治理审批，
+  **不含** Agent 主动 `ask_user`/clarify（见下方 `CLARIFY-HITL`）
   - [x] **M3-GOAL-PREP：长任务执行资料包**：冻结 Goal 边界、当前缺口、
     Plan/Memory/Command 消费与恢复矩阵、统一 API/SSE/Tauri、全局抽屉与 headless
     行为、自动化/人工验收和四个阶段停点。权威入口：
@@ -290,6 +291,21 @@ standing policy（非功能债，执行相关验证时遵守）：
   `agent-diva-agent/src/planning/orchestrator.rs` 大段注释旧表；core 已是唯一真相。
 
 ### Deferred Product
+
+- [ ] **CLARIFY-HITL：ask_user 对话询问闭环** `sev-P1`
+  2026-08-05 用户复现：期望 Agent 用「询问工具」做互动调研，Agent 正确声明无表单/
+  问卷工具并退化为纯文本。根因是**能力缺失**而非模型偶发未调用：无 `clarify`/
+  `ask_user` 类工具；`MessageTool` 未接入 `ToolAssembly`；system prompt 强制正常对话
+  直接回文本；无「提问→挂起→用户答→tool result」运行时与 GUI/CLI 问题卡。
+  **与 M3 审批 HITL（GMH-30..33）分轨**：不得并入 governance.db / 审批抽屉。
+  权威提案：
+  [`docs/research/ask-user-clarify-hitl-proposal.md`](docs/research/ask-user-clarify-hitl-proposal.md)；
+  日志：
+  [`docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/`](docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/)。
+  建议分 Phase：1 运行时 Coordinator+Tool+装配+prompt+mock 测试；2 GUI QuestionCard /
+  CLI；3 Plan/subagent 策略硬化。实现前拍板：工具名（推荐 `ask_user`）、单题 vs 多题、
+  GUI 是否同迭代。对照：Hermes `clarify`、Claude Code `AskUserQuestion`、OpenHarness
+  `ask_user_question`；工程模式可借鉴 `CommandApprovalCoordinator` oneshot。
 
 - [ ] **Skill 可视化全生命周期编辑器（延期）** `sev-P3`
   产品对象只有 Skill；SOP 不建立独立类型、标签、入口、DTO、存储或运行时，

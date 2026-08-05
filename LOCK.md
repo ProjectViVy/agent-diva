@@ -1,4 +1,4 @@
-# LOCK
+﻿# LOCK
 
 Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
@@ -10,8 +10,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-05T18:10:00+08:00`
-- Last Heartbeat: `2026-08-05T18:30:00+08:00`
+- Started At: '2026-08-05T19:00:00+08:00'
+- Last Heartbeat: '2026-08-05T20:33:28+08:00'
 - Expires At: `released`
 
 ## Lock Rules
@@ -30,20 +30,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
-- `2026-08-05T18:30:00+08:00`: Released after adding source-level evidence to approval model research
-  (CC source verified in `morediva/.workspace/claude-code/`; doc §1.3 + G8 added).
-- `2026-08-05T17:50:00+08:00`: Released after approval model research (Claude Code vs agent-diva)
-  (`docs/research/approval-model-claude-code-vs-agent-diva.md`, `docs/logs/2026-08-approval-model-research/`).
-  Three-mode enhancement implementation pending; see TODOLIST `审批三模式完善`.
-- `2026-08-05T17:15:00+08:00`: Released after moving history + approval buttons into input toolbar right side
-  (`docs/logs/2026-08-cautious-approval-fix/v0.5.3-corner-actions-position/`). Manual desktop smoke pending.
-- `2026-08-05T16:50:00+08:00`: Released after moving chat corner actions (history + approval center) lower
-  (`docs/logs/2026-08-cautious-approval-fix/v0.5.3-corner-actions-position/`). Manual desktop smoke pending.
-- `2026-08-05T16:25:00+08:00`: Released after approval Drawer auto-close on approve
-  (`docs/logs/2026-08-cautious-approval-fix/v0.5.2-approval-drawer-auto-close/`). Manual desktop smoke pending.
-- `2026-08-05T12:30:00+08:00`: Released after docs-only GA memory parity inventory
-  (`docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/`).
-- `2026-08-05T01:45:00+08:00`: Released after fixing GUI sandbox settings save
-  (snake_case enum unification). Manual desktop smoke deferred; see TODOLIST.md
-  `SANDBOX-SAVE-FIX-DESKTOP-SMOKE`.
-- `2026-08-03T20:08:00+08:00`: Released after adding `just make-diva` and verifying dual-window spawn.
+- `2026-08-05T20:33:28+08:00`: Released after archiving ask-user / conversational clarify HITL research
+  (`docs/research/ask-user-clarify-hitl-proposal.md`, README index, TODOLIST CLARIFY-HITL,
+  `docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/`). Implementation pending.
+- `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
+  `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
+  Implementation still pending; see TODOLIST `审批三模式完善`.
+
