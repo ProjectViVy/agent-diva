@@ -188,6 +188,23 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ### Reliability / Test Debt
 
+- [ ] **GUI-PROVIDER-ERROR-SILENT: GUI 对 provider 请求失败（重试耗尽）无提示** `sev-P2`
+  2026-08-06 观测：DeepSeek 连接失败（`unexpected EOF during handshake`）重试
+  4 次、耗时约 128s 后失败，GUI 全程无任何错误提示（用户只能从日志发现）。
+  日志证据：`retry.rs:96` attempt 1-3 → `audit.rs:245` ProviderCallCompleted
+  status=error → `agent_loop.rs:824` handle_inbound Failed。
+  **根因线索（已勘察，未修）**：错误事件链路存在——`handle_inbound` 失败 →
+  `emit_error_event`（`loop_runtime_control.rs:154-169`）→ bus →
+  manager `handle_chat`（`runtime_control.rs:35-53`）→ chat SSE `error` 事件 →
+  Tauri 桥 emit `agent-error`（`commands.rs:1312-1320` 带 request_id；
+  `commands.rs:2531-2532` background 流为裸字符串）→ App.vue `agent-error`
+  监听（`App.vue:2337`）。**疑似断点在 App.vue:2349 的 request_id 匹配过滤**
+  （`requestId !== activeStreamRequestId` 即 return，长重试期间前端流状态
+  可能已超时/清空导致不匹配被丢弃），或主聊天流桥接在长时间重试后未送达。
+  修复方向：排查 activeStreamRequestId 生命周期与桥 stream_request_id 一致性；
+  保证最终失败无论 request_id 是否匹配都渲染错误气泡。**按用户指示仅记录，
+  待独立迭代修复。**
+
 - [ ] **CLI-WIREMOCK-502-PREEXISTING: CLI approval wiremock tests fail with 502** `sev-P2`
   2026-08-05 验证 CLARIFY-HITL Phase 1 时 `just test` 命中 6 个既有 CLI 测试失败
   （`approval_commands::tests::*`、`chat_commands::approval_mode_tests::*`），
