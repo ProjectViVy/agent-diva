@@ -1018,6 +1018,7 @@ mod tests {
     }
     use agent_diva_core::config::MaskConfig;
     use agent_diva_core::planning::update_plan::PlanItemStatus;
+    use agent_diva_providers::retry::{RetryAttempt, RetryListener};
     use agent_diva_providers::{
         LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient, ProviderError,
         ProviderEventStream, ProviderResult, ToolCallRequest,
@@ -1067,6 +1068,65 @@ mod tests {
     #[derive(Default)]
     struct CapturingStreamProvider {
         captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
+    #[derive(Default)]
+    struct RetryEmittingProvider {
+        captured_listener: Mutex<Option<RetryListener>>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for RetryEmittingProvider {
+        fn set_retry_listener(&self, listener: Option<RetryListener>) {
+            *self.captured_listener.lock().unwrap() = listener;
+        }
+
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            if let Some(listener) = self.captured_listener.lock().unwrap().clone() {
+                listener(RetryAttempt {
+                    model: "test-model".to_string(),
+                    attempt: 1,
+                    max_retries: 3,
+                    delay_ms: 1000,
+                    reason: "simulated transient failure".to_string(),
+                });
+            }
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
     }
 
     #[async_trait]
@@ -1512,6 +1572,49 @@ mod tests {
         assert_eq!(error_event.0, "gui");
         assert_eq!(error_event.1, "chat-1");
         assert!(error_event.2.contains("simulated stream failure"));
+    }
+
+    #[tokio::test]
+    async fn provider_retry_attempt_emits_bus_event() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(RetryEmittingProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let mut agent = AgentLoop::new(bus.clone(), provider, temp_dir.path().to_path_buf(), None, Some(1))
+            .await
+            .unwrap();
+
+        agent
+            .handle_inbound(InboundMessage::new("gui", "user", "chat-retry", "Hello"))
+            .await;
+
+        let observed = timeout(Duration::from_secs(2), async {
+            loop {
+                let bus_event = event_rx.recv().await.unwrap();
+                if bus_event.channel != "gui" || bus_event.chat_id != "chat-retry" {
+                    continue;
+                }
+                match bus_event.event {
+                    AgentEvent::ProviderRetry {
+                        model,
+                        attempt,
+                        max_retries,
+                        delay_ms,
+                        ..
+                    } => break (model, attempt, max_retries, delay_ms),
+                    AgentEvent::Error { message } => panic!("unexpected error: {message}"),
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for provider retry event");
+
+        assert_eq!(observed.0, "test-model");
+        assert_eq!(observed.1, 1);
+        assert_eq!(observed.2, 3);
+        assert_eq!(observed.3, 1000);
     }
 
     #[tokio::test]

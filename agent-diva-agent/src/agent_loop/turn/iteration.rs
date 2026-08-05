@@ -1,10 +1,12 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::session::{CompactTrigger, TokenUsage};
+use agent_diva_providers::retry::{RetryAttempt, RetryListener};
 use agent_diva_providers::{
     LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
 };
 use futures::StreamExt;
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -100,24 +102,45 @@ impl AgentLoop {
             self.enforce_session_token_budget(session_key)?;
             let tools = (!tool_definitions.is_empty()).then(|| tool_definitions.to_vec());
             crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
-            match self
-                .provider
-                .chat_stream(
-                    messages.clone(),
-                    tools,
-                    if summary_only {
-                        ToolChoiceMode::Disabled
-                    } else if tool_definitions.is_empty() {
-                        ToolChoiceMode::Unspecified
-                    } else {
-                        ToolChoiceMode::Auto
-                    },
-                    Some(model.to_string()),
-                    4096,
-                    0.7,
-                )
-                .await
-            {
+            let stream_result = {
+                let bus = self.bus.clone();
+                let channel = message.channel.clone();
+                let chat_id = message.chat_id.clone();
+                let listener: RetryListener = Arc::new(move |r: RetryAttempt| {
+                    let _ = bus.publish_event(
+                        channel.clone(),
+                        chat_id.clone(),
+                        AgentEvent::ProviderRetry {
+                            model: r.model,
+                            attempt: r.attempt,
+                            max_retries: r.max_retries,
+                            delay_ms: r.delay_ms,
+                            reason: r.reason,
+                        },
+                    );
+                });
+                self.provider.set_retry_listener(Some(listener));
+                let result = self
+                    .provider
+                    .chat_stream(
+                        messages.clone(),
+                        tools,
+                        if summary_only {
+                            ToolChoiceMode::Disabled
+                        } else if tool_definitions.is_empty() {
+                            ToolChoiceMode::Unspecified
+                        } else {
+                            ToolChoiceMode::Auto
+                        },
+                        Some(model.to_string()),
+                        4096,
+                        0.7,
+                    )
+                    .await;
+                self.provider.set_retry_listener(None);
+                result
+            };
+            match stream_result {
                 Ok(stream) => return Ok(stream),
                 Err(error) if !reactive_retry_attempted && is_context_overflow_error(&error) => {
                     warn!(
