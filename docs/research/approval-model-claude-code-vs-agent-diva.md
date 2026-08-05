@@ -10,6 +10,9 @@
   `C:\Users\Administrator\Desktop\morediva\.workspace\claude-code\`（CC 源码）
   与 `learn-claude-code/s03_permission/`（权限教学章节，含源码级剖析），
   结论以源码为准（见 §1.3）。
+- **后续提案（2026-08-05）**：生产路径复核后确认 Guardian/ExecPolicy 均未接入 shell 生产接线；
+  可执行蓝图见 [`sandbox-hitl-approval-policy-proposal.md`](./sandbox-hitl-approval-policy-proposal.md)
+  （以其中 G3'/G3'' 为准，修正本文 G3 仅写 default 配置的表述）。
 
 ---
 

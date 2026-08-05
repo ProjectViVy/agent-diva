@@ -34,6 +34,10 @@
 - `workspace-hooks-comparison.md` - .workspace Agent Hooks 实现横向对比（2026-07-03）
 - `workspace-subagent-comparison.md` - .workspace Sub-Agent 实现横向对比（2026-07-03；§7.1 含 `feature-swarm-humanlike` 分支预览）
 
+### 沙箱 / 审批 / HITL
+- `approval-model-claude-code-vs-agent-diva.md` - Claude Code 审批模型对照调研（2026-08-05）
+- `sandbox-hitl-approval-policy-proposal.md` - 沙箱审批策略 + HITL 完善提案（生产路径复核与 P0–P2 蓝图；2026-08-05 归档）
+
 ## 使用说明
 
 这些研究报告为 agent-diva 项目的架构设计和技术选型提供参考，可用于：
