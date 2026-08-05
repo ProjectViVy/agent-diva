@@ -268,6 +268,7 @@ const providerConfigs = ref<Record<string, ProviderConfigEntry>>({});
 const sessions = ref<SessionInfo[]>([]);
 const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
 const approvalCenterOpen = ref(false);
+const approvalDrawerAutoOpened = ref(false);
 const unifiedApprovals = ref<ApprovalView[]>([]);
 const approvalDetails = ref<Record<string, ApprovalView>>({});
 const approvalCenterLoading = ref(false);
@@ -385,6 +386,10 @@ async function decideUnifiedApproval(payload: { approval: ApprovalView; decision
     if (!isApprovalView(result)) throw new Error('invalid approval decision response');
     upsertUnifiedApproval(result);
     approvalDetails.value = { ...approvalDetails.value, [approval.request_id]: result };
+    if (payload.decision === 'allow' && approvalDrawerAutoOpened.value) {
+      approvalDrawerAutoOpened.value = false;
+      approvalCenterOpen.value = false;
+    }
   } catch (error) {
     const typed = unifiedError(error);
     if (typed?.reason_code === 'approval_outcome_unknown') {
@@ -424,6 +429,7 @@ async function cancelUnifiedApproval(approval: ApprovalView) {
 
 function editUnifiedApproval(approval: ApprovalView) {
   approvalCenterOpen.value = false;
+  approvalDrawerAutoOpened.value = false;
   if (approval.domain === 'memory') {
     (normalModeRef.value as null | { openEvolutionProposal: (proposalId: string) => void })
       ?.openEvolutionProposal(approval.resource.resource_id);
@@ -433,11 +439,17 @@ function editUnifiedApproval(approval: ApprovalView) {
   showAppToast(t('approvalCenter.editAtSource'));
 }
 
+function onApprovalCenterOpenChange(open: boolean) {
+  approvalCenterOpen.value = open;
+  if (open) approvalDrawerAutoOpened.value = false;
+}
+
 async function handleUnifiedApprovalEvent(payload: ApprovalEventView) {
   const knownVersion = approvalVersions.get(payload.request_id) ?? 0;
   if (!approvalEventGuard.accept(payload, knownVersion)) return;
   if (payload.status === 'pending') {
     approvalCenterOpen.value = true;
+    approvalDrawerAutoOpened.value = true;
   }
   await refreshUnifiedApproval(payload.request_id);
 }
@@ -2401,7 +2413,7 @@ onUnmounted(() => {
       @save-chat-display-prefs="updateChatDisplayPrefs"
       @load-session="loadSession"
       @delete-session="deleteSession"
-      @update:approval-center-open="approvalCenterOpen = $event"
+      @update:approval-center-open="onApprovalCenterOpenChange"
     />
     <ApprovalCenterDrawer
       v-model:open="approvalCenterOpen"
