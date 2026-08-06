@@ -69,8 +69,9 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     evidence）见 inventory §10.2。
     **闭环修订（inventory §10.3，2026-08-06）**：Wave 1 增加两项——
     (G1) distill 最小版输入=会话上下文（checkpoint evidence 在 Wave 2 扩展）；
-    (G3) tombstone 注入过滤随 memory_remove 实施（startup/prefetch/上下文组装
-    排除 tombstone，否则「忘掉 X 后不再出现」验收不成立）。
+    (G3) memory_remove 产生 tombstone（复用既有 apply 基建）；注入过滤基建
+    已存在（typed_provider 启动渲染 + typed_store FTS 均过滤 tombstone），
+    补「删除后不再出现」验收测试，遗漏路径再补。
   - [ ] **WAVE3-MEMORY-READ-CLOSURE：读侧闭环（prefetch 生产注入 + 启动一致）** `sev-P0`
     - [ ] Typed prefetch 生产注入可用（D4 从 shadow 转生产，配置出箱即开）
     - [ ] Legacy prefetch 不静默 Failed，有可理解降级（D2/D3）
