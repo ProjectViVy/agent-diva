@@ -8,6 +8,7 @@ pub mod provider;
 pub mod recall;
 pub mod record;
 pub mod storage;
+pub mod working;
 
 pub use crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
@@ -35,3 +36,7 @@ pub use record::{
     MemoryTrust, MAX_CONFIDENCE_BPS,
 };
 pub use storage::{DailyNote, Memory};
+pub use working::{
+    render_checkpoint_block, CheckpointWriteRequest, WorkingMemoryRequest, WorkingMemoryResponse,
+    L0_MEMORY_POLICY,
+};

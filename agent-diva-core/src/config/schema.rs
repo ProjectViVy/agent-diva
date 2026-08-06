@@ -314,12 +314,22 @@ pub struct MemoryConfig {
     /// Runtime authority selection. Typed is the out-of-box default.
     #[serde(default)]
     pub authority_mode: MemoryAuthorityMode,
+    /// L1 startup index budget: maximum index lines injected into the system
+    /// prompt. Full entries are never injected; retrieval goes through
+    /// `memory_search` / `memory_list` (B2/B10 minimal-pointer principle).
+    #[serde(default = "default_l1_index_lines")]
+    pub l1_index_lines: usize,
+}
+
+fn default_l1_index_lines() -> usize {
+    30
 }
 
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
             authority_mode: MemoryAuthorityMode::Typed,
+            l1_index_lines: default_l1_index_lines(),
         }
     }
 }
@@ -377,6 +387,21 @@ mod memory_authority_tests {
             serde_json::json!({"authority_mode": "unknown"})
         )
         .is_err());
+    }
+
+    #[test]
+    fn l1_index_lines_defaults_to_30() {
+        let config: MemoryConfig =
+            serde_json::from_value(serde_json::json!({"authority_mode": "typed"})).unwrap();
+        assert_eq!(config.l1_index_lines, 30);
+        assert_eq!(MemoryConfig::default().l1_index_lines, 30);
+    }
+
+    #[test]
+    fn l1_index_lines_explicit_value_is_honored() {
+        let config: MemoryConfig =
+            serde_json::from_value(serde_json::json!({"l1_index_lines": 5})).unwrap();
+        assert_eq!(config.l1_index_lines, 5);
     }
 }
 

@@ -10,6 +10,7 @@ use crate::memory::crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest,
     MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
 };
+use crate::memory::working::{CheckpointWriteRequest, WorkingMemoryRequest, WorkingMemoryResponse};
 use std::path::PathBuf;
 
 /// Deterministic status for startup wakeup injection.
@@ -494,6 +495,31 @@ pub trait MemoryProvider: Send + Sync {
         _request: MemoryDistillRequest,
     ) -> crate::Result<MemoryCrudOutcome> {
         Ok(MemoryCrudOutcome::unsupported("memory_distill"))
+    }
+
+    /// Render the current session's working memory block for live-turn
+    /// assembly.
+    ///
+    /// Working memory is volatile and session-scoped; providers without a
+    /// working memory surface return an empty block so the turn proceeds
+    /// without recall context.
+    async fn working_memory_block(
+        &self,
+        _request: WorkingMemoryRequest,
+    ) -> crate::Result<WorkingMemoryResponse> {
+        Ok(WorkingMemoryResponse::default())
+    }
+
+    /// Write the session working checkpoint.
+    ///
+    /// The checkpoint is volatile, not authoritative, and is cleared on
+    /// session end; implementations apply it immediately rather than creating
+    /// a governed proposal.
+    async fn checkpoint_write(
+        &self,
+        _request: CheckpointWriteRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("checkpoint_write"))
     }
 
     /// Trigger shutdown/session-end rhythm work if needed.
