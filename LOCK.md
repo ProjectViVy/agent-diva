@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `docs/logs/2026-08-05-memory-ga-parity-inventory/`, `TODOLIST.md` (G3 entry), `LOCK.md`
+- Scope: `agent-diva-core/src/memory/`, `LOCK.md`
 - Owner: `QoderCN`
-- Session/Task: `G3 tombstone 表述勘误 (docs only)`
+- Session/Task: `WAVE1 S1 core CRUD trait surface`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T12:35:00+08:00'
-- Last Heartbeat: '2026-08-06T12:35:00+08:00'
-- Expires At: '2026-08-06T13:05:00+08:00'
+- Started At: '2026-08-06T13:00:00+08:00'
+- Last Heartbeat: '2026-08-06T13:00:00+08:00'
+- Expires At: '2026-08-06T13:30:00+08:00'
 
 ## Lock Rules
 
