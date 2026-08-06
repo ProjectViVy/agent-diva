@@ -385,12 +385,27 @@ impl AutoDreamWorker {
                     ReflectionEvidence { evidence, summary }
                 })
                 .collect(),
-            existing_memory_digests: collected
-                .items
-                .iter()
-                .filter(|item| item.source == "laputa")
-                .map(|item| crate::content_digest(&item.excerpt))
-                .collect(),
+            existing_memory_digests: {
+                let mut digests: std::collections::HashSet<String> = collected
+                    .items
+                    .iter()
+                    .filter(|item| item.source == "laputa")
+                    .map(|item| crate::content_digest(&item.excerpt))
+                    .collect();
+                match self.laputa.applied_authority_digests().await {
+                    Ok(typed) => {
+                        digests.extend(typed);
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            "AutoDream dedup: typed authority digest unavailable; \
+                             falling back to section-only dedup (G4 degraded)"
+                        );
+                    }
+                }
+                digests.into_iter().collect()
+            },
             max_candidates: 8,
         };
         let output = engine
@@ -782,4 +797,260 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
     let path = path.as_ref();
     let content = fs::read_to_string(path).map_err(|source| AutoDreamError::io(path, source))?;
     Ok(serde_json::from_str(&content)?)
+}
+
+#[cfg(test)]
+mod wave4_tests {
+    use crate::{
+        content_digest, BoundedReflectionInput, CandidateGate, CandidateRejectionCode,
+        ReflectionEvidence,
+    };
+    use agent_diva_core::evolution::{
+        memory_candidate_content_digest, CandidateValue, EvidenceRef, EvidenceSource,
+        MemoryCandidate, ProposalType,
+    };
+    use agent_diva_core::governance::AuditCorrelation;
+    use agent_diva_core::memory::{
+        memory_content_digest, MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome,
+        MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord, MemoryRecordKind,
+        MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust, MAX_CONFIDENCE_BPS,
+    };
+    use agent_diva_core::workspace_identity::canonical_workspace_id;
+    use agent_diva_laputa::{LaputaService, TypedMemoryStore};
+    use chrono::{TimeZone, Utc};
+
+    fn evidence_marker() -> EvidenceRef {
+        EvidenceRef {
+            id: "wave4-primary".into(),
+            source: EvidenceSource::ExperienceJournal,
+            uri: "evidence://wave4-primary".into(),
+            excerpt: Some("bounded verification".into()),
+            hash: Some("sha256:wave4".into()),
+            created_at: Utc.with_ymd_and_hms(2026, 8, 6, 0, 0, 0).unwrap(),
+        }
+    }
+
+    fn make_candidate(evidence: EvidenceRef, content: &str) -> MemoryCandidate {
+        MemoryCandidate {
+            candidate_id: format!("candidate-{}", content_digest(content)),
+            proposal_type: ProposalType::LearningNote,
+            content: content.to_string(),
+            evidence_refs: vec![evidence],
+            confidence: 85,
+            scope: MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: "workspace-wave4".into(),
+                session_id: None,
+            },
+            sensitivity: MemorySensitivity::Private,
+            expected_value: CandidateValue::Medium,
+            invalidation_conditions: vec!["user correction".into()],
+        }
+    }
+
+    fn make_input(existing_digests: Vec<String>, evidence: EvidenceRef) -> BoundedReflectionInput {
+        BoundedReflectionInput {
+            schema_version: 1,
+            workspace_id: "workspace-wave4".into(),
+            run_id: "run-wave4".into(),
+            evidence: vec![ReflectionEvidence {
+                evidence,
+                summary: "bounded verification".into(),
+            }],
+            existing_memory_digests: existing_digests,
+            max_candidates: 8,
+        }
+    }
+
+    async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        LaputaService::open(temp.path()).unwrap()
+    }
+
+    fn crud_context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        MemoryCrudContext {
+            workspace_root: temp.path().to_path_buf(),
+        }
+    }
+
+    #[tokio::test]
+    async fn candidate_duplicate_against_typed_authority_is_rejected() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
+            temp.path(),
+            canonical_workspace_id(temp.path()),
+        )
+        .await
+        .unwrap();
+        let authority_content = "kestrel prefers high ground at dawn";
+        let outcome = provider
+            .memory_add(
+                &crud_context(&temp),
+                MemoryAddRequest {
+                    content: authority_content.into(),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(matches!(outcome, MemoryCrudOutcome::Applied { .. }));
+
+        let digests = service.applied_authority_digests().await.unwrap();
+        let expected_digest = memory_candidate_content_digest(authority_content);
+        assert!(digests.contains(&expected_digest), "got {digests:?}");
+
+        let evidence = evidence_marker();
+        let input = make_input(digests, evidence.clone());
+        let gated = CandidateGate.evaluate(
+            &input,
+            vec![make_candidate(evidence, authority_content)],
+            &[],
+            &[],
+        );
+        assert!(
+            gated.accepted.is_empty(),
+            "duplicate candidate must be rejected; accepted = {accepted:?}",
+            accepted = gated.accepted
+        );
+        assert_eq!(gated.rejected.len(), 1);
+        assert_eq!(gated.rejected[0].code, CandidateRejectionCode::Duplicate);
+    }
+
+    #[tokio::test]
+    async fn candidate_fresh_against_typed_authority_is_accepted() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
+            temp.path(),
+            canonical_workspace_id(temp.path()),
+        )
+        .await
+        .unwrap();
+        provider
+            .memory_add(
+                &crud_context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel prefers high ground at dawn".into(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let digests = service.applied_authority_digests().await.unwrap();
+        assert!(!digests.is_empty());
+
+        let evidence = evidence_marker();
+        let input = make_input(digests, evidence.clone());
+        let gated = CandidateGate.evaluate(
+            &input,
+            vec![make_candidate(
+                evidence,
+                "completely novel observation about owls",
+            )],
+            &[],
+            &[],
+        );
+        assert_eq!(gated.accepted.len(), 1, "fresh candidate must be accepted");
+        assert!(gated.rejected.is_empty());
+    }
+
+    #[tokio::test]
+    async fn superseded_authority_record_no_longer_blocks_duplicate_candidate() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
+            temp.path(),
+            canonical_workspace_id(temp.path()),
+        )
+        .await
+        .unwrap();
+        let authority_content = "the staging manifest lives at /tmp/staging-xyz";
+        let outcome = provider
+            .memory_add(
+                &crud_context(&temp),
+                MemoryAddRequest {
+                    content: authority_content.into(),
+                },
+            )
+            .await
+            .unwrap();
+        let target_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+        drop(provider);
+
+        // Sanity: before the tombstone, the digest is visible.
+        let before = service.applied_authority_digests().await.unwrap();
+        assert!(before.contains(&memory_candidate_content_digest(authority_content)));
+
+        // Write a supersedes tombstone directly via TypedMemoryStore (matching
+        // the laputa wave3/wave4 test pattern — the worker does not care how
+        // the tombstone arrived, only that the target digest is excluded).
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let now = Utc::now();
+        let metadata = store.metadata().await.unwrap();
+        let tombstone = MemoryRecord {
+            id: format!("tombstone-{}", now.timestamp_micros()),
+            kind: MemoryRecordKind::LongTerm,
+            content: String::new(),
+            provenance: MemoryProvenance {
+                source: MemoryProvenanceSource::AutoDream,
+                source_id: "wave4-test".into(),
+                content_digest: memory_content_digest(b""),
+                captured_at: now,
+                correlation: AuditCorrelation {
+                    request_id: format!("tombstone-{target_id}"),
+                    turn_id: "wave4".into(),
+                    session_id: "global".into(),
+                    trace_id: None,
+                },
+            },
+            evidence_refs: vec![],
+            confidence_bps: MAX_CONFIDENCE_BPS,
+            sensitivity: MemorySensitivity::Internal,
+            trust: MemoryTrust::AppliedAuthority,
+            scope: MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: canonical_workspace_id(temp.path()),
+                session_id: None,
+            },
+            created_at: now,
+            effective_at: now,
+            expires_at: None,
+            supersedes: vec![target_id.clone()],
+            tombstone: Some(MemoryTombstone {
+                target_record_id: target_id.clone(),
+                reason_digest: memory_content_digest(b"staging path retired"),
+                actor_id: "wave4-test".into(),
+                created_at: now,
+            }),
+        };
+        store
+            .put(tombstone, metadata.store_revision, None)
+            .await
+            .unwrap();
+        drop(store);
+
+        let after = service.applied_authority_digests().await.unwrap();
+        assert!(
+            !after.contains(&memory_candidate_content_digest(authority_content)),
+            "superseded target digest must disappear; got {after:?}"
+        );
+
+        let evidence = evidence_marker();
+        let input = make_input(after, evidence.clone());
+        let gated = CandidateGate.evaluate(
+            &input,
+            vec![make_candidate(evidence, authority_content)],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            gated.accepted.len(),
+            1,
+            "after supersedes, same-content candidate must be acceptable again"
+        );
+        assert!(gated.rejected.is_empty());
+    }
 }
