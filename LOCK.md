@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `agent-diva-core/src/memory/working.rs`, `agent-diva-core/src/memory/provider.rs`, `agent-diva-core/src/config/schema.rs`, `agent-diva-agent/src/tool_config/builtin.rs`, `LOCK.md`
-- Owner: `QoderCN`
-- Session/Task: `WAVE2 S1 core working trait + config`
+- Lock State: `RELEASED`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T15:50:00+08:00'
-- Last Heartbeat: '2026-08-06T15:50:00+08:00'
-- Expires At: '2026-08-06T16:20:00+08:00'
+- Started At: '2026-08-06T17:25:00+08:00'
+- Last Heartbeat: '2026-08-06T17:25:00+08:00'
+- Expires At: `released`
 
 ## Lock Rules
 
@@ -28,6 +28,19 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-08-06T17:25:00+08:00`: Released after GA-MEM-PARITY Wave 2
+  (layers + working memory) closure: 7 commits — working memory trait
+  surface + L1 budget config, typed L1 index rendering + session checkpoint
+  (incl. deps lockfile), L0 policy + working memory turn injection + session
+  end enumeration, update_working_checkpoint tool + distill evidence, docs
+  close (TODOLIST WAVE2 checked + v0.0.6 iteration logs), CLI builtin gates
+  wiring fix. All gates green per slice (fmt/clippy -D warnings; core 692 /
+  laputa 27+ / agent 383 / tools 109 / manager); full workspace test only
+  fails the 6 pre-existing CLI wiremock 502 cases
+  (CLI-WIREMOCK-502-PREEXISTING). Wave 3 (read-side closure) pending; see
+  TODOLIST WAVE3-MEMORY-READ-CLOSURE. Deferred to Wave 5: session-abort
+  checkpoint residue GC, B9 enforced tool-result evidence binding.
 
 - `2026-08-06T15:35:00+08:00`: Released after GA-MEM-PARITY Wave 1
   (memory tool CRUD) closure: 6 commits — core CRUD trait surface,
