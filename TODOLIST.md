@@ -55,6 +55,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [ ] Legacy 模式 proposal-first（不直写 MEMORY.md 冒充权威）
     - [ ] 写结果诚实语义（A9）：`applied` / `proposal_created`(含 id) / `failed`
     - [ ] 单元 + 集成测试覆盖成功与失败路径
+    **Wave 1 决策已冻结（2026-08-06，inventory §10.2）**：W1-1 多独立工具
+    （memory_add/list/search/update/remove/distill）；W1-2 按 action+对象状态
+    分级（add 新事实=低风险即时，update/remove=高风险审批，不做内容检测）；
+    W1-3 distill 新建即时、覆盖走审批；W1-4 结果返回不自动注入（热注入归
+    Wave 3）。实施约束（tombstone 语义、FTS5/legacy 降级、distill→SKILL.md
+    evidence）见 inventory §10.2。
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、

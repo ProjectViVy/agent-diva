@@ -476,4 +476,28 @@ agent-diva **已有**记忆/治理/AutoDream 的**底座与治理骨架**，但�
 - Wave 5 consolidation 改造为「无 distill 时的兜底」，阈值策略在实现时细化。
 - F10 修复随 Wave 0：缺失配置与 `Default` 语义统一为 Typed，文档同步。
 
+### 10.2 Wave 1 补充决策冻结（2026-08-06，用户拍板）
+
+> Status: **FROZEN** — Wave 1 编码以此为契约，不再重开。
+> 决策人：用户（2026-08-06 交互确认）；记录：QoderCN。
+
+| # | 决策点 | 冻结结论 | 关键理由 |
+|---|--------|----------|----------|
+| W1-1 | 工具形态 | **多独立工具**：`memory_add` / `memory_list` / `memory_search` / `memory_update` / `memory_remove` / `memory_distill` 各自注册 | 每个工具 schema 简单、可独立 mask/审批/测试，模型误用率低；与现有 update_plan/ask_user 风格一致 |
+| W1-2 | 风险分级判定 | **按 action + 对象状态**：add 新事实（用户明确要求）= 低风险即时 apply；update/remove 触碰既有权威 = 高风险 proposal 审批；内容级敏感检测不做（P2 后续） | 规则静态透明、可预期；混合分级（§10.1 #1）的具体化 |
+| W1-3 | distill 治理 | **新建即时，覆盖走审批**：distill 产出的新 skill 文件即时创建（可审计）；覆盖/修改已有 skill 走 proposal | 主动蒸馏是显式低风险请求；触碰既有权威仍走治理；与 skill-sop-unification 一致 |
+| W1-4 | 会话可见性 | **结果返回，不自动注入**：apply 成功后工具结果返回新条目内容，模型可自行引用；下次会话 prefetch 可见；同会话热注入（F4）归 Wave 3 | Wave 1 范围可控，不扩散 context 组装改动 |
+
+**对 Wave 1 的实施约束：**
+
+- 六个工具在 ToolAssembly 注册，独立 schema/描述/权限 mask。
+- `memory_add`：Typed/Laputa 下低风险即时 governed apply；Legacy 模式 proposal-first。
+- `memory_update` / `memory_remove`：一律 proposal + 审批（触碰既有权威），
+  不因内容判断跳过；remove 语义为 tombstone 非物理删。
+- `memory_distill`：产出普通 `SKILL.md`（可选 `kind: sop` 展示标记）；新建即时，
+  覆盖既有 skill 走 proposal；distill 的 working checkpoint 摘要作为 evidence。
+- `memory_search`：Typed 走 FTS5 检索 applied 权威；Legacy 降级为线性扫描或
+  明确返回 degraded（不静默失败）。
+- 工具结果统一诚实语义：`applied` / `proposal_created`(含 id) / `failed`。
+
 ---

@@ -22,16 +22,29 @@ GA-MEM-PARITY（sev-P0）盘点已完成，但 inventory §10 的 5 个 Open Que
 
 详细理由与 Wave 实施约束见 `inventory.md §10.1`。
 
+## Wave 1 补充决策（2026-08-06 追加，用户确认）
+
+| # | 决策点 | 冻结结论 |
+|---|--------|----------|
+| W1-1 | 工具形态 | 多独立工具：memory_add/list/search/update/remove/distill 各自注册 |
+| W1-2 | 风险分级判定 | 按 action+对象状态：add 新事实=低风险即时 apply；update/remove 触碰既有权威=高风险审批；不做内容级敏感检测 |
+| W1-3 | distill 治理 | 新 skill 文件即时创建；覆盖/修改已有 skill 走 proposal |
+| W1-4 | 会话可见性 | 工具结果返回新条目内容（不自动注入）；热注入归 Wave 3 |
+
+实施约束（tombstone 语义、FTS5/legacy 降级、distill→SKILL.md evidence 等）
+见 `inventory.md §10.2`；Wave 1 编码以此为契约。
+
 ## 变更文件
 
-- `v0.0.1-gap-inventory/inventory.md`：§10.1 决策冻结表 + Wave 约束
+- `v0.0.1-gap-inventory/inventory.md`：§10.1 决策冻结表 + Wave 约束；§10.2 Wave 1 补充决策
 - `v0.0.1-gap-inventory/acceptance.md`：元验收「产品决策冻结」勾选
-- `TODOLIST.md`：GA-MEM-PARITY 条目更新为「决策已冻结，Wave 0/1 待排期」
+- `TODOLIST.md`：GA-MEM-PARITY 条目更新为「决策已冻结，Wave 0/1 待排期」；
+  WAVE0/WAVE1 子项入列；WAVE1 附决策要点
 
 ## 下一步
 
 - Wave 0（诚实与契约）：修 prompt 假承诺 A8、authority_mode 统一（F10）、
   sync_turn 诚实化设计、分工文档。
-- Wave 1（Agent 记忆工具 P0）：memory 工具 add/list/search/update/remove/distill，
-  按混合分级路由。
+- Wave 1（Agent 记忆工具 P0）：按 §10.2 契约实现 memory_add/list/search/
+  update/remove/distill 六工具与混合分级路由。
 - 排期与验收入口：`TODOLIST.md` GA-MEM-PARITY + `acceptance.md`。
