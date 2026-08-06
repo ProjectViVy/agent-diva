@@ -39,7 +39,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0/1/2/3/4 已完成（2026-08-06）；Wave 5（巩固与清理）待排期。**
+  **当前状态：Wave 0/1/2/3/4/5 已完成（2026-08-07）；延期项归 G2D+ / 独立 Wave。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -155,6 +155,37 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           端到端、G6 审查 UI、G7 节律报告可见、G10 与 agent 即时记忆分工
           真机验证、G11 L4/salient 等价、G12 Action-Verified 公理对齐——
           均为产品/真机验收，本 Wave 最小闭环不吞下
+  - [x] **WAVE5-CONSOLIDATION-AND-GC：巩固与清理（收口）** `sev-P0`
+    - [x] S1 Working memory GC（A）：`865f527d` `TypedMemoryStore::gc_session_scoped`
+          + `gc_stale_session_scoped`（物理 DELETE session-scoped 记录）；
+          `TypedLaputaMemoryProvider::on_session_end` 调用 gc_session_scoped；
+          `open()` 末尾调用 gc_stale_session_scoped；失败仅 warn 不阻断；
+          三个 wave5_tests 覆盖目标 session 隔离/孤儿清理/空库
+    - [x] S2 Superseded gate 变体（B）：`16aa46ed`
+          `CandidateRejectionCode::Superseded`（优先级 > Duplicate/Suppressed）；
+          `BoundedReflectionInput.superseded_memory_digests`（`#[serde(default)]`
+          向后兼容）；`LaputaService::superseded_authority_digests`（缺库优雅空）；
+          worker.rs 双路 digest 扩展；3 个 service-level + 3 个 gate-level 测试
+    - [x] S3 F6/F7 端到端验收（C）：`043beb5b`
+          `tests/wave5_acceptance.rs` 四个集成测试：
+          `f6_rollback_clears_fts_and_startup`（governed apply → rollback →
+          FTS + startup 不含目标）、`f6_rollback_is_idempotent`（幂等返回
+          true/false/false）、`f7_tombstone_lifecycle_filters_startup_and_search`
+          （tombstone → 下次 startup + search 过滤；已知 memory_list 不过滤
+          superseded 记录——记录为延期项）、`f7_tombstone_target_missing_stores_tombstone_record`
+    - [x] S4 Consolidation 条目化兜底（D）：`3da2bb7b`
+          `save_memory` prompt v3 要求 `[{action,id?,content}]` 结构化 JSON；
+          逐条 dispatch 到 `memory_add/update/remove`（`MemoryCrudOutcome` 统计
+          applied/proposed/failed）；非数组降级到 `sync_turn` proposal；
+          `agent_diva_tools::distill_guard` 跨 crate flag（`memory_distill` 成功后
+          置位 → `should_consolidate` 跳过）；3 个 wave5_tests + prompt 契约测试
+    - [ ] **Wave 5 延期项（归 G2D+ / 后续独立 Wave）**：
+      - B9 完整 tool-result 强制校验（Wave 2 延期项）
+      - F4 同会话热注入（Wave 3 延期项——apply 后同会话刷新 startup cache）
+      - F7 GUI 可见 tombstone 历史（S3 已证自动化路径；GUI 联通归 G2D+）
+      - `memory_list` 不过滤 superseded 记录（S3 发现并记录——读侧过滤仅
+        search + startup 接线了 `superseded_target_ids`，list 待补）
+      - G1/G2/G3/G5/G6/G7/G10/G11/G12 真机端到端验收（Wave 4 延期项）
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
@@ -240,14 +271,12 @@ standing policy（非功能债，执行相关验证时遵守）：
   startup_markdown 缓存或触发 re-prefetch 的机制未实现（typed_provider.rs:87
   `startup_markdown` 在 `open()` 一次性渲染并缓存；刷新需要重新 list+render
   或显式 invalidate 接口）。归 Wave 5 或独立 slice。
-- [ ] **F6：Rollback 端到端验收（changelog→FTS 清退→startup 不再出现）** `sev-P1`
-  `proposals.rs:193` apply 路径与 `typed_store.rs:771 rollback_governed` API 已
-  具备；但缺端到端验收测试证明 rollback 后 FTS + startup 都清退目标记录。归
-  Wave 5 或独立 slice。
+- [x] **F6：Rollback 端到端验收（changelog→FTS 清退→startup 不再出现）** `sev-P1`
+  Wave 5 S3（`043beb5b`）`tests/wave5_acceptance.rs` 四个测试覆盖 governed
+  apply → rollback → FTS + startup 清退 + 幂等性。
 - [ ] **F7：tombstone 完整生命周期验收（U3 用户路径）** `sev-P2`
-  Wave 3 仅证 supersedes tombstone 的读侧投影过滤（startup + search）。U3 完整
-  路径（用户"忘掉 X" → memory_remove 建 proposal → 审批 → tombstone apply →
-  下次会话不再出现 → GUI 可见 tombstone 历史）归 Wave 5 GC 或 GMH-52 一并验收。
+  Wave 5 S3（`043beb5b`）已证自动化路径：tombstone → startup + search 过滤。
+  GUI 可见 tombstone 历史（用户审批 → GUI 历史面板）归 G2D+ 桌面验收。
 
 ### Product / Architecture
 

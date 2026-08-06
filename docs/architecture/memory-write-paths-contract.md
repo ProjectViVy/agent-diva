@@ -38,6 +38,12 @@
    over (W0-B default Typed; F9).
 5. **Consolidation demoted**: consolidation only fires when no explicit
    distill path was used; it must not double-write the same content (decision 4).
+   Realized in Wave 5 (2026-08-07): `should_consolidate` checks
+   `agent_diva_tools::distill_guard::distill_ran_this_session()`; `memory_distill`
+   tool sets the flag on successful return. Consolidation prompt (v3) requires
+   itemized `[{action, id?, content}]` output; each item is dispatched to
+   `memory_add`/`memory_update`/`memory_remove` via `MemoryProvider` CRUD;
+   non-array LLM output falls back to `sync_turn` proposal.
 
 ## 3. Honest status semantics
 
@@ -60,7 +66,28 @@ Wave 1 `memory` tools must surface the equivalent three states to the model:
 - Same-session hot injection of applied changes is a Wave 3 concern (F4);
   Wave 1 only returns the new entry in the tool result (W1-4).
 
-## 5. Cross-references
+## 5. Working memory lifecycle (GC)
+
+- Working memory records carry `scope.session_id`; they are volatile and
+  session-scoped (never authority).
+- `TypedLaputaMemoryProvider::on_session_end` physically deletes session-scoped
+  records via `TypedMemoryStore::gc_session_scoped(session_id)`; failure is
+  `warn!` only, never blocks session teardown.
+- `TypedLaputaMemoryProvider::open` calls `gc_stale_session_scoped(active_ids)`
+  to clean up orphan records from abnormal exits (crashes); `active_ids` comes
+  from `SessionManager` enumeration; `None` skips GC (backward-compatible).
+- Startup rendering already filters `session_id.is_some()` records (Wave 3 S1),
+  so GC is a physical cleanup optimization, not a read-side correctness fix.
+
+## 6. Known gaps
+
+- **`memory_list` does not filter superseded records**: the `visible_record`
+  predicate checks trust/tombstone/session but does not call
+  `superseded_target_ids()`. `memory_search` and startup rendering do filter
+  superseded records. Fix: wire `superseded_target_ids()` into `memory_list`
+  (deferred to G2D+ / independent slice).
+
+## 7. Cross-references
 
 - Decisions: inventory §10.1 (1–5), §10.2 (W1-1..W1-4), §10.3 (G1–G4).
 - Skill model: `docs/architecture/skill-sop-unification.md`.
