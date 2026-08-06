@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `agent-diva-agent/src/agent_loop/turn/context.rs` (add `mod wave3_tests` block only — no production code changes)
-- Owner: `QoderCN`
-- Session/Task: `GA-MEM-PARITY Wave 3 S2 (agent prefetch degradation + typed injection order tests)`
+- Lock State: `RELEASED`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T18:30:00+08:00'
-- Last Heartbeat: '2026-08-06T19:15:00+08:00'
-- Expires At: '2026-08-06T20:15:00+08:00'
+- Started At: '2026-08-06T19:15:00+08:00'
+- Last Heartbeat: '2026-08-06T19:45:00+08:00'
+- Expires At: `released`
 
 ## Lock Rules
 
@@ -28,6 +28,20 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-08-06T19:45:00+08:00`: Released after GA-MEM-PARITY Wave 3
+  (read-side closure) closure: 3 commits — laputa wave3_tests (8 tests
+  + supersedes-target production bug fix via new
+  TypedMemoryStore::superseded_target_ids), agent wave3_tests (3 tests
+  covering D2 prefetch degradation + D4 typed injection order), docs
+  close (TODOLIST WAVE3 checked + F3/F4/F6/F7 延期条目化 + v0.0.7
+  iteration logs). All gates green per slice (fmt/clippy -D warnings;
+  laputa lib 35 + 集成 9 / agent lib 386 + 集成 15); full workspace
+  test (excluding CLI/GUI) green; CLI 6 pre-existing wiremock 502
+  cases remain (CLI-WIREMOCK-502-PREEXISTING). Wave 4 (AutoDream
+  dedup, inventory §10.3 G4) pending. Deferred to Wave 5 / GMH-52:
+  F3 GUI/CLI approval memory 端到端, F4 同会话热注入, F6 Rollback 端到端,
+  F7 tombstone U3 完整路径.
 
 - `2026-08-06T17:25:00+08:00`: Released after GA-MEM-PARITY Wave 2
   (layers + working memory) closure: 7 commits — working memory trait

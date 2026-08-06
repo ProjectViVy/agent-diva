@@ -39,7 +39,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0/1/2 已完成（2026-08-06）；Wave 3（读侧闭环）待实施。**
+  **当前状态：Wave 0/1/2/3 已完成（2026-08-06）；Wave 4（AutoDream 去重）待实施。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -112,13 +112,28 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     **Wave 2 决策基线（inventory §10.1 #3 + §10.3）**：工作记忆=Session
     store（易失、非权威，distill 显式晋升）；G1 承接 checkpoint evidence；
     会话异常退出残留清理与 B9 强制校验归 Wave 5（GC 条目）。
-  - [ ] **WAVE3-MEMORY-READ-CLOSURE：读侧闭环（prefetch 生产注入 + 启动一致）** `sev-P0`
-    - [ ] Typed prefetch 生产注入可用（D4 从 shadow 转生产，配置出箱即开）
-    - [ ] Legacy prefetch 不静默 Failed，有可理解降级（D2/D3）
-    - [ ] 启动注入与 typed applied authority 一致（F4/H3 验收：apply 后
-          FTS/startup 一致）
-    - [ ] 同会话热注入策略（F4，W1-4 延期项）
-    - [ ] U1「记住→下次会话还在」、U2「你还记得吗」以本 Wave 为通过前提
+  - [x] **WAVE3-MEMORY-READ-CLOSURE：读侧闭环（prefetch 生产注入 + 启动一致）** `sev-P0`
+    - [x] Typed prefetch 生产注入可用（D4 从 shadow 转生产，配置出箱即开）：
+          `3ae7975d` typed_provider::wave3_tests::recall_returns_prompt_block_with_recalled_content
+          断言 prompt_block 含召回关键字；turn/context.rs:390-425 注入路径已生产；
+          authority_mode 默认 Typed（F10 Wave 0）出箱即开
+    - [x] Legacy prefetch 不静默 Failed，有可理解降级（D2/D3）：
+          `e66cfa9b` turn/context wave3_tests::legacy_prefetch_failure_leaves_messages_untouched
+          断言 [system, user] 不增删；manager.rs:292-307 明确 reason 文案已可读
+    - [x] 启动注入与 typed applied authority 一致（F5/H3 验收：apply 后
+          FTS/startup 一致）：`3ae7975d` wave3_tests 覆盖
+          memory_add_visible_in_next_startup_rendering /
+          apply_then_search_remains_consistent_across_reopens；发现并修复
+          supersedes-targeted 记录泄漏到启动渲染与 search 的真实 bug
+          （新增 TypedMemoryStore::superseded_target_ids + 两处过滤接线）
+    - [ ] **延期（Wave 5 或独立 slice）**：同会话热注入策略（F4，W1-4 延期项）
+          ——本 Wave 仅证"下次会话 prefetch/startup 可见"；apply 后同会话刷新
+          startup cache 或触发 re-prefetch 的机制未实现（startup_markdown 在
+          open() 一次性渲染缓存；文档化于 v0.0.7 acceptance.md）
+    - [x] U1「记住→下次会话还在」、U2「你还记得吗」以本 Wave 为通过前提：
+          自动化证据已具备（apply→FTS→startup 一致性测试）；真机联通 smoke
+          归 G2D+ 桌面验收一并执行（规则 smoke-test-required-for-user-visible-change
+          由 G2D+ 阶段覆盖）
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
@@ -193,7 +208,32 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ## Open Backlog
 
+### GA-MEM-PARITY Wave 3 延期项
+
+- [ ] **F3：GUI/CLI 审批 memory 域端到端验收** `sev-P1`
+  Wave 3 自动化证据覆盖了 `apply→FTS→startup` 一致性，但"agent 产生 proposal →
+  用户在 GUI/CLI 审批中心批准 → apply → typed 更新"的联通验收归 GMH-52 /
+  G2D+ 桌面验收一并执行（与 U7 旅程重合；依赖真机 GUI/Manager）。
+- [ ] **F4：同会话热注入（apply 后同会话立即可见）** `sev-P2`
+  Wave 3 只证"下次会话 prefetch/startup 可见"。apply 后同会话刷新
+  startup_markdown 缓存或触发 re-prefetch 的机制未实现（typed_provider.rs:87
+  `startup_markdown` 在 `open()` 一次性渲染并缓存；刷新需要重新 list+render
+  或显式 invalidate 接口）。归 Wave 5 或独立 slice。
+- [ ] **F6：Rollback 端到端验收（changelog→FTS 清退→startup 不再出现）** `sev-P1`
+  `proposals.rs:193` apply 路径与 `typed_store.rs:771 rollback_governed` API 已
+  具备；但缺端到端验收测试证明 rollback 后 FTS + startup 都清退目标记录。归
+  Wave 5 或独立 slice。
+- [ ] **F7：tombstone 完整生命周期验收（U3 用户路径）** `sev-P2`
+  Wave 3 仅证 supersedes tombstone 的读侧投影过滤（startup + search）。U3 完整
+  路径（用户"忘掉 X" → memory_remove 建 proposal → 审批 → tombstone apply →
+  下次会话不再出现 → GUI 可见 tombstone 历史）归 Wave 5 GC 或 GMH-52 一并验收。
+
 ### Product / Architecture
+
+- [ ] **agent-diva-files clippy clean（预存在）** `sev-P3`
+  `agent-diva-files/src/s3.rs:247` `empty_line_after_doc_comments` 警告
+  （rust 1.94 clippy `-D warnings` 可复现）。Wave 2 与 Wave 3 baseline 均
+  存在，stash 验证与本 Wave 改动无关。归后续清理 Wave 或独立 slice。
 
 - [ ] **RG-CODE-GOV 后续分期（可选实现入口）** `sev-P2`
   原位治理设计完成；**禁止**回迁 deep-governance 大爆炸。
