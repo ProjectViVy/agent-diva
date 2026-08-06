@@ -175,7 +175,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         );
 
         prompt.push_str(
-            "\nWhen remembering something, create or update governed memory through the available memory tools or compatibility path; do not treat legacy authority files as default prompt authority.",
+            "\nMemory management tools are not available in this build. Do not claim that something has been remembered or persisted unless a governed memory write actually succeeded; never write arbitrary files as if they were memory authority. Legacy authority files are compatibility inputs only, not default prompt authority.",
         );
         prompt.push_str(
             "\nBOOTSTRAP.md is a one-time onboarding input, not runtime authority. Do not read or replay it unless the user explicitly asks to start onboarding again.",
@@ -565,6 +565,20 @@ mod tests {
         let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
+    }
+
+    #[test]
+    fn prompt_does_not_promise_unavailable_memory_tools() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let prompt = builder.build_system_prompt(None);
+        assert!(
+            !prompt.contains("available memory tools"),
+            "prompt must not promise memory tools before Wave 1 lands them"
+        );
+        assert!(
+            prompt.contains("Memory management tools are not available"),
+            "prompt should honestly state the missing tool surface"
+        );
     }
 
     #[test]
