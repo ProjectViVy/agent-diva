@@ -146,6 +146,56 @@ impl LaputaService {
         Ok(digests.into_iter().collect())
     }
 
+    /// Content digests of every active AppliedAuthority record stored in the
+    /// typed authority store, suitable for AutoDream's candidate dedup gate.
+    ///
+    /// Records are filtered to exclude:
+    /// - non-`AppliedAuthority` trust levels (working memory, observed, etc.)
+    /// - tombstoned records
+    /// - session-scoped records (working checkpoints)
+    /// - records targeted by a supersedes tombstone
+    ///
+    /// Returns an empty vec when the typed authority store has not yet been
+    /// created, so first-run AutoDream dedup gracefully degrades to a no-op.
+    /// Other failures (IO / schema / integrity) propagate to the caller.
+    pub async fn applied_authority_digests(&self) -> Result<Vec<String>> {
+        use crate::typed_store::TypedMemoryStoreError;
+        use agent_diva_core::memory::MemoryTrust;
+
+        let workspace_root = self.storage.paths().workspace_root();
+        let store = match crate::TypedMemoryStore::open_existing_canonical(workspace_root).await {
+            Ok(store) => store,
+            Err(TypedMemoryStoreError::InvalidBackup) => return Ok(Vec::new()),
+            Err(source) => {
+                return Err(LaputaError::InvalidState(format!(
+                    "applied_authority_digests: failed to open typed store: {source}"
+                )));
+            }
+        };
+        let superseded = store.superseded_target_ids().await.map_err(|source| {
+            LaputaError::InvalidState(format!(
+                "applied_authority_digests: superseded lookup failed: {source}"
+            ))
+        })?;
+        let records = store.list(u32::MAX).await.map_err(|source| {
+            LaputaError::InvalidState(format!("applied_authority_digests: list failed: {source}"))
+        })?;
+        let digests = records
+            .into_iter()
+            .filter(|stored| {
+                let record = &stored.record;
+                record.trust == MemoryTrust::AppliedAuthority
+                    && record.tombstone.is_none()
+                    && record.scope.session_id.is_none()
+                    && !superseded.contains(&record.id)
+            })
+            .map(|stored| {
+                agent_diva_core::evolution::memory_candidate_content_digest(&stored.record.content)
+            })
+            .collect();
+        Ok(digests)
+    }
+
     pub fn apply_proposal(
         &self,
         id: &str,
@@ -982,4 +1032,208 @@ fn content_matches_expected(current: &str, expected: &str) -> bool {
 
 fn error_name(error: &LaputaError) -> &'static str {
     error.code()
+}
+
+#[cfg(test)]
+mod wave4_tests {
+    use super::*;
+    use agent_diva_core::evolution::memory_candidate_content_digest;
+    use agent_diva_core::governance::AuditCorrelation;
+    use agent_diva_core::memory::{
+        memory_content_digest, CheckpointWriteRequest, MemoryAddRequest, MemoryCrudContext,
+        MemoryCrudOutcome, MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord,
+        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust,
+        MAX_CONFIDENCE_BPS,
+    };
+    use agent_diva_core::workspace_identity::canonical_workspace_id;
+    use chrono::Utc;
+
+    use crate::typed_provider::TypedLaputaMemoryProvider;
+    use crate::TypedMemoryStore;
+
+    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        MemoryCrudContext {
+            workspace_root: temp.path().to_path_buf(),
+        }
+    }
+
+    async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        LaputaService::open(temp.path()).unwrap()
+    }
+
+    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        TypedLaputaMemoryProvider::open(temp.path(), canonical_workspace_id(temp.path()))
+            .await
+            .unwrap()
+    }
+
+    async fn write_supersedes_tombstone(temp: &tempfile::TempDir, target_id: &str, reason: &str) {
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let now = Utc::now();
+        let metadata = store.metadata().await.unwrap();
+        let tombstone = MemoryRecord {
+            id: format!("tombstone-{}", now.timestamp_micros()),
+            kind: MemoryRecordKind::LongTerm,
+            content: String::new(),
+            provenance: MemoryProvenance {
+                source: MemoryProvenanceSource::AutoDream,
+                source_id: "wave4-test".into(),
+                content_digest: memory_content_digest(b""),
+                captured_at: now,
+                correlation: AuditCorrelation {
+                    request_id: format!("tombstone-{target_id}"),
+                    turn_id: "wave4".into(),
+                    session_id: "global".into(),
+                    trace_id: None,
+                },
+            },
+            evidence_refs: vec![],
+            confidence_bps: MAX_CONFIDENCE_BPS,
+            sensitivity: MemorySensitivity::Internal,
+            trust: MemoryTrust::AppliedAuthority,
+            scope: MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: canonical_workspace_id(temp.path()),
+                session_id: None,
+            },
+            created_at: now,
+            effective_at: now,
+            expires_at: None,
+            supersedes: vec![target_id.to_string()],
+            tombstone: Some(MemoryTombstone {
+                target_record_id: target_id.to_string(),
+                reason_digest: memory_content_digest(reason.as_bytes()),
+                actor_id: "wave4-test".into(),
+                created_at: now,
+            }),
+        };
+        store
+            .put(tombstone, metadata.store_revision, None)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn applied_authority_digests_returns_only_active_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = open_provider(&temp).await;
+
+        // (a) Active AppliedAuthority long-term record → must be included.
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dawn".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let _authority_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        // (b) Session-scoped checkpoint (WorkingMemory trust) → excluded.
+        provider
+            .checkpoint_write(CheckpointWriteRequest {
+                workspace_root: temp.path().to_path_buf(),
+                session_id: "session-1".into(),
+                key_info: "wave4-session".into(),
+                related_sops: vec![],
+                content: "session checkpoint content".into(),
+            })
+            .await
+            .unwrap();
+
+        // (c) Tombstoned record (write then supersede with a tombstone) → excluded.
+        let tombstoned_outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "obsolete route via marshland pass".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let tombstoned_id = match tombstoned_outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+        drop(provider);
+        write_supersedes_tombstone(&temp, &tombstoned_id, "route retired").await;
+
+        let digests = service.applied_authority_digests().await.unwrap();
+        let authority_digest = memory_candidate_content_digest("kestrel patrols the ridge at dawn");
+        let tombstoned_digest =
+            memory_candidate_content_digest("obsolete route via marshland pass");
+        assert!(
+            digests.contains(&authority_digest),
+            "active authority record must be listed; got {digests:?}"
+        );
+        assert!(
+            !digests.contains(&tombstoned_digest),
+            "tombstoned record must be filtered out; got {digests:?}"
+        );
+        assert!(!digests.contains(&memory_candidate_content_digest("")));
+        assert!(
+            !digests
+                .iter()
+                .any(|d| *d == memory_candidate_content_digest("session checkpoint content")),
+            "session-scoped WorkingMemory content must not be listed"
+        );
+        assert_eq!(
+            digests.len(),
+            1,
+            "expected exactly one active digest, got {digests:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn applied_authority_digests_excludes_superseded_targets() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = open_provider(&temp).await;
+
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "the staging manifest lives at /tmp/staging-xyz".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let target_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+        let target_digest =
+            memory_candidate_content_digest("the staging manifest lives at /tmp/staging-xyz");
+
+        let before = service.applied_authority_digests().await.unwrap();
+        assert!(before.contains(&target_digest));
+        drop(provider);
+
+        write_supersedes_tombstone(&temp, &target_id, "staging path retired").await;
+
+        let after = service.applied_authority_digests().await.unwrap();
+        assert!(
+            !after.contains(&target_digest),
+            "target of supersedes tombstone must be filtered out; got {after:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn applied_authority_digests_graceful_missing_store() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let digests = service.applied_authority_digests().await.unwrap();
+        assert!(
+            digests.is_empty(),
+            "no typed store yet → empty digest list, got {digests:?}"
+        );
+    }
 }

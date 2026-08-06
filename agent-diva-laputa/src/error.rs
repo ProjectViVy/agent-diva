@@ -97,6 +97,9 @@ pub enum LaputaError {
 
     #[error("injected Memory migration artifact failure")]
     InjectedMemoryMigrationFailure,
+
+    #[error("Laputa internal invariant violated: {0}")]
+    InvalidState(String),
 }
 
 impl LaputaError {
@@ -131,6 +134,7 @@ impl LaputaError {
             Self::InvalidMemoryMigrationId { .. } => "invalid_memory_migration_id",
             Self::MemoryMigrationConflict { .. } => "memory_migration_conflict",
             Self::InjectedMemoryMigrationFailure => "memory_migration_recovery_failure",
+            Self::InvalidState(_) => "invalid_state",
         }
     }
 }
