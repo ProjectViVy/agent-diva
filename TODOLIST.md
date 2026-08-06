@@ -39,8 +39,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0/1 已完成（2026-08-06）；Wave 2（工作记忆/分层）与
-  Wave 3（读侧闭环）待实施。**
+  **当前状态：Wave 0/1/2 已完成（2026-08-06）；Wave 3（读侧闭环）待实施。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -87,6 +86,32 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     (G3) memory_remove 产生 tombstone（复用既有 apply 基建）；注入过滤基建
     已存在（typed_provider 启动渲染 + typed_store FTS 均过滤 tombstone），
     补「删除后不再出现」验收测试，遗漏路径再补。
+  - [x] **WAVE2-LAYERS-WORKING-MEMORY：分层与工作记忆（inventory §6 +
+        §10.3 G1 承接）** `sev-P0`
+    - [x] L1 预算注入 + pointer（B2/B10）：启动注入改为有界 L1 索引——
+          `render_l1_index_line`（≤80 字符预览）/`render_l1_index_block`
+          （`2e70d92c`）+ `MemoryConfig.l1_index_lines`（默认 30，
+          `7b30dc72`）；全文不再注入，取详情走 `memory_search`/`memory_list`
+          按 id；Typed 与 Legacy（MemoryManager）同步；0 预算/空权威不注入
+    - [x] Working checkpoint 工具与注入（C1–C3）：`update_working_checkpoint`
+          工具（`c8111c22`，session key 由装配注入）→ session-scoped
+          AppliedAuthority 记录（scope.session_id，启动渲染/列表天然排除）；
+          每轮 `prepare_runtime_context` 注入 `## Working Memory` 块
+          （`b1c101f9`，prefetch 索引随之移位）；key_info/related_sops 结构化
+          渲染；on_session_end（含 loop 退出按 `SessionManager` 会话枚举）
+          以 supersedes tombstone 清理（`2e70d92c`/`b1c101f9`）
+    - [x] L0 policy 文本（B1/B8/B9 部分）：`L0_MEMORY_POLICY` 三条
+          （Action-Verified / 禁止易变状态 / 最小指针）注入
+          `## Memory Management Policy` 段（`b1c101f9`）；B9 完整 tool-result
+          强制校验留 Wave 5（条目化跟进）
+    - [x] G1 承接：distill evidence 扩展——`memory_distill` 可选 `evidence`
+          参数（`c8111c22`）→ 新建写 `skills/<name>/EVIDENCE.md`、
+          覆盖进 proposal excerpt、audit 标记（`2e70d92c`）
+    - [x] U5 验收：长任务中途不丢关键上下文——checkpoint 每轮稳定注入，
+          会话结束清理（测试：注入位置/空块跳过/清理后不可见）
+    **Wave 2 决策基线（inventory §10.1 #3 + §10.3）**：工作记忆=Session
+    store（易失、非权威，distill 显式晋升）；G1 承接 checkpoint evidence；
+    会话异常退出残留清理与 B9 强制校验归 Wave 5（GC 条目）。
   - [ ] **WAVE3-MEMORY-READ-CLOSURE：读侧闭环（prefetch 生产注入 + 启动一致）** `sev-P0`
     - [ ] Typed prefetch 生产注入可用（D4 从 shadow 转生产，配置出箱即开）
     - [ ] Legacy prefetch 不静默 Failed，有可理解降级（D2/D3）
