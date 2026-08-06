@@ -500,4 +500,25 @@ agent-diva **已有**记忆/治理/AutoDream 的**底座与治理骨架**，但�
   明确返回 degraded（不静默失败）。
 - 工具结果统一诚实语义：`applied` / `proposal_created`(含 id) / `failed`。
 
+### 10.3 闭环断点修订（2026-08-06，用户要求设计闭环审查）
+
+> Status: **FROZEN** — 修订 §10.1/§10.2 的实施约束与 Wave 归属。
+> 触发：用户对「GA-MEM-PARITY 设计是否闭环」的审查；结论为**未完全闭环**，
+> 共 4 个断点。全部按下表修订，后续 Wave 计划以本表为准。
+
+| # | 断点 | 描述 | 修订结论 |
+|---|------|------|----------|
+| G1 | Wave 依赖倒挂 | W1-3 要求 distill 用 working checkpoint 作 evidence，但 checkpoint（域 C）属 Wave 2 | Wave 1 `memory_distill` 最小版：输入=会话上下文（模型按 Action-Verified 自提）；Wave 2 引入 checkpoint 后扩展 evidence 来源（向后兼容，不破坏 Wave 1 契约） |
+| G2 | 读侧闭环缺失 | W1-4 承诺「下次会话 prefetch 可见」，但 Typed prefetch 生产注入（D4 🟡）、Legacy prefetch（D2 ❌）无任何 Wave 归属 | 新增 **Wave 3 读侧验收**：Typed prefetch 生产注入 + 启动注入与 typed authority 一致（D2/D3/D4、F4、H3 一并验收）；同时修订 W1-4 措辞——Wave 1 仅承诺工具结果返回，会话级可见性以 Wave 3 验收为准 |
+| G3 | 遗忘闭环缺失 | W1-2 产生 tombstone，但「注入侧识别并过滤 tombstone」无归属，「忘掉 X 后不再出现」验收（acceptance 1.1）不成立 | tombstone 注入过滤**随 Wave 1 `memory_remove` 一起实施**（不排到 Wave 3）；startup/prefetch/上下文组装识别 tombstone 并排除 |
+| G4 | 双写边界未定 | `memory_add` 即时 apply 的内容，AutoDream 反思可能基于 session evidence 重复提出同内容候选（H5/G10） | Wave 4 AutoDream gate 增加**同内容去重**：候选与已 applied authority 内容一致 → 跳过/降级为 suggestion；定义「即时 apply 优先于 AutoDream 候选」的优先级 |
+
+**对 Wave 计划的影响：**
+
+- Wave 1 范围增加：distill 最小版输入契约（G1）、tombstone 注入过滤（G3）。
+- Wave 2 范围不变：checkpoint 提供后，distill evidence 扩展（G1 承接）。
+- Wave 3 范围增加：读侧闭环验收（G2）——prefetch 生产注入 + 启动注入一致性 + 热注入（F4 原属）。
+- Wave 4 范围增加：AutoDream gate 同内容去重（G4）。
+- U1–U8 旅程按「写→存→召回→遗忘→治理→蒸馏」六环验收时，U1/U2/U3 以 G2/G3 为通过前提。
+
 ---

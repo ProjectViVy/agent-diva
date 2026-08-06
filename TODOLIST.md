@@ -61,6 +61,17 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     W1-3 distill 新建即时、覆盖走审批；W1-4 结果返回不自动注入（热注入归
     Wave 3）。实施约束（tombstone 语义、FTS5/legacy 降级、distill→SKILL.md
     evidence）见 inventory §10.2。
+    **闭环修订（inventory §10.3，2026-08-06）**：Wave 1 增加两项——
+    (G1) distill 最小版输入=会话上下文（checkpoint evidence 在 Wave 2 扩展）；
+    (G3) tombstone 注入过滤随 memory_remove 实施（startup/prefetch/上下文组装
+    排除 tombstone，否则「忘掉 X 后不再出现」验收不成立）。
+  - [ ] **WAVE3-MEMORY-READ-CLOSURE：读侧闭环（prefetch 生产注入 + 启动一致）** `sev-P0`
+    - [ ] Typed prefetch 生产注入可用（D4 从 shadow 转生产，配置出箱即开）
+    - [ ] Legacy prefetch 不静默 Failed，有可理解降级（D2/D3）
+    - [ ] 启动注入与 typed applied authority 一致（F4/H3 验收：apply 后
+          FTS/startup 一致）
+    - [ ] 同会话热注入策略（F4，W1-4 延期项）
+    - [ ] U1「记住→下次会话还在」、U2「你还记得吗」以本 Wave 为通过前提
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
