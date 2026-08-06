@@ -363,6 +363,7 @@ impl AgentLoop {
                     context.active_mask,
                     policy_phase_for(planning_after.as_ref(), context.plan_mode),
                     context.active_execution_id.clone(),
+                    None,
                     Some(context.background_task_context.clone()),
                 );
             }

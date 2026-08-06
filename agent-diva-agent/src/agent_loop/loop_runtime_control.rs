@@ -358,6 +358,7 @@ impl AgentLoop {
             active_mask.as_ref(),
             surface.plan_phase,
             surface.execution_session_id,
+            None,
             surface.background_task_context,
         );
     }

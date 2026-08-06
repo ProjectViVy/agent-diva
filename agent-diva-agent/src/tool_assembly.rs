@@ -57,6 +57,7 @@ pub struct ToolAssembly {
     approval_policy: AskForApproval,
     ask_user_coordinator: Option<AskUserCoordinator>,
     memory_provider: Option<Arc<dyn MemoryProvider>>,
+    working_memory_session: Option<String>,
 }
 
 impl ToolAssembly {
@@ -83,6 +84,7 @@ impl ToolAssembly {
             approval_policy: AskForApproval::default(),
             ask_user_coordinator: None,
             memory_provider: None,
+            working_memory_session: None,
         }
     }
 
@@ -184,6 +186,12 @@ impl ToolAssembly {
     /// report `unavailable` (headless runtimes).
     pub fn with_memory_provider(mut self, provider: Option<Arc<dyn MemoryProvider>>) -> Self {
         self.memory_provider = provider;
+        self
+    }
+
+    /// Bind the active session key for session-scoped working memory tools.
+    pub fn with_working_memory_session(mut self, session_id: Option<String>) -> Self {
+        self.working_memory_session = session_id;
         self
     }
 
@@ -351,6 +359,25 @@ impl ToolAssembly {
                     registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryDistillTool::new()));
+                }
+            }
+        }
+
+        if self.builtin_config.working_memory && self.builtin_config.memory && !subagent_mode {
+            match &self.memory_provider {
+                Some(provider) => {
+                    registry.register(Arc::new(
+                        agent_diva_tools::UpdateWorkingCheckpointTool::with_provider(
+                            provider.clone(),
+                            self.workspace.clone(),
+                        )
+                        .with_session(self.working_memory_session.clone()),
+                    ));
+                }
+                None => {
+                    registry.register(Arc::new(
+                        agent_diva_tools::UpdateWorkingCheckpointTool::new(),
+                    ));
                 }
             }
         }
@@ -624,6 +651,47 @@ mod tests {
                 "{name} should be registered when a memory provider is configured"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn working_checkpoint_tool_registers_with_session_binding() {
+        let workspace = tempfile::tempdir().unwrap();
+        let registry = ToolAssembly::new(workspace.path().to_path_buf())
+            .with_memory_provider(Some(Arc::new(
+                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path(), 30),
+            )))
+            .with_working_memory_session(Some("channel:42".to_string()))
+            .build();
+        assert!(
+            registry
+                .tool_names()
+                .iter()
+                .any(|n| n == "update_working_checkpoint"),
+            "checkpoint tool should be registered when memory + working_memory gates are on"
+        );
+        let result = registry
+            .execute(
+                "update_working_checkpoint",
+                serde_json::json!({"key_info": "in-flight state"}),
+            )
+            .await
+            .unwrap();
+        assert!(result.contains("\"status\""));
+    }
+
+    #[tokio::test]
+    async fn working_checkpoint_tool_gated_by_working_memory_flag() {
+        let workspace = tempfile::tempdir().unwrap();
+        let registry = ToolAssembly::new(workspace.path().to_path_buf())
+            .builtin(BuiltInToolsConfig::minimal())
+            .build();
+        assert!(
+            !registry
+                .tool_names()
+                .iter()
+                .any(|n| n == "update_working_checkpoint"),
+            "checkpoint tool must be absent when working_memory gate is off"
+        );
     }
 
     #[tokio::test]

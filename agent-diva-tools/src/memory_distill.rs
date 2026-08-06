@@ -49,7 +49,7 @@ impl Tool for MemoryDistillTool {
     }
 
     fn parameters(&self) -> Value {
-        json!({"type": "object", "properties": {"skill_name": {"type": "string", "description": "Skill name (kebab-case) for the distilled experience"}, "content": {"type": "string", "description": "Concise, action-verified experience content"}}, "required": ["skill_name", "content"]})
+        json!({"type": "object", "properties": {"skill_name": {"type": "string", "description": "Skill name (kebab-case) for the distilled experience"}, "content": {"type": "string", "description": "Concise, action-verified experience content"}, "evidence": {"type": "string", "description": "Optional session-context evidence backing the distillation (for example key working-memory facts or the task outcome)"}}, "required": ["skill_name", "content"]})
     }
 
     async fn execute(&self, args: Value) -> Result<String, ToolError> {

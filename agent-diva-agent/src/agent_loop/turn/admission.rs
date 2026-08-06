@@ -268,6 +268,7 @@ impl AgentLoop {
             active_mask.as_ref(),
             snapshot.policy_phase.clone(),
             active_execution_id.clone(),
+            Some(admission.session_key.clone()),
             Some(background_task_context.clone()),
         );
 
