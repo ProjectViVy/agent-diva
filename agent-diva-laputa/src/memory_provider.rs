@@ -225,7 +225,7 @@ impl MemoryProvider for LaputaMemoryProvider {
 
         Ok(SyncTurnResponse {
             status: match result {
-                Ok(()) => SyncTurnStatus::Persisted,
+                Ok(()) => SyncTurnStatus::ProposalCreated,
                 Err(error) => SyncTurnStatus::Failed {
                     reason: format!("failed to create turn-sync proposal: {error}"),
                 },
@@ -461,7 +461,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status, SyncTurnStatus::Persisted);
+        assert_eq!(response.status, SyncTurnStatus::ProposalCreated);
         assert_eq!(
             fs::read_to_string(&memory_path).unwrap(),
             r#""Applied memory""#

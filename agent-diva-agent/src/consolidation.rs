@@ -262,7 +262,9 @@ pub async fn consolidate_with_gate(
                 })
                 .await
                 .and_then(|response| match response.status {
-                    SyncTurnStatus::Persisted | SyncTurnStatus::Noop => Ok(response),
+                    SyncTurnStatus::Persisted
+                    | SyncTurnStatus::ProposalCreated
+                    | SyncTurnStatus::Noop => Ok(response),
                     SyncTurnStatus::Failed { reason } => {
                         Err(agent_diva_core::Error::Internal(reason))
                     }
@@ -277,7 +279,9 @@ pub async fn consolidate_with_gate(
                 })
                 .await
                 .and_then(|response| match response.status {
-                    SyncTurnStatus::Persisted | SyncTurnStatus::Noop => Ok(response),
+                    SyncTurnStatus::Persisted
+                    | SyncTurnStatus::ProposalCreated
+                    | SyncTurnStatus::Noop => Ok(response),
                     SyncTurnStatus::Failed { reason } => {
                         Err(agent_diva_core::Error::Internal(reason))
                     }
@@ -302,4 +306,191 @@ pub async fn consolidate_with_gate(
     debug!("last_consolidated advanced to {}", consolidate_end);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_diva_core::memory::{
+        PrefetchRequest, PrefetchResponse, PrefetchStatus, SessionEndRequest, SessionEndResponse,
+        SessionEndStatus, StartupStatus, SyncTurnRequest, SyncTurnResponse, SystemPromptBlock,
+        SystemPromptRequest, SystemPromptResponse,
+    };
+    use agent_diva_core::session::ChatMessage;
+    use agent_diva_providers::{LLMResponse, ProviderResult, ToolCallRequest, ToolChoiceMode};
+    use chrono::Utc;
+    use std::collections::HashMap;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    /// Memory provider whose `sync_turn` reports a created proposal.
+    struct ProposalCreatingProvider {
+        sync_calls: AtomicUsize,
+    }
+
+    impl ProposalCreatingProvider {
+        fn new() -> Self {
+            Self {
+                sync_calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl MemoryProvider for ProposalCreatingProvider {
+        fn system_prompt_block(
+            &self,
+            _request: &SystemPromptRequest,
+        ) -> agent_diva_core::Result<SystemPromptResponse> {
+            Ok(SystemPromptResponse {
+                status: StartupStatus::Ready,
+                prompt_block: Some(SystemPromptBlock {
+                    shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+                    markdown: "Existing memory.".to_string(),
+                }),
+            })
+        }
+
+        async fn prefetch(
+            &self,
+            _request: PrefetchRequest,
+        ) -> agent_diva_core::Result<PrefetchResponse> {
+            Ok(PrefetchResponse {
+                status: PrefetchStatus::SkippedNoIntent,
+                prompt_block: None,
+            })
+        }
+
+        async fn sync_turn(
+            &self,
+            _request: SyncTurnRequest,
+        ) -> agent_diva_core::Result<SyncTurnResponse> {
+            self.sync_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(SyncTurnResponse {
+                status: SyncTurnStatus::ProposalCreated,
+            })
+        }
+
+        async fn on_session_end(
+            &self,
+            _request: SessionEndRequest,
+        ) -> agent_diva_core::Result<SessionEndResponse> {
+            Ok(SessionEndResponse {
+                status: SessionEndStatus::Noop,
+            })
+        }
+    }
+
+    /// Provider that always returns a `save_memory` tool call on `chat`.
+    struct SaveMemoryProvider;
+
+    #[async_trait::async_trait]
+    impl LLMProvider for SaveMemoryProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Ok(LLMResponse {
+                content: None,
+                tool_calls: vec![ToolCallRequest {
+                    id: "save-memory-call".to_string(),
+                    call_type: "function".to_string(),
+                    name: "save_memory".to_string(),
+                    arguments: HashMap::from([
+                        (
+                            "memory_update".to_string(),
+                            serde_json::Value::String("Updated continuity.".to_string()),
+                        ),
+                        (
+                            "history_entry".to_string(),
+                            serde_json::Value::String("Recorded turn.".to_string()),
+                        ),
+                    ]),
+                }],
+                finish_reason: "tool_calls".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            })
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<agent_diva_providers::ProviderEventStream> {
+            unimplemented!("not used by consolidation")
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    fn sample_session(len: usize) -> Session {
+        let now = Utc::now();
+        Session {
+            key: "test:chat".to_string(),
+            messages: (0..len)
+                .map(|i| ChatMessage {
+                    role: if i % 2 == 0 { "user" } else { "assistant" }.to_string(),
+                    content: format!("continuity message {i}"),
+                    timestamp: now,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    name: None,
+                    reasoning_content: None,
+                    thinking_blocks: None,
+                    metadata: None,
+                    token_usage: None,
+                })
+                .collect(),
+            created_at: now,
+            updated_at: now,
+            metadata: serde_json::json!({}),
+            title: None,
+            last_consolidated: 0,
+            last_compacted: 0,
+            compaction_history: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_turn_proposal_created_is_treated_as_success() {
+        let workspace = tempfile::tempdir().unwrap();
+        let mut session = sample_session(DEFAULT_MEMORY_WINDOW + 10);
+        let provider: Arc<dyn LLMProvider> = Arc::new(SaveMemoryProvider);
+        let memory = ProposalCreatingProvider::new();
+
+        let gate = QualityGate {
+            min_completeness: 0.0,
+            min_keyword_coverage: 0.0,
+            min_score: 0.0,
+            max_retry: 0,
+        };
+
+        consolidate_with_gate(
+            &mut session,
+            &provider,
+            "test-model",
+            workspace.path(),
+            &memory,
+            DEFAULT_MEMORY_WINDOW,
+            gate,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(memory.sync_calls.load(Ordering::SeqCst), 1);
+    }
 }
