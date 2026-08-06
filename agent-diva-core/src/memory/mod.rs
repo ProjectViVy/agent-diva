@@ -30,10 +30,11 @@ pub use recall::{
     RecallTokenEstimator, RecallTrace, RecallValidationError,
 };
 pub use record::{
-    escape_memory_for_prompt, memory_content_digest, MemoryIntegrityFinding, MemoryIntegrityReport,
-    MemoryIntegritySeverity, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
-    MemoryRecordKind, MemoryRecordValidationError, MemoryScope, MemorySensitivity, MemoryTombstone,
-    MemoryTrust, MAX_CONFIDENCE_BPS,
+    escape_memory_for_prompt, memory_content_digest, render_l1_index_block, render_l1_index_line,
+    MemoryIntegrityFinding, MemoryIntegrityReport, MemoryIntegritySeverity, MemoryProvenance,
+    MemoryProvenanceSource, MemoryRecord, MemoryRecordKind, MemoryRecordValidationError,
+    MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust, DEFAULT_L1_INDEX_LINES,
+    MAX_CONFIDENCE_BPS,
 };
 pub use storage::{DailyNote, Memory};
 pub use working::{

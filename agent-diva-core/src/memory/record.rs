@@ -26,6 +26,7 @@ pub enum MemoryRecordKind {
     Monthly,
     Journal,
     Learning,
+    WorkingMemory,
     #[serde(other)]
     Unknown,
 }
@@ -309,6 +310,44 @@ pub fn escape_memory_for_prompt(record: &MemoryRecord) -> String {
     )
 }
 
+/// Default L1 startup index budget (B2): maximum index lines injected into
+/// the system prompt. Full entries are never injected; retrieval goes through
+/// `memory_search` / `memory_list` (B10 minimal-pointer principle).
+pub const DEFAULT_L1_INDEX_LINES: usize = 30;
+
+/// Maximum characters of the content preview in one L1 index line.
+const L1_PREVIEW_CHARS: usize = 80;
+
+/// Render a single L1 index line: `- [id] <first line of content, truncated>`.
+pub fn render_l1_index_line(id: &str, content: &str) -> String {
+    let first_line = content.lines().next().unwrap_or_default().trim();
+    let mut preview: String = first_line.chars().take(L1_PREVIEW_CHARS).collect();
+    if first_line.chars().count() > L1_PREVIEW_CHARS {
+        preview.push('…');
+    }
+    format!("- [{}] {}", escape_attribute(id), preview)
+}
+
+/// Render the bounded L1 startup index block with a retrieval pointer hint.
+///
+/// The block never contains full entries; the model must use `memory_search`
+/// or `memory_list` with a record id to retrieve details. Empty authority or a
+/// zero budget renders nothing.
+pub fn render_l1_index_block(entries: &[(String, String)], max_lines: usize) -> String {
+    if entries.is_empty() || max_lines == 0 {
+        return String::new();
+    }
+    let mut block = String::from("## Long-term Memory Index\n\n");
+    block.push_str(
+        "Full entries are not injected; use memory_search or memory_list with a record id to retrieve details.\n\n",
+    );
+    for (id, content) in entries.iter().take(max_lines) {
+        block.push_str(&render_l1_index_line(id, content));
+        block.push('\n');
+    }
+    block
+}
+
 fn validate_tombstone(tombstone: &MemoryTombstone) -> Result<(), MemoryRecordValidationError> {
     required("tombstone.target_record_id", &tombstone.target_record_id)?;
     required("tombstone.actor_id", &tombstone.actor_id)?;
@@ -535,5 +574,53 @@ mod tests {
             serde_json::from_value::<MemoryIntegrityReport>(value).unwrap(),
             report
         );
+    }
+}
+
+#[cfg(test)]
+mod l1_index_tests {
+    use super::*;
+
+    #[test]
+    fn l1_line_uses_first_line_and_truncates() {
+        let long = format!("{}-suffix", "x".repeat(200));
+        let line = render_l1_index_line("rec-1", &long);
+        assert!(line.starts_with("- [rec-1] "));
+        assert!(line.contains('…'));
+        assert!(line.chars().count() < 110);
+
+        let multiline = render_l1_index_line("rec-2", "first line\nsecond line");
+        assert_eq!(multiline, "- [rec-2] first line");
+    }
+
+    #[test]
+    fn l1_line_escapes_attribute() {
+        let line = render_l1_index_line("a\"b", "content");
+        assert_eq!(line, "- [a&quot;b] content");
+    }
+
+    #[test]
+    fn l1_block_caps_lines_and_never_injects_full_content() {
+        let entries = (0..50)
+            .map(|i| {
+                (
+                    format!("rec-{i}"),
+                    format!("full content of record {i} {}", "x".repeat(200)),
+                )
+            })
+            .collect::<Vec<_>>();
+        let block = render_l1_index_block(&entries, 30);
+        assert!(block.starts_with("## Long-term Memory Index"));
+        assert!(block.contains("use memory_search or memory_list"));
+        assert_eq!(block.matches("- [rec-").count(), 30);
+        assert!(!block.contains("full content of record 49"));
+        assert!(!block.contains(&"x".repeat(200)));
+    }
+
+    #[test]
+    fn l1_block_zero_budget_renders_empty() {
+        let entries = vec![("rec-1".to_string(), "content".to_string())];
+        assert_eq!(render_l1_index_block(&entries, 0), "");
+        assert_eq!(render_l1_index_block(&[], 30), "");
     }
 }

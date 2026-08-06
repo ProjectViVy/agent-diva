@@ -5,6 +5,7 @@ use super::provider::{
     SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest, SyncTurnResponse,
     SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
 };
+use super::record::{render_l1_index_block, DEFAULT_L1_INDEX_LINES};
 use super::storage::{DailyNote, Memory};
 use parking_lot::Mutex;
 use std::collections::HashSet;
@@ -21,6 +22,8 @@ pub struct MemoryManager {
     notes_dir: PathBuf,
     /// History file path
     history_path: PathBuf,
+    /// L1 startup index budget (B2 minimal-pointer rendering).
+    l1_index_lines: usize,
     /// Session IDs whose shutdown hook has already been handled.
     handled_session_end_ids: Mutex<HashSet<String>>,
 }
@@ -38,8 +41,15 @@ impl MemoryManager {
             memory_path,
             notes_dir,
             history_path,
+            l1_index_lines: DEFAULT_L1_INDEX_LINES,
             handled_session_end_ids: Mutex::new(HashSet::new()),
         }
+    }
+
+    /// Configure the L1 startup index budget for legacy rendering.
+    pub fn with_l1_index_lines(mut self, l1_index_lines: usize) -> Self {
+        self.l1_index_lines = l1_index_lines;
+        self
     }
 
     /// Load the long-term memory
@@ -239,13 +249,23 @@ impl MemoryManager {
     }
 
     /// Get memory context for the agent.
-    /// The redesigned memory model injects only long-term memory into prompts.
+    /// The redesigned memory model injects only a bounded L1 index into
+    /// prompts (B2/B10 minimal-pointer principle); full entries are retrieved
+    /// on demand through the memory tools.
     pub fn get_memory_context(&self) -> String {
         let memory = self.load_memory();
-        if memory.content.is_empty() {
+        let entries = memory
+            .content
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .enumerate()
+            .map(|(index, line)| (format!("legacy-line-{index}"), line.to_string()))
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
             String::new()
         } else {
-            format!("## Long-term Memory\n{}", memory.content)
+            render_l1_index_block(&entries, self.l1_index_lines)
         }
     }
 }

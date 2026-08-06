@@ -608,7 +608,7 @@ mod tests {
         let workspace = tempfile::tempdir().unwrap();
         let assembly =
             ToolAssembly::new(workspace.path().to_path_buf()).with_memory_provider(Some(Arc::new(
-                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path()),
+                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path(), 30),
             )));
         let registry = assembly.build();
         for name in [

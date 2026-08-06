@@ -577,6 +577,8 @@ fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         enqueue_background_task: config.tools.builtin.enqueue_background_task,
         update_plan: config.tools.builtin.update_plan,
         ask_user: config.tools.builtin.ask_user,
+        memory: config.tools.builtin.memory,
+        working_memory: config.tools.builtin.working_memory,
     }
 }
 
@@ -1041,6 +1043,7 @@ async fn build_agent_loop(
         agent_diva_agent::memory_boundary::memory_provider_for_mode(
             &workspace,
             config.memory.authority_mode,
+            config.memory.l1_index_lines,
         )
         .await,
     );

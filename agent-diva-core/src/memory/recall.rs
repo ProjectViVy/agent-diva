@@ -442,7 +442,8 @@ fn derived_importance_bps(record: &MemoryRecord) -> u32 {
         | MemoryRecordKind::Daily
         | MemoryRecordKind::Weekly
         | MemoryRecordKind::Monthly
-        | MemoryRecordKind::Journal => 6_000,
+        | MemoryRecordKind::Journal
+        | MemoryRecordKind::WorkingMemory => 6_000,
         MemoryRecordKind::Unknown => 0,
     };
     (u32::from(record.confidence_bps) * 2 + trust + kind) / 4
@@ -500,6 +501,7 @@ fn kind_key(kind: &MemoryRecordKind) -> &'static str {
         MemoryRecordKind::Monthly => "monthly",
         MemoryRecordKind::Journal => "journal",
         MemoryRecordKind::Learning => "learning",
+        MemoryRecordKind::WorkingMemory => "working_memory",
         MemoryRecordKind::Unknown => "unknown",
     }
 }

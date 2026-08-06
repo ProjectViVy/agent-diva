@@ -29,9 +29,10 @@ pub(crate) fn default_memory_provider(workspace: &Path) -> Arc<dyn MemoryProvide
 pub async fn memory_provider_for_mode(
     workspace: &Path,
     mode: MemoryAuthorityMode,
+    l1_index_lines: usize,
 ) -> Arc<dyn MemoryProvider> {
     if mode == MemoryAuthorityMode::Legacy {
-        return Arc::new(LegacyCrudMemoryProvider::new(workspace));
+        return Arc::new(LegacyCrudMemoryProvider::new(workspace, l1_index_lines));
     }
     let store_result = if mode == MemoryAuthorityMode::Shadow {
         agent_diva_laputa::TypedMemoryStore::open_existing_canonical(workspace).await
@@ -66,9 +67,10 @@ pub async fn memory_provider_for_mode(
     }
     let typed = Arc::new(agent_diva_laputa::LaputaRecallService::new(existing_store));
     if mode == MemoryAuthorityMode::Typed {
-        return match agent_diva_laputa::TypedLaputaMemoryProvider::open(
+        return match agent_diva_laputa::TypedLaputaMemoryProvider::open_with_l1_budget(
             workspace,
             agent_diva_core::workspace_identity::canonical_workspace_id(workspace),
+            l1_index_lines,
         )
         .await
         {
@@ -292,7 +294,7 @@ pub(crate) struct LegacyCrudMemoryProvider {
 }
 
 impl LegacyCrudMemoryProvider {
-    pub(crate) fn new(workspace: &Path) -> Self {
+    pub(crate) fn new(workspace: &Path, l1_index_lines: usize) -> Self {
         let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
         let coordinator =
             agent_diva_laputa::governed_apply::MemoryGovernanceCoordinator::open_lazy(
@@ -303,7 +305,7 @@ impl LegacyCrudMemoryProvider {
             .ok();
         Self {
             workspace: workspace.to_path_buf(),
-            legacy: MemoryManager::new(workspace),
+            legacy: MemoryManager::new(workspace).with_l1_index_lines(l1_index_lines),
             service: agent_diva_laputa::LaputaService::open(workspace)
                 .map_err(|error| warn!("legacy CRUD laputa unavailable: {error}"))
                 .ok(),
@@ -572,7 +574,7 @@ mod tests {
     #[tokio::test]
     async fn shadow_requires_a_valid_typed_store() {
         let temp = tempfile::tempdir().unwrap();
-        let provider = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Shadow).await;
+        let provider = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Shadow, 30).await;
         let response = provider
             .system_prompt_block(&SystemPromptRequest {
                 workspace_root: temp.path().to_path_buf(),
@@ -600,8 +602,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let legacy = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Legacy).await;
-        let shadow = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Shadow).await;
+        let legacy = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Legacy, 30).await;
+        let shadow = memory_provider_for_mode(temp.path(), MemoryAuthorityMode::Shadow, 30).await;
         let request = PrefetchRequest {
             workspace_root: temp.path().to_path_buf(),
             intent: "legacy recall".into(),
@@ -617,7 +619,7 @@ mod tests {
     #[tokio::test]
     async fn legacy_add_creates_proposal_not_memory_write() {
         let temp = tempfile::tempdir().unwrap();
-        let provider = LegacyCrudMemoryProvider::new(temp.path());
+        let provider = LegacyCrudMemoryProvider::new(temp.path(), 30);
         let outcome = provider
             .memory_add(
                 &MemoryCrudContext {
@@ -656,7 +658,7 @@ mod tests {
 ",
         )
         .unwrap();
-        let provider = LegacyCrudMemoryProvider::new(temp.path());
+        let provider = LegacyCrudMemoryProvider::new(temp.path(), 30);
         let outcome = provider
             .memory_list(
                 &MemoryCrudContext {

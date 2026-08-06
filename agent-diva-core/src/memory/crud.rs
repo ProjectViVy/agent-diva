@@ -56,6 +56,10 @@ pub struct MemoryDistillRequest {
     pub skill_name: String,
     /// Action-verified experience content (minimal patch discipline).
     pub content: String,
+    /// Optional session-context evidence backing the distillation (G1: the
+    /// Wave 1 minimal contract uses session context; checkpoint evidence is
+    /// attached by Wave 2 callers).
+    pub evidence: Option<String>,
 }
 
 /// A single entry of the applied memory projection.
