@@ -63,8 +63,11 @@ Wave 1 `memory` tools must surface the equivalent three states to the model:
   tombstone is durable and auditable, never a physical delete (F7).
 - Injection (startup/prefetch/context assembly) must recognize and filter
   tombstoned records so forgotten content stops appearing in prompts (G3).
-- Same-session hot injection of applied changes is a Wave 3 concern (F4);
-  Wave 1 only returns the new entry in the tool result (W1-4).
+- Same-session hot injection of applied changes is handled by Wave 6 S2 (F4):
+  `TypedLaputaMemoryProvider::refresh_startup_markdown()` re-renders the
+  startup cache after CRUD writes via `std::sync::RwLock<Option<String>>`;
+  `system_prompt_block` reads through the lock so the same session sees
+  the new content immediately.
 
 ## 5. Working memory lifecycle (GC)
 
@@ -79,15 +82,23 @@ Wave 1 `memory` tools must surface the equivalent three states to the model:
 - Startup rendering already filters `session_id.is_some()` records (Wave 3 S1),
   so GC is a physical cleanup optimization, not a read-side correctness fix.
 
-## 6. Known gaps
+## 6. Evidence advisory (B9 partial, Wave 6 S3)
 
-- **`memory_list` does not filter superseded records**: the `visible_record`
-  predicate checks trust/tombstone/session but does not call
-  `superseded_target_ids()`. `memory_search` and startup rendering do filter
-  superseded records. Fix: wire `superseded_target_ids()` into `memory_list`
-  (deferred to G2D+ / independent slice).
+- `MemoryCrudOutcome::Applied` carries `evidence_advisory: Option<String>`:
+  `None` means the write has backing evidence; `Some(text)` is a soft advisory
+  that the fact was stored without tool verification.
+- `MemoryAddRequest` includes `evidence_refs: Vec<EvidenceRef>` (serde default
+  for backward compatibility). When empty, `memory_add` sets the advisory.
+- This is a **partial** B9 implementation. Full enforcement (requiring evidence
+  for all writes, agent_loop evidence chain tracking) is deferred to a future
+  independent Wave.
 
-## 7. Cross-references
+## 7. Known gaps
+
+(No open code-level gaps after Wave 6. Remaining items are product/G2D+
+ acceptance: G1–G12 true-device end-to-end verification.)
+
+## 8. Cross-references
 
 - Decisions: inventory §10.1 (1–5), §10.2 (W1-1..W1-4), §10.3 (G1–G4).
 - Skill model: `docs/architecture/skill-sop-unification.md`.

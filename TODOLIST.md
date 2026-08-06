@@ -39,7 +39,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0/1/2/3/4/5 已完成（2026-08-07）；延期项归 G2D+ / 独立 Wave。**
+  **当前状态：Wave 0/1/2/3/4/5/6 已完成（2026-08-07）；延期项归 G2D+ / 独立 Wave。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -126,10 +126,10 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           apply_then_search_remains_consistent_across_reopens；发现并修复
           supersedes-targeted 记录泄漏到启动渲染与 search 的真实 bug
           （新增 TypedMemoryStore::superseded_target_ids + 两处过滤接线）
-    - [ ] **延期（Wave 5 或独立 slice）**：同会话热注入策略（F4，W1-4 延期项）
-          ——本 Wave 仅证"下次会话 prefetch/startup 可见"；apply 后同会话刷新
-          startup cache 或触发 re-prefetch 的机制未实现（startup_markdown 在
-          open() 一次性渲染缓存；文档化于 v0.0.7 acceptance.md）
+    - [x] ~~**延期（Wave 5 或独立 slice）**~~：同会话热注入策略（F4，W1-4 延期项）
+          **已在 Wave 6 S2 完成**（`56dd15d5`）——`startup_markdown` 改为
+          `RwLock<Option<String>>`；CRUD 写入成功后调 `refresh_startup_markdown()`
+          重新渲染缓存；同会话 `system_prompt_block` 即时可见新内容
     - [x] U1「记住→下次会话还在」、U2「你还记得吗」以本 Wave 为通过前提：
           自动化证据已具备（apply→FTS→startup 一致性测试）；真机联通 smoke
           归 G2D+ 桌面验收一并执行（规则 smoke-test-required-for-user-visible-change
@@ -180,11 +180,31 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           `agent_diva_tools::distill_guard` 跨 crate flag（`memory_distill` 成功后
           置位 → `should_consolidate` 跳过）；3 个 wave5_tests + prompt 契约测试
     - [ ] **Wave 5 延期项（归 G2D+ / 后续独立 Wave）**：
-      - B9 完整 tool-result 强制校验（Wave 2 延期项）
-      - F4 同会话热注入（Wave 3 延期项——apply 后同会话刷新 startup cache）
+      - B9 完整 tool-result 强制校验（Wave 2 延期项；**Wave 6 S3 已实现软
+        advisory 子集** `c2e17e5e`——完整强制归后续独立 Wave）
+      - ~~F4 同会话热注入~~（**已在 Wave 6 S2 完成** `56dd15d5`）
       - F7 GUI 可见 tombstone 历史（S3 已证自动化路径；GUI 联通归 G2D+）
-      - `memory_list` 不过滤 superseded 记录（S3 发现并记录——读侧过滤仅
-        search + startup 接线了 `superseded_target_ids`，list 待补）
+      - ~~`memory_list` 不过滤 superseded 记录~~（**已在 Wave 6 S1 修复**
+        `2572a478`——`superseded_target_ids()` 已接入 memory_list 过滤）
+      - G1/G2/G3/G5/G6/G7/G10/G11/G12 真机端到端验收（Wave 4 延期项）
+  - [x] **WAVE6-PRE-G2D：真机前收口（代码级缺口修复）** `sev-P0`
+    - [x] S1 memory_list superseded 过滤（A）：`2572a478` `memory_list` 增加
+          `superseded_target_ids()` 过滤（与 memory_search/startup 同模式）；
+          wave5_acceptance 测试断言修正为 NOT-in-list
+    - [x] S2 F4 同会话热注入（B）：`56dd15d5` `startup_markdown` 改为
+          `std::sync::RwLock<Option<String>>`；提取 `render_startup_index` 辅助
+          函数；新增 `refresh_startup_markdown()`；CRUD 写入成功后刷新缓存；
+          `f4_memory_add_visible_in_same_session_startup` 测试验证
+    - [x] S3 B9 soft evidence advisory（C）：`c2e17e5e`
+          `MemoryCrudOutcome::Applied` 新增 `evidence_advisory: Option<String>`
+          （None = 有 evidence；Some = advisory 文案）；`MemoryAddRequest` 新增
+          `evidence_refs: Vec<EvidenceRef>`（serde default 向后兼容）；
+          `memory_add` 传 evidence_refs 到 MemoryRecord 并在空时设 advisory；
+          全 workspace Applied 构造/析构更新；wave6_tests 两个用例
+    - [x] S4 docs 收口 + TODOLIST（D）：本提交
+    - [ ] **Wave 6 延期项（归 G2D+ / 后续独立 Wave）**：
+      - B9 完整 tool-result 强制校验（S3 仅做软 advisory；完整强制需改
+        MemoryAddRequest schema + agent_loop 证据链跟踪）
       - G1/G2/G3/G5/G6/G7/G10/G11/G12 真机端到端验收（Wave 4 延期项）
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
