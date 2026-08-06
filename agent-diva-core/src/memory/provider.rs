@@ -6,6 +6,10 @@
 //! by Laputa's adapter layer and keeps long-memory ownership outside prompt
 //! assembly and loop execution code.
 
+use crate::memory::crud::{
+    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest,
+    MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
+};
 use std::path::PathBuf;
 
 /// Deterministic status for startup wakeup injection.
@@ -433,6 +437,63 @@ pub trait MemoryProvider: Send + Sync {
     /// Persist a payload-free outcome for the immediately preceding Recall.
     async fn record_recall_outcome(&self, _request: RecallOutcomeRequest) -> crate::Result<()> {
         Ok(())
+    }
+
+    /// Low-risk immediate memory write (user-requested fact or preference).
+    ///
+    /// Default implementations are unsupported; providers that support the
+    /// agent tool surface override this and the other `memory_*` methods.
+    async fn memory_add(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryAddRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_add"))
+    }
+
+    /// List the applied memory projection.
+    async fn memory_list(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryListRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_list"))
+    }
+
+    /// Search applied memory.
+    async fn memory_search(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemorySearchRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_search"))
+    }
+
+    /// High-risk update; must create a reviewable proposal, not apply directly.
+    async fn memory_update(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryUpdateRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_update"))
+    }
+
+    /// High-risk removal; must create a reviewable deprecation proposal.
+    async fn memory_remove(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryRemoveRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_remove"))
+    }
+
+    /// Proactive experience distillation into a skill artifact.
+    async fn memory_distill(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryDistillRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_distill"))
     }
 
     /// Trigger shutdown/session-end rhythm work if needed.

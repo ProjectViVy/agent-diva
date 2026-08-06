@@ -2,12 +2,17 @@
 //!
 //! Handles loading and updating of `MEMORY.md` and `HISTORY.md`.
 
+pub mod crud;
 pub mod manager;
 pub mod provider;
 pub mod recall;
 pub mod record;
 pub mod storage;
 
+pub use crud::{
+    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
+    MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
+};
 pub use manager::MemoryManager;
 pub use provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,
