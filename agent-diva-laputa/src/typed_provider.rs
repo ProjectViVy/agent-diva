@@ -431,10 +431,16 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         let limit = request.limit.unwrap_or(MAX_MEMORY_RECORDS as u32);
         match self.crud_store.list(limit).await {
             Ok(records) => {
+                let superseded = self
+                    .crud_store
+                    .superseded_target_ids()
+                    .await
+                    .unwrap_or_default();
                 let entries = records
                     .into_iter()
                     .map(|stored| stored.record)
                     .filter(visible_record)
+                    .filter(|record| !superseded.contains(&record.id))
                     .map(entry_from)
                     .collect();
                 Ok(MemoryCrudOutcome::Listed { entries })

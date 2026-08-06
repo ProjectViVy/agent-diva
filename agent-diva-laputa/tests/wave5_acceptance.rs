@@ -389,9 +389,8 @@ async fn f7_tombstone_lifecycle_filters_startup_and_search() {
         "tombstoned record must not appear in search, got {entries:?}"
     );
 
-    // memory_list does NOT filter superseded records (visible_record only checks
-    // trust/tombstone/session_id). This is a known gap — superseded records remain
-    // visible in list until a future wave adds superseded filtering to the list path.
+    // memory_list now filters superseded records (Wave 6 S1 closure of the
+    // known gap documented in Wave 5 S3).
     let list = provider_after
         .memory_list(&context(&temp), MemoryListRequest { limit: None })
         .await
@@ -405,8 +404,8 @@ async fn f7_tombstone_lifecycle_filters_startup_and_search() {
     assert!(
         list_entries
             .iter()
-            .any(|e| e.content.contains("falcon hunts")),
-        "superseded record is still visible in list (known gap: list does not filter superseded)"
+            .all(|e| !e.content.contains("falcon hunts")),
+        "superseded record must not appear in list, got {list_entries:?}"
     );
 }
 
