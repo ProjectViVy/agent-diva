@@ -595,6 +595,30 @@ impl TypedMemoryStore {
         rows.into_iter().map(|row| decode_stored(&row)).collect()
     }
 
+    /// IDs targeted by any supersedes tombstone currently in the store.
+    ///
+    /// Read-side projections (startup L1 index, recall, search) use this to
+    /// exclude records that a subsequent tombstone has deposed, even when
+    /// the target record itself has no tombstone flag set.
+    pub async fn superseded_target_ids(
+        &self,
+    ) -> Result<std::collections::HashSet<String>, TypedMemoryStoreError> {
+        let rows = sqlx::query(
+            "SELECT s.superseded_id
+             FROM memory_supersedes s
+             JOIN memory_records r ON r.memory_id = s.memory_id
+             WHERE r.tombstone = 1",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut targets = std::collections::HashSet::new();
+        for row in rows {
+            let target: String = row.get("superseded_id");
+            targets.insert(target);
+        }
+        Ok(targets)
+    }
+
     /// Import a deterministic record set in one transaction.
     ///
     /// Records already present with identical canonical JSON are treated as

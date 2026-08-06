@@ -60,12 +60,14 @@ impl TypedLaputaMemoryProvider {
             return Err(TypedMemoryStoreError::CorruptRecord);
         }
         let records = store.list(MAX_MEMORY_RECORDS as u32).await?;
+        let superseded = store.superseded_target_ids().await.unwrap_or_default();
         let index_entries = records
             .into_iter()
             .filter(|stored| {
                 stored.record.trust == MemoryTrust::AppliedAuthority
                     && stored.record.tombstone.is_none()
                     && stored.record.scope.session_id.is_none()
+                    && !superseded.contains(&stored.record.id)
             })
             .map(|stored| (stored.record.id, stored.record.content))
             .collect::<Vec<_>>();
@@ -430,6 +432,11 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             workspace_id: self.workspace_id.clone(),
             session_id: None,
         };
+        let superseded = self
+            .crud_store
+            .superseded_target_ids()
+            .await
+            .unwrap_or_default();
         match self
             .crud_store
             .search_visible(&request.query, &scope, limit)
@@ -440,6 +447,7 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                     .into_iter()
                     .map(|hit| hit.stored.record)
                     .filter(visible_record)
+                    .filter(|record| !superseded.contains(&record.id))
                     .map(entry_from)
                     .collect();
                 Ok(MemoryCrudOutcome::Listed { entries })
@@ -1315,5 +1323,454 @@ mod wave2_tests {
         assert!(evidence_file.exists());
         let content = std::fs::read_to_string(evidence_file).unwrap();
         assert!(content.contains("rollout of v0.5.0"));
+    }
+}
+
+#[cfg(test)]
+mod wave3_tests {
+    use super::*;
+    use agent_diva_core::memory::{
+        MemorySearchRequest, PrefetchRequest, SessionEndRequest, SystemPromptRequest,
+    };
+    use agent_diva_core::workspace_identity::canonical_workspace_id;
+
+    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        TypedLaputaMemoryProvider::open(temp.path(), canonical_workspace_id(temp.path()))
+            .await
+            .unwrap()
+    }
+
+    async fn open_provider_with_budget(
+        temp: &tempfile::TempDir,
+        l1_index_lines: usize,
+    ) -> TypedLaputaMemoryProvider {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        TypedLaputaMemoryProvider::open_with_l1_budget(
+            temp.path(),
+            canonical_workspace_id(temp.path()),
+            l1_index_lines,
+        )
+        .await
+        .unwrap()
+    }
+
+    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        MemoryCrudContext {
+            workspace_root: temp.path().to_path_buf(),
+        }
+    }
+
+    /// D4 — `prefetch` must return a populated prompt block that actually
+    /// contains the recalled content (not just a status flag).
+    #[tokio::test]
+    async fn recall_returns_prompt_block_with_recalled_content() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "the release summary must mention kestrel-7".into(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let response = provider
+            .prefetch(PrefetchRequest {
+                workspace_root: temp.path().to_path_buf(),
+                intent: "release summary".into(),
+                current_room: None,
+                user_message: Some("what did the release summary say?".into()),
+            })
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(response.status, PrefetchStatus::Ready),
+            "expected Ready, got {:?}",
+            response.status
+        );
+        let block = response
+            .prompt_block
+            .expect("prefetch prompt_block expected");
+        assert!(
+            block.contains("kestrel-7"),
+            "recalled block must mention the indexed content, got: {block}"
+        );
+    }
+
+    /// D4 + H3 — records written via `memory_add` must be visible in the next
+    /// startup rendering (the "next session sees the write" contract).
+    #[tokio::test]
+    async fn memory_add_visible_in_next_startup_rendering() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel release plan for Q3".into(),
+                },
+            )
+            .await
+            .unwrap();
+        drop(provider);
+
+        let fresh = open_provider(&temp).await;
+        let response = fresh
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp.path().to_path_buf(),
+            })
+            .unwrap();
+        let markdown = response.prompt_block.expect("startup block").markdown;
+        assert!(
+            markdown.contains("memory-add-"),
+            "startup markdown must list the memory-add record id, got: {markdown}"
+        );
+        assert!(
+            markdown.contains("kestrel release plan"),
+            "startup L1 index must include the content preview, got: {markdown}"
+        );
+    }
+
+    /// G3 / U3 — a supersedes tombstone record must be excluded from the
+    /// next startup rendering (read-side forget contract). Typed mode
+    /// creates tombstones via governed proposal, so we construct the
+    /// canonical tombstone shape directly against the store — matching the
+    /// Wave 2 session-end tombstone and the `search_excludes_tombstoned_
+    /// records` pattern — to assert the read-side projection contract.
+    #[tokio::test]
+    async fn supersedes_tombstone_filtered_from_next_startup_rendering() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "obsolete staging path /tmp/staging-xyz".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let record_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let now = Utc::now();
+        let tombstone = MemoryRecord {
+            id: format!("tombstone-{}", now.timestamp_micros()),
+            kind: MemoryRecordKind::LongTerm,
+            content: String::new(),
+            provenance: MemoryProvenance {
+                source: MemoryProvenanceSource::AutoDream,
+                source_id: "wave3-test".into(),
+                content_digest: memory_content_digest(b""),
+                captured_at: now,
+                correlation: AuditCorrelation {
+                    request_id: format!("tombstone-{record_id}"),
+                    turn_id: "wave3".into(),
+                    session_id: "global".into(),
+                    trace_id: None,
+                },
+            },
+            evidence_refs: vec![],
+            confidence_bps: MAX_CONFIDENCE_BPS,
+            sensitivity: MemorySensitivity::Internal,
+            trust: MemoryTrust::AppliedAuthority,
+            scope: MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: canonical_workspace_id(temp.path()),
+                session_id: None,
+            },
+            created_at: now,
+            effective_at: now,
+            expires_at: None,
+            supersedes: vec![record_id.clone()],
+            tombstone: Some(MemoryTombstone {
+                target_record_id: record_id.clone(),
+                reason_digest: memory_content_digest(b"staging path retired"),
+                actor_id: "wave3-test".into(),
+                created_at: now,
+            }),
+        };
+        let metadata = provider.crud_store.metadata().await.unwrap();
+        provider
+            .crud_store
+            .put(tombstone, metadata.store_revision, None)
+            .await
+            .unwrap();
+        drop(provider);
+
+        let fresh = open_provider(&temp).await;
+        let response = fresh
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp.path().to_path_buf(),
+            })
+            .unwrap();
+        let markdown = response.prompt_block.expect("startup block").markdown;
+        assert!(
+            !markdown.contains(&record_id),
+            "startup markdown must not mention the tombstoned record id '{record_id}', got: {markdown}"
+        );
+        assert!(
+            !markdown.contains("staging-xyz"),
+            "startup markdown must not leak tombstoned content preview"
+        );
+    }
+
+    /// G3 / U3 — a supersedes tombstone must also hide its target from
+    /// `memory_search`, even when the query text matches the original
+    /// record (read-side forget contract extends to recall).
+    #[tokio::test]
+    async fn supersedes_tombstone_filtered_from_search() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "secret project name is kestrel_nine".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let record_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let now = Utc::now();
+        let tombstone = MemoryRecord {
+            id: format!("tombstone-{}", now.timestamp_micros()),
+            kind: MemoryRecordKind::LongTerm,
+            content: String::new(),
+            provenance: MemoryProvenance {
+                source: MemoryProvenanceSource::AutoDream,
+                source_id: "wave3-search-test".into(),
+                content_digest: memory_content_digest(b""),
+                captured_at: now,
+                correlation: AuditCorrelation {
+                    request_id: format!("tombstone-{record_id}-search"),
+                    turn_id: "wave3".into(),
+                    session_id: "global".into(),
+                    trace_id: None,
+                },
+            },
+            evidence_refs: vec![],
+            confidence_bps: MAX_CONFIDENCE_BPS,
+            sensitivity: MemorySensitivity::Internal,
+            trust: MemoryTrust::AppliedAuthority,
+            scope: MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: canonical_workspace_id(temp.path()),
+                session_id: None,
+            },
+            created_at: now,
+            effective_at: now,
+            expires_at: None,
+            supersedes: vec![record_id.clone()],
+            tombstone: Some(MemoryTombstone {
+                target_record_id: record_id.clone(),
+                reason_digest: memory_content_digest(b"retracted"),
+                actor_id: "wave3-search-test".into(),
+                created_at: now,
+            }),
+        };
+        let metadata = provider.crud_store.metadata().await.unwrap();
+        provider
+            .crud_store
+            .put(tombstone, metadata.store_revision, None)
+            .await
+            .unwrap();
+
+        let search = provider
+            .memory_search(
+                &context(&temp),
+                MemorySearchRequest {
+                    query: "kestrel_nine".into(),
+                    limit: Some(10),
+                },
+            )
+            .await
+            .unwrap();
+        let MemoryCrudOutcome::Listed { entries } = search else {
+            panic!("expected Listed, got {search:?}");
+        };
+        assert!(
+            entries.iter().all(|hit| hit.id != record_id),
+            "search must not return supersedes-targeted record {record_id}, got {entries:?}"
+        );
+    }
+
+    /// G3 — `memory_remove` against the typed authority must create a
+    /// durable governed proposal (proposal-first contract, not direct
+    /// mutation). The subsequent apply step (F3 / GMH-52 desktop
+    /// acceptance) finalizes the tombstone; that handoff is out of scope
+    /// for this read-side assertion.
+    #[tokio::test]
+    async fn memory_remove_creates_governed_proposal() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "ephemeral note about merlin-cache".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let record_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let remove_outcome = provider
+            .memory_remove(
+                &context(&temp),
+                MemoryRemoveRequest {
+                    record_id: record_id.clone(),
+                    reason: "retracted".into(),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(
+            matches!(remove_outcome, MemoryCrudOutcome::ProposalCreated { .. }),
+            "typed memory_remove must produce a governed proposal, got {remove_outcome:?}"
+        );
+    }
+
+    /// B2 — the L1 index must respect the configured line budget; surplus
+    /// records fall through to the recall path instead of bloating startup.
+    #[tokio::test]
+    async fn startup_respects_l1_budget_ceiling() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider_with_budget(&temp, 2).await;
+        for i in 0..5 {
+            provider
+                .memory_add(
+                    &context(&temp),
+                    MemoryAddRequest {
+                        content: format!("budgeted fact number {i} about kestrel"),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        drop(provider);
+
+        let fresh = open_provider_with_budget(&temp, 2).await;
+        let response = fresh
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp.path().to_path_buf(),
+            })
+            .unwrap();
+        let markdown = response.prompt_block.expect("startup block").markdown;
+        assert_eq!(
+            markdown.matches("- [memory-add-").count(),
+            2,
+            "L1 index must render exactly 2 lines under a budget of 2"
+        );
+    }
+
+    /// F5 / H3 — `memory_search` after a fresh provider open must hit the
+    /// record that was added in a prior provider lifetime (typed FTS
+    /// durability contract).
+    #[tokio::test]
+    async fn apply_then_search_remains_consistent_across_reopens() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel rollback procedure requires two reviewers".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let record_id = match outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+        drop(provider);
+
+        let fresh = open_provider(&temp).await;
+        let search = fresh
+            .memory_search(
+                &context(&temp),
+                MemorySearchRequest {
+                    query: "rollback reviewers".into(),
+                    limit: Some(10),
+                },
+            )
+            .await
+            .unwrap();
+        let MemoryCrudOutcome::Listed { entries } = search else {
+            panic!("expected Listed, got {search:?}");
+        };
+        assert!(
+            entries.iter().any(|hit| hit.id == record_id),
+            "search across a fresh provider must hit record {record_id}, got {entries:?}"
+        );
+    }
+
+    /// F5 / H3 — working checkpoint (session-scoped) must not leak into the
+    /// next session's search results or startup rendering after session end.
+    #[tokio::test]
+    async fn checkpoint_invisible_to_search_and_subsequent_startup() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        provider
+            .checkpoint_write(agent_diva_core::memory::CheckpointWriteRequest {
+                workspace_root: temp.path().to_path_buf(),
+                session_id: "channel:wave3-session".into(),
+                key_info: "migrating kestrel cache".into(),
+                related_sops: vec![],
+                content: "port 8443 confirmed for kestrel".into(),
+            })
+            .await
+            .unwrap();
+        provider
+            .on_session_end(SessionEndRequest {
+                workspace_root: temp.path().to_path_buf(),
+                session_id: Some("channel:wave3-session".into()),
+            })
+            .await
+            .unwrap();
+        drop(provider);
+
+        let fresh = open_provider(&temp).await;
+        let search = fresh
+            .memory_search(
+                &context(&temp),
+                MemorySearchRequest {
+                    query: "kestrel port 8443".into(),
+                    limit: Some(10),
+                },
+            )
+            .await
+            .unwrap();
+        let MemoryCrudOutcome::Listed { entries } = search else {
+            panic!("expected Listed, got {search:?}");
+        };
+        assert!(
+            entries.is_empty(),
+            "post-session-end search must not return checkpoint content, got {entries:?}"
+        );
+        let startup = fresh
+            .system_prompt_block(&SystemPromptRequest {
+                workspace_root: temp.path().to_path_buf(),
+            })
+            .unwrap();
+        let markdown = startup.prompt_block.expect("startup block").markdown;
+        assert!(
+            !markdown.contains("port 8443"),
+            "startup must not leak cleared checkpoint content"
+        );
     }
 }
