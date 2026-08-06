@@ -173,7 +173,17 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().to_path_buf();
         std::mem::forget(temp);
-        let state = AppState::new(api_tx, MessageBus::new(), workspace).unwrap();
+        // Explicit Legacy: no typed workspace store exists in this fixture, and
+        // memory health must stay ready for the all-ready test case.
+        let state = AppState::new_with_runtime_memory(
+            api_tx,
+            MessageBus::new(),
+            workspace,
+            agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
+            MemoryAuthorityMode::Legacy,
+        )
+        .unwrap();
         if mark_cron_ready {
             state.health.mark_cron_ready();
         }

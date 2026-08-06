@@ -561,8 +561,17 @@ mod tests {
     async fn laputa_apply_preserves_typed_schema_incompatible_error_code() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        // Explicit Legacy: the file-first apply path performs the JSON schema
+        // validation this test guards; the typed branch has its own validation.
+        let state = AppState::new_with_runtime_memory(
+            api_tx,
+            agent_diva_core::bus::MessageBus::new(),
+            temp.path(),
+            agent_diva_sandbox::CommandApprovalCoordinator::default(),
+            agent_diva_core::ask_user::AskUserCoordinator::default(),
+            agent_diva_core::config::schema::MemoryAuthorityMode::Legacy,
+        )
+        .unwrap();
         state
             .laputa
             .create_proposal(laputa_proposal("proposal-1", "not-json"))

@@ -289,7 +289,7 @@ pub struct Config {
     /// Tools configuration
     pub tools: ToolsConfig,
     /// Memory authority and cutover configuration.
-    #[serde(default = "legacy_memory_config")]
+    #[serde(default)]
     pub memory: MemoryConfig,
     /// Self-evolution and AutoDream governance policy.
     #[serde(default)]
@@ -311,7 +311,7 @@ pub struct Config {
 /// Memory authority configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MemoryConfig {
-    /// Runtime authority selection. Missing values preserve the legacy boundary.
+    /// Runtime authority selection. Typed is the out-of-box default.
     #[serde(default)]
     pub authority_mode: MemoryAuthorityMode,
 }
@@ -324,20 +324,14 @@ impl Default for MemoryConfig {
     }
 }
 
-fn legacy_memory_config() -> MemoryConfig {
-    MemoryConfig {
-        authority_mode: MemoryAuthorityMode::Legacy,
-    }
-}
-
 /// Explicit Memory authority state.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryAuthorityMode {
     #[default]
-    Legacy,
-    Shadow,
     Typed,
+    Shadow,
+    Legacy,
 }
 
 #[cfg(test)]
@@ -345,9 +339,31 @@ mod memory_authority_tests {
     use super::*;
 
     #[test]
-    fn missing_memory_config_defaults_to_legacy() {
+    fn missing_memory_config_defaults_to_typed() {
         let mut value = serde_json::to_value(Config::default()).unwrap();
         value.as_object_mut().unwrap().remove("memory");
+        let config: Config = serde_json::from_value(value).unwrap();
+        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Typed);
+    }
+
+    #[test]
+    fn memory_section_without_authority_mode_defaults_to_typed() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("memory".to_string(), serde_json::json!({}));
+        let config: Config = serde_json::from_value(value).unwrap();
+        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Typed);
+    }
+
+    #[test]
+    fn explicit_legacy_authority_mode_is_honored() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value.as_object_mut().unwrap().insert(
+            "memory".to_string(),
+            serde_json::json!({"authority_mode": "legacy"}),
+        );
         let config: Config = serde_json::from_value(value).unwrap();
         assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Legacy);
     }

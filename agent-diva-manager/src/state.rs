@@ -123,7 +123,7 @@ impl AppState {
             workspace_root,
             command_approvals,
             ask_user,
-            MemoryAuthorityMode::Legacy,
+            MemoryAuthorityMode::Typed,
         )
     }
 
