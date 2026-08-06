@@ -29,6 +29,25 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
+- `2026-08-06T22:30:00+08:00`: Released after GA-MEM-PARITY Wave 4
+  (AutoDream G4 dedup) closure: 3 commits —
+  `f042bba4` laputa `LaputaService::applied_authority_digests` + new
+  `LaputaError::InvalidState(String)` variant + service wave4_tests × 3;
+  `a39638bb` autodream worker dual-path digest merge (legacy section +
+  typed authority) + tracing::warn graceful degradation + worker
+  wave4_tests × 3; `76dc772c` docs close (TODOLIST WAVE4 checked +
+  "Wave 4 延期项" G1/G2/G3/G5/G6/G7/G10/G11/G12 条目化 +
+  memory-write-paths-contract.md "Realized in Wave 4" 追溯注脚 +
+  v0.0.8 iteration logs). All gates green per slice (fmt/clippy -D
+  warnings; laputa 38+9, autodream 14+6 suites); full workspace test
+  only fails the 6 pre-existing CLI wiremock 502 cases
+  (CLI-WIREMOCK-502-PREEXISTING). Wave 5 (consolidation 条目化 + B7 GC +
+  F3/F4/F6/F7 延期项收口) or G2D+ 真机桌面验收 pending. Deferred to
+  G2D+ / 后续独立 Wave: G1 手动触发端到端、G2 自动阈值触发联通、G3
+  多源输入闭环、G5 候选→proposal 端到端、G6 审查 UI、G7 节律报告可见、
+  G10 与 agent 即时记忆分工真机验证、G11 L4/salient 等价、G12
+  Action-Verified 公理对齐.
+
 - `2026-08-06T19:45:00+08:00`: Released after GA-MEM-PARITY Wave 3
   (read-side closure) closure: 3 commits — laputa wave3_tests (8 tests
   + supersedes-target production bug fix via new
