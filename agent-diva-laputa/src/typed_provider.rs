@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use agent_diva_core::audit::{emit as audit_emit, AuditEvent};
 use agent_diva_core::evolution::{
@@ -29,7 +29,7 @@ use crate::{
 pub struct TypedLaputaMemoryProvider {
     workspace: PathBuf,
     workspace_id: String,
-    startup_markdown: Option<String>,
+    startup_markdown: RwLock<Option<String>>,
     recall: LaputaRecallService,
     crud_store: TypedMemoryStore,
     coordinator: Option<MemoryGovernanceCoordinator>,
@@ -58,21 +58,8 @@ impl TypedLaputaMemoryProvider {
         if !integrity.corrupt_record_ids.is_empty() || integrity.orphan_fts_rows != 0 {
             return Err(TypedMemoryStoreError::CorruptRecord);
         }
-        let records = store.list(MAX_MEMORY_RECORDS as u32).await?;
-        let superseded = store.superseded_target_ids().await.unwrap_or_default();
-        let index_entries = records
-            .into_iter()
-            .filter(|stored| {
-                stored.record.trust == MemoryTrust::AppliedAuthority
-                    && stored.record.tombstone.is_none()
-                    && stored.record.scope.session_id.is_none()
-                    && !superseded.contains(&stored.record.id)
-            })
-            .map(|stored| (stored.record.id, stored.record.content))
-            .collect::<Vec<_>>();
-        let rendered = render_l1_index_block(&index_entries, l1_index_lines);
-        let startup_markdown = (!rendered.trim().is_empty())
-            .then(|| format!("## Embedded Laputa Typed Memory\n\n{rendered}"));
+        let startup_markdown =
+            RwLock::new(Self::render_startup_index(&store, l1_index_lines).await?);
         let proposal_sink = LaputaMemoryProvider::open(workspace)
             .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
         let feedback = RecallFeedbackStore::new(
@@ -93,6 +80,34 @@ impl TypedLaputaMemoryProvider {
             feedback,
             pending_feedback: tokio::sync::Mutex::new(Vec::new()),
         })
+    }
+
+    async fn render_startup_index(
+        store: &TypedMemoryStore,
+        l1_index_lines: usize,
+    ) -> Result<Option<String>, TypedMemoryStoreError> {
+        let records = store.list(MAX_MEMORY_RECORDS as u32).await?;
+        let superseded = store.superseded_target_ids().await.unwrap_or_default();
+        let index_entries = records
+            .into_iter()
+            .filter(|stored| {
+                stored.record.trust == MemoryTrust::AppliedAuthority
+                    && stored.record.tombstone.is_none()
+                    && stored.record.scope.session_id.is_none()
+                    && !superseded.contains(&stored.record.id)
+            })
+            .map(|stored| (stored.record.id, stored.record.content))
+            .collect::<Vec<_>>();
+        let rendered = render_l1_index_block(&index_entries, l1_index_lines);
+        Ok((!rendered.trim().is_empty())
+            .then(|| format!("## Embedded Laputa Typed Memory\n\n{rendered}")))
+    }
+
+    async fn refresh_startup_markdown(&self) -> Result<(), TypedMemoryStoreError> {
+        let rendered = Self::render_startup_index(&self.crud_store, DEFAULT_L1_INDEX_LINES).await?;
+        let mut guard = self.startup_markdown.write().unwrap();
+        *guard = rendered;
+        Ok(())
     }
 
     /// Stable record id for a session working checkpoint.
@@ -289,10 +304,11 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         &self,
         _request: &SystemPromptRequest,
     ) -> agent_diva_core::Result<SystemPromptResponse> {
-        Ok(match &self.startup_markdown {
+        let cached = self.startup_markdown.read().unwrap().clone();
+        Ok(match cached {
             Some(markdown) => SystemPromptResponse::ready(SystemPromptBlock {
                 shape: StartupInjectionShape::CompactRenderedMarkdown,
-                markdown: markdown.clone(),
+                markdown,
             }),
             None => SystemPromptResponse::degraded(
                 "Embedded Laputa typed authority is empty; no startup Memory rendered",
@@ -418,6 +434,9 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                 "content_digest": digest.value,
             }),
         });
+        if let Err(e) = self.refresh_startup_markdown().await {
+            tracing::warn!("memory_add: failed to refresh startup cache: {e}");
+        }
         Ok(MemoryCrudOutcome::Applied {
             entry: Some(entry_from(stored.record)),
         })

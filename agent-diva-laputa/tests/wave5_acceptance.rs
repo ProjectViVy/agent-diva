@@ -484,3 +484,50 @@ async fn f7_tombstone_target_missing_stores_tombstone_record() {
         "phantom tombstone must not inject content into startup"
     );
 }
+
+#[tokio::test]
+async fn f4_memory_add_visible_in_same_session_startup() {
+    let temp = tempfile::tempdir().unwrap();
+    let provider = open_provider(&temp).await;
+
+    let before = provider
+        .system_prompt_block(&SystemPromptRequest {
+            workspace_root: temp.path().to_path_buf(),
+        })
+        .unwrap();
+    let before_text = before
+        .prompt_block
+        .as_ref()
+        .map(|b| b.markdown.as_str())
+        .unwrap_or("");
+    assert!(
+        !before_text.contains("aurora observation"),
+        "startup should not contain the fact before add"
+    );
+
+    let add = provider
+        .memory_add(
+            &context(&temp),
+            MemoryAddRequest {
+                content: "aurora observation".into(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(add, MemoryCrudOutcome::Applied { .. }));
+
+    let after = provider
+        .system_prompt_block(&SystemPromptRequest {
+            workspace_root: temp.path().to_path_buf(),
+        })
+        .unwrap();
+    let after_text = after
+        .prompt_block
+        .as_ref()
+        .map(|b| b.markdown.as_str())
+        .unwrap_or("");
+    assert!(
+        after_text.contains("aurora observation"),
+        "startup must reflect the newly added fact within the same provider instance, got: {after_text}"
+    );
+}
