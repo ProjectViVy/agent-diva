@@ -790,6 +790,20 @@ impl AgentLoop {
 
         info!("Agent loop stopped");
 
+        // Clear per-session working memory checkpoints before shutdown.
+        for session in self.sessions.list_sessions() {
+            if let Err(error) = self
+                .memory_provider
+                .on_session_end(SessionEndRequest {
+                    workspace_root: self.workspace.clone(),
+                    session_id: Some(session.key),
+                })
+                .await
+            {
+                warn!("Session-end checkpoint cleanup failed: {}", error);
+            }
+        }
+
         // Trigger session-end rhythm work with idempotency.
         match self
             .memory_provider

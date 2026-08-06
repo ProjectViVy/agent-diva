@@ -77,6 +77,20 @@ impl PreparedTurnContext {
     }
 }
 
+/// Inject the session working memory block right after the system prompt.
+///
+/// Returns whether a block was injected so later stage inserts (prefetch) can
+/// shift their index accordingly.
+fn inject_working_memory(messages: &mut Vec<Message>, block: Option<String>) -> bool {
+    match block.filter(|value| !value.trim().is_empty()) {
+        Some(block) => {
+            messages.insert(1, Message::system(block));
+            true
+        }
+        None => false,
+    }
+}
+
 impl AgentLoop {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prepare_runtime_context(
@@ -359,6 +373,21 @@ impl AgentLoop {
             current_turn_message.clone(),
         );
         let mut messages = prepared.messages;
+        let working_injected = match self
+            .memory_provider
+            .working_memory_block(agent_diva_core::memory::WorkingMemoryRequest {
+                workspace_root: self.workspace.clone(),
+                session_id: session_key.to_string(),
+            })
+            .await
+        {
+            Ok(response) => inject_working_memory(&mut messages, response.prompt_block),
+            Err(error) => {
+                warn!("Working memory block failed (non-fatal): {}", error);
+                false
+            }
+        };
+        let prefetch_insert_at = 1 + usize::from(working_injected);
         let prefetch_intent = derive_prefetch_intent(&message_content);
         if !prefetch_intent.is_empty() {
             match self
@@ -377,7 +406,7 @@ impl AgentLoop {
                     }
                     _ => {
                         if let Some(block) = response.prompt_block {
-                            messages.insert(1, Message::system(block));
+                            messages.insert(prefetch_insert_at, Message::system(block));
                             trace!(
                                 trace_id = %trace_id,
                                 step_name = "prefetch_injected",
@@ -440,5 +469,33 @@ mod tests {
             .as_text()
             .is_some_and(|text| text.contains("scheduled cron job")));
         assert_eq!(context.messages[2].content.as_text(), Some("current"));
+    }
+
+    #[test]
+    fn working_memory_block_injects_after_system_prompt() {
+        let mut messages = vec![Message::system("system"), Message::user("current")];
+        let injected = inject_working_memory(
+            &mut messages,
+            Some("## Working Memory\nin-flight state".to_string()),
+        );
+        assert!(injected);
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[1].role, "system");
+        assert!(messages[1]
+            .content
+            .as_text()
+            .is_some_and(|text| text.contains("Working Memory")));
+        assert_eq!(messages[2].content.as_text(), Some("current"));
+    }
+
+    #[test]
+    fn empty_working_memory_block_is_not_injected() {
+        let mut messages = vec![Message::system("system"), Message::user("current")];
+        assert!(!inject_working_memory(&mut messages, None));
+        assert!(!inject_working_memory(
+            &mut messages,
+            Some("   ".to_string())
+        ));
+        assert_eq!(messages.len(), 2);
     }
 }

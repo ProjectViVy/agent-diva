@@ -149,6 +149,10 @@ Your workspace is at: {workspace_path}
             prompt.push_str(&skills_summary);
         }
 
+        // Inject L0 memory management policy before the memory projection.
+        prompt.push_str("\n\n## Memory Management Policy\n");
+        prompt.push_str(agent_diva_core::memory::L0_MEMORY_POLICY);
+
         // Inject long-term memory if available
         let memory_context = self
             .memory_provider
@@ -587,6 +591,18 @@ mod tests {
             !prompt.contains("Memory management tools are not available"),
             "Wave 1 restored tool guidance; unavailable wording must be gone"
         );
+    }
+
+    #[test]
+    fn prompt_injects_l0_memory_management_policy() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let prompt = builder.build_system_prompt(None);
+        assert!(
+            prompt.contains("## Memory Management Policy"),
+            "prompt should carry the L0 policy section"
+        );
+        assert!(prompt.contains("Action-Verified"));
+        assert!(prompt.contains("Minimal pointer principle"));
     }
 
     #[test]
