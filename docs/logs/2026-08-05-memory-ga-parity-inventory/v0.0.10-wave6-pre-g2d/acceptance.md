@@ -21,7 +21,19 @@
 - G7 真机节律验证
 - G10–G12 真机端到端
 
+## 手动验收（2026-08-07）
+
+基础测试通过。发现严重问题：
+
+- **记忆删除不可用**：`memory_remove` 走 proposal 路径但无审批入口，
+  用户无法实际完成记忆删除。
+- **记忆不可见**：用户看不到 agent 当前记忆内容。
+- **结论**：人格与记忆需要 BML（Basic Memory Layer）用户可视化管理界面，
+  当前内置工具面不足以支撑端到端记忆管理。排期待决策。
+
 ## 延期项
 
 - B9 完整 tool-result 强制校验（需 agent_loop evidence 链跟踪）
+- BML 记忆管理可视化（真机验收发现，P0）
+- Laputa 设计同步（桌面 Garden 新设计，待调研/待决策）
 - `agent-diva-manager` `superseded_memory_digests` pre-existing 编译错误

@@ -205,6 +205,13 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [ ] **Wave 6 延期项（归 G2D+ / 后续独立 Wave）**：
       - B9 完整 tool-result 强制校验（S3 仅做软 advisory；完整强制需改
         MemoryAddRequest schema + agent_loop 证据链跟踪）
+      - **BML 记忆管理可视化（P0 真机验收发现）**：内置工具无法完成记忆
+        删除（`memory_remove` 走 proposal 但无审批入口）；用户看不到 agent
+        当前记忆内容；人格与记忆需要 BML（Basic Memory Layer）用户可视化
+        管理界面。排期待决策。
+      - **Laputa 设计同步（待调研/待决策）**：桌面 Garden 有新的 Laputa
+        设计，主要涉及几个文件的身份定位变更；需调研新设计并同步到
+        agent-diva 架构。排期待决策。
       - G1/G2/G3/G5/G6/G7/G10/G11/G12 真机端到端验收（Wave 4 延期项）
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
