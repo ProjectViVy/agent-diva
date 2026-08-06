@@ -901,6 +901,7 @@ mod wave4_tests {
                 &crud_context(&temp),
                 MemoryAddRequest {
                     content: authority_content.into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -943,6 +944,7 @@ mod wave4_tests {
                 &crud_context(&temp),
                 MemoryAddRequest {
                     content: "kestrel prefers high ground at dawn".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -982,12 +984,13 @@ mod wave4_tests {
                 &crud_context(&temp),
                 MemoryAddRequest {
                     content: authority_content.into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let target_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
         drop(provider);

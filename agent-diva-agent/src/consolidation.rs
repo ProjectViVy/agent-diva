@@ -309,6 +309,7 @@ pub async fn consolidate_with_gate(
                                 &crud_ctx,
                                 MemoryAddRequest {
                                     content: content.to_string(),
+                                    evidence_refs: vec![],
                                 },
                             )
                             .await
@@ -707,7 +708,10 @@ mod wave5_tests {
             _: MemoryAddRequest,
         ) -> agent_diva_core::Result<MemoryCrudOutcome> {
             self.add_calls.fetch_add(1, Ordering::SeqCst);
-            Ok(MemoryCrudOutcome::Applied { entry: None })
+            Ok(MemoryCrudOutcome::Applied {
+                entry: None,
+                evidence_advisory: None,
+            })
         }
 
         async fn on_session_end(

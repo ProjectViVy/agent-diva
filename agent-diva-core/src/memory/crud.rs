@@ -7,11 +7,16 @@
 
 use std::path::PathBuf;
 
+use crate::evolution::EvidenceRef;
+
 /// Input for a low-risk immediate memory write.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryAddRequest {
     /// Content to remember (user-requested fact or preference).
     pub content: String,
+    /// Optional evidence references backing this write (B9 partial).
+    #[serde(default)]
+    pub evidence_refs: Vec<EvidenceRef>,
 }
 
 /// Input for listing the applied memory projection.
@@ -83,6 +88,9 @@ pub enum MemoryCrudOutcome {
     Applied {
         /// Entry as written, when applicable.
         entry: Option<MemoryEntry>,
+        /// Advisory note when the write lacked tool-result evidence (B9 partial).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        evidence_advisory: Option<String>,
     },
     /// A read projection of the applied authority.
     Listed {
@@ -139,9 +147,11 @@ mod tests {
                 trust: "applied_authority".to_string(),
                 provenance: Some("memory_add".to_string()),
             }),
+            evidence_advisory: None,
         };
         let json = serde_json::to_string(&applied).unwrap();
         assert!(json.contains("\"status\":\"applied\""));
+        assert!(!json.contains("evidence_advisory"));
         let back: MemoryCrudOutcome = serde_json::from_str(&json).unwrap();
         assert_eq!(back, applied);
 
@@ -150,5 +160,17 @@ mod tests {
         };
         let json = serde_json::to_string(&proposed).unwrap();
         assert!(json.contains("\"proposal_id\":\"prop-42\""));
+    }
+
+    #[test]
+    fn applied_with_advisory_serializes() {
+        let applied = MemoryCrudOutcome::Applied {
+            entry: None,
+            evidence_advisory: Some("no evidence_refs".to_string()),
+        };
+        let json = serde_json::to_string(&applied).unwrap();
+        assert!(json.contains("evidence_advisory"));
+        let back: MemoryCrudOutcome = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, applied);
     }
 }

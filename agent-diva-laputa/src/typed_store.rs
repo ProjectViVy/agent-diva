@@ -1427,12 +1427,13 @@ mod wave5_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel patrols the ridge at dawn".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let long_term_id = match long_term {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1473,12 +1474,13 @@ mod wave5_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel patrols the ridge at dusk".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let long_term_id = match long_term {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 

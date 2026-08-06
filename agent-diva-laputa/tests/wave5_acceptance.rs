@@ -300,12 +300,13 @@ async fn f7_tombstone_lifecycle_filters_startup_and_search() {
             &context(&temp),
             MemoryAddRequest {
                 content: "falcon hunts over the frozen lake".into(),
+                evidence_refs: vec![],
             },
         )
         .await
         .unwrap();
     let target_id = match add_outcome {
-        MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+        MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
         other => panic!("expected Applied, got {other:?}"),
     };
     drop(provider);
@@ -510,6 +511,7 @@ async fn f4_memory_add_visible_in_same_session_startup() {
             &context(&temp),
             MemoryAddRequest {
                 content: "aurora observation".into(),
+                evidence_refs: vec![],
             },
         )
         .await

@@ -1179,12 +1179,13 @@ mod wave4_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel patrols the ridge at dawn".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let _authority_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1206,12 +1207,13 @@ mod wave4_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "obsolete route via marshland pass".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let tombstoned_id = match tombstoned_outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
         drop(provider);
@@ -1254,12 +1256,13 @@ mod wave4_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "the staging manifest lives at /tmp/staging-xyz".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let target_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
         let target_digest =
@@ -1327,12 +1330,13 @@ mod wave5_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel roosts on the broken tower".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let target_id = match target_outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1342,6 +1346,7 @@ mod wave5_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel patrols the ridge at dusk".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -1373,6 +1378,7 @@ mod wave5_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel patrols the ridge at dawn".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await

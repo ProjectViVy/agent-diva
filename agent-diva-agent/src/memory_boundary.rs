@@ -563,7 +563,10 @@ impl MemoryProvider for LegacyCrudMemoryProvider {
                 reason: format!("memory_distill write failed:{error}"),
             });
         }
-        Ok(MemoryCrudOutcome::Applied { entry: None })
+        Ok(MemoryCrudOutcome::Applied {
+            entry: None,
+            evidence_advisory: None,
+        })
     }
 }
 
@@ -627,6 +630,7 @@ mod tests {
                 },
                 MemoryAddRequest {
                     content: "remember this fact".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await

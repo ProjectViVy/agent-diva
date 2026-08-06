@@ -387,7 +387,7 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                     trace_id: None,
                 },
             },
-            evidence_refs: vec![],
+            evidence_refs: request.evidence_refs.clone(),
             confidence_bps: MAX_CONFIDENCE_BPS,
             sensitivity: MemorySensitivity::Internal,
             trust: MemoryTrust::AppliedAuthority,
@@ -437,8 +437,17 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         if let Err(e) = self.refresh_startup_markdown().await {
             tracing::warn!("memory_add: failed to refresh startup cache: {e}");
         }
+        let evidence_advisory = if request.evidence_refs.is_empty() {
+            Some("no evidence_refs: stored without tool verification".to_string())
+        } else {
+            None
+        };
+        if evidence_advisory.is_some() {
+            tracing::info!("memory_add: evidence_advisory set (no evidence_refs provided)");
+        }
         Ok(MemoryCrudOutcome::Applied {
             entry: Some(entry_from(stored.record)),
+            evidence_advisory,
         })
     }
 
@@ -681,7 +690,10 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                 "has_evidence": request.evidence.as_deref().is_some_and(|v| !v.trim().is_empty()),
             }),
         });
-        Ok(MemoryCrudOutcome::Applied { entry: None })
+        Ok(MemoryCrudOutcome::Applied {
+            entry: None,
+            evidence_advisory: None,
+        })
     }
 
     async fn checkpoint_write(
@@ -728,6 +740,7 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                 });
                 Ok(MemoryCrudOutcome::Applied {
                     entry: Some(entry_from(stored.record)),
+                    evidence_advisory: None,
                 })
             }
             Err(error) => Ok(MemoryCrudOutcome::Failed {
@@ -875,11 +888,12 @@ mod tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "favorite color is blue".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
-        let MemoryCrudOutcome::Applied { entry } = outcome else {
+        let MemoryCrudOutcome::Applied { entry, .. } = outcome else {
             panic!("expected applied, got {outcome:?}");
         };
         assert!(entry.is_some());
@@ -905,6 +919,7 @@ mod tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "secret project name is Aurora".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -1127,6 +1142,7 @@ mod wave2_tests {
                             "fact number {i} with a very long tail {}",
                             "y".repeat(120)
                         ),
+                        evidence_refs: vec![],
                     },
                 )
                 .await
@@ -1155,6 +1171,7 @@ mod wave2_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "visible fact".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -1371,6 +1388,7 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "the release summary must mention kestrel-7".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -1411,6 +1429,7 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel release plan for Q3".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
@@ -1449,12 +1468,13 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "obsolete staging path /tmp/staging-xyz".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let record_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1532,12 +1552,13 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "secret project name is kestrel_nine".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let record_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1618,12 +1639,13 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "ephemeral note about merlin-cache".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let record_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
 
@@ -1655,6 +1677,7 @@ mod wave3_tests {
                     &context(&temp),
                     MemoryAddRequest {
                         content: format!("budgeted fact number {i} about kestrel"),
+                        evidence_refs: vec![],
                     },
                 )
                 .await
@@ -1688,12 +1711,13 @@ mod wave3_tests {
                 &context(&temp),
                 MemoryAddRequest {
                     content: "kestrel rollback procedure requires two reviewers".into(),
+                    evidence_refs: vec![],
                 },
             )
             .await
             .unwrap();
         let record_id = match outcome {
-            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
             other => panic!("expected Applied, got {other:?}"),
         };
         drop(provider);
@@ -1771,5 +1795,96 @@ mod wave3_tests {
             !markdown.contains("port 8443"),
             "startup must not leak cleared checkpoint content"
         );
+    }
+}
+
+#[cfg(test)]
+mod wave6_tests {
+    use super::*;
+    use agent_diva_core::evolution::{EvidenceRef, EvidenceSource};
+    use agent_diva_core::workspace_identity::canonical_workspace_id;
+    use chrono::Utc;
+
+    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        MemoryCrudContext {
+            workspace_root: temp.path().to_path_buf(),
+        }
+    }
+
+    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        TypedLaputaMemoryProvider::open(temp.path(), canonical_workspace_id(temp.path()))
+            .await
+            .unwrap()
+    }
+
+    /// B9 — memory_add with evidence_refs produces Applied without advisory.
+    #[tokio::test]
+    async fn memory_add_with_evidence_no_advisory() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let evidence = EvidenceRef {
+            id: "ev-1".into(),
+            source: EvidenceSource::Session,
+            uri: "session://turn-42".into(),
+            excerpt: Some("user said blue".into()),
+            hash: None,
+            created_at: Utc::now(),
+        };
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "favorite color is blue".into(),
+                    evidence_refs: vec![evidence],
+                },
+            )
+            .await
+            .unwrap();
+        match outcome {
+            MemoryCrudOutcome::Applied {
+                entry,
+                evidence_advisory,
+            } => {
+                assert!(entry.is_some(), "Applied must carry entry");
+                assert!(
+                    evidence_advisory.is_none(),
+                    "with evidence_refs, advisory must be None; got {evidence_advisory:?}"
+                );
+            }
+            other => panic!("expected Applied, got {other:?}"),
+        }
+    }
+
+    /// B9 — memory_add without evidence_refs produces Applied with advisory.
+    #[tokio::test]
+    async fn memory_add_without_evidence_has_advisory() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        let outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "unverified rumor about mars".into(),
+                    evidence_refs: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        match outcome {
+            MemoryCrudOutcome::Applied {
+                entry,
+                evidence_advisory,
+            } => {
+                assert!(entry.is_some(), "Applied must carry entry");
+                let advisory =
+                    evidence_advisory.expect("without evidence_refs, advisory must be Some");
+                assert!(
+                    advisory.contains("no evidence_refs"),
+                    "advisory must mention missing evidence; got: {advisory}"
+                );
+            }
+            other => panic!("expected Applied, got {other:?}"),
+        }
     }
 }
