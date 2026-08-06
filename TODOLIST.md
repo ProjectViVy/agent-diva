@@ -39,7 +39,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0/1/2/3 已完成（2026-08-06）；Wave 4（AutoDream 去重）待实施。**
+  **当前状态：Wave 0/1/2/3/4 已完成（2026-08-06）；Wave 5（巩固与清理）待排期。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -134,6 +134,27 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           自动化证据已具备（apply→FTS→startup 一致性测试）；真机联通 smoke
           归 G2D+ 桌面验收一并执行（规则 smoke-test-required-for-user-visible-change
           由 G2D+ 阶段覆盖）
+  - [x] **WAVE4-AUTODREAM-G4：AutoDream 去重（双写边界收口）** `sev-P0`
+    - [x] `LaputaService::applied_authority_digests`（`f042bba4`）：返回
+          全部活跃 AppliedAuthority 长时记录的 content digest；四重过滤
+          （AppliedAuthority / 无 tombstone / 无 session scope / 非
+          supersedes 目标）；缺库（TypedMemoryStore 未创建）优雅返回空；
+          新增 `LaputaError::InvalidState(String)` 变体 + `invalid_state`
+          API code
+    - [x] AutoDream Worker 双路 digest 接入（`a39638bb`）：
+          `worker.rs reflect()` 将 laputa section digest（legacy 路径）与
+          typed authority digest（新路径）合并（HashSet 并集）写入
+          `BoundedReflectionInput.existing_memory_digests`；typed 读失败
+          降级为 `tracing::warn!` + 空数组，不阻断 run
+    - [x] CandidateGate Duplicate 端到端测试（`a39638bb` worker wave4_tests）：
+          `candidate_duplicate_against_typed_authority_is_rejected`、
+          `candidate_fresh_against_typed_authority_is_accepted`、
+          `superseded_authority_record_no_longer_blocks_duplicate_candidate`
+    - [ ] **Wave 4 延期项（归 G2D+ / 后续独立 Wave）**：G1 手动触发端到端
+          验收、G2 自动阈值触发联通、G3 多源输入闭环、G5 候选→proposal
+          端到端、G6 审查 UI、G7 节律报告可见、G10 与 agent 即时记忆分工
+          真机验证、G11 L4/salient 等价、G12 Action-Verified 公理对齐——
+          均为产品/真机验收，本 Wave 最小闭环不吞下
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、

@@ -22,6 +22,11 @@
 1. **Immediate apply wins over proposals**: a low-risk `memory_add` that is
    already applied takes precedence over a later AutoDream candidate with the
    same content — the AutoDream gate must skip or downgrade duplicates (G4).
+   Realized in Wave 4 (2026-08-06): `LaputaService::applied_authority_digests`
+   enumerates active AppliedAuthority record digests;
+   `AutoDreamWorker::reflect` merges typed digests with legacy section digests
+   into `BoundedReflectionInput.existing_memory_digests`; `CandidateGate`
+   rejects same-content candidates as `CandidateRejectionCode::Duplicate`.
 2. **Proposal never implies authority**: `SyncTurnStatus::ProposalCreated`
    means a reviewable proposal was durably stored; only
    `SyncTurnStatus::Persisted` means the authority write applied (W0-C).
