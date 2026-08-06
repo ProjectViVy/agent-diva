@@ -39,13 +39,19 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：决策冻结完成；Wave 0 待实施，Wave 1 紧随。**
-  - [ ] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
-    - [ ] 修 prompt 假承诺（A8）：有 memory 工具才写指引，无则诚实降级文案
-    - [ ] 统一 `authority_mode` 默认与缺失配置语义为 Typed（F10，消分叉）
-    - [ ] `sync_turn` 状态机诚实化设计（A9/H2）：区分
-          `PersistedAuthority` / `ProposalCreated` / `Failed`，禁止假成功
-    - [ ] 写清 Working / Long-term / AutoDream 分工文档（G10/H5/C6）
+  **当前状态：Wave 0 已完成（2026-08-06），Wave 1 待实施。**
+  - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
+    - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
+          负面回归测试（Wave 1 工具落地后恢复指引）
+    - [x] 统一 `authority_mode` 默认与缺失配置语义为 Typed（F10，消分叉）：
+          `b07a0818` schema.rs 两处 serde/enum default + 测试；行为变更
+          （无 memory 段配置出箱走 Typed）已记录；AppState::new fixture 同步
+    - [x] `sync_turn` 状态机诚实化（A9/H2）：`679d718d` 新增
+          `ProposalCreated` 变体，Laputa proposal 路径不再谎报 `Persisted`；
+          consolidation 视为成功；回归测试
+    - [x] 写清 Working / Long-term / AutoDream 分工文档（G10/H5/C6）：
+          `docs/architecture/memory-write-paths-contract.md`（含 tombstone
+          过滤 G3、AutoDream 去重 G4、consolidation 兜底约束）
   - [ ] **WAVE1-MEMORY-TOOLS-P0：Agent 记忆工具 CRUD（功能对齐核心）** `sev-P0`
     - [ ] `memory` 工具面：add / list / search / update / remove + distill
           （A1–A7），注册进 ToolAssembly 与 mask 策略
