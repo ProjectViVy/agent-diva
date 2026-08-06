@@ -39,7 +39,22 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：决策冻结完成，Wave 0/1 实施待排期。**
+  **当前状态：决策冻结完成；Wave 0 待实施，Wave 1 紧随。**
+  - [ ] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
+    - [ ] 修 prompt 假承诺（A8）：有 memory 工具才写指引，无则诚实降级文案
+    - [ ] 统一 `authority_mode` 默认与缺失配置语义为 Typed（F10，消分叉）
+    - [ ] `sync_turn` 状态机诚实化设计（A9/H2）：区分
+          `PersistedAuthority` / `ProposalCreated` / `Failed`，禁止假成功
+    - [ ] 写清 Working / Long-term / AutoDream 分工文档（G10/H5/C6）
+  - [ ] **WAVE1-MEMORY-TOOLS-P0：Agent 记忆工具 CRUD（功能对齐核心）** `sev-P0`
+    - [ ] `memory` 工具面：add / list / search / update / remove + distill
+          （A1–A7），注册进 ToolAssembly 与 mask 策略
+    - [ ] 接到 MemoryProvider 扩展 API（不只 4 个 lifecycle hooks）
+    - [ ] 混合分级路由：低风险（用户明确要求记住的事实/偏好）即时 apply；
+          高风险（删除/覆盖既有权威、敏感内容）走 proposal + 审批
+    - [ ] Legacy 模式 proposal-first（不直写 MEMORY.md 冒充权威）
+    - [ ] 写结果诚实语义（A9）：`applied` / `proposal_created`(含 id) / `failed`
+    - [ ] 单元 + 集成测试覆盖成功与失败路径
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
