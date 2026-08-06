@@ -39,7 +39,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
   store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
   统一默认 Typed（F10 随 Wave 0 修复）。
-  **当前状态：Wave 0 已完成（2026-08-06），Wave 1 待实施。**
+  **当前状态：Wave 0/1 已完成（2026-08-06）；Wave 2（工作记忆/分层）与
+  Wave 3（读侧闭环）待实施。**
   - [x] **WAVE0-HONEST-CONTRACT：诚实与契约** `sev-P0`
     - [x] 修 prompt 假承诺（A8）：`deb5754b` context.rs 诚实降级文案 +
           负面回归测试（Wave 1 工具落地后恢复指引）
@@ -52,15 +53,29 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [x] 写清 Working / Long-term / AutoDream 分工文档（G10/H5/C6）：
           `docs/architecture/memory-write-paths-contract.md`（含 tombstone
           过滤 G3、AutoDream 去重 G4、consolidation 兜底约束）
-  - [ ] **WAVE1-MEMORY-TOOLS-P0：Agent 记忆工具 CRUD（功能对齐核心）** `sev-P0`
-    - [ ] `memory` 工具面：add / list / search / update / remove + distill
-          （A1–A7），注册进 ToolAssembly 与 mask 策略
-    - [ ] 接到 MemoryProvider 扩展 API（不只 4 个 lifecycle hooks）
-    - [ ] 混合分级路由：低风险（用户明确要求记住的事实/偏好）即时 apply；
+  - [x] **WAVE1-MEMORY-TOOLS-P0：Agent 记忆工具 CRUD（功能对齐核心）** `sev-P0`
+    - [x] `memory` 工具面：add / list / search / update / remove + distill
+          （A1–A7），注册进 ToolAssembly 与 mask 策略：`bd04cfc5`
+          `agent-diva-tools/src/memory_*.rs` 六工具 + lib.rs 导出 +
+          ToolAssembly `with_memory_provider` + builtin `memory` gate +
+          `build_agent_tools` 接线
+    - [x] 接到 MemoryProvider 扩展 API（不只 4 个 lifecycle hooks）：
+          `1e40bf16` core `memory/crud.rs` 请求类型 + `MemoryCrudOutcome` +
+          trait 6 个默认方法；`5a742c82` Typed 实现（put / list /
+          search_visible / proposal 三路）
+    - [x] 混合分级路由：低风险（用户明确要求记住的事实/偏好）即时 apply；
           高风险（删除/覆盖既有权威、敏感内容）走 proposal + 审批
-    - [ ] Legacy 模式 proposal-first（不直写 MEMORY.md 冒充权威）
-    - [ ] 写结果诚实语义（A9）：`applied` / `proposal_created`(含 id) / `failed`
-    - [ ] 单元 + 集成测试覆盖成功与失败路径
+          （S2：add→即时 put；update→MemoryPatch；remove→Deprecation；
+          distill 新建即时/覆盖 SopCreate，W1-2/W1-3）
+    - [x] Legacy 模式 proposal-first（不直写 MEMORY.md 冒充权威）：
+          `522df4d0` LegacyCrudMemoryProvider（读走 MemoryManager，写全走
+          Laputa proposal + `MemoryGovernanceCoordinator::open_lazy` submit）
+    - [x] 写结果诚实语义（A9）：`applied` / `proposal_created`(含 id) / `failed`
+          （`MemoryCrudOutcome` serde tag="status"；工具结果三态 JSON；
+          context.rs 恢复工具指引 + 回归测试）
+    - [x] 单元 + 集成测试覆盖成功与失败路径（core 682+/laputa 20+/
+          agent 378+/tools 12+ 全绿；全 workspace `just test` 仅 CLI
+          wiremock 502 既有失败 `CLI-WIREMOCK-502-PREEXISTING`）
     **Wave 1 决策已冻结（2026-08-06，inventory §10.2）**：W1-1 多独立工具
     （memory_add/list/search/update/remove/distill）；W1-2 按 action+对象状态
     分级（add 新事实=低风险即时，update/remove=高风险审批，不做内容检测）；
