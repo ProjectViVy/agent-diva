@@ -259,6 +259,7 @@ pub(crate) fn policy_phase_for(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_agent_tools(
     workspace: PathBuf,
     tool_config: &ToolConfig,
@@ -266,6 +267,7 @@ fn build_agent_tools(
     file_manager: Arc<FileManager>,
     custom_tools: Vec<Arc<dyn Tool>>,
     cron_service: Option<Arc<CronService>>,
+    memory_provider: Option<Arc<dyn MemoryProvider>>,
     turn_options: ToolTurnOptions<'_>,
 ) -> ToolRegistry {
     let mut assembly = ToolAssembly::new(workspace)
@@ -277,6 +279,7 @@ fn build_agent_tools(
         .with_command_approvals(tool_config.command_approvals.clone())
         .with_approval_policy(tool_config.approval_policy)
         .with_ask_user_coordinator(tool_config.ask_user.clone())
+        .with_memory_provider(memory_provider)
         .restrict_to_workspace(tool_config.restrict_to_workspace)
         .mcp_servers(tool_config.mcp_servers.clone())
         .with_subagent_spawner(spawner)
@@ -346,6 +349,7 @@ impl AgentLoop {
             self.file_manager.clone(),
             self.custom_tools.clone(),
             self.tool_config.cron_service.clone(),
+            Some(self.memory_provider.clone()),
             ToolTurnOptions {
                 active_mask,
                 plan_phase,
@@ -613,6 +617,7 @@ impl AgentLoop {
             file_manager.clone(),
             custom_tools.clone(),
             tool_config.cron_service.clone(),
+            Some(memory_provider.clone()),
             ToolTurnOptions::default(),
         );
 
@@ -652,6 +657,7 @@ impl AgentLoop {
                 agent.file_manager.clone(),
                 agent.custom_tools.clone(),
                 Some(cron_service),
+                Some(agent.memory_provider.clone()),
                 ToolTurnOptions::default(),
             );
         }
@@ -1942,8 +1948,9 @@ mod tests {
         .unwrap();
 
         // Verify the provider is the one we injected (Arc pointer identity).
-        // Agent, context, inner component, and test handle = 4
-        assert_eq!(Arc::strong_count(&memory_provider), 4);
+        // Agent, context, inner component, test handle, and the six memory
+        // tools in the assembled registry all hold references.
+        assert!(Arc::strong_count(&memory_provider) >= 4);
     }
 
     #[tokio::test]

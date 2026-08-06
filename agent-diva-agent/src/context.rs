@@ -175,7 +175,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         );
 
         prompt.push_str(
-            "\nMemory management tools are not available in this build. Do not claim that something has been remembered or persisted unless a governed memory write actually succeeded; never write arbitrary files as if they were memory authority. Legacy authority files are compatibility inputs only, not default prompt authority.",
+            "\nWhen the user asks you to remember something, use the memory_add tool; to forget, use memory_remove; to recall, use memory_search or memory_list. Writes report one of: applied (durable), proposal_created (awaiting review, contains a proposal id), or failed. High-risk changes (updating or removing existing memory) create reviewable proposals and are not effective until approved. Never write arbitrary files as if they were memory authority; legacy authority files are compatibility inputs only, not default prompt authority.",
         );
         prompt.push_str(
             "\nBOOTSTRAP.md is a one-time onboarding input, not runtime authority. Do not read or replay it unless the user explicitly asks to start onboarding again.",
@@ -568,16 +568,24 @@ mod tests {
     }
 
     #[test]
-    fn prompt_does_not_promise_unavailable_memory_tools() {
+    fn prompt_guides_memory_tool_usage() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let prompt = builder.build_system_prompt(None);
         assert!(
-            !prompt.contains("available memory tools"),
-            "prompt must not promise memory tools before Wave 1 lands them"
+            prompt.contains("memory_add"),
+            "prompt should name memory_add"
         );
         assert!(
-            prompt.contains("Memory management tools are not available"),
-            "prompt should honestly state the missing tool surface"
+            prompt.contains("memory_remove"),
+            "prompt should name memory_remove"
+        );
+        assert!(
+            prompt.contains("proposal_created"),
+            "prompt should teach honest result states"
+        );
+        assert!(
+            !prompt.contains("Memory management tools are not available"),
+            "Wave 1 restored tool guidance; unavailable wording must be gone"
         );
     }
 

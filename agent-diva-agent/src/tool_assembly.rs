@@ -6,6 +6,7 @@ use agent_diva_core::ask_user::AskUserCoordinator;
 use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
+use agent_diva_core::memory::MemoryProvider;
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::policy::allows_for_phase;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
@@ -55,6 +56,7 @@ pub struct ToolAssembly {
     command_approvals: Option<CommandApprovalCoordinator>,
     approval_policy: AskForApproval,
     ask_user_coordinator: Option<AskUserCoordinator>,
+    memory_provider: Option<Arc<dyn MemoryProvider>>,
 }
 
 impl ToolAssembly {
@@ -80,6 +82,7 @@ impl ToolAssembly {
             command_approvals: None,
             approval_policy: AskForApproval::default(),
             ask_user_coordinator: None,
+            memory_provider: None,
         }
     }
 
@@ -179,6 +182,11 @@ impl ToolAssembly {
 
     /// Shared conversational ask-user coordinator; `None` makes the tool
     /// report `unavailable` (headless runtimes).
+    pub fn with_memory_provider(mut self, provider: Option<Arc<dyn MemoryProvider>>) -> Self {
+        self.memory_provider = provider;
+        self
+    }
+
     pub fn with_ask_user_coordinator(mut self, coordinator: Option<AskUserCoordinator>) -> Self {
         self.ask_user_coordinator = coordinator;
         self
@@ -301,6 +309,48 @@ impl ToolAssembly {
                 }
                 None => {
                     registry.register(Arc::new(AskUserTool::new()));
+                }
+            }
+        }
+
+        if self.builtin_config.memory && !subagent_mode {
+            match &self.memory_provider {
+                Some(provider) => {
+                    let workspace = self.workspace.clone();
+                    registry.register(Arc::new(agent_diva_tools::MemoryAddTool::with_provider(
+                        provider.clone(),
+                        workspace.clone(),
+                    )));
+                    registry.register(Arc::new(agent_diva_tools::MemoryListTool::with_provider(
+                        provider.clone(),
+                        workspace.clone(),
+                    )));
+                    registry.register(Arc::new(agent_diva_tools::MemorySearchTool::with_provider(
+                        provider.clone(),
+                        workspace.clone(),
+                    )));
+                    registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::with_provider(
+                        provider.clone(),
+                        workspace.clone(),
+                    )));
+                    registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::with_provider(
+                        provider.clone(),
+                        workspace.clone(),
+                    )));
+                    registry.register(Arc::new(
+                        agent_diva_tools::MemoryDistillTool::with_provider(
+                            provider.clone(),
+                            workspace,
+                        ),
+                    ));
+                }
+                None => {
+                    registry.register(Arc::new(agent_diva_tools::MemoryAddTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemoryListTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemorySearchTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemoryDistillTool::new()));
                 }
             }
         }
@@ -551,6 +601,53 @@ mod tests {
         assert!(!registry.has("web_search"));
         assert!(!registry.has("web_fetch"));
         assert!(!registry.has("custom_status"));
+    }
+
+    #[tokio::test]
+    async fn memory_tools_are_registered_when_provider_is_available() {
+        let workspace = tempfile::tempdir().unwrap();
+        let assembly =
+            ToolAssembly::new(workspace.path().to_path_buf()).with_memory_provider(Some(Arc::new(
+                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path()),
+            )));
+        let registry = assembly.build();
+        for name in [
+            "memory_add",
+            "memory_list",
+            "memory_search",
+            "memory_update",
+            "memory_remove",
+            "memory_distill",
+        ] {
+            assert!(
+                registry.tool_names().iter().any(|n| n == name),
+                "{name} should be registered when a memory provider is configured"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn memory_tools_register_without_provider_and_report_failed() {
+        let workspace = tempfile::tempdir().unwrap();
+        let registry = ToolAssembly::new(workspace.path().to_path_buf()).build();
+        for name in [
+            "memory_add",
+            "memory_list",
+            "memory_search",
+            "memory_update",
+            "memory_remove",
+            "memory_distill",
+        ] {
+            assert!(
+                registry.tool_names().iter().any(|n| n == name),
+                "{name} should be registered (unavailable) even without a provider"
+            );
+        }
+        let result = registry
+            .execute("memory_add", serde_json::json!({"content": "x"}))
+            .await
+            .unwrap();
+        assert!(result.contains("\"status\":\"failed\""));
     }
 
     #[tokio::test]

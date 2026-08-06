@@ -487,6 +487,46 @@ impl Tool for ListDirTool {
     }
 }
 
+/// Read file with offset and limit using streaming for memory efficiency
+async fn read_file_with_offset_limit(
+    path: &std::path::Path,
+    offset: Option<usize>,
+    limit: Option<usize>,
+) -> std::io::Result<String> {
+    use tokio::io::AsyncBufReadExt;
+
+    let file = tokio::fs::File::open(path).await?;
+    let reader = tokio::io::BufReader::new(file);
+    let mut lines = reader.lines();
+
+    let start = offset.map(|o| o.saturating_sub(1)).unwrap_or(0);
+    let max_lines = limit.unwrap_or(usize::MAX);
+    let mut result = Vec::new();
+    let mut line_num = 0;
+
+    while let Some(line) = lines.next_line().await? {
+        line_num += 1;
+        if line_num <= start {
+            continue;
+        }
+        if result.len() < max_lines {
+            result.push(format!("{}: {}", line_num, line));
+        }
+    }
+
+    let total = line_num;
+    let end = (start + result.len()).min(total);
+
+    let content = result.join("\n");
+    let summary = if start > 0 || end < total {
+        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
+    } else {
+        format!("\n[{} lines total]", total)
+    };
+
+    Ok(format!("{}{}", content, summary))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,44 +703,4 @@ mod tests {
 
         assert!(result.contains("read-only") || result.contains("Read-only"));
     }
-}
-
-/// Read file with offset and limit using streaming for memory efficiency
-async fn read_file_with_offset_limit(
-    path: &std::path::Path,
-    offset: Option<usize>,
-    limit: Option<usize>,
-) -> std::io::Result<String> {
-    use tokio::io::AsyncBufReadExt;
-
-    let file = tokio::fs::File::open(path).await?;
-    let reader = tokio::io::BufReader::new(file);
-    let mut lines = reader.lines();
-
-    let start = offset.map(|o| o.saturating_sub(1)).unwrap_or(0);
-    let max_lines = limit.unwrap_or(usize::MAX);
-    let mut result = Vec::new();
-    let mut line_num = 0;
-
-    while let Some(line) = lines.next_line().await? {
-        line_num += 1;
-        if line_num <= start {
-            continue;
-        }
-        if result.len() < max_lines {
-            result.push(format!("{}: {}", line_num, line));
-        }
-    }
-
-    let total = line_num;
-    let end = (start + result.len()).min(total);
-
-    let content = result.join("\n");
-    let summary = if start > 0 || end < total {
-        format!("\n[Lines {}-{} of {}]", start + 1, end, total)
-    } else {
-        format!("\n[{} lines total]", total)
-    };
-
-    Ok(format!("{}{}", content, summary))
 }

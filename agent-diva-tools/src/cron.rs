@@ -355,7 +355,7 @@ mod tests {
         let job_id = add_result
             .split("id: ")
             .nth(1)
-            .and_then(|s| s.split(')').nth(0))
+            .and_then(|s| s.split(')').next())
             .unwrap();
 
         // Remove the job

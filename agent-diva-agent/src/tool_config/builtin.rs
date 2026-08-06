@@ -25,6 +25,8 @@ pub struct BuiltInToolsConfig {
     pub update_plan: bool,
     #[serde(default = "default_true")]
     pub ask_user: bool,
+    #[serde(default = "default_true")]
+    pub memory: bool,
 }
 
 fn default_true() -> bool {
@@ -45,6 +47,7 @@ impl BuiltInToolsConfig {
             enqueue_background_task: false,
             update_plan: false,
             ask_user: false,
+            memory: false,
         }
     }
 
@@ -61,6 +64,7 @@ impl BuiltInToolsConfig {
             enqueue_background_task: false,
             update_plan: false,
             ask_user: false,
+            memory: false,
         }
     }
 
@@ -77,6 +81,7 @@ impl BuiltInToolsConfig {
             enqueue_background_task: true,
             update_plan: true,
             ask_user: true,
+            memory: true,
         }
     }
 
@@ -93,6 +98,7 @@ impl BuiltInToolsConfig {
             enqueue_background_task: false,
             update_plan: false,
             ask_user: false,
+            memory: false,
         }
     }
 }
@@ -111,6 +117,7 @@ impl Default for BuiltInToolsConfig {
             enqueue_background_task: false,
             update_plan: true,
             ask_user: true,
+            memory: true,
         }
     }
 }
