@@ -31,6 +31,10 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - `.workspace/` holds sibling reference projects and research sources, including `agent-diva-nano`, `openfang`, `zeroclaw`, `nanobot`, `codex`, `memtle`, and related references.
 - Embedded Laputa (profile-local typed SQLite + FTS5) is the sole production
   Memory authority. Legacy Memory files are offline import sources only.
+  **BML (Basic Memory Layer)** is the umbrella term for the user-visible
+  memory management surface: Laputa authority store, proposal/governance
+  workflow, and any future persistent-layer abstraction. The previous name
+  "Mentle" is retired; use BML in all documentation and code.
 - The current branch is `agent-diva-pro`; as of initialization on 2026-06-15 it is ahead of `origin/agent-diva-pro` and has active dirty-work changes from multiple stories. Preserve unrelated user/story changes.
 
 **Common workspace conventions:**
