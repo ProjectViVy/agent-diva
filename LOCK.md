@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-laputa/src/typed_provider.rs` (add `mod wave3_tests` block only — no production code changes)
+- Scope: `agent-diva-agent/src/agent_loop/turn/context.rs` (add `mod wave3_tests` block only — no production code changes)
 - Owner: `QoderCN`
-- Session/Task: `GA-MEM-PARITY Wave 3 S1 (laputa read-side integration tests)`
+- Session/Task: `GA-MEM-PARITY Wave 3 S2 (agent prefetch degradation + typed injection order tests)`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: '2026-08-06T18:30:00+08:00'
-- Last Heartbeat: '2026-08-06T18:30:00+08:00'
-- Expires At: '2026-08-06T19:30:00+08:00'
+- Last Heartbeat: '2026-08-06T19:15:00+08:00'
+- Expires At: '2026-08-06T20:15:00+08:00'
 
 ## Lock Rules
 

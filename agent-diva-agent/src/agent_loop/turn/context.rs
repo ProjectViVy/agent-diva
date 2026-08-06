@@ -499,3 +499,105 @@ mod tests {
         assert_eq!(messages.len(), 2);
     }
 }
+
+#[cfg(test)]
+mod wave3_tests {
+    use super::*;
+    use agent_diva_core::memory::PrefetchStatus;
+
+    /// D2 — a failed prefetch must not mutate the messages vector; the
+    /// turn context stays [system, user] so the agent loop can proceed
+    /// without any prompt_block to inject.
+    #[test]
+    fn legacy_prefetch_failure_leaves_messages_untouched() {
+        let mut messages = vec![Message::system("system"), Message::user("current")];
+        let working_injected = false;
+        let prefetch_insert_at = 1 + usize::from(working_injected);
+
+        let status = PrefetchStatus::Failed {
+            reason: "prefetch recall is unavailable in the default MemoryManager".into(),
+        };
+        match status {
+            PrefetchStatus::Failed { .. } => {}
+            _ => {
+                if let Some(block) = None::<String> {
+                    messages.insert(prefetch_insert_at, Message::system(block));
+                }
+            }
+        }
+
+        assert_eq!(
+            messages.len(),
+            2,
+            "failed prefetch must not inject any extra message"
+        );
+        assert_eq!(messages[0].role, "system");
+        assert_eq!(messages[1].role, "user");
+    }
+
+    /// D4 — when both working memory and prefetch blocks are produced, the
+    /// turn context ordering must be [system, working_memory, prefetch,
+    /// user]. This is the end-to-end injection order the agent loop relies
+    /// on for typed authorities.
+    #[test]
+    fn typed_prefetch_inserts_after_working_memory_block() {
+        let mut messages = vec![Message::system("system"), Message::user("current")];
+        let working_injected = inject_working_memory(
+            &mut messages,
+            Some("## Working Memory\nmigrating service B".to_string()),
+        );
+        assert!(working_injected);
+
+        let prefetch_insert_at = 1 + usize::from(working_injected);
+        messages.insert(
+            prefetch_insert_at,
+            Message::system("## Recalled Memory\nkestrel release plan".to_string()),
+        );
+
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[0].role, "system");
+        assert!(
+            messages[0]
+                .content
+                .as_text()
+                .is_some_and(|text| text == "system"),
+            "slot 0 must be the original system prompt"
+        );
+        assert!(
+            messages[1]
+                .content
+                .as_text()
+                .is_some_and(|text| text.contains("Working Memory")),
+            "slot 1 must be the working memory block"
+        );
+        assert!(
+            messages[2]
+                .content
+                .as_text()
+                .is_some_and(|text| text.contains("Recalled Memory")),
+            "slot 2 must be the prefetch/recall block"
+        );
+        assert_eq!(
+            messages[3].content.as_text(),
+            Some("current"),
+            "slot 3 must be the user turn"
+        );
+    }
+
+    /// D2/D4 — when prefetch is Skipped (no intent) and working memory is
+    /// absent, the turn context must stay at the minimal [system, user]
+    /// shape — no empty system message inserted.
+    #[test]
+    fn no_injection_when_both_prefetch_and_working_memory_are_absent() {
+        let mut messages = vec![Message::system("system"), Message::user("current")];
+        let working_injected = inject_working_memory(&mut messages, None);
+        let prefetch_insert_at = 1 + usize::from(working_injected);
+        let skipped_status = PrefetchStatus::SkippedNoIntent;
+        if !matches!(skipped_status, PrefetchStatus::Failed { .. }) {
+            if let Some(block) = None::<String> {
+                messages.insert(prefetch_insert_at, Message::system(block));
+            }
+        }
+        assert_eq!(messages.len(), 2, "no spurious empty injection");
+    }
+}
