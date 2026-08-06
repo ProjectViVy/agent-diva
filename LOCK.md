@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `TODOLIST.md`, `docs/logs/2026-08-05-memory-ga-parity-inventory/`, `LOCK.md`
-- Owner: `QoderCN`
-- Session/Task: `WAVE1 S5 docs closure`
+- Lock State: `RELEASED`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `none`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T15:10:00+08:00'
-- Last Heartbeat: '2026-08-06T15:10:00+08:00'
-- Expires At: '2026-08-06T15:40:00+08:00'
+- Started At: '2026-08-06T15:35:00+08:00'
+- Last Heartbeat: '2026-08-06T15:35:00+08:00'
+- Expires At: `released`
 
 ## Lock Rules
 
@@ -28,6 +28,17 @@ Use this file to declare the current writer scope before mutating the workspace.
 - No active lock.
 
 ## Handoff Notes
+
+- `2026-08-06T15:35:00+08:00`: Released after GA-MEM-PARITY Wave 1
+  (memory tool CRUD) closure: 6 commits — core CRUD trait surface,
+  typed memory CRUD provider methods, legacy proposal-first CRUD +
+  coordinator wiring, memory add/list/search/update/remove/distill tools,
+  docs close (TODOLIST WAVE1 checked + v0.0.5 iteration logs). All gates
+  green per slice (fmt/clippy -D warnings; core 682+/laputa 20+/agent
+  378+/tools 12+); full workspace test only fails the 6 pre-existing CLI
+  wiremock 502 cases (CLI-WIREMOCK-502-PREEXISTING). Wave 2 (working
+  memory/layers) and Wave 3 (read-side closure) pending; see TODOLIST
+  WAVE3-MEMORY-READ-CLOSURE.
 
 - `2026-08-06T03:15:00+08:00`: Released after GUI provider error/retry visibility fix
   (ERROR-SILENT + RETRY-VISIBILITY): 10 commits — core AgentEvent variants, providers
