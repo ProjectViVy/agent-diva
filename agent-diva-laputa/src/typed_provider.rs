@@ -11,12 +11,11 @@ use agent_diva_core::memory::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
     MemoryListRequest, MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord,
     MemoryRecordKind, MemoryRemoveRequest, MemoryScope, MemorySearchRequest, MemorySensitivity,
-    MemoryTombstone, MemoryTrust, MemoryUpdateRequest, PrefetchRequest, PrefetchResponse,
-    PrefetchStatus, RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome,
-    SessionEndRequest, SessionEndResponse, SessionEndStatus, StartupInjectionShape,
-    SyncTurnRequest, SyncTurnResponse, SystemPromptBlock, SystemPromptRequest,
-    SystemPromptResponse, WorkingMemoryRequest, WorkingMemoryResponse, DEFAULT_L1_INDEX_LINES,
-    MAX_CONFIDENCE_BPS,
+    MemoryTrust, MemoryUpdateRequest, PrefetchRequest, PrefetchResponse, PrefetchStatus,
+    RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome, SessionEndRequest,
+    SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest, SyncTurnResponse,
+    SystemPromptBlock, SystemPromptRequest, SystemPromptResponse, WorkingMemoryRequest,
+    WorkingMemoryResponse, DEFAULT_L1_INDEX_LINES, MAX_CONFIDENCE_BPS,
 };
 use chrono::{Duration, Utc};
 
@@ -100,6 +99,36 @@ impl TypedLaputaMemoryProvider {
     fn checkpoint_id(&self, session_id: &str) -> String {
         let digest = memory_content_digest(session_id.as_bytes()).value;
         format!("working-checkpoint-{}", &digest[..16])
+    }
+
+    /// Startup sweep for abnormal exits (crash, kill -9, power loss):
+    /// physically delete every session-scoped working-memory record whose
+    /// `session_id` is not in `active_session_ids`. Failures are non-fatal
+    /// — the provider keeps serving and the next sweep will retry.
+    ///
+    /// Safe to call before any session begins; does not touch long-term
+    /// authority records (records with NULL `session_id`).
+    pub async fn run_startup_gc(&self, active_session_ids: &[&str]) {
+        match self
+            .crud_store
+            .gc_stale_session_scoped(active_session_ids)
+            .await
+        {
+            Ok(0) => {}
+            Ok(cleared_rows) => {
+                tracing::info!(
+                    cleared_rows,
+                    active_sessions = active_session_ids.len(),
+                    "Startup GC removed stale session-scoped working memory (Wave 5)"
+                );
+            }
+            Err(error) => {
+                tracing::warn!(
+                    gc_error = %error,
+                    "Startup working memory GC failed (non-fatal)"
+                );
+            }
+        }
     }
 
     async fn checkpoint_record(&self, request: &CheckpointWriteRequest) -> MemoryRecord {
@@ -760,84 +789,28 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             .session_id
             .as_deref()
             .filter(|value| !value.trim().is_empty())
+            .map(str::to_string)
         else {
             return self.proposal_sink.on_session_end(request).await;
         };
-        let id = self.checkpoint_id(session_id);
-        let cleared = match self.crud_store.get(&id).await {
-            Ok(Some(stored))
-                if stored.record.tombstone.is_none()
-                    && stored.record.scope.session_id.as_deref() == Some(session_id) =>
-            {
-                let now = Utc::now();
-                let tombstone = MemoryRecord {
-                    id: format!("working-tombstone-{}", now.timestamp_micros()),
-                    kind: MemoryRecordKind::WorkingMemory,
-                    content: String::new(),
-                    provenance: MemoryProvenance {
-                        source: MemoryProvenanceSource::AutoDream,
-                        source_id: "session_end_cleanup".into(),
-                        content_digest: memory_content_digest(b""),
-                        captured_at: now,
-                        correlation: AuditCorrelation {
-                            request_id: id.clone(),
-                            turn_id: "on_session_end".into(),
-                            session_id: session_id.to_string(),
-                            trace_id: None,
-                        },
-                    },
-                    evidence_refs: vec![],
-                    confidence_bps: MAX_CONFIDENCE_BPS,
-                    sensitivity: MemorySensitivity::Internal,
-                    trust: MemoryTrust::AppliedAuthority,
-                    scope: MemoryScope {
-                        tenant_id: "local".into(),
-                        workspace_id: self.workspace_id.clone(),
-                        session_id: Some(session_id.to_string()),
-                    },
-                    created_at: now,
-                    effective_at: now,
-                    expires_at: None,
-                    supersedes: vec![id.clone()],
-                    tombstone: Some(MemoryTombstone {
-                        target_record_id: id.clone(),
-                        reason_digest: memory_content_digest(
-                            "session-end checkpoint cleanup".as_bytes(),
-                        ),
-                        actor_id: "session_end".into(),
-                        created_at: now,
-                    }),
-                };
-                let metadata = match self.crud_store.metadata().await {
-                    Ok(metadata) => metadata,
-                    Err(error) => {
-                        return Ok(SessionEndResponse {
-                            status: SessionEndStatus::Failed {
-                                reason: format!("checkpoint cleanup metadata failed:{error}"),
-                            },
-                        })
-                    }
-                };
-                match self
-                    .crud_store
-                    .put(tombstone, metadata.store_revision, None)
-                    .await
-                {
-                    Ok(_) => true,
-                    Err(error) => {
-                        tracing::warn!(
-                            checkpoint_cleanup_error = %error,
-                            "Working checkpoint cleanup failed (non-fatal)"
-                        );
-                        false
-                    }
-                }
+        let cleared_rows = match self.crud_store.gc_session_scoped(&session_id).await {
+            Ok(n) => n,
+            Err(error) => {
+                tracing::warn!(
+                    session_id = %session_id,
+                    gc_error = %error,
+                    "Working memory GC on session end failed (non-fatal)"
+                );
+                0
             }
-            _ => false,
         };
-        let terminal = self.proposal_sink.on_session_end(request.clone()).await?;
-        if cleared {
-            tracing::info!(session_id, "Working checkpoint cleared on session end");
+        let terminal = self.proposal_sink.on_session_end(request).await?;
+        if cleared_rows > 0 {
+            tracing::info!(
+                session_id = %session_id,
+                cleared_rows,
+                "Working memory physically cleared on session end (Wave 5)"
+            );
             Ok(SessionEndResponse {
                 status: SessionEndStatus::Triggered,
             })
@@ -1330,7 +1303,8 @@ mod wave2_tests {
 mod wave3_tests {
     use super::*;
     use agent_diva_core::memory::{
-        MemorySearchRequest, PrefetchRequest, SessionEndRequest, SystemPromptRequest,
+        MemorySearchRequest, MemoryTombstone, PrefetchRequest, SessionEndRequest,
+        SystemPromptRequest,
     };
     use agent_diva_core::workspace_identity::canonical_workspace_id;
 

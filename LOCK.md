@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `none`
-- Owner: `none`
-- Session/Task: `none`
+- Lock State: `HELD`
+- Scope: `agent-diva-laputa/src/typed_store.rs` + `agent-diva-laputa/src/typed_provider.rs` + `agent-diva-agent/src/agent_loop/*` (Wave 5 S1 Working memory GC)
+- Owner: `QoderCN`
+- Session/Task: `GA-MEM-PARITY Wave 5 (consolidation + GC + F6/F7)`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-06T19:15:00+08:00'
-- Last Heartbeat: '2026-08-06T19:45:00+08:00'
-- Expires At: `released`
+- Started At: '2026-08-07T10:00:00+08:00'
+- Last Heartbeat: '2026-08-07T10:00:00+08:00'
+- Expires At: '2026-08-07T12:00:00+08:00'
 
 ## Lock Rules
 
@@ -25,7 +25,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- No active lock.
+- `QoderCN` — GA-MEM-PARITY Wave 5 S1（laputa/typed Working memory GC）. Scope: `agent-diva-laputa/src/typed_store.rs`, `agent-diva-laputa/src/typed_provider.rs`, `agent-diva-agent/src/agent_loop/*`. Heartbeat 2026-08-07T10:00+08:00.
 
 ## Handoff Notes
 

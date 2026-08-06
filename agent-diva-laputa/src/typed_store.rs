@@ -619,6 +619,87 @@ impl TypedMemoryStore {
         Ok(targets)
     }
 
+    /// Physically delete every record whose `scope.session_id` equals
+    /// `session_id`. Working memory is non-authoritative by contract
+    /// (inventory §10.1 #3 + Wave 2), so end-of-session cleanup uses
+    /// physical delete rather than tombstone — no audit trail is required
+    /// for volatile checkpoints.
+    ///
+    /// The deletion order respects the `memory_supersedes` foreign key:
+    /// supersedes rows first, then FTS rows, then the records themselves.
+    /// Returns the number of affected `memory_records` rows.
+    pub async fn gc_session_scoped(&self, session_id: &str) -> Result<u64, TypedMemoryStoreError> {
+        let _write_guard = self.write_lock.lock().await;
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "DELETE FROM memory_supersedes WHERE memory_id IN
+               (SELECT memory_id FROM memory_records WHERE session_id = ?)",
+        )
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM memory_fts WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
+        let result = sqlx::query("DELETE FROM memory_records WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Startup sweep: physically delete every session-scoped record whose
+    /// `session_id` is NOT in `active_session_ids`. Covers abnormal exits
+    /// (crash, kill -9, power loss) where `on_session_end` never ran.
+    ///
+    /// An empty `active_session_ids` is treated as "no active sessions" and
+    /// removes every session-scoped record. Records with NULL `session_id`
+    /// (long-term authority) are never touched.
+    pub async fn gc_stale_session_scoped(
+        &self,
+        active_session_ids: &[&str],
+    ) -> Result<u64, TypedMemoryStoreError> {
+        let _write_guard = self.write_lock.lock().await;
+        let mut tx = self.pool.begin().await?;
+        let clause = if active_session_ids.is_empty() {
+            "session_id IS NOT NULL".to_string()
+        } else {
+            let placeholders = active_session_ids
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("session_id IS NOT NULL AND session_id NOT IN ({placeholders})")
+        };
+        let sub = format!(
+            "DELETE FROM memory_supersedes WHERE memory_id IN
+               (SELECT memory_id FROM memory_records WHERE {clause})"
+        );
+        let mut q = sqlx::query(&sub);
+        for id in active_session_ids {
+            q = q.bind(*id);
+        }
+        q.execute(&mut *tx).await?;
+
+        let fts = format!("DELETE FROM memory_fts WHERE {clause}");
+        let mut q = sqlx::query(&fts);
+        for id in active_session_ids {
+            q = q.bind(*id);
+        }
+        q.execute(&mut *tx).await?;
+
+        let rec = format!("DELETE FROM memory_records WHERE {clause}");
+        let mut q = sqlx::query(&rec);
+        for id in active_session_ids {
+            q = q.bind(*id);
+        }
+        let result = q.execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(result.rows_affected())
+    }
+
     /// Import a deterministic record set in one transaction.
     ///
     /// Records already present with identical canonical JSON are treated as
@@ -1289,4 +1370,184 @@ fn is_sqlite_busy(error: &sqlx::Error) -> bool {
         sqlx::Error::Database(database)
             if matches!(database.code().as_deref(), Some("5" | "6" | "261" | "517"))
     )
+}
+
+#[cfg(test)]
+mod wave5_tests {
+    use super::*;
+    use crate::typed_provider::TypedLaputaMemoryProvider;
+    use agent_diva_core::memory::{
+        CheckpointWriteRequest, MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome,
+        MemoryProvider,
+    };
+    use agent_diva_core::workspace_identity::canonical_workspace_id;
+
+    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        MemoryCrudContext {
+            workspace_root: temp.path().to_path_buf(),
+        }
+    }
+
+    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        TypedLaputaMemoryProvider::open(temp.path(), canonical_workspace_id(temp.path()))
+            .await
+            .unwrap()
+    }
+
+    async fn write_checkpoint(
+        provider: &TypedLaputaMemoryProvider,
+        temp: &tempfile::TempDir,
+        session_id: &str,
+        content: &str,
+    ) {
+        provider
+            .checkpoint_write(CheckpointWriteRequest {
+                workspace_root: temp.path().to_path_buf(),
+                session_id: session_id.into(),
+                key_info: format!("{session_id}-info"),
+                related_sops: vec![],
+                content: content.into(),
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn gc_session_scoped_removes_only_target_session() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+
+        write_checkpoint(&provider, &temp, "session-A", "A-state").await;
+        write_checkpoint(&provider, &temp, "session-B", "B-state").await;
+
+        // Long-term authority (no session_id) — must survive.
+        let long_term = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dawn".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let long_term_id = match long_term {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let removed = store.gc_session_scoped("session-A").await.unwrap();
+        assert_eq!(removed, 1, "only session-A checkpoint should be removed");
+
+        let remaining = store.list(u32::MAX).await.unwrap();
+        assert!(
+            !remaining
+                .iter()
+                .any(|s| s.record.scope.session_id.as_deref() == Some("session-A")),
+            "session-A record must not survive GC; remaining = {remaining:?}"
+        );
+        assert!(
+            remaining
+                .iter()
+                .any(|s| s.record.scope.session_id.as_deref() == Some("session-B")),
+            "session-B checkpoint must survive; remaining = {remaining:?}"
+        );
+        assert!(
+            remaining.iter().any(|s| s.record.id == long_term_id),
+            "long-term authority must survive session GC; remaining = {remaining:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn gc_stale_session_scoped_removes_orphan_records() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+
+        write_checkpoint(&provider, &temp, "session-X", "X-crashed").await;
+        write_checkpoint(&provider, &temp, "session-Y", "Y-still-alive").await;
+
+        // Long-term authority — must survive.
+        let long_term = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dusk".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let long_term_id = match long_term {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let removed = store.gc_stale_session_scoped(&["session-Y"]).await.unwrap();
+        assert_eq!(removed, 1, "only session-X checkpoint should be removed");
+
+        let remaining = store.list(u32::MAX).await.unwrap();
+        assert!(
+            remaining.iter().any(|s| s.record.id == long_term_id),
+            "long-term must survive startup GC; remaining = {remaining:?}"
+        );
+        assert!(
+            remaining
+                .iter()
+                .any(|s| s.record.scope.session_id.as_deref() == Some("session-Y")),
+            "active session-Y checkpoint must survive; remaining = {remaining:?}"
+        );
+        assert!(
+            !remaining
+                .iter()
+                .any(|s| s.record.scope.session_id.as_deref() == Some("session-X")),
+            "stale session-X must be removed; remaining = {remaining:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn gc_graceful_when_no_records() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let removed_a = store.gc_session_scoped("any-session").await.unwrap();
+        assert_eq!(removed_a, 0);
+        let removed_stale = store.gc_stale_session_scoped(&["a", "b"]).await.unwrap();
+        assert_eq!(removed_stale, 0);
+        let removed_empty_active = store.gc_stale_session_scoped(&[]).await.unwrap();
+        assert_eq!(removed_empty_active, 0);
+    }
+
+    #[tokio::test]
+    async fn on_session_end_physically_clears_checkpoint() {
+        let temp = tempfile::tempdir().unwrap();
+        let provider = open_provider(&temp).await;
+        write_checkpoint(&provider, &temp, "channel:9", "in-flight state").await;
+
+        let response = provider
+            .on_session_end(agent_diva_core::memory::SessionEndRequest {
+                workspace_root: temp.path().to_path_buf(),
+                session_id: Some("channel:9".into()),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            response.status,
+            agent_diva_core::memory::SessionEndStatus::Triggered
+        ));
+
+        // The checkpoint row itself must be physically gone (not just
+        // superseded by a tombstone).
+        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
+        let remaining: Vec<_> = store
+            .list(u32::MAX)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|s| s.record.scope.session_id.as_deref() == Some("channel:9"))
+            .collect();
+        assert!(
+            remaining.is_empty(),
+            "on_session_end must physically delete session-scoped records; remaining = {remaining:?}"
+        );
+    }
 }
