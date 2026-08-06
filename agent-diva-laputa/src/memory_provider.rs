@@ -27,7 +27,7 @@ static PROPOSAL_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// `MemoryProvider` that reads applied authority and proposalizes turn synchronization.
 #[derive(Clone, Debug)]
 pub struct LaputaMemoryProvider {
-    service: LaputaService,
+    pub(crate) service: LaputaService,
     max_section_chars: usize,
 }
 

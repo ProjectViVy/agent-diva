@@ -80,6 +80,11 @@ pub enum MemoryCrudOutcome {
         /// Entry as written, when applicable.
         entry: Option<MemoryEntry>,
     },
+    /// A read projection of the applied authority.
+    Listed {
+        /// Visible entries of the applied authority.
+        entries: Vec<MemoryEntry>,
+    },
     /// A governed proposal was durably created; not authority until approved.
     ProposalCreated {
         /// Proposal id for review via the approval surface.
