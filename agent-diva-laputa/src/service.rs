@@ -196,6 +196,54 @@ impl LaputaService {
         Ok(digests)
     }
 
+    /// Content digests of every record targeted by a supersedes tombstone
+    /// in the typed authority store, suitable for AutoDream's candidate
+    /// gate (Wave 5).
+    ///
+    /// A candidate whose content matches one of these digests would
+    /// resurrect a record that has already been deposed — the gate
+    /// rejects it with `CandidateRejectionCode::Superseded` instead of
+    /// letting it back into authority.
+    ///
+    /// Returns an empty vec when the typed authority store has not yet been
+    /// created, so first-run AutoDream dedup gracefully degrades. Other
+    /// failures (IO / schema / integrity) propagate to the caller.
+    pub async fn superseded_authority_digests(&self) -> Result<Vec<String>> {
+        use crate::typed_store::TypedMemoryStoreError;
+
+        let workspace_root = self.storage.paths().workspace_root();
+        let store = match crate::TypedMemoryStore::open_existing_canonical(workspace_root).await {
+            Ok(store) => store,
+            Err(TypedMemoryStoreError::InvalidBackup) => return Ok(Vec::new()),
+            Err(source) => {
+                return Err(LaputaError::InvalidState(format!(
+                    "superseded_authority_digests: failed to open typed store: {source}"
+                )));
+            }
+        };
+        let superseded_ids = store.superseded_target_ids().await.map_err(|source| {
+            LaputaError::InvalidState(format!(
+                "superseded_authority_digests: superseded lookup failed: {source}"
+            ))
+        })?;
+        if superseded_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let records = store.list(u32::MAX).await.map_err(|source| {
+            LaputaError::InvalidState(format!(
+                "superseded_authority_digests: list failed: {source}"
+            ))
+        })?;
+        let digests = records
+            .into_iter()
+            .filter(|stored| superseded_ids.contains(&stored.record.id))
+            .map(|stored| {
+                agent_diva_core::evolution::memory_candidate_content_digest(&stored.record.content)
+            })
+            .collect();
+        Ok(digests)
+    }
+
     pub fn apply_proposal(
         &self,
         id: &str,
@@ -1051,25 +1099,29 @@ mod wave4_tests {
     use crate::typed_provider::TypedLaputaMemoryProvider;
     use crate::TypedMemoryStore;
 
-    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+    pub(super) fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
         MemoryCrudContext {
             workspace_root: temp.path().to_path_buf(),
         }
     }
 
-    async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
+    pub(super) async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
         TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
         LaputaService::open(temp.path()).unwrap()
     }
 
-    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+    pub(super) async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
         TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
         TypedLaputaMemoryProvider::open(temp.path(), canonical_workspace_id(temp.path()))
             .await
             .unwrap()
     }
 
-    async fn write_supersedes_tombstone(temp: &tempfile::TempDir, target_id: &str, reason: &str) {
+    pub(super) async fn write_supersedes_tombstone(
+        temp: &tempfile::TempDir,
+        target_id: &str,
+        reason: &str,
+    ) {
         let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
         let now = Utc::now();
         let metadata = store.metadata().await.unwrap();
@@ -1231,6 +1283,113 @@ mod wave4_tests {
         let temp = tempfile::tempdir().unwrap();
         let service = LaputaService::open(temp.path()).unwrap();
         let digests = service.applied_authority_digests().await.unwrap();
+        assert!(
+            digests.is_empty(),
+            "no typed store yet → empty digest list, got {digests:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod wave5_tests {
+    use super::*;
+    use crate::typed_provider::TypedLaputaMemoryProvider;
+    use agent_diva_core::evolution::memory_candidate_content_digest;
+    use agent_diva_core::memory::{
+        MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryProvider,
+    };
+
+    fn context(temp: &tempfile::TempDir) -> MemoryCrudContext {
+        super::wave4_tests::context(temp)
+    }
+
+    async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
+        super::wave4_tests::open_service_with_store(temp).await
+    }
+
+    async fn open_provider(temp: &tempfile::TempDir) -> TypedLaputaMemoryProvider {
+        super::wave4_tests::open_provider(temp).await
+    }
+
+    async fn write_supersedes_tombstone(temp: &tempfile::TempDir, target_id: &str, reason: &str) {
+        super::wave4_tests::write_supersedes_tombstone(temp, target_id, reason).await
+    }
+
+    #[tokio::test]
+    async fn superseded_authority_digests_returns_only_targeted_records() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = open_provider(&temp).await;
+
+        // Superseded target — must appear.
+        let target_outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel roosts on the broken tower".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let target_id = match target_outcome {
+            MemoryCrudOutcome::Applied { entry } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        // Sibling authority — must NOT appear.
+        provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dusk".into(),
+                },
+            )
+            .await
+            .unwrap();
+
+        write_supersedes_tombstone(&temp, &target_id, "tower observation retired").await;
+
+        let digests = service.superseded_authority_digests().await.unwrap();
+        let target_digest = memory_candidate_content_digest("kestrel roosts on the broken tower");
+        assert!(
+            digests.contains(&target_digest),
+            "superseded target digest must be present; got {digests:?}"
+        );
+        assert_eq!(
+            digests.len(),
+            1,
+            "sibling authority must not leak in; got {digests:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn superseded_authority_digests_empty_when_no_tombstones() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = open_provider(&temp).await;
+
+        provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dawn".into(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let digests = service.superseded_authority_digests().await.unwrap();
+        assert!(
+            digests.is_empty(),
+            "no supersedes tombstone → empty list, got {digests:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn superseded_authority_digests_graceful_missing_store() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let digests = service.superseded_authority_digests().await.unwrap();
         assert!(
             digests.is_empty(),
             "no typed store yet → empty digest list, got {digests:?}"

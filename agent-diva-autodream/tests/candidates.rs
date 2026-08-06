@@ -29,6 +29,7 @@ fn input(primary: EvidenceRef) -> BoundedReflectionInput {
             summary: "verified bounded evidence".to_string(),
         }],
         existing_memory_digests: Vec::new(),
+        superseded_memory_digests: Vec::new(),
         max_candidates: 2,
     }
 }

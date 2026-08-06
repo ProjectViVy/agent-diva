@@ -25,6 +25,7 @@ pub enum CandidateRejectionCode {
     EmptyContent,
     CapacityExceeded,
     Duplicate,
+    Superseded,
     PromptInjection,
     SensitiveContent,
     Contradiction,
@@ -66,6 +67,11 @@ impl CandidateGate {
             .iter()
             .cloned()
             .collect::<HashSet<_>>();
+        let superseded = input
+            .superseded_memory_digests
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
         let mut accepted_digests = HashSet::new();
         let suppressed = suppressed_content_digests
             .iter()
@@ -85,6 +91,7 @@ impl CandidateGate {
                 &candidate,
                 &allowed_evidence,
                 &existing,
+                &superseded,
                 &accepted_digests,
                 accepted.len(),
                 local_existing_memory,
@@ -110,6 +117,7 @@ impl CandidateGate {
         candidate: &MemoryCandidate,
         allowed_evidence: &HashMap<&str, &agent_diva_core::evolution::EvidenceRef>,
         existing: &HashSet<String>,
+        superseded: &HashSet<String>,
         accepted_digests: &HashSet<String>,
         accepted_count: usize,
         local_existing_memory: &[String],
@@ -169,6 +177,9 @@ impl CandidateGate {
             return Some(CandidateRejectionCode::SensitiveContent);
         }
         let digest = content_digest(content);
+        if superseded.contains(&digest) {
+            return Some(CandidateRejectionCode::Superseded);
+        }
         if suppressed.contains(&digest) {
             return Some(CandidateRejectionCode::Suppressed);
         }

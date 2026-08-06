@@ -20,6 +20,12 @@ pub struct BoundedReflectionInput {
     pub run_id: String,
     pub evidence: Vec<ReflectionEvidence>,
     pub existing_memory_digests: Vec<String>,
+    /// Digests of records targeted by a supersedes tombstone. Candidates
+    /// whose content matches one of these digests are rejected with
+    /// `Superseded` (Wave 5) — the source record was already deposed, so
+    /// re-adding equivalent content would resurrect dead authority.
+    #[serde(default)]
+    pub superseded_memory_digests: Vec<String>,
     pub max_candidates: usize,
 }
 

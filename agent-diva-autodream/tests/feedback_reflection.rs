@@ -29,6 +29,7 @@ async fn corrected_recall_feedback_proposes_governed_deprecation() {
                         .to_string(),
             }],
             existing_memory_digests: Vec::new(),
+            superseded_memory_digests: Vec::new(),
             max_candidates: 8,
         })
         .await

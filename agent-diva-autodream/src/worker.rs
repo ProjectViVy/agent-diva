@@ -406,6 +406,17 @@ impl AutoDreamWorker {
                 }
                 digests.into_iter().collect()
             },
+            superseded_memory_digests: match self.laputa.superseded_authority_digests().await {
+                Ok(digests) => digests,
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        "AutoDream superseded dedup: typed superseded digest unavailable; \
+                         falling back to no superseded check (Wave 5 degraded)"
+                    );
+                    Vec::new()
+                }
+            },
             max_candidates: 8,
         };
         let output = engine
@@ -858,6 +869,7 @@ mod wave4_tests {
                 summary: "bounded verification".into(),
             }],
             existing_memory_digests: existing_digests,
+            superseded_memory_digests: Vec::new(),
             max_candidates: 8,
         }
     }
