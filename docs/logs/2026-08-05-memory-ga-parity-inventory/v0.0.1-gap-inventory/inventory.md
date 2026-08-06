@@ -453,4 +453,27 @@ agent-diva **已有**记忆/治理/AutoDream 的**底座与治理骨架**，但�
 
 这些决策在实施 Wave 0/1 前必须冻结，否则“完全对齐”无法验收。
 
+### 10.1 决策冻结（2026-08-06，用户拍板）
+
+> Status: **FROZEN** — Wave 0/1 编码以此为契约，不再重开。
+> 决策人：用户（2026-08-06 交互确认）；记录：QoderCN。
+
+| # | 决策点 | 冻结结论 | 关键理由 |
+|---|--------|----------|----------|
+| 1 | 写入路径 | **混合分级**：低风险（用户明确要求记住的事实/偏好）即时 apply；高风险（删除/覆盖既有权威、敏感内容）走 proposal 审批 | 保住 GA「记住即成功」手感，同时守住「写权威走治理」架构立场；高风险仍有 HITL 兜底 |
+| 2 | L3 经验载体 | **Skills 为主**：经验沉淀为普通 `SKILL.md`（可带可选 `kind: sop` 展示标记），不建独立 SOP 子系统 | 复用 2026-07-30 既有决策 `docs/architecture/skill-sop-unification.md`：产品对象只有 Skill |
+| 3 | 工作记忆 | **Session store**：随会话生命周期、易失、非权威；任务结束由 distill 显式晋升为长期记忆 | 天然符合「工作记忆 ≠ 长期权威」；无脏数据残留，无 GC 负担 |
+| 4 | consolidation | **降级为兜底**：distill 工具 + AutoDream 节律为主写路径；consolidation 条目化，仅当无显式蒸馏时触发 | 消除双写冲突；consolidation 保留为 last-resort |
+| 5 | authority_mode 默认 | **统一默认 Typed**：缺失配置与默认语义一致走 Typed SQLite 权威；Legacy 仅显式 opt-in 或作导入源 | 对齐「typed 是生产权威方向」；消除 missing→Legacy 与 Default→Typed 的分叉（F10） |
+
+**对 Wave 的实施约束：**
+
+- Wave 1 `memory` 工具（add/update/remove）在 Typed/Laputa 下按风险分级路由：
+  低风险 → typed governed apply；高风险 → proposal + 审批。Legacy 模式仍按
+  proposal-first 语义（不直写 MEMORY.md 冒充权威）。
+- Wave 2 工作记忆注入源 = session store；distill 晋升时把 checkpoint 摘要作为
+  evidence 的一部分。
+- Wave 5 consolidation 改造为「无 distill 时的兜底」，阈值策略在实现时细化。
+- F10 修复随 Wave 0：缺失配置与 `Default` 语义统一为 Typed，文档同步。
+
 ---

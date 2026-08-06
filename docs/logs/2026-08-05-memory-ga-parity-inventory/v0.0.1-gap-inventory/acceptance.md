@@ -14,7 +14,9 @@
 - [x] 已定义用户旅程 U1–U8
 - [x] 已定义落地波次 Wave 0–5
 - [x] 已声明非目标（file_write 即权威等 🔒）
-- [ ] 产品决策冻结（见 inventory §10 Open Questions）— **实施前必须完成**
+- [x] 产品决策冻结（见 inventory §10.1，2026-08-06 用户拍板：混合分级写入 /
+      统一默认 Typed / Session store 工作记忆 / consolidation 降级兜底 /
+      L3 经验 Skills 为主）— Wave 0/1 编码以此为契约
 
 ---
 

@@ -33,8 +33,13 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   权威入口：
   [`docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/inventory.md`](docs/logs/2026-08-05-memory-ga-parity-inventory/v0.0.1-gap-inventory/inventory.md)。
   实施按 inventory Wave 0–5；**禁止**回退 Mentle 或 “file_write 即权威”。
-  验收见同目录 `acceptance.md`。Open Questions（即时 durable vs proposal-first 等）
-  须在 Wave 1 编码前冻结。
+  验收见同目录 `acceptance.md`。
+  **决策已冻结（2026-08-06，用户拍板，见 inventory §10.1）**：
+  1) 混合分级写入（低风险即时 apply / 高风险审批）；2) L3 经验 Skills 为主
+  （复用 `docs/architecture/skill-sop-unification.md` 决策）；3) 工作记忆 Session
+  store（distill 显式晋升）；4) consolidation 降级为兜底；5) authority_mode
+  统一默认 Typed（F10 随 Wave 0 修复）。
+  **当前状态：决策冻结完成，Wave 0/1 实施待排期。**
 
 - [x] **E0–E7：AutoDream–Laputa 开箱可用纵向闭环** `sev-P0`
   按 Experience Journal、可恢复 Orchestrator、受限 Reflection、Candidate Gate、
