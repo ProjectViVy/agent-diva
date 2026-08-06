@@ -1221,8 +1221,8 @@ mod tests {
                     name: "save_memory".to_string(),
                     arguments: HashMap::from([
                         (
-                            "memory_update".to_string(),
-                            serde_json::Value::String("Updated continuity.".to_string()),
+                            "items".to_string(),
+                            serde_json::json!([{"action": "add", "content": "Updated continuity."}]),
                         ),
                         (
                             "history_entry".to_string(),

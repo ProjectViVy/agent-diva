@@ -74,6 +74,7 @@ impl Tool for MemoryDistillTool {
             )
             .await
             .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?;
+        crate::distill_guard::mark_distill_ran();
         serde_json::to_string(&outcome)
             .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
     }

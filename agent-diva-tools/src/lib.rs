@@ -6,6 +6,7 @@ pub mod ask_user;
 pub mod attachment;
 pub mod base;
 pub mod cron;
+pub mod distill_guard;
 pub mod enqueue_background_task;
 pub mod execution_todo;
 pub mod filesystem;
