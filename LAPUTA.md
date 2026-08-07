@@ -74,14 +74,14 @@ supersedes: null
 **TBD pool 模式**(FR-503): #10-14 接受写入,content 存为 raw bytes,`status=tbd`,schema 等最终综合 PRD。
 
 **旧 8 模板 → 14 section 映射**(FR-502):
-  - `SOUL.md` + `IDENTITY.md` → #1 identity
+  - `SOUL.md` + `IDENTITY.md` → #1 identity（已退役 → Frozen Core `sections/{identity,relationship,commitment,preferences}.json`，见 commit `c2ca8c1f`）
   - `MEMORY.md` → #5 memory_md
   - `HISTORY.md` → #6 history_md
   - `USER.md` + `PROFILE.md` → #2 relationship
   - `TASK.md` → #10 journal_reflective (TBD pool)
-  - `BOOTSTRAP.md` → 启动时一次性(不持久化,首次启动后失效)
+  - `BOOTSTRAP.md` → 已退役（commit `57044ba8` 移除注入，`36c68d8f` 移除种子）
 
-**迁移策略**(FR-503): `sync_workspace_templates()` 改写 → 检查 `.laputa/state.json` 存在性 → 旧 8 文件备份到 `.laputa/legacy/{ISO8601}/` → staging buffer + swap 模式保证原子性,失败整体回滚。
+**迁移策略**(FR-503): ~~`sync_workspace_templates()` 改写~~ → `sync_workspace_templates()` 已移除 4 件套（SOUL/IDENTITY/USER/BOOTSTRAP）种子，仅保留 PROFILE/HISTORY/TASK/MEMORY 共 6 模板（commit `36c68d8f`）。Frozen Core 4 节由 `LaputaStorage::open()` 自动种子为 JSON `null`。
 
 ---
 
