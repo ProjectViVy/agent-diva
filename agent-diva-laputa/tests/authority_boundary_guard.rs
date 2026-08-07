@@ -55,11 +55,6 @@ const READ_CALL_MARKERS: &[&str] = &[
     "file::open(",
 ];
 
-const READ_ALLOWLIST: &[(&str, &str)] = &[(
-    "agent-diva-agent/src/context.rs",
-    "read_soul_file(\"bootstrap.md\")",
-)];
-
 pub fn assert_authority_boundaries() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -83,7 +78,7 @@ pub fn assert_authority_boundaries() {
         &["agent-diva-agent/src", "agent-diva-autodream/src"],
         READ_CALL_MARKERS,
         FORBIDDEN_PATTERNS,
-        READ_ALLOWLIST,
+        &[],
     );
     assert!(
         read_violations.is_empty(),
