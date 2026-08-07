@@ -9,7 +9,7 @@ agent-diva-core holds the cross-cutting domain types and services used by every 
 Top-level modules are single `.rs` files; multi-file domains live in directories with `mod.rs`.
 
 - Single-file modules: `ask_user`, `attachment`, `audit`, `audit_parse`, `audit_sink`, `error`, `error_category`, `error_context`, `experience`, `logging`, `rate_limiter`, `reasoning`, `workspace_identity`
-- Directory modules: `bus/`, `config/`, `cron/`, `evolution/`, `governance/`, `heartbeat/`, `memory/`, `planning/`, `presence/`, `quality/`, `reports/`, `scheduler/`, `security/`, `session/`, `soul/`, `supervised/`, `todo/`, `token_ledger/`, `utils/`
+- Directory modules: `bus/`, `config/`, `cron/`, `evolution/`, `governance/`, `heartbeat/`, `memory/`, `planning/`, `presence/`, `quality/`, `reports/`, `scheduler/`, `security/`, `session/`, `supervised/`, `todo/`, `token_ledger/`, `utils/`
 
 ## WHERE TO LOOK
 
@@ -38,7 +38,6 @@ Top-level modules are single `.rs` files; multi-file domains live in directories
 | Experience tracking | `experience` | `experience.rs` |
 | Evolution types | `evolution` | `evolution/mod.rs` |
 | Scheduler bridge and sandbox | `scheduler` | `scheduler/mod.rs` |
-| Soul model | `soul` | `soul/mod.rs` |
 | Report generation and validation | `reports` | `reports/mod.rs` |
 
 ## CONVENTIONS
