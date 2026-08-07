@@ -200,7 +200,7 @@ fn emit_outputs_uses_laputa_service_without_direct_proposal_directory_writes() {
                 details: Vec::new(),
             },
             proposal_candidates: vec![AutoDreamProposalCandidateDraft {
-                proposal_type: "journal_note".to_string(),
+                proposal_type: "memory_patch".to_string(),
                 proposed_patch: "Reflect on the latest user interaction.".to_string(),
                 risk_level: RiskLevel::Medium,
                 evidence_refs: vec![sample_evidence()],

@@ -310,8 +310,8 @@ fn discover_legacy_sources(workspace_root: &Path) -> Result<Vec<LaputaMigrationS
         ),
         (
             "HISTORY.md",
-            LaputaMigrationSourceKind::Supported {
-                section: LaputaSectionName::HistoryMd,
+            LaputaMigrationSourceKind::BootstrapOnly {
+                reason: "history file layer is retired; kept as backup only".to_string(),
             },
         ),
         (
@@ -322,8 +322,8 @@ fn discover_legacy_sources(workspace_root: &Path) -> Result<Vec<LaputaMigrationS
         ),
         (
             "memory/HISTORY.md",
-            LaputaMigrationSourceKind::Supported {
-                section: LaputaSectionName::HistoryMd,
+            LaputaMigrationSourceKind::BootstrapOnly {
+                reason: "history file layer is retired; kept as backup only".to_string(),
             },
         ),
         (
@@ -340,9 +340,9 @@ fn discover_legacy_sources(workspace_root: &Path) -> Result<Vec<LaputaMigrationS
         ),
         (
             "TASK.md",
-            LaputaMigrationSourceKind::Unsupported {
-                section: LaputaSectionName::JournalReflective,
-                reason: "legacy TASK.md maps to TBD journal_reflective schema".to_string(),
+            LaputaMigrationSourceKind::BootstrapOnly {
+                reason: "legacy TASK.md has no Laputa section target after registry hard-delete; kept as backup only"
+                    .to_string(),
             },
         ),
         (

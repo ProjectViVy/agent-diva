@@ -87,7 +87,7 @@ fn user_edit_rejects_non_writable_section() {
 
     let error = service
         .create_user_edit_proposal(
-            LaputaSectionName::ProposalInbox,
+            LaputaSectionName::Changelog,
             r#"{"items":["new"]}"#,
             "user",
             None,
@@ -122,19 +122,9 @@ fn user_edit_risk_mapping_is_fail_closed_by_section() {
             RiskLevel::High,
         ),
         (
-            LaputaSectionName::Changelog,
-            ProposalType::Deprecation,
-            RiskLevel::Critical,
-        ),
-        (
             LaputaSectionName::Preferences,
             ProposalType::LearningNote,
             RiskLevel::Medium,
-        ),
-        (
-            LaputaSectionName::HistoryMd,
-            ProposalType::HistoryPatch,
-            RiskLevel::Low,
         ),
     ];
 

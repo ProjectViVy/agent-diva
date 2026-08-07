@@ -50,11 +50,8 @@ fn snapshot_lists_all_sections_and_marks_tbd_sections() {
 
     let snapshot = service.read_snapshot(None).unwrap();
 
-    assert_eq!(snapshot.sections.len(), 14);
-    assert_eq!(
-        snapshot.sections["journal_reflective"].status,
-        SectionStatus::Tbd
-    );
+    assert_eq!(snapshot.sections.len(), 9);
+    assert_eq!(snapshot.sections["changelog"].status, SectionStatus::Tbd);
     assert_eq!(snapshot.sections["memory_md"].status, SectionStatus::Owned);
 }
 
@@ -63,9 +60,7 @@ fn section_reads_return_explicit_tbd_status_without_file() {
     let temp = tempfile::tempdir().unwrap();
     let service = LaputaService::open(temp.path()).unwrap();
 
-    let section = service
-        .read_section(LaputaSectionName::ProposalInbox)
-        .unwrap();
+    let section = service.read_section(LaputaSectionName::Changelog).unwrap();
 
     assert_eq!(section.status, SectionStatus::Tbd);
     assert!(section.content.is_null());

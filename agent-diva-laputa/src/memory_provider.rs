@@ -69,14 +69,13 @@ impl LaputaMemoryProvider {
         Ok(Some(markdown))
     }
 
-    fn authority_sections(&self) -> [LaputaSectionName; 6] {
+    fn authority_sections(&self) -> [LaputaSectionName; 5] {
         [
             LaputaSectionName::Identity,
             LaputaSectionName::Relationship,
             LaputaSectionName::Commitment,
             LaputaSectionName::Preferences,
             LaputaSectionName::MemoryMd,
-            LaputaSectionName::HistoryMd,
         ]
     }
 
@@ -131,24 +130,6 @@ impl LaputaMemoryProvider {
         })?;
         Ok(())
     }
-
-    fn append_history_patch(&self, history_entry: &str) -> Result<String> {
-        let current = self
-            .service
-            .read_section(LaputaSectionName::HistoryMd)?
-            .content;
-        let current = match current {
-            Value::Null => String::new(),
-            Value::String(value) => value,
-            value => serde_json::to_string_pretty(&value)?,
-        };
-        let mut updated = current.trim_end().to_string();
-        if !updated.is_empty() {
-            updated.push('\n');
-        }
-        updated.push_str(history_entry);
-        Ok(updated)
-    }
 }
 
 #[async_trait::async_trait]
@@ -189,39 +170,21 @@ impl MemoryProvider for LaputaMemoryProvider {
         &self,
         request: SyncTurnRequest,
     ) -> agent_diva_core::Result<SyncTurnResponse> {
+        // History entries are intentionally ignored: the HISTORY.md layer is
+        // retired and has no Laputa section target after the registry hard-delete.
         let memory_update = request
             .memory_update_markdown
             .filter(|value| !value.trim().is_empty());
-        let history_entry = request
-            .history_entry
-            .filter(|value| !value.trim().is_empty());
-        if memory_update.is_none() && history_entry.is_none() {
+        let Some(memory_update) = memory_update else {
             return Ok(SyncTurnResponse::default());
-        }
+        };
 
-        let result = (|| -> Result<()> {
-            let history_patch = history_entry
-                .as_deref()
-                .map(|entry| self.append_history_patch(entry))
-                .transpose()?;
-            if let Some(memory_update) = memory_update {
-                self.create_turn_proposal(
-                    ProposalType::MemoryPatch,
-                    memory_update,
-                    "memory-update",
-                    RiskLevel::Medium,
-                )?;
-            }
-            if let Some(history_patch) = history_patch {
-                self.create_turn_proposal(
-                    ProposalType::HistoryPatch,
-                    history_patch,
-                    "history-entry",
-                    RiskLevel::Low,
-                )?;
-            }
-            Ok(())
-        })();
+        let result = self.create_turn_proposal(
+            ProposalType::MemoryPatch,
+            memory_update,
+            "memory-update",
+            RiskLevel::Medium,
+        );
 
         Ok(SyncTurnResponse {
             status: match result {
@@ -265,7 +228,6 @@ fn section_title(section: &LaputaSectionName) -> &'static str {
         LaputaSectionName::Commitment => "Commitments",
         LaputaSectionName::Preferences => "Preferences",
         LaputaSectionName::MemoryMd => "Long-Term Memory",
-        LaputaSectionName::HistoryMd => "Memory History",
         _ => "Laputa Section",
     }
 }
@@ -443,13 +405,7 @@ mod tests {
             .join(".laputa")
             .join("sections")
             .join("memory_md.json");
-        let history_path = temp
-            .path()
-            .join(".laputa")
-            .join("sections")
-            .join("history_md.json");
         fs::write(&memory_path, r#""Applied memory""#).unwrap();
-        fs::write(&history_path, r#""Earlier history""#).unwrap();
         let provider = LaputaMemoryProvider::new(service.clone());
 
         let response = provider
@@ -466,15 +422,11 @@ mod tests {
             fs::read_to_string(&memory_path).unwrap(),
             r#""Applied memory""#
         );
-        assert_eq!(
-            fs::read_to_string(&history_path).unwrap(),
-            r#""Earlier history""#
-        );
 
         let proposals = service
             .list_proposals(crate::ProposalFilter::default())
             .unwrap();
-        assert_eq!(proposals.len(), 2);
+        assert_eq!(proposals.len(), 1);
         assert!(proposals
             .iter()
             .all(|proposal| proposal.state == ProposalState::PendingReview));
@@ -488,16 +440,6 @@ mod tests {
         );
         assert_eq!(memory.risk_level, RiskLevel::Medium);
         assert_eq!(memory.evidence_refs[0].source, EvidenceSource::Session);
-
-        let history = proposals
-            .iter()
-            .find(|proposal| proposal.proposal_type == ProposalType::HistoryPatch)
-            .unwrap();
-        assert_eq!(
-            serde_json::from_str::<String>(&history.proposed_patch).unwrap(),
-            "Earlier history\n[2026-06-14] Candidate history"
-        );
-        assert_eq!(history.risk_level, RiskLevel::Low);
     }
 
     #[tokio::test]

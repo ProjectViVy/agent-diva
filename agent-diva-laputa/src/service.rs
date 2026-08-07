@@ -353,13 +353,10 @@ impl LaputaService {
 
         let proposal_type = match section {
             LaputaSectionName::MemoryMd => ProposalType::MemoryPatch,
-            LaputaSectionName::JournalReflective => ProposalType::JournalNote,
             LaputaSectionName::Preferences => ProposalType::LearningNote,
             LaputaSectionName::Identity => ProposalType::IdentityPatch,
             LaputaSectionName::Relationship => ProposalType::RelationshipUpdate,
             LaputaSectionName::Commitment => ProposalType::CommitmentSet,
-            LaputaSectionName::Changelog => ProposalType::Deprecation,
-            LaputaSectionName::HistoryMd => ProposalType::HistoryPatch,
             LaputaSectionName::Daily => ProposalType::DailyPatch,
             LaputaSectionName::Weekly => ProposalType::WeeklyPatch,
             LaputaSectionName::Monthly => ProposalType::MonthlyPatch,
@@ -372,9 +369,7 @@ impl LaputaService {
             }
         };
 
-        if section != LaputaSectionName::JournalReflective
-            && serde_json::from_str::<serde_json::Value>(&patch).is_err()
-        {
+        if serde_json::from_str::<serde_json::Value>(&patch).is_err() {
             return Err(LaputaError::SchemaIncompatible {
                 id: id.clone(),
                 reason: "patch is not valid JSON".to_string(),
@@ -385,8 +380,6 @@ impl LaputaService {
             LaputaSectionName::Identity
             | LaputaSectionName::Relationship
             | LaputaSectionName::Commitment => RiskLevel::High,
-            LaputaSectionName::Changelog => RiskLevel::Critical,
-            LaputaSectionName::HistoryMd | LaputaSectionName::JournalReflective => RiskLevel::Low,
             LaputaSectionName::Preferences
             | LaputaSectionName::MemoryMd
             | LaputaSectionName::Daily
@@ -959,11 +952,7 @@ pub struct LaputaEvent {
 
 fn section_status(section: &LaputaSectionName) -> SectionStatus {
     match section {
-        LaputaSectionName::JournalReflective
-        | LaputaSectionName::ProposalInbox
-        | LaputaSectionName::Changelog
-        | LaputaSectionName::ReportIndexes
-        | LaputaSectionName::AaakSummaries => SectionStatus::Tbd,
+        LaputaSectionName::Changelog => SectionStatus::Tbd,
         _ => SectionStatus::Owned,
     }
 }

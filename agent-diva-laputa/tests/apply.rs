@@ -159,7 +159,7 @@ fn apply_rejects_unauthorized_target_and_schema_mismatch_without_mutation() {
         ProposalType::MemoryPatch,
         ProposalState::Approved,
     );
-    unauthorized.target_section = LaputaSectionName::ProposalInbox;
+    unauthorized.target_section = LaputaSectionName::Changelog;
     fs::write(
         storage.paths().proposals_dir().join("proposal-1.json"),
         serde_json::to_vec_pretty(&unauthorized).unwrap(),
@@ -369,36 +369,6 @@ fn apply_recovery_cleans_changelog_when_audit_fails_after_changelog_write() {
             .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
             .count(),
         0
-    );
-}
-
-#[test]
-fn apply_allows_raw_tbd_section_writes() {
-    let temp = tempfile::tempdir().unwrap();
-    let storage = LaputaStorage::open(temp.path()).unwrap();
-    let repo = ProposalRepository::new(storage.clone());
-
-    let mut proposal = proposal(
-        "proposal-1",
-        ProposalType::JournalNote,
-        ProposalState::PendingReview,
-    );
-    proposal.proposed_patch = "raw reflective note".to_string();
-    repo.create_proposal(proposal).unwrap();
-    repo.transition_proposal("proposal-1", ProposalState::Approved, ts(3))
-        .unwrap();
-
-    repo.apply_proposal("proposal-1", "reviewer", ts(4))
-        .unwrap();
-
-    assert_eq!(
-        fs::read_to_string(
-            storage
-                .paths()
-                .section_file(LaputaSectionName::JournalReflective)
-        )
-        .unwrap(),
-        "raw reflective note"
     );
 }
 

@@ -72,12 +72,10 @@ pub fn validate_governance_evidence(evidence_refs: &[EvidenceRef]) -> Result<(),
 #[serde(rename_all = "snake_case")]
 pub enum ProposalType {
     MemoryPatch,
-    JournalNote,
     LearningNote,
     IdentityPatch,
     RelationshipUpdate,
     CommitmentSet,
-    HistoryPatch,
     DailyPatch,
     WeeklyPatch,
     MonthlyPatch,
@@ -90,12 +88,10 @@ impl ProposalType {
     pub fn target_section(&self) -> LaputaSectionName {
         match self {
             Self::MemoryPatch => LaputaSectionName::MemoryMd,
-            Self::JournalNote => LaputaSectionName::JournalReflective,
             Self::LearningNote => LaputaSectionName::Preferences,
             Self::IdentityPatch | Self::SopCreate => LaputaSectionName::Identity,
             Self::RelationshipUpdate => LaputaSectionName::Relationship,
             Self::CommitmentSet => LaputaSectionName::Commitment,
-            Self::HistoryPatch => LaputaSectionName::HistoryMd,
             Self::DailyPatch => LaputaSectionName::Daily,
             Self::WeeklyPatch => LaputaSectionName::Weekly,
             Self::MonthlyPatch => LaputaSectionName::Monthly,
@@ -105,23 +101,18 @@ impl ProposalType {
 }
 
 impl LaputaSectionName {
-    /// Return all v1 Laputa sections in canonical order.
-    pub const fn all_v1() -> [Self; 14] {
+    /// Return all Laputa sections in canonical order.
+    pub const fn all_v1() -> [Self; 9] {
         [
             Self::Identity,
             Self::Relationship,
             Self::Commitment,
             Self::Preferences,
             Self::MemoryMd,
-            Self::HistoryMd,
             Self::Daily,
             Self::Weekly,
             Self::Monthly,
-            Self::JournalReflective,
-            Self::ProposalInbox,
             Self::Changelog,
-            Self::ReportIndexes,
-            Self::AaakSummaries,
         ]
     }
 
@@ -133,15 +124,10 @@ impl LaputaSectionName {
             Self::Commitment => "commitment",
             Self::Preferences => "preferences",
             Self::MemoryMd => "memory_md",
-            Self::HistoryMd => "history_md",
             Self::Daily => "daily",
             Self::Weekly => "weekly",
             Self::Monthly => "monthly",
-            Self::JournalReflective => "journal_reflective",
-            Self::ProposalInbox => "proposal_inbox",
             Self::Changelog => "changelog",
-            Self::ReportIndexes => "report_indexes",
-            Self::AaakSummaries => "aaak_summaries",
         }
     }
 }
@@ -156,15 +142,12 @@ impl FromStr for LaputaSectionName {
             "commitment" => Ok(Self::Commitment),
             "preferences" => Ok(Self::Preferences),
             "memory_md" => Ok(Self::MemoryMd),
-            "history_md" => Ok(Self::HistoryMd),
             "daily" => Ok(Self::Daily),
             "weekly" => Ok(Self::Weekly),
             "monthly" => Ok(Self::Monthly),
-            "journal_reflective" => Ok(Self::JournalReflective),
-            "proposal_inbox" => Ok(Self::ProposalInbox),
             "changelog" => Ok(Self::Changelog),
-            "report_indexes" => Ok(Self::ReportIndexes),
-            "aaak_summaries" => Ok(Self::AaakSummaries),
+            // Retired section names intentionally fall through to the stable
+            // UnknownLaputaSection failure code.
             other => Err(EvolutionError::UnknownLaputaSection(other.to_string())),
         }
     }
@@ -182,12 +165,10 @@ impl FromStr for ProposalType {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "memory_patch" => Ok(Self::MemoryPatch),
-            "journal_note" => Ok(Self::JournalNote),
             "learning_note" => Ok(Self::LearningNote),
             "identity_patch" => Ok(Self::IdentityPatch),
             "relationship_update" => Ok(Self::RelationshipUpdate),
             "commitment_set" => Ok(Self::CommitmentSet),
-            "history_patch" => Ok(Self::HistoryPatch),
             "daily_patch" => Ok(Self::DailyPatch),
             "weekly_patch" => Ok(Self::WeeklyPatch),
             "monthly_patch" => Ok(Self::MonthlyPatch),
@@ -202,12 +183,10 @@ impl fmt::Display for ProposalType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self {
             Self::MemoryPatch => "memory_patch",
-            Self::JournalNote => "journal_note",
             Self::LearningNote => "learning_note",
             Self::IdentityPatch => "identity_patch",
             Self::RelationshipUpdate => "relationship_update",
             Self::CommitmentSet => "commitment_set",
-            Self::HistoryPatch => "history_patch",
             Self::DailyPatch => "daily_patch",
             Self::WeeklyPatch => "weekly_patch",
             Self::MonthlyPatch => "monthly_patch",
@@ -244,7 +223,7 @@ pub enum RiskLevel {
     Critical,
 }
 
-/// Canonical names for the 14 Laputa v1 sections.
+/// Canonical names for the Laputa sections.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LaputaSectionName {
@@ -253,15 +232,10 @@ pub enum LaputaSectionName {
     Commitment,
     Preferences,
     MemoryMd,
-    HistoryMd,
     Daily,
     Weekly,
     Monthly,
-    JournalReflective,
-    ProposalInbox,
     Changelog,
-    ReportIndexes,
-    AaakSummaries,
 }
 
 /// Shared governance proposal envelope.
@@ -526,10 +500,6 @@ mod tests {
     fn test_all_v1_proposal_types_route_to_expected_laputa_sections() {
         let cases = [
             (ProposalType::MemoryPatch, LaputaSectionName::MemoryMd),
-            (
-                ProposalType::JournalNote,
-                LaputaSectionName::JournalReflective,
-            ),
             (ProposalType::LearningNote, LaputaSectionName::Preferences),
             (ProposalType::IdentityPatch, LaputaSectionName::Identity),
             (
@@ -537,7 +507,6 @@ mod tests {
                 LaputaSectionName::Relationship,
             ),
             (ProposalType::CommitmentSet, LaputaSectionName::Commitment),
-            (ProposalType::HistoryPatch, LaputaSectionName::HistoryMd),
             (ProposalType::DailyPatch, LaputaSectionName::Daily),
             (ProposalType::WeeklyPatch, LaputaSectionName::Weekly),
             (ProposalType::MonthlyPatch, LaputaSectionName::Monthly),
@@ -558,6 +527,37 @@ mod tests {
             error,
             EvolutionError::UnknownProposalType("unsupported_change".to_string())
         );
+    }
+
+    #[test]
+    fn test_retired_section_names_fail_with_stable_error_code() {
+        for retired in [
+            "history_md",
+            "journal_reflective",
+            "proposal_inbox",
+            "report_indexes",
+            "aaak_summaries",
+        ] {
+            let error = retired.parse::<LaputaSectionName>().unwrap_err();
+            assert_eq!(
+                error,
+                EvolutionError::UnknownLaputaSection(retired.to_string())
+            );
+            // On-disk history referencing retired sections must fail serde
+            // deserialization deterministically instead of panicking.
+            assert!(serde_json::from_str::<LaputaSectionName>(&format!("\"{retired}\"")).is_err());
+        }
+    }
+
+    #[test]
+    fn test_retired_proposal_types_fail_with_stable_error_code() {
+        for retired in ["history_patch", "journal_note"] {
+            let error = route_proposal_type(retired).unwrap_err();
+            assert_eq!(
+                error,
+                EvolutionError::UnknownProposalType(retired.to_string())
+            );
+        }
     }
 
     #[test]

@@ -475,11 +475,9 @@ fn record_kind_for_section(section: &LaputaSectionName) -> MemoryRecordKind {
         LaputaSectionName::Commitment => MemoryRecordKind::Commitment,
         LaputaSectionName::Preferences => MemoryRecordKind::Preference,
         LaputaSectionName::MemoryMd => MemoryRecordKind::LongTerm,
-        LaputaSectionName::HistoryMd => MemoryRecordKind::History,
         LaputaSectionName::Daily => MemoryRecordKind::Daily,
         LaputaSectionName::Weekly => MemoryRecordKind::Weekly,
         LaputaSectionName::Monthly => MemoryRecordKind::Monthly,
-        LaputaSectionName::JournalReflective => MemoryRecordKind::Journal,
         _ => MemoryRecordKind::Unknown,
     }
 }
@@ -592,7 +590,7 @@ mod tests {
     #[test]
     fn non_owned_laputa_sections_are_not_normalized() {
         let section = LaputaSection {
-            name: LaputaSectionName::ProposalInbox,
+            name: LaputaSectionName::Changelog,
             status: SectionStatus::Tbd,
             content: json!({"pending": "must not enter prompt"}),
             metadata: json!({}),
@@ -602,7 +600,7 @@ mod tests {
         let output = adapt_laputa_section(
             &section,
             &json!({
-                "name": "proposal_inbox",
+                "name": "changelog",
                 "status": "tbd",
                 "content": {},
                 "metadata": {},

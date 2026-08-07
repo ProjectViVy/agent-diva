@@ -187,14 +187,9 @@ fn section_file_stem(section: LaputaSectionName) -> &'static str {
         LaputaSectionName::Commitment => "commitment",
         LaputaSectionName::Preferences => "preferences",
         LaputaSectionName::MemoryMd => "memory_md",
-        LaputaSectionName::HistoryMd => "history_md",
         LaputaSectionName::Daily => "daily",
         LaputaSectionName::Weekly => "weekly",
         LaputaSectionName::Monthly => "monthly",
-        LaputaSectionName::JournalReflective => "journal_reflective",
-        LaputaSectionName::ProposalInbox => "proposal_inbox",
         LaputaSectionName::Changelog => "changelog",
-        LaputaSectionName::ReportIndexes => "report_indexes",
-        LaputaSectionName::AaakSummaries => "aaak_summaries",
     }
 }

@@ -315,13 +315,7 @@ fn prepare(request: &MemoryImportRequest) -> Result<PreparedImport> {
                     .with_context(|| format!("invalid Laputa JSON: {}", canonical.display()))?;
                 let section: LaputaSection = serde_json::from_value(raw.clone())
                     .context("unsupported Laputa section JSON")?;
-                if matches!(
-                    section.name,
-                    LaputaSectionName::ProposalInbox
-                        | LaputaSectionName::Changelog
-                        | LaputaSectionName::ReportIndexes
-                        | LaputaSectionName::AaakSummaries
-                ) {
+                if matches!(section.name, LaputaSectionName::Changelog) {
                     bail!("non-authority Laputa section is not importable");
                 }
                 records.extend(adapt_laputa_section(&section, &raw, &context)?.records);

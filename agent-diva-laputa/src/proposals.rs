@@ -262,11 +262,7 @@ impl ProposalRepository {
         let wrote_section =
             options.write_authority && proposal.proposal_type != ProposalType::Deprecation;
         if wrote_section {
-            if is_raw_apply_target(&proposal.target_section) {
-                crate::atomic_write(&section_path, proposal.proposed_patch.as_bytes())?;
-            } else {
-                atomic_write_json(&section_path, &parse_json_patch(&proposal)?)?;
-            }
+            atomic_write_json(&section_path, &parse_json_patch(&proposal)?)?;
         }
 
         if options.failure_point == Some(ApplyFailurePoint::AfterSectionWriteBeforeChangelog) {
@@ -362,8 +358,21 @@ impl ProposalRepository {
                 let id = path
                     .file_stem()
                     .and_then(|stem| stem.to_str())
-                    .unwrap_or("<invalid>");
-                proposals.push(read_proposal(&path, id)?);
+                    .unwrap_or("<invalid>")
+                    .to_string();
+                // Read-only history tolerance: proposals persisted against
+                // retired sections or older schemas are skipped instead of
+                // breaking the whole listing.
+                match read_proposal(&path, &id) {
+                    Ok(proposal) => proposals.push(proposal),
+                    Err(error) => {
+                        tracing::warn!(
+                            proposal_id = %id,
+                            %error,
+                            "skipping unreadable persisted proposal"
+                        );
+                    }
+                }
             }
         }
 
@@ -593,16 +602,12 @@ fn validate_apply_contract(
     // JSON is a legacy section-projection storage contract, not a typed Memory
     // content contract. Typed authority stores a validated MemoryRecord and may
     // legitimately contain durable plain text.
-    if legacy_projection_write && !is_raw_apply_target(&proposal.target_section) {
+    if legacy_projection_write {
         parse_json_patch(proposal)?;
         reject_unresolved_conflicts(proposal)?;
     }
 
     Ok(())
-}
-
-fn is_raw_apply_target(target_section: &LaputaSectionName) -> bool {
-    matches!(target_section, LaputaSectionName::JournalReflective)
 }
 
 fn is_writable_apply_target(
@@ -618,11 +623,9 @@ fn is_writable_apply_target(
                 | LaputaSectionName::Commitment
                 | LaputaSectionName::Preferences
                 | LaputaSectionName::MemoryMd
-                | LaputaSectionName::HistoryMd
                 | LaputaSectionName::Daily
                 | LaputaSectionName::Weekly
                 | LaputaSectionName::Monthly
-                | LaputaSectionName::JournalReflective
         ),
     }
 }

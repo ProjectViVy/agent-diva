@@ -67,9 +67,12 @@ fn migration_discovers_root_level_memory_and_history_sources() {
     let memory =
         fs::read_to_string(storage.paths().section_file(LaputaSectionName::MemoryMd)).unwrap();
     assert!(memory.contains("root memory"));
-    let history =
-        fs::read_to_string(storage.paths().section_file(LaputaSectionName::HistoryMd)).unwrap();
-    assert!(history.contains("root history"));
+    // The history file layer is retired: HISTORY.md is backed up only and
+    // never written into a Laputa section.
+    assert!(outcome
+        .written_sections
+        .iter()
+        .all(|section| section != "history_md"));
 }
 
 #[test]
@@ -149,7 +152,7 @@ fn migration_preserves_unsupported_sources_as_tbd_payloads() {
     let source = LaputaMigrationSource {
         path: temp.path().join("legacy/future.md"),
         kind: LaputaMigrationSourceKind::Unsupported {
-            section: LaputaSectionName::AaakSummaries,
+            section: LaputaSectionName::Changelog,
             reason: "owned by future story".to_string(),
         },
     };
@@ -161,12 +164,8 @@ fn migration_preserves_unsupported_sources_as_tbd_payloads() {
         })
         .unwrap();
 
-    let section = fs::read_to_string(
-        storage
-            .paths()
-            .section_file(LaputaSectionName::AaakSummaries),
-    )
-    .unwrap();
+    let section =
+        fs::read_to_string(storage.paths().section_file(LaputaSectionName::Changelog)).unwrap();
     let payload: Value = serde_json::from_str(&section).unwrap();
     assert_eq!(payload["status"], "tbd");
     assert_eq!(payload["metadata"]["reason"], "owned by future story");
@@ -174,7 +173,7 @@ fn migration_preserves_unsupported_sources_as_tbd_payloads() {
 }
 
 #[test]
-fn migration_discovers_legacy_relationship_history_and_tbd_task_templates() {
+fn migration_discovers_legacy_relationship_sources_and_backs_up_retired_history_and_task() {
     let temp = tempfile::tempdir().unwrap();
     fs::create_dir_all(temp.path().join("memory")).unwrap();
     fs::write(temp.path().join("memory/HISTORY.md"), "old history").unwrap();
@@ -191,10 +190,11 @@ fn migration_discovers_legacy_relationship_history_and_tbd_task_templates() {
     assert!(outcome
         .written_sections
         .contains(&"relationship".to_string()));
-    assert!(outcome.written_sections.contains(&"history_md".to_string()));
+    // HISTORY.md and TASK.md are retired layers: backup only, no section output.
     assert!(outcome
         .written_sections
-        .contains(&"journal_reflective".to_string()));
+        .iter()
+        .all(|section| section != "history_md" && section != "journal_reflective"));
 
     let relationship = fs::read_to_string(
         storage
@@ -204,15 +204,6 @@ fn migration_discovers_legacy_relationship_history_and_tbd_task_templates() {
     .unwrap();
     assert!(relationship.contains("known user"));
     assert!(relationship.contains("known profile"));
-    let task = fs::read_to_string(
-        storage
-            .paths()
-            .section_file(LaputaSectionName::JournalReflective),
-    )
-    .unwrap();
-    let payload: Value = serde_json::from_str(&task).unwrap();
-    assert_eq!(payload["status"], "tbd");
-    assert_eq!(payload["metadata"]["content_type"], "tbd");
 }
 
 #[test]

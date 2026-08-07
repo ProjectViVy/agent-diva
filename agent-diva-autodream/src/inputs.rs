@@ -61,11 +61,7 @@ impl Default for AutoDreamInputCollectorConfig {
             capsule_limit: DEFAULT_CAPSULE_LIMIT,
             capsule_bytes: DEFAULT_CAPSULE_BYTES,
             total_bytes_budget: DEFAULT_TOTAL_BYTES,
-            laputa_sections: vec![
-                LaputaSectionName::MemoryMd,
-                LaputaSectionName::JournalReflective,
-                LaputaSectionName::Identity,
-            ],
+            laputa_sections: vec![LaputaSectionName::MemoryMd, LaputaSectionName::Identity],
         }
     }
 }
@@ -675,10 +671,7 @@ mod tests {
                     recent_session_limit: 1,
                     laputa_section_limit: 2,
                     capsule_limit: 1,
-                    laputa_sections: vec![
-                        LaputaSectionName::MemoryMd,
-                        LaputaSectionName::JournalReflective,
-                    ],
+                    laputa_sections: vec![LaputaSectionName::MemoryMd, LaputaSectionName::Identity],
                     ..AutoDreamInputCollectorConfig::default()
                 });
 
