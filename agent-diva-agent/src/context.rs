@@ -27,6 +27,18 @@ const DEFAULT_AGENT_ROLE: &str = "helpful AI assistant";
 /// (e.g. AGENTS.md).
 const WORKSPACE_MD_MAX_CHARS: usize = 4000;
 
+/// First-run onboarding guidance, injected only while the Frozen Core carries
+/// no persona content. Zero context cost in the steady state.
+const FIRST_RUN_ONBOARDING_BLOCK: &str = "\n\n## First-Run Onboarding\n\
+This workspace has no Frozen Core persona yet; this is the first conversation.\n\
+Use the ask_user tool to collect the user's identity preferences:\n\
+1. Preferred name / how to address them (open-ended)\n\
+2. Collaboration style (choices + allow_other)\n\
+3. Boundaries: ask-first vs never-do (choices + allow_other)\n\
+4. Communication preferences (open-ended)\n\
+Then use laputa_propose_section_write to turn each confirmed answer into a\n\
+governed proposal. If the user declines, skip onboarding without repeating.";
+
 /// Builds the context for LLM requests
 pub struct ContextBuilder {
     workspace: PathBuf,
@@ -119,6 +131,9 @@ Your workspace is at: {workspace_path}
         if !frozen_projection.is_empty() {
             prompt.push_str("\n\n");
             prompt.push_str(&frozen_projection);
+        }
+        if frozen_core.is_empty() {
+            prompt.push_str(FIRST_RUN_ONBOARDING_BLOCK);
         }
 
         self.append_agent_rules(&mut prompt);

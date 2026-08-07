@@ -2535,4 +2535,140 @@ mod tests {
         assert!(*provider.ask_user_in_tools.lock().unwrap());
         assert!(*provider.saw_tool_result.lock().unwrap());
     }
+
+    struct PromptCaptureProvider {
+        system_prompt: Mutex<Option<String>>,
+        ask_user_in_tools: Mutex<bool>,
+    }
+
+    impl Default for PromptCaptureProvider {
+        fn default() -> Self {
+            Self {
+                system_prompt: Mutex::new(None),
+                ask_user_in_tools: Mutex::new(false),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for PromptCaptureProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            messages: Vec<Message>,
+            tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            if let Some(tools) = &tools {
+                let has_ask_user = tools.iter().any(|tool| {
+                    tool.get("function")
+                        .and_then(|function| function.get("name"))
+                        .and_then(|name| name.as_str())
+                        == Some("ask_user")
+                });
+                if has_ask_user {
+                    *self.ask_user_in_tools.lock().unwrap() = true;
+                }
+            }
+            let system_text = messages
+                .iter()
+                .find(|message| message.role == "system")
+                .map(|message| message.content.to_text_lossy())
+                .unwrap_or_default();
+            *self.system_prompt.lock().unwrap() = Some(system_text);
+            let response = LLMResponse {
+                content: Some("Done".to_string()),
+                tool_calls: Vec::new(),
+                finish_reason: "stop".to_string(),
+                usage: HashMap::new(),
+                reasoning_content: None,
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn first_run_onboarding_injected_when_frozen_core_empty() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(PromptCaptureProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(3))
+            .await
+            .unwrap();
+        agent
+            .process_direct("Hello", "session-onboard", "cli", "chat-onboard")
+            .await
+            .unwrap();
+
+        let prompt = provider
+            .system_prompt
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("system prompt captured");
+        assert!(
+            prompt.contains("First-Run Onboarding"),
+            "empty Frozen Core must inject the onboarding block"
+        );
+        assert!(*provider.ask_user_in_tools.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn first_run_onboarding_absent_when_frozen_core_has_content() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(PromptCaptureProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+
+        let sections_dir = workspace.join(".laputa").join("sections");
+        std::fs::create_dir_all(&sections_dir).unwrap();
+        std::fs::write(sections_dir.join("identity.json"), "{\"name\":\"diva\"}").unwrap();
+
+        let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(3))
+            .await
+            .unwrap();
+        agent
+            .process_direct("Hello", "session-onboard", "cli", "chat-onboard")
+            .await
+            .unwrap();
+
+        let prompt = provider
+            .system_prompt
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("system prompt captured");
+        assert!(
+            !prompt.contains("First-Run Onboarding"),
+            "populated Frozen Core must not inject the onboarding block"
+        );
+        assert!(
+            prompt.contains("Frozen Core"),
+            "populated Frozen Core must be projected into the prompt"
+        );
+    }
 }
