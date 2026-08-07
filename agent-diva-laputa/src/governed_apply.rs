@@ -1,15 +1,20 @@
 //! Governed Memory proposal decisions and receipt-bound typed apply boundary.
 
-use std::{path::Path, str::FromStr, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use agent_diva_core::{
     evolution::{EvolutionProposal, RiskLevel},
     governance::{
         evaluate_policy, ApprovalCoordinator, ApprovalGrant, ApprovalLedgerError, ApprovalReceipt,
         ApprovalRequest, ApprovalState, ApprovalStatePage, ApprovalStatus, AuditCorrelation,
-        AutonomyLevel, Capability, ContentDigest, Decision, DigestAlgorithm, GovernanceSubject,
-        GovernanceSubjectKind, PolicyContext, PolicyEvaluation, ResourceKind, ResourceScope,
-        RiskClass, SqliteGovernanceLedger,
+        AutonomyLevel, Capability, ContentDigest, CoordinatedApproval, Decision, DigestAlgorithm,
+        GovernanceSubject, GovernanceSubjectKind, PolicyConstraint, PolicyConstraintKind,
+        PolicyContext, PolicyEvaluation, PolicyReasonCode, PolicyRestriction, ResourceKind,
+        ResourceScope, RestrictionKind, RiskClass, SqliteGovernanceLedger,
     },
     memory::memory_content_digest,
 };
@@ -20,7 +25,7 @@ use sqlx::{
     Row, SqlitePool,
 };
 
-use crate::{LaputaPaths, TypedMemoryStoreError};
+use crate::{cognitive::MemRules, LaputaPaths, TypedMemoryStoreError};
 
 const POLICY_VERSION: &str = "memory-apply-v1";
 const REQUEST_TTL_HOURS: i64 = 24;
@@ -41,6 +46,8 @@ pub enum MemoryGovernanceError {
     TypedStore(#[from] TypedMemoryStoreError),
     #[error("governance filesystem initialization failed: {0}")]
     Io(#[from] std::io::Error),
+    #[error("policy evaluation denied the proposal: {reason:?}")]
+    PolicyDenied { reason: PolicyReasonCode },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,6 +75,8 @@ pub struct MemoryGovernanceCoordinator {
     pool: SqlitePool,
     governance: Option<ApprovalCoordinator>,
     fallback: Arc<tokio::sync::OnceCell<ApprovalCoordinator>>,
+    memrules: Arc<tokio::sync::OnceCell<MemRules>>,
+    memrules_path: PathBuf,
 }
 
 impl std::fmt::Debug for MemoryGovernanceCoordinator {
@@ -87,6 +96,7 @@ impl MemoryGovernanceCoordinator {
         let paths = LaputaPaths::new(workspace_root.as_ref());
         std::fs::create_dir_all(paths.laputa_dir())?;
         let path = paths.governance_database();
+        let memrules_path = paths.memrules_file();
         let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
             .create_if_missing(true)
             .foreign_keys(true);
@@ -98,6 +108,8 @@ impl MemoryGovernanceCoordinator {
             pool,
             governance: None,
             fallback: Arc::new(tokio::sync::OnceCell::new()),
+            memrules: Arc::new(tokio::sync::OnceCell::new()),
+            memrules_path,
         })
     }
 
@@ -143,6 +155,28 @@ impl MemoryGovernanceCoordinator {
         Ok(())
     }
 
+    async fn load_memrules(&self) -> &MemRules {
+        self.memrules
+            .get_or_init(|| async {
+                MemRules::load_or_default(&self.memrules_path)
+                    .unwrap_or_else(|_| MemRules::defaults())
+            })
+            .await
+    }
+
+    async fn memrules_violations(&self, proposal: &EvolutionProposal) -> Vec<PolicyRestriction> {
+        let rules = self.load_memrules().await;
+        let mut restrictions = Vec::new();
+        if rules.rule("R1").is_some() && proposal.evidence_refs.is_empty() {
+            restrictions.push(PolicyRestriction {
+                kind: RestrictionKind::Resource,
+                allowed: false,
+                code: "R1".to_string(),
+            });
+        }
+        restrictions
+    }
+
     pub async fn submit(
         &self,
         proposal: &EvolutionProposal,
@@ -186,7 +220,8 @@ impl MemoryGovernanceCoordinator {
                 }
             }
         }
-        let state = self
+        let restrictions = self.memrules_violations(proposal).await;
+        let outcome = self
             .coordinator()
             .await?
             .coordinate(
@@ -195,13 +230,18 @@ impl MemoryGovernanceCoordinator {
                     evaluated_at: now,
                     autonomy: AutonomyLevel::L1,
                     explicit_user_decision: None,
-                    restrictions: Vec::new(),
+                    restrictions,
                     authorizations: Vec::new(),
                 },
                 &format!("memory-submit:{}", request.correlation.request_id),
             )
             .await?;
-        let state = state
+        if let CoordinatedApproval::Denied { evaluation } = &outcome {
+            return Err(MemoryGovernanceError::PolicyDenied {
+                reason: evaluation.reason.clone(),
+            });
+        }
+        let state = outcome
             .pending_state()
             .cloned()
             .ok_or(MemoryGovernanceError::ApprovalRequired)?;
@@ -476,6 +516,7 @@ impl MemoryGovernanceCoordinator {
     ) -> Result<MemoryGovernanceView, MemoryGovernanceError> {
         let request = self.request_for_with_id(proposal, session_id, now, request_id);
         let digest = request.content_digest.value.clone();
+        let restrictions = self.memrules_violations(proposal).await;
         let outcome = self
             .coordinator()
             .await?
@@ -485,12 +526,17 @@ impl MemoryGovernanceCoordinator {
                     evaluated_at: now,
                     autonomy: AutonomyLevel::L1,
                     explicit_user_decision: None,
-                    restrictions: Vec::new(),
+                    restrictions,
                     authorizations: Vec::new(),
                 },
                 &format!("memory-submit:{}", request.correlation.request_id),
             )
             .await?;
+        if let CoordinatedApproval::Denied { evaluation } = &outcome {
+            return Err(MemoryGovernanceError::PolicyDenied {
+                reason: evaluation.reason.clone(),
+            });
+        }
         let state = outcome
             .pending_state()
             .cloned()
@@ -519,7 +565,7 @@ impl MemoryGovernanceCoordinator {
         state: ApprovalState,
         now: DateTime<Utc>,
     ) -> MemoryGovernanceView {
-        let policy = evaluate_policy(
+        let mut policy = evaluate_policy(
             request,
             &PolicyContext {
                 evaluated_at: now,
@@ -529,6 +575,12 @@ impl MemoryGovernanceCoordinator {
                 authorizations: state.receipt.iter().cloned().collect(),
             },
         );
+        if proposal.evidence_refs.is_empty() {
+            policy.constraints.push(PolicyConstraint {
+                kind: PolicyConstraintKind::Resource,
+                value: "R1".to_string(),
+            });
+        }
         MemoryGovernanceView {
             proposal_id: proposal.id.clone(),
             request_id: state.request.correlation.request_id.clone(),

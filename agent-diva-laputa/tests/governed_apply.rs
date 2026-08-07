@@ -6,7 +6,7 @@ use agent_diva_core::{
     governance::{
         ApprovalGrant, ApprovalReceipt, ApprovalRecord, ApprovalRequest, ApprovalStatus,
         AuditCorrelation, Capability, Decision, GovernanceSubject, GovernanceSubjectKind,
-        ResourceKind, ResourceScope, RiskClass,
+        PolicyReasonCode, ResourceKind, ResourceScope, RiskClass,
     },
     memory::{
         memory_content_digest, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
@@ -15,7 +15,7 @@ use agent_diva_core::{
 };
 use agent_diva_laputa::{
     proposal_digest, GovernedMemoryApply, MemoryGovernanceCoordinator, MemoryGovernanceDecision,
-    TypedMemoryStore, TypedMemoryStoreError,
+    MemoryGovernanceError, TypedMemoryStore, TypedMemoryStoreError,
 };
 use chrono::{Duration, TimeZone, Utc};
 
@@ -269,4 +269,26 @@ async fn governed_typed_apply_is_atomic_idempotent_and_receipt_bound() {
     assert!(store.get(&applied_record_id).await.unwrap().is_none());
     assert_eq!(store.metadata().await.unwrap().store_revision, 2);
     assert!(!store.rollback_governed("proposal-1", 2).await.unwrap());
+}
+
+#[tokio::test]
+async fn memrules_violation_blocks_proposal_with_r1_code() {
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = MemoryGovernanceCoordinator::open_lazy(temp.path(), "workspace-1").unwrap();
+    let mut no_evidence = proposal(RiskLevel::Low);
+    no_evidence.evidence_refs = Vec::new();
+
+    let error = coordinator
+        .submit(&no_evidence, Some("session-1"), now())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            MemoryGovernanceError::PolicyDenied {
+                reason: PolicyReasonCode::ResourceRestricted
+            }
+        ),
+        "expected PolicyDenied(ResourceRestricted), got: {error:?}"
+    );
 }
