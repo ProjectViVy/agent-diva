@@ -623,9 +623,6 @@ fn is_writable_apply_target(
                 | LaputaSectionName::Commitment
                 | LaputaSectionName::Preferences
                 | LaputaSectionName::MemoryMd
-                | LaputaSectionName::Daily
-                | LaputaSectionName::Weekly
-                | LaputaSectionName::Monthly
         ),
     }
 }

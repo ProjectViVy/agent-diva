@@ -76,9 +76,6 @@ pub enum ProposalType {
     IdentityPatch,
     RelationshipUpdate,
     CommitmentSet,
-    DailyPatch,
-    WeeklyPatch,
-    MonthlyPatch,
     SopCreate,
     Deprecation,
 }
@@ -92,9 +89,6 @@ impl ProposalType {
             Self::IdentityPatch | Self::SopCreate => LaputaSectionName::Identity,
             Self::RelationshipUpdate => LaputaSectionName::Relationship,
             Self::CommitmentSet => LaputaSectionName::Commitment,
-            Self::DailyPatch => LaputaSectionName::Daily,
-            Self::WeeklyPatch => LaputaSectionName::Weekly,
-            Self::MonthlyPatch => LaputaSectionName::Monthly,
             Self::Deprecation => LaputaSectionName::Changelog,
         }
     }
@@ -169,9 +163,9 @@ impl FromStr for ProposalType {
             "identity_patch" => Ok(Self::IdentityPatch),
             "relationship_update" => Ok(Self::RelationshipUpdate),
             "commitment_set" => Ok(Self::CommitmentSet),
-            "daily_patch" => Ok(Self::DailyPatch),
-            "weekly_patch" => Ok(Self::WeeklyPatch),
-            "monthly_patch" => Ok(Self::MonthlyPatch),
+            // Retired rhythm patch proposal types intentionally fall through to
+            // the stable UnknownProposalType failure code: reports are not
+            // memories and never enter the governance proposal pipeline.
             "sop_create" => Ok(Self::SopCreate),
             "deprecation" => Ok(Self::Deprecation),
             other => Err(EvolutionError::UnknownProposalType(other.to_string())),
@@ -187,9 +181,6 @@ impl fmt::Display for ProposalType {
             Self::IdentityPatch => "identity_patch",
             Self::RelationshipUpdate => "relationship_update",
             Self::CommitmentSet => "commitment_set",
-            Self::DailyPatch => "daily_patch",
-            Self::WeeklyPatch => "weekly_patch",
-            Self::MonthlyPatch => "monthly_patch",
             Self::SopCreate => "sop_create",
             Self::Deprecation => "deprecation",
         };
@@ -507,9 +498,6 @@ mod tests {
                 LaputaSectionName::Relationship,
             ),
             (ProposalType::CommitmentSet, LaputaSectionName::Commitment),
-            (ProposalType::DailyPatch, LaputaSectionName::Daily),
-            (ProposalType::WeeklyPatch, LaputaSectionName::Weekly),
-            (ProposalType::MonthlyPatch, LaputaSectionName::Monthly),
             (ProposalType::SopCreate, LaputaSectionName::Identity),
             (ProposalType::Deprecation, LaputaSectionName::Changelog),
         ];
@@ -551,12 +539,21 @@ mod tests {
 
     #[test]
     fn test_retired_proposal_types_fail_with_stable_error_code() {
-        for retired in ["history_patch", "journal_note"] {
+        for retired in [
+            "history_patch",
+            "journal_note",
+            "daily_patch",
+            "weekly_patch",
+            "monthly_patch",
+        ] {
             let error = route_proposal_type(retired).unwrap_err();
             assert_eq!(
                 error,
                 EvolutionError::UnknownProposalType(retired.to_string())
             );
+            // On-disk history referencing retired proposal types must fail
+            // serde deserialization deterministically instead of panicking.
+            assert!(serde_json::from_str::<ProposalType>(&format!("\"{retired}\"")).is_err());
         }
     }
 

@@ -357,9 +357,6 @@ impl LaputaService {
             LaputaSectionName::Identity => ProposalType::IdentityPatch,
             LaputaSectionName::Relationship => ProposalType::RelationshipUpdate,
             LaputaSectionName::Commitment => ProposalType::CommitmentSet,
-            LaputaSectionName::Daily => ProposalType::DailyPatch,
-            LaputaSectionName::Weekly => ProposalType::WeeklyPatch,
-            LaputaSectionName::Monthly => ProposalType::MonthlyPatch,
             _ => {
                 return Err(LaputaError::UnauthorizedTarget {
                     id: id.clone(),
@@ -380,11 +377,7 @@ impl LaputaService {
             LaputaSectionName::Identity
             | LaputaSectionName::Relationship
             | LaputaSectionName::Commitment => RiskLevel::High,
-            LaputaSectionName::Preferences
-            | LaputaSectionName::MemoryMd
-            | LaputaSectionName::Daily
-            | LaputaSectionName::Weekly
-            | LaputaSectionName::Monthly => RiskLevel::Medium,
+            LaputaSectionName::Preferences | LaputaSectionName::MemoryMd => RiskLevel::Medium,
             _ => {
                 return Err(LaputaError::UnauthorizedTarget {
                     id,

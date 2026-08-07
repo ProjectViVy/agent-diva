@@ -475,9 +475,8 @@ fn record_kind_for_section(section: &LaputaSectionName) -> MemoryRecordKind {
         LaputaSectionName::Commitment => MemoryRecordKind::Commitment,
         LaputaSectionName::Preferences => MemoryRecordKind::Preference,
         LaputaSectionName::MemoryMd => MemoryRecordKind::LongTerm,
-        LaputaSectionName::Daily => MemoryRecordKind::Daily,
-        LaputaSectionName::Weekly => MemoryRecordKind::Weekly,
-        LaputaSectionName::Monthly => MemoryRecordKind::Monthly,
+        // Daily/Weekly/Monthly are report surfaces, not memories: reports are
+        // never normalized into typed memory records.
         _ => MemoryRecordKind::Unknown,
     }
 }
