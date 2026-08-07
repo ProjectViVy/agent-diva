@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+> For an exploratory architecture reference (workspace layout, code map, crate entry points, build/CI notes), see `AGENTS-ARCH.MD`. This file remains the canonical project-rule and process guide.
+
 ## Project Structure & Module Organization
 
 This repository is a Rust workspace. Crates are organized by responsibility:
