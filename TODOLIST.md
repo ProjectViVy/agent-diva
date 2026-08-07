@@ -209,9 +209,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         删除（`memory_remove` 走 proposal 但无审批入口）；用户看不到 agent
         当前记忆内容；人格与记忆需要 BML（Basic Memory Layer）用户可视化
         管理界面。排期待决策。
-      - **Laputa 设计同步（待调研/待决策）**：桌面 Garden 有新的 Laputa
-        设计，主要涉及几个文件的身份定位变更；需调研新设计并同步到
-        agent-diva 架构。排期待决策。
+      - **Laputa 设计同步** → 已升级为 Active Plan 正式任务
+        `LAPUTA-COGNITIVE-SYNC`（见上方 Active Plan 区，决策全冻结，即将开工）。
       - **记忆检索增强（待决策）**：当前 `memory_search` 基于 FTS5 全文
         匹配，召回质量与语义检索、上下文相关性排序等增强方向待决策。
         排期待决策。
@@ -265,6 +264,34 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   在 E0 characterization 前不得将现有页面标记为可用。允许且要求实施本闭环；
   不在闭环内的旧 AutoDream/Evolution 承诺继续冻结，完全无后端的入口必须隐藏、
   删除或明确 degraded。
+
+- [ ] **LAPUTA-COGNITIVE-SYNC：新 Laputa 认知分区回迁（当前主线，即将开工）** `sev-P0`
+  调研：桌面 Garden ADR-0002/0004/0008 认知分区。权威提案：
+  [`docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md`](docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md)。
+  **用户关键决策（2026-08-07，全部冻结）**：
+  Q1 认知文件 workspace 级（`.laputa/cognitive/MEMRULES.MD`+`WORLD.MD`）；
+  Q2 `LaputaSectionName` 5 个废弃变体一步硬删（落盘历史反序列化走
+  unknown-variant 稳定失败）；Q3 **删除 SOUL.md/IDENTITY.md/USER.md/
+  BOOTSTRAP.md/memory/MEMORY.md/HISTORY.md 整个人格文件层，人格与记忆
+  完全 Laputa 治理**（内容先走治理审批迁移，文件入 `.laputa/legacy/`
+  惰性存档；AGENTS.md/Skills 保留）；Q4 WORLD.MD AutoDream 首切片即可
+  治理写入+人类可直编（confirmed+user claim 保护不变）；Q5=b 报告
+  系统完全重构（边界四句：报告≠记忆、永不注入、agent 可选读自决、
+  生成权威=report_system；删 Daily/Weekly/MonthlyPatch proposal 与
+  记忆 kind 映射；节律自动触发补真机验证）；D1 **Mask 保留且与
+  Laputa 互不影响**（面具=临时外在覆层，不改人格本体，不得解除
+  commitment 红线，不进治理）；D2 报告产物迁 `.laputa/reports/`
+  （只搬不改可回滚）。**不回迁 Mentle，不引入 garden Go 代码**。
+  执行顺序：
+  - [ ] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）
+  - [ ] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）
+  - [ ] S3 Frozen Core 会话冻结语义（01–04 启动快照，写入次会话生效）
+  - [ ] S4 人格文件层退役与内容治理迁移（Mask 保留为覆层）
+  - [ ] S5 注册表 14→8 硬删收敛
+  - [ ] S6 报告系统边界重构（写权威收口+注入禁令+节律真机验证+产物迁 `.laputa/reports/`）
+  - [ ] S7 Context Plane 负向不变量矩阵
+  分支纪律：从 pro 切 `feat/laputa-cognitive-sync`；逐切片四件套 +
+  单一 concern 提交 + `just ci`，不 push。
 
 - [ ] **G2D+：全流程完成后的真实桌面最终验收** `sev-P0`
   自动化纵向 E2E 与发布门通过后再由用户执行。保留原批准、拒绝、编辑后批准、
