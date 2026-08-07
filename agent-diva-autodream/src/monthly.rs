@@ -118,8 +118,7 @@ impl AutoDreamMonthlyReportGenerator {
             let path = self
                 .storage
                 .paths()
-                .workspace_root()
-                .join(".agent-diva/autodream/reports/daily")
+                .daily_reports_dir()
                 .join(format!("{}.md", date.format("%Y-%m-%d")));
             match read_rhythm_report(&path) {
                 Ok(document) => {
@@ -231,9 +230,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &storage.paths().daily_report_file("2026-06-14"),
             "---
 period: daily
 date: 2026-06-14
@@ -276,9 +273,7 @@ Summarized the launch planning and follow-up actions.
         let temp = tempfile::tempdir().unwrap();
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-01.md"),
+            &storage.paths().daily_report_file("2026-06-01"),
             "---
 period: daily
 date: 2026-06-01

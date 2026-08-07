@@ -54,9 +54,7 @@ fn writes_daily_report_to_contract_path_with_frontmatter_and_evidence() {
         .write_daily_report("2026-06-14", sample_time(), sample_content())
         .unwrap();
 
-    let expected = temp
-        .path()
-        .join(".agent-diva/autodream/reports/daily/2026-06-14.md");
+    let expected = temp.path().join(".laputa/reports/daily/2026-06-14.md");
     assert_eq!(result.path, expected);
     assert_eq!(result.evidence_ref_count, 1);
     let markdown = fs::read_to_string(expected).unwrap();
@@ -82,9 +80,7 @@ fn writes_weekly_report_to_contract_path_with_week_frontmatter() {
         .write_weekly_report("2026-W24", sample_time(), sample_content())
         .unwrap();
 
-    let expected = temp
-        .path()
-        .join(".agent-diva/autodream/reports/weekly/2026-W24.md");
+    let expected = temp.path().join(".laputa/reports/weekly/2026-W24.md");
     assert_eq!(result.path, expected);
     let markdown = fs::read_to_string(expected).unwrap();
     assert!(markdown.contains("period: weekly"));
@@ -97,9 +93,7 @@ fn replaces_existing_report_atomically_without_temp_file_leftover() {
     let temp = tempfile::tempdir().unwrap();
     let storage = AutoDreamStorage::open(temp.path()).unwrap();
     let writer = AutoDreamReportWriter::new(storage);
-    let path = temp
-        .path()
-        .join(".agent-diva/autodream/reports/daily/2026-06-14.md");
+    let path = temp.path().join(".laputa/reports/daily/2026-06-14.md");
 
     writer
         .write_daily_report("2026-06-14", sample_time(), sample_content())
@@ -156,11 +150,9 @@ fn report_system_can_read_markdown_without_autodream_types() {
         .write_daily_report("2026-06-14", sample_time(), sample_content())
         .unwrap();
 
-    let report_system_path = temp
-        .path()
-        .join(".agent-diva/autodream/reports/daily/2026-06-14.md");
+    let report_system_path = temp.path().join(".laputa/reports/daily/2026-06-14.md");
     let read_by_consumer = fs::read_to_string(report_system_path).unwrap();
     assert!(read_by_consumer.starts_with("---\nperiod: daily"));
     assert!(read_by_consumer.contains("# Daily Reflection"));
-    assert!(!temp.path().join(".agent-diva/reports/monthly").exists());
+    assert!(!temp.path().join(".laputa/reports/monthly").exists());
 }

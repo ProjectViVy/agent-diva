@@ -31,9 +31,9 @@ impl NotebookPeriod {
 
     fn report_dir(self, workspace: &Path) -> PathBuf {
         match self {
-            Self::Daily => workspace.join(".agent-diva/autodream/reports/daily"),
-            Self::Weekly => workspace.join(".agent-diva/autodream/reports/weekly"),
-            Self::Monthly => workspace.join("reports/monthly"),
+            Self::Daily => workspace.join(".laputa/reports/daily"),
+            Self::Weekly => workspace.join(".laputa/reports/weekly"),
+            Self::Monthly => workspace.join(".laputa/reports/monthly"),
         }
     }
 
@@ -591,9 +591,7 @@ mod tests {
     fn loads_daily_reports_from_autodream_contract_path() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-14.md"),
             "---
 period: daily
 date: 2026-06-14
@@ -623,7 +621,7 @@ Summary paragraph.
         );
         assert_eq!(
             reports[0].source_path.replace('\\', "/"),
-            ".agent-diva/autodream/reports/daily/2026-06-14.md"
+            ".laputa/reports/daily/2026-06-14.md"
         );
     }
 
@@ -631,9 +629,7 @@ Summary paragraph.
     fn loads_weekly_reports_and_sorts_latest_first() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/weekly/2026-W23.md"),
+            &temp.path().join(".laputa/reports/weekly/2026-W23.md"),
             "---
 period: weekly
 week: 2026-W23
@@ -645,9 +641,7 @@ Older.
 ",
         );
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/weekly/2026-W24.md"),
+            &temp.path().join(".laputa/reports/weekly/2026-W24.md"),
             "---
 period: weekly
 week: 2026-W24
@@ -669,7 +663,7 @@ Newer.
     fn keeps_monthly_reports_isolated_under_report_owned_storage() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp.path().join("reports/monthly/2026-06.md"),
+            &temp.path().join(".laputa/reports/monthly/2026-06.md"),
             "---
 period: monthly
 month: 2026-06
@@ -700,7 +694,7 @@ Should not be read.
         assert_eq!(reports[0].title, "June Report");
         assert_eq!(
             reports[0].source_path.replace('\\', "/"),
-            "reports/monthly/2026-06.md"
+            ".laputa/reports/monthly/2026-06.md"
         );
     }
 
@@ -715,9 +709,7 @@ Should not be read.
     fn skips_malformed_reports_and_keeps_valid_entries_visible() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-14.md"),
             "---
 period: daily
 date: 2026-06-14
@@ -729,9 +721,7 @@ Summary paragraph.
 ",
         );
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-15.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-15.md"),
             "---
 period: daily
 date: [broken
@@ -766,9 +756,7 @@ date: 2026-06-14
             ));
         }
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-14.md"),
             &content,
         );
 
@@ -786,7 +774,7 @@ date: 2026-06-14
     fn loads_monthly_report_with_generation_mode_metadata() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp.path().join("reports/monthly/2026-06.md"),
+            &temp.path().join(".laputa/reports/monthly/2026-06.md"),
             "---
 period: monthly
 month: 2026-06
@@ -820,9 +808,7 @@ schema_version: 1
     fn sop_report_action_creates_sop_proposal_targeting_identity() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-14.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-14.md"),
             "---
 period: daily
 date: 2026-06-14
@@ -855,9 +841,7 @@ Standard operating procedure for reviewing reports.
     fn skill_report_action_marks_skill_sub_target_without_direct_write() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/weekly/2026-W24.md"),
+            &temp.path().join(".laputa/reports/weekly/2026-W24.md"),
             "---
 period: weekly
 week: 2026-W24
@@ -891,7 +875,7 @@ Reusable behavior should be captured as a skill.
     fn memory_report_action_routes_clear_memory_content() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp.path().join("reports/monthly/2026-06.md"),
+            &temp.path().join(".laputa/reports/monthly/2026-06.md"),
             "---
 period: monthly
 month: 2026-06
@@ -922,9 +906,7 @@ Memory: the user prefers concise implementation reports.
     fn ambiguous_memory_report_preview_returns_needs_attention() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-15.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-15.md"),
             "---
 period: daily
 date: 2026-06-15
@@ -953,9 +935,7 @@ Several unrelated tasks were discussed.
     fn proposal_build_does_not_mutate_any_authority_paths_before_apply() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp
-                .path()
-                .join(".agent-diva/autodream/reports/daily/2026-06-16.md"),
+            &temp.path().join(".laputa/reports/daily/2026-06-16.md"),
             "---
 period: daily
 date: 2026-06-16
@@ -1041,7 +1021,7 @@ Memory: persist the concise report preference.
     fn notebook_proposal_preview_can_attach_session_evidence_without_direct_write() {
         let temp = tempfile::tempdir().unwrap();
         write_report(
-            &temp.path().join("reports/monthly/2026-06.md"),
+            &temp.path().join(".laputa/reports/monthly/2026-06.md"),
             "---
 period: monthly
 month: 2026-06

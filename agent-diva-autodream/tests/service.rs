@@ -214,10 +214,7 @@ async fn notebook_daily_trigger_generates_report_and_completes_run() {
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
-    assert!(temp
-        .path()
-        .join(".agent-diva/autodream/reports/daily")
-        .exists());
+    assert!(temp.path().join(".laputa/reports/daily").exists());
 }
 
 #[tokio::test]
@@ -238,10 +235,7 @@ async fn notebook_weekly_trigger_generates_report_and_completes_run() {
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
-    assert!(temp
-        .path()
-        .join(".agent-diva/autodream/reports/weekly")
-        .exists());
+    assert!(temp.path().join(".laputa/reports/weekly").exists());
 }
 
 #[tokio::test]
@@ -262,7 +256,7 @@ async fn notebook_monthly_trigger_generates_report_and_completes_run() {
 
     assert_eq!(completed.run.state, AutoDreamRunState::Completed);
     assert!(completed.lock.is_none());
-    assert!(temp.path().join("reports/monthly").exists());
+    assert!(temp.path().join(".laputa/reports/monthly").exists());
 }
 
 #[tokio::test]
@@ -288,7 +282,10 @@ async fn scheduled_monthly_report_runs_on_first_monday() {
         }
         other => panic!("expected triggered outcome, got {other:?}"),
     }
-    assert!(temp.path().join("reports/monthly/2026-06.md").exists());
+    assert!(temp
+        .path()
+        .join(".laputa/reports/monthly/2026-06.md")
+        .exists());
 }
 
 #[tokio::test]
