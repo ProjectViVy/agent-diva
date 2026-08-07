@@ -4,6 +4,7 @@
 //! primitives used by later governance stories.
 
 pub mod atomic;
+pub mod cognitive;
 pub mod error;
 pub mod feedback;
 pub mod governed_apply;
@@ -21,6 +22,7 @@ pub mod typed_provider;
 pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
+pub use cognitive::{MemRule, MemRules};
 pub use error::{LaputaError, Result};
 pub use feedback::{
     PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,

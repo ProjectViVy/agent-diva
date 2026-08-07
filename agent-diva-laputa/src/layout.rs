@@ -6,7 +6,7 @@ use std::{
 use agent_diva_core::evolution::LaputaSectionName;
 use serde::Serialize;
 
-use crate::{atomic_write_json, LaputaError, Result};
+use crate::{atomic_write_json, cognitive, LaputaError, Result};
 
 const STATE_SCHEMA_VERSION: &str = "1.0.0";
 
@@ -68,6 +68,19 @@ impl LaputaPaths {
         self.laputa_dir.join("legacy")
     }
 
+    /// Cognitive governance files (MEMRULES.MD / WORLD.MD), workspace level.
+    pub fn cognitive_dir(&self) -> PathBuf {
+        self.laputa_dir.join("cognitive")
+    }
+
+    pub fn memrules_file(&self) -> PathBuf {
+        self.cognitive_dir().join(cognitive::MEMRULES_FILE_NAME)
+    }
+
+    pub fn world_file(&self) -> PathBuf {
+        self.cognitive_dir().join(cognitive::WORLD_FILE_NAME)
+    }
+
     pub fn staging_dir(&self) -> PathBuf {
         self.laputa_dir.join("staging")
     }
@@ -108,7 +121,7 @@ impl LaputaPaths {
             .join(format!("{}.json", section_file_stem(section)))
     }
 
-    fn directories(&self) -> [PathBuf; 10] {
+    fn directories(&self) -> [PathBuf; 11] {
         [
             self.laputa_dir.clone(),
             self.proposals_dir(),
@@ -120,6 +133,7 @@ impl LaputaPaths {
             self.legacy_dir(),
             self.staging_dir(),
             self.laputa_dir.join("sections"),
+            self.cognitive_dir(),
         ]
     }
 }
@@ -142,6 +156,8 @@ impl LaputaStorage {
         if !state_path.exists() {
             atomic_write_json(&state_path, &InitialState::default())?;
         }
+
+        cognitive::initialize_dir(paths.cognitive_dir())?;
 
         Ok(Self { paths })
     }
