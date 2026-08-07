@@ -22,7 +22,10 @@ pub mod typed_provider;
 pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
-pub use cognitive::{ClaimStatus, MemRule, MemRules, WorldClaim, WorldError, WorldStore};
+pub use cognitive::{
+    ClaimStatus, MemRule, MemRules, WorldClaim, WorldClaimPayload, WorldError, WorldGovernance,
+    WorldGovernanceError, WorldProposalState, WorldStore, WorldUpsertProposal,
+};
 pub use error::{LaputaError, Result};
 pub use feedback::{
     PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,

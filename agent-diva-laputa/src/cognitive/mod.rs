@@ -11,9 +11,14 @@
 
 pub mod memrules;
 pub mod world;
+pub mod world_governance;
 
 pub use memrules::{MemRule, MemRules};
 pub use world::{ClaimStatus, WorldClaim, WorldError, WorldStore};
+pub use world_governance::{
+    WorldClaimPayload, WorldGovernance, WorldGovernanceError, WorldProposalState,
+    WorldUpsertProposal,
+};
 
 use std::{fs, path::Path};
 
