@@ -290,7 +290,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   - [x] S4 人格文件层退役与内容治理迁移（Mask 保留为覆层）：`49e778e1`
         （persona-retire 迁移工具）+ `57044ba8`（BOOTSTRAP 装配除名）+
         `989a18a2`（soul 机制删除）
-  - [ ] S5 注册表 14→8 硬删收敛
+  - [x] S5 注册表 14→9 硬删收敛（5 废弃变体 + HistoryPatch/JournalNote，
+        落盘历史容错跳过 + 稳定失败码）：`e61630b8`
   - [ ] S6 报告系统边界重构（写权威收口+注入禁令+节律真机验证+产物迁 `.laputa/reports/`）
   - [ ] S7 Context Plane 负向不变量矩阵
   分支纪律：从 pro 切 `feat/laputa-cognitive-sync`；逐切片四件套 +
