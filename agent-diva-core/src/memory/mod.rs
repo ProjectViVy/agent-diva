@@ -17,7 +17,7 @@ pub use crud::{
 pub use manager::MemoryManager;
 pub use provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,
-    RecallTurnOutcome, RhythmTrigger, SessionEndRequest, SessionEndResponse, SessionEndStatus,
+    RecallTurnOutcome, SessionEndRequest, SessionEndResponse, SessionEndStatus,
     StartupContextSnapshot, StartupInjectionShape, StartupStatus, SyncTurnRequest,
     SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
     WakeupPackSummary,

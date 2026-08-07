@@ -121,13 +121,6 @@ pub struct WakeupPackSummary {
     pub generated_at: Option<String>,
 }
 
-/// Provider-facing representation of a startup-relevant rhythm signal.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RhythmTrigger {
-    pub name: String,
-    pub reason: Option<String>,
-}
-
 /// Structured startup support data that can be rendered into the chosen
 /// provider-consumable prompt block shape.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -141,8 +134,6 @@ pub struct StartupContextSnapshot {
     /// Optional structured wakeup summary when markdown projections are not
     /// already available.
     pub wakeup_pack: Option<WakeupPackSummary>,
-    /// Optional rhythm signals relevant at startup.
-    pub rhythm_triggers: Vec<RhythmTrigger>,
     /// Optional fallback block from existing Agent-Diva core outputs.
     pub memory_markdown: Option<String>,
 }
@@ -178,20 +169,8 @@ impl StartupContextSnapshot {
             sections.push(render_wakeup_pack_summary(wakeup_pack));
         }
 
-        if !self.rhythm_triggers.is_empty() {
-            let triggers = self
-                .rhythm_triggers
-                .iter()
-                .map(|trigger| match trigger.reason.as_deref() {
-                    Some(reason) if !reason.trim().is_empty() => {
-                        format!("- {} — {}", trigger.name.trim(), reason.trim())
-                    }
-                    _ => format!("- {}", trigger.name.trim()),
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            sections.push(format!("## Rhythm Signals\n{}", triggers));
-        }
+        // Rhythm and report content is intentionally never injected into the
+        // startup prompt: reports are not memories and stay opt-in reads.
 
         sections.join("\n\n")
     }
@@ -647,10 +626,6 @@ mod tests {
                 unresolved_threads: vec!["ship provider boundary".to_string()],
                 generated_at: Some("2026-05-08 10:00 UTC".to_string()),
             }),
-            rhythm_triggers: vec![RhythmTrigger {
-                name: "weekly".to_string(),
-                reason: Some("capsule due".to_string()),
-            }],
             memory_markdown: Some("## Long-term Memory\nExisting durable memory".to_string()),
         }
         .into_system_prompt_block()
@@ -660,8 +635,7 @@ mod tests {
         assert!(block.markdown.contains("## Long-term Memory"));
         assert!(block.markdown.contains("## Soul Projection"));
         assert!(block.markdown.contains("## Wakeup Summary"));
-        assert!(block.markdown.contains("## Rhythm Signals"));
-        assert!(block.markdown.contains("weekly — capsule due"));
+        assert!(!block.markdown.contains("## Rhythm Signals"));
     }
 
     #[test]
