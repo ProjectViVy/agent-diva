@@ -15,8 +15,8 @@ use crate::{LaputaError, Result};
 /// Built-in fallback rulebook, adapted from garden ADR-0004 §2.2 to
 /// agent-diva semantics:
 /// - R1 maps "raw material/evidence" to typed MemoryRecord evidence_refs
-///   chains (Mentle was removed by GMH-24); evidence-less writes stay
-///   advisory (Wave 6 evidence_advisory).
+///   chains (the legacy memory engine was removed by GMH-24); evidence-less
+///   writes stay advisory (Wave 6 evidence_advisory).
 /// - R4 aligns with the tiered write policy (low-risk immediate,
 ///   high-risk approval).
 /// - R6/R7 reserve the WORLD entry gate and no-wholesale-injection rules.
