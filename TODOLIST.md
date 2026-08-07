@@ -333,11 +333,11 @@ standing policy（非功能债，执行相关验证时遵守）：
   调用 `MemRules::load_or_default()`，违反 R6 时返回
   `WorldGovernanceError::Protected { reason: "R6: WORLD entry gate" }`。
   依赖 C7 接线完成后再做。
-- [ ] **FROZEN-CORE-RENDER-IN-PROMPT：Frozen Core 投影实际注入 system prompt** `sev-P2`
-  C5 保证 sections 被种子为非空；但 `context.rs` 的 OnceLock 捕获后，
-  `prompt.rs` 是否真的把 `FrozenCoreSnapshot::render()` 拼进 system prompt
-  尚未验收。需要一条 end-to-end 测试：启动 agent loop → 断言 prompt 含
-  "Identity:" / "Relationship:" 等 canonical section 前缀。
+- [x] **FROZEN-CORE-RENDER-IN-PROMPT：Frozen Core 投影实际注入 system prompt** `sev-P2`
+  ✅ 2026-08-08 验收：`agent_loop.rs` 两条 e2e（`first_run_onboarding_injected_when_frozen_core_empty` /
+  `first_run_onboarding_absent_when_frozen_core_has_content`）证明 prompt 装配
+  真实包含 Frozen Core 投影（"Frozen Core" 前缀）与空态引导块（"First-Run
+  Onboarding"），并证明 populate 后引导块消失。
 - [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1-R7 与生产治理策略对齐** `sev-P3`
   `DEFAULT_MEM_RULES_TEXT` 里的 R1-R7 来自认知设计，需要 PM/Winston 复核
   是否与现有 `PolicyRestriction` 语义、autonomy level 映射完全一致；必要时
@@ -646,6 +646,12 @@ standing policy（非功能债，执行相关验证时遵守）：
   registry 全局 120s 超时（`agent-diva-tooling/src/registry.rs:41`、`base.rs:18`）。
   Phase 3 待办：Plan 矩阵细化、subagent 黑名单断言、UI 与审批抽屉区分、
   可选 messaging clarify。
+  **2026-08-08 增补**：① `allow_other` 默认翻转 true（`d303b12a`）——省略
+  `choices` 即为开放式填空，提供 `choices` 自动带 Other 兜底，对齐 Hermes
+  `clarify` 语义；② 首次引导注入（`96fea09c`）——Frozen Core 为空时 system
+  prompt 注入 `First-Run Onboarding` 块，指示用 `ask_user` 收集身份偏好；③
+  `laputa_propose_section_write` 工具（`1a70b1ae`）——引导答案转为 governed
+  proposal 落 Frozen Core（identity/relationship/commitment/preferences）。
 
 - [ ] **Skill 可视化全生命周期编辑器（延期）** `sev-P3`
   产品对象只有 Skill；SOP 不建立独立类型、标签、入口、DTO、存储或运行时，

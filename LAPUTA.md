@@ -83,6 +83,8 @@ supersedes: null
 
 **迁移策略**(FR-503): ~~`sync_workspace_templates()` 改写~~ → `sync_workspace_templates()` 已移除 4 件套（SOUL/IDENTITY/USER/BOOTSTRAP）种子，仅保留 PROFILE/HISTORY/TASK/MEMORY 共 6 模板（commit `36c68d8f`）。Frozen Core 4 节由 `LaputaStorage::open()` 自动种子为 JSON `null`。
 
+**首次引导（First-Run Onboarding）**：Frozen Core 4 节全空（`FrozenCoreSnapshot::is_empty()`）时，system prompt 注入 `First-Run Onboarding` 块（commit `96fea09c`），指示 agent 用 `ask_user` 收集身份偏好（称呼/协作风格/边界/沟通偏好），再经 `laputa_propose_section_write` 工具（commit `1a70b1ae`）转为 governed proposal → 审批 → 写入对应 Frozen Core 节。任何人格节有内容后引导自动停止（零上下文开销）；`ask_user` 省略 `choices` 即开放式填空（commit `d303b12a`，对齐 Hermes `clarify`）。
+
 ---
 
 ## 2. 4 接口(写 / 读 / 事件 / Changelog)
