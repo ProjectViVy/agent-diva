@@ -43,7 +43,7 @@ impl Tool for AskUserTool {
     }
 
     fn description(&self) -> &str {
-        "Ask the user a structured question and wait for their answer. Use this for preference research, ambiguity resolution, or trade-off decisions when the task needs user input to continue. The tool suspends until the user answers, cancels, or the question times out."
+        "Ask the user a structured question and wait for their answer. Use this for preference research, ambiguity resolution, or trade-off decisions when the task needs user input to continue. Supports two modes: omit `choices` for an open-ended question the user answers with free text, or provide up to 4 `choices` for a multiple-choice prompt with an automatic free-text 'Other' fallback. The tool suspends until the user answers, cancels, or the question times out."
     }
 
     fn parameters(&self) -> Value {
@@ -62,7 +62,7 @@ impl Tool for AskUserTool {
                 },
                 "allow_other": {
                     "type": "boolean",
-                    "description": "Optional: allow the user to provide a free-text answer (default false)"
+                    "description": "Optional: allow the user to provide a free-text answer (default true). Set false for a strict multiple-choice question."
                 },
                 "context": {
                     "type": "string",
@@ -111,7 +111,7 @@ impl Tool for AskUserTool {
         let allow_other = params
             .get("allow_other")
             .and_then(|value| value.as_bool())
-            .unwrap_or(false);
+            .unwrap_or(true);
         let context = params
             .get("context")
             .and_then(|value| value.as_str())
@@ -187,6 +187,30 @@ mod tests {
         assert_eq!(value["status"], "answered");
         assert_eq!(value["selected"], "A");
         assert_eq!(value["selected_index"], 0);
+    }
+
+    #[tokio::test]
+    async fn free_text_defaults_to_allowed_without_allow_other() {
+        let coordinator = AskUserCoordinator::new(Duration::from_secs(30));
+        let tool = AskUserTool::with_coordinator(coordinator.clone());
+        let execute = tokio::spawn(async move {
+            tool.execute(json!({"question": "What should I call you?"}))
+                .await
+        });
+        let question_id = loop {
+            if let Some(question) = coordinator.pending().await.into_iter().next() {
+                break question.question_id;
+            }
+            tokio::task::yield_now().await;
+        };
+        coordinator
+            .answer(&question_id, None, Some("diva".to_string()))
+            .await
+            .unwrap();
+        let result = execute.await.unwrap().unwrap();
+        let value: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(value["status"], "answered");
+        assert_eq!(value["other_text"], "diva");
     }
 
     #[tokio::test]
