@@ -265,7 +265,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   不在闭环内的旧 AutoDream/Evolution 承诺继续冻结，完全无后端的入口必须隐藏、
   删除或明确 degraded。
 
-- [ ] **LAPUTA-COGNITIVE-SYNC：新 Laputa 认知分区回迁（当前主线，即将开工）** `sev-P0`
+- [ ] **LAPUTA-COGNITIVE-SYNC：新 Laputa 认知分区回迁（当前主线，执行中 S0–S4 已完）** `sev-P0`
   调研：桌面 Garden ADR-0002/0004/0008 认知分区。权威提案：
   [`docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md`](docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md)。
   **用户关键决策（2026-08-07，全部冻结）**：
@@ -283,10 +283,13 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   commitment 红线，不进治理）；D2 报告产物迁 `.laputa/reports/`
   （只搬不改可回滚）。**不回迁 Mentle，不引入 garden Go 代码**。
   执行顺序：
-  - [ ] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）
-  - [ ] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）
-  - [ ] S3 Frozen Core 会话冻结语义（01–04 启动快照，写入次会话生效）
-  - [ ] S4 人格文件层退役与内容治理迁移（Mask 保留为覆层）
+  - [x] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）：`41e60a7e`
+  - [x] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）：
+        `5788eddf` + `b22b50e8`
+  - [x] S3 Frozen Core 会话冻结语义（01–04 启动快照，写入次会话生效）：`1c97d7be`
+  - [x] S4 人格文件层退役与内容治理迁移（Mask 保留为覆层）：`49e778e1`
+        （persona-retire 迁移工具）+ `57044ba8`（BOOTSTRAP 装配除名）+
+        `989a18a2`（soul 机制删除）
   - [ ] S5 注册表 14→8 硬删收敛
   - [ ] S6 报告系统边界重构（写权威收口+注入禁令+节律真机验证+产物迁 `.laputa/reports/`）
   - [ ] S7 Context Plane 负向不变量矩阵
