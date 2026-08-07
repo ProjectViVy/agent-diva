@@ -13,6 +13,7 @@ pub mod working;
 pub use crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
     MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
+    SectionWriteProposalRequest,
 };
 pub use manager::MemoryManager;
 pub use provider::{

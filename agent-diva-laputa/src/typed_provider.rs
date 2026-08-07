@@ -12,10 +12,11 @@ use agent_diva_core::memory::{
     MemoryListRequest, MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord,
     MemoryRecordKind, MemoryRemoveRequest, MemoryScope, MemorySearchRequest, MemorySensitivity,
     MemoryTrust, MemoryUpdateRequest, PrefetchRequest, PrefetchResponse, PrefetchStatus,
-    RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome, SessionEndRequest,
-    SessionEndResponse, SessionEndStatus, StartupInjectionShape, SyncTurnRequest, SyncTurnResponse,
-    SystemPromptBlock, SystemPromptRequest, SystemPromptResponse, WorkingMemoryRequest,
-    WorkingMemoryResponse, DEFAULT_L1_INDEX_LINES, MAX_CONFIDENCE_BPS,
+    RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome,
+    SectionWriteProposalRequest, SessionEndRequest, SessionEndResponse, SessionEndStatus,
+    StartupInjectionShape, SyncTurnRequest, SyncTurnResponse, SystemPromptBlock,
+    SystemPromptRequest, SystemPromptResponse, WorkingMemoryRequest, WorkingMemoryResponse,
+    DEFAULT_L1_INDEX_LINES, MAX_CONFIDENCE_BPS,
 };
 use chrono::{Duration, Utc};
 
@@ -638,6 +639,46 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             }),
             Err(error) => Ok(MemoryCrudOutcome::Failed {
                 reason: format!("memory_remove governance submit failed:{error}"),
+            }),
+        }
+    }
+
+    async fn propose_section_write(
+        &self,
+        _context: &MemoryCrudContext,
+        request: SectionWriteProposalRequest,
+    ) -> agent_diva_core::Result<MemoryCrudOutcome> {
+        let Some(coordinator) = &self.coordinator else {
+            return Ok(MemoryCrudOutcome::Failed {
+                reason: "propose_section_write governance unavailable".into(),
+            });
+        };
+        if request.content.trim().is_empty() {
+            return Ok(MemoryCrudOutcome::Failed {
+                reason: "propose_section_write content is empty".into(),
+            });
+        }
+        let now = Utc::now();
+        let proposal = match self.proposal_sink.service.create_user_edit_proposal(
+            request.section.clone(),
+            request.content.clone(),
+            "laputa_propose_section_write",
+            request.summary.clone(),
+            now,
+        ) {
+            Ok(proposal) => proposal,
+            Err(error) => {
+                return Ok(MemoryCrudOutcome::Failed {
+                    reason: format!("propose_section_write proposal failed:{error}"),
+                })
+            }
+        };
+        match coordinator.submit(&proposal, None, now).await {
+            Ok(_) => Ok(MemoryCrudOutcome::ProposalCreated {
+                proposal_id: proposal.id,
+            }),
+            Err(error) => Ok(MemoryCrudOutcome::Failed {
+                reason: format!("propose_section_write governance submit failed:{error}"),
             }),
         }
     }

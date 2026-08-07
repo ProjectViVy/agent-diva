@@ -346,6 +346,12 @@ impl ToolAssembly {
                         workspace.clone(),
                     )));
                     registry.register(Arc::new(
+                        agent_diva_tools::LaputaProposeSectionWriteTool::with_provider(
+                            provider.clone(),
+                            workspace.clone(),
+                        ),
+                    ));
+                    registry.register(Arc::new(
                         agent_diva_tools::MemoryDistillTool::with_provider(
                             provider.clone(),
                             workspace,
@@ -358,6 +364,9 @@ impl ToolAssembly {
                     registry.register(Arc::new(agent_diva_tools::MemorySearchTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::new()));
+                    registry.register(Arc::new(
+                        agent_diva_tools::LaputaProposeSectionWriteTool::new(),
+                    ));
                     registry.register(Arc::new(agent_diva_tools::MemoryDistillTool::new()));
                 }
             }

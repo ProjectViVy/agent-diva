@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use crate::evolution::EvidenceRef;
+use crate::evolution::{EvidenceRef, LaputaSectionName};
 
 /// Input for a low-risk immediate memory write.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -65,6 +65,19 @@ pub struct MemoryDistillRequest {
     /// Wave 1 minimal contract uses session context; checkpoint evidence is
     /// attached by Wave 2 callers).
     pub evidence: Option<String>,
+}
+
+/// Input for a high-risk Frozen Core section write that must go through
+/// review as a governed proposal (identity/relationship/commitment/
+/// preferences).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SectionWriteProposalRequest {
+    /// Frozen Core section to write.
+    pub section: LaputaSectionName,
+    /// JSON patch content for the section file.
+    pub content: String,
+    /// Optional human-readable summary used as the proposal evidence excerpt.
+    pub summary: Option<String>,
 }
 
 /// A single entry of the applied memory projection.
