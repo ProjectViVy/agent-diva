@@ -888,6 +888,7 @@ mod tests {
                     summary: "bounded evidence".to_string(),
                 }],
                 existing_memory_digests: Vec::new(),
+                superseded_memory_digests: Vec::new(),
                 max_candidates: 8,
             })
             .await
@@ -920,6 +921,7 @@ mod tests {
                 run_id: "run-repair".to_string(),
                 evidence: Vec::new(),
                 existing_memory_digests: Vec::new(),
+                superseded_memory_digests: Vec::new(),
                 max_candidates: 8,
             })
             .await
@@ -954,6 +956,7 @@ mod tests {
                 run_id: "run-repair-exhausted".to_string(),
                 evidence: Vec::new(),
                 existing_memory_digests: Vec::new(),
+                superseded_memory_digests: Vec::new(),
                 max_candidates: 8,
             })
             .await
@@ -982,6 +985,7 @@ mod tests {
                 summary: "bounded evidence".to_string(),
             }],
             existing_memory_digests: Vec::new(),
+            superseded_memory_digests: Vec::new(),
             max_candidates: 8,
         };
         let output = parse_reflection_output(
