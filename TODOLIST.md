@@ -326,6 +326,23 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ## Open Backlog
 
+### feat/laputa-cognitive-sync 延期项
+
+- [ ] **WORLD-MEMRULES-GATE：WorldGovernance submit 阶段 MemRules R6 拦截** `sev-P2`
+  C6 已完成 Memory 侧 MemRules 注入；WORLD 侧需在 `WorldGovernance::submit` 中
+  调用 `MemRules::load_or_default()`，违反 R6 时返回
+  `WorldGovernanceError::Protected { reason: "R6: WORLD entry gate" }`。
+  依赖 C7 接线完成后再做。
+- [ ] **FROZEN-CORE-RENDER-IN-PROMPT：Frozen Core 投影实际注入 system prompt** `sev-P2`
+  C5 保证 sections 被种子为非空；但 `context.rs` 的 OnceLock 捕获后，
+  `prompt.rs` 是否真的把 `FrozenCoreSnapshot::render()` 拼进 system prompt
+  尚未验收。需要一条 end-to-end 测试：启动 agent loop → 断言 prompt 含
+  "Identity:" / "Relationship:" 等 canonical section 前缀。
+- [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1-R7 与生产治理策略对齐** `sev-P3`
+  `DEFAULT_MEM_RULES_TEXT` 里的 R1-R7 来自认知设计，需要 PM/Winston 复核
+  是否与现有 `PolicyRestriction` 语义、autonomy level 映射完全一致；必要时
+  调整规则措辞或新增 R8。
+
 ### GA-MEM-PARITY Wave 3 延期项
 
 - [ ] **F3：GUI/CLI 审批 memory 域端到端验收** `sev-P1`
