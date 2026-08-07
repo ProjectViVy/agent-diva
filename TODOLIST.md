@@ -209,8 +209,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         删除（`memory_remove` 走 proposal 但无审批入口）；用户看不到 agent
         当前记忆内容；人格与记忆需要 BML（Basic Memory Layer）用户可视化
         管理界面。排期待决策。
-      - **Laputa 设计同步** → 已升级为 Active Plan 正式任务
-        `LAPUTA-COGNITIVE-SYNC`（见上方 Active Plan 区，决策全冻结，即将开工）。
+      - **Laputa 设计同步** → LAPUTA-COGNITIVE-SYNC 已完成（S0–S7，
+        见上方 Active Plan 区与 docs/logs/2026-08-laputa-cognitive-sync/）。
       - **记忆检索增强（待决策）**：当前 `memory_search` 基于 FTS5 全文
         匹配，召回质量与语义检索、上下文相关性排序等增强方向待决策。
         排期待决策。
@@ -265,7 +265,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   不在闭环内的旧 AutoDream/Evolution 承诺继续冻结，完全无后端的入口必须隐藏、
   删除或明确 degraded。
 
-- [ ] **LAPUTA-COGNITIVE-SYNC：新 Laputa 认知分区回迁（当前主线，执行中 S0–S4 已完）** `sev-P0`
+- [x] **LAPUTA-COGNITIVE-SYNC：新 Laputa 认知分区回迁（S0–S7 全部完成）** `sev-P0`
   调研：桌面 Garden ADR-0002/0004/0008 认知分区。权威提案：
   [`docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md`](docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md)。
   **用户关键决策（2026-08-07，全部冻结）**：
@@ -292,10 +292,15 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         `989a18a2`（soul 机制删除）
   - [x] S5 注册表 14→9 硬删收敛（5 废弃变体 + HistoryPatch/JournalNote，
         落盘历史容错跳过 + 稳定失败码）：`e61630b8`
-  - [ ] S6 报告系统边界重构（写权威收口+注入禁令+节律真机验证+产物迁 `.laputa/reports/`）
-  - [ ] S7 Context Plane 负向不变量矩阵
+  - [x] S6 报告系统边界重构（写权威收口+注入禁令+节律链路验证+产物迁 `.laputa/reports/`）：
+        `23ea4b1e`（删 rhythm patch proposal 目标与记忆映射）+
+        `856335b2`（禁 Rhythm Signals 入 prompt）+ `6def944e`（D2 产物迁移）
+  - [x] S7 Context Plane 负向不变量矩阵（8 行矩阵移植为负向回归测试）：`2457239b`
   分支纪律：从 pro 切 `feat/laputa-cognitive-sync`；逐切片四件套 +
   单一 concern 提交 + `just ci`，不 push。
+  收尾：四件套见 [`docs/logs/2026-08-laputa-cognitive-sync/`](docs/logs/2026-08-laputa-cognitive-sync/)；
+  S6-4 节律真机验证以进程级集成测试覆盖，完整 daemon-cron 真机
+  待 G2D+ 桌面验收补跑。
 
 - [ ] **G2D+：全流程完成后的真实桌面最终验收** `sev-P0`
   自动化纵向 E2E 与发布门通过后再由用户执行。保留原批准、拒绝、编辑后批准、

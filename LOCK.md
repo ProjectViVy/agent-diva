@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `agent-diva-laputa/src/cognitive/` + `agent-diva-laputa/src/lib.rs` + `docs/logs/2026-08-laputa-cognitive-sync/` (LAPUTA-COGNITIVE-SYNC S1: cognitive/ 目录与 MEMRULES.MD)
-- Owner: `QoderCN`
-- Session/Task: `LAPUTA-COGNITIVE-SYNC (S1–S7, 见 docs/research/laputa-garden-cognitive-sync-2026-08/)`
-- Branch/Worktree: `agent-diva-pro (待切 feat/laputa-cognitive-sync) / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Lock State: `RELEASED`
+- Scope: —
+- Owner: —
+- Session/Task: `LAPUTA-COGNITIVE-SYNC (S0–S7 全部完成，见 docs/logs/2026-08-laputa-cognitive-sync/)`
+- Branch/Worktree: `feat/laputa-cognitive-sync / C:\Users\Administrator\Desktop\morediva\agent-diva`（未 push）
 - Started At: '2026-08-07T14:00:00+08:00'
-- Last Heartbeat: '2026-08-07T14:00:00+08:00'
-- Expires At: '2026-08-07T16:00:00+08:00'
+- Last Heartbeat: '2026-08-07T23:55:00+08:00'
+- Expires At: —
 
 ## Lock Rules
 
@@ -25,9 +25,22 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `QoderCN` — LAPUTA-COGNITIVE-SYNC S1（cognitive/ 目录与 MEMRULES.MD）. Scope: `agent-diva-laputa/src/cognitive/`, `agent-diva-laputa/src/lib.rs`, `docs/logs/2026-08-laputa-cognitive-sync/`. Heartbeat 2026-08-07T14:00+08:00.
+（无）
 
 ## Handoff Notes
+
+- `2026-08-07T23:55:00+08:00`: Released after LAPUTA-COGNITIVE-SYNC
+  (S0–S7) closure: 15 commits on `feat/laputa-cognitive-sync`（未 push）—
+  S0 基线修复 `88195ffa`；S1 cognitive/MEMRULES `41e60a7e`；S2 WORLD.MD
+  claim 存储+治理 upsert `5788eddf`/`b22b50e8`；S3 Frozen Core 会话冻结
+  `1c97d7be`；S4 人格文件层退役 `49e778e1`/`57044ba8`/`989a18a2`；S5 注册表
+  14→8 硬删 `e61630b8`；S6 报告边界重构+D2 产物迁移
+  `23ea4b1e`/`856335b2`/`6def944e`；S7 Context Plane 负向不变量矩阵
+  `2457239b`；另 3 笔 TODOLIST docs 提交。全量 `just ci` 仅余 6 个基线
+  预存在 CLI wiremock 502 失败（CLI-WIREMOCK-502-PREEXISTING）。
+  S6-4 节律以进程级集成测试验证，完整 daemon-cron 真机挂 G2D+。
+  四件套：docs/logs/2026-08-laputa-cognitive-sync/
+  (plan/summary/verification/acceptance)。待用户评审合并分支。
 
 - `2026-08-07T14:00:00+08:00`: Took over stale Wave 5 S2 lock (expired
   2026-08-07T13:30+08:00, no heartbeat after 11:30; 核实该锁对应工作已
