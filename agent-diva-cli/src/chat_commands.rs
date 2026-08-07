@@ -6,8 +6,6 @@ use crate::cli_runtime::{
 };
 use crate::client::ApiClient;
 use agent_diva_agent::{
-    agent_loop::SoulGovernanceSettings,
-    context::SoulContextSettings,
     mask::{MaskFile, MaskRegistry},
     runtime_control::RuntimeControlCommand,
     tool_config::network::{
@@ -113,17 +111,6 @@ async fn build_local_cli_agent(
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
         run_store: None,
-        soul_context: SoulContextSettings {
-            enabled: config.agents.soul.enabled,
-            max_chars: config.agents.soul.max_chars,
-            bootstrap_once: config.agents.soul.bootstrap_once,
-        },
-        notify_on_soul_change: config.agents.soul.notify_on_change,
-        soul_governance: SoulGovernanceSettings {
-            frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
-            frequent_change_threshold: config.agents.soul.frequent_change_threshold,
-            boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
-        },
         budget: config.tools.budget.clone().into(),
     };
 

@@ -168,7 +168,6 @@ pub async fn consolidate_with_gate(
     // Retry loop: quality gate with configurable max_retry
     let max_retry = quality_gate.max_retry;
     let mut best_items: Option<serde_json::Value> = None;
-    let mut best_history_entry: Option<String> = None;
     let mut best_score: f64 = 0.0;
     let mut best_issues: Vec<String> = Vec::new();
 
@@ -225,12 +224,6 @@ pub async fn consolidate_with_gate(
         };
 
         let items = tc.arguments.get("items").cloned();
-        let history_entry = tc
-            .arguments
-            .get("history_entry")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
 
         let memory_update_text = items
             .as_ref()
@@ -261,9 +254,6 @@ pub async fn consolidate_with_gate(
             best_issues = quality_result.issues.clone();
             if items.is_some() {
                 best_items = items;
-            }
-            if !history_entry.is_empty() {
-                best_history_entry = Some(history_entry);
             }
         }
 
@@ -386,28 +376,6 @@ pub async fn consolidate_with_gate(
                 })?;
         }
 
-        // Sync history entry separately via sync_turn
-        if let Some(ref history_entry) = best_history_entry {
-            let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC");
-            let entry = format!("[{}] {}", timestamp, history_entry);
-            memory_provider
-                .sync_turn(SyncTurnRequest {
-                    workspace_root: workspace.to_path_buf(),
-                    memory_update_markdown: None,
-                    history_entry: Some(entry),
-                })
-                .await
-                .and_then(|response| match response.status {
-                    SyncTurnStatus::Persisted
-                    | SyncTurnStatus::ProposalCreated
-                    | SyncTurnStatus::Noop => Ok(response),
-                    SyncTurnStatus::Failed { reason } => {
-                        Err(agent_diva_core::Error::Internal(reason))
-                    }
-                })?;
-            debug!("Appended to HISTORY.md");
-        }
-
         info!("Consolidation complete (best score {:.2})", best_score);
     } else {
         warn!(
@@ -520,16 +488,10 @@ mod tests {
                     id: "save-memory-call".to_string(),
                     call_type: "function".to_string(),
                     name: "save_memory".to_string(),
-                    arguments: HashMap::from([
-                        (
-                            "items".to_string(),
-                            serde_json::json!([{"action": "add", "content": "Updated continuity."}]),
-                        ),
-                        (
-                            "history_entry".to_string(),
-                            serde_json::Value::String("Recorded turn.".to_string()),
-                        ),
-                    ]),
+                    arguments: HashMap::from([(
+                        "items".to_string(),
+                        serde_json::json!("Updated continuity."),
+                    )]),
                 }],
                 finish_reason: "tool_calls".to_string(),
                 usage: HashMap::new(),
@@ -868,7 +830,9 @@ mod wave5_tests {
         .unwrap();
 
         assert_eq!(memory.add_calls.load(Ordering::SeqCst), 1);
-        assert_eq!(memory.sync_calls.load(Ordering::SeqCst), 1);
+        // History file appends are retired: itemized consolidation only
+        // dispatches memory adds.
+        assert_eq!(memory.sync_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
@@ -899,7 +863,7 @@ mod wave5_tests {
         .unwrap();
 
         assert_eq!(memory.add_calls.load(Ordering::SeqCst), 0);
-        // fallback sync_turn for non-array items + history sync_turn
-        assert_eq!(memory.sync_calls.load(Ordering::SeqCst), 2);
+        // fallback sync_turn for non-array items; history sync_turn is retired
+        assert_eq!(memory.sync_calls.load(Ordering::SeqCst), 1);
     }
 }

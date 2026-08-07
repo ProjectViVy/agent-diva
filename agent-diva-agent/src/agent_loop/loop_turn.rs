@@ -21,8 +21,8 @@ use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{ImageUrl, Message, MessageContent, MessageContentPart, ProviderError};
 use anyhow;
 use base64::Engine;
-use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
@@ -358,7 +358,6 @@ impl AgentLoop {
         let mut iteration_budget = IterationBudget::default();
         let mut final_content: Option<String> = None;
         let mut final_reasoning: Option<String> = None;
-        let mut soul_files_changed: HashSet<String> = HashSet::new();
         let mut turn_token_usage: Option<TokenUsage> = None;
         // Codex-style follow-up: after tools, keep sampling until text or budget.
         let mut tool_run_summaries: Vec<ToolRunSummary> = Vec::new();
@@ -570,7 +569,6 @@ impl AgentLoop {
                             &tool_context,
                             &mut turn_snapshot,
                             &mut messages,
-                            &mut soul_files_changed,
                         )
                         .await?
                     else {
@@ -643,7 +641,6 @@ impl AgentLoop {
                     session_key: &session_key,
                     plan_mode,
                     rendered_content: final_content,
-                    soul_files_changed: &soul_files_changed,
                 },
                 iteration_outcome,
             )
@@ -776,50 +773,6 @@ impl AgentLoop {
         result.prompt_text = result.prompt_text.trim().to_string();
         Ok(result)
     }
-}
-
-pub(super) fn changed_soul_file(
-    tool_name: &str,
-    arguments: &HashMap<String, serde_json::Value>,
-    _result: &str,
-) -> Option<&'static str> {
-    if tool_name != "write_file" && tool_name != "edit_file" {
-        return None;
-    }
-
-    let path = arguments.get("path").and_then(|v| v.as_str())?;
-    let file_name = Path::new(path).file_name()?.to_string_lossy();
-
-    ["SOUL.md", "IDENTITY.md", "USER.md", "BOOTSTRAP.md"]
-        .into_iter()
-        .find(|name| file_name.eq_ignore_ascii_case(name))
-}
-
-pub(super) fn format_soul_transparency_notice(
-    changed_files: &HashSet<String>,
-    boundary_confirmation_hint: bool,
-    frequent_hint: bool,
-) -> String {
-    let mut changed_files = changed_files.iter().cloned().collect::<Vec<_>>();
-    changed_files.sort();
-    let mut notice =
-        "\n\nTransparency notice: I updated soul identity files this turn.".to_string();
-    notice.push_str("\n- Updated files: ");
-    notice.push_str(&changed_files.join(", "));
-    notice.push_str(
-        "\n- Reason: to keep identity, boundaries, and behavior guidance aligned with this conversation.",
-    );
-    if boundary_confirmation_hint && changed_files.iter().any(|f| f == "SOUL.md") {
-        notice.push_str(
-            "\n- Suggestion: if boundary-related rules changed in SOUL.md, please confirm they match your expectations.",
-        );
-    }
-    if frequent_hint {
-        notice.push_str(
-            "\n- Governance hint: soul files changed frequently in a short window; consider consolidating updates for stability.",
-        );
-    }
-    notice
 }
 
 /// Save all messages from the current turn to the session
@@ -1241,75 +1194,6 @@ mod tests {
             }
             other => panic!("expected structured parts, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn test_changed_soul_file_detects_successful_updates() {
-        let args = HashMap::from([(
-            "path".to_string(),
-            serde_json::Value::String("memory/../SOUL.md".to_string()),
-        )]);
-        let result = "Successfully wrote 12 bytes";
-        assert_eq!(
-            changed_soul_file("write_file", &args, result),
-            Some("SOUL.md")
-        );
-
-        let args = HashMap::from([(
-            "path".to_string(),
-            serde_json::Value::String("IDENTITY.md".to_string()),
-        )]);
-        assert_eq!(
-            changed_soul_file("edit_file", &args, "Successfully edited"),
-            Some("IDENTITY.md")
-        );
-    }
-
-    #[test]
-    fn test_changed_soul_file_ignores_non_write_tools() {
-        let args = HashMap::from([(
-            "path".to_string(),
-            serde_json::Value::String("SOUL.md".to_string()),
-        )]);
-        // Non-write_file/edit_file tools should return None regardless of result
-        assert_eq!(
-            changed_soul_file("list_dir", &args, "Successfully listed"),
-            None
-        );
-        assert_eq!(changed_soul_file("read_file", &args, "content"), None);
-    }
-
-    #[test]
-    fn test_changed_soul_file_ignores_non_soul_paths() {
-        let args = HashMap::from([(
-            "path".to_string(),
-            serde_json::Value::String("README.md".to_string()),
-        )]);
-        assert_eq!(
-            changed_soul_file("write_file", &args, "Successfully wrote"),
-            None
-        );
-    }
-
-    #[test]
-    fn test_format_soul_transparency_notice_lists_sorted_files_and_hints() {
-        let files = HashSet::from([
-            "USER.md".to_string(),
-            "SOUL.md".to_string(),
-            "IDENTITY.md".to_string(),
-        ]);
-        let notice = format_soul_transparency_notice(&files, true, true);
-        assert!(notice.contains("IDENTITY.md, SOUL.md, USER.md"));
-        assert!(notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
-        assert!(notice.contains("Governance hint: soul files changed frequently"));
-    }
-
-    #[test]
-    fn test_format_soul_transparency_notice_without_optional_hints() {
-        let files = HashSet::from(["USER.md".to_string()]);
-        let notice = format_soul_transparency_notice(&files, true, false);
-        assert!(!notice.contains("Suggestion: if boundary-related rules changed in SOUL.md"));
-        assert!(!notice.contains("Governance hint:"));
     }
 
     // ── Reactive compact: context-overflow detection ──────────────

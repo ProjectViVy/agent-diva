@@ -5,12 +5,10 @@ use agent_diva_core::planning::{
 };
 use agent_diva_core::session::TokenUsage;
 use agent_diva_providers::Message;
-use std::collections::HashSet;
 use tokio::sync::mpsc;
 use tracing::{error, info, trace, warn};
 
 use super::super::super::consolidation;
-use super::super::loop_turn::format_soul_transparency_notice;
 use super::super::loop_turn::{fallback_session_title, save_turn, should_generate_session_title};
 use super::super::AgentLoop;
 use super::iteration::IterationOutcome;
@@ -51,7 +49,6 @@ pub(crate) struct FinalizationPreparation<'a> {
     pub session_key: &'a str,
     pub plan_mode: bool,
     pub rendered_content: String,
-    pub soul_files_changed: &'a HashSet<String>,
 }
 
 impl AgentLoop {
@@ -66,16 +63,7 @@ impl AgentLoop {
             session_key,
             plan_mode,
             mut rendered_content,
-            soul_files_changed,
         } = preparation;
-        if self.notify_on_soul_change && !soul_files_changed.is_empty() {
-            let notice = format_soul_transparency_notice(
-                soul_files_changed,
-                self.soul_governance.boundary_confirmation_hint,
-                self.is_frequent_soul_change_turn(),
-            );
-            rendered_content.push_str(&notice);
-        }
 
         if plan_mode {
             if let Some(planning) = &self.tool_config.planning {

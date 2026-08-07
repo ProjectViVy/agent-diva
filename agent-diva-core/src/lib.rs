@@ -29,7 +29,6 @@ pub mod reports;
 pub mod scheduler;
 pub mod security;
 pub mod session;
-pub mod soul;
 pub mod supervised;
 pub mod todo;
 pub mod token_ledger;

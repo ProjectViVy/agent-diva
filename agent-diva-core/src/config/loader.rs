@@ -222,7 +222,6 @@ fn classify_field(path: &str) -> &'static str {
         || path.starts_with("agents.defaults.temperature")
         || path.starts_with("agents.defaults.max_tool_iterations")
         || path.starts_with("agents.defaults.reasoning_effort")
-        || path.starts_with("agents.soul")
         || path.starts_with("tools.budget")
         || path.starts_with("tools.exec.timeout")
         || path.starts_with("tools.web.search.enabled")
@@ -841,20 +840,6 @@ mod tests {
     }
 
     #[test]
-    fn test_config_diff_soul_change_is_hot_reload() {
-        let mut old = Config::default();
-        old.agents.soul.enabled = true;
-
-        let mut new = Config::default();
-        new.agents.soul.enabled = false;
-
-        let diff = compute_diff(&old, &new);
-        assert!(diff.has_changes());
-        assert_eq!(diff.hot_reload.len(), 1);
-        assert_eq!(diff.hot_reload[0].field, "agents.soul.enabled");
-    }
-
-    #[test]
     fn test_config_diff_sandbox_mode_change_is_hot_reload() {
         let mut old = Config::default();
         old.sandbox.mode = crate::config::SandboxMode::WorkspaceWrite;
@@ -942,8 +927,6 @@ mod tests {
             "agents.defaults.temperature",
             "agents.defaults.max_tool_iterations",
             "agents.defaults.reasoning_effort",
-            "agents.soul.enabled",
-            "agents.soul.max_chars",
             "tools.budget.max_tokens",
             "tools.exec.timeout",
             "tools.web.search.enabled",

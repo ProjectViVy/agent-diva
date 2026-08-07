@@ -23,30 +23,15 @@ const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
 const DEFAULT_AGENT_ROLE: &str = "helpful AI assistant";
 
-/// Runtime controls for soul prompt injection.
-#[derive(Debug, Clone)]
-pub struct SoulContextSettings {
-    pub enabled: bool,
-    pub max_chars: usize,
-    pub bootstrap_once: bool,
-}
-
-impl Default for SoulContextSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            max_chars: 4000,
-            bootstrap_once: true,
-        }
-    }
-}
+/// Character budget for workspace markdown files injected into the prompt
+/// (e.g. AGENTS.md).
+const WORKSPACE_MD_MAX_CHARS: usize = 4000;
 
 /// Builds the context for LLM requests
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
-    soul_settings: SoulContextSettings,
     /// Frozen Core sections (01–04) are captured once at session start and
     /// stay frozen for the whole session; governance writes take effect in
     /// the next session's capture.
@@ -62,7 +47,6 @@ impl ContextBuilder {
             workspace,
             skills_loader,
             memory_provider,
-            soul_settings: SoulContextSettings::default(),
             frozen_core: OnceLock::new(),
         }
     }
@@ -75,7 +59,6 @@ impl ContextBuilder {
             workspace,
             skills_loader,
             memory_provider,
-            soul_settings: SoulContextSettings::default(),
             frozen_core: OnceLock::new(),
         }
     }
@@ -84,11 +67,6 @@ impl ContextBuilder {
     pub fn with_memory_provider(mut self, memory_provider: Arc<dyn MemoryProvider>) -> Self {
         self.memory_provider = memory_provider;
         self
-    }
-
-    /// Override soul context settings.
-    pub fn set_soul_settings(&mut self, settings: SoulContextSettings) {
-        self.soul_settings = settings;
     }
 
     /// Build system prompt from workspace files and memory.
@@ -205,14 +183,14 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     fn append_agent_rules(&self, prompt: &mut String) {
-        if let Some(content) = self.read_soul_file("AGENTS.md") {
+        if let Some(content) = self.read_workspace_markdown("AGENTS.md") {
             self.append_section(prompt, "Agent Rules", &content);
         }
     }
 
-    fn read_soul_file(&self, rel: &str) -> Option<String> {
+    fn read_workspace_markdown(&self, rel: &str) -> Option<String> {
         let path = self.workspace.join(rel);
-        read_trimmed_markdown(&path, self.soul_settings.max_chars)
+        read_trimmed_markdown(&path, WORKSPACE_MD_MAX_CHARS)
     }
 
     fn append_section(&self, prompt: &mut String, title: &str, content: &str) {
@@ -904,12 +882,7 @@ mod tests {
             format!("- Name: {}\n- Role: helper", long_name),
         )
         .unwrap();
-        let mut builder = ContextBuilder::new(workspace.path().to_path_buf());
-        builder.set_soul_settings(SoulContextSettings {
-            enabled: true,
-            max_chars: 120,
-            bootstrap_once: true,
-        });
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("You are agent-diva, a helpful AI assistant."));
         assert!(!prompt.contains(&"N".repeat(120)));

@@ -1,10 +1,7 @@
 //! CLI entry point for agent-diva
 
 use agent_diva_agent::tool_config::PlanningConfig;
-use agent_diva_agent::{
-    agent_loop::SoulGovernanceSettings, context::SoulContextSettings,
-    runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig,
-};
+use agent_diva_agent::{runtime_control::RuntimeControlCommand, AgentEvent, AgentLoop, ToolConfig};
 use agent_diva_cli::approval_commands::{
     apply_choice, print_human, review_pending, ApprovalChoice, ApprovalCliResult,
 };
@@ -992,8 +989,6 @@ async fn run_onboard(runtime: &CliRuntime, args: OnboardArgs) -> Result<()> {
         "  Skills: {}",
         style("~/.agent-diva/workspace/skills/<skill-name>/SKILL.md").cyan()
     );
-    println!("  First chats will guide soul identity initialization.");
-    println!("  The agent will ask for its name, style, and collaboration boundaries.");
 
     Ok(())
 }
@@ -1338,17 +1333,6 @@ async fn run_tui(
         mcp_servers: config.tools.active_mcp_servers(),
         cron_service: Some(Arc::new(CronService::new(runtime.cron_store_path(), None))),
         run_store: None,
-        soul_context: SoulContextSettings {
-            enabled: config.agents.soul.enabled,
-            max_chars: config.agents.soul.max_chars,
-            bootstrap_once: config.agents.soul.bootstrap_once,
-        },
-        notify_on_soul_change: config.agents.soul.notify_on_change,
-        soul_governance: SoulGovernanceSettings {
-            frequent_change_window_secs: config.agents.soul.frequent_change_window_secs,
-            frequent_change_threshold: config.agents.soul.frequent_change_threshold,
-            boundary_confirmation_hint: config.agents.soul.boundary_confirmation_hint,
-        },
         budget: config.tools.budget.clone().into(),
     };
 

@@ -20,16 +20,15 @@ use agent_diva_providers::LLMProvider;
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
 use agent_diva_tools::BackgroundTaskContext;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::consolidation;
-use crate::context::{ContextBuilder, SoulContextSettings};
+use crate::context::ContextBuilder;
 use crate::context_budget::BudgetConfig;
 use crate::mask::{MaskFile, MaskRegistry};
 use crate::memory_boundary::default_memory_provider;
@@ -76,12 +75,6 @@ pub struct ToolConfig {
     pub cron_service: Option<Arc<CronService>>,
     /// Optional supervised run store for background task tools.
     pub run_store: Option<Arc<RunStore>>,
-    /// Soul context settings
-    pub soul_context: SoulContextSettings,
-    /// Whether to append transparent notifications on soul updates
-    pub notify_on_soul_change: bool,
-    /// Governance behavior for soul evolution transparency
-    pub soul_governance: SoulGovernanceSettings,
     /// Context compaction budget configuration.
     pub budget: BudgetConfig,
 }
@@ -101,31 +94,7 @@ impl Default for ToolConfig {
             mcp_servers: HashMap::new(),
             cron_service: None,
             run_store: None,
-            soul_context: SoulContextSettings::default(),
-            notify_on_soul_change: true,
-            soul_governance: SoulGovernanceSettings::default(),
             budget: BudgetConfig::default(),
-        }
-    }
-}
-
-/// Runtime soft-governance settings for soul evolution.
-#[derive(Clone, Debug)]
-pub struct SoulGovernanceSettings {
-    /// Rolling window in seconds for "frequent changes" hints.
-    pub frequent_change_window_secs: u64,
-    /// Minimum number of soul-changing turns in window to trigger hints.
-    pub frequent_change_threshold: usize,
-    /// Add a confirmation hint when SOUL.md changes.
-    pub boundary_confirmation_hint: bool,
-}
-
-impl Default for SoulGovernanceSettings {
-    fn default() -> Self {
-        Self {
-            frequent_change_window_secs: 600,
-            frequent_change_threshold: 3,
-            boundary_confirmation_hint: true,
         }
     }
 }
@@ -149,9 +118,6 @@ pub struct AgentLoop {
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
     cancelled_sessions: HashSet<String>,
-    notify_on_soul_change: bool,
-    soul_governance: SoulGovernanceSettings,
-    soul_change_turns: VecDeque<Instant>,
     file_manager: Arc<FileManager>,
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
@@ -439,8 +405,7 @@ impl AgentLoop {
             global_timeout_secs: runtime_security.global_tool_timeout_secs,
             ..ToolConfig::default()
         };
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
-        context.set_soul_settings(SoulContextSettings::default());
+        let context = ContextBuilder::with_skills(workspace.clone(), None);
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::with_timeout(runtime_security.global_tool_timeout_secs);
         let memory_provider = default_memory_provider(&workspace);
@@ -489,9 +454,6 @@ impl AgentLoop {
             subagent_manager,
             runtime_control_rx: None,
             cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: true,
-            soul_governance: SoulGovernanceSettings::default(),
-            soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
             custom_tools: Vec::new(),
@@ -584,7 +546,6 @@ impl AgentLoop {
             ..tool_config
         };
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
-        context.set_soul_settings(tool_config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
         let token_ledger_data_root = workspace.join(".agent-diva");
 
@@ -643,9 +604,6 @@ impl AgentLoop {
             subagent_manager,
             runtime_control_rx,
             cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: tool_config.notify_on_soul_change,
-            soul_governance: tool_config.soul_governance,
-            soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
             custom_tools,
@@ -685,7 +643,6 @@ impl AgentLoop {
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);
-        context.set_soul_settings(toolset.config.soul_context.clone());
         let sessions = SessionManager::new(workspace.clone());
         let memory_provider = default_memory_provider(&workspace);
         let token_ledger_data_root = workspace.join(".agent-diva");
@@ -727,9 +684,6 @@ impl AgentLoop {
             subagent_manager,
             runtime_control_rx,
             cancelled_sessions: HashSet::new(),
-            notify_on_soul_change: toolset.config.notify_on_soul_change,
-            soul_governance: toolset.config.soul_governance,
-            soul_change_turns: VecDeque::new(),
             file_manager,
             memory_provider,
             custom_tools: Vec::new(),
@@ -976,20 +930,6 @@ impl AgentLoop {
             }
         }
     }
-
-    fn is_frequent_soul_change_turn(&mut self) -> bool {
-        let window = Duration::from_secs(self.soul_governance.frequent_change_window_secs.max(1));
-        let now = Instant::now();
-        self.soul_change_turns.push_back(now);
-        while let Some(front) = self.soul_change_turns.front().copied() {
-            if now.duration_since(front) > window {
-                self.soul_change_turns.pop_front();
-            } else {
-                break;
-            }
-        }
-        self.soul_change_turns.len() >= self.soul_governance.frequent_change_threshold.max(1)
-    }
 }
 
 fn signals_memory_correction(content: &str) -> bool {
@@ -1219,16 +1159,10 @@ mod tests {
                     id: "save-memory-call".to_string(),
                     call_type: "function".to_string(),
                     name: "save_memory".to_string(),
-                    arguments: HashMap::from([
-                        (
-                            "items".to_string(),
-                            serde_json::json!([{"action": "add", "content": "Updated continuity."}]),
-                        ),
-                        (
-                            "history_entry".to_string(),
-                            serde_json::Value::String("Recorded turn.".to_string()),
-                        ),
-                    ]),
+                    arguments: HashMap::from([(
+                        "items".to_string(),
+                        serde_json::json!("Updated continuity."),
+                    )]),
                 }],
                 finish_reason: "tool_calls".to_string(),
                 usage: HashMap::new(),
@@ -1560,13 +1494,6 @@ mod tests {
             .join("\n");
         assert!(flattened.contains("[REDACTED:Email]"));
         assert!(!flattened.contains("test@example.com"));
-    }
-
-    #[test]
-    fn test_soul_governance_defaults_are_non_zero() {
-        let cfg = SoulGovernanceSettings::default();
-        assert!(cfg.frequent_change_window_secs > 0);
-        assert!(cfg.frequent_change_threshold > 0);
     }
 
     #[tokio::test]

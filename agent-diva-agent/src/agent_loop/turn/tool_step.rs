@@ -2,19 +2,17 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::experience::{ExperienceJournal, OutcomeKind};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
-use agent_diva_core::soul::SoulStateStore;
 use agent_diva_providers::{Message, ToolCallRequest};
 use agent_diva_tooling::ToolRegistry;
 use agent_diva_tools::BackgroundTaskContext;
 use serde_json::Value;
-use std::collections::HashSet;
 use tokio::sync::mpsc;
 use tracing::{info, trace, warn};
 
 use crate::mask::{MaskFile, ToolPolicy};
 use crate::planning::builtin_tool_capability;
 
-use super::super::loop_turn::{changed_soul_file, truncate_for_tool_summary};
+use super::super::loop_turn::truncate_for_tool_summary;
 use super::super::{policy_phase_for, AgentLoop};
 use super::policy::TurnSnapshot;
 
@@ -169,7 +167,6 @@ impl AgentLoop {
         context: &ToolOrchestrationContext<'_>,
         turn_snapshot: &mut TurnSnapshot,
         messages: &mut Vec<Message>,
-        soul_files_changed: &mut HashSet<String>,
     ) -> Result<Option<ToolOrchestrationResult>, Box<dyn std::error::Error>> {
         self.drain_runtime_control_commands().await;
         if self.is_session_cancelled(context.session_key) {
@@ -294,16 +291,6 @@ impl AgentLoop {
             ),
         }
 
-        if self.notify_on_soul_change && !is_error {
-            if let Some(changed_file) =
-                changed_soul_file(&tool_call.name, &tool_call.arguments, &result)
-            {
-                if changed_file == "BOOTSTRAP.md" {
-                    let _ = SoulStateStore::new(&self.workspace).mark_bootstrap_completed();
-                }
-                soul_files_changed.insert(changed_file.to_string());
-            }
-        }
         trace!(
             trace_id = %context.trace_id,
             loop_index = context.iteration,

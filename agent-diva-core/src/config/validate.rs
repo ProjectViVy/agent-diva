@@ -26,15 +26,6 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
             );
         }
     }
-    if config.agents.soul.max_chars == 0 {
-        errors.push("agents.soul.max_chars must be > 0".to_string());
-    }
-    if config.agents.soul.frequent_change_window_secs == 0 {
-        errors.push("agents.soul.frequent_change_window_secs must be > 0".to_string());
-    }
-    if config.agents.soul.frequent_change_threshold == 0 {
-        errors.push("agents.soul.frequent_change_threshold must be > 0".to_string());
-    }
 
     for (name, server) in &config.tools.mcp_servers {
         let has_stdio = !server.command.trim().is_empty();
