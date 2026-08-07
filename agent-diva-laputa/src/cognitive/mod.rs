@@ -10,8 +10,10 @@
 //! - Seeding never overwrites an existing file (InitializeDir semantics).
 
 pub mod memrules;
+pub mod world;
 
 pub use memrules::{MemRule, MemRules};
+pub use world::{ClaimStatus, WorldClaim, WorldError, WorldStore};
 
 use std::{fs, path::Path};
 
@@ -20,15 +22,19 @@ use crate::{atomic_write, LaputaError, Result};
 pub const MEMRULES_FILE_NAME: &str = "MEMRULES.MD";
 pub const WORLD_FILE_NAME: &str = "WORLD.MD";
 
-/// Create the cognitive directory and seed MEMRULES.MD when absent.
-/// Existing files are never overwritten.
+/// Empty world file created on first boot (garden ADR-0004).
+pub const DEFAULT_WORLD_TEXT: &str = "# WORLD\n";
+
+/// Create the cognitive directory and seed MEMRULES.MD / WORLD.MD when
+/// absent. Existing files are never overwritten.
 pub fn initialize_dir(dir: impl AsRef<Path>) -> Result<()> {
     let dir = dir.as_ref();
     fs::create_dir_all(dir).map_err(|source| LaputaError::io(dir, source))?;
     seed_file(
         dir.join(MEMRULES_FILE_NAME),
         memrules::DEFAULT_MEM_RULES_TEXT,
-    )
+    )?;
+    seed_file(dir.join(WORLD_FILE_NAME), DEFAULT_WORLD_TEXT)
 }
 
 fn seed_file(path: impl AsRef<Path>, content: &str) -> Result<()> {
@@ -51,6 +57,10 @@ mod tests {
         initialize_dir(&dir).unwrap();
         let seeded = fs::read_to_string(dir.join(MEMRULES_FILE_NAME)).unwrap();
         assert!(seeded.contains("## R1"));
+        assert_eq!(
+            fs::read_to_string(dir.join(WORLD_FILE_NAME)).unwrap(),
+            DEFAULT_WORLD_TEXT
+        );
 
         // Idempotent: re-running must not fail or change the file.
         initialize_dir(&dir).unwrap();
