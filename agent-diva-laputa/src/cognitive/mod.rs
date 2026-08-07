@@ -10,6 +10,7 @@
 //! - Seeding never overwrites an existing file (InitializeDir semantics).
 
 pub mod memrules;
+pub mod sections;
 pub mod world;
 pub mod world_governance;
 
