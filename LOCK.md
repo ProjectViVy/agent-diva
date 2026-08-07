@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-laputa/src/typed_store.rs` + `agent-diva-laputa/src/typed_provider.rs` + `agent-diva-agent/src/agent_loop/*` (Wave 5 S1 Working memory GC)
+- Scope: `agent-diva-laputa/src/cognitive/` + `agent-diva-laputa/src/lib.rs` + `docs/logs/2026-08-laputa-cognitive-sync/` (LAPUTA-COGNITIVE-SYNC S1: cognitive/ 目录与 MEMRULES.MD)
 - Owner: `QoderCN`
-- Session/Task: `GA-MEM-PARITY Wave 5 (consolidation + GC + F6/F7)`
-- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: '2026-08-07T10:00:00+08:00'
-- Last Heartbeat: '2026-08-07T10:00:00+08:00'
-- Expires At: '2026-08-07T12:00:00+08:00'
+- Session/Task: `LAPUTA-COGNITIVE-SYNC (S1–S7, 见 docs/research/laputa-garden-cognitive-sync-2026-08/)`
+- Branch/Worktree: `agent-diva-pro (待切 feat/laputa-cognitive-sync) / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: '2026-08-07T14:00:00+08:00'
+- Last Heartbeat: '2026-08-07T14:00:00+08:00'
+- Expires At: '2026-08-07T16:00:00+08:00'
 
 ## Lock Rules
 
@@ -25,9 +25,18 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `QoderCN` — GA-MEM-PARITY Wave 5 S1（laputa/typed Working memory GC）. Scope: `agent-diva-laputa/src/typed_store.rs`, `agent-diva-laputa/src/typed_provider.rs`, `agent-diva-agent/src/agent_loop/*`. Heartbeat 2026-08-07T10:00+08:00.
+- `QoderCN` — LAPUTA-COGNITIVE-SYNC S1（cognitive/ 目录与 MEMRULES.MD）. Scope: `agent-diva-laputa/src/cognitive/`, `agent-diva-laputa/src/lib.rs`, `docs/logs/2026-08-laputa-cognitive-sync/`. Heartbeat 2026-08-07T14:00+08:00.
 
 ## Handoff Notes
+
+- `2026-08-07T14:00:00+08:00`: Took over stale Wave 5 S2 lock (expired
+  2026-08-07T13:30+08:00, no heartbeat after 11:30; 核实该锁对应工作已
+  全部提交——`16aa46ed` Wave 5 S2 superseded gate、`166e499a` Wave 5
+  收口、Wave 6 亦已 close，仅锁文件未释放，无丢失工作)。新任务
+  LAPUTA-COGNITIVE-SYNC 开工清理：
+  3 commits 落袋（提案+TODOLIST 冻结 `2c3fbe5e`、根文档归位 docs/ +
+  crate AGENTS `fca1505e`、legacy archive 清理 `23bf2de9`）；工作树清零
+  后从 agent-diva-pro 切 `feat/laputa-cognitive-sync` 开始 S1。
 
 - `2026-08-06T22:30:00+08:00`: Released after GA-MEM-PARITY Wave 4
   (AutoDream G4 dedup) closure: 3 commits —
