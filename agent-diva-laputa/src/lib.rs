@@ -7,6 +7,7 @@ pub mod atomic;
 pub mod cognitive;
 pub mod error;
 pub mod feedback;
+pub mod frozen_core;
 pub mod governed_apply;
 pub mod layout;
 pub mod lock;
@@ -30,6 +31,7 @@ pub use error::{LaputaError, Result};
 pub use feedback::{
     PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,
 };
+pub use frozen_core::{FrozenCoreSnapshot, DEFAULT_FROZEN_CORE_BUDGET, FROZEN_CORE_SECTIONS};
 pub use governed_apply::{
     proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceDecision, MemoryGovernanceError,
     MemoryGovernanceView,
