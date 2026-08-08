@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, Loader2, RefreshCw, Inbox, Network, Database, Brain, Sparkles } from '@lucide/vue';
+import { BookUser, Loader2, RefreshCw, Inbox, Network, Database, Sparkles } from '@lucide/vue';
 import SectionGroupList from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
 import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
@@ -14,6 +14,7 @@ import { appConfirm } from '../utils/appDialog';
 const { t } = useI18n();
 const emit = defineEmits<{
   (event: 'proposal-created', proposalId: string): void;
+  (event: 'open-memory'): void;
 }>();
 
 interface LaputaSnapshot {
@@ -23,7 +24,7 @@ interface LaputaSnapshot {
   }>;
 }
 
-type GovernanceNode = 'garden' | 'laputa' | 'mempalace' | 'rag';
+type GovernanceNode = 'garden' | 'laputa' | 'bml';
 const activeNode = ref<GovernanceNode>('laputa');
 
 const selectedSection = ref<LaputaSectionName>('identity');
@@ -197,7 +198,7 @@ onMounted(() => {
     </header>
 
     <div class="governance-layout">
-      <!-- 树状图导航层 -->
+      <!-- 树状图导航层（真实三层架构：Garden → Laputa / BML） -->
       <section class="governance-tree-section">
         <div class="governance-flow">
           <!-- 核心入口 -->
@@ -209,15 +210,14 @@ onMounted(() => {
             <div class="node-icon"><Network :size="20" /></div>
             <div class="node-content">
               <span class="node-title">{{ t('laputa.nodes.garden') }}</span>
-              <span class="node-subtitle">Gateway & Orchestration</span>
+              <span class="node-subtitle">Facade Workspace</span>
             </div>
           </button>
 
           <!-- 连接线与分支 -->
           <div class="flow-branches">
             <div class="branch-path path-laputa"></div>
-            <div class="branch-path path-mempalace"></div>
-            <div class="branch-path path-rag"></div>
+            <div class="branch-path path-bml"></div>
           </div>
 
           <!-- 子节点群 -->
@@ -230,31 +230,19 @@ onMounted(() => {
               <div class="node-icon"><Sparkles :size="18" /></div>
               <div class="node-content">
                 <span class="node-title">{{ t('laputa.nodes.laputa') }}</span>
-                <span class="node-subtitle">Core Identity</span>
+                <span class="node-subtitle">Persona Governance</span>
               </div>
             </button>
 
             <button 
-              class="flow-node node-mempalace" 
-              :class="{ active: activeNode === 'mempalace' }"
-              @click="activeNode = 'mempalace'"
-            >
-              <div class="node-icon"><Brain :size="18" /></div>
-              <div class="node-content">
-                <span class="node-title">{{ t('laputa.nodes.mempalace') }}</span>
-                <span class="node-subtitle">Episodic Flow</span>
-              </div>
-            </button>
-
-            <button 
-              class="flow-node node-rag" 
-              :class="{ active: activeNode === 'rag' }"
-              @click="activeNode = 'rag'"
+              class="flow-node node-bml" 
+              :class="{ active: activeNode === 'bml' }"
+              @click="emit('open-memory')"
             >
               <div class="node-icon"><Database :size="18" /></div>
               <div class="node-content">
-                <span class="node-title">{{ t('laputa.nodes.rag') }}</span>
-                <span class="node-subtitle">Knowledge Base</span>
+                <span class="node-title">{{ t('laputa.nodes.bml') }}</span>
+                <span class="node-subtitle">Memory Storage</span>
               </div>
             </button>
           </div>
@@ -325,17 +313,23 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 其他节点占位 (未来实现) -->
+        <!-- 其他节点占位 (Garden facade 说明) -->
         <div v-show="activeNode !== 'laputa'" class="governance-placeholder-body">
           <div class="placeholder-card">
             <div class="placeholder-icon-wrapper">
               <Network v-if="activeNode === 'garden'" :size="48" class="text-blue-500" />
-              <Brain v-else-if="activeNode === 'mempalace'" :size="48" class="text-purple-500" />
-              <Database v-else-if="activeNode === 'rag'" :size="48" class="text-emerald-500" />
+              <Database v-else :size="48" class="text-emerald-500" />
             </div>
             <h2 class="placeholder-title">{{ t('laputa.nodes.' + activeNode) }}</h2>
             <p class="placeholder-desc">{{ t('laputa.placeholder.' + activeNode + 'Desc') }}</p>
-            <div class="placeholder-badge">{{ t('laputa.placeholder.comingSoon') }}</div>
+            <button
+              v-if="activeNode === 'bml'"
+              class="placeholder-cta"
+              type="button"
+              @click="emit('open-memory')"
+            >
+              {{ t('laputa.openMemoryWorkspace') }}
+            </button>
           </div>
         </div>
       </section>
@@ -472,8 +466,7 @@ onMounted(() => {
 
 .node-garden .node-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .node-laputa .node-icon { background: linear-gradient(135deg, #ec4899, #d946ef); }
-.node-mempalace .node-icon { background: linear-gradient(135deg, #a855f7, #9333ea); }
-.node-rag .node-icon { background: linear-gradient(135deg, #10b981, #059669); }
+.node-bml .node-icon { background: linear-gradient(135deg, #10b981, #059669); }
 
 .node-content {
   display: flex;
@@ -523,8 +516,7 @@ onMounted(() => {
 }
 
 .path-laputa { top: 30px; bottom: 50%; border-bottom: 0; border-radius: 0 8px 0 0; }
-.path-rag { top: 50%; bottom: 30px; border-top: 0; border-radius: 0 0 8px 0; }
-.path-mempalace { top: 50%; height: 2px; border: 0; background: var(--line, #cbd5e1); transform: translateY(-50%); }
+.path-bml { top: 50%; bottom: 30px; border-top: 0; border-radius: 0 0 8px 0; }
 
 .flow-leaves {
   display: flex;
@@ -599,15 +591,21 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
-.placeholder-badge {
+.placeholder-cta {
   display: inline-block;
-  padding: 6px 16px;
+  padding: 8px 20px;
   border-radius: 999px;
-  background: var(--accent-bg-light, #fdf2f8);
-  color: var(--brand, #ec4899);
-  font-size: 12px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.placeholder-cta:hover {
+  opacity: 0.9;
 }
 
 .persona-memory-list {

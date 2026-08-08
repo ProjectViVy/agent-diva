@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   getAppDialogOpen,
   dismissAppDialogConfirm,
   dismissAppDialogAlert,
+  dismissAppDialogPrompt,
 } from '../utils/appDialog';
 
 const props = withDefaults(
@@ -20,6 +21,12 @@ const dialogOpen = getAppDialogOpen();
 
 const open = computed(() => dialogOpen.value);
 
+const promptValue = ref('');
+
+watch(open, () => {
+  promptValue.value = '';
+});
+
 const shellTheme = computed(() => `theme-${props.themeMode || 'love'}`);
 
 function onBackdropClick() {
@@ -27,6 +34,8 @@ function onBackdropClick() {
   if (!d) return;
   if (d.kind === 'confirm') {
     dismissAppDialogConfirm(false);
+  } else if (d.kind === 'prompt') {
+    dismissAppDialogPrompt(null);
   }
 }
 
@@ -34,6 +43,8 @@ function onEscape(e: KeyboardEvent) {
   if (e.key !== 'Escape' || !open.value) return;
   if (open.value.kind === 'confirm') {
     dismissAppDialogConfirm(false);
+  } else if (open.value.kind === 'prompt') {
+    dismissAppDialogPrompt(null);
   }
 }
 
@@ -73,6 +84,14 @@ onUnmounted(() => {
           >
             {{ open.message }}
           </p>
+          <textarea
+            v-if="open.kind === 'prompt'"
+            v-model="promptValue"
+            class="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-pink-300 focus:ring-2 focus:ring-pink-100 resize-none"
+            rows="3"
+            :placeholder="open.placeholder || ''"
+            @keydown.enter.prevent="dismissAppDialogPrompt(promptValue.trim() || null)"
+          ></textarea>
         </div>
 
         <div
@@ -90,6 +109,23 @@ onUnmounted(() => {
               type="button"
               class="px-4 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold shadow-sm shadow-pink-500/25 transition hover:bg-pink-600"
               @click="dismissAppDialogConfirm(true)"
+            >
+              {{ open.confirmLabel || t('appDialog.confirm') }}
+            </button>
+          </template>
+          <template v-else-if="open.kind === 'prompt'">
+            <button
+              type="button"
+              class="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 transition hover:bg-white hover:border-pink-200 hover:text-pink-800"
+              @click="dismissAppDialogPrompt(null)"
+            >
+              {{ open.cancelLabel || t('appDialog.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold shadow-sm shadow-pink-500/25 transition hover:bg-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!promptValue.trim()"
+              @click="dismissAppDialogPrompt(promptValue.trim())"
             >
               {{ open.confirmLabel || t('appDialog.confirm') }}
             </button>

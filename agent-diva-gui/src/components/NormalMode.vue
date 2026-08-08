@@ -3,11 +3,13 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
   BookOpen,
+  BookUser,
   Bot,
   Brain,
   Cat,
   Check,
   ChevronDown,
+  Database,
   GitBranch,
   Heart,
   Menu,
@@ -35,6 +37,7 @@ import SkillsSettings from './settings/SkillsSettings.vue';
 import NotebookView from './NotebookView.vue';
 import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
+import MemoryView from './memory/MemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
@@ -168,6 +171,7 @@ type SidebarSection =
   | 'evolution'
   | 'console'
   | 'persona-memory'
+  | 'memory'
   | 'neuro'
   | 'cron'
   | 'mcp'
@@ -177,7 +181,7 @@ type SidebarSection =
 type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
+const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -454,7 +458,16 @@ const isSectionActive = (section: SidebarSection) => {
   return activeMenu.value === section;
 };
 
-const navSectionLabel = (section: string) => t('nav.' + (section === 'persona-memory' ? 'personaMemory' : section));
+const navSectionLabel = (section: string) =>
+  t('nav.' + (section === 'persona-memory' ? 'personaMemory' : section));
+
+const handleMemoryOpenApproval = (proposalId: string) => {
+  openEvolutionDeepLink({
+    tab: 'inbox',
+    proposalId,
+    requestKey: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  });
+};
 
 const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
   evolutionDeepLink.value = {
@@ -705,7 +718,7 @@ defineExpose({
         <div class="nav-group">
           <div
             class="nav-group-header"
-            :class="{ active: isSectionActive('persona-memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') }"
+            :class="{ active: isSectionActive('persona-memory') || isSectionActive('memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') }"
             @click.stop="handleCollapsedGroupClick('capabilities', $event)"
           >
             <Zap />
@@ -717,8 +730,12 @@ defineExpose({
           </div>
           <div v-show="!sidebarCollapsed && groups.capabilities" class="nav-group-items">
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('persona-memory') }" @click="handleNavigateAndClose('persona-memory')">
-              <Brain />
-              <span>{{ t('nav.personaMemory') }}</span>
+              <BookUser />
+              <span>{{ t('nav.persona') }}</span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('memory') }" @click="handleNavigateAndClose('memory')">
+              <Database />
+              <span>{{ t('nav.memory') }}</span>
             </button>
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('neuro') }" @click="handleNavigateAndClose('neuro')">
               <Heart />
@@ -1060,7 +1077,7 @@ defineExpose({
             </div>
             <nav class="sidebar-nav scrollbar-thin">
               <button
-                v-for="section in ['chat', 'persona-memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                v-for="section in ['chat', 'persona-memory', 'memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
                 :key="section"
                 class="nav-item"
                 :class="{ active: isSectionActive(section as SidebarSection) }"
@@ -1071,9 +1088,16 @@ defineExpose({
             </nav>
           </aside>
         </div>
-        <!-- Persona & Memory 视图 -->
+        <!-- Persona 视图 -->
         <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
-          <PersonaMemoryView @proposal-created="refreshEvolutionBadge" />
+          <PersonaMemoryView
+            @proposal-created="refreshEvolutionBadge"
+            @open-memory="navigateTo('memory')"
+          />
+        </div>
+        <!-- Memory (BML 仓库) 视图 -->
+        <div v-else-if="activeMenu === 'memory'" class="h-full">
+          <MemoryView @open-approval="handleMemoryOpenApproval" />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">

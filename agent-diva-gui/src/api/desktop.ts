@@ -622,6 +622,125 @@ export const getLaputaChangelog = (id: string) =>
 export const rollbackLaputaChangelog = (id: string, payload: RollbackChangelogPayload) =>
   invoke<RollbackOutcome>("laputa_rollback_changelog", { id, payload });
 
+export type BmlMemoryKind =
+  | 'identity'
+  | 'relationship'
+  | 'commitment'
+  | 'preference'
+  | 'long_term'
+  | 'history'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'journal'
+  | 'learning'
+  | 'working_memory'
+  | 'unknown';
+
+export type BmlMemoryProvenanceSource =
+  | 'laputa_applied_section'
+  | 'legacy_markdown_owner'
+  | 'user_input'
+  | 'tool_result'
+  | 'session_sync'
+  | 'auto_dream'
+  | 'context_compaction'
+  | 'file'
+  | 'unknown';
+
+export type BmlMemorySensitivity = 'public' | 'internal' | 'private' | 'restricted' | 'unknown';
+export type BmlMemoryTrust =
+  | 'applied_authority'
+  | 'user_asserted'
+  | 'observed'
+  | 'inferred'
+  | 'untrusted'
+  | 'unknown';
+
+export interface BmlMemoryCorrelation {
+  request_id: string;
+  turn_id: string;
+  session_id: string;
+  trace_id?: string | null;
+}
+
+export interface BmlMemoryProvenance {
+  source: BmlMemoryProvenanceSource;
+  source_id: string;
+  content_digest: { algorithm: string; value: string };
+  captured_at: string;
+  correlation: BmlMemoryCorrelation;
+}
+
+export interface BmlMemoryScope {
+  tenant_id: string;
+  workspace_id: string;
+  session_id?: string | null;
+}
+
+export interface BmlMemoryTombstone {
+  target_record_id: string;
+  reason_digest: { algorithm: string; value: string };
+  actor_id: string;
+  created_at: string;
+}
+
+export interface BmlMemory {
+  id: string;
+  kind: BmlMemoryKind;
+  content: string;
+  provenance: BmlMemoryProvenance;
+  evidence_refs: EvidenceRef[];
+  confidence_bps: number;
+  sensitivity: BmlMemorySensitivity;
+  trust: BmlMemoryTrust;
+  scope: BmlMemoryScope;
+  created_at: string;
+  effective_at: string;
+  expires_at?: string | null;
+  supersedes: string[];
+  tombstone?: BmlMemoryTombstone | null;
+}
+
+export interface BmlStoredMemory {
+  record: BmlMemory;
+  revision: number;
+}
+
+export interface BmlListMemoriesResult {
+  status: string;
+  memories: BmlStoredMemory[];
+}
+
+export interface BmlMemoryDetailResult {
+  status: string;
+  memory: BmlStoredMemory;
+}
+
+export interface BmlRemoveMemoryResult {
+  status: string;
+  proposal_id: string;
+}
+
+export interface BmlListMemoriesFilters {
+  query?: string;
+  kind?: BmlMemoryKind;
+  limit?: number;
+}
+
+export const bmlListMemories = (filters?: BmlListMemoriesFilters) =>
+  invoke<BmlListMemoriesResult>('bml_list_memories', {
+    query: filters?.query ?? null,
+    kind: filters?.kind ?? null,
+    limit: filters?.limit ?? null,
+  });
+
+export const bmlGetMemory = (id: string) =>
+  invoke<BmlMemoryDetailResult>('bml_get_memory', { id });
+
+export const bmlRemoveMemory = (id: string, reason: string) =>
+  invoke<BmlRemoveMemoryResult>('bml_remove_memory', { id, reason });
+
 export const triggerAutoDream = (trigger = 'manual') =>
   invoke<AutoDreamRunRecord>("trigger_autodream", {
     payload: { trigger },

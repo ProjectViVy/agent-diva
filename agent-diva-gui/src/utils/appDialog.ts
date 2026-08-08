@@ -13,12 +13,21 @@ export type AppDialogOpen =
       message: string;
       title?: string;
       okLabel?: string;
+    }
+  | {
+      kind: 'prompt';
+      message: string;
+      title?: string;
+      confirmLabel?: string;
+      cancelLabel?: string;
+      placeholder?: string;
     };
 
 const open: ShallowRef<AppDialogOpen | null> = shallowRef(null);
 
 let resolveConfirm: ((v: boolean) => void) | null = null;
 let resolveAlert: (() => void) | null = null;
+let resolvePrompt: ((v: string | null) => void) | null = null;
 
 function settlePrevious() {
   if (resolveConfirm) {
@@ -30,6 +39,11 @@ function settlePrevious() {
     const r = resolveAlert;
     resolveAlert = null;
     r();
+  }
+  if (resolvePrompt) {
+    const r = resolvePrompt;
+    resolvePrompt = null;
+    r(null);
   }
 }
 
@@ -73,4 +87,23 @@ export function dismissAppDialogAlert() {
   const r = resolveAlert;
   resolveAlert = null;
   if (r) r();
+}
+
+/** Themed free-text prompt; resolves with the trimmed input or null if cancelled. */
+export function appPrompt(
+  message: string,
+  options?: { title?: string; confirmLabel?: string; cancelLabel?: string; placeholder?: string },
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    settlePrevious();
+    resolvePrompt = resolve;
+    open.value = { kind: 'prompt', message, ...options };
+  });
+}
+
+export function dismissAppDialogPrompt(value: string | null) {
+  open.value = null;
+  const r = resolvePrompt;
+  resolvePrompt = null;
+  if (r) r(value);
 }

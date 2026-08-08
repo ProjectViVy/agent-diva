@@ -13,12 +13,14 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@lucide/vue', () => ({
   AlarmClock: { name: 'AlarmClock', template: '<span class="AlarmClock" />' },
   BookOpen: { name: 'BookOpen', template: '<span class="BookOpen" />' },
+  BookUser: { name: 'BookUser', template: '<span class="BookUser" />' },
   Bot: { name: 'Bot', template: '<span class="Bot" />' },
   Brain: { name: 'Brain', template: '<span class="Brain" />' },
   Cat: { name: 'Cat', template: '<span class="Cat" />' },
   Check: { name: 'Check', template: '<span class="Check" />' },
   ChevronDown: { name: 'ChevronDown', template: '<span class="ChevronDown" />' },
   ClipboardList: { name: 'ClipboardList', template: '<span class="ClipboardList" />' },
+  Database: { name: 'Database', template: '<span class="Database" />' },
   GitBranch: { name: 'GitBranch', template: '<span class="GitBranch" />' },
   Heart: { name: 'Heart', template: '<span class="Heart" />' },
   Menu: { name: 'Menu', template: '<span class="Menu" />' },
@@ -238,7 +240,7 @@ describe('NormalMode pet focus layout', () => {
     await flushPromises();
     const callsAfterMount = vi.mocked(listLaputaProposals).mock.calls.length;
 
-    await clickNav(wrapper, 'nav.personaMemory');
+    await clickNav(wrapper, 'nav.persona');
     await wrapper.find('.persona-proposal-stub').trigger('click');
     await flushPromises();
 
