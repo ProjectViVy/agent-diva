@@ -5,22 +5,20 @@ import {
   BookOpen,
   BookUser,
   Bot,
-  Brain,
   Cat,
   Check,
   ChevronDown,
   Database,
   GitBranch,
-  Heart,
   Menu,
   MessageSquare,
   Server,
   Settings,
+  Sparkles,
   Trash2,
   WandSparkles,
   Wrench,
   X,
-  Zap,
 } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
 import ChatView, { type AskUserQuestionView } from './ChatView.vue';
@@ -713,16 +711,24 @@ defineExpose({
           <Server />
           <span v-if="!sidebarCollapsed">{{ t('nav.console') }}</span>
         </button>
+        <button class="nav-item" :class="{ active: isSectionActive('cron') }" @click="navigateTo('cron')">
+          <AlarmClock />
+          <span v-if="!sidebarCollapsed">{{ t('cron.title') }}</span>
+        </button>
+        <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
+          <BookOpen />
+          <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
+        </button>
 
-        <!-- NavGroup: Capabilities -->
+        <!-- NavGroup: Laputa (人格治理 + BML 记忆) -->
         <div class="nav-group">
           <div
             class="nav-group-header"
-            :class="{ active: isSectionActive('persona-memory') || isSectionActive('memory') || isSectionActive('neuro') || isSectionActive('cron') || isSectionActive('evolution') || isSectionActive('notebook') }"
+            :class="{ active: isSectionActive('persona-memory') || isSectionActive('evolution') || isSectionActive('memory') }"
             @click.stop="handleCollapsedGroupClick('capabilities', $event)"
           >
-            <Zap />
-            <span v-if="!sidebarCollapsed">{{ t('nav.capabilities') }}</span>
+            <Sparkles />
+            <span v-if="!sidebarCollapsed">{{ t('nav.laputa') }}</span>
             <div v-if="!sidebarCollapsed" class="nav-group-chevron">
               <ChevronDown v-if="groups.capabilities" />
               <ChevronDown v-else class="rotate-[-90deg]" />
@@ -732,18 +738,6 @@ defineExpose({
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('persona-memory') }" @click="handleNavigateAndClose('persona-memory')">
               <BookUser />
               <span>{{ t('nav.persona') }}</span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('memory') }" @click="handleNavigateAndClose('memory')">
-              <Database />
-              <span>{{ t('nav.memory') }}</span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('neuro') }" @click="handleNavigateAndClose('neuro')">
-              <Heart />
-              <span>{{ t('nav.neuro') }}</span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('cron') }" @click="handleNavigateAndClose('cron')">
-              <AlarmClock />
-              <span>{{ t('cron.title') }}</span>
             </button>
             <button
               class="nav-item nav-item-sub"
@@ -768,9 +762,9 @@ defineExpose({
                 {{ normalizeEvolutionCount(evolutionBadge.total) }}
               </span>
             </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('notebook') }" @click="handleNavigateAndClose('notebook')">
-              <BookOpen />
-              <span>{{ t('nav.notebook') }}</span>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('memory') }" @click="handleNavigateAndClose('memory')">
+              <Database />
+              <span>{{ t('nav.memory') }}</span>
             </button>
           </div>
         </div>
@@ -819,31 +813,15 @@ defineExpose({
       @click.stop
     >
       <div class="py-1">
-        <!-- Capabilities 菜单 -->
+        <!-- Laputa 菜单 -->
         <template v-if="collapsedPopup.type === 'capabilities'">
           <button
             class="popup-menu-item"
             :class="{ active: isSectionActive('persona-memory') }"
             @click="handleNavigateAndClose('persona-memory')"
           >
-            <Brain class="popup-menu-icon" />
-            <span>{{ t('nav.personaMemory') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('neuro') }"
-            @click="handleNavigateAndClose('neuro')"
-          >
-            <Heart class="popup-menu-icon" />
-            <span>{{ t('nav.neuro') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('cron') }"
-            @click="handleNavigateAndClose('cron')"
-          >
-            <AlarmClock class="popup-menu-icon" />
-            <span>{{ t('cron.title') }}</span>
+            <BookUser class="popup-menu-icon" />
+            <span>{{ t('nav.persona') }}</span>
           </button>
           <button
             class="popup-menu-item"
@@ -855,11 +833,11 @@ defineExpose({
           </button>
           <button
             class="popup-menu-item"
-            :class="{ active: isSectionActive('notebook') }"
-            @click="handleNavigateAndClose('notebook')"
+            :class="{ active: isSectionActive('memory') }"
+            @click="handleNavigateAndClose('memory')"
           >
-            <BookOpen class="popup-menu-icon" />
-            <span>{{ t('nav.notebook') }}</span>
+            <Database class="popup-menu-icon" />
+            <span>{{ t('nav.memory') }}</span>
           </button>
         </template>
         <!-- Tools 菜单 -->
@@ -1077,7 +1055,7 @@ defineExpose({
             </div>
             <nav class="sidebar-nav scrollbar-thin">
               <button
-                v-for="section in ['chat', 'persona-memory', 'memory', 'evolution', 'notebook', 'planning', 'pet', 'console', 'neuro', 'cron', 'mcp', 'skills']"
+                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'console', 'cron', 'notebook', 'planning', 'pet', 'mcp', 'skills']"
                 :key="section"
                 class="nav-item"
                 :class="{ active: isSectionActive(section as SidebarSection) }"

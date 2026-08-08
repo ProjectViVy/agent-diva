@@ -27,6 +27,7 @@ vi.mock('@lucide/vue', () => ({
   MessageSquare: { name: 'MessageSquare', template: '<span class="MessageSquare" />' },
   Server: { name: 'Server', template: '<span class="Server" />' },
   Settings: { name: 'Settings', template: '<span class="Settings" />' },
+  Sparkles: { name: 'Sparkles', template: '<span class="Sparkles" />' },
   Trash2: { name: 'Trash2', template: '<span class="Trash2" />' },
   WandSparkles: { name: 'WandSparkles', template: '<span class="WandSparkles" />' },
   Wrench: { name: 'Wrench', template: '<span class="Wrench" />' },
