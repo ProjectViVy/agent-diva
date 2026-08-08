@@ -1,10 +1,18 @@
 # BML 存储层独立化调研（BML Layer Extraction Research）
 
-- Status: **调研报告（决策支持，未拍板）**
+- Status: **调研报告（决策已拍板：D，2026-08-08）**
 - Date: 2026-08-08
 - Scope: 评估把 BML（记忆存储层）从 `agent-diva-laputa` crate 抽出为独立层的可行性、方案与代价
-- 决策链: AGENTS.md + TODOLIST.md D3 三层模型冻结（2026-08-08）→ 本调研 → 待决策（§9）
+- 决策链: AGENTS.md + TODOLIST.md D3 三层模型冻结（2026-08-08）→ 本调研 → 已拍板 D（§9）
 - 调研方式: 定向精读验证（H1–H6）+ 桌面 Garden 仓库只读对照 + 既有文档核对
+
+> **术语澄清（重要）**：本报告中的 Garden 侧 "Mentle"（`garden/mentle/` Go module，
+> 材料/证据/检索/图）即 **BML 在 Garden 侧的对应物**。它**不是**
+> mempalace-mentle（Python MemPalace，`.workspace/mempalace-py/`，ChromaDB+SQLite
+> 参考实现），也不是 `.workspace/memtle/`（独立 Rust 存储工具）。diva 历史中的旧
+> "Mentle"（臃肿记忆系统）已被 GMH-24 clean-break 移除，BML 是其继承者
+> （AGENTS.md："The previous name 'Mentle' is retired; use BML"）。凡下文提及
+> Garden 的 Mentle，均指 BML 的 Garden 侧对应物。
 
 ---
 
@@ -167,7 +175,7 @@ B 先行（低成本、零运行时风险、防回归门）；GMH-23A 修订 + G
 
 ## 8. 决策建议与验收标准
 
-### 决策建议：**D（近期落 B，远期视 Garden facade 落地升 A）**
+### 决策建议：**D（近期落 B，远期视 Garden facade 落地升 A）——已于 2026-08-08 拍板采纳（§9）**
 
 理由：
 1. 直碰存储类型的外部 crate 达 4 个，全抽一次性成本高，且当前不新增任何用户能力——
@@ -189,11 +197,12 @@ Garden facade 落地时需穿透 laputa crate 私有实现，届时抽层成本�
 - [x] 决策建议单一明确 + 不做的代价
 - [x] docs/research/README.md、TODOLIST.md 同步
 
-## 9. 决策记录（留白待拍板）
+## 9. 决策记录（2026-08-08 已拍板）
 
-- [ ] 待决策（2026-08-08 调研产出）：BML 抽层选 **A 全抽 / B 模块边界 / C 现状文档化 / D 先 B 后 A（推荐）**
-- [ ] 若选 A：GMH-23A 所有权条款修订 + §8 禁令 amendment（§7 给出论证与修订路径）
-- [ ] 若选 B：执行 `bml_boundary_guard` 负向测试 + AGENTS.md 分层声明
+- [x] 决策：BML 抽层选 **D——先 B（crate 内模块边界 + 防回归门）固化边界，远期视 Garden facade 落地升 A（全抽）**。
+- [ ] 若实施 B：执行 `bml_boundary_guard` 负向测试 + AGENTS.md 分层声明（排期待决策）
+- [ ] 若未来升 A：GMH-23A 所有权条款修订 + §8 禁令 amendment（§7 已给论证与修订路径）
+- 术语注：Garden 侧 Mentle = BML 的 Garden 侧对应物，非 mempalace-mentle（见文首术语澄清）
 
 ## 10. 附录：证据索引
 

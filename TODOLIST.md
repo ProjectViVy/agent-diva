@@ -291,11 +291,10 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   - [x] S8 BML 抽层调研完成（2026-08-08）：耦合盘点（H1–H6 验证）、
     Garden 三 module 同构对照、方案 A/B/C/D 对比与决策建议见
     [`docs/research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md`](docs/research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
-  - [ ] **决策待拍板：BML 抽层选 A 全抽 / B 模块边界 / C 现状文档化 /
-    D 先 B 后 A（推荐）**。依据调研报告 §8；若选 A 需先修订 GMH-23A
-    所有权条款（laputa-memory-final-architecture.md:137-138）与
-    memory-framework-interfaces.md §8 禁令 amendment（§7 已给论证与
-    修订路径）。
+  - [x] **决策已拍板（2026-08-08）：BML 抽层选 D——先 B（crate 内模块
+    边界 + 防回归门）固化边界，远期视 Garden facade 落地升 A（全抽）**。
+    依据调研报告 §8/§9。术语注：Garden 侧 Mentle = BML 的 Garden 侧
+    对应物，非 mempalace-mentle。实施 B 与未来升 A 排期待决策。
   执行顺序：
   - [x] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）：`41e60a7e`
   - [x] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）：
