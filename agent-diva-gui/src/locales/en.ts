@@ -1432,9 +1432,6 @@ export default {
       commitment: 'Commitment',
       preferences: 'Preferences',
       memory_md: 'Memory Doc',
-      daily: 'Daily',
-      weekly: 'Weekly',
-      monthly: 'Monthly',
       changelog: 'Changelog',
     },
     status: {

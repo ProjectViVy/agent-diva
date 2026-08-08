@@ -1375,9 +1375,6 @@ export default {
       commitment: '承诺',
       preferences: '偏好',
       memory_md: '记忆文档',
-      daily: '每日',
-      weekly: '每周',
-      monthly: '每月',
       changelog: '变更日志',
     },
     status: {

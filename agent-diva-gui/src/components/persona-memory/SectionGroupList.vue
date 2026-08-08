@@ -25,9 +25,12 @@ const emit = defineEmits<{
   (e: 'select', sectionName: LaputaSectionName): void;
 }>();
 
+// Canonical Laputa section surface (gap-and-migration-proposal G1 8-section
+// model, 01-05 + 07-09). Daily/Weekly/Monthly are report surfaces owned by
+// the Notebook workspace (Q5=b: reports != memories), not persona sections.
 const GROUPS: { key: string; sections: LaputaSectionName[] }[] = [
   { key: 'frozen_core', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
-  { key: 'long_term', sections: ['memory_md', 'daily', 'weekly', 'monthly'] },
+  { key: 'long_term', sections: ['memory_md'] },
   { key: 'governance', sections: ['changelog'] },
 ];
 
