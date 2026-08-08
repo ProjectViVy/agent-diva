@@ -1317,18 +1317,6 @@ export default {
   laputa: {
     title: '人格与记忆',
     subtitle: '管理 Diva 的长期人格与记忆内容',
-    nodes: {
-      garden: 'Garden (facade 工作台)',
-      laputa: 'Laputa (人格治理)',
-      bml: 'BML (记忆存储)',
-    },
-    placeholder: {
-      comingSoon: '敬请期待',
-      gardenDesc: 'Garden facade 就是你正在使用的用户可见工作台：人格（Laputa 治理）与记忆（BML 存储）并排管理。',
-      laputaDesc: 'Laputa 是人格治理层：Frozen Core 分区与审查提案。',
-      bmlDesc: 'BML（Basic Memory Layer）是记忆存储权威层。打开记忆工作台即可浏览、搜索与管理 agent 的记忆。',
-    },
-    openMemoryWorkspace: '打开记忆工作台',
     refresh: '刷新',
     loading: '正在加载 Laputa 数据…',
     loadError: '无法加载记忆数据',

@@ -1374,18 +1374,6 @@ export default {
   laputa: {
     title: 'Persona & Memory',
     subtitle: 'Manage Diva\'s long-term persona and memory content',
-    nodes: {
-      garden: 'Garden (Facade Workspace)',
-      laputa: 'Laputa (Persona Governance)',
-      bml: 'BML (Memory Storage)',
-    },
-    placeholder: {
-      comingSoon: 'Coming Soon',
-      gardenDesc: 'The Garden facade is the user-visible workspace you are looking at: persona (Laputa governance) and memory (BML storage) are managed here side by side.',
-      laputaDesc: 'Laputa is the persona governance layer: Frozen Core sections and review proposals.',
-      bmlDesc: 'BML (Basic Memory Layer) is the authoritative memory storage. Open the Memory workspace to browse, search and govern your agent\'s memories.',
-    },
-    openMemoryWorkspace: 'Open Memory Workspace',
     refresh: 'Refresh',
     loading: 'Loading Laputa data…',
     loadError: 'Unable to load memory data',
