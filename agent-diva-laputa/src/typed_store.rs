@@ -92,7 +92,7 @@ pub struct MemoryStoreMetadata {
 }
 
 /// Canonical record plus the row revision owned by the store.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StoredMemoryRecord {
     pub record: MemoryRecord,
     pub revision: i64,

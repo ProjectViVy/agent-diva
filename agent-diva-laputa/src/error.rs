@@ -98,6 +98,9 @@ pub enum LaputaError {
     #[error("injected Memory migration artifact failure")]
     InjectedMemoryMigrationFailure,
 
+    #[error("BML memory store error: {0}")]
+    MemoryStore(#[from] crate::typed_store::TypedMemoryStoreError),
+
     #[error("Laputa internal invariant violated: {0}")]
     InvalidState(String),
 }
@@ -134,6 +137,7 @@ impl LaputaError {
             Self::InvalidMemoryMigrationId { .. } => "invalid_memory_migration_id",
             Self::MemoryMigrationConflict { .. } => "memory_migration_conflict",
             Self::InjectedMemoryMigrationFailure => "memory_migration_recovery_failure",
+            Self::MemoryStore(_) => "memory_store_error",
             Self::InvalidState(_) => "invalid_state",
         }
     }

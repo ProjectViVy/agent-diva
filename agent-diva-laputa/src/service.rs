@@ -14,6 +14,8 @@ use agent_diva_core::evolution::{
     AuditEvent, AuditEventKind, ChangelogAction, ChangelogRecord, EvidenceRef, EvidenceSource,
     EvolutionProposal, LaputaSectionName, ProposalState, ProposalType, RiskLevel,
 };
+use agent_diva_core::memory::{MemoryRecordKind, MemoryScope};
+use agent_diva_core::workspace_identity::canonical_workspace_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,6 +23,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     atomic_write_json,
+    bml::{StoredMemoryRecord, TypedMemoryStore},
     metrics::{LaputaMetrics, LaputaMetricsSnapshot},
     proposals::{unified_diff, ApplyOptions},
     LaputaError, LaputaLock, LaputaStorage, LockOptions, ProposalFilter, ProposalRepository,
@@ -31,6 +34,14 @@ const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 static LAPUTA_METRICS: OnceLock<LaputaMetrics> = OnceLock::new();
 static USER_EDIT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// Read-only filter for the BML memory repository view (Garden facade).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MemoryListFilter {
+    pub query: Option<String>,
+    pub kind: Option<MemoryRecordKind>,
+    pub limit: Option<u32>,
+}
 
 /// Stable Laputa service API used by Rust callers, manager routes, and Tauri commands.
 #[derive(Clone, Debug)]
@@ -448,6 +459,53 @@ impl LaputaService {
             updated_at,
             server_time: Utc::now(),
         })
+    }
+
+    /// Read-only BML memory listing over the canonical authority.
+    ///
+    /// A missing store returns an empty list and never creates the database.
+    /// Tombstoned and superseded records are excluded; results are ordered by
+    /// `effective_at` descending.
+    pub async fn list_memories(&self, filter: MemoryListFilter) -> Result<Vec<StoredMemoryRecord>> {
+        let paths = self.storage.paths();
+        if !paths.memory_database().is_file() {
+            return Ok(Vec::new());
+        }
+        let store = TypedMemoryStore::open_existing_canonical(paths.workspace_root()).await?;
+        let limit = filter.limit.unwrap_or(100).clamp(1, 500);
+
+        let query = filter.query.as_deref().map(str::trim).unwrap_or("");
+        if !query.is_empty() {
+            let scope = MemoryScope {
+                tenant_id: "local".into(),
+                workspace_id: canonical_workspace_id(paths.workspace_root()),
+                session_id: None,
+            };
+            let hits = store.search_visible(query, &scope, limit).await?;
+            return Ok(hits.into_iter().map(|hit| hit.stored).collect());
+        }
+
+        let mut records = store.list(limit.saturating_mul(4).max(100)).await?;
+        let superseded = store.superseded_target_ids().await?;
+        records.retain(|entry| {
+            !superseded.contains(&entry.record.id) && entry.record.tombstone.is_none()
+        });
+        if let Some(kind) = filter.kind {
+            records.retain(|entry| entry.record.kind == kind);
+        }
+        records.sort_by(|a, b| b.record.effective_at.cmp(&a.record.effective_at));
+        records.truncate(limit as usize);
+        Ok(records)
+    }
+
+    /// Read-only BML memory detail by record id.
+    pub async fn get_memory(&self, id: &str) -> Result<Option<StoredMemoryRecord>> {
+        let paths = self.storage.paths();
+        if !paths.memory_database().is_file() {
+            return Ok(None);
+        }
+        let store = TypedMemoryStore::open_existing_canonical(paths.workspace_root()).await?;
+        Ok(store.get(id).await?)
     }
 
     pub fn read_section(&self, name: LaputaSectionName) -> Result<LaputaSection> {
@@ -1225,6 +1283,78 @@ mod wave4_tests {
             1,
             "expected exactly one active digest, got {digests:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn list_memories_returns_only_active_visible_records() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = open_service_with_store(&temp).await;
+        let provider = open_provider(&temp).await;
+
+        let active_outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "kestrel patrols the ridge at dawn".into(),
+                    evidence_refs: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        let active_id = match active_outcome {
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+
+        let tombstoned_outcome = provider
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "obsolete route via marshland pass".into(),
+                    evidence_refs: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        let tombstoned_id = match tombstoned_outcome {
+            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
+            other => panic!("expected Applied, got {other:?}"),
+        };
+        drop(provider);
+        write_supersedes_tombstone(&temp, &tombstoned_id, "route retired").await;
+
+        let visible = service
+            .list_memories(MemoryListFilter::default())
+            .await
+            .unwrap();
+        let visible_ids = visible
+            .iter()
+            .map(|entry| entry.record.id.clone())
+            .collect::<Vec<_>>();
+        assert!(
+            visible_ids.contains(&active_id),
+            "active record must be listed; got {visible_ids:?}"
+        );
+        assert!(
+            !visible_ids.contains(&tombstoned_id),
+            "tombstoned record must be excluded; got {visible_ids:?}"
+        );
+
+        let detail = service.get_memory(&active_id).await.unwrap();
+        assert!(
+            detail.is_some(),
+            "get_memory must return the active record by id"
+        );
+
+        let searched = service
+            .list_memories(MemoryListFilter {
+                query: Some("kestrel".into()),
+                ..MemoryListFilter::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(searched.len(), 1, "search must return only the match");
+        assert_eq!(searched[0].record.id, active_id);
     }
 
     #[tokio::test]
