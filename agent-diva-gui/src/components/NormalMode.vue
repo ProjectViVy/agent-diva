@@ -715,16 +715,12 @@ defineExpose({
           <AlarmClock />
           <span v-if="!sidebarCollapsed">{{ t('cron.title') }}</span>
         </button>
-        <button class="nav-item" :class="{ active: isSectionActive('notebook') }" @click="navigateTo('notebook')">
-          <BookOpen />
-          <span v-if="!sidebarCollapsed">{{ t('nav.notebook') }}</span>
-        </button>
 
         <!-- NavGroup: Laputa (人格治理 + BML 记忆) -->
         <div class="nav-group">
           <div
             class="nav-group-header"
-            :class="{ active: isSectionActive('persona-memory') || isSectionActive('evolution') || isSectionActive('memory') }"
+            :class="{ active: isSectionActive('persona-memory') || isSectionActive('evolution') || isSectionActive('memory') || isSectionActive('notebook') }"
             @click.stop="handleCollapsedGroupClick('capabilities', $event)"
           >
             <Sparkles />
@@ -765,6 +761,10 @@ defineExpose({
             <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('memory') }" @click="handleNavigateAndClose('memory')">
               <Database />
               <span>{{ t('nav.memory') }}</span>
+            </button>
+            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('notebook') }" @click="handleNavigateAndClose('notebook')">
+              <BookOpen />
+              <span>{{ t('nav.notebook') }}</span>
             </button>
           </div>
         </div>
@@ -838,6 +838,14 @@ defineExpose({
           >
             <Database class="popup-menu-icon" />
             <span>{{ t('nav.memory') }}</span>
+          </button>
+          <button
+            class="popup-menu-item"
+            :class="{ active: isSectionActive('notebook') }"
+            @click="handleNavigateAndClose('notebook')"
+          >
+            <BookOpen class="popup-menu-icon" />
+            <span>{{ t('nav.notebook') }}</span>
           </button>
         </template>
         <!-- Tools 菜单 -->
@@ -1055,7 +1063,7 @@ defineExpose({
             </div>
             <nav class="sidebar-nav scrollbar-thin">
               <button
-                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'console', 'cron', 'notebook', 'planning', 'pet', 'mcp', 'skills']"
+                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'notebook', 'console', 'cron', 'planning', 'pet', 'mcp', 'skills']"
                 :key="section"
                 class="nav-item"
                 :class="{ active: isSectionActive(section as SidebarSection) }"
