@@ -41,6 +41,10 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
   **Garden** is the facade — the user-visible memory management surface
   (desktop GUI); not yet implemented in agent-diva.
   The previous name "Mentle" is retired; use BML in all documentation and code.
+  In code, the BML logical layer lives at `agent-diva-laputa::bml` (module
+  namespace re-exporting the storage core). Governance modules must not call
+  BML write APIs (put/put_governed/import_records/rollback_governed) directly;
+  `just bml-boundary-check` enforces this boundary.
 - The current branch is `agent-diva-pro`; as of initialization on 2026-06-15 it is ahead of `origin/agent-diva-pro` and has active dirty-work changes from multiple stories. Preserve unrelated user/story changes.
 
 **Common workspace conventions:**

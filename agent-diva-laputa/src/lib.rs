@@ -2,8 +2,12 @@
 //!
 //! This crate owns the `.laputa/` storage layout and low-level persistence
 //! primitives used by later governance stories.
+//!
+//! The BML logical layer (memory storage) lives at [`bml`]; see its module
+//! docs for the layer boundary and write-API rules.
 
 pub mod atomic;
+pub mod bml;
 pub mod cognitive;
 pub mod error;
 pub mod feedback;
@@ -24,6 +28,15 @@ pub mod typed_provider;
 pub mod typed_store;
 
 pub use atomic::{atomic_write, atomic_write_json};
+pub use bml::{
+    adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
+    compare_normalized_records, GovernedMemoryApply, MemoryAdapterContext, MemoryAdapterOutput,
+    MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
+    MemoryRecordMigration, MemoryRollbackManifest, MemorySearchHit, MemoryStoreIntegrity,
+    MemoryStoreMetadata, StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,
+    WorkspaceIdentityMigrationManifest, WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES,
+    MAX_MEMORY_RECORDS,
+};
 pub use cognitive::{
     ClaimStatus, MemRule, MemRules, WorldClaim, WorldClaimPayload, WorldError, WorldGovernance,
     WorldGovernanceError, WorldProposalState, WorldStore, WorldUpsertProposal,
@@ -40,11 +53,6 @@ pub use governed_apply::{
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
 pub use memory_provider::LaputaMemoryProvider;
-pub use memory_records::{
-    adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
-    compare_normalized_records, MemoryAdapterContext, MemoryAdapterOutput, MemoryMigrationManifest,
-    MemoryMigrationPlan, MemoryMigrationTestFailure, MemoryRecordMigration, MemoryRollbackManifest,
-};
 pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
 pub use migration::{
     LaputaMigration, LaputaMigrationBackup, LaputaMigrationOptions, LaputaMigrationOutcome,
@@ -70,9 +78,3 @@ pub use service::{
 };
 pub use suppression::{CandidateSuppression, CandidateSuppressionStore};
 pub use typed_provider::TypedLaputaMemoryProvider;
-pub use typed_store::{
-    GovernedMemoryApply, MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata,
-    StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,
-    WorkspaceIdentityMigrationManifest, WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES,
-    MAX_MEMORY_RECORDS,
-};

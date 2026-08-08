@@ -51,6 +51,10 @@ memory-provider-check:
 laputa-clean-break-check:
     python scripts/ci/check_laputa_clean_break.py
 
+# Prove governance modules never call BML write APIs directly (BML boundary).
+bml-boundary-check:
+    cargo test -p agent-diva-laputa --test bml_boundary_guard
+
 # Deterministic crash-window, backup, replay, and rollback drills for E7.
 e7-recovery-drills:
     cargo test -p agent-diva-laputa --test apply
@@ -71,7 +75,7 @@ gui-automated-check:
     cargo check --manifest-path agent-diva-gui/src-tauri/Cargo.toml
 
 # Final automated E7 candidate gate. Manual desktop acceptance remains separate.
-e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check e7-recovery-drills e7-vertical-e2e gui-automated-check
+e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check e7-recovery-drills e7-vertical-e2e gui-automated-check
     @echo "E7 automated release gate passed; G2D+ real-desktop acceptance remains deferred."
 
 # Run clippy check
@@ -115,7 +119,7 @@ feature-gate-check:
     python scripts/feature-gate-check.py
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check
+ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check
     @echo "All checks passed!"
 
 # Epic 6 targeted governance proof checks without starting the GUI

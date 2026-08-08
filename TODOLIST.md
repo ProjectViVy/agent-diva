@@ -295,6 +295,13 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     边界 + 防回归门）固化边界，远期视 Garden facade 落地升 A（全抽）**。
     依据调研报告 §8/§9。术语注：Garden 侧 Mentle = BML 的 Garden 侧
     对应物，非 mempalace-mentle。实施 B 与未来升 A 排期待决策。
+  - [x] S9 **实施 B 完成（2026-08-08）**：新增 `agent-diva-laputa::bml`
+    命名空间（存储核心 + 记录适配层公开面，`src/bml/mod.rs`）+ 治理层
+    禁止直写 BML 写接口的负向守卫 `tests/bml_boundary_guard.rs`（挂
+    `just bml-boundary-check`，纳入 `ci` 与 `e7-automated-release-gate`）；
+    AGENTS.md 追加分层声明。提交见后续记录。
+  - [ ] 若未来升 A：GMH-23A 所有权条款修订 + §8 禁令 amendment（调研报告
+    §7 已给论证与修订路径），时机 = Garden facade 落地。
   执行顺序：
   - [x] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）：`41e60a7e`
   - [x] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）：

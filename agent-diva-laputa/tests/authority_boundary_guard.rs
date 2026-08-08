@@ -1,8 +1,14 @@
 use std::{fs, path::Path};
 
 #[derive(Clone, Copy)]
-struct ForbiddenPattern {
+pub struct ForbiddenPattern {
     needle: &'static str,
+}
+
+impl ForbiddenPattern {
+    pub const fn new(needle: &'static str) -> Self {
+        ForbiddenPattern { needle }
+    }
 }
 
 const FORBIDDEN_PATTERNS: &[ForbiddenPattern] = &[
@@ -87,7 +93,7 @@ pub fn assert_authority_boundaries() {
     );
 }
 
-fn scan_forbidden_access(
+pub fn scan_forbidden_access(
     repo_root: &Path,
     roots: &[&str],
     operation_markers: &[&str],
