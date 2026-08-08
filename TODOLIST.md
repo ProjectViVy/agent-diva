@@ -205,10 +205,14 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [ ] **Wave 6 延期项（归 G2D+ / 后续独立 Wave）**：
       - B9 完整 tool-result 强制校验（S3 仅做软 advisory；完整强制需改
         MemoryAddRequest schema + agent_loop 证据链跟踪）
-      - **BML 记忆管理可视化（P0 真机验收发现）**：内置工具无法完成记忆
+      - [x] **BML 记忆管理可视化（P0 真机验收发现）**：内置工具无法完成记忆
         删除（`memory_remove` 走 proposal 但无审批入口）；用户看不到 agent
         当前记忆内容；人格与记忆需要 BML（Basic Memory Layer）用户可视化
-        管理界面。排期待决策。
+        管理界面。**已在 2026-08-09 Garden 记忆工作台批次完成**（GARDEN-MEMORY-UI）：
+        侧栏拆「人格 / 记忆」双版块（按真实三层架构）；manager 新增
+        `/api/bml/memories` 只读端点 + remove proposal 端点；GUI 新增记忆仓库
+        （搜索/过滤/详情/删除→审批中心跳转）。见
+        `docs/logs/2026-08-garden-memory-ui/`。
       - **Laputa 设计同步** → LAPUTA-COGNITIVE-SYNC 已完成（S0–S7，
         见上方 Active Plan 区与 docs/logs/2026-08-laputa-cognitive-sync/）。
       - **记忆检索增强（待决策）**：当前 `memory_search` 基于 FTS5 全文
