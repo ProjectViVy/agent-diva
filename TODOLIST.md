@@ -299,7 +299,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     命名空间（存储核心 + 记录适配层公开面，`src/bml/mod.rs`）+ 治理层
     禁止直写 BML 写接口的负向守卫 `tests/bml_boundary_guard.rs`（挂
     `just bml-boundary-check`，纳入 `ci` 与 `e7-automated-release-gate`）；
-    AGENTS.md 追加分层声明。提交见后续记录。
+    AGENTS.md 追加分层声明。提交 `9758ac32`。
   - [ ] 若未来升 A：GMH-23A 所有权条款修订 + §8 禁令 amendment（调研报告
     §7 已给论证与修订路径），时机 = Garden facade 落地。
   执行顺序：
