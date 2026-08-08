@@ -39,6 +39,10 @@
 - `sandbox-hitl-approval-policy-proposal.md` - 沙箱审批策略 + HITL 完善提案（生产路径复核与 P0–P2 蓝图；2026-08-05 归档）
 - `ask-user-clarify-hitl-proposal.md` - **对话询问** Clarify/Ask-User HITL 缺口研究与提案（与 M3 审批 HITL 分轨；2026-08-05 归档）
 
+### Laputa / BML / Garden 架构
+- `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
+- `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
+
 ## 使用说明
 
 这些研究报告为 agent-diva 项目的架构设计和技术选型提供参考，可用于：

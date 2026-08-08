@@ -288,6 +288,14 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   audit/Frozen Core）；Garden = facade（用户可见记忆管理面，桌面 GUI，
   未实现）。AGENTS.md 定义已同步修正。代码现状：存储实体在
   laputa crate 内部未独立成层，抽层与否待后续决策。
+  - [x] S8 BML 抽层调研完成（2026-08-08）：耦合盘点（H1–H6 验证）、
+    Garden 三 module 同构对照、方案 A/B/C/D 对比与决策建议见
+    [`docs/research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md`](docs/research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
+  - [ ] **决策待拍板：BML 抽层选 A 全抽 / B 模块边界 / C 现状文档化 /
+    D 先 B 后 A（推荐）**。依据调研报告 §8；若选 A 需先修订 GMH-23A
+    所有权条款（laputa-memory-final-architecture.md:137-138）与
+    memory-framework-interfaces.md §8 禁令 amendment（§7 已给论证与
+    修订路径）。
   执行顺序：
   - [x] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）：`41e60a7e`
   - [x] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）：
