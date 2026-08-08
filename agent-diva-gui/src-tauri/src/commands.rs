@@ -741,6 +741,19 @@ pub async fn laputa_poll_events(
 }
 
 #[tauri::command]
+pub async fn laputa_get_cognitive(
+    kind: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/laputa/cognitive/{}",
+        state.api_base_url(),
+        urlencoding::encode(kind.trim())
+    );
+    get_laputa_payload(&state, &url, "content").await
+}
+
+#[tauri::command]
 pub async fn bml_list_memories(
     query: Option<String>,
     kind: Option<String>,

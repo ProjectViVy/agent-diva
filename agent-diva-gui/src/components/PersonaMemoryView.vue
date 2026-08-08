@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, Loader2, RefreshCw, Inbox } from '@lucide/vue';
-import SectionGroupList from './persona-memory/SectionGroupList.vue';
+import { BookUser, Loader2, RefreshCw, Inbox, ScrollText } from '@lucide/vue';
+import SectionGroupList, { type PersonaMenuItem } from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
 import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
 import PersonaMemoryErrorState from './persona-memory/PersonaMemoryErrorState.vue';
-import { getLaputaSnapshot, getLaputaSection, isTauriRuntime } from '../api/desktop';
-import type { LaputaSection, LaputaSectionName } from '../api/desktop';
+import {
+  getLaputaCognitiveFile,
+  getLaputaSnapshot,
+  getLaputaSection,
+  isTauriRuntime,
+} from '../api/desktop';
+import type { LaputaCognitiveKind, LaputaSection, LaputaSectionName } from '../api/desktop';
 import { showAppToast } from '../utils/appToast';
 import { appConfirm } from '../utils/appDialog';
 
@@ -23,26 +28,41 @@ interface LaputaSnapshot {
   }>;
 }
 
-const selectedSection = ref<LaputaSectionName>('identity');
+const selectedSection = ref<PersonaMenuItem>('identity');
 const snapshot = ref<LaputaSnapshot | null>(null);
 const loadingSnapshot = ref(false);
 const loadingSection = ref(false);
 const sectionError = ref('');
 const sectionContent = ref<LaputaSection | null>(null);
+const cognitiveContent = ref('');
 const draftContent = ref('');
 const originalContent = ref('');
 const isDirty = ref(false);
 const editorRevision = ref(0);
 
+const isCognitiveFile = computed(() => isCognitive(selectedSection.value));
+
+function isCognitive(name: PersonaMenuItem): name is LaputaCognitiveKind {
+  return name === 'memrules' || name === 'world';
+}
+
 const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
 
 const selectedSectionStatus = computed(() =>
-  snapshot.value?.sections[selectedSection.value]?.status ?? 'tbd',
+  isSectionName(selectedSection.value)
+    ? (snapshot.value?.sections[selectedSection.value]?.status ?? 'tbd')
+    : 'tbd',
 );
 
 const selectedSectionLastUpdated = computed(() =>
-  snapshot.value?.sections[selectedSection.value]?.last_modified ?? undefined,
+  isSectionName(selectedSection.value)
+    ? (snapshot.value?.sections[selectedSection.value]?.last_modified ?? undefined)
+    : undefined,
 );
+
+function isSectionName(name: PersonaMenuItem): name is LaputaSectionName {
+  return !isCognitive(name);
+}
 
 const isUninitialized = computed(() => {
   return snapshot.value !== null && Object.keys(snapshot.value.sections).length === 0;
@@ -92,6 +112,24 @@ async function loadSnapshot(): Promise<void> {
   }
 }
 
+async function loadCognitiveFile(kind: LaputaCognitiveKind): Promise<void> {
+  loadingSection.value = true;
+  sectionError.value = '';
+  try {
+    if (isTauriRuntime()) {
+      const result = await getLaputaCognitiveFile(kind);
+      cognitiveContent.value = result.content ?? '';
+    } else {
+      cognitiveContent.value = '';
+    }
+  } catch (err: unknown) {
+    sectionError.value = normalizeError(err);
+    showAppToast(t('laputa.loadError'), 'error');
+  } finally {
+    loadingSection.value = false;
+  }
+}
+
 async function loadSection(name: LaputaSectionName): Promise<void> {
   loadingSection.value = true;
   sectionError.value = '';
@@ -113,7 +151,15 @@ async function loadSection(name: LaputaSectionName): Promise<void> {
   }
 }
 
-async function selectSection(nextId: LaputaSectionName): Promise<void> {
+async function loadSelected(): Promise<void> {
+  if (isCognitive(selectedSection.value)) {
+    await loadCognitiveFile(selectedSection.value);
+  } else {
+    await loadSection(selectedSection.value);
+  }
+}
+
+async function selectSection(nextId: PersonaMenuItem): Promise<void> {
   if (nextId === selectedSection.value) return;
   if (isDirty.value) {
     const confirmed = await appConfirm(
@@ -130,30 +176,26 @@ async function selectSection(nextId: LaputaSectionName): Promise<void> {
   sectionError.value = '';
   draftContent.value = '';
   originalContent.value = '';
+  cognitiveContent.value = '';
   isDirty.value = false;
-  await loadSection(nextId);
+  await loadSelected();
 }
 
-async function onSectionSelect(name: LaputaSectionName): Promise<void> {
+async function onSectionSelect(name: PersonaMenuItem): Promise<void> {
   await selectSection(name);
 }
 
 async function onRefresh(): Promise<void> {
   await loadSnapshot();
   if (isUninitialized.value) return;
-  const validSections = snapshot.value?.sections ?? {};
-  if (selectedSection.value in validSections) {
-    await loadSection(selectedSection.value);
-  } else {
-    await selectSection('identity');
-  }
+  await loadSelected();
 }
 
 async function onProposalCreated(
   _name: LaputaSectionName,
   result: import('../api/desktop').WriteLaputaSectionResult,
 ): Promise<void> {
-  await loadSection(selectedSection.value);
+  await loadSelected();
   await loadSnapshot();
   editorRevision.value += 1;
   emit('proposal-created', result.proposal_id);
@@ -170,7 +212,7 @@ function onDirtyUpdate(next: boolean): void {
 
 onMounted(() => {
   loadSnapshot();
-  loadSection('identity');
+  loadSelected();
 });
 </script>
 
@@ -227,7 +269,7 @@ onMounted(() => {
           v-else-if="sectionError"
           :title="t('laputa.loadError')"
           :message="sectionError"
-          :on-retry="() => loadSection(selectedSection)"
+          :on-retry="() => loadSelected()"
         />
 
         <PersonaMemoryEmptyState
@@ -237,11 +279,21 @@ onMounted(() => {
           :description="t('laputa.uninitializedDesc')"
         />
 
+        <!-- 认知治理文件（MEMRULES / WORLD）：只读展示 -->
+        <div v-else-if="isCognitiveFile" class="cognitive-file-panel">
+          <div class="cognitive-file-header">
+            <ScrollText :size="16" />
+            <span>{{ displayName }}</span>
+            <span class="cognitive-file-badge">{{ t('laputa.cognitiveReadOnly') }}</span>
+          </div>
+          <pre class="cognitive-file-content">{{ cognitiveContent }}</pre>
+        </div>
+
         <template v-else>
           <SectionEditor
             :key="`${selectedSection}-${editorRevision}`"
             v-model="draftContent"
-            :section-name="selectedSection"
+            :section-name="selectedSection as LaputaSectionName"
             :display-name="displayName"
             :initial-content="originalContent"
             :status="selectedSectionStatus"
@@ -338,6 +390,50 @@ onMounted(() => {
   overflow-y: auto;
   min-width: 0;
   position: relative;
+}
+
+.cognitive-file-panel {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.cognitive-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.cognitive-file-badge {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-bg-light);
+  color: var(--accent);
+}
+
+.cognitive-file-content {
+  flex: 1;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-muted, #f8fafc);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
 }
 
 .persona-memory-skeleton-item {

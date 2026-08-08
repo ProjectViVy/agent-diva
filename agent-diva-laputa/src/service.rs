@@ -24,6 +24,7 @@ use tokio::sync::broadcast;
 use crate::{
     atomic_write_json,
     bml::{StoredMemoryRecord, TypedMemoryStore},
+    cognitive,
     metrics::{LaputaMetrics, LaputaMetricsSnapshot},
     proposals::{unified_diff, ApplyOptions},
     LaputaError, LaputaLock, LaputaStorage, LockOptions, ProposalFilter, ProposalRepository,
@@ -34,6 +35,14 @@ const ROLLBACK_WINDOW: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 static LAPUTA_METRICS: OnceLock<LaputaMetrics> = OnceLock::new();
 static USER_EDIT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// Cognitive governance files exposed by the read-only Garden surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CognitiveFileKind {
+    Memrules,
+    World,
+}
 
 /// Read-only filter for the BML memory repository view (Garden facade).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -506,6 +515,29 @@ impl LaputaService {
         }
         let store = TypedMemoryStore::open_existing_canonical(paths.workspace_root()).await?;
         Ok(store.get(id).await?)
+    }
+
+    /// Read-only cognitive governance file content (MEMRULES.MD / WORLD.MD).
+    ///
+    /// Missing files fall back to the built-in defaults (MEMRULES) or an
+    /// empty document (WORLD); never creates files.
+    pub fn read_cognitive_file(&self, kind: CognitiveFileKind) -> Result<String> {
+        let paths = self.storage.paths();
+        match kind {
+            CognitiveFileKind::Memrules => {
+                Ok(cognitive::memrules::MemRules::load_or_default(paths.memrules_file())?.raw)
+            }
+            CognitiveFileKind::World => {
+                let path = paths.world_file();
+                match fs::read_to_string(&path) {
+                    Ok(raw) => Ok(raw),
+                    Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+                        Ok(String::new())
+                    }
+                    Err(source) => Err(LaputaError::io(path, source)),
+                }
+            }
+        }
     }
 
     pub fn read_section(&self, name: LaputaSectionName) -> Result<LaputaSection> {
@@ -1355,6 +1387,22 @@ mod wave4_tests {
             .unwrap();
         assert_eq!(searched.len(), 1, "search must return only the match");
         assert_eq!(searched[0].record.id, active_id);
+    }
+
+    #[test]
+    fn read_cognitive_file_returns_seeded_content() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+
+        let memrules = service
+            .read_cognitive_file(CognitiveFileKind::Memrules)
+            .unwrap();
+        assert!(memrules.contains("## R1"), "default rulebook missing R1");
+
+        let world = service
+            .read_cognitive_file(CognitiveFileKind::World)
+            .unwrap();
+        assert!(!world.trim().is_empty(), "seeded WORLD must not be empty");
     }
 
     #[tokio::test]

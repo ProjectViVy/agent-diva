@@ -1425,6 +1425,7 @@ export default {
       frozen_core: 'Frozen Core',
       long_term: 'Long-term Memory',
       governance: 'Governance',
+      cognitive: 'Cognitive Governance',
     },
     sections: {
       identity: 'Identity',
@@ -1433,7 +1434,10 @@ export default {
       preferences: 'Preferences',
       memory_md: 'Memory Doc',
       changelog: 'Changelog',
+      memrules: 'Memory Rules',
+      world: 'World Claims',
     },
+    cognitiveReadOnly: 'Read-only',
     status: {
       owned: 'owned',
       tbd: 'tbd',

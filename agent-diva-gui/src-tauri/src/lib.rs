@@ -401,6 +401,7 @@ pub fn run() {
             commands::laputa_get_changelog,
             commands::laputa_rollback_changelog,
             commands::laputa_poll_events,
+            commands::laputa_get_cognitive,
             commands::bml_list_memories,
             commands::bml_get_memory,
             commands::bml_remove_memory,

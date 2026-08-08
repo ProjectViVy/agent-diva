@@ -13,6 +13,7 @@ vi.mock('@lucide/vue', () => ({
   ChevronDown: { name: 'ChevronDown', template: '<span class="chevron-down" />' },
   ChevronRight: { name: 'ChevronRight', template: '<span class="chevron-right" />' },
   FileText: { name: 'FileText', template: '<span class="file-text" />' },
+  ScrollText: { name: 'ScrollText', template: '<span class="scroll-text" />' },
 }));
 
 const ALL_SECTIONS: Record<string, { status: 'owned' | 'tbd'; last_modified?: string | null }> = {
@@ -34,11 +35,11 @@ function mountList(selectedSection = 'identity' as const) {
 }
 
 describe('SectionGroupList', () => {
-  it('renders 3 group headers and 6 canonical persona sections by default', () => {
+  it('renders 4 group headers and 8 canonical persona items by default', () => {
     const wrapper = mountList();
 
-    expect(wrapper.findAll('.group-header')).toHaveLength(3);
-    expect(wrapper.findAll('.section-item')).toHaveLength(6);
+    expect(wrapper.findAll('.group-header')).toHaveLength(4);
+    expect(wrapper.findAll('.section-item')).toHaveLength(8);
   });
 
   it('starts with all groups expanded', () => {
@@ -48,7 +49,7 @@ describe('SectionGroupList', () => {
     headers.forEach((header) => {
       expect(header.attributes('aria-expanded')).toBe('true');
     });
-    expect(wrapper.findAll('.chevron-down')).toHaveLength(3);
+    expect(wrapper.findAll('.chevron-down')).toHaveLength(4);
     expect(wrapper.findAll('.chevron-right')).toHaveLength(0);
   });
 
@@ -60,7 +61,7 @@ describe('SectionGroupList', () => {
     await nextTick();
 
     expect(firstHeader.attributes('aria-expanded')).toBe('false');
-    expect(wrapper.findAll('.chevron-down')).toHaveLength(2);
+    expect(wrapper.findAll('.chevron-down')).toHaveLength(3);
     expect(wrapper.findAll('.chevron-right')).toHaveLength(1);
 
     const firstGroupItems = wrapper.findAll('.group-items')[0];

@@ -1368,6 +1368,7 @@ export default {
       frozen_core: '冻结核心',
       long_term: '长期记忆',
       governance: '治理记录',
+      cognitive: '认知治理',
     },
     sections: {
       identity: '身份',
@@ -1376,7 +1377,10 @@ export default {
       preferences: '偏好',
       memory_md: '记忆文档',
       changelog: '变更日志',
+      memrules: '记忆规则',
+      world: '世界声明',
     },
+    cognitiveReadOnly: '只读',
     status: {
       owned: '已就绪',
       tbd: '待定',

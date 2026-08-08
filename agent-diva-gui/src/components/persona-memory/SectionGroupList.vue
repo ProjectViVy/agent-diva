@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ChevronDown, ChevronRight, FileText } from '@lucide/vue';
+import { ChevronDown, ChevronRight, FileText, ScrollText } from '@lucide/vue';
 import type { LaputaSectionName } from '../../api/desktop';
 
 const { t } = useI18n();
@@ -15,37 +15,47 @@ interface LaputaSnapshot {
   sections: Record<string, SnapshotSection>;
 }
 
+/** Persona menu item: a canonical Laputa section or a cognitive governance file. */
+export type PersonaMenuItem = LaputaSectionName | 'memrules' | 'world';
+
 interface Props {
   snapshot: LaputaSnapshot | null;
-  selectedSection: LaputaSectionName;
+  selectedSection: PersonaMenuItem;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'select', sectionName: LaputaSectionName): void;
+  (e: 'select', sectionName: PersonaMenuItem): void;
 }>();
 
 // Canonical Laputa section surface (gap-and-migration-proposal G1 8-section
 // model, 01-05 + 07-09). Daily/Weekly/Monthly are report surfaces owned by
 // the Notebook workspace (Q5=b: reports != memories), not persona sections.
-const GROUPS: { key: string; sections: LaputaSectionName[] }[] = [
+// MEMRULES.MD / WORLD.MD are the cognitive governance files (S1/S2).
+const GROUPS: { key: string; sections: PersonaMenuItem[] }[] = [
   { key: 'frozen_core', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
   { key: 'long_term', sections: ['memory_md'] },
   { key: 'governance', sections: ['changelog'] },
+  { key: 'cognitive', sections: ['memrules', 'world'] },
 ];
 
 const expanded = ref<Record<string, boolean>>({
   frozen_core: true,
   long_term: true,
   governance: true,
+  cognitive: true,
 });
 
 function toggleGroup(groupKey: string): void {
   expanded.value[groupKey] = !expanded.value[groupKey];
 }
 
-function selectSection(name: LaputaSectionName): void {
+function selectSection(name: PersonaMenuItem): void {
   emit('select', name);
+}
+
+function isSection(name: PersonaMenuItem): name is LaputaSectionName {
+  return name !== 'memrules' && name !== 'world';
 }
 
 function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
@@ -104,18 +114,20 @@ function formatDate(value?: string | null): string {
           :aria-label="t('laputa.a11y.sectionItem', { name: t('laputa.sections.' + section) })"
           @click="selectSection(section)"
         >
-          <FileText :size="15" aria-hidden="true" />
+          <ScrollText v-if="!isSection(section)" :size="15" aria-hidden="true" />
+          <FileText v-else :size="15" aria-hidden="true" />
           <div class="section-meta">
             <span class="section-name">{{ t('laputa.sections.' + section) }}</span>
             <span class="section-key">{{ section }}</span>
             <span
-              v-if="getSectionLastModified(section)"
+              v-if="isSection(section) && getSectionLastModified(section)"
               class="section-updated"
             >
               {{ formatDate(getSectionLastModified(section)) }}
             </span>
           </div>
           <span
+            v-if="isSection(section)"
             class="section-status"
             :class="[
               'section-status--' + getSectionStatus(section),

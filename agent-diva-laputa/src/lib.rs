@@ -73,8 +73,9 @@ pub use recall::{
     RecallReasonCount,
 };
 pub use service::{
-    ChangelogFilter, ChangelogPage, LaputaEvent, LaputaEventKind, LaputaSection, LaputaService,
-    LaputaSnapshot, MemoryListFilter, RollbackChangelogRequest, RollbackOutcome, SectionStatus,
+    ChangelogFilter, ChangelogPage, CognitiveFileKind, LaputaEvent, LaputaEventKind, LaputaSection,
+    LaputaService, LaputaSnapshot, MemoryListFilter, RollbackChangelogRequest, RollbackOutcome,
+    SectionStatus,
 };
 pub use suppression::{CandidateSuppression, CandidateSuppressionStore};
 pub use typed_provider::TypedLaputaMemoryProvider;

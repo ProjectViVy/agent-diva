@@ -566,6 +566,16 @@ export interface WriteLaputaSectionResult {
 export const getLaputaSection = (name: LaputaSectionName) =>
   invoke<LaputaSection>("laputa_get_section", { name });
 
+export type LaputaCognitiveKind = 'memrules' | 'world';
+
+export interface LaputaCognitiveFileResult {
+  status: string;
+  content: string;
+}
+
+export const getLaputaCognitiveFile = (kind: LaputaCognitiveKind) =>
+  invoke<LaputaCognitiveFileResult>('laputa_get_cognitive', { kind });
+
 export const getLaputaSnapshot = (since?: string) =>
   invoke<LaputaSnapshot>("laputa_get_snapshot", { since: since ?? null });
 

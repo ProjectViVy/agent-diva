@@ -16,9 +16,10 @@ use agent_diva_core::governance::{
     GovernanceSubjectKind,
 };
 use agent_diva_laputa::{
-    adapt_governed_proposal, ChangelogFilter, GovernedMemoryApply, LaputaError, LaputaEventKind,
-    LaputaService, MemoryAdapterContext, MemoryGovernanceDecision, MemoryGovernanceError,
-    ProposalEdit, ProposalFilter, RollbackChangelogRequest, TypedMemoryStore,
+    adapt_governed_proposal, ChangelogFilter, CognitiveFileKind, GovernedMemoryApply, LaputaError,
+    LaputaEventKind, LaputaService, MemoryAdapterContext, MemoryGovernanceDecision,
+    MemoryGovernanceError, ProposalEdit, ProposalFilter, RollbackChangelogRequest,
+    TypedMemoryStore,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -834,6 +835,28 @@ pub async fn get_laputa_snapshot_handler(
     ok(serde_json::json!({ "status": "ok", "snapshot": snapshot }))
 }
 
+pub async fn get_laputa_cognitive_handler(
+    State(state): State<AppState>,
+    Path(kind): Path<String>,
+) -> JsonResult {
+    let kind = match kind.as_str() {
+        "memrules" => CognitiveFileKind::Memrules,
+        "world" => CognitiveFileKind::World,
+        other => {
+            return Err(error_response(
+                StatusCode::NOT_FOUND,
+                "unknown_cognitive_file",
+                format!("unknown cognitive governance file: {other}"),
+            ))
+        }
+    };
+    let content = state
+        .laputa
+        .read_cognitive_file(kind)
+        .map_err(laputa_error_response)?;
+    ok(serde_json::json!({ "status": "ok", "content": content }))
+}
+
 pub async fn get_laputa_section_handler(
     State(state): State<AppState>,
     Path(name): Path<String>,
@@ -1613,6 +1636,39 @@ mod recovery_tests {
                 .unwrap()
                 .total,
             0
+        );
+    }
+
+    #[tokio::test]
+    async fn cognitive_handler_returns_memrules_world_and_rejects_unknown() {
+        let temp = tempfile::tempdir().unwrap();
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
+
+        let memrules =
+            get_laputa_cognitive_handler(State(state.clone()), Path("memrules".to_string()))
+                .await
+                .unwrap();
+        assert_eq!(memrules.0["status"], "ok");
+        assert!(
+            memrules.0["content"].as_str().unwrap().contains("## R1"),
+            "default MEMRULES rulebook expected"
+        );
+
+        let world = get_laputa_cognitive_handler(State(state.clone()), Path("world".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(world.0["status"], "ok");
+        assert!(
+            !world.0["content"].as_str().unwrap().trim().is_empty(),
+            "seeded WORLD expected"
+        );
+
+        assert!(
+            get_laputa_cognitive_handler(State(state), Path("nope".to_string()))
+                .await
+                .is_err(),
+            "unknown cognitive file must fail"
         );
     }
 }
