@@ -26,15 +26,15 @@ const emit = defineEmits<{
 }>();
 
 const GROUPS: { key: string; sections: LaputaSectionName[] }[] = [
-  { key: 'persona', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
-  { key: 'memory', sections: ['memory_md', 'history_md'] },
-  { key: 'indexes', sections: ['journal_reflective', 'proposal_inbox', 'changelog', 'report_indexes', 'aaak_summaries'] },
+  { key: 'frozen_core', sections: ['identity', 'relationship', 'commitment', 'preferences'] },
+  { key: 'long_term', sections: ['memory_md', 'daily', 'weekly', 'monthly'] },
+  { key: 'governance', sections: ['changelog'] },
 ];
 
 const expanded = ref<Record<string, boolean>>({
-  persona: true,
-  memory: true,
-  indexes: true,
+  frozen_core: true,
+  long_term: true,
+  governance: true,
 });
 
 function toggleGroup(groupKey: string): void {

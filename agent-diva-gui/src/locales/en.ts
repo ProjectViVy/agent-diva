@@ -1422,9 +1422,9 @@ export default {
     edit: 'Edit',
     preview: 'Preview',
     groups: {
-      persona: 'Persona',
-      memory: 'Memory',
-      indexes: 'Indexes',
+      frozen_core: 'Frozen Core',
+      long_term: 'Long-term Memory',
+      governance: 'Governance',
     },
     sections: {
       identity: 'Identity',
@@ -1432,12 +1432,10 @@ export default {
       commitment: 'Commitment',
       preferences: 'Preferences',
       memory_md: 'Memory Doc',
-      history_md: 'History Doc',
-      journal_reflective: 'Reflective Journal',
-      proposal_inbox: 'Proposal Inbox',
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly',
       changelog: 'Changelog',
-      report_indexes: 'Report Indexes',
-      aaak_summaries: 'AAAK Summaries',
     },
     status: {
       owned: 'owned',

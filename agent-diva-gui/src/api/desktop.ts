@@ -282,15 +282,10 @@ export type LaputaSectionName =
   | 'commitment'
   | 'preferences'
   | 'memory_md'
-  | 'history_md'
   | 'daily'
   | 'weekly'
   | 'monthly'
-  | 'journal_reflective'
-  | 'proposal_inbox'
-  | 'changelog'
-  | 'report_indexes'
-  | 'aaak_summaries';
+  | 'changelog';
 
 export interface EvolutionProposal {
   id: string;

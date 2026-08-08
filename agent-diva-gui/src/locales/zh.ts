@@ -1365,9 +1365,9 @@ export default {
     edit: '编辑',
     preview: '预览',
     groups: {
-      persona: '人格',
-      memory: '记忆',
-      indexes: '索引',
+      frozen_core: '冻结核心',
+      long_term: '长期记忆',
+      governance: '治理记录',
     },
     sections: {
       identity: '身份',
@@ -1375,12 +1375,10 @@ export default {
       commitment: '承诺',
       preferences: '偏好',
       memory_md: '记忆文档',
-      history_md: '历史文档',
-      journal_reflective: '反思日志',
-      proposal_inbox: '提案收件箱',
+      daily: '每日',
+      weekly: '每周',
+      monthly: '每月',
       changelog: '变更日志',
-      report_indexes: '报告索引',
-      aaak_summaries: 'AAAK 摘要',
     },
     status: {
       owned: '已就绪',

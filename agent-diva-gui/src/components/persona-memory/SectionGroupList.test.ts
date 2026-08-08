@@ -21,12 +21,10 @@ const ALL_SECTIONS: Record<string, { status: 'owned' | 'tbd'; last_modified?: st
   commitment: { status: 'tbd' },
   preferences: { status: 'tbd' },
   memory_md: { status: 'owned' },
-  history_md: { status: 'tbd' },
-  journal_reflective: { status: 'owned' },
-  proposal_inbox: { status: 'tbd' },
+  daily: { status: 'tbd' },
+  weekly: { status: 'tbd' },
+  monthly: { status: 'tbd' },
   changelog: { status: 'owned' },
-  report_indexes: { status: 'tbd' },
-  aaak_summaries: { status: 'tbd' },
 };
 
 function mountList(selectedSection = 'identity' as const) {
@@ -39,11 +37,11 @@ function mountList(selectedSection = 'identity' as const) {
 }
 
 describe('SectionGroupList', () => {
-  it('renders 3 group headers and 11 section items by default', () => {
+  it('renders 3 group headers and 9 canonical section items by default', () => {
     const wrapper = mountList();
 
     expect(wrapper.findAll('.group-header')).toHaveLength(3);
-    expect(wrapper.findAll('.section-item')).toHaveLength(11);
+    expect(wrapper.findAll('.section-item')).toHaveLength(9);
   });
 
   it('starts with all groups expanded', () => {
