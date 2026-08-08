@@ -282,6 +282,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   Laputa 互不影响**（面具=临时外在覆层，不改人格本体，不得解除
   commitment 红线，不进治理）；D2 报告产物迁 `.laputa/reports/`
   （只搬不改可回滚）。**不回迁 Mentle，不引入 garden Go 代码**。
+  D3 **BML/Laputa/Garden 三层模型（2026-08-08 冻结）**：BML（Basic
+  Memory Layer）= 记忆存储层（Mentle 继承者，实体 `.laputa/memory.sqlite3`
+  + FTS5，唯一权威）；Laputa = 人格治理层（proposal/governed apply/
+  audit/Frozen Core）；Garden = facade（用户可见记忆管理面，桌面 GUI，
+  未实现）。AGENTS.md 定义已同步修正。代码现状：存储实体在
+  laputa crate 内部未独立成层，抽层与否待后续决策。
   执行顺序：
   - [x] S1 cognitive/ 目录与 MEMRULES.MD（R1–R7，人类 only，永不注入）：`41e60a7e`
   - [x] S2 WORLD.MD（claim schema + AutoDream 治理写 + scope/budget 投影）：
