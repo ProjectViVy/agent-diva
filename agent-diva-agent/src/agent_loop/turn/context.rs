@@ -359,16 +359,20 @@ impl AgentLoop {
         }
 
         let prepared = PreparedTurnContext::prepare(
-            self.context.build_messages(
+            self.context.build_messages_for_session(
                 history,
                 message_content.clone(),
                 Some(&message.channel),
                 Some(&message.chat_id),
                 &compaction_history,
+                session_key,
             ),
             plan_guard_active,
             approved_plan_markdown,
-            active_mask.map(|mask| self.context.build_system_prompt(Some(mask))),
+            active_mask.map(|mask| {
+                self.context
+                    .build_system_prompt_for_session(Some(mask), session_key)
+            }),
             scheduled,
             current_turn_message.clone(),
         );

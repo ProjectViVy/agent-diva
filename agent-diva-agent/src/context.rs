@@ -8,13 +8,13 @@ use agent_diva_core::memory::{
     MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock, SystemPromptRequest,
     SystemPromptResponse,
 };
-use agent_diva_laputa::{FrozenCoreSnapshot, DEFAULT_FROZEN_CORE_BUDGET};
+use agent_diva_laputa::{capture_frozen_core_for_session, DEFAULT_FROZEN_CORE_BUDGET};
 use agent_diva_providers::Message;
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::sync::OnceLock;
 use tracing::warn;
 
 mod prompt;
@@ -22,6 +22,7 @@ mod prompt;
 const DEFAULT_AGENT_NAME: &str = "agent-diva";
 const DEFAULT_AGENT_EMOJI: &str = "🐈";
 const DEFAULT_AGENT_ROLE: &str = "helpful AI assistant";
+static CONTEXT_BUILDER_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Character budget for workspace markdown files injected into the prompt
 /// (e.g. AGENTS.md).
@@ -44,10 +45,7 @@ pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
-    /// Frozen Core sections (01–04) are captured once at session start and
-    /// stay frozen for the whole session; governance writes take effect in
-    /// the next session's capture.
-    frozen_core: OnceLock<FrozenCoreSnapshot>,
+    default_session_key: String,
 }
 
 impl ContextBuilder {
@@ -59,7 +57,7 @@ impl ContextBuilder {
             workspace,
             skills_loader,
             memory_provider,
-            frozen_core: OnceLock::new(),
+            default_session_key: next_builder_session_key(),
         }
     }
 
@@ -71,7 +69,7 @@ impl ContextBuilder {
             workspace,
             skills_loader,
             memory_provider,
-            frozen_core: OnceLock::new(),
+            default_session_key: next_builder_session_key(),
         }
     }
 
@@ -86,6 +84,16 @@ impl ContextBuilder {
     /// When a non-default `mask` is provided, its body is injected at the top
     /// of the prompt (before the identity header) — 方案 A placement.
     pub fn build_system_prompt(&self, mask: Option<&MaskFile>) -> String {
+        self.build_system_prompt_for_session(mask, &self.default_session_key)
+    }
+
+    /// Build a prompt against the immutable Frozen Core capture for one
+    /// concrete session key.
+    pub fn build_system_prompt_for_session(
+        &self,
+        mask: Option<&MaskFile>,
+        session_key: &str,
+    ) -> String {
         let workspace_path = self.workspace.display();
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M (%A)");
         let identity_header = self.load_identity_header();
@@ -124,9 +132,7 @@ Your workspace is at: {workspace_path}
         // Frozen Core projection: captured once per session (first assembly)
         // and frozen afterwards; sits under the mask overlay, above all other
         // context layers.
-        let frozen_core = self
-            .frozen_core
-            .get_or_init(|| capture_frozen_core(&self.workspace));
+        let frozen_core = capture_frozen_core_for_session(&self.workspace, session_key);
         let frozen_projection = frozen_core.render(DEFAULT_FROZEN_CORE_BUDGET);
         if !frozen_projection.is_empty() {
             prompt.push_str("\n\n");
@@ -232,10 +238,29 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         chat_id: Option<&str>,
         session_compaction_history: &[agent_diva_core::session::CompactSummary],
     ) -> Vec<Message> {
+        self.build_messages_for_session(
+            history,
+            current_message,
+            channel,
+            chat_id,
+            session_compaction_history,
+            &self.default_session_key,
+        )
+    }
+
+    pub fn build_messages_for_session(
+        &self,
+        history: Vec<agent_diva_core::session::ChatMessage>,
+        current_message: String,
+        channel: Option<&str>,
+        chat_id: Option<&str>,
+        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        session_key: &str,
+    ) -> Vec<Message> {
         let mut messages = Vec::new();
 
         // System prompt
-        let mut system_prompt = self.build_system_prompt(None);
+        let mut system_prompt = self.build_system_prompt_for_session(None, session_key);
         if let (Some(ch), Some(id)) = (channel, chat_id) {
             system_prompt.push_str(&format!(
                 "\n\n## Current Session\nChannel: {}\nChat ID: {}",
@@ -405,6 +430,13 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 }
 
+fn next_builder_session_key() -> String {
+    format!(
+        "context-builder:{}",
+        CONTEXT_BUILDER_ID.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
 fn render_startup_injection(response: SystemPromptResponse) -> String {
     let mut rendered = response
         .prompt_block
@@ -482,28 +514,6 @@ fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
         }
     }
     None
-}
-
-/// Capture the Frozen Core snapshot for a workspace, degrading to an empty
-/// snapshot when the Laputa store cannot be opened (prompt assembly must
-/// never fail on governance storage).
-fn capture_frozen_core(workspace: &Path) -> FrozenCoreSnapshot {
-    let capture = agent_diva_laputa::LaputaService::open(workspace)
-        .and_then(|service| FrozenCoreSnapshot::capture(&service));
-    match capture {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            warn!(
-                workspace = %workspace.display(),
-                error = %error,
-                "Skipping Frozen Core snapshot; assembling without it"
-            );
-            FrozenCoreSnapshot {
-                captured_at: chrono::Utc::now(),
-                sections: Vec::new(),
-            }
-        }
-    }
 }
 
 fn default_identity_header() -> String {

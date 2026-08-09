@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: —
-- Owner: —
-- Session/Task: `LAPUTA-COGNITIVE-SYNC (S0–S7 全部完成，见 docs/logs/2026-08-laputa-cognitive-sync/)`
-- Branch/Worktree: `feat/laputa-cognitive-sync / C:\Users\Administrator\Desktop\morediva\agent-diva`（未 push）
-- Started At: '2026-08-07T14:00:00+08:00'
-- Last Heartbeat: '2026-08-07T23:55:00+08:00'
-- Expires At: —
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
+- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `N/A`
+- Last Heartbeat: `2026-08-09T17:56:00+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -25,9 +25,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-（无）
+- None.
 
 ## Handoff Notes
+
+- `2026-08-09T17:56:00+08:00`: Released `LAPUTA-PERSONA-WORKSPACE` after
+  implementing and validating the singleton persona lifecycle workspace,
+  session Frozen Core effectiveness projection, inline governance actions,
+  and strict no-legacy-compatibility boundary.
 
 - `2026-08-07T23:55:00+08:00`: Released after LAPUTA-COGNITIVE-SYNC
   (S0–S7) closure: 15 commits on `feat/laputa-cognitive-sync`（未 push）—

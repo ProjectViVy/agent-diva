@@ -1,474 +1,197 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { BookUser, Loader2, RefreshCw, Inbox, ScrollText } from '@lucide/vue';
+import { BookUser, CircleDot, Loader2, RefreshCw, ScrollText, ShieldCheck } from '@lucide/vue';
 import SectionGroupList, { type PersonaMenuItem } from './persona-memory/SectionGroupList.vue';
 import SectionEditor from './persona-memory/SectionEditor.vue';
-import PersonaMemoryEmptyState from './persona-memory/PersonaMemoryEmptyState.vue';
-import PersonaMemoryErrorState from './persona-memory/PersonaMemoryErrorState.vue';
+import PersonaLifecyclePanel from './persona-memory/PersonaLifecyclePanel.vue';
 import {
-  getLaputaCognitiveFile,
-  getLaputaSnapshot,
-  getLaputaSection,
+  getLaputaPersonaWorkspace,
   isTauriRuntime,
+  listLaputaProposals,
 } from '../api/desktop';
-import type { LaputaCognitiveKind, LaputaSection, LaputaSectionName } from '../api/desktop';
-import { showAppToast } from '../utils/appToast';
+import type {
+  ChangelogRecord,
+  EvolutionProposal,
+  LaputaCognitiveKind,
+  LaputaSectionName,
+  PersonaWorkspaceProjection,
+} from '../api/desktop';
 import { appConfirm } from '../utils/appDialog';
+import { showAppToast } from '../utils/appToast';
 
+const props = defineProps<{ sessionKey?: string }>();
+const emit = defineEmits<{ (event: 'proposal-created', proposalId: string): void }>();
 const { t } = useI18n();
-const emit = defineEmits<{
-  (event: 'proposal-created', proposalId: string): void;
-}>();
-
-interface LaputaSnapshot {
-  sections: Record<string, {
-    status: 'owned' | 'tbd';
-    last_modified?: string | null;
-  }>;
-}
 
 const selectedSection = ref<PersonaMenuItem>('identity');
-const snapshot = ref<LaputaSnapshot | null>(null);
-const loadingSnapshot = ref(false);
-const loadingSection = ref(false);
-const sectionError = ref('');
-const sectionContent = ref<LaputaSection | null>(null);
-const cognitiveContent = ref('');
+const workspace = ref<PersonaWorkspaceProjection | null>(null);
+const governedProposals = ref<EvolutionProposal[]>([]);
+const loading = ref(false);
+const error = ref('');
 const draftContent = ref('');
 const originalContent = ref('');
 const isDirty = ref(false);
 const editorRevision = ref(0);
 
-const isCognitiveFile = computed(() => isCognitive(selectedSection.value));
-
-function isCognitive(name: PersonaMenuItem): name is LaputaCognitiveKind {
-  return name === 'memrules' || name === 'world';
-}
-
-const displayName = computed(() => t('laputa.sections.' + selectedSection.value));
-
-const selectedSectionStatus = computed(() =>
-  isSectionName(selectedSection.value)
-    ? (snapshot.value?.sections[selectedSection.value]?.status ?? 'tbd')
-    : 'tbd',
-);
-
-const selectedSectionLastUpdated = computed(() =>
-  isSectionName(selectedSection.value)
-    ? (snapshot.value?.sections[selectedSection.value]?.last_modified ?? undefined)
-    : undefined,
-);
-
-function isSectionName(name: PersonaMenuItem): name is LaputaSectionName {
-  return !isCognitive(name);
-}
-
-const isUninitialized = computed(() => {
-  return snapshot.value !== null && Object.keys(snapshot.value.sections).length === 0;
+const snapshot = computed(() => workspace.value?.snapshot ?? null);
+const isCognitive = computed(() => selectedSection.value === 'memrules' || selectedSection.value === 'world');
+const sectionName = computed(() => isCognitive.value ? null : selectedSection.value as LaputaSectionName);
+const section = computed(() => sectionName.value ? snapshot.value?.sections[sectionName.value] : null);
+const populatedCount = computed(() => ['identity', 'relationship', 'commitment', 'preferences']
+  .filter((name) => snapshot.value?.sections[name]?.status === 'owned').length);
+const pendingCount = computed(() => governedProposals.value.filter((proposal) => !['applied', 'rejected'].includes(proposal.state)).length);
+const selectedProposal = computed(() => governedProposals.value
+  .filter((proposal) => proposal.target_section === sectionName.value)
+  .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0] ?? null);
+const selectedChangelog = computed(() => workspace.value?.changelog
+  .find((record) => record.target_section === sectionName.value && !record.reverted) ?? null);
+const sessionVersion = computed(() => sectionName.value
+  ? workspace.value?.session?.section_versions[sectionName.value]
+  : undefined);
+const authorityVersion = computed(() => sectionName.value
+  ? workspace.value?.authority_versions[sectionName.value]
+  : undefined);
+const sessionStatus = computed(() => {
+  if (!workspace.value?.session) return t('laputa.workspace.noActiveSession');
+  return sessionVersion.value === authorityVersion.value
+    ? t('laputa.workspace.currentEffective')
+    : t('laputa.workspace.nextSessionEffective');
+});
+const cognitiveContent = computed(() => {
+  if (!workspace.value || !isCognitive.value) return '';
+  return workspace.value.cognitive[selectedSection.value as LaputaCognitiveKind] ?? '';
 });
 
-function hasMessage(err: unknown): err is { message: unknown } {
-  return (
-    err !== null &&
-    err !== undefined &&
-    typeof err === 'object' &&
-    'message' in err
-  );
+function formatContent(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
 }
 
-function normalizeError(err: unknown): string {
-  if (hasMessage(err)) {
-    return String(err.message);
-  }
-  return err instanceof Error ? err.message : String(err);
-}
-
-async function loadSnapshot(): Promise<void> {
-  loadingSnapshot.value = true;
-  sectionError.value = '';
-  try {
-    if (isTauriRuntime()) {
-      const raw = await getLaputaSnapshot();
-      snapshot.value = {
-        sections: Object.fromEntries(
-          Object.entries(raw.sections).map(([name, section]) => [
-            name,
-            {
-              status: section.status === 'owned' ? 'owned' : 'tbd',
-              last_modified: section.last_modified ?? null,
-            },
-          ]),
-        ),
-      };
-    } else {
-      snapshot.value = { sections: {} };
-    }
-  } catch (err: unknown) {
-    sectionError.value = normalizeError(err);
-    showAppToast(t('laputa.loadError'), 'error');
-  } finally {
-    loadingSnapshot.value = false;
-  }
-}
-
-async function loadCognitiveFile(kind: LaputaCognitiveKind): Promise<void> {
-  loadingSection.value = true;
-  sectionError.value = '';
-  try {
-    if (isTauriRuntime()) {
-      const result = await getLaputaCognitiveFile(kind);
-      cognitiveContent.value = result.content ?? '';
-    } else {
-      cognitiveContent.value = '';
-    }
-  } catch (err: unknown) {
-    sectionError.value = normalizeError(err);
-    showAppToast(t('laputa.loadError'), 'error');
-  } finally {
-    loadingSection.value = false;
-  }
-}
-
-async function loadSection(name: LaputaSectionName): Promise<void> {
-  loadingSection.value = true;
-  sectionError.value = '';
-  try {
-    if (isTauriRuntime()) {
-      sectionContent.value = await getLaputaSection(name);
-    } else {
-      sectionContent.value = null;
-    }
-    const raw = sectionContent.value?.content;
-    const text = raw === null || raw === undefined ? '' : String(raw);
-    draftContent.value = text;
-    originalContent.value = text;
-  } catch (err: unknown) {
-    sectionError.value = normalizeError(err);
-    showAppToast(t('laputa.loadError'), 'error');
-  } finally {
-    loadingSection.value = false;
-  }
-}
-
-async function loadSelected(): Promise<void> {
-  if (isCognitive(selectedSection.value)) {
-    await loadCognitiveFile(selectedSection.value);
-  } else {
-    await loadSection(selectedSection.value);
-  }
-}
-
-async function selectSection(nextId: PersonaMenuItem): Promise<void> {
-  if (nextId === selectedSection.value) return;
-  if (isDirty.value) {
-    const confirmed = await appConfirm(
-      t('laputa.confirmDiscard.message'),
-      {
-        title: t('laputa.confirmDiscard.title'),
-        confirmLabel: t('laputa.confirmDiscard.discard'),
-        cancelLabel: t('laputa.confirmDiscard.cancel'),
-      },
-    );
-    if (!confirmed) return;
-  }
-  selectedSection.value = nextId;
-  sectionError.value = '';
-  draftContent.value = '';
-  originalContent.value = '';
-  cognitiveContent.value = '';
+function syncEditor() {
+  const text = formatContent(section.value?.content);
+  draftContent.value = text;
+  originalContent.value = text;
   isDirty.value = false;
-  await loadSelected();
 }
 
-async function onSectionSelect(name: PersonaMenuItem): Promise<void> {
-  await selectSection(name);
+async function load() {
+  loading.value = true;
+  error.value = '';
+  try {
+    if (!isTauriRuntime()) {
+      workspace.value = null;
+      governedProposals.value = [];
+      return;
+    }
+    const [projection, proposals] = await Promise.all([
+      getLaputaPersonaWorkspace(props.sessionKey),
+      listLaputaProposals(),
+    ]);
+    workspace.value = projection;
+    governedProposals.value = proposals;
+    syncEditor();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : String(cause);
+    showAppToast(error.value, 'error');
+  } finally {
+    loading.value = false;
+  }
 }
 
-async function onRefresh(): Promise<void> {
-  await loadSnapshot();
-  if (isUninitialized.value) return;
-  await loadSelected();
+async function selectSection(next: PersonaMenuItem) {
+  if (next === selectedSection.value) return;
+  if (isDirty.value && !await appConfirm(t('laputa.confirmDiscard.message'), {
+    title: t('laputa.confirmDiscard.title'),
+  })) return;
+  selectedSection.value = next;
+  syncEditor();
 }
 
-async function onProposalCreated(
-  _name: LaputaSectionName,
-  result: import('../api/desktop').WriteLaputaSectionResult,
-): Promise<void> {
-  await loadSelected();
-  await loadSnapshot();
+async function onProposalCreated(_name: LaputaSectionName, result: { proposal_id: string }) {
   editorRevision.value += 1;
   emit('proposal-created', result.proposal_id);
   showAppToast(t('laputa.proposalCreated'), 'success');
+  await load();
 }
 
-function onSaveFailed(_name: LaputaSectionName, message: string): void {
-  showAppToast(t('laputa.saveFailed', { message }), 'error');
-}
-
-function onDirtyUpdate(next: boolean): void {
-  isDirty.value = next;
-}
-
-onMounted(() => {
-  loadSnapshot();
-  loadSelected();
-});
+onMounted(load);
 </script>
 
 <template>
-  <div class="persona-memory-view">
-    <header class="persona-memory-header">
-      <div class="persona-memory-title-block">
-        <BookUser :size="18" />
-        <span>{{ t('laputa.title') }}</span>
-      </div>
-      <button
-        class="persona-memory-refresh"
-        type="button"
-        :disabled="loadingSnapshot || loadingSection"
-        @click="onRefresh"
-      >
-        <Loader2 v-if="loadingSnapshot || loadingSection" :size="15" class="spin" />
-        <RefreshCw v-else :size="15" />
-        <span>{{ t('laputa.refresh') }}</span>
-      </button>
+  <div class="persona-workspace">
+    <header class="workspace-header">
+      <div class="title"><BookUser :size="20" /><div><b>{{ t('laputa.workspace.title') }}</b><small>{{ t('laputa.workspace.subtitle') }}</small></div></div>
+      <button :disabled="loading" @click="load"><Loader2 v-if="loading" :size="15" class="spin" /><RefreshCw v-else :size="15" />{{ t('laputa.refresh') }}</button>
     </header>
 
-    <div class="persona-memory-body">
-      <div class="persona-memory-list">
-        <template v-if="loadingSnapshot">
-          <div v-for="i in 6" :key="i" class="persona-memory-skeleton-item">
-            <div class="skeleton-line short" />
-            <div class="skeleton-line" />
-          </div>
-        </template>
+    <div class="status-strip">
+      <div><ShieldCheck :size="16" /><span>{{ t('laputa.workspace.frozenCore') }}</span><b>{{ populatedCount }}/4</b></div>
+      <div><CircleDot :size="16" /><span>{{ t('laputa.workspace.pending') }}</span><b>{{ pendingCount }}</b></div>
+      <div><ScrollText :size="16" /><span>{{ t('laputa.workspace.session') }}</span><b>{{ sessionStatus }}</b></div>
+    </div>
 
-        <SectionGroupList
-          v-else-if="snapshot && !isUninitialized"
-          :snapshot="snapshot"
-          :selected-section="selectedSection"
-          :aria-label="t('laputa.a11y.sectionList')"
-          @select="onSectionSelect"
+    <div v-if="error" class="workspace-error" role="alert">{{ error }} <button @click="load">{{ t('laputa.retry') }}</button></div>
+    <div v-else class="workspace-grid">
+      <SectionGroupList :snapshot="snapshot" :selected-section="selectedSection" @select="selectSection" />
+
+      <main class="workspace-main">
+        <div v-if="loading && !workspace" class="loading"><Loader2 :size="22" class="spin" />{{ t('laputa.loading') }}</div>
+        <section v-else-if="isCognitive" class="cognitive-panel">
+          <header><ScrollText :size="16" />{{ t(`laputa.sections.${selectedSection}`) }}<span>{{ t('laputa.cognitiveReadOnly') }}</span></header>
+          <pre>{{ cognitiveContent }}</pre>
+        </section>
+        <SectionEditor
+          v-else-if="sectionName"
+          :key="`${sectionName}-${editorRevision}`"
+          v-model="draftContent"
+          :section-name="sectionName"
+          :display-name="t(`laputa.sections.${sectionName}`)"
+          :initial-content="originalContent"
+          :status="section?.status === 'owned' ? 'owned' : 'tbd'"
+          :last-updated="section?.last_modified"
+          @proposal-created="onProposalCreated"
+          @save-failed="(_name, message) => showAppToast(message, 'error')"
+          @update:dirty="(value) => isDirty = value"
         />
-      </div>
+      </main>
 
-      <div class="persona-memory-detail">
-        <template v-if="loadingSnapshot || loadingSection">
-          <div class="persona-memory-detail-skeleton">
-            <div class="skeleton-line title" />
-            <div class="skeleton-line" />
-            <div class="skeleton-line" />
-            <div class="skeleton-line short" />
-            <div class="skeleton-line" />
-            <div class="skeleton-line medium" />
-          </div>
-        </template>
-
-        <PersonaMemoryErrorState
-          v-else-if="sectionError"
-          :title="t('laputa.loadError')"
-          :message="sectionError"
-          :on-retry="() => loadSelected()"
-        />
-
-        <PersonaMemoryEmptyState
-          v-else-if="isUninitialized"
-          :icon="Inbox"
-          :title="t('laputa.uninitializedTitle')"
-          :description="t('laputa.uninitializedDesc')"
-        />
-
-        <!-- 认知治理文件（MEMRULES / WORLD）：只读展示 -->
-        <div v-else-if="isCognitiveFile" class="cognitive-file-panel">
-          <div class="cognitive-file-header">
-            <ScrollText :size="16" />
-            <span>{{ displayName }}</span>
-            <span class="cognitive-file-badge">{{ t('laputa.cognitiveReadOnly') }}</span>
-          </div>
-          <pre class="cognitive-file-content">{{ cognitiveContent }}</pre>
-        </div>
-
-        <template v-else>
-          <SectionEditor
-            :key="`${selectedSection}-${editorRevision}`"
-            v-model="draftContent"
-            :section-name="selectedSection as LaputaSectionName"
-            :display-name="displayName"
-            :initial-content="originalContent"
-            :status="selectedSectionStatus"
-            :last-updated="selectedSectionLastUpdated"
-            @proposal-created="onProposalCreated"
-            @save-failed="onSaveFailed"
-            @update:dirty="onDirtyUpdate"
-          />
-        </template>
-      </div>
+      <PersonaLifecyclePanel
+        v-if="sectionName"
+        :section-name="sectionName"
+        :authority-version="authorityVersion"
+        :session-version="sessionVersion"
+        :proposal="selectedProposal"
+        :changelog="selectedChangelog as ChangelogRecord | null"
+        @changed="load"
+      />
+      <aside v-else class="cognitive-boundary">{{ t('laputa.workspace.cognitiveBoundary') }}</aside>
     </div>
   </div>
 </template>
 
 <style scoped>
-.persona-memory-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--panel);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.persona-memory-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-  min-height: 56px;
-}
-
-.persona-memory-title-block {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.persona-memory-refresh {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.persona-memory-refresh:hover:not(:disabled) {
-  background: var(--accent-bg-light);
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
-
-.persona-memory-refresh:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.persona-memory-refresh:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-glow), 0 0 0 4px var(--accent);
-}
-
-.persona-memory-body {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  background: var(--panel, #ffffff);
-}
-
-.persona-memory-list {
-  width: 280px;
-  min-width: 280px;
-  border-right: 1px solid var(--line);
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-
-.persona-memory-detail {
-  flex: 1;
-  overflow-y: auto;
-  min-width: 0;
-  position: relative;
-}
-
-.cognitive-file-panel {
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.cognitive-file-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  flex-shrink: 0;
-}
-
-.cognitive-file-badge {
-  margin-left: auto;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--accent-bg-light);
-  color: var(--accent);
-}
-
-.cognitive-file-content {
-  flex: 1;
-  margin: 0;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-muted, #f8fafc);
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-y: auto;
-}
-
-.persona-memory-skeleton-item {
-  padding: 12px;
-  margin-bottom: 4px;
-}
-
-.persona-memory-detail-skeleton {
-  padding: 24px;
-}
-
-.skeleton-line {
-  height: 12px;
-  border-radius: 4px;
-  background: var(--accent-bg-light);
-  margin-bottom: 10px;
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-.skeleton-line.short { width: 40%; }
-.skeleton-line.medium { width: 65%; }
-.skeleton-line.long { width: 85%; }
-.skeleton-line.title { width: 55%; height: 18px; margin-bottom: 16px; }
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+.persona-workspace { height: 100%; display: flex; flex-direction: column; background: var(--panel); overflow: hidden; }
+.workspace-header { min-height: 62px; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.title { display: flex; align-items: center; gap: 10px; }
+.title b, .title small { display: block; }
+.title b { color: var(--text); font-size: 15px; }
+.title small { color: var(--text-muted); margin-top: 2px; font-size: 11px; }
+button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-solid); color: var(--text); padding: 7px 10px; cursor: pointer; }
+.status-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); background: var(--panel-solid); }
+.status-strip div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 9px 16px; color: var(--text-muted); font-size: 11px; }
+.status-strip div:not(:last-child) { border-right: 1px solid var(--line); }
+.status-strip b { color: var(--text); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 230px minmax(420px, 1fr) 250px; }
+.workspace-grid > :first-child { border-right: 1px solid var(--line); overflow-y: auto; }
+.workspace-main { min-width: 0; overflow: hidden; }
+.loading { height: 100%; display: grid; place-content: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.cognitive-panel { padding: 18px; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.cognitive-panel header { display: flex; align-items: center; gap: 7px; color: var(--text); font-weight: 600; }
+.cognitive-panel header span { margin-left: auto; color: var(--text-muted); font-size: 11px; }
+.cognitive-panel pre { flex: 1; overflow: auto; padding: 14px; margin: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-solid); color: var(--text); white-space: pre-wrap; }
+.cognitive-boundary { border-left: 1px solid var(--line); padding: 18px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.workspace-error { margin: 16px; padding: 12px; border: 1px solid var(--danger); color: var(--danger); border-radius: var(--radius-sm); }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 1050px) { .workspace-grid { grid-template-columns: 210px minmax(0, 1fr); } .workspace-grid > aside { display: none; } }
 </style>

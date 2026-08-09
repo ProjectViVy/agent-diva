@@ -7,7 +7,7 @@ import type { LaputaSectionName } from '../../api/desktop';
 const { t } = useI18n();
 
 interface SnapshotSection {
-  status: 'owned' | 'tbd';
+  status: string;
   last_modified?: string | null;
 }
 
@@ -59,7 +59,7 @@ function isSection(name: PersonaMenuItem): name is LaputaSectionName {
 }
 
 function getSectionStatus(name: LaputaSectionName): 'owned' | 'tbd' {
-  return props.snapshot?.sections[name]?.status ?? 'tbd';
+  return props.snapshot?.sections[name]?.status === 'owned' ? 'owned' : 'tbd';
 }
 
 function getSectionLastModified(name: LaputaSectionName): string | null | undefined {

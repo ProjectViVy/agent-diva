@@ -1076,7 +1076,7 @@ defineExpose({
         </div>
         <!-- Persona 视图 -->
         <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
-          <PersonaMemoryView @proposal-created="refreshEvolutionBadge" />
+          <PersonaMemoryView :session-key="activeSessionKey" @proposal-created="refreshEvolutionBadge" />
         </div>
         <!-- Memory (BML 仓库) 视图 -->
         <div v-else-if="activeMenu === 'memory'" class="h-full">

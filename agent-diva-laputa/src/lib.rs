@@ -45,7 +45,12 @@ pub use error::{LaputaError, Result};
 pub use feedback::{
     PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,
 };
-pub use frozen_core::{FrozenCoreSnapshot, DEFAULT_FROZEN_CORE_BUDGET, FROZEN_CORE_SECTIONS};
+pub use frozen_core::{
+    capture_for_session as capture_frozen_core_for_session, content_version,
+    release_session_projection as release_frozen_core_session,
+    session_projection as frozen_core_session_projection, FrozenCoreSessionProjection,
+    FrozenCoreSnapshot, DEFAULT_FROZEN_CORE_BUDGET, FROZEN_CORE_SECTIONS,
+};
 pub use governed_apply::{
     proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceDecision, MemoryGovernanceError,
     MemoryGovernanceView,

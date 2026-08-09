@@ -1,197 +1,66 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createI18n } from 'vue-i18n';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import * as desktop from '../api/desktop';
-import * as appToast from '../utils/appToast';
-import * as appDialog from '../utils/appDialog';
 import en from '../locales/en';
 
-vi.mock('../api/desktop', async () => {
-  const actual = await vi.importActual<typeof desktop>('../api/desktop');
-  return {
-    ...actual,
-    getLaputaSection: vi.fn(),
-    getLaputaSnapshot: vi.fn(),
-    writeLaputaSection: vi.fn(),
-    isTauriRuntime: vi.fn(() => true),
-  };
-});
-
-vi.mock('../utils/appToast', async () => {
-  const actual = await vi.importActual<typeof appToast>('../utils/appToast');
-  return {
-    ...actual,
-    showAppToast: vi.fn(),
-  };
-});
-
-const appConfirm = vi.fn(() => Promise.resolve(true));
-vi.mock('../utils/appDialog', () => ({
-  appConfirm: (...args: unknown[]) => appConfirm(...args),
+vi.mock('../api/desktop', async () => ({
+  ...await vi.importActual<typeof desktop>('../api/desktop'),
+  getLaputaPersonaWorkspace: vi.fn(),
+  listLaputaProposals: vi.fn(),
+  writeLaputaSection: vi.fn(),
+  isTauriRuntime: vi.fn(() => true),
 }));
+vi.mock('../utils/appDialog', () => ({ appConfirm: vi.fn(() => Promise.resolve(true)) }));
+vi.mock('../utils/appToast', () => ({ showAppToast: vi.fn() }));
 
-const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messages: { en },
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } });
+const section = (name: desktop.LaputaSectionName, value: string): desktop.LaputaSection => ({
+  name, status: 'owned', content: { value }, metadata: {}, last_modified: '2026-08-09T08:00:00Z', version: '1',
 });
-
-function makeSection(name: desktop.LaputaSectionName, content: string): desktop.LaputaSection {
-  return {
-    name,
-    status: 'owned',
-    content,
-    metadata: {},
-    last_modified: '2026-07-05T12:00:00Z',
-    version: '1',
-  };
-}
-
-function makeSnapshot(): desktop.LaputaSnapshot {
-  return {
+const projection: desktop.PersonaWorkspaceProjection = {
+  snapshot: {
     schema_version: '1',
-    sections: {
-      identity: makeSection('identity', 'initial content'),
-      relationship: makeSection('relationship', 'relationship content'),
-    },
-    changed_sections: [],
-    updated_at: '2026-07-05T12:00:00Z',
-    server_time: '2026-07-05T12:00:00Z',
-  };
-}
+    sections: { identity: section('identity', 'Diva'), relationship: section('relationship', 'partner') },
+    changed_sections: [], server_time: '2026-08-09T08:00:00Z',
+  },
+  authority_versions: { identity: 'authority-v2', relationship: 'relationship-v1' },
+  session: { session_key: 'desktop:test', captured_at: '2026-08-09T08:00:00Z', section_versions: { identity: 'authority-v1' } },
+  proposals: [], changelog: [], cognitive: { memrules: 'rules', world: 'world' },
+};
 
-function factory() {
-  return mount(PersonaMemoryView, {
-    global: {
-      plugins: [i18n],
-    },
-  });
-}
-
-describe('PersonaMemoryView', () => {
+describe('PersonaMemoryView lifecycle workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appConfirm.mockReset();
-    appConfirm.mockResolvedValue(true);
-    (desktop.getLaputaSection as ReturnType<typeof vi.fn>).mockImplementation((name: desktop.LaputaSectionName) =>
-      Promise.resolve(makeSection(name, `${name} content`)),
-    );
-    (desktop.getLaputaSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(makeSnapshot());
+    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue(projection);
+    (desktop.listLaputaProposals as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
-  it('reloads authority and emits badge refresh after creating a pending proposal', async () => {
-    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockResolvedValue({
-      proposal_id: 'proposal-1',
-      proposal_type: 'identity_patch',
-      risk_level: 'high',
-      state: 'pending_review',
-      changelog_id: null,
-      applied_at: null,
-    });
-
-    const wrapper = factory();
+  it('loads the aggregate projection for the active session', async () => {
+    const wrapper = mount(PersonaMemoryView, { props: { sessionKey: 'desktop:test' }, global: { plugins: [i18n] } });
     await flushPromises();
-
-    const textarea = wrapper.find('textarea');
-    await textarea.setValue('updated content');
-    await flushPromises();
-
-    await wrapper.find('.section-editor-save-btn').trigger('click');
-    await flushPromises();
-
-    expect(desktop.writeLaputaSection).toHaveBeenCalledWith('identity', 'updated content');
-    expect(desktop.getLaputaSection).toHaveBeenCalledWith('identity');
-    expect(desktop.getLaputaSnapshot).toHaveBeenCalled();
-    expect(appToast.showAppToast).toHaveBeenCalledWith(en.laputa.proposalCreated, 'success');
-    expect(wrapper.emitted('proposal-created')).toEqual([['proposal-1']]);
-    expect(wrapper.find('textarea').element.value).toBe('identity content');
-
-    const saveButton = wrapper.find('.section-editor-save-btn');
-    expect(saveButton.attributes('disabled')).toBeDefined();
+    expect(desktop.getLaputaPersonaWorkspace).toHaveBeenCalledWith('desktop:test');
+    expect(wrapper.text()).toContain(en.laputa.workspace.nextSessionEffective);
+    expect(wrapper.find('textarea').element.value).toContain('Diva');
   });
 
-  it('shows an error toast and preserves the draft when save fails', async () => {
-    (desktop.writeLaputaSection as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('disk full'));
-
-    const wrapper = factory();
+  it('shows cognitive governance files as read-only', async () => {
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
     await flushPromises();
-
-    const textarea = wrapper.find('textarea');
-    await textarea.setValue('updated content');
-    await flushPromises();
-
-    await wrapper.find('.section-editor-save-btn').trigger('click');
-    await flushPromises();
-
-    expect(desktop.writeLaputaSection).toHaveBeenCalledWith('identity', 'updated content');
-    expect(appToast.showAppToast).toHaveBeenCalledWith(
-      en.laputa.saveFailed.replace('{message}', 'disk full'),
-      'error',
-    );
-    expect(textarea.element.value).toBe('updated content');
-
-    const saveButton = wrapper.find('.section-editor-save-btn');
-    expect(saveButton.attributes('disabled')).toBeUndefined();
+    const world = wrapper.findAll('.section-item').find((item) => item.text().includes('World'))!;
+    await world.trigger('click');
+    expect(wrapper.find('.cognitive-panel').text()).toContain('world');
+    expect(wrapper.find('textarea').exists()).toBe(false);
   });
 
-  it('prompts before switching sections when dirty and preserves state on cancel', async () => {
-    appConfirm.mockResolvedValue(false);
-
-    const wrapper = factory();
+  it('renders a real pending proposal in the lifecycle rail', async () => {
+    (desktop.listLaputaProposals as ReturnType<typeof vi.fn>).mockResolvedValue([{
+      id: 'proposal-1', target_section: 'identity', state: 'pending_review', updated_at: '2026-08-09T09:00:00Z',
+      governance: { request_id: 'request-1', request_version: 1 },
+    }]);
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
     await flushPromises();
-
-    const textarea = wrapper.find('textarea');
-    await textarea.setValue('updated content');
-    await flushPromises();
-
-    const items = wrapper.findAll('.section-item');
-    const relationship = items.find((el) => el.text().includes('Relationship'));
-    expect(relationship).toBeDefined();
-    await relationship!.trigger('click');
-    await flushPromises();
-
-    expect(appConfirm).toHaveBeenCalledWith(
-      en.laputa.confirmDiscard.message,
-      expect.objectContaining({
-        title: en.laputa.confirmDiscard.title,
-        confirmLabel: en.laputa.confirmDiscard.discard,
-        cancelLabel: en.laputa.confirmDiscard.cancel,
-      }),
-    );
-    expect(textarea.element.value).toBe('updated content');
-    expect(wrapper.find('.section-item--active').text()).toContain('Identity');
-  });
-
-  it('switches sections and resets dirty state when user discards changes', async () => {
-    appConfirm.mockResolvedValue(true);
-
-    const wrapper = factory();
-    await flushPromises();
-
-    const textarea = wrapper.find('textarea');
-    await textarea.setValue('updated content');
-    await flushPromises();
-
-    const items = wrapper.findAll('.section-item');
-    const relationship = items.find((el) => el.text().includes('Relationship'));
-    expect(relationship).toBeDefined();
-    await relationship!.trigger('click');
-    await flushPromises();
-
-    expect(appConfirm).toHaveBeenCalledWith(
-      en.laputa.confirmDiscard.message,
-      expect.objectContaining({
-        title: en.laputa.confirmDiscard.title,
-        confirmLabel: en.laputa.confirmDiscard.discard,
-        cancelLabel: en.laputa.confirmDiscard.cancel,
-      }),
-    );
-    await flushPromises();
-    expect(desktop.getLaputaSection).toHaveBeenCalledWith('relationship');
-    await flushPromises();
-    expect(wrapper.find('.section-item--active').text()).toContain('Relationship');
-    expect(wrapper.find('textarea').element.value).toBe('relationship content');
-    expect(wrapper.find('.section-editor-save-btn').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.lifecycle-rail').text()).toContain('pending_review');
   });
 });

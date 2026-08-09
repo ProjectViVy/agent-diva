@@ -388,6 +388,7 @@ pub fn run() {
             commands::get_provider_models,
             commands::test_provider_model,
             commands::laputa_get_snapshot,
+            commands::laputa_get_persona_workspace,
             commands::laputa_get_section,
             commands::laputa_write_section,
             commands::laputa_list_proposals,

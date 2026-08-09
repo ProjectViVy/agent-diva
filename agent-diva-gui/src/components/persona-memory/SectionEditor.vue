@@ -2,9 +2,6 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Loader2 } from '@lucide/vue';
-import MarkdownIt from 'markdown-it';
-import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import { writeLaputaSection } from '../../api/desktop';
 import { appConfirm } from '../../utils/appDialog';
 import HistoryModal from './HistoryModal.vue';
@@ -35,29 +32,11 @@ const emit = defineEmits<{
   (e: 'save-failed', sectionName: LaputaSectionName, message: string): void;
 }>();
 
-const md = new MarkdownIt({
-  html: false,
-  linkify: true,
-  highlight(str: string, lang: string) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value;
-      } catch {
-        // fall through
-      }
-    }
-    return (
-      '<pre><code>' +
-      str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-      '</code></pre>'
-    );
-  },
-});
-
 const originalContent = ref<string>(props.initialContent ?? '');
 const draftContent = ref<string>(props.modelValue ?? '');
 const saving = ref(false);
 const saveError = ref<string | null>(null);
+const changeReason = ref('');
 const activeTab = ref<'edit' | 'preview'>('edit');
 const historyOpen = ref(false);
 const historyTriggerRef = ref<HTMLButtonElement | null>(null);
@@ -93,7 +72,25 @@ function formatDate(value?: string): string {
   }
 }
 
-const renderedHtml = computed(() => md.render(draftContent.value));
+const jsonError = computed(() => {
+  try {
+    JSON.parse(draftContent.value);
+    return '';
+  } catch (error) {
+    return formatError(error);
+  }
+});
+
+const formattedJson = computed(() => {
+  if (jsonError.value) return draftContent.value;
+  return JSON.stringify(JSON.parse(draftContent.value), null, 2);
+});
+
+function formatJson(): void {
+  if (jsonError.value) return;
+  draftContent.value = formattedJson.value;
+  onInput();
+}
 
 function onInput(): void {
   emit('update:modelValue', draftContent.value);
@@ -113,7 +110,7 @@ function formatError(err: unknown): string {
 }
 
 async function handleSave(): Promise<void> {
-  if (!isDirty.value || saving.value) return;
+  if (!isDirty.value || saving.value || jsonError.value || !changeReason.value.trim()) return;
 
   if (originalContent.value.trim().length > 0) {
     const confirmed = await appConfirm(
@@ -130,9 +127,14 @@ async function handleSave(): Promise<void> {
   saving.value = true;
   saveError.value = null;
   try {
-    const result = await writeLaputaSection(props.sectionName, draftContent.value);
+    const result = await writeLaputaSection(
+      props.sectionName,
+      draftContent.value,
+      changeReason.value.trim(),
+    );
     draftContent.value = originalContent.value;
     emit('update:modelValue', originalContent.value);
+    changeReason.value = '';
     emit('proposal-created', props.sectionName, result);
   } catch (err: unknown) {
     const message = formatError(err);
@@ -178,6 +180,14 @@ function onKeyDown(event: KeyboardEvent): void {
       <div class="section-editor-toolbar-actions">
         <slot name="toolbar-actions">
           <button
+            type="button"
+            class="section-editor-history-btn"
+            :disabled="Boolean(jsonError)"
+            @click="formatJson"
+          >
+            {{ t('laputa.formatJson') }}
+          </button>
+          <button
             ref="historyTriggerRef"
             type="button"
             class="section-editor-history-btn"
@@ -190,7 +200,7 @@ function onKeyDown(event: KeyboardEvent): void {
           <button
             type="button"
             class="section-editor-save-btn"
-            :disabled="!isDirty || saving"
+            :disabled="!isDirty || saving || Boolean(jsonError) || !changeReason.trim()"
             :aria-label="t('laputa.a11y.saveButton', { section: props.displayName })"
             @click="handleSave"
           >
@@ -209,6 +219,19 @@ function onKeyDown(event: KeyboardEvent): void {
 
     <div v-if="saveError" class="section-editor-save-error" role="alert">
       <span>{{ t('laputa.saveFailed', { message: saveError }) }}</span>
+    </div>
+
+    <div class="section-editor-reason">
+      <label :for="`laputa-reason-${sectionName}`">{{ t('laputa.changeReason') }}</label>
+      <input
+        :id="`laputa-reason-${sectionName}`"
+        v-model="changeReason"
+        type="text"
+        :placeholder="t('laputa.changeReasonPlaceholder')"
+      />
+      <span v-if="jsonError" class="section-editor-json-error" role="alert">
+        {{ t('laputa.invalidJson', { message: jsonError }) }}
+      </span>
     </div>
 
     <div class="section-editor-tabs" role="tablist" aria-label="Editor view">
@@ -258,7 +281,7 @@ function onKeyDown(event: KeyboardEvent): void {
         role="tabpanel"
         :class="{ 'pane-hidden': activeTab !== 'preview' }"
       >
-        <div class="section-editor-preview markdown-body" v-html="renderedHtml" />
+        <pre class="section-editor-preview">{{ formattedJson }}</pre>
       </div>
     </div>
   </div>
@@ -424,6 +447,27 @@ function onKeyDown(event: KeyboardEvent): void {
   font-size: 13px;
 }
 
+.section-editor-reason {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.section-editor-reason input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
+}
+
+.section-editor-json-error { color: var(--danger); }
+
 .section-editor-tabs {
   display: flex;
   gap: 4px;
@@ -508,103 +552,8 @@ function onKeyDown(event: KeyboardEvent): void {
   font-size: 0.875rem;
   line-height: 1.7;
   color: var(--text);
-}
-
-.section-editor-preview :deep(p) {
-  margin-bottom: 0.75em;
-}
-
-.section-editor-preview :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.section-editor-preview :deep(pre) {
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-  margin: 0.75rem 0;
-  overflow-x: auto;
-}
-
-.section-editor-preview :deep(code) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.85em;
-  background: var(--accent-bg-light);
-  padding: 0.15em 0.35em;
-  border-radius: 0.25rem;
-  color: var(--text);
-}
-
-.section-editor-preview :deep(pre code) {
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-}
-
-.section-editor-preview :deep(ul),
-.section-editor-preview :deep(ol) {
-  padding-left: 1.5em;
-  margin-bottom: 0.75em;
-}
-
-.section-editor-preview :deep(ul) {
-  list-style-type: disc;
-}
-
-.section-editor-preview :deep(ol) {
-  list-style-type: decimal;
-}
-
-.section-editor-preview :deep(blockquote) {
-  border-left: 3px solid var(--line);
-  padding-left: 0.75rem;
-  color: var(--text-muted);
-  margin: 0.75rem 0;
-}
-
-.section-editor-preview :deep(h1),
-.section-editor-preview :deep(h2),
-.section-editor-preview :deep(h3) {
-  color: var(--text);
-  margin-top: 1.25em;
-  margin-bottom: 0.5em;
-}
-
-.section-editor-preview :deep(h1) {
-  font-size: 1.5em;
-}
-
-.section-editor-preview :deep(h2) {
-  font-size: 1.25em;
-}
-
-.section-editor-preview :deep(h3) {
-  font-size: 1.1em;
-}
-
-.section-editor-preview :deep(a) {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-.section-editor-preview :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.75rem 0;
-}
-
-.section-editor-preview :deep(th),
-.section-editor-preview :deep(td) {
-  border: 1px solid var(--line);
-  padding: 6px 10px;
-  text-align: left;
-  font-size: 0.85em;
-}
-
-.section-editor-preview :deep(th) {
-  background: var(--accent-bg-light);
-  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .spin {

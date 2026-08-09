@@ -502,6 +502,21 @@ pub async fn laputa_get_snapshot(
 }
 
 #[tauri::command]
+pub async fn laputa_get_persona_workspace(
+    #[allow(non_snake_case)] sessionKey: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut url = format!("{}/laputa/persona-workspace", state.api_base_url());
+    if let Some(session_key) = non_empty_query_value(sessionKey) {
+        url.push_str(&format!(
+            "?session_key={}",
+            urlencoding::encode(&session_key)
+        ));
+    }
+    get_laputa_payload(&state, &url, "workspace").await
+}
+
+#[tauri::command]
 pub async fn laputa_get_section(
     name: String,
     state: State<'_, AgentState>,

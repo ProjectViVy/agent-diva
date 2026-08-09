@@ -181,12 +181,13 @@ impl AgentLoop {
                         }
                     }
 
-                    *messages = self.context.build_messages(
+                    *messages = self.context.build_messages_for_session(
                         history,
                         message_content.to_string(),
                         Some(&message.channel),
                         Some(&message.chat_id),
                         &compaction_history,
+                        session_key,
                     );
                     if let Some(markdown) = approved_plan_markdown {
                         messages.insert(1, prompt::approved_plan(markdown).system());

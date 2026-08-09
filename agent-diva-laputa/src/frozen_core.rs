@@ -8,6 +8,13 @@
 
 use agent_diva_core::evolution::LaputaSectionName;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{OnceLock, RwLock},
+};
 
 use crate::{LaputaService, Result};
 
@@ -23,19 +30,33 @@ pub const FROZEN_CORE_SECTIONS: [LaputaSectionName; 4] = [
 pub const DEFAULT_FROZEN_CORE_BUDGET: usize = 4000;
 
 /// Immutable session-start snapshot of the Frozen Core sections.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrozenCoreSnapshot {
     pub captured_at: DateTime<Utc>,
     /// Section content serialized as compact JSON in canonical Frozen Core
     /// order; empty string means the section file did not exist at capture.
     pub sections: Vec<(LaputaSectionName, String)>,
+    /// Stable content digests for comparing captured and current authority.
+    pub section_versions: Vec<(LaputaSectionName, String)>,
 }
+
+/// Read-only runtime projection of one session's Frozen Core capture.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrozenCoreSessionProjection {
+    pub session_key: String,
+    pub captured_at: DateTime<Utc>,
+    pub section_versions: Vec<(LaputaSectionName, String)>,
+}
+
+static SESSION_SNAPSHOTS: OnceLock<RwLock<HashMap<(String, String), FrozenCoreSnapshot>>> =
+    OnceLock::new();
 
 impl FrozenCoreSnapshot {
     /// Capture the four Frozen Core sections from the live service.
     /// Later section writes do not affect the returned snapshot.
     pub fn capture(service: &LaputaService) -> Result<Self> {
         let mut sections = Vec::new();
+        let mut section_versions = Vec::new();
         for name in FROZEN_CORE_SECTIONS.iter().cloned() {
             let section = service.read_section(name.clone())?;
             let rendered = if section.content.is_null() {
@@ -43,11 +64,14 @@ impl FrozenCoreSnapshot {
             } else {
                 serde_json::to_string(&section.content)?
             };
-            sections.push((name, rendered));
+            let version = content_version(&rendered);
+            sections.push((name.clone(), rendered));
+            section_versions.push((name, version));
         }
         Ok(Self {
             captured_at: Utc::now(),
             sections,
+            section_versions,
         })
     }
 
@@ -88,6 +112,82 @@ impl FrozenCoreSnapshot {
         }
         out
     }
+}
+
+/// Capture once per workspace/session pair and retain a bounded, process-local
+/// observability projection for the desktop control plane.
+pub fn capture_for_session(workspace: &Path, session_key: &str) -> FrozenCoreSnapshot {
+    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
+    let key = (workspace_id, session_key.to_string());
+    let registry = SESSION_SNAPSHOTS.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Ok(guard) = registry.read() {
+        if let Some(snapshot) = guard.get(&key) {
+            return snapshot.clone();
+        }
+    }
+
+    let snapshot = LaputaService::open(workspace)
+        .and_then(|service| FrozenCoreSnapshot::capture(&service))
+        .unwrap_or_else(|_| FrozenCoreSnapshot {
+            captured_at: Utc::now(),
+            sections: FROZEN_CORE_SECTIONS
+                .iter()
+                .cloned()
+                .map(|name| (name, String::new()))
+                .collect(),
+            section_versions: FROZEN_CORE_SECTIONS
+                .iter()
+                .cloned()
+                .map(|name| (name, content_version("")))
+                .collect(),
+        });
+
+    if let Ok(mut guard) = registry.write() {
+        if guard.len() >= 128 {
+            if let Some(oldest) = guard
+                .iter()
+                .min_by_key(|(_, value)| value.captured_at)
+                .map(|(key, _)| key.clone())
+            {
+                guard.remove(&oldest);
+            }
+        }
+        guard.insert(key, snapshot.clone());
+    }
+    snapshot
+}
+
+/// Return the captured projection for a session that has built context.
+pub fn session_projection(
+    workspace: &Path,
+    session_key: &str,
+) -> Option<FrozenCoreSessionProjection> {
+    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
+    SESSION_SNAPSHOTS
+        .get()
+        .and_then(|registry| registry.read().ok())
+        .and_then(|guard| guard.get(&(workspace_id, session_key.to_string())).cloned())
+        .map(|snapshot| FrozenCoreSessionProjection {
+            session_key: session_key.to_string(),
+            captured_at: snapshot.captured_at,
+            section_versions: snapshot.section_versions,
+        })
+}
+
+/// Forget a reset/deleted session so the next prompt captures fresh authority.
+pub fn release_session_projection(workspace: &Path, session_key: &str) {
+    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
+    if let Some(registry) = SESSION_SNAPSHOTS.get() {
+        if let Ok(mut guard) = registry.write() {
+            guard.remove(&(workspace_id, session_key.to_string()));
+        }
+    }
+}
+
+/// Stable digest used as the authority revision shown by the persona UI.
+pub fn content_version(content: &str) -> String {
+    let digest = Sha256::digest(content.as_bytes());
+    format!("sha256:{digest:x}")
 }
 
 #[cfg(test)]
@@ -134,6 +234,31 @@ mod tests {
             .content_of(&LaputaSectionName::Identity)
             .unwrap()
             .contains("rewritten"));
+    }
+
+    #[test]
+    fn session_projection_tracks_effective_authority_until_release() {
+        let temp = tempfile::tempdir().unwrap();
+        open_service(&temp);
+        write_identity_section(&temp, r#"{"name":"first"}"#);
+
+        let first = capture_for_session(temp.path(), "desktop:test");
+        let first_version = first.section_versions[0].1.clone();
+        write_identity_section(&temp, r#"{"name":"second"}"#);
+
+        let still_first = capture_for_session(temp.path(), "desktop:test");
+        assert_eq!(still_first.section_versions[0].1, first_version);
+        assert_eq!(
+            session_projection(temp.path(), "desktop:test")
+                .unwrap()
+                .section_versions[0]
+                .1,
+            first_version
+        );
+
+        release_session_projection(temp.path(), "desktop:test");
+        let next = capture_for_session(temp.path(), "desktop:test");
+        assert_ne!(next.section_versions[0].1, first_version);
     }
 
     #[test]

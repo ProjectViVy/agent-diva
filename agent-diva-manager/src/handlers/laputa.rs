@@ -105,6 +105,11 @@ pub struct SnapshotQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct PersonaWorkspaceQuery {
+    pub session_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ChangelogQuery {
     pub page: Option<usize>,
     pub page_size: Option<usize>,
@@ -833,6 +838,85 @@ pub async fn get_laputa_snapshot_handler(
         .read_snapshot(query.since)
         .map_err(laputa_error_response)?;
     ok(serde_json::json!({ "status": "ok", "snapshot": snapshot }))
+}
+
+/// Aggregate the canonical persona authority and its real governance/session
+/// lifecycle into one read-only desktop projection.
+pub async fn get_laputa_persona_workspace_handler(
+    State(state): State<AppState>,
+    Query(query): Query<PersonaWorkspaceQuery>,
+) -> JsonResult {
+    let snapshot = state
+        .laputa
+        .read_snapshot(None)
+        .map_err(laputa_error_response)?;
+    let proposals = state
+        .laputa
+        .list_proposals(ProposalFilter::default())
+        .map_err(laputa_error_response)?;
+    let changelog = state
+        .laputa
+        .list_changelog(ChangelogFilter {
+            page: Some(1),
+            page_size: Some(100),
+            ..ChangelogFilter::default()
+        })
+        .map_err(laputa_error_response)?;
+
+    let mut authority_versions = serde_json::Map::new();
+    for name in agent_diva_laputa::FROZEN_CORE_SECTIONS.iter() {
+        if let Some(section) = snapshot.sections.get(name.as_str()) {
+            let canonical = if section.content.is_null() {
+                String::new()
+            } else {
+                serde_json::to_string(&section.content).unwrap_or_default()
+            };
+            authority_versions.insert(
+                name.as_str().to_string(),
+                serde_json::Value::String(agent_diva_laputa::content_version(&canonical)),
+            );
+        }
+    }
+
+    let session = query.session_key.as_deref().and_then(|session_key| {
+        agent_diva_laputa::frozen_core_session_projection(&state.workspace_root, session_key)
+    });
+    let session_value = session.map(|projection| {
+        let versions = projection
+            .section_versions
+            .into_iter()
+            .map(|(name, version)| (name.as_str().to_string(), serde_json::json!(version)))
+            .collect::<serde_json::Map<_, _>>();
+        serde_json::json!({
+            "session_key": projection.session_key,
+            "captured_at": projection.captured_at,
+            "section_versions": versions,
+        })
+    });
+
+    let memrules = state
+        .laputa
+        .read_cognitive_file(CognitiveFileKind::Memrules)
+        .map_err(laputa_error_response)?;
+    let world = state
+        .laputa
+        .read_cognitive_file(CognitiveFileKind::World)
+        .map_err(laputa_error_response)?;
+
+    ok(serde_json::json!({
+        "status": "ok",
+        "workspace": {
+            "snapshot": snapshot,
+            "authority_versions": authority_versions,
+            "session": session_value,
+            "proposals": proposals,
+            "changelog": changelog.items,
+            "cognitive": {
+                "memrules": memrules,
+                "world": world,
+            },
+        }
+    }))
 }
 
 pub async fn get_laputa_cognitive_handler(

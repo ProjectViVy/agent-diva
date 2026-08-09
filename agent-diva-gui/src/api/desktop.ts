@@ -331,6 +331,24 @@ export interface LaputaSnapshot {
   server_time: string;
 }
 
+export interface FrozenCoreSessionProjection {
+  session_key: string;
+  captured_at: string;
+  section_versions: Record<string, string>;
+}
+
+export interface PersonaWorkspaceProjection {
+  snapshot: LaputaSnapshot;
+  authority_versions: Record<string, string>;
+  session: FrozenCoreSessionProjection | null;
+  proposals: EvolutionProposal[];
+  changelog: ChangelogRecord[];
+  cognitive: {
+    memrules: string;
+    world: string;
+  };
+}
+
 export type ChangelogAction = 'apply' | 'revert' | 'rollback';
 
 export interface ChangelogRecord {
@@ -578,6 +596,11 @@ export const getLaputaCognitiveFile = (kind: LaputaCognitiveKind) =>
 
 export const getLaputaSnapshot = (since?: string) =>
   invoke<LaputaSnapshot>("laputa_get_snapshot", { since: since ?? null });
+
+export const getLaputaPersonaWorkspace = (sessionKey?: string) =>
+  invoke<PersonaWorkspaceProjection>("laputa_get_persona_workspace", {
+    sessionKey: sessionKey ?? null,
+  });
 
 export const writeLaputaSection = (
   name: LaputaSectionName,
