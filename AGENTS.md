@@ -26,6 +26,14 @@ This repository is a Rust workspace. Crates are organized by responsibility:
 
 Use each crate's `src/` for code; add crate-level integration tests under `tests/` when needed.
 
+### Documentation placement policy
+
+- Ordinary project documentation, design notes, research, reviews, plans, reports, and iteration records belong under `docs/`.
+- The repository-root `AGENTS.md`, `AGENTS-ARCH.MD`, `CLAUDE.md`, `LAPUTA.md`, `LOCK.md`, `README.md`, `README.zh-CN.md`, and `TODOLIST.md` are intentional entry points or governance files and must remain at the repository root.
+- Crate-level `AGENTS.md` files remain beside their crates as local project rules. Crate-level `README.md` files remain beside their crates when referenced by Cargo package metadata or used as the package landing page.
+- Crate-local `docs/` directories remain beside their crates when they document crate-specific acceptance, debugging, learning, or release workflows; workspace-wide documents belong under the repository-root `docs/`.
+- Runtime prompt/mask files and generated/package-facing README files are not project documentation and must remain with the runtime or packaging surface that consumes them.
+
 **Current repository state (2026-06-15):**
 
 - Root workspace package version is `0.5.0` and Rust MSRV is `1.80.0`.
