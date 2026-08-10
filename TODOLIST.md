@@ -30,6 +30,21 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   2026-08-05 完成 Claude Code 与 Agent-Diva 基础 Harness 能力全面调研 (文档见 `morediva/claude-code-vs-agent-diva-harness-research.md`)；确定 4 大演进方向：1) Prompt Cache 结构对齐与前缀保护 2) Plan Mode 物理限制状态机 3) TF-IDF 工具按需索引与延迟挂载 4) Subagent Git Worktree 隔离机制。
   **排期决策（2026-08-10）**：作为当前下一项 SEV-P1 工作推进；实施前按四个方向
   拆分可独立验收的切片与依赖顺序。
+  - [x] **CTX-C0-RESEARCH：上下文管理增强定向调研与架构决策**（2026-08-10）
+        主报告：
+        [`docs/research/context-management-enhancement-2026-08/c0-baseline-and-architecture-decisions.md`](docs/research/context-management-enhancement-2026-08/c0-baseline-and-architecture-decisions.md)。
+        冻结 ADR-CTX-0..5；主线 C1 稳定前缀 → C2 类型化预算 → C3 工具结果引用 →
+        C4 按需工具/Recall → C5 验收。对照样本：Codex / Claude Code+OpenHarness /
+        GenericAgent；Diva 落点 `prepare_runtime_context` / BML / ToolAssembly。
+        **本切片仅文档，无代码。**
+  - [ ] **CTX-C1：稳定前缀与 Prompt Cache 对齐**（ADR-CTX-0/1；Fragment 骨架 + 移出
+        Current Time/WM/prefetch 插队 + tool 稳定排序）
+  - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
+  - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
+  - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
+  - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
+  - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
+  - [ ] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
 
 - [ ] **GA-MEM-PARITY：GenericAgent 功能对齐 × Memory/Laputa/AutoDream 完全可用** `sev-P0`
   2026-08-05 完成只读盘点：相对 GenericAgent，Agent 侧记忆管理工具面基本缺失

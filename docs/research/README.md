@@ -43,6 +43,9 @@
 - `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
 
+### 上下文管理 / Harness Context
+- `context-management-enhancement-2026-08/` - **上下文管理增强 C0 基线与 ADR-CTX-0..5**（稳定前缀、分层预算、工具结果引用、按需工具/Recall；Codex / Claude Code / GenericAgent 定向对照；2026-08-10）。主报告：`c0-baseline-and-architecture-decisions.md`
+
 ## 使用说明
 
 这些研究报告为 agent-diva 项目的架构设计和技术选型提供参考，可用于：
