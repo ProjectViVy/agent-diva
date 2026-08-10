@@ -19,11 +19,17 @@
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
 
-- [ ] **OPENHARNESS-BENCHMARK-RESEARCH：OpenHarness 深度调研与 Agent-Diva 演进提案** `sev-P1`
-  2026-08-05 完成 OpenHarness (`.workspace/OpenHarness`) 源码深度调研 (文档见 `morediva/openharness-claude-code-diva-research.md`)；提出 4 大核心启发提案：1) `agent-diva dry-run` 离线 Pre-flight 预检引擎 2) Workflow Profile 秘钥隔离管理 3) EventBus Trait Hook 管道 4) `ohmo` 个人 Agent 应用扩展。
+- [x] **OPENHARNESS-BENCHMARK-RESEARCH：OpenHarness 深度调研与 Agent-Diva 演进提案（已决策关闭）** `sev-P1`
+  2026-08-10 用户决策：不实施 `agent-diva dry-run` 离线 Pre-flight、Workflow
+  Profile 秘钥隔离和 `ohmo` 个人 Agent 应用扩展；原综合事项关闭。仅保留
+  EventBus Trait Hook 管道，拆为下方独立延期项。
+- [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
+  来源于 OpenHarness 调研；保留为未来扩展点，但当前明确延期，不进入本轮实施。
 
 - [ ] **HARNESS-GAP-RESEARCH：Claude Code 对比后的 Agent Harness 演进与优化** `sev-P1`
   2026-08-05 完成 Claude Code 与 Agent-Diva 基础 Harness 能力全面调研 (文档见 `morediva/claude-code-vs-agent-diva-harness-research.md`)；确定 4 大演进方向：1) Prompt Cache 结构对齐与前缀保护 2) Plan Mode 物理限制状态机 3) TF-IDF 工具按需索引与延迟挂载 4) Subagent Git Worktree 隔离机制。
+  **排期决策（2026-08-10）**：作为当前下一项 SEV-P1 工作推进；实施前按四个方向
+  拆分可独立验收的切片与依赖顺序。
 
 - [ ] **GA-MEM-PARITY：GenericAgent 功能对齐 × Memory/Laputa/AutoDream 完全可用** `sev-P0`
   2026-08-05 完成只读盘点：相对 GenericAgent，Agent 侧记忆管理工具面基本缺失
@@ -373,6 +379,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   Wave 3 自动化证据覆盖了 `apply→FTS→startup` 一致性，但"agent 产生 proposal →
   用户在 GUI/CLI 审批中心批准 → apply → typed 更新"的联通验收归 GMH-52 /
   G2D+ 桌面验收一并执行（与 U7 旅程重合；依赖真机 GUI/Manager）。
+  **排期决策（2026-08-10）**：稍后处理，本轮不启动。
 - [ ] **F4：同会话热注入（apply 后同会话立即可见）** `sev-P2`
   Wave 3 只证"下次会话 prefetch/startup 可见"。apply 后同会话刷新
   startup_markdown 缓存或触发 re-prefetch 的机制未实现（typed_provider.rs:87
@@ -448,6 +455,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [x] **GMH-51：安全与数据恢复演练** `sev-P1`
 - [ ] **GMH-52：全量验收** `sev-P1`
   `just fmt-check` / `check` / `test`、deletion-proof、GUI、真实 smoke。
+  **排期决策（2026-08-10）**：稍后处理，本轮不启动。
 - [ ] **GMH-53：灰度与清理** `sev-P2`
 
 里程碑（更新后）：
@@ -588,6 +596,7 @@ standing policy（非功能债，执行相关验证时遵守）：
   gate restoration is verified with the GMH-30A batch.
 
 - [ ] **WINDOWS-RELEASE-EXEC-ACCESS: restore local release executable launch** `sev-P1`
+  **排期决策（2026-08-10）**：稍后处理，本轮不启动。
   The 2026-08-02 Tauri rebuild produced updated EXE/NSIS/MSI artifacts, but
   Windows rejected `Start-Process target/release/agent-diva-gui.exe` with OS
   error 5 (`Access denied`). Diagnose endpoint protection/file policy or the
@@ -651,6 +660,7 @@ standing policy（非功能债，执行相关验证时遵守）：
 ### Deferred Product
 
 - [ ] **CLARIFY-HITL：ask_user 对话询问闭环** `sev-P1`
+  **排期决策（2026-08-10）**：稍后处理，本轮不启动。
   2026-08-05 用户复现：期望 Agent 用「询问工具」做互动调研，Agent 正确声明无表单/
   问卷工具并退化为纯文本。根因是**能力缺失**而非模型偶发未调用：无 `clarify`/
   `ask_user` 类工具；`MessageTool` 未接入 `ToolAssembly`；system prompt 强制正常对话
