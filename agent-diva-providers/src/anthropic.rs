@@ -25,11 +25,20 @@ struct AnthropicRequest {
     temperature: f64,
     messages: Vec<AnthropicMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<String>,
+    system: Option<Vec<AnthropicSystemBlock>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<Vec<AnthropicTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct AnthropicSystemBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
+    text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -64,6 +73,8 @@ struct AnthropicTool {
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     input_schema: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -210,7 +221,17 @@ impl AnthropicClient {
             max_tokens,
             temperature,
             messages,
-            system,
+            system: system.map(|sections| {
+                sections
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, text)| AnthropicSystemBlock {
+                        block_type: "text",
+                        text,
+                        cache_control: (index == 0).then(|| json!({"type": "ephemeral"})),
+                    })
+                    .collect()
+            }),
             tools: convert_tools(tools)?,
             stream: stream.then_some(true),
         })
@@ -295,6 +316,10 @@ impl LLMProvider for AnthropicClient {
 
     fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
         crate::base::DynamicContextTransport::UserContextEnvelope
+    }
+
+    fn prompt_cache_profile(&self, _model: &str) -> crate::base::PromptCacheProfile {
+        crate::base::PromptCacheProfile::ephemeral(self.provider_name())
     }
 
     async fn chat(
@@ -510,7 +535,7 @@ impl LLMProvider for AnthropicClient {
 
 fn convert_messages(
     messages: Vec<Message>,
-) -> ProviderResult<(Option<String>, Vec<AnthropicMessage>)> {
+) -> ProviderResult<(Option<Vec<String>>, Vec<AnthropicMessage>)> {
     let mut system = Vec::new();
     let mut out: Vec<AnthropicMessage> = Vec::new();
     let mut pending_tool_uses = HashSet::new();
@@ -582,7 +607,7 @@ fn convert_messages(
     }
 
     Ok((
-        (!system.is_empty()).then(|| system.join("\n\n")),
+        (!system.is_empty()).then_some(system),
         out.into_iter()
             .filter(|message| !message.content.is_empty())
             .collect(),
@@ -634,9 +659,10 @@ fn convert_tools(tools: Option<Vec<Value>>) -> ProviderResult<Option<Vec<Anthrop
     let Some(tools) = tools else {
         return Ok(None);
     };
-    let converted = tools
+    let mut converted = tools
         .into_iter()
         .map(|tool| {
+            let cache_control = tool.get("cache_control").cloned();
             let function = tool.get("function").unwrap_or(&tool);
             let name = function
                 .get("name")
@@ -657,9 +683,15 @@ fn convert_tools(tools: Option<Vec<Value>>) -> ProviderResult<Option<Vec<Anthrop
                 name,
                 description,
                 input_schema,
+                cache_control,
             })
         })
         .collect::<ProviderResult<Vec<_>>>()?;
+    if !converted.iter().any(|tool| tool.cache_control.is_some()) {
+        if let Some(last_tool) = converted.last_mut() {
+            last_tool.cache_control = Some(json!({"type": "ephemeral"}));
+        }
+    }
     Ok((!converted.is_empty()).then_some(converted))
 }
 
@@ -681,6 +713,14 @@ fn usage_map(usage: Option<AnthropicUsage>) -> HashMap<String, i64> {
         ("prompt_tokens".to_string(), prompt),
         ("completion_tokens".to_string(), completion),
         ("total_tokens".to_string(), prompt + completion),
+        (
+            "cache_creation_input_tokens".to_string(),
+            usage.cache_creation_input_tokens,
+        ),
+        (
+            "cache_read_input_tokens".to_string(),
+            usage.cache_read_input_tokens,
+        ),
     ])
 }
 
@@ -728,8 +768,29 @@ mod tests {
             )
             .unwrap();
         assert_eq!(request.model, "claude-sonnet-4-5");
-        assert_eq!(request.system.as_deref(), Some("sys"));
+        let system = request.system.as_ref().unwrap();
+        assert_eq!(system[0].text, "sys");
+        assert_eq!(
+            system[0].cache_control.as_ref().unwrap()["type"],
+            "ephemeral"
+        );
         assert_eq!(request.messages[0].role, "user");
+    }
+
+    #[test]
+    fn c1d_t8_preserves_explicit_core_tool_anchor() {
+        let tools = vec![
+            json!({"type":"function","function":{"name":"core_a","parameters":{"type":"object"}}}),
+            json!({"type":"function","function":{"name":"core_b","parameters":{"type":"object"}},"cache_control":{"type":"ephemeral"}}),
+            json!({"type":"function","function":{"name":"mcp_a","parameters":{"type":"object"}}}),
+        ];
+        let converted = convert_tools(Some(tools)).unwrap().unwrap();
+        assert!(converted[0].cache_control.is_none());
+        assert_eq!(
+            converted[1].cache_control.as_ref().unwrap()["type"],
+            "ephemeral"
+        );
+        assert!(converted[2].cache_control.is_none());
     }
 
     #[test]
@@ -743,7 +804,7 @@ mod tests {
         ];
 
         let (system, converted) = convert_messages(messages).unwrap();
-        assert_eq!(system.as_deref(), Some("stable"));
+        assert_eq!(system.as_deref(), Some(["stable".to_string()].as_slice()));
         assert_eq!(converted.len(), 3);
         assert_eq!(converted[1].role, "assistant");
         assert_eq!(converted[2].role, "user");
@@ -756,6 +817,32 @@ mod tests {
             &converted[2].content[1],
             AnthropicContentBlock::Text { text } if text == "current-user"
         ));
+    }
+
+    #[test]
+    fn c1d_t8_marks_only_first_anthropic_system_block() {
+        let client = AnthropicClient::new(None, None, "claude-sonnet-4-5".to_string(), None, None);
+        let request = client
+            .build_request(
+                vec![
+                    Message::system("stable"),
+                    Message::system("volatile compaction"),
+                    Message::user("current"),
+                ],
+                None,
+                "claude-sonnet-4-5".to_string(),
+                100,
+                0.7,
+                false,
+            )
+            .unwrap();
+        let system = request.system.unwrap();
+        assert_eq!(system.len(), 2);
+        assert_eq!(
+            system[0].cache_control.as_ref().unwrap()["type"],
+            "ephemeral"
+        );
+        assert!(system[1].cache_control.is_none());
     }
 
     #[test]
@@ -847,6 +934,8 @@ mod tests {
         assert_eq!(parsed.tool_calls[0].arguments["query"], "rust");
         assert_eq!(parsed.usage["prompt_tokens"], 15);
         assert_eq!(parsed.usage["total_tokens"], 20);
+        assert_eq!(parsed.usage["cache_creation_input_tokens"], 2);
+        assert_eq!(parsed.usage["cache_read_input_tokens"], 3);
     }
 
     #[test]

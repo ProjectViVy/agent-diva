@@ -1,6 +1,6 @@
 # Claude Code 导向：Prompt Cache 上下文管理对齐规格
 
-- **状态**：实施规格冻结；C1a/P0-1、C1b/P0-3、C1c/P0-2 已实现，C1d 待实施
+- **状态**：C1a–C1d 已实现；P0-1..5 与 T1–T8 完成
 - **日期**：2026-08-10
 - **主样本**：`.workspace/claude-code`（唯一深读对象）
 - **目标**：提高 Agent-Diva **Prompt Cache 命中率**；降低重复前缀计费与延迟
@@ -304,6 +304,11 @@ CORE，MCP/custom 注册路径显式进入 DEFERRED；`get_definitions()` 固定
 
 ### P0-4 Cache break 观测
 
+**实现状态（2026-08-11）：已完成。** AgentLoop 真实 provider call 已接入 SHA-256
+system/tools/per-tool hash、强类型 break reason、provider/model/policy/TTL 分桶和
+cache read/create 后验样本；结构变化、策略变化、显式删除与连续 miss 分类遵守
+DEC-CTX-G。窗口驻留进程内，不持久化 prompt/schema 正文。
+
 新建（建议）：
 
 `agent-diva-agent/src/context_assembly/cache_observe.rs`
@@ -330,6 +335,11 @@ fn note_post_call(usage: &TokenUsageMap)
 **验收**：单元测试 hash 差分；集成测 usage 字段透传（T7）
 
 ### P0-5 与 `apply_cache_control` 契约对齐
+
+**实现状态（2026-08-11）：已完成。** 采用 CORE 段末方案：`ToolDefinitionSet` 在过滤后
+保留 CORE 边界，启用缓存时只标记 CORE 末项；第一条 stable system 的末文本块是唯一
+system 锚点。OpenAI-compatible 与原生 Anthropic wire 均遵守该布局，普通 tools Vec
+兼容地视为全 CORE，禁用 provider 不注入 control。T7–T8 与 JSONL ledger 兼容测试已落地。
 
 **决策（冻结）**
 

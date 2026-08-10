@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-10T23:44:12+08:00`
+- Last Heartbeat: `2026-08-11T02:14:55+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -28,6 +28,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-11T02:14:55+08:00`: Released after C1d prompt-cache observability
+  closure. Provider cache profiles, explicit stable-system/core-tool anchors,
+  classified prefix hashes, warmup-aware two-sample miss detection, and
+  cache-token ledger persistence are implemented. Affected tests, strict
+  Clippy, full workspace fmt/check/test, and CLI help smoke passed. `just ci`
+  reaches only the pre-existing clean-break violation at
+  `agent-diva-laputa/src/bml/mod.rs:3`; C2 is next.
 
 - `2026-08-10T23:44:12+08:00`: Released after C1c/P0-2 SessionStable section
   cache. ContextBuilder now caches four stable sections and rendered prefix per

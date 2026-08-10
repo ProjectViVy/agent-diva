@@ -23,6 +23,12 @@ pub struct TokenLedgerEntry {
     pub output_tokens: u32,
     /// Total tokens for this entry (input + output)
     pub total_tokens: u32,
+    /// Prompt tokens written into a provider prompt cache, when reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<u32>,
+    /// Prompt tokens served from a provider prompt cache, when reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<u32>,
     /// Estimated cost in USD (optional — depends on pricing data availability)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_estimate: Option<f64>,
@@ -43,6 +49,8 @@ impl TokenLedgerEntry {
             input_tokens,
             output_tokens,
             total_tokens: input_tokens + output_tokens,
+            cache_creation_input_tokens: None,
+            cache_read_input_tokens: None,
             cost_estimate: None,
         }
     }
@@ -63,8 +71,21 @@ impl TokenLedgerEntry {
             input_tokens: usage.prompt_tokens,
             output_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
+            cache_creation_input_tokens: None,
+            cache_read_input_tokens: None,
             cost_estimate: None,
         }
+    }
+
+    /// Attach provider-reported prompt-cache usage without changing billing totals.
+    pub fn with_cache_usage(
+        mut self,
+        cache_creation_input_tokens: Option<u32>,
+        cache_read_input_tokens: Option<u32>,
+    ) -> Self {
+        self.cache_creation_input_tokens = cache_creation_input_tokens;
+        self.cache_read_input_tokens = cache_read_input_tokens;
+        self
     }
 
     /// Attach a cost estimate to this entry.
@@ -223,6 +244,21 @@ mod tests {
         assert_eq!(entry.input_tokens, 80);
         assert_eq!(entry.output_tokens, 40);
         assert_eq!(entry.total_tokens, 150);
+    }
+
+    #[test]
+    fn cache_usage_roundtrips_and_legacy_entries_default_to_none() {
+        let entry = TokenLedgerEntry::new("sess-1", "claude-sonnet-4-5", 100, 5)
+            .with_cache_usage(Some(20), Some(80));
+        let encoded = serde_json::to_string(&entry).unwrap();
+        let decoded: TokenLedgerEntry = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded.cache_creation_input_tokens, Some(20));
+        assert_eq!(decoded.cache_read_input_tokens, Some(80));
+
+        let legacy = r#"{"timestamp":"2026-08-11T00:00:00Z","session_id":"s","model":"m","input_tokens":1,"output_tokens":2,"total_tokens":3}"#;
+        let decoded: TokenLedgerEntry = serde_json::from_str(legacy).unwrap();
+        assert_eq!(decoded.cache_creation_input_tokens, None);
+        assert_eq!(decoded.cache_read_input_tokens, None);
     }
 
     #[test]

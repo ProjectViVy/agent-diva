@@ -25,6 +25,43 @@ pub enum ToolSchemaPartition {
     Deferred,
 }
 
+/// Canonical provider-facing tool schemas plus the stable CORE prefix length.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolDefinitionSet {
+    pub definitions: Vec<Value>,
+    pub core_count: usize,
+}
+
+impl ToolDefinitionSet {
+    /// Retain matching schemas while preserving the CORE/DEFERRED boundary.
+    pub fn retain(&mut self, mut predicate: impl FnMut(&Value) -> bool) {
+        let mut retained_core = 0usize;
+        self.definitions = std::mem::take(&mut self.definitions)
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, definition)| {
+                predicate(&definition).then(|| {
+                    if index < self.core_count {
+                        retained_core += 1;
+                    }
+                    definition
+                })
+            })
+            .collect();
+        self.core_count = retained_core;
+    }
+
+    /// Apply a schema transform without changing partition membership.
+    pub fn map(mut self, mut transform: impl FnMut(Value) -> Value) -> Self {
+        self.definitions = self.definitions.into_iter().map(&mut transform).collect();
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.definitions.is_empty()
+    }
+}
+
 struct RegisteredTool {
     tool: Arc<dyn Tool>,
     schema_partition: ToolSchemaPartition,
@@ -107,6 +144,11 @@ impl ToolRegistry {
 
     /// Get all tool definitions in OpenAI format.
     pub fn get_definitions(&self) -> Vec<Value> {
+        self.get_definition_set().definitions
+    }
+
+    /// Get canonical tool definitions with the stable CORE prefix boundary.
+    pub fn get_definition_set(&self) -> ToolDefinitionSet {
         let mut tools = self.tools.iter().collect::<Vec<_>>();
         tools.sort_by(|(left_name, left), (right_name, right)| {
             left.schema_partition
@@ -114,10 +156,18 @@ impl ToolRegistry {
                 .then_with(|| left_name.cmp(right_name))
         });
 
-        tools
+        let core_count = tools
+            .iter()
+            .take_while(|(_, registered)| registered.schema_partition == ToolSchemaPartition::Core)
+            .count();
+        let definitions = tools
             .into_iter()
             .map(|(_, registered)| canonicalize_json(registered.tool.to_schema()))
-            .collect()
+            .collect();
+        ToolDefinitionSet {
+            definitions,
+            core_count,
+        }
     }
 
     /// Execute a tool by name with given parameters.
@@ -434,6 +484,7 @@ mod tests {
         let mut first = ToolRegistry::new();
         register_fixture(&mut first, false);
         let first_definitions = first.get_definitions();
+        assert_eq!(first.get_definition_set().core_count, 2);
         let first_names = first_definitions
             .iter()
             .filter_map(|definition| definition["function"]["name"].as_str())
@@ -456,6 +507,30 @@ mod tests {
             first_bytes,
             serde_json::to_vec(&second.get_definitions()).unwrap()
         );
+    }
+
+    #[test]
+    fn retained_definition_set_recomputes_core_boundary() {
+        let mut registry = ToolRegistry::new();
+        registry.register_in_partition(
+            Arc::new(NamedSchemaTool { name: "alpha" }),
+            ToolSchemaPartition::Core,
+        );
+        registry.register_in_partition(
+            Arc::new(NamedSchemaTool { name: "beta" }),
+            ToolSchemaPartition::Core,
+        );
+        registry.register_in_partition(
+            Arc::new(NamedSchemaTool { name: "gamma" }),
+            ToolSchemaPartition::Deferred,
+        );
+
+        let mut set = registry.get_definition_set();
+        set.retain(|definition| definition["function"]["name"] != "alpha");
+        assert_eq!(set.core_count, 1);
+        assert_eq!(set.definitions.len(), 2);
+        assert_eq!(set.definitions[0]["function"]["name"], "beta");
+        assert_eq!(set.definitions[1]["function"]["name"], "gamma");
     }
 
     #[test]

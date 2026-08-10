@@ -659,6 +659,52 @@ impl Message {
     }
 }
 
+/// Provider-visible prompt-cache policy for request shaping and observability.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PromptCacheProfile {
+    pub provider: String,
+    pub policy: PromptCachePolicy,
+    /// Provider-default TTL is represented explicitly rather than guessed.
+    pub ttl: String,
+}
+
+impl PromptCacheProfile {
+    pub fn disabled(provider: impl Into<String>) -> Self {
+        Self {
+            provider: provider.into(),
+            policy: PromptCachePolicy::Disabled,
+            ttl: "disabled".to_string(),
+        }
+    }
+
+    pub fn ephemeral(provider: impl Into<String>) -> Self {
+        Self {
+            provider: provider.into(),
+            policy: PromptCachePolicy::Ephemeral,
+            ttl: "provider_default".to_string(),
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.policy == PromptCachePolicy::Ephemeral
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PromptCachePolicy {
+    Disabled,
+    Ephemeral,
+}
+
+impl PromptCachePolicy {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Disabled => "disabled",
+            Self::Ephemeral => "ephemeral",
+        }
+    }
+}
+
 /// Trait for LLM providers
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
@@ -708,6 +754,14 @@ pub trait LLMProvider: Send + Sync {
     /// Unknown and test providers inherit the safe user-envelope default.
     fn dynamic_context_transport(&self) -> DynamicContextTransport {
         DynamicContextTransport::UserContextEnvelope
+    }
+
+    /// Describe the explicit prompt-cache policy for one outbound model.
+    ///
+    /// Unknown providers default to disabled so cache-control extensions are
+    /// never sent to endpoints that have not declared support.
+    fn prompt_cache_profile(&self, _model: &str) -> PromptCacheProfile {
+        PromptCacheProfile::disabled("unknown")
     }
 
     /// Attach a listener invoked before each internal retry attempt.

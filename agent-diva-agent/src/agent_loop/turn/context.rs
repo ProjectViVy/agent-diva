@@ -14,6 +14,7 @@ use crate::compaction::ContextCompactor;
 use crate::context::ContextBuilder;
 use crate::context_assembly::{
     serialize_dynamic_sections, ContextAssemblyError, ContextSection, PromptSection,
+    StablePrefixSnapshot,
 };
 use crate::context_budget::check_budget;
 use crate::mask::MaskFile;
@@ -38,6 +39,7 @@ pub(crate) struct RuntimeTurnContext {
     pub messages: Vec<Message>,
     pub turn_messages_start: usize,
     pub dynamic_sections: Vec<PromptSection>,
+    pub stable_prefix: StablePrefixSnapshot,
 }
 
 impl PreparedTurnContext {
@@ -417,12 +419,14 @@ impl AgentLoop {
             ));
         }
 
+        let stable_prefix = self
+            .context
+            .stable_prefix_snapshot_for_session(active_mask, session_key);
         let prepared = PreparedTurnContext::prepare(
-            self.context.build_prefix_messages_for_session(
+            self.context.build_prefix_messages_from_snapshot(
                 history,
                 &compaction_history,
-                session_key,
-                active_mask,
+                &stable_prefix,
             ),
             &dynamic_sections,
             self.provider.dynamic_context_transport(),
@@ -435,6 +439,7 @@ impl AgentLoop {
             messages: prepared.messages,
             turn_messages_start: prepared.turn_messages_start,
             dynamic_sections,
+            stable_prefix,
         })
     }
 }

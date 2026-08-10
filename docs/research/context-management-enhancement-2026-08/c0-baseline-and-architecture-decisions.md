@@ -621,6 +621,10 @@ C3 写入任何原始工具输出前必须同时满足：
 
 #### DEC-CTX-G：缓存观测与告警分类
 
+**C1d 实现状态（2026-08-11）：** SHA-256 system/tools/per-tool hash、provider cache
+profile、版本化 break reason、cache read/create usage 与连续 miss 状态机已接 AgentLoop
+provider 调用；cache-control 锚点固定为第一条 stable system 与 CORE 工具段末。
+
 每次 eligible provider call 至少记录：`system_hash`、`tools_hash`、逐工具 hash（debug）、
 declared break reasons、provider、model、cache policy/TTL、cache read/create tokens、stable
 prefix token estimate，以及最近窗口的命中趋势。

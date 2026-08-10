@@ -56,6 +56,7 @@ impl AgentLoop {
                 if result.is_ok() {
                     agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
                     self.context.end_session_cache(&session_key);
+                    self.cache_observer.clear_session(&session_key);
                     if let Some(planning) = self.tool_config.planning.as_ref() {
                         planning.registry.discard_session(&session_key).await;
                     }

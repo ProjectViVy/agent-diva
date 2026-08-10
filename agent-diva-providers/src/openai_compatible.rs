@@ -93,6 +93,10 @@ struct Usage {
     completion_tokens: i64,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     total_tokens: i64,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<i64>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -233,6 +237,12 @@ impl OpenAiCompatibleClient {
         usage_map.insert("prompt_tokens".to_string(), usage.prompt_tokens);
         usage_map.insert("completion_tokens".to_string(), usage.completion_tokens);
         usage_map.insert("total_tokens".to_string(), usage.total_tokens);
+        if let Some(tokens) = usage.cache_creation_input_tokens {
+            usage_map.insert("cache_creation_input_tokens".to_string(), tokens);
+        }
+        if let Some(tokens) = usage.cache_read_input_tokens {
+            usage_map.insert("cache_read_input_tokens".to_string(), tokens);
+        }
         usage_map
     }
 
@@ -364,40 +374,46 @@ impl OpenAiCompatibleClient {
 
     /// Apply cache_control annotations to a serialized request body.
     /// - Converts system message `content` string to structured blocks with cache_control.
-    /// - Adds cache_control to text parts when system message content is already structured.
-    /// - Adds cache_control to the last tool definition.
+    /// - Marks only the first (stable-prefix) system message.
+    /// - Preserves an explicit CORE tool anchor, falling back to the last tool
+    ///   when legacy callers provide no partition-aware marker.
     fn apply_cache_control(body: &mut serde_json::Value) {
-        // Transform system message content
+        // Transform only the first stable-prefix system message. Later system
+        // messages are volatile/history boundaries and must not become anchors.
         if let Some(messages) = body.get_mut("messages").and_then(|m| m.as_array_mut()) {
-            for msg in messages.iter_mut() {
-                if msg.get("role").and_then(|r| r.as_str()) == Some("system") {
-                    if let Some(text) = msg
-                        .get("content")
-                        .and_then(|c| c.as_str())
-                        .map(|s| s.to_string())
+            if let Some(msg) = messages
+                .iter_mut()
+                .find(|msg| msg.get("role").and_then(|r| r.as_str()) == Some("system"))
+            {
+                if let Some(text) = msg
+                    .get("content")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string())
+                {
+                    msg["content"] = serde_json::json!([{
+                        "type": "text",
+                        "text": text,
+                        "cache_control": {"type": "ephemeral"}
+                    }]);
+                } else if let Some(parts) = msg.get_mut("content").and_then(|c| c.as_array_mut()) {
+                    if let Some(part) = parts
+                        .iter_mut()
+                        .rev()
+                        .find(|part| part.get("type").and_then(|t| t.as_str()) == Some("text"))
                     {
-                        msg["content"] = serde_json::json!([{
-                            "type": "text",
-                            "text": text,
-                            "cache_control": {"type": "ephemeral"}
-                        }]);
-                    } else if let Some(parts) =
-                        msg.get_mut("content").and_then(|c| c.as_array_mut())
-                    {
-                        for part in parts {
-                            let is_text = part.get("type").and_then(|t| t.as_str()) == Some("text");
-                            if is_text && part.get("cache_control").is_none() {
-                                part["cache_control"] = serde_json::json!({"type": "ephemeral"});
-                            }
-                        }
+                        part["cache_control"] = serde_json::json!({"type": "ephemeral"});
                     }
                 }
             }
         }
 
-        // Add cache_control to last tool definition
+        // Partition-aware callers pre-mark the CORE endpoint. Treat a plain
+        // tools vector as all-CORE for backwards compatibility.
         if let Some(tools) = body.get_mut("tools").and_then(|t| t.as_array_mut()) {
-            if let Some(last_tool) = tools.last_mut() {
+            if !tools.iter().any(|tool| tool.get("cache_control").is_some()) {
+                let Some(last_tool) = tools.last_mut() else {
+                    return;
+                };
                 last_tool["cache_control"] = serde_json::json!({"type": "ephemeral"});
             }
         }
@@ -780,6 +796,14 @@ impl LLMProvider for OpenAiCompatibleClient {
         // role after history. Stay conservative until a concrete adapter has
         // a wire-shape characterization proving support.
         crate::base::DynamicContextTransport::UserContextEnvelope
+    }
+
+    fn prompt_cache_profile(&self, model: &str) -> crate::base::PromptCacheProfile {
+        if self.supports_cache_control(model) {
+            crate::base::PromptCacheProfile::ephemeral(self.fallback_provider_name())
+        } else {
+            crate::base::PromptCacheProfile::disabled(self.fallback_provider_name())
+        }
     }
 
     async fn chat(
@@ -1584,6 +1608,32 @@ mod tests {
     }
 
     #[test]
+    fn c1d_t8_marks_only_stable_system_and_explicit_core_tool_anchor() {
+        let mut body = serde_json::json!({
+            "messages": [
+                {"role": "system", "content": "stable"},
+                {"role": "system", "content": "volatile boundary"},
+                {"role": "user", "content": "hello"}
+            ],
+            "tools": [
+                {"type": "function", "function": {"name": "core_a"}},
+                {"type": "function", "function": {"name": "core_b"}, "cache_control": {"type": "ephemeral"}},
+                {"type": "function", "function": {"name": "mcp_a"}}
+            ]
+        });
+        OpenAiCompatibleClient::apply_cache_control(&mut body);
+
+        assert_eq!(
+            body["messages"][0]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert!(body["messages"][1]["content"].is_string());
+        assert!(body["tools"][0].get("cache_control").is_none());
+        assert_eq!(body["tools"][1]["cache_control"]["type"], "ephemeral");
+        assert!(body["tools"][2].get("cache_control").is_none());
+    }
+
+    #[test]
     fn test_normalize_assistant_tool_call_content_empty_to_null() {
         let mut body = serde_json::json!({
             "messages": [
@@ -1866,6 +1916,8 @@ mod tests {
                 prompt_tokens: 10,
                 completion_tokens: 5,
                 total_tokens: 15,
+                cache_creation_input_tokens: None,
+                cache_read_input_tokens: None,
             }),
         };
         let result = client

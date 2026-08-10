@@ -203,6 +203,10 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
     fn dynamic_context_transport(&self) -> DynamicContextTransport {
         self.inner.dynamic_context_transport()
     }
+
+    fn prompt_cache_profile(&self, model: &str) -> crate::base::PromptCacheProfile {
+        self.inner.prompt_cache_profile(model)
+    }
 }
 
 /// Wrapper stream that counts tokens and emits an audit event on completion.

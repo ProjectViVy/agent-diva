@@ -37,11 +37,13 @@ Prompt Cache 专章 §4.4、§5：
 7. Cache 观测必须记录 provider/model/policy 与连续趋势；预期 break、策略变化和
    无结构变化的异常 miss 分级处理，禁止仅凭一次 `cache_read` 下降告警。
 
-**当前进度：** C1-0、C1a/P0-1、C1b/P0-3 与 C1c/P0-2 均已完成。stable system
+**当前进度：** C1-0、C1a/P0-1、C1b/P0-3、C1c/P0-2 与 C1d/P0-4..5 均已完成，
+CTX-C1 已收口。stable system
 已移除 Current Time/session/WM/Recall/Plan 等动态内容；工具定义固定为 CORE
 字典序连续前缀 + MCP/custom DEFERRED 字典序后缀；四个稳定 section 现在按 session
-快照缓存，mask/L1 只刷新目标 section，并携带版本化 break reason。下一实施切片为
-C1d/P0-4 分类观测 + P0-5 cache-control 布局与 T7–T8。
+快照缓存，mask/L1 只刷新目标 section，并携带版本化 break reason；生产请求记录
+system/tools/per-tool hash 与 cache usage，cache-control 只锚定第一条 stable system 和
+CORE 工具段末。下一 Context 主线切片为 C2 类型化预算与 AssemblyReport。
 
 C1c 采用聚焦边界：同一 AgentLoop/provider 实例内的 memory 写入通过 startup revision
 触发 L1 热刷新；Manager 外部治理 apply、Skills 管理入口到 runtime invalidation 的通知

@@ -43,7 +43,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         C4 按需工具/Recall → C5 验收。对照样本：Codex / Claude Code+OpenHarness /
         GenericAgent；Diva 落点 `prepare_runtime_context` / BML / ToolAssembly。
         **本切片仅文档，无代码。**
-  - [ ] **CTX-C1：稳定前缀与 Prompt Cache 对齐**（主规格：
+  - [x] **CTX-C1：稳定前缀与 Prompt Cache 对齐**（主规格：
         [`docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md`](docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md)）
         以 Claude Code 为唯一深读样本；provider 已有 `apply_cache_control`，修装配层 bust。
     - [x] **C1 规格文档**（2026-08-10）：CC 机制 + Diva B1–B9 + P0/T1–T8
@@ -87,14 +87,20 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           一致性；现有 schema 均为静态值，未引入可选 session schema cache。未修改
           `apply_cache_control`。日志：
           `docs/logs/2026-08-context-management-enhancement/v0.0.4-c1b-tool-schema-stability/`。
-    - [ ] **P0-4**：system/tools hash + cache_read 观测
-    - [ ] **P0-5**：`apply_cache_control` 与「仅 stable system」布局契约
-    - [ ] 测试 T1–T8 落地
+    - [x] **P0-4 / C1d**（2026-08-11）：SHA-256 system/tools/per-tool hash、
+          provider/model/policy/TTL 分桶与 cache read/create 趋势已接真实 provider call；
+          expected/policy/undeclared/miss 分类按 DEC-CTX-G 落地，连续两次显著 miss 才告警。
+    - [x] **P0-5 / C1d**（2026-08-11）：cache-control 仅锚定第一条 stable system
+          与 CORE 工具段末；OpenAI-compatible 和原生 Anthropic wire 均覆盖，禁用 provider
+          不注入。缓存 usage 透传 LLMResponse 与向后兼容 JSONL ledger。日志：
+          `docs/logs/2026-08-context-management-enhancement/v0.0.6-c1d-cache-observability/`。
+    - [x] 测试 T1–T8 落地
       - [x] **T1–T3**：clock / WM / Recall 变化不改变 stable prefix
       - [x] **T4**：同工具集 schema 完整序列化字节一致；CORE/DEFERRED 分区内字典序
       - [x] **T5–T6**：mask 仅刷新 mask section；同运行时 L1 revision 仅刷新 memory
             section，均递增一次 prefix version 并携带声明原因
-      - [ ] **T7–T8**：随 C1d 分类观测与 cache-control 布局落地
+      - [x] **T7–T8**：Anthropic cache read/create 透传 observer/ledger；多 system
+            仅 stable 首块、混合工具仅 CORE 段末携带 cache-control
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
         C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处

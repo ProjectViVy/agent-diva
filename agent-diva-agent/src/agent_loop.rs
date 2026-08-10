@@ -125,6 +125,7 @@ pub struct AgentLoop {
     /// Current thinking mode (auto/on/off), modifiable at runtime via SetThinking.
     thinking_mode: ThinkingMode,
     active_tool_surface: ActiveToolSurface,
+    cache_observer: crate::context_assembly::CacheObserveState,
 }
 
 pub struct AgentLoopToolSet {
@@ -461,6 +462,7 @@ impl AgentLoop {
             custom_tools: Vec::new(),
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
+            cache_observer: crate::context_assembly::CacheObserveState::default(),
         })
     }
 
@@ -611,6 +613,7 @@ impl AgentLoop {
             custom_tools,
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
+            cache_observer: crate::context_assembly::CacheObserveState::default(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -691,6 +694,7 @@ impl AgentLoop {
             custom_tools: Vec::new(),
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
+            cache_observer: crate::context_assembly::CacheObserveState::default(),
         })
     }
 
@@ -784,6 +788,7 @@ impl AgentLoop {
         }
 
         self.context.clear_session_caches();
+        self.cache_observer.clear();
 
         Ok(())
     }

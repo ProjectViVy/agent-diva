@@ -20,6 +20,7 @@ use agent_diva_core::session::{ChatMessage, Session, TokenUsage};
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
 use agent_diva_providers::{ImageUrl, Message, MessageContent, MessageContentPart, ProviderError};
+use agent_diva_tooling::ToolDefinitionSet;
 use anyhow;
 use base64::Engine;
 use std::collections::HashMap;
@@ -30,17 +31,15 @@ use tracing::{debug, error, info, trace, warn};
 /// Max size for text attachments to inline (100KB)
 const MAX_INLINE_ATTACHMENT_SIZE: u64 = 100 * 1024;
 
-fn read_only_tool_definitions(definitions: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+fn read_only_tool_definitions(mut definitions: ToolDefinitionSet) -> ToolDefinitionSet {
+    definitions.retain(|definition| {
+        definition
+            .get("function")
+            .and_then(|function| function.get("name"))
+            .and_then(|name| name.as_str())
+            .is_some_and(crate::mask::ToolPolicy::is_read_only_tool)
+    });
     definitions
-        .into_iter()
-        .filter(|definition| {
-            definition
-                .get("function")
-                .and_then(|function| function.get("name"))
-                .and_then(|name| name.as_str())
-                .is_some_and(crate::mask::ToolPolicy::is_read_only_tool)
-        })
-        .collect()
 }
 
 #[derive(Debug, Default, Clone)]
@@ -287,13 +286,23 @@ impl AgentLoop {
         session_key: &str,
         model: &str,
         usage: &TokenUsage,
+        provider_usage: &HashMap<String, i64>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if usage.total_tokens == 0 {
             return Ok(());
         }
 
         let ledger = JsonlTokenLedger::new(&self.token_ledger_data_root)?;
-        ledger.append(TokenLedgerEntry::from_usage(session_key, model, usage))?;
+        let cache_creation = provider_usage
+            .get("cache_creation_input_tokens")
+            .map(|value| (*value).max(0) as u32);
+        let cache_read = provider_usage
+            .get("cache_read_input_tokens")
+            .map(|value| (*value).max(0) as u32);
+        ledger.append(
+            TokenLedgerEntry::from_usage(session_key, model, usage)
+                .with_cache_usage(cache_creation, cache_read),
+        )?;
         Ok(())
     }
 
@@ -341,6 +350,7 @@ impl AgentLoop {
         let current_turn_message = runtime_context.current_turn_message;
         let mut turn_messages_start = runtime_context.turn_messages_start;
         let dynamic_sections = runtime_context.dynamic_sections;
+        let stable_prefix = runtime_context.stable_prefix;
         let mut messages = runtime_context.messages;
 
         // Agent loop
@@ -390,7 +400,7 @@ impl AgentLoop {
             // For cron-triggered turns, keep normal tools available but hide cron tool
             // to prevent recursive schedule creation loops.
             // Summary-only pass: no tools (Codex-style final text after tool work).
-            let tool_defs: Vec<serde_json::Value> = if summary_only_pass {
+            let tool_defs: ToolDefinitionSet = if summary_only_pass {
                 if iteration_budget.take_summary_nudge() {
                     if let Some(nudge) = serialize_dynamic_sections(
                         &[PromptSection::new(
@@ -402,24 +412,25 @@ impl AgentLoop {
                         messages.push(nudge);
                     }
                 }
-                Vec::new()
+                ToolDefinitionSet {
+                    definitions: Vec::new(),
+                    core_count: 0,
+                }
             } else if read_only {
-                read_only_tool_definitions(self.tools.get_definitions())
+                read_only_tool_definitions(self.tools.get_definition_set())
             } else if msg.channel == "cron" || is_cron_trigger {
-                self.tools
-                    .get_definitions()
-                    .into_iter()
-                    .filter(|def| {
-                        def.get("function")
-                            .and_then(|f| f.get("name"))
-                            .and_then(|n| n.as_str())
-                            != Some("cron")
-                    })
-                    .collect()
+                let mut definitions = self.tools.get_definition_set();
+                definitions.retain(|def| {
+                    def.get("function")
+                        .and_then(|f| f.get("name"))
+                        .and_then(|n| n.as_str())
+                        != Some("cron")
+                });
+                definitions
             } else {
-                self.tools.get_definitions()
+                self.tools.get_definition_set()
             };
-            let stream = self
+            let (stream, cache_ticket) = self
                 .start_model_stream(
                     &mut messages,
                     &tool_defs,
@@ -430,15 +441,26 @@ impl AgentLoop {
                     &dynamic_sections,
                     &current_turn_message,
                     &mut turn_messages_start,
+                    &stable_prefix,
                 )
                 .await?;
-            let Some(model_step) = self
+            let model_step = match self
                 .collect_model_stream(stream, &session_key, &msg, event_tx)
-                .await?
-            else {
-                return Ok(None);
+                .await
+            {
+                Ok(Some(step)) => step,
+                Ok(None) => {
+                    self.cache_observer.abandon_call(cache_ticket);
+                    return Ok(None);
+                }
+                Err(error) => {
+                    self.cache_observer.abandon_call(cache_ticket);
+                    return Err(error);
+                }
             };
             let response = model_step.response;
+            self.cache_observer
+                .note_post_call(cache_ticket, &response.usage);
             let protocol_leak_detected = model_step.protocol_leak_detected;
 
             // Emit TokenUsed if usage data is available
@@ -459,9 +481,12 @@ impl AgentLoop {
 
             // Accumulate token usage for this turn
             let iter_usage = extract_token_usage(&response.usage);
-            if let Err(e) =
-                self.append_session_token_usage(&session_key, &model_to_use, &iter_usage)
-            {
+            if let Err(e) = self.append_session_token_usage(
+                &session_key,
+                &model_to_use,
+                &iter_usage,
+                &response.usage,
+            ) {
                 warn!("Failed to append token ledger entry: {}", e);
             }
             turn_token_usage = Some(match turn_token_usage {
@@ -1035,10 +1060,14 @@ mod tests {
         let definitions = names
             .into_iter()
             .map(|name| serde_json::json!({"function": {"name": name}}))
-            .collect();
+            .collect::<Vec<_>>();
 
-        let filtered = read_only_tool_definitions(definitions);
+        let filtered = read_only_tool_definitions(ToolDefinitionSet {
+            core_count: definitions.len(),
+            definitions,
+        });
         let actual = filtered
+            .definitions
             .iter()
             .filter_map(|definition| definition["function"]["name"].as_str())
             .collect::<Vec<_>>();

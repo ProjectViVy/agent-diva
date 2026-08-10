@@ -5,7 +5,6 @@ use agent_diva_providers::{
     LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
 };
 use futures::StreamExt;
-use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -15,7 +14,11 @@ use super::super::loop_turn::is_context_overflow_error;
 use super::super::AgentLoop;
 use super::context::PreparedTurnContext;
 use crate::compaction::ContextCompactor;
-use crate::context_assembly::PromptSection;
+use crate::context_assembly::{
+    apply_core_tool_cache_anchor, CacheObservationTicket, CacheObserveInput, PromptSection,
+    StablePrefixSnapshot,
+};
+use agent_diva_tooling::ToolDefinitionSet;
 
 const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
     "<｜DSML｜tool_calls>",
@@ -87,7 +90,7 @@ impl AgentLoop {
     pub(crate) async fn start_model_stream(
         &mut self,
         messages: &mut Vec<Message>,
-        tool_definitions: &[Value],
+        tool_definitions: &ToolDefinitionSet,
         summary_only: bool,
         session_key: &str,
         model: &str,
@@ -95,11 +98,25 @@ impl AgentLoop {
         dynamic_sections: &[PromptSection],
         current_turn_message: &Message,
         turn_messages_start: &mut usize,
-    ) -> Result<ProviderEventStream, Box<dyn std::error::Error>> {
+        stable_prefix: &StablePrefixSnapshot,
+    ) -> Result<(ProviderEventStream, CacheObservationTicket), Box<dyn std::error::Error>> {
         let mut reactive_retry_attempted = false;
         loop {
             self.enforce_session_token_budget(session_key)?;
-            let tools = (!tool_definitions.is_empty()).then(|| tool_definitions.to_vec());
+            let profile = self.provider.prompt_cache_profile(model);
+            let (cache_ticket, _) = self.cache_observer.note_pre_call(CacheObserveInput {
+                session_id: session_key,
+                model,
+                profile: &profile,
+                stable_prefix: &stable_prefix.rendered,
+                prefix_version: stable_prefix.prefix_version,
+                break_reasons: &stable_prefix.cache_break_reasons(),
+                tools: tool_definitions,
+                expected_deletion: false,
+            });
+            let mut cacheable_tools = tool_definitions.clone();
+            apply_core_tool_cache_anchor(&mut cacheable_tools, &profile);
+            let tools = (!cacheable_tools.is_empty()).then_some(cacheable_tools.definitions);
             crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
             let stream_result = {
                 let bus = self.bus.clone();
@@ -140,8 +157,9 @@ impl AgentLoop {
                 result
             };
             match stream_result {
-                Ok(stream) => return Ok(stream),
+                Ok(stream) => return Ok((stream, cache_ticket)),
                 Err(error) if !reactive_retry_attempted && is_context_overflow_error(&error) => {
+                    self.cache_observer.abandon_call(cache_ticket);
                     warn!(
                         "Context overflow detected from provider: {}. Triggering reactive compaction...",
                         error
@@ -202,7 +220,10 @@ impl AgentLoop {
                     *messages = prepared.messages;
                     info!("Reactive compaction complete, retrying provider call...");
                 }
-                Err(error) => return Err(error.into()),
+                Err(error) => {
+                    self.cache_observer.abandon_call(cache_ticket);
+                    return Err(error.into());
+                }
             }
         }
     }

@@ -6,4 +6,4 @@ mod registry;
 
 pub use base::{Result, Tool, ToolError};
 pub use module::{Bootstrap, BootstrapError, Module, ModuleCtx, ModuleRegistry};
-pub use registry::{ToolRegistry, ToolSchemaPartition};
+pub use registry::{ToolDefinitionSet, ToolRegistry, ToolSchemaPartition};

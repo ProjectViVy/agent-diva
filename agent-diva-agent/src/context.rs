@@ -559,9 +559,17 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         session_key: &str,
         mask: Option<&MaskFile>,
     ) -> Vec<Message> {
-        let mut messages = vec![Message::system(
-            self.build_system_prompt_for_session(mask, session_key),
-        )];
+        let snapshot = self.stable_prefix_snapshot_for_session(mask, session_key);
+        self.build_prefix_messages_from_snapshot(history, session_compaction_history, &snapshot)
+    }
+
+    pub(crate) fn build_prefix_messages_from_snapshot(
+        &self,
+        history: Vec<agent_diva_core::session::ChatMessage>,
+        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        snapshot: &StablePrefixSnapshot,
+    ) -> Vec<Message> {
+        let mut messages = vec![Message::system(snapshot.rendered.clone())];
 
         // Inject compaction boundaries for each summary
         for (i, compaction) in session_compaction_history.iter().enumerate() {

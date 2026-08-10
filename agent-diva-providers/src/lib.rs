@@ -21,8 +21,9 @@ pub use base::{
     model_capabilities_for_model, model_capabilities_for_model_with_config,
     supports_reasoning_model, supports_reasoning_model_with_config, supports_vision_model,
     DynamicContextTransport, ImageData, ImageFile, ImageUrl, LLMProvider, LLMResponse,
-    LLMStreamEvent, Message, MessageContent, MessageContentPart, ModelCapabilities, ProviderError,
-    ProviderEventStream, ProviderResult, ToolCallRequest, ToolChoiceMode,
+    LLMStreamEvent, Message, MessageContent, MessageContentPart, ModelCapabilities,
+    PromptCachePolicy, PromptCacheProfile, ProviderError, ProviderEventStream, ProviderResult,
+    ToolCallRequest, ToolChoiceMode,
 };
 pub use catalog::{
     CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderModelEntry,
@@ -104,5 +105,9 @@ impl LLMProvider for DynamicProvider {
 
     fn dynamic_context_transport(&self) -> DynamicContextTransport {
         self.current().dynamic_context_transport()
+    }
+
+    fn prompt_cache_profile(&self, model: &str) -> PromptCacheProfile {
+        self.current().prompt_cache_profile(model)
     }
 }

@@ -8,8 +8,13 @@ use std::fmt;
 
 use agent_diva_providers::{DynamicContextTransport, Message};
 
+mod cache_observe;
 mod section_cache;
 
+pub use cache_observe::{
+    apply_core_tool_cache_anchor, CacheObservationTicket, CacheObserveInput, CacheObserveState,
+    PostCallClassification, PreCallClassification,
+};
 pub use section_cache::{CacheBreakReason, StablePrefixSnapshot};
 
 /// Stability class used when deciding whether a section may participate in
