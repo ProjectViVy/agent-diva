@@ -493,6 +493,30 @@ mod tests {
     }
 
     #[test]
+    fn c1_0_characterizes_plan_prompts_at_the_current_prefix_boundary() {
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system"), Message::user("current")],
+            true,
+            Some("# Approved\n- execute"),
+            None,
+            false,
+            Message::user("current"),
+        );
+
+        assert_eq!(context.messages.len(), 4);
+        assert_eq!(context.messages[0].content.as_text(), Some("system"));
+        assert!(context.messages[1]
+            .content
+            .as_text()
+            .is_some_and(|text| text.contains("Approved")));
+        assert!(context.messages[2]
+            .content
+            .as_text()
+            .is_some_and(|text| text.contains("Plan mode")));
+        assert_eq!(context.messages[3].content.as_text(), Some("current"));
+    }
+
+    #[test]
     fn empty_working_memory_block_is_not_injected() {
         let mut messages = vec![Message::system("system"), Message::user("current")];
         assert!(!inject_working_memory(&mut messages, None));

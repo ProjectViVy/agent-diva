@@ -568,6 +568,32 @@ mod tests {
     }
 
     #[test]
+    fn c1_0_characterizes_tool_definitions_as_a_stable_set_not_an_order() {
+        fn normalized_definitions(registry: &ToolRegistry) -> Vec<String> {
+            let mut definitions = registry
+                .get_definitions()
+                .into_iter()
+                .map(|definition| serde_json::to_string(&definition).unwrap())
+                .collect::<Vec<_>>();
+            definitions.sort();
+            definitions
+        }
+
+        let first = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::minimal())
+            .build();
+        let second = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::minimal())
+            .build();
+
+        assert_eq!(
+            normalized_definitions(&first),
+            normalized_definitions(&second)
+        );
+        assert_eq!(first.len(), second.len());
+    }
+
+    #[test]
     fn test_tool_assembly_none() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
             .builtin(BuiltInToolsConfig::none())

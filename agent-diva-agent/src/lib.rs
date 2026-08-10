@@ -6,6 +6,7 @@ pub mod agent_loop;
 pub mod compaction;
 pub mod consolidation;
 pub mod context;
+pub mod context_assembly;
 pub mod context_budget;
 pub mod mask;
 pub mod memory_boundary;

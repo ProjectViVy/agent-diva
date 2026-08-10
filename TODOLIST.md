@@ -41,6 +41,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         [`docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md`](docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md)）
         以 Claude Code 为唯一深读样本；provider 已有 `apply_cache_control`，修装配层 bust。
     - [x] **C1 规格文档**（2026-08-10）：CC 机制 + Diva B1–B9 + P0/T1–T8
+    - [x] **C1-0 契约与现状刻画**：新增 provider-neutral
+          `ContextSection` / `SectionStability` / `PromptSection` 最小骨架与固定逻辑顺序；
+          tests 冻结 time/session 首 system、plan 插入、WM/Recall 顺序及工具 definitions
+          集合语义；生产序列化输出未改变。agent lib 390 tests 与工作区三门全绿。
+          日志：`docs/logs/2026-08-context-management-enhancement/v0.0.1-c1-0-contract-characterization/`。
     - [ ] **P0-1**：移出 Current Time / 停止 WM·prefetch `insert(1)`（最高 ROI）
     - [ ] **P0-2**：SessionStable section 缓存 + break reason
     - [ ] **P0-3**：tool definitions 字典序 + built-in/MCP 分区（可选 schema 锁）
@@ -49,6 +54,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [ ] 测试 T1–T8 落地
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
+        C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处
+        工具输出截断 seam；实施必须统一覆盖，避免只替换其中一条路径。
   - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
   - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线

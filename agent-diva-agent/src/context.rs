@@ -685,6 +685,35 @@ mod tests {
     }
 
     #[test]
+    fn c1_0_characterizes_volatile_metadata_inside_the_first_system_message() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let messages = builder.build_messages(
+            vec![],
+            "Hello".to_string(),
+            Some("cli"),
+            Some("chat-1"),
+            &[],
+        );
+        let system = messages[0]
+            .content
+            .as_text()
+            .expect("first message is the current system prompt");
+
+        let time = system
+            .find("## Current Time")
+            .expect("time is inline today");
+        let workspace = system.find("## Workspace").expect("workspace follows time");
+        let session = system
+            .find("## Current Session")
+            .expect("session metadata is appended to the same system message");
+
+        assert!(time < workspace);
+        assert!(workspace < session);
+        assert_eq!(messages[0].role, "system");
+        assert_eq!(messages[1].role, "user");
+    }
+
+    #[test]
     fn test_build_system_prompt_includes_skills_sections() {
         let workspace = TempDir::new().unwrap();
         let skills_dir = workspace.path().join("skills");
