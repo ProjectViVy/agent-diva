@@ -4,15 +4,19 @@ HARNESS-GAP-RESEARCH 在 **Context / Prompt Cache / 预算 / 工具结果 / 按�
 
 ## 阅读顺序
 
-1. **[c0-baseline-and-architecture-decisions.md](./c0-baseline-and-architecture-decisions.md)**（主报告）
-   - Agent-Diva 每轮上下文数据流基线与 cache-break 清单
-   - Codex / Claude Code+OpenHarness / GenericAgent 定向对照
-   - 冻结 ADR-CTX-0..5 与 C1–C5 实施切片
+1. **[claude-code-prompt-cache-alignment.md](./claude-code-prompt-cache-alignment.md)**（**优先** — Cache / C1 施工图）
+   - 仅深读 Claude Code：section 缓存、tool 前缀、break detection、sticky latch
+   - Diva bust 清单 B1–B9 与 P0-1..P0-5 实施规格、测试 T1–T8
+2. **[c0-baseline-and-architecture-decisions.md](./c0-baseline-and-architecture-decisions.md)**（总论）
+   - Agent-Diva 每轮上下文数据流基线
+   - Codex / Claude Code / GenericAgent 定向对照
+   - 冻结 ADR-CTX-0..5 与 C1–C5 切片
 
 ## 主线
 
 ```text
-C0 测量（本文档）→ C1 稳定前缀 → C2 类型化预算 → C3 工具结果引用 → C4 按需工具/Recall → C5 验收
+C0 测量 → C1 稳定前缀/Prompt Cache（见 claude-code-prompt-cache-alignment）
+  → C2 类型化预算 → C3 工具结果引用 → C4 按需工具/Recall → C5 验收
 ```
 
 ## 边界

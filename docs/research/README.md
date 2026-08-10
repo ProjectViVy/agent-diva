@@ -44,7 +44,9 @@
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
 
 ### 上下文管理 / Harness Context
-- `context-management-enhancement-2026-08/` - **上下文管理增强 C0 基线与 ADR-CTX-0..5**（稳定前缀、分层预算、工具结果引用、按需工具/Recall；Codex / Claude Code / GenericAgent 定向对照；2026-08-10）。主报告：`c0-baseline-and-architecture-decisions.md`
+- `context-management-enhancement-2026-08/` - **上下文管理增强**（2026-08-10）
+  - **优先读** `claude-code-prompt-cache-alignment.md` — Claude Code 导向 Prompt Cache 对齐规格（C1 / P0-1..P0-5）
+  - `c0-baseline-and-architecture-decisions.md` — C0 基线与 ADR-CTX-0..5 总论
 
 ## 使用说明
 

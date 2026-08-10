@@ -37,8 +37,16 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         C4 按需工具/Recall → C5 验收。对照样本：Codex / Claude Code+OpenHarness /
         GenericAgent；Diva 落点 `prepare_runtime_context` / BML / ToolAssembly。
         **本切片仅文档，无代码。**
-  - [ ] **CTX-C1：稳定前缀与 Prompt Cache 对齐**（ADR-CTX-0/1；Fragment 骨架 + 移出
-        Current Time/WM/prefetch 插队 + tool 稳定排序）
+  - [ ] **CTX-C1：稳定前缀与 Prompt Cache 对齐**（主规格：
+        [`docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md`](docs/research/context-management-enhancement-2026-08/claude-code-prompt-cache-alignment.md)）
+        以 Claude Code 为唯一深读样本；provider 已有 `apply_cache_control`，修装配层 bust。
+    - [x] **C1 规格文档**（2026-08-10）：CC 机制 + Diva B1–B9 + P0/T1–T8
+    - [ ] **P0-1**：移出 Current Time / 停止 WM·prefetch `insert(1)`（最高 ROI）
+    - [ ] **P0-2**：SessionStable section 缓存 + break reason
+    - [ ] **P0-3**：tool definitions 字典序 + built-in/MCP 分区（可选 schema 锁）
+    - [ ] **P0-4**：system/tools hash + cache_read 观测
+    - [ ] **P0-5**：`apply_cache_control` 与「仅 stable system」布局契约
+    - [ ] 测试 T1–T8 落地
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
   - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）

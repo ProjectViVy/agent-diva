@@ -5,6 +5,7 @@
 - **范围**：Prompt Cache 稳定前缀、分层预算、工具结果引用化、按需工具/Recall
 - **非范围**：不写代码；不重做 BML/Laputa 权威；不复活已关闭的 OpenHarness dry-run/ohmo 提案；不展开 Plan Mode 硬状态机 / Subagent Worktree（HARNESS-GAP 其余方向）
 - **主线**：测量 → 稳定前缀 → 类型化预算 → 引用化工具结果 → 按需召回 → 压缩恢复验收
+- **C1 施工图（Claude Code 专章）**：[`claude-code-prompt-cache-alignment.md`](./claude-code-prompt-cache-alignment.md) — 实施 Prompt Cache 时 **优先读该文件**
 
 ---
 
