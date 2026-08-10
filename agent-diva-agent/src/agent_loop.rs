@@ -18,7 +18,7 @@ use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_sandbox::CommandApprovalCoordinator;
-use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
+use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -146,13 +146,15 @@ impl AgentLoopToolSetBuilder {
     }
 
     pub fn with_tool(mut self, tool: Arc<dyn Tool>) -> Self {
-        self.registry.register(tool);
+        self.registry
+            .register_in_partition(tool, ToolSchemaPartition::Deferred);
         self
     }
 
     pub fn with_tools(mut self, tools: Vec<Arc<dyn Tool>>) -> Self {
         for tool in tools {
-            self.registry.register(tool);
+            self.registry
+                .register_in_partition(tool, ToolSchemaPartition::Deferred);
         }
         self
     }

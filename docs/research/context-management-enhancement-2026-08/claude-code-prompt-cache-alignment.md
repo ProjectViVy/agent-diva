@@ -1,6 +1,6 @@
 # Claude Code 导向：Prompt Cache 上下文管理对齐规格
 
-- **状态**：实施规格冻结；C1a/P0-1 已实现，C1b–C1d 待实施
+- **状态**：实施规格冻结；C1a/P0-1、C1b/P0-3 已实现，C1c–C1d 待实施
 - **日期**：2026-08-10
 - **主样本**：`.workspace/claude-code`（唯一深读对象）
 - **目标**：提高 Agent-Diva **Prompt Cache 命中率**；降低重复前缀计费与延迟
@@ -279,14 +279,22 @@ P0-1 必须通过该类型层收集和序列化，并通过 provider capability 
 
 ### P0-3 Tool 稳定排序 +（可选）schema 锁
 
+**实现状态（2026-08-10）：已完成。** `ToolRegistry` 通过公开
+`ToolSchemaPartition::{Core, Deferred}` 保存装配角色，`register()` 保持兼容并默认
+CORE，MCP/custom 注册路径显式进入 DEFERRED；`get_definitions()` 固定输出 CORE
+字典序连续前缀与 DEFERRED 字典序后缀，并递归规范化 JSON object 键序、保留 array
+顺序。
+
 - `get_definitions()` 输出前稳定排序
 - 禁止 JSON object 键序导致字节漂（`serde_json` 注意 BTreeMap / 排序序列化）
-- 可选：`ToolSchemaCache` per session
+- 本阶段不引入可选 `ToolSchemaCache`：现有内置与 MCP schema 在工具实例内为静态值；
+  显式重注册/集合变化继续作为合法 schema 变化，后续由 C1d 记录 break
 
 **验收**：T4
 
 **原子边界：** P0-3/C1b 只修改排序/分区/schema 稳定性。必须先证明相同工具集合
 连续重建的完整 schema 序列化字节一致；不得在同一提交修改 `apply_cache_control`。
+本切片已通过 T4 证明该字节契约，且未修改 provider cache-control 代码。
 
 ### P0-4 Cache break 观测
 

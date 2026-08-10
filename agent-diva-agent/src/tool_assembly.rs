@@ -13,7 +13,7 @@ use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::FileManager;
 use agent_diva_sandbox::{AskForApproval, CommandApprovalCoordinator};
-use agent_diva_tooling::{Tool, ToolError, ToolRegistry};
+use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
 use agent_diva_tools::{
     load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
     EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
@@ -408,7 +408,7 @@ impl ToolAssembly {
             && self.plan_phase.is_none()
         {
             for tool in load_mcp_tools_sync(&self.mcp_servers) {
-                registry.register(tool);
+                registry.register_in_partition(tool, ToolSchemaPartition::Deferred);
             }
         }
 
@@ -429,7 +429,7 @@ impl ToolAssembly {
 
         if self.plan_phase.is_none() {
             for tool in self.custom_tools {
-                registry.register(tool);
+                registry.register_in_partition(tool, ToolSchemaPartition::Deferred);
             }
         }
 
@@ -568,17 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn c1_0_characterizes_tool_definitions_as_a_stable_set_not_an_order() {
-        fn normalized_definitions(registry: &ToolRegistry) -> Vec<String> {
-            let mut definitions = registry
-                .get_definitions()
-                .into_iter()
-                .map(|definition| serde_json::to_string(&definition).unwrap())
-                .collect::<Vec<_>>();
-            definitions.sort();
-            definitions
-        }
-
+    fn c1b_tool_assembly_rebuilds_with_identical_schema_bytes() {
         let first = ToolAssembly::new(PathBuf::from("/tmp/test"))
             .builtin(BuiltInToolsConfig::minimal())
             .build();
@@ -587,10 +577,43 @@ mod tests {
             .build();
 
         assert_eq!(
-            normalized_definitions(&first),
-            normalized_definitions(&second)
+            serde_json::to_vec(&first.get_definitions()).unwrap(),
+            serde_json::to_vec(&second.get_definitions()).unwrap()
         );
         assert_eq!(first.len(), second.len());
+
+        let names = first
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        let mut sorted_names = names.clone();
+        sorted_names.sort();
+        assert_eq!(names, sorted_names);
+    }
+
+    #[test]
+    fn custom_tools_follow_the_sorted_core_prefix() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::minimal())
+            .with_tool(Arc::new(NamedTool { name: "aaa_custom" }))
+            .build();
+
+        let names = registry
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            vec![
+                "edit_file",
+                "list_dir",
+                "read_file",
+                "write_file",
+                "aaa_custom"
+            ]
+        );
     }
 
     #[test]

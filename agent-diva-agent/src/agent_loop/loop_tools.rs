@@ -1,6 +1,7 @@
 use super::{build_agent_tools, AgentLoop, SubagentManagerSpawner, ToolConfig};
 use crate::tool_config::network::NetworkToolConfig;
 use agent_diva_core::config::MCPServerConfig;
+use agent_diva_tooling::ToolSchemaPartition;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
@@ -57,7 +58,8 @@ impl AgentLoop {
 
         if self.tool_config.builtin.mcp {
             for mcp_tool in agent_diva_tools::load_mcp_tools_sync(&servers) {
-                self.tools.register(mcp_tool);
+                self.tools
+                    .register_in_partition(mcp_tool, ToolSchemaPartition::Deferred);
             }
         }
 

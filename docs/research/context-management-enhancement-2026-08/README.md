@@ -37,9 +37,11 @@ Prompt Cache 专章 §4.4、§5：
 7. Cache 观测必须记录 provider/model/policy 与连续趋势；预期 break、策略变化和
    无结构变化的异常 miss 分级处理，禁止仅凭一次 `cache_read` 下降告警。
 
-**当前进度：** C1-0 最小类型与 characterization tests、C1a/P0-1 typed 生产迁移均已
-完成。stable system 已移除 Current Time/session/WM/Recall/Plan 等动态内容；现有 provider
-默认使用安全 `UserContextEnvelope`。下一实施切片为 C1b 工具 schema 字节稳定。
+**当前进度：** C1-0 最小类型与 characterization tests、C1a/P0-1 typed 生产迁移、
+C1b/P0-3 工具 schema 字节稳定均已完成。stable system 已移除 Current
+Time/session/WM/Recall/Plan 等动态内容；工具定义固定为 CORE 字典序连续前缀 +
+MCP/custom DEFERRED 字典序后缀，并递归规范化 JSON object 键序。下一实施切片为
+C1c/P0-2 SessionStable section cache 与 T5–T6。
 
 ## 边界
 

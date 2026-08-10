@@ -13,6 +13,23 @@ use tracing::{error, warn};
 /// Maximum length for tool results (in characters) to prevent oversized API requests.
 const MAX_TOOL_RESULT_CHARS: usize = 80_000;
 
+/// Stable placement of a tool schema in the provider `tools` array.
+///
+/// Core schemas form the cache-friendly prefix. Deferred schemas, including
+/// MCP and dynamically mounted extensions, are emitted as a separate suffix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ToolSchemaPartition {
+    /// Always-mounted, cache-stable tool schemas.
+    Core,
+    /// MCP, extension, or dynamically mounted tool schemas.
+    Deferred,
+}
+
+struct RegisteredTool {
+    tool: Arc<dyn Tool>,
+    schema_partition: ToolSchemaPartition,
+}
+
 /// Truncate tool result to prevent oversized API requests.
 fn truncate_tool_result(result: &str) -> String {
     let char_count = result.chars().count();
@@ -29,7 +46,7 @@ fn truncate_tool_result(result: &str) -> String {
 
 /// Registry of available tools.
 pub struct ToolRegistry {
-    tools: HashMap<String, Arc<dyn Tool>>,
+    tools: HashMap<String, RegisteredTool>,
     global_timeout_secs: u64,
 }
 
@@ -52,8 +69,23 @@ impl ToolRegistry {
 
     /// Register a tool.
     pub fn register(&mut self, tool: Arc<dyn Tool>) {
+        self.register_in_partition(tool, ToolSchemaPartition::Core);
+    }
+
+    /// Register a tool in an explicit schema partition.
+    pub fn register_in_partition(
+        &mut self,
+        tool: Arc<dyn Tool>,
+        schema_partition: ToolSchemaPartition,
+    ) {
         let name = tool.name().to_string();
-        self.tools.insert(name, tool);
+        self.tools.insert(
+            name,
+            RegisteredTool {
+                tool,
+                schema_partition,
+            },
+        );
     }
 
     /// Unregister a tool by name.
@@ -63,7 +95,9 @@ impl ToolRegistry {
 
     /// Get a tool by name.
     pub fn get(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        self.tools.get(name).cloned()
+        self.tools
+            .get(name)
+            .map(|registered| Arc::clone(&registered.tool))
     }
 
     /// Check if a tool is registered.
@@ -73,13 +107,23 @@ impl ToolRegistry {
 
     /// Get all tool definitions in OpenAI format.
     pub fn get_definitions(&self) -> Vec<Value> {
-        self.tools.values().map(|tool| tool.to_schema()).collect()
+        let mut tools = self.tools.iter().collect::<Vec<_>>();
+        tools.sort_by(|(left_name, left), (right_name, right)| {
+            left.schema_partition
+                .cmp(&right.schema_partition)
+                .then_with(|| left_name.cmp(right_name))
+        });
+
+        tools
+            .into_iter()
+            .map(|(_, registered)| canonicalize_json(registered.tool.to_schema()))
+            .collect()
     }
 
     /// Execute a tool by name with given parameters.
     pub async fn execute(&self, name: &str, params: Value) -> crate::Result<String> {
         let tool = match self.tools.get(name) {
-            Some(tool) => tool,
+            Some(registered) => &registered.tool,
             None => {
                 audit::emit(AuditEvent::ToolExecuted {
                     tool_name: name.to_string(),
@@ -215,6 +259,23 @@ impl ToolRegistry {
     }
 }
 
+fn canonicalize_json(value: Value) -> Value {
+    match value {
+        Value::Object(object) => {
+            let mut entries = object.into_iter().collect::<Vec<_>>();
+            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+            let mut canonical = serde_json::Map::new();
+            for (key, value) in entries {
+                canonical.insert(key, canonicalize_json(value));
+            }
+            Value::Object(canonical)
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(canonicalize_json).collect()),
+        scalar => scalar,
+    }
+}
+
 impl Default for ToolRegistry {
     fn default() -> Self {
         Self::new()
@@ -227,6 +288,10 @@ mod tests {
     use async_trait::async_trait;
 
     struct MockTool;
+
+    struct NamedSchemaTool {
+        name: &'static str,
+    }
 
     #[async_trait]
     impl Tool for MockTool {
@@ -248,6 +313,38 @@ mod tests {
 
         async fn execute(&self, _args: Value) -> crate::Result<String> {
             Ok("mock result".to_string())
+        }
+    }
+
+    #[async_trait]
+    impl Tool for NamedSchemaTool {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        fn description(&self) -> &str {
+            "schema ordering fixture"
+        }
+
+        fn parameters(&self) -> Value {
+            serde_json::json!({
+                "required": ["zeta", "alpha"],
+                "properties": {
+                    "zeta": {"type": "string"},
+                    "alpha": {
+                        "type": "object",
+                        "properties": {
+                            "zulu": {"type": "boolean"},
+                            "alpha": {"type": "boolean"}
+                        }
+                    }
+                },
+                "type": "object"
+            })
+        }
+
+        async fn execute(&self, _args: Value) -> crate::Result<String> {
+            Ok("ok".to_string())
         }
     }
 
@@ -311,6 +408,70 @@ mod tests {
         registry.register(Arc::new(MockTool));
         assert_eq!(registry.len(), 1);
         assert!(registry.has("mock"));
+    }
+
+    #[test]
+    fn tool_definitions_are_partitioned_sorted_and_byte_stable() {
+        fn register_fixture(registry: &mut ToolRegistry, reverse: bool) {
+            let fixtures = [
+                ("zeta_core", ToolSchemaPartition::Core),
+                ("alpha_deferred", ToolSchemaPartition::Deferred),
+                ("alpha_core", ToolSchemaPartition::Core),
+                ("zeta_deferred", ToolSchemaPartition::Deferred),
+            ];
+            let indices: &[usize] = if reverse {
+                &[3, 2, 1, 0]
+            } else {
+                &[0, 1, 2, 3]
+            };
+
+            for index in indices {
+                let (name, partition) = fixtures[*index];
+                registry.register_in_partition(Arc::new(NamedSchemaTool { name }), partition);
+            }
+        }
+
+        let mut first = ToolRegistry::new();
+        register_fixture(&mut first, false);
+        let first_definitions = first.get_definitions();
+        let first_names = first_definitions
+            .iter()
+            .filter_map(|definition| definition["function"]["name"].as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            first_names,
+            vec!["alpha_core", "zeta_core", "alpha_deferred", "zeta_deferred"]
+        );
+
+        let first_bytes = serde_json::to_vec(&first_definitions).unwrap();
+        assert_eq!(
+            first_bytes,
+            serde_json::to_vec(&first.get_definitions()).unwrap()
+        );
+
+        let mut second = ToolRegistry::new();
+        register_fixture(&mut second, true);
+        assert_eq!(
+            first_bytes,
+            serde_json::to_vec(&second.get_definitions()).unwrap()
+        );
+    }
+
+    #[test]
+    fn tool_schema_canonicalization_sorts_objects_but_preserves_arrays() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(NamedSchemaTool { name: "schema" }));
+
+        let definitions = registry.get_definitions();
+        let parameters = &definitions[0]["function"]["parameters"];
+        assert_eq!(parameters["required"], serde_json::json!(["zeta", "alpha"]));
+
+        let serialized = serde_json::to_string(parameters).unwrap();
+        assert!(serialized.find("\"alpha\"").unwrap() < serialized.find("\"zeta\"").unwrap());
+
+        let nested = serde_json::to_string(&parameters["properties"]["alpha"]).unwrap();
+        assert!(nested.find("\"alpha\"").unwrap() < nested.find("\"zulu\"").unwrap());
     }
 
     #[test]

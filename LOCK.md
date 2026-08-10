@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-10T18:44:07+08:00`
+- Last Heartbeat: `2026-08-10T22:27:59+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -28,6 +28,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-10T22:27:59+08:00`: Released after C1b/P0-3 tool schema stability.
+  `ToolRegistry` now emits sorted CORE then DEFERRED definitions with recursive
+  JSON object canonicalization; MCP/custom registration uses the deferred
+  suffix. T4 covers repeat calls, reverse registration, and independent
+  ToolAssembly rebuilds. Tooling 31, tools 115, agent 397, affected clippy,
+  CLI help smoke, and full `just fmt-check` / `just check` / `just test` gates
+  passed. Provider `apply_cache_control` was not changed. C1c/P0-2 is next.
 
 - `2026-08-10T18:44:07+08:00`: Released after C1a/P0-1 typed stable-prefix
   production migration. Stable prompt now consumes C1-0 sections; time/session,

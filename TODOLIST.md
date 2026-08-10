@@ -59,12 +59,19 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           section cache、hash 观测或 `apply_cache_control`。日志：
           `docs/logs/2026-08-context-management-enhancement/v0.0.3-c1a-typed-stable-prefix/`。
     - [ ] **P0-2**：SessionStable section 缓存 + break reason
-    - [ ] **P0-3**：tool definitions 字典序 + built-in/MCP 分区（可选 schema 锁）
+    - [x] **P0-3 / C1b**（2026-08-10）：`ToolRegistry` 新增显式
+          `ToolSchemaPartition::{Core, Deferred}`，definitions 固定为 CORE 字典序连续前缀 +
+          MCP/custom DEFERRED 字典序后缀；schema JSON object 递归规范化键序且保留 array
+          顺序。T4 已覆盖重复调用、反向注册及独立 `ToolAssembly` 重建的完整序列化字节
+          一致性；现有 schema 均为静态值，未引入可选 session schema cache。未修改
+          `apply_cache_control`。日志：
+          `docs/logs/2026-08-context-management-enhancement/v0.0.4-c1b-tool-schema-stability/`。
     - [ ] **P0-4**：system/tools hash + cache_read 观测
     - [ ] **P0-5**：`apply_cache_control` 与「仅 stable system」布局契约
     - [ ] 测试 T1–T8 落地
       - [x] **T1–T3**：clock / WM / Recall 变化不改变 stable prefix
-      - [ ] **T4–T8**：随 C1b–C1d 分阶段落地
+      - [x] **T4**：同工具集 schema 完整序列化字节一致；CORE/DEFERRED 分区内字典序
+      - [ ] **T5–T8**：随 C1c–C1d 分阶段落地
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
         C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处
