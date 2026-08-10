@@ -200,6 +200,11 @@ C1 布局修复后应收敛为：**一条（或一组固定）stable system + �
 […]  Current user
 ```
 
+上表是 **provider-neutral 逻辑顺序**，不是 wire role 的硬编码。WM、Recall、
+VolatileMeta、Plan 默认不得直接假设为中途 `system`；serializer 必须按总论
+DEC-CTX-A 选择 `MidConversationSystem` / `UserContextEnvelope` /
+`NativeContextBlock`，未知 provider 使用安全的 user-context envelope。
+
 ### 4.2 Tools 数组顺序
 
 ```text
@@ -233,6 +238,14 @@ PromptSection {
 | working_memory | TurnVolatile | 内容变时 |
 | prefetch | TurnVolatile | 是 |
 
+### 4.4 会话快照与失效语义（冻结）
+
+采用「会话快照优先、显式事件失效」：AGENTS.md 与 Skills 在 session start/reload
+capture；mask 切换重建 mask section + tool pool；L1 apply 只刷新 L1 section 并记录
+`l1_hot_refresh`；compact 只改变 post-prefix boundary/summary，**不清空 stable section
+snapshot**；session end/reset 才清除全量 session cache。完整矩阵与例外规则见总论
+DEC-CTX-C。
+
 ---
 
 ## 5. P0 实施切片（可直接开 PR）
@@ -244,12 +257,16 @@ PromptSection {
 - `agent-diva-agent/src/context.rs`：去掉 system 中段 Current Time；channel 策略明确
 - `agent-diva-agent/src/agent_loop/turn/context.rs`：删除 `insert(1)` 注入；改为 append 到 history 之后、user 之前
 
+**强制施工约束：** C1-0 已完成 `PromptSection` / `SectionStability` / 固定逻辑顺序；
+P0-1 必须通过该类型层收集和序列化，并通过 provider capability 选择 wire role，禁止
+只移动字符串或统一写成中途 `system`。
+
 **验收**：T1–T3
 
 ### P0-2 Session section 缓存
 
 - 按 `session_key` 缓存 Stable/SessionStable section 字符串
-- clear 时机：session end、compact（可选）、mask 切换、显式 memory 热刷新（L1 仅刷新该 section）
+- clear/invalidate 严格遵守 §4.4 / DEC-CTX-C；compact 不清 stable snapshot
 
 **验收**：同会话两轮 `system_hash` 在无刷新时不变；L1 刷新仅 `break_reason=l1_hot_refresh`
 
@@ -260,6 +277,9 @@ PromptSection {
 - 可选：`ToolSchemaCache` per session
 
 **验收**：T4
+
+**原子边界：** P0-3/C1b 只修改排序/分区/schema 稳定性。必须先证明相同工具集合
+连续重建的完整 schema 序列化字节一致；不得在同一提交修改 `apply_cache_control`。
 
 ### P0-4 Cache break 观测
 
@@ -278,14 +298,22 @@ fn note_pre_call(system: &str, tools: &[Value], breaks: &[BreakReason])
 fn note_post_call(usage: &TokenUsageMap)
 ```
 
-- tracing：`prefix_hash`, `tools_hash`, `cache_break_reasons`, `cache_read`, `cache_creation`
-- `cache_read` 下降 ≥ 阈值且 breaks 非空 → `warn!`
+- tracing：`prefix_hash`, `tools_hash`, per-tool hashes(debug), declared break reasons,
+  provider/model/cache policy/TTL, `cache_read`, `cache_creation`, stable prefix tokens 与
+  session+provider+model+policy 分桶的连续趋势
+- declared reason 对应的结构变化记 `expected_break`，不告警；hash 无 reason 立即 warn
+- hash/policy 稳定时，单次 `cache_read` 下降只记样本；达到缓存阈值且连续 2 次显著
+  miss 才 warn `suspected_cache_miss`
+- provider/model/policy/TTL 变化和显式 cache deletion 单独分类，不归因装配回归
 
 **验收**：单元测试 hash 差分；集成测 usage 字段透传（T7）
 
 ### P0-5 与 `apply_cache_control` 契约对齐
 
 **决策（冻结）**
+
+P0-5/C1d 必须在 P0-3/C1b 独立提交及 T4 字节稳定证据之后实施，不得与工具排序
+混为一个提交。
 
 1. **主 cache 锚点**：仅 **第一条** stable system（或 stable 合并后的唯一 system）打 ephemeral；  
    或：多 system 时 **只有** `stability!=TurnVolatile` 的 system 打 control。
@@ -336,13 +364,14 @@ fn note_post_call(usage: &TokenUsageMap)
 ## 9. 建议 PR 拆分
 
 ```text
-PR-C1a  P0-1 布局（Time/WM/prefetch）+ T1–T3     ← 单独可合，立即改善
-PR-C1b  P0-3 tool 排序 + T4
+PR-C1a  P0-1 typed layout + provider capability + T1–T3
+PR-C1b  P0-3 tool 排序 + schema 字节稳定 T4       ← 不改 cache_control
 PR-C1c  P0-2 section 缓存 + T5–T6
-PR-C1d  P0-4 观测 + P0-5 apply_cache_control + T7–T8
+PR-C1d  P0-4 分类观测 + P0-5 apply_cache_control + T7–T8
 ```
 
-PR-C1a 不依赖完整 Fragment 框架，**风险最低、缓存收益最大**。
+PR-C1a 不依赖完整 C2 Fragment 预算框架，但必须消费 C1-0 最小类型骨架；它仍是
+风险最低、缓存收益最大的生产迁移。
 
 ---
 

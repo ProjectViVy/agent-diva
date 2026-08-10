@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-10T00:45:00+08:00`
+- Last Heartbeat: `2026-08-10T01:15:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -28,6 +28,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-10T01:15:00+08:00`: Released after freezing context-management
+  construction decisions DEC-CTX-A..G across README/C0/C1: provider-aware
+  volatile serialization, typed C1 migration, explicit snapshot invalidation,
+  atomic tool/cache changes, artifact safety, same-turn mount, and classified
+  cache observability. Documentation-only revision; diff check clean.
 
 - `2026-08-10T00:45:00+08:00`: Released after C1-0 context contract and
   characterization closure: provider-neutral section/stability/order skeleton,

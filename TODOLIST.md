@@ -46,6 +46,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           tests 冻结 time/session 首 system、plan 插入、WM/Recall 顺序及工具 definitions
           集合语义；生产序列化输出未改变。agent lib 390 tests 与工作区三门全绿。
           日志：`docs/logs/2026-08-context-management-enhancement/v0.0.1-c1-0-contract-characterization/`。
+    - [x] **C1-CONSTRUCTION-DECISIONS：实施前决策修订**（2026-08-10）：冻结
+          provider-aware 动态块序列化、C1-0 类型复用、会话快照失效矩阵、tool/cache
+          原子提交、C3 artifact 安全门、C4 same-turn mount 和缓存告警分类。研究入口
+          与 C0/C1 规格已同步；日志：
+          `docs/logs/2026-08-context-management-enhancement/v0.0.2-construction-decisions/`。
     - [ ] **P0-1**：移出 Current Time / 停止 WM·prefetch `insert(1)`（最高 ROI）
     - [ ] **P0-2**：SessionStable section 缓存 + break reason
     - [ ] **P0-3**：tool definitions 字典序 + built-in/MCP 分区（可选 schema 锁）

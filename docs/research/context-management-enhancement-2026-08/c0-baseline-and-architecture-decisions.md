@@ -1,6 +1,6 @@
 # 上下文管理增强：C0 基线测量与架构决策
 
-- **状态**：C0 调研完成；ADR-CTX-0..5 冻结为实施方向
+- **状态**：C0 调研完成；ADR-CTX-0..5 与 §6.6 施工补充决策冻结；C1-0 已完成
 - **日期**：2026-08-10
 - **范围**：Prompt Cache 稳定前缀、分层预算、工具结果引用化、按需工具/Recall
 - **非范围**：不写代码；不重做 BML/Laputa 权威；不复活已关闭的 OpenHarness dry-run/ohmo 提案；不展开 Plan Mode 硬状态机 / Subagent Worktree（HARNESS-GAP 其余方向）
@@ -537,6 +537,101 @@ tool_execute → raw_output
 
 **与 GA 节律对齐的可选 soak：** 每 N 轮强制 checkpoint；长任务中途抽检约束句。
 
+### 6.6 实施前施工补充决策（冻结）
+
+以下决策补足 ADR-CTX-0..5 的跨阶段空白；后续实现不得以 provider 假设、临时字符串
+搬运或“实现时再决定”为由绕过。
+
+#### DEC-CTX-A：动态块的 provider-aware 序列化
+
+- `ContextSection` 的顺序是 **provider-neutral 逻辑顺序**，不是所有 provider 共用的
+  wire role。
+- WM、Recall、VolatileMeta、Plan 位于 history 后、current user 前的 post-prefix 区；
+  **默认不得直接序列化为对话中段 `system`**。
+- serializer 必须根据 provider capability 在以下策略中显式选择：
+  `MidConversationSystem`、`UserContextEnvelope`、`NativeContextBlock`。未知 provider
+  fail-safe 到带稳定边界标记的 `UserContextEnvelope`，不得静默猜测。
+- 各 provider adapter 必须有 characterization test，证明角色序列、tool-call 配对和
+  current user 位置合法；逻辑 fragment 测试与 wire-shape 测试分层。
+
+#### DEC-CTX-B：C1 必须消费 C1-0 类型骨架
+
+- C1-0 已落地 `ContextSection`、`SectionStability`、`PromptSection`、固定逻辑顺序和
+  `cache_break_reason`；C1a 必须从现有类型收集/序列化，禁止再做一轮字符串位置搬运。
+- `prefix_hash` 尚未生产化，归 P0-4 与 cache observer 同步接入。
+- 完整 `ContextFragment` 预算字段仍归 C2；这不允许 C1 绕过最小类型层。
+
+#### DEC-CTX-C：会话快照与显式失效矩阵
+
+Stable/SessionStable 采用「会话快照优先、显式事件失效」，禁止每轮文件系统轮询：
+
+| Section/事件 | 会话内语义 | 显式失效动作 | break reason |
+|--------------|------------|--------------|--------------|
+| Frozen Core | 会话首次 capture 后冻结 | 新 session / session reset | `session_reset` |
+| AGENTS.md | session start/reload 快照 | 显式 context reload 或新 session | `agent_rules_reload` |
+| Always Skills / Skills index | session start/reload 快照 | 显式 skills reload 或新 session | `skills_reload` |
+| Mask | 当前 mask 快照 | mask 切换时只重建 mask section 与 tool pool | `mask_changed` |
+| L1 index | session-stable version | Memory apply 后只刷新 L1 section 并递增 prefix version | `l1_hot_refresh` |
+| Compact | stable snapshot **不清空** | 只更新 post-prefix boundary/summary | `compaction_changed`（非 stable section break） |
+| Session end | 清除全部 session cache | 下次会话重新 capture | `session_ended` |
+
+除非 provider 明确要求重建 stable blocks，compact 不得借鉴样本实现而无条件清空 Diva
+section cache；任何例外必须写 capability、reason 和回归测试。
+
+#### DEC-CTX-D：Tool 排序与 cache-control 原子边界
+
+- C1b 只做 tool definitions 的 built-in/MCP 分区、稳定排序与 schema 字节测试。
+- 在相同 tool 集合连续重建的完整序列化字节一致之前，不得修改 provider
+  `apply_cache_control` 锚点。
+- C1d 才修改 cache-control；两个提交分别记录 cache 指标，便于定位回归来源。
+
+#### DEC-CTX-E：C3 artifact 安全契约
+
+C3 写入任何原始工具输出前必须同时满足：
+
+1. workspace + session 双重隔离，读取必须验证当前 security context；
+2. key 由运行时生成并绑定 tool_call_id，模型不得提交任意路径或伪造 key；
+3. per-item、per-session、per-workspace 容量上限与确定性拒绝/淘汰行为；
+4. retention、session end、workspace 删除和孤儿 GC 语义；
+5. 写入、preview、日志和错误的敏感信息清洗；不得把原始输出写入 tracing/audit；
+6. 重启后可读性必须显式选择并测试；若选择易失，恢复时返回稳定 `artifact_missing`
+   而不是伪造摘要；
+7. artifact 缺失、过期、越界、损坏均 fail closed，并保留可读错误码；
+8. microcompact 不得破坏 assistant tool_call ↔ tool result 配对；Ref 仍保留状态、
+   tool_call_id、大小/hash 和失败原因。
+
+安全契约未具备时，C3 只能保留现有截断行为，不得提前上线半成品 artifact store。
+
+#### DEC-CTX-F：C4 动态挂载生命周期
+
+- `tool_search` / `mount_tool` 成功后，工具在 **同一 turn 的下一次 provider call**
+  生效，不等待下一条用户消息。
+- discovered/mounted 集合绑定 session；同名重复 mount 幂等，顺序确定。
+- 每次 registry rebuild 都重新经过 mask、plan phase、approval 与 builtin gate；已发现
+  不等于获授权，禁止以 session 状态绕过策略。
+- compact 后重宣告 mounted tools；session end/reset 清除集合；工具源下线时返回明确
+  unavailable，不保留幽灵 schema。
+- 必测：search→mount→same-turn call、mask deny、plan phase change、compact、reset、
+  provider retry 不重复 mount。
+
+#### DEC-CTX-G：缓存观测与告警分类
+
+每次 eligible provider call 至少记录：`system_hash`、`tools_hash`、逐工具 hash（debug）、
+declared break reasons、provider、model、cache policy/TTL、cache read/create tokens、stable
+prefix token estimate，以及最近窗口的命中趋势。
+
+分类规则：
+
+- hash 变化且有匹配 reason：`expected_break`，info/debug，不告警；
+- provider/model/policy/TTL 改变：`policy_break`，独立计数，不归因装配回归；
+- hash 变化但无 reason：`undeclared_structural_break`，立即 warn；
+- hashes 与 policy 均稳定，但达到缓存阈值的请求连续 2 次显著 read miss：
+  `suspected_cache_miss`，warn；单次下降只记样本，不告警；
+- cache deletion/microcompact 明确声明时：`expected_deletion`，不误报。
+
+观测窗口按 session + provider + model + cache policy 分桶；短于服务端最小缓存阈值的
+前缀不进入 miss 告警分母。
+
 ---
 
 ## 7. 实施切片（PR 级，供后续开发）
@@ -547,7 +642,7 @@ C1  稳定前缀布局 + tool 稳定排序 + prefix_hash 观测
     └─ 建议同 PR 引入 ContextFragment 骨架（ADR-CTX-0 最小集）
 C2  ContextBudgetPlan + 分层淘汰 + AssemblyReport 强制
 C3  Tool artifact store + Ref 注入 + microcompact
-C4  CORE/DEFERRED + tool_search + prefetch 预算/测试矩阵
+C4  CORE/DEFERRED + tool_search + same-turn mount + prefetch 预算/测试矩阵
 C5  验收用例集 + 长任务 soak 清单
 ```
 
@@ -567,7 +662,7 @@ ADR-CTX-0 ─┬─► C1 ─► C2 ─► C3 ─► C5
 | `context.rs` | 拆 collect_* |
 | `context_budget.rs` | 升级或包装为多层 |
 | `tool_assembly.rs` | stable sort + core/deferred |
-| `agent-diva-tools` / core session | tool artifact 读写 |
+| `agent-diva-tools` / core session | tool artifact 读写；先满足 DEC-CTX-E 安全契约 |
 | `compaction/*` | 保留 macro；新增 micro 或独立模块 |
 | tests | 上表 V1–V7 与 cache_break 单测 |
 
