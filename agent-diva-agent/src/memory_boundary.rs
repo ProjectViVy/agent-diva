@@ -141,6 +141,10 @@ impl MemoryProvider for CutoverMemoryProvider {
         }
     }
 
+    fn system_prompt_revision(&self, request: &SystemPromptRequest) -> u64 {
+        self.legacy.system_prompt_revision(request)
+    }
+
     async fn prefetch(
         &self,
         request: PrefetchRequest,
@@ -410,6 +414,10 @@ impl MemoryProvider for LegacyCrudMemoryProvider {
         request: &SystemPromptRequest,
     ) -> agent_diva_core::Result<SystemPromptResponse> {
         self.legacy.system_prompt_block(request)
+    }
+
+    fn system_prompt_revision(&self, request: &SystemPromptRequest) -> u64 {
+        self.legacy.system_prompt_revision(request)
     }
 
     async fn prefetch(

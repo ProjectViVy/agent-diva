@@ -1,6 +1,6 @@
 # Claude Code 导向：Prompt Cache 上下文管理对齐规格
 
-- **状态**：实施规格冻结；C1a/P0-1、C1b/P0-3 已实现，C1c–C1d 待实施
+- **状态**：实施规格冻结；C1a/P0-1、C1b/P0-3、C1c/P0-2 已实现，C1d 待实施
 - **日期**：2026-08-10
 - **主样本**：`.workspace/claude-code`（唯一深读对象）
 - **目标**：提高 Agent-Diva **Prompt Cache 命中率**；降低重复前缀计费与延迟
@@ -276,6 +276,12 @@ P0-1 必须通过该类型层收集和序列化，并通过 provider capability 
 - clear/invalidate 严格遵守 §4.4 / DEC-CTX-C；compact 不清 stable snapshot
 
 **验收**：同会话两轮 `system_hash` 在无刷新时不变；L1 刷新仅 `break_reason=l1_hot_refresh`
+
+**实现状态（2026-08-10）：已完成。** `ContextBuilder` 按 session 缓存四个稳定
+`PromptSection`、渲染结果和单调 `prefix_version`；mask/L1 revision 只重建对应 section，
+reset/delete/shutdown 遵守 DEC-CTX-C，compact 不清 stable snapshot。T5–T6 已落地；
+生产 `system_hash` 仍按原计划归 P0-4。当前 L1 revision 覆盖同一运行时 provider 写入；
+Manager 外部治理 apply 与 Skills 管理入口的 runtime invalidation 接线已进入待办。
 
 ### P0-3 Tool 稳定排序 +（可选）schema 锁
 

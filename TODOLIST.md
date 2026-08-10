@@ -7,6 +7,12 @@
 
 ---
 
+- [ ] **LAPUTA-CLEAN-BREAK-BML-DOCSTRING**：`just laputa-clean-break-check` 当前命中
+      `agent-diva-laputa/src/bml/mod.rs:3` 的退休术语；该行已存在于当前 HEAD
+      （`9758ac32`），与 C1c 差异无关，但会使 `just ci` 在完成 fmt/check/test 后最终
+      返回 1。应在独立术语清理提交中改为纯 BML 描述，并重跑 clean-break gate；不要
+      放宽 `scripts/ci/check_laputa_clean_break.py`。
+
 ## Active Plan
 
 当前主线：在 **typed Laputa clean-break（GMH-24）之后**，先完成
@@ -58,7 +64,22 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           fail closed；reactive compaction 复用同一 turn section 快照。未改 tool 顺序、
           section cache、hash 观测或 `apply_cache_control`。日志：
           `docs/logs/2026-08-context-management-enhancement/v0.0.3-c1a-typed-stable-prefix/`。
-    - [ ] **P0-2**：SessionStable section 缓存 + break reason
+    - [x] **P0-2 / C1c**（2026-08-10）：`ContextBuilder` 按 `session_key`
+          缓存四个 SessionStable section 与渲染结果，维护单调 `prefix_version` 和强类型
+          break reason；无事件时不重复读取 AGENTS/Skills/Frozen Core/L1。mask 与
+          provider startup revision 分别只刷新 `MaskAndIdentity` 和
+          `MemoryPolicyAndIndex`；reset/delete/shutdown 已接生命周期，compact 不清缓存。
+          T5–T6 已覆盖；未引入 `prefix_hash`、观测或 `apply_cache_control`。日志：
+          `docs/logs/2026-08-context-management-enhancement/v0.0.5-c1c-session-section-cache/`。
+      - [ ] **C1c 外部 L1 apply 通知接线**：Manager 的 BML/Laputa 治理 apply 使用独立
+            store/service 路径，当前不会递增 AgentLoop 持有 provider 的 startup revision。
+            后续增加 Manager → runtime control → provider refresh/section invalidation 通知，
+            并覆盖成功 apply、恢复 apply 与幂等重放；相关入口：
+            `agent-diva-manager/src/handlers/laputa.rs`、
+            `agent-diva-agent/src/runtime_control.rs`。
+      - [ ] **C1c Skills reload 入口接线**：`invalidate_skills` 已提供显式失效 API，
+            但 Manager skill upload/delete 与 `memory_distill` 尚未通知 AgentLoop；后续接入
+            runtime reload 事件，保持“文件变化不轮询、显式事件生效”的会话语义。
     - [x] **P0-3 / C1b**（2026-08-10）：`ToolRegistry` 新增显式
           `ToolSchemaPartition::{Core, Deferred}`，definitions 固定为 CORE 字典序连续前缀 +
           MCP/custom DEFERRED 字典序后缀；schema JSON object 递归规范化键序且保留 array
@@ -71,7 +92,9 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
     - [ ] 测试 T1–T8 落地
       - [x] **T1–T3**：clock / WM / Recall 变化不改变 stable prefix
       - [x] **T4**：同工具集 schema 完整序列化字节一致；CORE/DEFERRED 分区内字典序
-      - [ ] **T5–T8**：随 C1c–C1d 分阶段落地
+      - [x] **T5–T6**：mask 仅刷新 mask section；同运行时 L1 revision 仅刷新 memory
+            section，均递增一次 prefix version 并携带声明原因
+      - [ ] **T7–T8**：随 C1d 分类观测与 cache-control 布局落地
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
         C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处

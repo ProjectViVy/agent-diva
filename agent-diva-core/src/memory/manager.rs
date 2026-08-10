@@ -10,6 +10,7 @@ use super::storage::{DailyNote, Memory};
 use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Manages long-term memory storage
 #[derive(Debug)]
@@ -26,6 +27,8 @@ pub struct MemoryManager {
     l1_index_lines: usize,
     /// Session IDs whose shutdown hook has already been handled.
     handled_session_end_ids: Mutex<HashSet<String>>,
+    /// Monotonic version for the synchronous startup memory projection.
+    startup_revision: AtomicU64,
 }
 
 impl MemoryManager {
@@ -43,6 +46,7 @@ impl MemoryManager {
             history_path,
             l1_index_lines: DEFAULT_L1_INDEX_LINES,
             handled_session_end_ids: Mutex::new(HashSet::new()),
+            startup_revision: AtomicU64::new(0),
         }
     }
 
@@ -70,6 +74,7 @@ impl MemoryManager {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&self.memory_path, &memory.content)?;
+        self.startup_revision.fetch_add(1, Ordering::AcqRel);
         Ok(())
     }
 
@@ -289,6 +294,10 @@ impl MemoryProvider for MemoryManager {
         }
     }
 
+    fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
+        self.startup_revision.load(Ordering::Acquire)
+    }
+
     async fn prefetch(&self, request: PrefetchRequest) -> crate::Result<PrefetchResponse> {
         if request.intent.trim().is_empty() {
             return Ok(PrefetchResponse {
@@ -327,6 +336,7 @@ impl MemoryProvider for MemoryManager {
                         },
                     });
                 }
+                self.startup_revision.fetch_add(1, Ordering::AcqRel);
                 persisted = true;
             }
         }
@@ -432,6 +442,10 @@ mod tests {
     async fn test_memory_provider_sync_turn_persists_memory_and_history() {
         let temp_dir = TempDir::new().unwrap();
         let manager = MemoryManager::new(temp_dir.path());
+        let prompt_request = SystemPromptRequest {
+            workspace_root: temp_dir.path().to_path_buf(),
+        };
+        let initial_revision = manager.system_prompt_revision(&prompt_request);
 
         let result = manager
             .sync_turn(SyncTurnRequest {
@@ -448,6 +462,7 @@ mod tests {
             "Updated memory from sync_turn"
         );
         assert!(manager.load_history().contains("synchronized turn"));
+        assert!(manager.system_prompt_revision(&prompt_request) > initial_revision);
     }
 
     #[tokio::test]

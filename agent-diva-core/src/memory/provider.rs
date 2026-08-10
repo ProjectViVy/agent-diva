@@ -397,6 +397,15 @@ pub trait MemoryProvider: Send + Sync {
         request: &SystemPromptRequest,
     ) -> crate::Result<SystemPromptResponse>;
 
+    /// Return the in-process version of the cached startup prompt projection.
+    ///
+    /// The default is stable for providers that cannot refresh their startup
+    /// block during a running session. Implementations must not perform file
+    /// system access, blocking work, or async I/O from this method.
+    fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
+        0
+    }
+
     /// Perform optional intent-aware prefetch for a live turn.
     ///
     /// Recoverable recall misses or backend failures should prefer

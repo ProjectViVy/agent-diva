@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use agent_diva_core::audit::{emit as audit_emit, AuditEvent};
@@ -31,6 +32,8 @@ pub struct TypedLaputaMemoryProvider {
     workspace: PathBuf,
     workspace_id: String,
     startup_markdown: RwLock<Option<String>>,
+    startup_revision: AtomicU64,
+    l1_index_lines: usize,
     recall: LaputaRecallService,
     crud_store: TypedMemoryStore,
     coordinator: Option<MemoryGovernanceCoordinator>,
@@ -74,6 +77,8 @@ impl TypedLaputaMemoryProvider {
             workspace: workspace.to_path_buf(),
             workspace_id,
             startup_markdown,
+            startup_revision: AtomicU64::new(0),
+            l1_index_lines,
             recall: LaputaRecallService::new(store),
             crud_store,
             coordinator,
@@ -105,9 +110,15 @@ impl TypedLaputaMemoryProvider {
     }
 
     async fn refresh_startup_markdown(&self) -> Result<(), TypedMemoryStoreError> {
-        let rendered = Self::render_startup_index(&self.crud_store, DEFAULT_L1_INDEX_LINES).await?;
-        let mut guard = self.startup_markdown.write().unwrap();
-        *guard = rendered;
+        let rendered = Self::render_startup_index(&self.crud_store, self.l1_index_lines).await?;
+        let mut guard = self
+            .startup_markdown
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if *guard != rendered {
+            *guard = rendered;
+            self.startup_revision.fetch_add(1, Ordering::AcqRel);
+        }
         Ok(())
     }
 
@@ -305,7 +316,11 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         &self,
         _request: &SystemPromptRequest,
     ) -> agent_diva_core::Result<SystemPromptResponse> {
-        let cached = self.startup_markdown.read().unwrap().clone();
+        let cached = self
+            .startup_markdown
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         Ok(match cached {
             Some(markdown) => SystemPromptResponse::ready(SystemPromptBlock {
                 shape: StartupInjectionShape::CompactRenderedMarkdown,
@@ -315,6 +330,10 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                 "Embedded Laputa typed authority is empty; no startup Memory rendered",
             ),
         })
+    }
+
+    fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
+        self.startup_revision.load(Ordering::Acquire)
     }
 
     async fn prefetch(
@@ -1465,6 +1484,10 @@ mod wave3_tests {
     async fn memory_add_visible_in_next_startup_rendering() {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
+        let prompt_request = SystemPromptRequest {
+            workspace_root: temp.path().to_path_buf(),
+        };
+        let initial_revision = provider.system_prompt_revision(&prompt_request);
         provider
             .memory_add(
                 &context(&temp),
@@ -1475,6 +1498,14 @@ mod wave3_tests {
             )
             .await
             .unwrap();
+        assert!(provider.system_prompt_revision(&prompt_request) > initial_revision);
+        let hot_markdown = provider
+            .system_prompt_block(&prompt_request)
+            .unwrap()
+            .prompt_block
+            .expect("hot startup block")
+            .markdown;
+        assert!(hot_markdown.contains("kestrel release plan"));
         drop(provider);
 
         let fresh = open_provider(&temp).await;

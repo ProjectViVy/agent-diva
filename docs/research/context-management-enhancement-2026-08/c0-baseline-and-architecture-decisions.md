@@ -575,6 +575,11 @@ Stable/SessionStable 采用「会话快照优先、显式事件失效」，禁�
 | Compact | stable snapshot **不清空** | 只更新 post-prefix boundary/summary | `compaction_changed`（非 stable section break） |
 | Session end | 清除全部 session cache | 下次会话重新 capture | `session_ended` |
 
+**C1c 实现状态（2026-08-10）：** 四个稳定 section 已按 session 缓存，mask、同运行时
+L1 revision、reset/delete/shutdown 与 compact 均按上表实现。AGENTS/Skills 暴露显式
+失效 API；Manager 外部治理 apply 与 Skills 管理入口的 runtime 通知接线独立延期并登记
+于 `TODOLIST.md`，不得用每轮文件系统轮询绕过。
+
 除非 provider 明确要求重建 stable blocks，compact 不得借鉴样本实现而无条件清空 Diva
 section cache；任何例外必须写 capability、reason 和回归测试。
 

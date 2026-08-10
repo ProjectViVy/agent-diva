@@ -783,6 +783,8 @@ impl AgentLoop {
             }
         }
 
+        self.context.clear_session_caches();
+
         Ok(())
     }
 

@@ -8,6 +8,10 @@ use std::fmt;
 
 use agent_diva_providers::{DynamicContextTransport, Message};
 
+mod section_cache;
+
+pub use section_cache::{CacheBreakReason, StablePrefixSnapshot};
+
 /// Stability class used when deciding whether a section may participate in
 /// the prompt-cache prefix.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,7 +109,7 @@ pub struct PromptSection {
     pub section: ContextSection,
     pub stability: SectionStability,
     pub body: String,
-    pub cache_break_reason: Option<String>,
+    pub cache_break_reason: Option<CacheBreakReason>,
 }
 
 impl PromptSection {
@@ -120,8 +124,8 @@ impl PromptSection {
     }
 
     /// Record why a session-stable prefix section changed.
-    pub fn with_cache_break_reason(mut self, reason: impl Into<String>) -> Self {
-        self.cache_break_reason = Some(reason.into());
+    pub fn with_cache_break_reason(mut self, reason: CacheBreakReason) -> Self {
+        self.cache_break_reason = Some(reason);
         self
     }
 }
@@ -259,13 +263,14 @@ mod tests {
     #[test]
     fn prefix_change_reason_is_explicit_data() {
         let section = PromptSection::new(ContextSection::MemoryPolicyAndIndex, "L1")
-            .with_cache_break_reason("l1_hot_refresh");
+            .with_cache_break_reason(CacheBreakReason::L1HotRefresh);
 
         assert_eq!(section.stability, SectionStability::SessionStable);
         assert_eq!(
-            section.cache_break_reason.as_deref(),
-            Some("l1_hot_refresh")
+            section.cache_break_reason,
+            Some(CacheBreakReason::L1HotRefresh)
         );
+        assert_eq!(CacheBreakReason::L1HotRefresh.as_str(), "l1_hot_refresh");
     }
 
     #[test]

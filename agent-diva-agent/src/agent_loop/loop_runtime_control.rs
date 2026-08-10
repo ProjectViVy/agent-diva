@@ -24,6 +24,7 @@ impl AgentLoop {
             }
             RuntimeControlCommand::ResetSession { session_key } => {
                 agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
+                self.context.reset_session_cache(&session_key);
                 if let Some(planning) = self.tool_config.planning.as_ref() {
                     planning.registry.discard_session(&session_key).await;
                 }
@@ -54,6 +55,7 @@ impl AgentLoop {
                     .map_err(|e| e.to_string());
                 if result.is_ok() {
                     agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
+                    self.context.end_session_cache(&session_key);
                     if let Some(planning) = self.tool_config.planning.as_ref() {
                         planning.registry.discard_session(&session_key).await;
                     }

@@ -1,7 +1,8 @@
 //! Context builder for assembling prompts
 
 use crate::context_assembly::{
-    render_stable_prefix, serialize_dynamic_sections, ContextSection, PromptSection,
+    render_stable_prefix, serialize_dynamic_sections, CacheBreakReason, ContextSection,
+    PromptSection, StablePrefixSnapshot,
 };
 use crate::mask::MaskFile;
 use crate::mask::MaskPromptComposer;
@@ -14,10 +15,12 @@ use agent_diva_core::memory::{
 use agent_diva_laputa::{capture_frozen_core_for_session, DEFAULT_FROZEN_CORE_BUDGET};
 use agent_diva_providers::{DynamicContextTransport, Message};
 use agent_diva_tools::sanitize::truncate_tool_result;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::warn;
 
 mod prompt;
@@ -43,12 +46,27 @@ Use the ask_user tool to collect the user's identity preferences:\n\
 Then use laputa_propose_section_write to turn each confirmed answer into a\n\
 governed proposal. If the user declines, skip onboarding without repeating.";
 
+#[derive(Default)]
+struct StableContextCache {
+    sessions: HashMap<String, SessionStableCache>,
+}
+
+struct SessionStableCache {
+    sections: BTreeMap<ContextSection, PromptSection>,
+    rendered: String,
+    mask: Option<MaskFile>,
+    memory_revision: u64,
+    prefix_version: u64,
+    pending_invalidations: BTreeMap<ContextSection, CacheBreakReason>,
+}
+
 /// Builds the context for LLM requests
 pub struct ContextBuilder {
     workspace: PathBuf,
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
     default_session_key: String,
+    stable_cache: Mutex<StableContextCache>,
 }
 
 impl ContextBuilder {
@@ -61,6 +79,7 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             default_session_key: next_builder_session_key(),
+            stable_cache: Mutex::new(StableContextCache::default()),
         }
     }
 
@@ -73,11 +92,13 @@ impl ContextBuilder {
             skills_loader,
             memory_provider,
             default_session_key: next_builder_session_key(),
+            stable_cache: Mutex::new(StableContextCache::default()),
         }
     }
 
     /// Override the memory provider boundary used for prompt assembly.
     pub fn with_memory_provider(mut self, memory_provider: Arc<dyn MemoryProvider>) -> Self {
+        self.clear_session_caches();
         self.memory_provider = memory_provider;
         self
     }
@@ -97,18 +118,8 @@ impl ContextBuilder {
         mask: Option<&MaskFile>,
         session_key: &str,
     ) -> String {
-        let sections = self.build_prompt_sections_for_session(mask, session_key);
-        match render_stable_prefix(&sections) {
-            Ok(prompt) => prompt,
-            Err(error) => {
-                warn!(%error, "stable context sections violated the assembly contract");
-                sections
-                    .into_iter()
-                    .filter_map(|section| (!section.body.trim().is_empty()).then_some(section.body))
-                    .collect::<Vec<_>>()
-                    .join("\n\n")
-            }
-        }
+        self.stable_prefix_snapshot_for_session(mask, session_key)
+            .rendered
     }
 
     /// Build typed stable-prefix sections for one concrete session.
@@ -117,6 +128,201 @@ impl ContextBuilder {
         mask: Option<&MaskFile>,
         session_key: &str,
     ) -> Vec<PromptSection> {
+        self.stable_prefix_snapshot_for_session(mask, session_key)
+            .sections
+    }
+
+    /// Return the current stable-prefix cache snapshot for one session.
+    pub fn stable_prefix_snapshot_for_session(
+        &self,
+        mask: Option<&MaskFile>,
+        session_key: &str,
+    ) -> StablePrefixSnapshot {
+        let memory_request = SystemPromptRequest {
+            workspace_root: self.workspace.clone(),
+        };
+        let memory_revision = self.memory_provider.system_prompt_revision(&memory_request);
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        match stable_cache.sessions.entry(session_key.to_string()) {
+            Entry::Vacant(entry) => {
+                let sections = self.build_all_stable_sections(mask, session_key);
+                let rendered = render_stable_sections(&sections);
+                entry.insert(SessionStableCache {
+                    sections: sections
+                        .iter()
+                        .cloned()
+                        .map(|section| (section.section, section))
+                        .collect(),
+                    rendered: rendered.clone(),
+                    mask: mask.cloned(),
+                    memory_revision: self.memory_provider.system_prompt_revision(&memory_request),
+                    prefix_version: 1,
+                    pending_invalidations: BTreeMap::new(),
+                });
+                StablePrefixSnapshot {
+                    sections,
+                    rendered,
+                    prefix_version: 1,
+                }
+            }
+            Entry::Occupied(mut entry) => {
+                let cache = entry.get_mut();
+                if cache.mask.as_ref() != mask {
+                    cache.pending_invalidations.insert(
+                        ContextSection::MaskAndIdentity,
+                        CacheBreakReason::MaskChanged,
+                    );
+                }
+                if cache.memory_revision != memory_revision {
+                    cache.pending_invalidations.insert(
+                        ContextSection::MemoryPolicyAndIndex,
+                        CacheBreakReason::L1HotRefresh,
+                    );
+                }
+
+                if !cache.pending_invalidations.is_empty() {
+                    for section in cache.sections.values_mut() {
+                        section.cache_break_reason = None;
+                    }
+                    let invalidations = std::mem::take(&mut cache.pending_invalidations);
+                    for (section, reason) in invalidations {
+                        if let Some(rebuilt) = self.build_stable_section(section, mask, session_key)
+                        {
+                            cache
+                                .sections
+                                .insert(section, rebuilt.with_cache_break_reason(reason));
+                        }
+                    }
+                    cache.mask = mask.cloned();
+                    cache.memory_revision =
+                        self.memory_provider.system_prompt_revision(&memory_request);
+                    cache.prefix_version = cache.prefix_version.saturating_add(1);
+                    let sections = cache.sections.values().cloned().collect::<Vec<_>>();
+                    cache.rendered = render_stable_sections(&sections);
+                }
+
+                let sections = cache.sections.values().cloned().collect::<Vec<_>>();
+                StablePrefixSnapshot {
+                    rendered: cache.rendered.clone(),
+                    sections,
+                    prefix_version: cache.prefix_version,
+                }
+            }
+        }
+    }
+
+    /// Re-read AGENTS.md for an already-captured session on its next assembly.
+    pub fn invalidate_agent_rules(&self, session_key: &str) {
+        self.invalidate_cached_section(
+            session_key,
+            ContextSection::AgentRulesAndSkills,
+            CacheBreakReason::AgentRulesReload,
+        );
+    }
+
+    /// Re-read the skill catalog for an already-captured session on its next assembly.
+    pub fn invalidate_skills(&self, session_key: &str) {
+        self.invalidate_cached_section(
+            session_key,
+            ContextSection::AgentRulesAndSkills,
+            CacheBreakReason::SkillsReload,
+        );
+    }
+
+    /// Mark every stable section for recapture after a session reset.
+    pub fn reset_session_cache(&self, session_key: &str) {
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let Some(cache) = stable_cache.sessions.get_mut(session_key) else {
+            return;
+        };
+        for section in [
+            ContextSection::MaskAndIdentity,
+            ContextSection::FrozenCore,
+            ContextSection::AgentRulesAndSkills,
+            ContextSection::MemoryPolicyAndIndex,
+        ] {
+            cache
+                .pending_invalidations
+                .insert(section, CacheBreakReason::SessionReset);
+        }
+    }
+
+    /// Drop all stable state owned by a completed or deleted session.
+    pub fn end_session_cache(&self, session_key: &str) {
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        stable_cache.sessions.remove(session_key);
+    }
+
+    /// Drop all stable section snapshots owned by this builder.
+    pub fn clear_session_caches(&self) {
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        stable_cache.sessions.clear();
+    }
+
+    fn invalidate_cached_section(
+        &self,
+        session_key: &str,
+        section: ContextSection,
+        reason: CacheBreakReason,
+    ) {
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(cache) = stable_cache.sessions.get_mut(session_key) {
+            cache.pending_invalidations.insert(section, reason);
+        }
+    }
+
+    fn build_all_stable_sections(
+        &self,
+        mask: Option<&MaskFile>,
+        session_key: &str,
+    ) -> Vec<PromptSection> {
+        [
+            ContextSection::MaskAndIdentity,
+            ContextSection::FrozenCore,
+            ContextSection::AgentRulesAndSkills,
+            ContextSection::MemoryPolicyAndIndex,
+        ]
+        .into_iter()
+        .filter_map(|section| self.build_stable_section(section, mask, session_key))
+        .collect()
+    }
+
+    fn build_stable_section(
+        &self,
+        section: ContextSection,
+        mask: Option<&MaskFile>,
+        session_key: &str,
+    ) -> Option<PromptSection> {
+        match section {
+            ContextSection::MaskAndIdentity => Some(self.build_mask_and_identity_section(mask)),
+            ContextSection::FrozenCore => Some(self.build_frozen_core_section(session_key)),
+            ContextSection::AgentRulesAndSkills => {
+                Some(self.build_agent_rules_and_skills_section())
+            }
+            ContextSection::MemoryPolicyAndIndex => {
+                Some(self.build_memory_policy_and_index_section())
+            }
+            _ => None,
+        }
+    }
+
+    fn build_mask_and_identity_section(&self, mask: Option<&MaskFile>) -> PromptSection {
         let workspace_path = self.workspace.display();
         let identity_header = self.load_identity_header();
 
@@ -148,6 +354,10 @@ Your workspace is at: {workspace_path}
 - Legacy authority files are compatibility/migration inputs only, not default authority."#
         ));
 
+        PromptSection::new(ContextSection::MaskAndIdentity, identity)
+    }
+
+    fn build_frozen_core_section(&self, session_key: &str) -> PromptSection {
         let mut frozen = String::new();
         // Frozen Core projection: captured once per session (first assembly)
         // and frozen afterwards; sits under the mask overlay, above all other
@@ -164,6 +374,10 @@ Your workspace is at: {workspace_path}
             frozen.push_str(FIRST_RUN_ONBOARDING_BLOCK.trim());
         }
 
+        PromptSection::new(ContextSection::FrozenCore, frozen)
+    }
+
+    fn build_agent_rules_and_skills_section(&self) -> PromptSection {
         let mut rules_and_skills = String::new();
         self.append_agent_rules(&mut rules_and_skills);
 
@@ -190,6 +404,13 @@ Your workspace is at: {workspace_path}
             rules_and_skills.push_str(&skills_summary);
         }
 
+        PromptSection::new(
+            ContextSection::AgentRulesAndSkills,
+            rules_and_skills.trim_start().to_string(),
+        )
+    }
+
+    fn build_memory_policy_and_index_section(&self) -> PromptSection {
         let mut memory = String::new();
         // Inject L0 memory management policy before the memory projection.
         self.append_section(
@@ -227,18 +448,10 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             "\nWhen the user asks you to remember something, use the memory_add tool; to forget, use memory_remove; to recall, use memory_search or memory_list. Writes report one of: applied (durable), proposal_created (awaiting review, contains a proposal id), or failed. High-risk changes (updating or removing existing memory) create reviewable proposals and are not effective until approved. Never write arbitrary files as if they were memory authority; legacy authority files are compatibility inputs only, not default prompt authority.",
         );
 
-        vec![
-            PromptSection::new(ContextSection::MaskAndIdentity, identity),
-            PromptSection::new(ContextSection::FrozenCore, frozen),
-            PromptSection::new(
-                ContextSection::AgentRulesAndSkills,
-                rules_and_skills.trim_start().to_string(),
-            ),
-            PromptSection::new(
-                ContextSection::MemoryPolicyAndIndex,
-                memory.trim_start().to_string(),
-            ),
-        ]
+        PromptSection::new(
+            ContextSection::MemoryPolicyAndIndex,
+            memory.trim_start().to_string(),
+        )
     }
 
     /// Build the per-call time and channel metadata outside the stable prefix.
@@ -508,6 +721,22 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 }
 
+fn render_stable_sections(sections: &[PromptSection]) -> String {
+    match render_stable_prefix(sections) {
+        Ok(prompt) => prompt,
+        Err(error) => {
+            warn!(%error, "stable context sections violated the assembly contract");
+            sections
+                .iter()
+                .filter_map(|section| {
+                    (!section.body.trim().is_empty()).then_some(section.body.as_str())
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        }
+    }
+}
+
 fn next_builder_session_key() -> String {
     format!(
         "context-builder:{}",
@@ -611,10 +840,32 @@ mod tests {
     };
     use agent_diva_core::session::{SessionManager, SessionSearchQuery};
     use std::fs;
-    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::sync::{Arc, RwLock};
     use tempfile::TempDir;
 
     struct TestMemoryProvider;
+
+    struct RevisionMemoryProvider {
+        markdown: RwLock<String>,
+        revision: AtomicU64,
+        prompt_calls: AtomicUsize,
+    }
+
+    impl RevisionMemoryProvider {
+        fn new(markdown: &str) -> Self {
+            Self {
+                markdown: RwLock::new(markdown.to_string()),
+                revision: AtomicU64::new(0),
+                prompt_calls: AtomicUsize::new(0),
+            }
+        }
+
+        fn update(&self, markdown: &str) {
+            *self.markdown.write().unwrap() = markdown.to_string();
+            self.revision.fetch_add(1, Ordering::SeqCst);
+        }
+    }
 
     #[async_trait::async_trait]
     impl MemoryProvider for TestMemoryProvider {
@@ -655,6 +906,55 @@ mod tests {
                 status: SessionEndStatus::Noop,
             })
         }
+    }
+
+    #[async_trait::async_trait]
+    impl MemoryProvider for RevisionMemoryProvider {
+        fn system_prompt_block(
+            &self,
+            _request: &SystemPromptRequest,
+        ) -> agent_diva_core::Result<SystemPromptResponse> {
+            self.prompt_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(SystemPromptResponse::ready(SystemPromptBlock {
+                shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
+                markdown: self.markdown.read().unwrap().clone(),
+            }))
+        }
+
+        fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
+            self.revision.load(Ordering::SeqCst)
+        }
+
+        async fn prefetch(
+            &self,
+            _request: PrefetchRequest,
+        ) -> agent_diva_core::Result<PrefetchResponse> {
+            Ok(PrefetchResponse::default())
+        }
+
+        async fn sync_turn(
+            &self,
+            _request: SyncTurnRequest,
+        ) -> agent_diva_core::Result<SyncTurnResponse> {
+            Ok(SyncTurnResponse {
+                status: SyncTurnStatus::Noop,
+            })
+        }
+
+        async fn on_session_end(
+            &self,
+            _request: SessionEndRequest,
+        ) -> agent_diva_core::Result<SessionEndResponse> {
+            Ok(SessionEndResponse::default())
+        }
+    }
+
+    fn snapshot_section(snapshot: &StablePrefixSnapshot, target: ContextSection) -> &PromptSection {
+        snapshot
+            .sections
+            .iter()
+            .find(|section| section.section == target)
+            .unwrap()
     }
 
     #[test]
@@ -809,6 +1109,205 @@ mod tests {
             recall.stability,
             crate::context_assembly::SectionStability::TurnVolatile
         );
+    }
+
+    #[test]
+    fn c1c_same_session_reuses_cached_sections() {
+        let workspace = TempDir::new().unwrap();
+        let provider = Arc::new(RevisionMemoryProvider::new("## Memory\nfirst"));
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_memory_provider(provider.clone());
+
+        let first = builder.stable_prefix_snapshot_for_session(None, "cache-session");
+        let second = builder.stable_prefix_snapshot_for_session(None, "cache-session");
+        let other = builder.stable_prefix_snapshot_for_session(None, "other-session");
+
+        assert_eq!(first, second);
+        assert_eq!(first.prefix_version, 1);
+        assert_eq!(other.prefix_version, 1);
+        assert_eq!(provider.prompt_calls.load(Ordering::SeqCst), 2);
+
+        let replacement = Arc::new(RevisionMemoryProvider::new("## Memory\nreplacement"));
+        let builder = builder.with_memory_provider(replacement.clone());
+        let replaced = builder.stable_prefix_snapshot_for_session(None, "cache-session");
+        assert!(
+            snapshot_section(&replaced, ContextSection::MemoryPolicyAndIndex)
+                .body
+                .contains("replacement")
+        );
+        assert_eq!(replaced.prefix_version, 1);
+        assert_eq!(replacement.prompt_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn c1c_agent_rules_and_skills_require_explicit_reload() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("AGENTS.md"), "# Rules v1").unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+
+        let first = builder.stable_prefix_snapshot_for_session(None, "rules-session");
+        fs::write(workspace.path().join("AGENTS.md"), "# Rules v2").unwrap();
+        let cached = builder.stable_prefix_snapshot_for_session(None, "rules-session");
+        assert_eq!(first, cached);
+
+        builder.invalidate_agent_rules("rules-session");
+        let reloaded = builder.stable_prefix_snapshot_for_session(None, "rules-session");
+        assert_eq!(reloaded.prefix_version, 2);
+        assert_eq!(
+            snapshot_section(&reloaded, ContextSection::AgentRulesAndSkills).cache_break_reason,
+            Some(CacheBreakReason::AgentRulesReload)
+        );
+        assert!(
+            snapshot_section(&reloaded, ContextSection::AgentRulesAndSkills)
+                .body
+                .contains("Rules v2")
+        );
+        for section in [
+            ContextSection::MaskAndIdentity,
+            ContextSection::FrozenCore,
+            ContextSection::MemoryPolicyAndIndex,
+        ] {
+            assert_eq!(
+                snapshot_section(&first, section).body,
+                snapshot_section(&reloaded, section).body
+            );
+        }
+
+        let skill_dir = workspace.path().join("skills").join("cached-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: cached-skill\ndescription: cache test\n---\n\n# Cached skill\n",
+        )
+        .unwrap();
+        let before_skill_reload = builder.stable_prefix_snapshot_for_session(None, "rules-session");
+        assert_eq!(reloaded, before_skill_reload);
+
+        builder.invalidate_skills("rules-session");
+        let skills_reloaded = builder.stable_prefix_snapshot_for_session(None, "rules-session");
+        assert_eq!(skills_reloaded.prefix_version, 3);
+        assert_eq!(
+            skills_reloaded.cache_break_reasons(),
+            vec![CacheBreakReason::SkillsReload]
+        );
+        assert!(
+            snapshot_section(&skills_reloaded, ContextSection::AgentRulesAndSkills)
+                .body
+                .contains("cached-skill")
+        );
+    }
+
+    #[test]
+    fn c1c_t5_mask_switch_rebuilds_only_mask_section() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let first = builder.stable_prefix_snapshot_for_session(None, "mask-session");
+        let mask = MaskFile::parse("---\nname: researcher\n---\n\nAct as a researcher.").unwrap();
+
+        let switched = builder.stable_prefix_snapshot_for_session(Some(&mask), "mask-session");
+
+        assert_eq!(switched.prefix_version, 2);
+        assert_ne!(first.rendered, switched.rendered);
+        assert_eq!(
+            switched.cache_break_reasons(),
+            vec![CacheBreakReason::MaskChanged]
+        );
+        assert_eq!(
+            snapshot_section(&switched, ContextSection::MaskAndIdentity).cache_break_reason,
+            Some(CacheBreakReason::MaskChanged)
+        );
+        for section in [
+            ContextSection::FrozenCore,
+            ContextSection::AgentRulesAndSkills,
+            ContextSection::MemoryPolicyAndIndex,
+        ] {
+            assert_eq!(
+                snapshot_section(&first, section).body,
+                snapshot_section(&switched, section).body
+            );
+        }
+    }
+
+    #[test]
+    fn c1c_t6_l1_revision_rebuilds_only_memory_section() {
+        let workspace = TempDir::new().unwrap();
+        let provider = Arc::new(RevisionMemoryProvider::new("## Memory\nfirst"));
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_memory_provider(provider.clone());
+        let first = builder.stable_prefix_snapshot_for_session(None, "memory-session");
+
+        provider.update("## Memory\nsecond");
+        let refreshed = builder.stable_prefix_snapshot_for_session(None, "memory-session");
+        let cached = builder.stable_prefix_snapshot_for_session(None, "memory-session");
+
+        assert_eq!(refreshed.prefix_version, 2);
+        assert_eq!(refreshed, cached);
+        assert_eq!(provider.prompt_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            refreshed.cache_break_reasons(),
+            vec![CacheBreakReason::L1HotRefresh]
+        );
+        assert_ne!(
+            snapshot_section(&first, ContextSection::MemoryPolicyAndIndex).body,
+            snapshot_section(&refreshed, ContextSection::MemoryPolicyAndIndex).body
+        );
+        for section in [
+            ContextSection::MaskAndIdentity,
+            ContextSection::FrozenCore,
+            ContextSection::AgentRulesAndSkills,
+        ] {
+            assert_eq!(
+                snapshot_section(&first, section).body,
+                snapshot_section(&refreshed, section).body
+            );
+        }
+    }
+
+    #[test]
+    fn c1c_session_reset_recaptures_every_stable_section() {
+        let workspace = TempDir::new().unwrap();
+        let frozen_dir = workspace.path().join(".laputa").join("sections");
+        fs::create_dir_all(&frozen_dir).unwrap();
+        fs::write(frozen_dir.join("identity.json"), r#"{"name":"first"}"#).unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let first = builder.stable_prefix_snapshot_for_session(None, "reset-session");
+
+        fs::write(frozen_dir.join("identity.json"), r#"{"name":"second"}"#).unwrap();
+        agent_diva_laputa::release_frozen_core_session(workspace.path(), "reset-session");
+        builder.reset_session_cache("reset-session");
+        let reset = builder.stable_prefix_snapshot_for_session(None, "reset-session");
+
+        assert_eq!(reset.prefix_version, 2);
+        assert!(snapshot_section(&first, ContextSection::FrozenCore)
+            .body
+            .contains("first"));
+        assert!(snapshot_section(&reset, ContextSection::FrozenCore)
+            .body
+            .contains("second"));
+        assert_eq!(
+            reset.cache_break_reasons(),
+            vec![CacheBreakReason::SessionReset]
+        );
+        assert!(reset
+            .sections
+            .iter()
+            .all(|section| { section.cache_break_reason == Some(CacheBreakReason::SessionReset) }));
+    }
+
+    #[test]
+    fn c1c_session_end_drops_the_snapshot() {
+        let workspace = TempDir::new().unwrap();
+        let provider = Arc::new(RevisionMemoryProvider::new("## Memory\nfirst"));
+        let builder = ContextBuilder::new(workspace.path().to_path_buf())
+            .with_memory_provider(provider.clone());
+        builder.stable_prefix_snapshot_for_session(None, "ended-session");
+
+        builder.end_session_cache("ended-session");
+        let recaptured = builder.stable_prefix_snapshot_for_session(None, "ended-session");
+
+        assert_eq!(recaptured.prefix_version, 1);
+        assert!(recaptured.cache_break_reasons().is_empty());
+        assert_eq!(provider.prompt_calls.load(Ordering::SeqCst), 2);
     }
 
     #[test]
