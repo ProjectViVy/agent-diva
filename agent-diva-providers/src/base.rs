@@ -424,6 +424,26 @@ pub enum LLMStreamEvent {
     Completed(LLMResponse),
 }
 
+/// Wire strategy for runtime context blocks placed after conversation history.
+///
+/// Providers must opt in before the agent emits a mid-conversation system
+/// message. The conservative default keeps volatile context in a delimited
+/// user-role envelope because many compatible endpoints reject or reorder
+/// system messages that appear after history.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DynamicContextTransport {
+    /// Emit one system message after history.
+    MidConversationSystem,
+    /// Emit one delimited user-role context message after history.
+    #[default]
+    UserContextEnvelope,
+    /// Reserve the context for a provider-native request block.
+    ///
+    /// The generic `Vec<Message>` request path cannot represent this transport
+    /// and must fail closed until a provider adapter supplies native support.
+    NativeContextBlock,
+}
+
 /// A message in the chat conversation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
@@ -682,6 +702,13 @@ pub trait LLMProvider: Send + Sync {
 
     /// Get the default model for this provider
     fn get_default_model(&self) -> String;
+
+    /// Select how post-history runtime context is represented on the wire.
+    ///
+    /// Unknown and test providers inherit the safe user-envelope default.
+    fn dynamic_context_transport(&self) -> DynamicContextTransport {
+        DynamicContextTransport::UserContextEnvelope
+    }
 
     /// Attach a listener invoked before each internal retry attempt.
     ///

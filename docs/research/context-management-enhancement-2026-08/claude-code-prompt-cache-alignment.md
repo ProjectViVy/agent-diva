@@ -1,6 +1,6 @@
 # Claude Code 导向：Prompt Cache 上下文管理对齐规格
 
-- **状态**：实施规格冻结（文档）；代码未改
+- **状态**：实施规格冻结；C1a/P0-1 已实现，C1b–C1d 待实施
 - **日期**：2026-08-10
 - **主样本**：`.workspace/claude-code`（唯一深读对象）
 - **目标**：提高 Agent-Diva **Prompt Cache 命中率**；降低重复前缀计费与延迟
@@ -251,6 +251,13 @@ DEC-CTX-C。
 ## 5. P0 实施切片（可直接开 PR）
 
 ### P0-1 移出 TurnVolatile（最高 ROI）
+
+**实现状态（2026-08-10）：已完成。** `ContextBuilder` 已按 C1-0 typed sections 构建
+唯一 stable system；Current Time/session、WM、Recall、Plan/Ask/Scheduled 进入统一动态
+envelope。`LLMProvider::dynamic_context_transport` 默认 fail-safe 到
+`UserContextEnvelope`，现有 Anthropic/OpenAI-compatible/Ollama adapter 均显式采用该
+策略；`NativeContextBlock` 在通用消息路径 fail closed。reactive compaction 复用同一
+turn 的动态 section 快照。T1–T3 与 provider wire-shape/compaction 回归已落地。
 
 **改动文件（预期）**
 

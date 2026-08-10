@@ -7,11 +7,14 @@ use agent_diva_core::planning::{
 };
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
 use agent_diva_core::session::{align_chat_history, CompactTrigger};
-use agent_diva_providers::{supports_vision_model, Message};
+use agent_diva_providers::{supports_vision_model, DynamicContextTransport, Message};
 use tracing::{error, info, trace, warn};
 
 use crate::compaction::ContextCompactor;
 use crate::context::ContextBuilder;
+use crate::context_assembly::{
+    serialize_dynamic_sections, ContextAssemblyError, ContextSection, PromptSection,
+};
 use crate::context_budget::check_budget;
 use crate::mask::MaskFile;
 
@@ -34,60 +37,27 @@ pub(crate) struct RuntimeTurnContext {
     pub current_turn_message: Message,
     pub messages: Vec<Message>,
     pub turn_messages_start: usize,
+    pub dynamic_sections: Vec<PromptSection>,
 }
 
 impl PreparedTurnContext {
     pub(crate) fn prepare(
         mut messages: Vec<Message>,
-        plan_guard_active: bool,
-        approved_plan_markdown: Option<&str>,
-        system_prompt_override: Option<String>,
-        scheduled: bool,
+        dynamic_sections: &[PromptSection],
+        transport: DynamicContextTransport,
         current_turn_message: Message,
-    ) -> Self {
-        if plan_guard_active {
-            messages.insert(1, prompt::plan_mode().system());
+    ) -> Result<Self, ContextAssemblyError> {
+        if let Some(dynamic) = serialize_dynamic_sections(dynamic_sections, transport)? {
+            messages.push(dynamic);
         }
-        if let Some(markdown) = approved_plan_markdown {
-            messages.insert(1, prompt::approved_plan(markdown).system());
-        }
+        messages.push(current_turn_message);
         ContextBuilder::sanitize_messages_for_provider(&mut messages);
         let turn_messages_start = messages.len();
 
-        if let (Some(system_prompt), Some(first)) = (system_prompt_override, messages.first_mut()) {
-            *first = Message::system(system_prompt);
-        }
-        if scheduled {
-            let current_message = messages.pop();
-            messages.push(prompt::scheduled_turn().system());
-            if let Some(current_message) = current_message {
-                messages.push(current_message);
-            }
-        }
-        if let Some(last) = messages.last_mut() {
-            *last = current_turn_message;
-        } else {
-            messages.push(current_turn_message);
-        }
-
-        Self {
+        Ok(Self {
             messages,
             turn_messages_start,
-        }
-    }
-}
-
-/// Inject the session working memory block right after the system prompt.
-///
-/// Returns whether a block was injected so later stage inserts (prefetch) can
-/// shift their index accordingly.
-fn inject_working_memory(messages: &mut Vec<Message>, block: Option<String>) -> bool {
-    match block.filter(|value| !value.trim().is_empty()) {
-        Some(block) => {
-            messages.insert(1, Message::system(block));
-            true
-        }
-        None => false,
+        })
     }
 }
 
@@ -102,6 +72,7 @@ impl AgentLoop {
         active_execution: &mut Option<ExecutionSession>,
         plan_guard_active: bool,
         approved_plan_markdown: Option<&str>,
+        read_only: bool,
         active_mask: Option<&MaskFile>,
         scheduled: bool,
         trace_id: &str,
@@ -358,26 +329,8 @@ impl AgentLoop {
             }
         }
 
-        let prepared = PreparedTurnContext::prepare(
-            self.context.build_messages_for_session(
-                history,
-                message_content.clone(),
-                Some(&message.channel),
-                Some(&message.chat_id),
-                &compaction_history,
-                session_key,
-            ),
-            plan_guard_active,
-            approved_plan_markdown,
-            active_mask.map(|mask| {
-                self.context
-                    .build_system_prompt_for_session(Some(mask), session_key)
-            }),
-            scheduled,
-            current_turn_message.clone(),
-        );
-        let mut messages = prepared.messages;
-        let working_injected = match self
+        let mut dynamic_sections = Vec::new();
+        match self
             .memory_provider
             .working_memory_block(agent_diva_core::memory::WorkingMemoryRequest {
                 workspace_root: self.workspace.clone(),
@@ -385,13 +338,18 @@ impl AgentLoop {
             })
             .await
         {
-            Ok(response) => inject_working_memory(&mut messages, response.prompt_block),
+            Ok(response) => {
+                if let Some(block) = response
+                    .prompt_block
+                    .filter(|value| !value.trim().is_empty())
+                {
+                    dynamic_sections.push(PromptSection::new(ContextSection::WorkingMemory, block));
+                }
+            }
             Err(error) => {
                 warn!("Working memory block failed (non-fatal): {}", error);
-                false
             }
-        };
-        let prefetch_insert_at = 1 + usize::from(working_injected);
+        }
         let prefetch_intent = derive_prefetch_intent(&message_content);
         if !prefetch_intent.is_empty() {
             match self
@@ -410,7 +368,8 @@ impl AgentLoop {
                     }
                     _ => {
                         if let Some(block) = response.prompt_block {
-                            messages.insert(prefetch_insert_at, Message::system(block));
+                            dynamic_sections
+                                .push(PromptSection::new(ContextSection::PrefetchRecall, block));
                             trace!(
                                 trace_id = %trace_id,
                                 step_name = "prefetch_injected",
@@ -429,11 +388,53 @@ impl AgentLoop {
             }
         }
 
+        dynamic_sections.push(
+            self.context
+                .build_volatile_meta_section(Some(&message.channel), Some(&message.chat_id)),
+        );
+        if scheduled {
+            dynamic_sections.push(PromptSection::new(
+                ContextSection::VolatileMeta,
+                prompt::scheduled_turn().content,
+            ));
+        }
+        if let Some(markdown) = approved_plan_markdown {
+            dynamic_sections.push(PromptSection::new(
+                ContextSection::PlanGuard,
+                prompt::approved_plan(markdown).content,
+            ));
+        }
+        if plan_guard_active {
+            dynamic_sections.push(PromptSection::new(
+                ContextSection::PlanGuard,
+                prompt::plan_mode().content,
+            ));
+        }
+        if read_only {
+            dynamic_sections.push(PromptSection::new(
+                ContextSection::PlanGuard,
+                prompt::ask_mode().content,
+            ));
+        }
+
+        let prepared = PreparedTurnContext::prepare(
+            self.context.build_prefix_messages_for_session(
+                history,
+                &compaction_history,
+                session_key,
+                active_mask,
+            ),
+            &dynamic_sections,
+            self.provider.dynamic_context_transport(),
+            current_turn_message.clone(),
+        )?;
+
         Ok(RuntimeTurnContext {
             message_content,
             current_turn_message,
-            messages,
+            messages: prepared.messages,
             turn_messages_start: prepared.turn_messages_start,
+            dynamic_sections,
         })
     }
 }
@@ -445,29 +446,31 @@ mod tests {
     #[test]
     fn freezes_the_provider_prefix_boundary() {
         let context = PreparedTurnContext::prepare(
-            vec![Message::system("system"), Message::user("current")],
-            false,
-            None,
-            None,
-            false,
+            vec![Message::system("system")],
+            &[],
+            DynamicContextTransport::UserContextEnvelope,
             Message::user("current"),
-        );
+        )
+        .unwrap();
         assert_eq!(context.turn_messages_start, 2);
         assert_eq!(context.messages.len(), 2);
     }
 
     #[test]
     fn scheduled_prompt_precedes_the_rich_current_turn_message() {
+        let sections = vec![PromptSection::new(
+            ContextSection::VolatileMeta,
+            prompt::scheduled_turn().content,
+        )];
         let context = PreparedTurnContext::prepare(
-            vec![Message::system("system"), Message::user("placeholder")],
-            false,
-            None,
-            None,
-            true,
+            vec![Message::system("system")],
+            &sections,
+            DynamicContextTransport::UserContextEnvelope,
             Message::user("current"),
-        );
-        assert_eq!(context.turn_messages_start, 2);
-        assert_eq!(context.messages[1].role, "system");
+        )
+        .unwrap();
+        assert_eq!(context.turn_messages_start, 3);
+        assert_eq!(context.messages[1].role, "user");
         assert!(context.messages[1]
             .content
             .as_text()
@@ -476,156 +479,110 @@ mod tests {
     }
 
     #[test]
-    fn working_memory_block_injects_after_system_prompt() {
-        let mut messages = vec![Message::system("system"), Message::user("current")];
-        let injected = inject_working_memory(
-            &mut messages,
-            Some("## Working Memory\nin-flight state".to_string()),
-        );
-        assert!(injected);
-        assert_eq!(messages.len(), 3);
-        assert_eq!(messages[1].role, "system");
-        assert!(messages[1]
-            .content
-            .as_text()
-            .is_some_and(|text| text.contains("Working Memory")));
-        assert_eq!(messages[2].content.as_text(), Some("current"));
-    }
-
-    #[test]
-    fn c1_0_characterizes_plan_prompts_at_the_current_prefix_boundary() {
+    fn working_memory_is_a_post_history_user_context_block() {
+        let sections = vec![PromptSection::new(
+            ContextSection::WorkingMemory,
+            "## Working Memory\nin-flight state",
+        )];
         let context = PreparedTurnContext::prepare(
-            vec![Message::system("system"), Message::user("current")],
-            true,
-            Some("# Approved\n- execute"),
-            None,
-            false,
+            vec![Message::system("system"), Message::assistant("history")],
+            &sections,
+            DynamicContextTransport::UserContextEnvelope,
             Message::user("current"),
-        );
-
+        )
+        .unwrap();
         assert_eq!(context.messages.len(), 4);
-        assert_eq!(context.messages[0].content.as_text(), Some("system"));
-        assert!(context.messages[1]
-            .content
-            .as_text()
-            .is_some_and(|text| text.contains("Approved")));
+        assert_eq!(context.messages[2].role, "user");
         assert!(context.messages[2]
             .content
             .as_text()
-            .is_some_and(|text| text.contains("Plan mode")));
+            .is_some_and(|text| text.contains("Working Memory")));
         assert_eq!(context.messages[3].content.as_text(), Some("current"));
     }
 
     #[test]
-    fn empty_working_memory_block_is_not_injected() {
-        let mut messages = vec![Message::system("system"), Message::user("current")];
-        assert!(!inject_working_memory(&mut messages, None));
-        assert!(!inject_working_memory(
-            &mut messages,
-            Some("   ".to_string())
-        ));
-        assert_eq!(messages.len(), 2);
+    fn plan_prompts_share_the_typed_post_prefix_envelope() {
+        let sections = vec![
+            PromptSection::new(
+                ContextSection::PlanGuard,
+                prompt::approved_plan("# Approved\n- execute").content,
+            ),
+            PromptSection::new(ContextSection::PlanGuard, prompt::plan_mode().content),
+        ];
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system")],
+            &sections,
+            DynamicContextTransport::UserContextEnvelope,
+            Message::user("current"),
+        )
+        .unwrap();
+
+        assert_eq!(context.messages.len(), 3);
+        assert_eq!(context.messages[0].content.as_text(), Some("system"));
+        let envelope = context.messages[1].content.as_text().unwrap();
+        assert!(envelope.find("Approved").unwrap() < envelope.find("Plan mode").unwrap());
+        assert_eq!(context.messages[2].content.as_text(), Some("current"));
+    }
+
+    #[test]
+    fn empty_dynamic_sections_do_not_create_an_envelope() {
+        let sections = vec![PromptSection::new(ContextSection::WorkingMemory, "   ")];
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system")],
+            &sections,
+            DynamicContextTransport::UserContextEnvelope,
+            Message::user("current"),
+        )
+        .unwrap();
+        assert_eq!(context.messages.len(), 2);
     }
 }
 
 #[cfg(test)]
 mod wave3_tests {
     use super::*;
-    use agent_diva_core::memory::PrefetchStatus;
 
-    /// D2 — a failed prefetch must not mutate the messages vector; the
-    /// turn context stays [system, user] so the agent loop can proceed
-    /// without any prompt_block to inject.
     #[test]
     fn legacy_prefetch_failure_leaves_messages_untouched() {
-        let mut messages = vec![Message::system("system"), Message::user("current")];
-        let working_injected = false;
-        let prefetch_insert_at = 1 + usize::from(working_injected);
-
-        let status = PrefetchStatus::Failed {
-            reason: "prefetch recall is unavailable in the default MemoryManager".into(),
-        };
-        match status {
-            PrefetchStatus::Failed { .. } => {}
-            _ => {
-                if let Some(block) = None::<String> {
-                    messages.insert(prefetch_insert_at, Message::system(block));
-                }
-            }
-        }
-
-        assert_eq!(
-            messages.len(),
-            2,
-            "failed prefetch must not inject any extra message"
-        );
-        assert_eq!(messages[0].role, "system");
-        assert_eq!(messages[1].role, "user");
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system")],
+            &[],
+            DynamicContextTransport::UserContextEnvelope,
+            Message::user("current"),
+        )
+        .unwrap();
+        assert_eq!(context.messages.len(), 2);
     }
 
-    /// D4 — when both working memory and prefetch blocks are produced, the
-    /// turn context ordering must be [system, working_memory, prefetch,
-    /// user]. This is the end-to-end injection order the agent loop relies
-    /// on for typed authorities.
     #[test]
-    fn typed_prefetch_inserts_after_working_memory_block() {
-        let mut messages = vec![Message::system("system"), Message::user("current")];
-        let working_injected = inject_working_memory(
-            &mut messages,
-            Some("## Working Memory\nmigrating service B".to_string()),
-        );
-        assert!(working_injected);
-
-        let prefetch_insert_at = 1 + usize::from(working_injected);
-        messages.insert(
-            prefetch_insert_at,
-            Message::system("## Recalled Memory\nkestrel release plan".to_string()),
-        );
-
-        assert_eq!(messages.len(), 4);
-        assert_eq!(messages[0].role, "system");
+    fn typed_prefetch_follows_working_memory_inside_one_envelope() {
+        let sections = vec![
+            PromptSection::new(ContextSection::PrefetchRecall, "## Recalled Memory\nplan"),
+            PromptSection::new(ContextSection::WorkingMemory, "## Working Memory\nstate"),
+        ];
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system")],
+            &sections,
+            DynamicContextTransport::UserContextEnvelope,
+            Message::user("current"),
+        )
+        .unwrap();
+        let envelope = context.messages[1].content.as_text().unwrap();
         assert!(
-            messages[0]
-                .content
-                .as_text()
-                .is_some_and(|text| text == "system"),
-            "slot 0 must be the original system prompt"
+            envelope.find("Working Memory").unwrap() < envelope.find("Recalled Memory").unwrap()
         );
-        assert!(
-            messages[1]
-                .content
-                .as_text()
-                .is_some_and(|text| text.contains("Working Memory")),
-            "slot 1 must be the working memory block"
-        );
-        assert!(
-            messages[2]
-                .content
-                .as_text()
-                .is_some_and(|text| text.contains("Recalled Memory")),
-            "slot 2 must be the prefetch/recall block"
-        );
-        assert_eq!(
-            messages[3].content.as_text(),
-            Some("current"),
-            "slot 3 must be the user turn"
-        );
+        assert_eq!(context.messages[2].content.as_text(), Some("current"));
     }
 
-    /// D2/D4 — when prefetch is Skipped (no intent) and working memory is
-    /// absent, the turn context must stay at the minimal [system, user]
-    /// shape — no empty system message inserted.
     #[test]
     fn no_injection_when_both_prefetch_and_working_memory_are_absent() {
-        let mut messages = vec![Message::system("system"), Message::user("current")];
-        let working_injected = inject_working_memory(&mut messages, None);
-        let prefetch_insert_at = 1 + usize::from(working_injected);
-        let skipped_status = PrefetchStatus::SkippedNoIntent;
-        if !matches!(skipped_status, PrefetchStatus::Failed { .. }) {
-            if let Some(block) = None::<String> {
-                messages.insert(prefetch_insert_at, Message::system(block));
-            }
-        }
-        assert_eq!(messages.len(), 2, "no spurious empty injection");
+        let context = PreparedTurnContext::prepare(
+            vec![Message::system("system")],
+            &[],
+            DynamicContextTransport::UserContextEnvelope,
+            Message::user("current"),
+        )
+        .unwrap();
+        assert_eq!(context.messages.len(), 2);
     }
 }

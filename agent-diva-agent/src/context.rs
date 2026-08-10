@@ -1,5 +1,8 @@
 //! Context builder for assembling prompts
 
+use crate::context_assembly::{
+    render_stable_prefix, serialize_dynamic_sections, ContextSection, PromptSection,
+};
 use crate::mask::MaskFile;
 use crate::mask::MaskPromptComposer;
 use crate::memory_boundary::default_memory_provider;
@@ -9,7 +12,7 @@ use agent_diva_core::memory::{
     SystemPromptResponse,
 };
 use agent_diva_laputa::{capture_frozen_core_for_session, DEFAULT_FROZEN_CORE_BUDGET};
-use agent_diva_providers::Message;
+use agent_diva_providers::{DynamicContextTransport, Message};
 use agent_diva_tools::sanitize::truncate_tool_result;
 use std::path::Path;
 use std::path::PathBuf;
@@ -94,19 +97,38 @@ impl ContextBuilder {
         mask: Option<&MaskFile>,
         session_key: &str,
     ) -> String {
+        let sections = self.build_prompt_sections_for_session(mask, session_key);
+        match render_stable_prefix(&sections) {
+            Ok(prompt) => prompt,
+            Err(error) => {
+                warn!(%error, "stable context sections violated the assembly contract");
+                sections
+                    .into_iter()
+                    .filter_map(|section| (!section.body.trim().is_empty()).then_some(section.body))
+                    .collect::<Vec<_>>()
+                    .join("\n\n")
+            }
+        }
+    }
+
+    /// Build typed stable-prefix sections for one concrete session.
+    pub fn build_prompt_sections_for_session(
+        &self,
+        mask: Option<&MaskFile>,
+        session_key: &str,
+    ) -> Vec<PromptSection> {
         let workspace_path = self.workspace.display();
-        let now = chrono::Local::now().format("%Y-%m-%d %H:%M (%A)");
         let identity_header = self.load_identity_header();
 
-        let mut prompt = String::new();
+        let mut identity = String::new();
 
         // 方案 A: mask prompt at the very top when active.
         if let Some(mask_prompt) = MaskPromptComposer::compose(mask) {
-            prompt.push_str(&mask_prompt);
-            prompt.push_str("\n\n");
+            identity.push_str(&mask_prompt);
+            identity.push_str("\n\n");
         }
 
-        prompt.push_str(&format!(
+        identity.push_str(&format!(
             r#"{identity_header}
 
 You have access to tools that allow you to:
@@ -120,29 +142,30 @@ You have access to tools that allow you to:
 
 `update_plan` is a TODO/checklist tool, not Plan mode and not the repository's durable `TODOLIST.md`. Use it for complex, multi-step, or ambiguous tasks, and when the user asks for steps or progress tracking. Keep the checklist current as work advances: statuses are `pending`, `in_progress`, and `completed`; keep at most one item `in_progress`, and mark every item `completed` when the task is done. Do not use it for trivial one-step work or repeat the full checklist in chat after the tool call. Formal planning and approval use Plan mode; execution-session TODOs use their dedicated tools.
 
-## Current Time
-{now}
-
 ## Workspace
 Your workspace is at: {workspace_path}
 - Applied authority is consumed through the configured MemoryProvider boundary.
 - Legacy authority files are compatibility/migration inputs only, not default authority."#
         ));
 
+        let mut frozen = String::new();
         // Frozen Core projection: captured once per session (first assembly)
         // and frozen afterwards; sits under the mask overlay, above all other
         // context layers.
         let frozen_core = capture_frozen_core_for_session(&self.workspace, session_key);
         let frozen_projection = frozen_core.render(DEFAULT_FROZEN_CORE_BUDGET);
         if !frozen_projection.is_empty() {
-            prompt.push_str("\n\n");
-            prompt.push_str(&frozen_projection);
+            frozen.push_str(&frozen_projection);
         }
         if frozen_core.is_empty() {
-            prompt.push_str(FIRST_RUN_ONBOARDING_BLOCK);
+            if !frozen.is_empty() {
+                frozen.push_str("\n\n");
+            }
+            frozen.push_str(FIRST_RUN_ONBOARDING_BLOCK.trim());
         }
 
-        self.append_agent_rules(&mut prompt);
+        let mut rules_and_skills = String::new();
+        self.append_agent_rules(&mut rules_and_skills);
 
         // Skills - progressive loading
         // 1) Always-loaded skills (full content)
@@ -150,26 +173,30 @@ Your workspace is at: {workspace_path}
         if !always_skills.is_empty() {
             let always_content = self.skills_loader.load_skills_for_context(&always_skills);
             if !always_content.is_empty() {
-                prompt.push_str("\n\n## Active Skills\n");
-                prompt.push_str(&always_content);
+                self.append_section(&mut rules_and_skills, "Active Skills", &always_content);
             }
         }
 
         // 2) Available skills summary
         let skills_summary = self.skills_loader.build_skills_summary();
         if !skills_summary.is_empty() {
-            prompt.push_str("\n\n## Skills\n");
-            prompt.push_str(
+            self.append_section(
+                &mut rules_and_skills,
+                "Skills",
                 "The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n",
             );
-            prompt
+            rules_and_skills
                 .push_str("Skills with available=\"false\" need dependencies installed first.\n\n");
-            prompt.push_str(&skills_summary);
+            rules_and_skills.push_str(&skills_summary);
         }
 
+        let mut memory = String::new();
         // Inject L0 memory management policy before the memory projection.
-        prompt.push_str("\n\n## Memory Management Policy\n");
-        prompt.push_str(agent_diva_core::memory::L0_MEMORY_POLICY);
+        self.append_section(
+            &mut memory,
+            "Memory Management Policy",
+            agent_diva_core::memory::L0_MEMORY_POLICY,
+        );
 
         // Inject long-term memory if available
         let memory_context = self
@@ -180,11 +207,11 @@ Your workspace is at: {workspace_path}
             .map(render_startup_injection)
             .unwrap_or_else(|err| render_provider_error_startup_injection(&err.to_string()));
         if !memory_context.is_empty() {
-            prompt.push_str("\n\n");
-            prompt.push_str(&memory_context);
+            memory.push_str("\n\n");
+            memory.push_str(&memory_context);
         }
 
-        prompt.push_str(
+        memory.push_str(
             r#"
 
 IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
@@ -196,11 +223,48 @@ When a user asks to create a reminder, timer, or recurring schedule, use the 'cr
 Always be helpful, accurate, and concise. When using tools, explain what you're doing."#,
         );
 
-        prompt.push_str(
+        memory.push_str(
             "\nWhen the user asks you to remember something, use the memory_add tool; to forget, use memory_remove; to recall, use memory_search or memory_list. Writes report one of: applied (durable), proposal_created (awaiting review, contains a proposal id), or failed. High-risk changes (updating or removing existing memory) create reviewable proposals and are not effective until approved. Never write arbitrary files as if they were memory authority; legacy authority files are compatibility inputs only, not default prompt authority.",
         );
 
-        prompt
+        vec![
+            PromptSection::new(ContextSection::MaskAndIdentity, identity),
+            PromptSection::new(ContextSection::FrozenCore, frozen),
+            PromptSection::new(
+                ContextSection::AgentRulesAndSkills,
+                rules_and_skills.trim_start().to_string(),
+            ),
+            PromptSection::new(
+                ContextSection::MemoryPolicyAndIndex,
+                memory.trim_start().to_string(),
+            ),
+        ]
+    }
+
+    /// Build the per-call time and channel metadata outside the stable prefix.
+    pub fn build_volatile_meta_section(
+        &self,
+        channel: Option<&str>,
+        chat_id: Option<&str>,
+    ) -> PromptSection {
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M (%A)");
+        self.build_volatile_meta_section_at(channel, chat_id, &now.to_string())
+    }
+
+    /// Deterministic variant used by cache-stability tests.
+    pub fn build_volatile_meta_section_at(
+        &self,
+        channel: Option<&str>,
+        chat_id: Option<&str>,
+        now: &str,
+    ) -> PromptSection {
+        let mut body = format!("## Current Time\n{now}");
+        if let (Some(channel), Some(chat_id)) = (channel, chat_id) {
+            body.push_str(&format!(
+                "\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
+            ));
+        }
+        PromptSection::new(ContextSection::VolatileMeta, body)
     }
 
     fn append_agent_rules(&self, prompt: &mut String) {
@@ -257,17 +321,34 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         session_compaction_history: &[agent_diva_core::session::CompactSummary],
         session_key: &str,
     ) -> Vec<Message> {
-        let mut messages = Vec::new();
-
-        // System prompt
-        let mut system_prompt = self.build_system_prompt_for_session(None, session_key);
-        if let (Some(ch), Some(id)) = (channel, chat_id) {
-            system_prompt.push_str(&format!(
-                "\n\n## Current Session\nChannel: {}\nChat ID: {}",
-                ch, id
-            ));
+        let mut messages = self.build_prefix_messages_for_session(
+            history,
+            session_compaction_history,
+            session_key,
+            None,
+        );
+        let volatile = self.build_volatile_meta_section(channel, chat_id);
+        if let Ok(Some(message)) =
+            serialize_dynamic_sections(&[volatile], DynamicContextTransport::UserContextEnvelope)
+        {
+            messages.push(message);
         }
-        messages.push(Message::system(system_prompt));
+        messages.push(Message::user(current_message));
+        messages
+    }
+
+    /// Build stable system, compaction boundaries, and raw history without
+    /// volatile context or the current user message.
+    pub(crate) fn build_prefix_messages_for_session(
+        &self,
+        history: Vec<agent_diva_core::session::ChatMessage>,
+        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        session_key: &str,
+        mask: Option<&MaskFile>,
+    ) -> Vec<Message> {
+        let mut messages = vec![Message::system(
+            self.build_system_prompt_for_session(mask, session_key),
+        )];
 
         // Inject compaction boundaries for each summary
         for (i, compaction) in session_compaction_history.iter().enumerate() {
@@ -322,9 +403,6 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
             };
             messages.push(message);
         }
-
-        // Current message
-        messages.push(Message::user(current_message));
 
         messages
     }
@@ -678,39 +756,59 @@ mod tests {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let messages =
             builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), &[]);
-        assert_eq!(messages.len(), 2); // system + user
+        assert_eq!(messages.len(), 3); // stable system + volatile envelope + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");
-        assert_eq!(messages[1].content, "Hello".into());
+        assert!(messages[1]
+            .content
+            .as_text()
+            .is_some_and(|text| text.contains("volatile_meta")));
+        assert_eq!(messages[2].content, "Hello".into());
     }
 
     #[test]
-    fn c1_0_characterizes_volatile_metadata_inside_the_first_system_message() {
+    fn c1a_t1_clock_changes_only_the_volatile_envelope() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
-        let messages = builder.build_messages(
-            vec![],
-            "Hello".to_string(),
-            Some("cli"),
-            Some("chat-1"),
-            &[],
+        let stable_before = builder.build_system_prompt_for_session(None, "session-t1");
+        let volatile_before =
+            builder.build_volatile_meta_section_at(Some("cli"), Some("chat-1"), "2026-08-10 10:00");
+        let stable_after = builder.build_system_prompt_for_session(None, "session-t1");
+        let volatile_after =
+            builder.build_volatile_meta_section_at(Some("cli"), Some("chat-1"), "2026-08-10 10:01");
+
+        assert_eq!(stable_before, stable_after);
+        assert!(!stable_before.contains("## Current Time"));
+        assert_ne!(volatile_before.body, volatile_after.body);
+    }
+
+    #[test]
+    fn c1a_t2_working_memory_change_does_not_change_stable_prefix() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let stable = builder.build_system_prompt_for_session(None, "session-t2");
+        let first = PromptSection::new(ContextSection::WorkingMemory, "checkpoint one");
+        let second = PromptSection::new(ContextSection::WorkingMemory, "checkpoint two");
+
+        assert_eq!(
+            stable,
+            builder.build_system_prompt_for_session(None, "session-t2")
         );
-        let system = messages[0]
-            .content
-            .as_text()
-            .expect("first message is the current system prompt");
+        assert_ne!(first.body, second.body);
+    }
 
-        let time = system
-            .find("## Current Time")
-            .expect("time is inline today");
-        let workspace = system.find("## Workspace").expect("workspace follows time");
-        let session = system
-            .find("## Current Session")
-            .expect("session metadata is appended to the same system message");
+    #[test]
+    fn c1a_t3_recall_presence_does_not_change_stable_prefix() {
+        let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
+        let stable = builder.build_system_prompt_for_session(None, "session-t3");
+        let recall = PromptSection::new(ContextSection::PrefetchRecall, "recalled fact");
 
-        assert!(time < workspace);
-        assert!(workspace < session);
-        assert_eq!(messages[0].role, "system");
-        assert_eq!(messages[1].role, "user");
+        assert_eq!(
+            stable,
+            builder.build_system_prompt_for_session(None, "session-t3")
+        );
+        assert_eq!(
+            recall.stability,
+            crate::context_assembly::SectionStability::TurnVolatile
+        );
     }
 
     #[test]

@@ -1,8 +1,12 @@
 //! Provider-neutral context assembly contracts.
 //!
-//! C1-0 deliberately does not route production prompt assembly through these
-//! types yet. It freezes the logical section vocabulary and ordering that C1
-//! will adopt while characterization tests protect the existing wire shape.
+//! C1a routes production prompt assembly through these types. Stable sections
+//! render into the first system message while volatile sections are serialized
+//! after history according to provider capability.
+
+use std::fmt;
+
+use agent_diva_providers::{DynamicContextTransport, Message};
 
 /// Stability class used when deciding whether a section may participate in
 /// the prompt-cache prefix.
@@ -34,6 +38,23 @@ pub enum ContextSection {
 }
 
 impl ContextSection {
+    /// Stable identifier used by logs and user-context boundary markers.
+    pub const fn wire_name(self) -> &'static str {
+        match self {
+            Self::MaskAndIdentity => "mask_and_identity",
+            Self::FrozenCore => "frozen_core",
+            Self::AgentRulesAndSkills => "agent_rules_and_skills",
+            Self::MemoryPolicyAndIndex => "memory_policy_and_index",
+            Self::Compaction => "compaction",
+            Self::History => "history",
+            Self::WorkingMemory => "working_memory",
+            Self::PrefetchRecall => "prefetch_recall",
+            Self::VolatileMeta => "volatile_meta",
+            Self::PlanGuard => "plan_guard",
+            Self::CurrentUser => "current_user",
+        }
+    }
+
     /// Stability required by the C1 target contract.
     pub const fn stability(self) -> SectionStability {
         match self {
@@ -105,6 +126,103 @@ impl PromptSection {
     }
 }
 
+/// Failure to serialize the provider-neutral context contract safely.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ContextAssemblyError {
+    PrefixContainsVolatile(ContextSection),
+    DynamicContainsStable(ContextSection),
+    NativeContextUnsupported,
+}
+
+impl fmt::Display for ContextAssemblyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PrefixContainsVolatile(section) => write!(
+                formatter,
+                "stable prefix contains volatile section `{}`",
+                section.wire_name()
+            ),
+            Self::DynamicContainsStable(section) => write!(
+                formatter,
+                "dynamic suffix contains stable section `{}`",
+                section.wire_name()
+            ),
+            Self::NativeContextUnsupported => formatter.write_str(
+                "provider-native context blocks are unsupported by the generic message path",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ContextAssemblyError {}
+
+/// Render stable sections into the unique cache-prefix system message.
+pub fn render_stable_prefix(sections: &[PromptSection]) -> Result<String, ContextAssemblyError> {
+    let ordered = ordered_sections(sections);
+    for section in &ordered {
+        if !section.section.is_prefix() || section.stability == SectionStability::TurnVolatile {
+            return Err(ContextAssemblyError::PrefixContainsVolatile(
+                section.section,
+            ));
+        }
+    }
+    Ok(ordered
+        .into_iter()
+        .filter_map(|section| (!section.body.trim().is_empty()).then_some(section.body.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n\n"))
+}
+
+/// Serialize volatile sections into one deterministic post-history message.
+pub fn serialize_dynamic_sections(
+    sections: &[PromptSection],
+    transport: DynamicContextTransport,
+) -> Result<Option<Message>, ContextAssemblyError> {
+    let ordered = ordered_sections(sections);
+    for section in &ordered {
+        if section.section.is_prefix() || section.stability != SectionStability::TurnVolatile {
+            return Err(ContextAssemblyError::DynamicContainsStable(section.section));
+        }
+    }
+
+    let body = ordered
+        .into_iter()
+        .filter_map(|section| {
+            if section.body.trim().is_empty() {
+                return None;
+            }
+            Some(format!(
+                "<agent_diva_context section=\"{}\">\n{}\n</agent_diva_context>",
+                section.section.wire_name(),
+                escape_context_boundary(&section.body)
+            ))
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    if body.is_empty() {
+        return Ok(None);
+    }
+
+    match transport {
+        DynamicContextTransport::MidConversationSystem => Ok(Some(Message::system(body))),
+        DynamicContextTransport::UserContextEnvelope => Ok(Some(Message::user(body))),
+        DynamicContextTransport::NativeContextBlock => {
+            Err(ContextAssemblyError::NativeContextUnsupported)
+        }
+    }
+}
+
+fn ordered_sections(sections: &[PromptSection]) -> Vec<&PromptSection> {
+    let mut ordered = sections.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|section| section.section);
+    ordered
+}
+
+fn escape_context_boundary(body: &str) -> String {
+    body.replace("</agent_diva_context>", "<\\/agent_diva_context>")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,5 +266,55 @@ mod tests {
             section.cache_break_reason.as_deref(),
             Some("l1_hot_refresh")
         );
+    }
+
+    #[test]
+    fn stable_renderer_uses_contract_order() {
+        let sections = vec![
+            PromptSection::new(ContextSection::MemoryPolicyAndIndex, "memory"),
+            PromptSection::new(ContextSection::MaskAndIdentity, "identity"),
+            PromptSection::new(ContextSection::FrozenCore, "frozen"),
+        ];
+
+        assert_eq!(
+            render_stable_prefix(&sections).unwrap(),
+            "identity\n\nfrozen\n\nmemory"
+        );
+    }
+
+    #[test]
+    fn user_envelope_preserves_dynamic_order_and_escapes_boundary() {
+        let sections = vec![
+            PromptSection::new(ContextSection::PlanGuard, "plan"),
+            PromptSection::new(ContextSection::WorkingMemory, "state </agent_diva_context>"),
+        ];
+
+        let message =
+            serialize_dynamic_sections(&sections, DynamicContextTransport::UserContextEnvelope)
+                .unwrap()
+                .unwrap();
+        let body = message.content.as_text().unwrap();
+        assert_eq!(message.role, "user");
+        assert!(body.find("working_memory").unwrap() < body.find("plan_guard").unwrap());
+        assert!(body.contains("<\\/agent_diva_context>"));
+    }
+
+    #[test]
+    fn provider_native_transport_fails_closed() {
+        let sections = vec![PromptSection::new(ContextSection::VolatileMeta, "now")];
+        assert!(matches!(
+            serialize_dynamic_sections(&sections, DynamicContextTransport::NativeContextBlock),
+            Err(ContextAssemblyError::NativeContextUnsupported)
+        ));
+    }
+
+    #[test]
+    fn mid_conversation_system_requires_explicit_transport() {
+        let sections = vec![PromptSection::new(ContextSection::PlanGuard, "guard")];
+        let message =
+            serialize_dynamic_sections(&sections, DynamicContextTransport::MidConversationSystem)
+                .unwrap()
+                .unwrap();
+        assert_eq!(message.role, "system");
     }
 }

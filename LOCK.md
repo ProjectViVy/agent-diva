@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-10T01:15:00+08:00`
+- Last Heartbeat: `2026-08-10T18:44:07+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -28,6 +28,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 - None.
 
 ## Handoff Notes
+
+- `2026-08-10T18:44:07+08:00`: Released after C1a/P0-1 typed stable-prefix
+  production migration. Stable prompt now consumes C1-0 sections; time/session,
+  WM, Recall, Plan/Ask/Scheduled use provider-aware post-prefix envelopes;
+  reactive compaction reuses the same turn snapshot. Provider 122, agent 396,
+  compaction integration 11, compaction E2E 15, and full `just fmt-check` /
+  `just check` / `just test` gates passed. C1b tool schema stability is next.
 
 - `2026-08-10T01:15:00+08:00`: Released after freezing context-management
   construction decisions DEC-CTX-A..G across README/C0/C1: provider-aware

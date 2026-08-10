@@ -528,11 +528,11 @@ async fn test_e2e_post_compaction_continuity() {
     );
 
     // Verify structure
-    // system (1) + boundary_start (1) + summary (1) + boundary_end (1) + history (10) + current (1) = 15
+    // stable system + boundary triplet + history + volatile envelope + current = 16
     assert_eq!(
         messages.len(),
-        15,
-        "expected 15 messages, got {}",
+        16,
+        "expected 16 messages, got {}",
         messages.len()
     );
 
@@ -911,8 +911,8 @@ fn test_e2e_build_messages_multi_boundary() {
 
     // Verify 3 boundary groups are injected
     // Each compaction: boundary_start + summary + boundary_end = 3 messages
-    // Total: system(1) + 3*3 + 10 history + 1 current = 21
-    assert_eq!(messages.len(), 21, "expected 21 messages");
+    // Total: stable system + 3*3 + 10 history + volatile envelope + current = 22
+    assert_eq!(messages.len(), 22, "expected 22 messages");
 
     // Verify first boundary has full markers
     let b1 = messages[1].content.to_text_lossy();
@@ -939,6 +939,7 @@ struct ProviderObservation {
     persisted_compaction_count: usize,
     saw_boundary: bool,
     first_history_text: Option<String>,
+    runtime_context: Option<String>,
 }
 
 fn session_file_path(workspace: &Path, session_key: &str) -> PathBuf {
@@ -1049,6 +1050,15 @@ impl LLMProvider for OrderingStreamProvider {
                         .contains("Context Compaction Boundary")
             }),
             first_history_text: first_non_system_message(&messages, &self.current_user),
+            runtime_context: messages
+                .iter()
+                .find(|message| {
+                    message
+                        .content
+                        .to_text_lossy()
+                        .contains("section=\"volatile_meta\"")
+                })
+                .map(|message| message.content.to_text_lossy()),
         };
         self.observations.lock().unwrap().push(observation);
 
@@ -1211,6 +1221,10 @@ async fn test_e2e_reactive_compaction_persists_then_retries_once() {
     assert_eq!(observations[1].persisted_compaction_count, 1);
     assert!(observations[1].persisted_last_compacted >= 18);
     assert!(observations[1].saw_boundary);
+    assert_eq!(
+        observations[0].runtime_context, observations[1].runtime_context,
+        "reactive compaction must reuse the same volatile section snapshot"
+    );
     let expected_first = format!("[seed-18] {}", "y".repeat(60));
     assert_eq!(
         observations[1].first_history_text.as_deref(),

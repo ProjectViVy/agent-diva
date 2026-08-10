@@ -293,6 +293,10 @@ impl LLMProvider for AnthropicClient {
         *self.retry_listener.lock().unwrap() = listener;
     }
 
+    fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
+        crate::base::DynamicContextTransport::UserContextEnvelope
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -702,6 +706,15 @@ mod tests {
     use crate::base::{ImageUrl, MessageContentPart};
 
     #[test]
+    fn dynamic_context_uses_safe_user_envelope() {
+        let client = AnthropicClient::new(None, None, "claude-sonnet-4-5".to_string(), None, None);
+        assert_eq!(
+            client.dynamic_context_transport(),
+            crate::base::DynamicContextTransport::UserContextEnvelope
+        );
+    }
+
+    #[test]
     fn converts_system_messages_to_top_level_system_and_keeps_raw_model() {
         let client = AnthropicClient::new(None, None, "claude-sonnet-4-5".to_string(), None, None);
         let request = client
@@ -717,6 +730,32 @@ mod tests {
         assert_eq!(request.model, "claude-sonnet-4-5");
         assert_eq!(request.system.as_deref(), Some("sys"));
         assert_eq!(request.messages[0].role, "user");
+    }
+
+    #[test]
+    fn user_context_envelope_stays_after_history_and_before_current_user() {
+        let messages = vec![
+            Message::system("stable"),
+            Message::user("history-user"),
+            Message::assistant("history-assistant"),
+            Message::user("<agent_diva_context>runtime</agent_diva_context>"),
+            Message::user("current-user"),
+        ];
+
+        let (system, converted) = convert_messages(messages).unwrap();
+        assert_eq!(system.as_deref(), Some("stable"));
+        assert_eq!(converted.len(), 3);
+        assert_eq!(converted[1].role, "assistant");
+        assert_eq!(converted[2].role, "user");
+        assert_eq!(converted[2].content.len(), 2);
+        assert!(matches!(
+            &converted[2].content[0],
+            AnthropicContentBlock::Text { text } if text.contains("runtime")
+        ));
+        assert!(matches!(
+            &converted[2].content[1],
+            AnthropicContentBlock::Text { text } if text == "current-user"
+        ));
     }
 
     #[test]

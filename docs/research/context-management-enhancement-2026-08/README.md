@@ -37,11 +37,13 @@ Prompt Cache 专章 §4.4、§5：
 7. Cache 观测必须记录 provider/model/policy 与连续趋势；预期 break、策略变化和
    无结构变化的异常 miss 分级处理，禁止仅凭一次 `cache_read` 下降告警。
 
-**当前进度：** C1-0 已完成最小类型与 characterization tests；生产序列化尚未迁移。
+**当前进度：** C1-0 最小类型与 characterization tests、C1a/P0-1 typed 生产迁移均已
+完成。stable system 已移除 Current Time/session/WM/Recall/Plan 等动态内容；现有 provider
+默认使用安全 `UserContextEnvelope`。下一实施切片为 C1b 工具 schema 字节稳定。
 
 ## 边界
 
-- **只做调研与 ADR，不写运行时代码**（本目录交付）。
+- 本目录仍是调研与 ADR 权威入口；运行时代码按 C1a–C1d 切片在对应 crate 落地。
 - **不重做** BML/Laputa 权威；遵守 `docs/architecture/memory-write-paths-contract.md`。
 - **不复活** 已关闭的 OpenHarness dry-run / ohmo 提案。
 - Plan Mode 硬状态机、Subagent Worktree 等其它 HARNESS-GAP 方向 **分轨**，不在本专题实施范围。

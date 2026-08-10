@@ -20,9 +20,9 @@ pub mod transcription;
 pub use base::{
     model_capabilities_for_model, model_capabilities_for_model_with_config,
     supports_reasoning_model, supports_reasoning_model_with_config, supports_vision_model,
-    ImageData, ImageFile, ImageUrl, LLMProvider, LLMResponse, LLMStreamEvent, Message,
-    MessageContent, MessageContentPart, ModelCapabilities, ProviderError, ProviderEventStream,
-    ProviderResult, ToolCallRequest, ToolChoiceMode,
+    DynamicContextTransport, ImageData, ImageFile, ImageUrl, LLMProvider, LLMResponse,
+    LLMStreamEvent, Message, MessageContent, MessageContentPart, ModelCapabilities, ProviderError,
+    ProviderEventStream, ProviderResult, ToolCallRequest, ToolChoiceMode,
 };
 pub use catalog::{
     CustomProviderUpsert, ProviderCatalogService, ProviderModelCatalogView, ProviderModelEntry,
@@ -100,5 +100,9 @@ impl LLMProvider for DynamicProvider {
 
     fn get_default_model(&self) -> String {
         self.current().get_default_model()
+    }
+
+    fn dynamic_context_transport(&self) -> DynamicContextTransport {
+        self.current().dynamic_context_transport()
     }
 }

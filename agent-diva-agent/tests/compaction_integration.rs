@@ -229,8 +229,8 @@ fn test_build_messages_with_compaction() {
     );
 
     // 验证总消息数
-    // system (1) + boundary start (1) + summary (1) + boundary end (1) + 4 history + 1 current user = 9
-    assert_eq!(messages.len(), 9, "应有 9 条消息");
+    // stable system + boundary triplet + 4 history + volatile envelope + current user = 10
+    assert_eq!(messages.len(), 10, "应有 10 条消息");
 
     // 验证 boundary markers
     let boundary_start = messages[1].content.to_text_lossy();
@@ -262,7 +262,7 @@ fn test_build_messages_with_compaction() {
 
     // 验证当前消息在最后
     assert_eq!(
-        messages[8].content.to_text_lossy(),
+        messages[9].content.to_text_lossy(),
         "你说得对，科幻确实不错。"
     );
 
@@ -292,8 +292,8 @@ fn test_build_messages_without_compaction() {
         &[], // 无 compaction
     );
 
-    // 验证总消息数: system (1) + 2 history + 1 current = 4
-    assert_eq!(messages.len(), 4, "无 compaction 时应只有 4 条消息");
+    // stable system + 2 history + volatile envelope + current = 5
+    assert_eq!(messages.len(), 5, "无 compaction 时应有 5 条消息");
 
     // 验证没有 compaction boundary 注入
     for msg in &messages {
@@ -313,7 +313,11 @@ fn test_build_messages_without_compaction() {
     // 验证历史消息顺序正确
     assert_eq!(messages[1].content.to_text_lossy(), "你好");
     assert_eq!(messages[2].content.to_text_lossy(), "你好！需要什么帮助？");
-    assert_eq!(messages[3].content.to_text_lossy(), "帮我查一下天气。");
+    assert!(messages[3]
+        .content
+        .to_text_lossy()
+        .contains("volatile_meta"));
+    assert_eq!(messages[4].content.to_text_lossy(), "帮我查一下天气。");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -608,8 +612,8 @@ fn test_multi_compaction_chain() {
     );
 
     // system (1) + boundary1+summary1+boundary1 (3) + boundary2+summary2+boundary2 (3)
-    //   + boundary3+summary3+boundary3 (3) + 10 history + 1 current = 21
-    assert_eq!(messages.len(), 21, "应有 21 条消息 (1+3+3+3+10+1)");
+    //   + boundary3+summary3+boundary3 (3) + 10 history + volatile + current = 22
+    assert_eq!(messages.len(), 22, "应有 22 条消息");
 
     // 验证第 1 个摘要内容
     let s1 = messages[2].content.to_text_lossy();

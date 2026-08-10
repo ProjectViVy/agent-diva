@@ -11,10 +11,11 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use super::super::loop_turn::{is_context_overflow_error, replace_current_turn_message};
+use super::super::loop_turn::is_context_overflow_error;
 use super::super::AgentLoop;
-use super::prompt;
+use super::context::PreparedTurnContext;
 use crate::compaction::ContextCompactor;
+use crate::context_assembly::PromptSection;
 
 const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
     "<｜DSML｜tool_calls>",
@@ -91,11 +92,9 @@ impl AgentLoop {
         session_key: &str,
         model: &str,
         message: &InboundMessage,
-        message_content: &str,
-        approved_plan_markdown: Option<&str>,
-        read_only: bool,
-        scheduled: bool,
+        dynamic_sections: &[PromptSection],
         current_turn_message: &Message,
+        turn_messages_start: &mut usize,
     ) -> Result<ProviderEventStream, Box<dyn std::error::Error>> {
         let mut reactive_retry_attempted = false;
         loop {
@@ -181,29 +180,26 @@ impl AgentLoop {
                         }
                     }
 
-                    *messages = self.context.build_messages_for_session(
+                    let stable_prefix = messages.first().cloned().ok_or_else(|| {
+                        anyhow::anyhow!("reactive compaction cannot recover a stable prefix")
+                    })?;
+                    let mut prefix = self.context.build_prefix_messages_for_session(
                         history,
-                        message_content.to_string(),
-                        Some(&message.channel),
-                        Some(&message.chat_id),
                         &compaction_history,
                         session_key,
+                        None,
                     );
-                    if let Some(markdown) = approved_plan_markdown {
-                        messages.insert(1, prompt::approved_plan(markdown).system());
+                    if let Some(first) = prefix.first_mut() {
+                        *first = stable_prefix;
                     }
-                    if read_only {
-                        messages.insert(1, prompt::ask_mode().system());
-                    }
-                    if scheduled {
-                        let current_message = messages.pop();
-                        messages.push(prompt::scheduled_turn().system());
-                        if let Some(current_message) = current_message {
-                            messages.push(current_message);
-                        }
-                    }
-                    replace_current_turn_message(messages, current_turn_message.clone());
-                    crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
+                    let prepared = PreparedTurnContext::prepare(
+                        prefix,
+                        dynamic_sections,
+                        self.provider.dynamic_context_transport(),
+                        current_turn_message.clone(),
+                    )?;
+                    *turn_messages_start = prepared.turn_messages_start;
+                    *messages = prepared.messages;
                     info!("Reactive compaction complete, retrying provider call...");
                 }
                 Err(error) => return Err(error.into()),

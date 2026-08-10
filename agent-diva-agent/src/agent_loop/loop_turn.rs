@@ -8,6 +8,7 @@ use super::turn::{
     tool_step::{ToolOrchestrationContext, ToolRunSummary},
 };
 use super::AgentLoop;
+use crate::context_assembly::{serialize_dynamic_sections, ContextSection, PromptSection};
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
 };
@@ -128,17 +129,6 @@ pub(super) fn build_current_turn_message(
     }
     parts.extend(image_parts.iter().cloned());
     Message::user(MessageContent::Parts(parts))
-}
-
-pub(super) fn replace_current_turn_message(
-    messages: &mut Vec<Message>,
-    current_turn_message: Message,
-) {
-    if let Some(last) = messages.last_mut() {
-        *last = current_turn_message;
-    } else {
-        messages.push(current_turn_message);
-    }
 }
 
 impl AgentLoop {
@@ -341,6 +331,7 @@ impl AgentLoop {
                 &mut active_execution,
                 plan_guard_active,
                 approved_plan_markdown.as_deref(),
+                read_only,
                 active_mask.as_ref(),
                 is_cron_trigger,
                 &trace_id,
@@ -348,11 +339,9 @@ impl AgentLoop {
             .await?;
         let message_content = runtime_context.message_content;
         let current_turn_message = runtime_context.current_turn_message;
-        let turn_messages_start = runtime_context.turn_messages_start;
+        let mut turn_messages_start = runtime_context.turn_messages_start;
+        let dynamic_sections = runtime_context.dynamic_sections;
         let mut messages = runtime_context.messages;
-        if read_only {
-            messages.insert(1, super::turn::prompt::ask_mode().system());
-        }
 
         // Agent loop
         let mut iteration_budget = IterationBudget::default();
@@ -403,7 +392,15 @@ impl AgentLoop {
             // Summary-only pass: no tools (Codex-style final text after tool work).
             let tool_defs: Vec<serde_json::Value> = if summary_only_pass {
                 if iteration_budget.take_summary_nudge() {
-                    messages.push(agent_diva_providers::Message::system(SUMMARY_ONLY_NUDGE));
+                    if let Some(nudge) = serialize_dynamic_sections(
+                        &[PromptSection::new(
+                            ContextSection::PlanGuard,
+                            SUMMARY_ONLY_NUDGE,
+                        )],
+                        self.provider.dynamic_context_transport(),
+                    )? {
+                        messages.push(nudge);
+                    }
                 }
                 Vec::new()
             } else if read_only {
@@ -430,11 +427,9 @@ impl AgentLoop {
                     &session_key,
                     &model_to_use,
                     &msg,
-                    &message_content,
-                    approved_plan_markdown.as_deref(),
-                    read_only,
-                    is_cron_trigger,
+                    &dynamic_sections,
                     &current_turn_message,
+                    &mut turn_messages_start,
                 )
                 .await?;
             let Some(model_step) = self

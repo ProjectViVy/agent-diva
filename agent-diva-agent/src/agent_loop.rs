@@ -2018,12 +2018,22 @@ mod tests {
             .expect("provider should capture the first LLM call");
         assert!(first_call.len() >= 3);
         assert_eq!(first_call[0].role, "system");
-        assert_eq!(first_call[1].role, "system");
+        assert!(!first_call[0]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Current Time"));
+        assert_eq!(first_call[1].role, "user");
         assert!(first_call[1]
             .content
             .as_text()
             .unwrap()
             .contains("## Prefetch Recall"));
+        assert!(first_call[1]
+            .content
+            .as_text()
+            .unwrap()
+            .contains("## Current Time"));
         assert!(first_call[1]
             .content
             .as_text()

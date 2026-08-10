@@ -775,6 +775,13 @@ impl LLMProvider for OpenAiCompatibleClient {
         *self.retry_listener.lock().unwrap() = listener;
     }
 
+    fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
+        // OpenAI-compatible endpoints vary in whether they accept a system
+        // role after history. Stay conservative until a concrete adapter has
+        // a wire-shape characterization proving support.
+        crate::base::DynamicContextTransport::UserContextEnvelope
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -1190,6 +1197,16 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+
+    #[test]
+    fn dynamic_context_uses_safe_user_envelope() {
+        let client =
+            OpenAiCompatibleClient::new(None, None, "gpt-4o".to_string(), None, None, None);
+        assert_eq!(
+            client.dynamic_context_transport(),
+            crate::base::DynamicContextTransport::UserContextEnvelope
+        );
+    }
 
     struct AuditCaptureLayer {
         events: Arc<Mutex<Vec<String>>>,

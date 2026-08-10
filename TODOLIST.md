@@ -51,12 +51,20 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           原子提交、C3 artifact 安全门、C4 same-turn mount 和缓存告警分类。研究入口
           与 C0/C1 规格已同步；日志：
           `docs/logs/2026-08-context-management-enhancement/v0.0.2-construction-decisions/`。
-    - [ ] **P0-1**：移出 Current Time / 停止 WM·prefetch `insert(1)`（最高 ROI）
+    - [x] **P0-1 / C1a**（2026-08-10）：stable prompt 改由 typed
+          `PromptSection` 生产装配；Current Time/session、WM、Recall、Plan/Ask/Scheduled
+          统一进入 history 后、current user 前的动态 envelope；provider 新增安全 transport
+          capability，未知与现有生产 adapter 默认 `UserContextEnvelope`，Native 路径
+          fail closed；reactive compaction 复用同一 turn section 快照。未改 tool 顺序、
+          section cache、hash 观测或 `apply_cache_control`。日志：
+          `docs/logs/2026-08-context-management-enhancement/v0.0.3-c1a-typed-stable-prefix/`。
     - [ ] **P0-2**：SessionStable section 缓存 + break reason
     - [ ] **P0-3**：tool definitions 字典序 + built-in/MCP 分区（可选 schema 锁）
     - [ ] **P0-4**：system/tools hash + cache_read 观测
     - [ ] **P0-5**：`apply_cache_control` 与「仅 stable system」布局契约
     - [ ] 测试 T1–T8 落地
+      - [x] **T1–T3**：clock / WM / Recall 变化不改变 stable prefix
+      - [ ] **T4–T8**：随 C1b–C1d 分阶段落地
   - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
         C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处

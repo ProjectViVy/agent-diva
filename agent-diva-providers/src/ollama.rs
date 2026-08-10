@@ -315,6 +315,10 @@ impl OllamaProvider {
 
 #[async_trait]
 impl LLMProvider for OllamaProvider {
+    fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
+        crate::base::DynamicContextTransport::UserContextEnvelope
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,
@@ -611,6 +615,15 @@ impl LLMProvider for OllamaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dynamic_context_uses_safe_user_envelope() {
+        let provider = OllamaProvider::new(None, "llama3.2".to_string());
+        assert_eq!(
+            provider.dynamic_context_transport(),
+            crate::base::DynamicContextTransport::UserContextEnvelope
+        );
+    }
 
     #[test]
     fn test_extract_usage_with_both_counts() {

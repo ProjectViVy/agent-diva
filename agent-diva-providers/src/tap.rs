@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use futures::Stream;
 
 use crate::{
-    LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError, ProviderEventStream,
-    ProviderResult,
+    DynamicContextTransport, LLMProvider, LLMResponse, LLMStreamEvent, Message, ProviderError,
+    ProviderEventStream, ProviderResult,
 };
 
 /// Decorator that times every LLM call and emits an audit event.
@@ -198,6 +198,10 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
 
     fn get_default_model(&self) -> String {
         self.inner.get_default_model()
+    }
+
+    fn dynamic_context_transport(&self) -> DynamicContextTransport {
+        self.inner.dynamic_context_transport()
     }
 }
 
