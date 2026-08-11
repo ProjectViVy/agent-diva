@@ -8,5 +8,9 @@
 - registry 搜索：大小写、空查询、无匹配、limit、字典序、session state 隔离/恢复：通过。
 - Recall：无注入、失败不破坏消息、成功顺序、层级超限 Drop、总预算超限 Drop：通过。
 - `cargo fmt --all -- --check`：通过。
-
-交付前继续执行：受影响 crate 严格 Clippy、`just fmt-check`、`just check`、`just test`、`just ci`，以及 CLI `--help` smoke；全量门禁中的既有 CLI wiremock 502 失败按项目基线记录。
+- 受影响 crate 严格 Clippy（`cargo clippy -p agent-diva-tooling -p agent-diva-tools -p agent-diva-agent -p agent-diva-core -p agent-diva-cli -p agent-diva-manager --all-targets -- -D warnings`）：通过。
+- `just fmt-check`：通过。
+- `just check`：通过。
+- `just test`：通过，退出码 0；本次运行未复现既有 CLI wiremock 502 基线失败。
+- `just ci`：通过，退出码 0。
+- CLI smoke（`cargo run -p agent-diva-cli -- --help`）：通过，正常打印命令与选项帮助。
