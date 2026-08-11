@@ -102,7 +102,14 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
             section，均递增一次 prefix version 并携带声明原因
       - [x] **T7–T8**：Anthropic cache read/create 透传 observer/ledger；多 system
             仅 stable 首块、混合工具仅 CORE 段末携带 cache-control
-  - [ ] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
+  - [x] **CTX-C2：分层 ContextBudgetPlan + AssemblyReport**（ADR-CTX-2）
+        （2026-08-11）：新增 typed BudgetLayer/Fragment/Plan/Report，稳定前缀、
+        CORE/DEFERRED schema、History、ToolResult、WM、Recall、当前回合均进入实际
+        token 计量；`system_budget_ratio` 仅作稳定层上限，不再冒充已消费 token。
+        Recall 在层级/总量压力下显式 Drop；主动 macro compact 与失败后的
+        `legacy_count_cap` 均记录原因；provider call 输出无正文的分层报告。
+        未提前实现 C3 artifact/ref 或 C4 deferred mount。日志：
+        `docs/logs/2026-08-context-management-enhancement/v0.0.8-c2-layered-budget-report/`。
   - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
         C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处
         工具输出截断 seam；实施必须统一覆盖，避免只替换其中一条路径。
@@ -556,6 +563,14 @@ standing policy（非功能债，执行相关验证时遵守）：
 `docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
 
 ### Reliability / Test Debt
+
+- [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES: full-suite startup/timeout tests are load-sensitive** `sev-P2`
+  2026-08-11 CTX-C2 validation observed two non-deterministic full-suite failures:
+  GUI `embedded_server::tests::embedded_gateway_serves_health_endpoint` failed to bootstrap the
+  embedded manager once, then passed focused; a second `just test` failed in
+  `agent-diva-tooling --lib`, whose complete 32-test focused rerun passed. A subsequent full
+  `just ci` passed. Isolate startup resources and timeout-sensitive registry tests so workspace
+  load cannot cause transient failures; CTX-C2 does not modify either subsystem.
 
 - [x] **GUI-PROVIDER-RETRY-VISIBILITY: 前端展示 provider 重试/未响应状态** `sev-P2`
   2026-08-06 用户反馈（与 `GUI-PROVIDER-ERROR-SILENT` 同场景）：期望前端在重试期间

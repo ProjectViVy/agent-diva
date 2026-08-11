@@ -8,9 +8,15 @@ use std::fmt;
 
 use agent_diva_providers::{DynamicContextTransport, Message};
 
+mod budget;
 mod cache_observe;
 mod section_cache;
 
+pub use budget::{
+    estimate_messages, measure_provider_context, select_dynamic_sections, AssemblyDecision,
+    AssemblyDecisionReason, BudgetLayer, ContextAssemblyReport, ContextBudgetPlan, ContextFragment,
+    EvictionPolicy, LayerBudget,
+};
 pub use cache_observe::{
     apply_core_tool_cache_anchor, CacheObservationTicket, CacheObserveInput, CacheObserveState,
     PostCallClassification, PreCallClassification,

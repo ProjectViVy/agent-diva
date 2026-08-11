@@ -7,8 +7,8 @@
 //!
 //! ```text
 //! total_budget = max_tokens
-//! system_budget = total_budget × system_budget_ratio    (reserved for system prompt)
-//! history_budget = total_budget - system_budget           (available for messages)
+//! stable_layer_limit = total_budget × system_budget_ratio
+//! history_budget = total_budget - stable_layer_limit       (available for messages)
 //! compact_threshold = history_budget × compact_threshold_ratio
 //! ```
 //!
@@ -116,10 +116,11 @@ impl BudgetConfig {
 /// Contains token estimates and the compaction decision.
 #[derive(Debug, Clone)]
 pub struct BudgetReport {
-    /// Total estimated tokens (history + system allocation).
+    /// Total tokens actually estimated by this legacy history pre-check.
     pub total_estimated: usize,
 
-    /// System budget allocation (reserved headroom, not measured from messages).
+    /// Measured system tokens. This legacy history-only pre-check reports zero;
+    /// full measurement is provided by `ContextAssemblyReport`.
     pub system_estimated: usize,
 
     /// Estimated tokens consumed by the message history.
@@ -164,8 +165,8 @@ pub fn check_budget(history: &[ChatMessage], config: &BudgetConfig) -> BudgetRep
     let history_budget = config.max_tokens.saturating_sub(system_budget);
     let compact_threshold = (history_budget as f64 * config.compact_threshold_ratio) as usize;
 
-    let system_estimated = system_budget;
-    let total_estimated = history_estimated.saturating_add(system_estimated);
+    let system_estimated = 0;
+    let total_estimated = history_estimated;
 
     let pressure_ratio = if history_budget > 0 {
         history_estimated as f64 / history_budget as f64
@@ -218,8 +219,8 @@ mod tests {
         assert!(!report.should_compact);
         assert_eq!(report.history_estimated, 0);
         assert_eq!(report.pressure_ratio, 0.0);
-        // system_estimated should be the reserved budget
-        assert_eq!(report.system_estimated, (180_000.0 * 0.15) as usize);
+        // A configured limit is not reported as consumed tokens.
+        assert_eq!(report.system_estimated, 0);
     }
 
     #[test]
@@ -297,7 +298,7 @@ mod tests {
         let msgs: Vec<_> = (0..5).map(|_| make_msg(&"x".repeat(300))).collect();
         let report = check_budget(&msgs, &config);
         assert!(report.should_compact);
-        assert_eq!(report.system_estimated, 500);
+        assert_eq!(report.system_estimated, 0);
     }
 
     // ── Report field consistency ─────────────────────────────────

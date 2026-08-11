@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-11T02:14:55+08:00`
+- Last Heartbeat: `2026-08-11T08:15:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -26,8 +26,34 @@ Use this file to declare the current writer scope before mutating the workspace.
 ## Active Lock
 
 - None.
+  Lock expired but uncommitted C2 work remains in this tree; per user
+  instruction the mainline is active — scope respected, not taken over.
+- `small-fixes-batch (gateway port config + clippy lint batch)` — owner
+  `QoderCN` — **RELEASED 2026-08-11T09:40+08:00**; 3 commits on branch
+  `fix/small-fixes-batch` in worktree `../agent-diva-small-fixes`
+  （`83b87787` / `1aba27a3` / `2ccb05e6`，未 push，待主线评审合并）.
 
 ## Handoff Notes
+
+- `2026-08-11T08:15:00+08:00`: Released after CTX-C2 layered context budget
+  and AssemblyReport closure. Stable rules, CORE/DEFERRED schemas, L1, WM,
+  Recall, compaction, history, inline tool results and current turn are measured
+  in typed layers; Recall drops explicitly under pressure; macro compaction and
+  legacy count fallback report typed reasons. Agent 413 tests, strict Clippy,
+  full `just ci`, clean-break and CLI help smoke passed. C3 is next.
+
+- `2026-08-11T09:40:00+08:00`: Released `small-fixes-batch` (QoderCN,
+  isolated worktree, no overlap with CTX-C2): 3 commits on
+  `fix/small-fixes-batch` — `83b87787` gateway port config fix (cli),
+  `1aba27a3` providers Rust 1.94 clippy lint batch, `2ccb05e6` iteration
+  logs. Gates: just fmt-check / just check / cli bin 16/16 /
+  providers --all-targets clippy + retry 11/11 green. Deferred until
+  CTX-C2 releases TODOLIST.md: mark GATEWAY-PORT-CONFIG-IGNORED and
+  PROVIDERS-EXAMPLE-1.94-CLIPPY done, close `Laputa service 预存 clippy
+  int_plus_one` (verified already resolved), and add new entry
+  LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY (authority_boundary_guard /
+  direct_write_guard / governance_proof_loop dead_code ×5,
+  context_plane_invariants cmp_owned, authority_boundaries ×1).
 
 - `2026-08-11T02:14:55+08:00`: Released after C1d prompt-cache observability
   closure. Provider cache profiles, explicit stable-system/core-tool anchors,
@@ -198,4 +224,3 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
   `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
   Implementation still pending; see TODOLIST `审批三模式完善`.
-

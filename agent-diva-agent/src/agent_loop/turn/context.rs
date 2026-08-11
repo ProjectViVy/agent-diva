@@ -13,8 +13,9 @@ use tracing::{error, info, trace, warn};
 use crate::compaction::ContextCompactor;
 use crate::context::ContextBuilder;
 use crate::context_assembly::{
-    serialize_dynamic_sections, ContextAssemblyError, ContextSection, PromptSection,
-    StablePrefixSnapshot,
+    estimate_messages, select_dynamic_sections, serialize_dynamic_sections, AssemblyDecision,
+    AssemblyDecisionReason, BudgetLayer, ContextAssemblyError, ContextAssemblyReport,
+    ContextBudgetPlan, ContextSection, PromptSection, StablePrefixSnapshot,
 };
 use crate::context_budget::check_budget;
 use crate::mask::MaskFile;
@@ -31,6 +32,7 @@ use super::prompt;
 pub(crate) struct PreparedTurnContext {
     pub messages: Vec<Message>,
     pub turn_messages_start: usize,
+    pub assembly_report: ContextAssemblyReport,
 }
 
 pub(crate) struct RuntimeTurnContext {
@@ -40,16 +42,40 @@ pub(crate) struct RuntimeTurnContext {
     pub turn_messages_start: usize,
     pub dynamic_sections: Vec<PromptSection>,
     pub stable_prefix: StablePrefixSnapshot,
+    pub assembly_report: ContextAssemblyReport,
 }
 
 impl PreparedTurnContext {
+    #[cfg(test)]
     pub(crate) fn prepare(
-        mut messages: Vec<Message>,
+        messages: Vec<Message>,
         dynamic_sections: &[PromptSection],
         transport: DynamicContextTransport,
         current_turn_message: Message,
     ) -> Result<Self, ContextAssemblyError> {
-        if let Some(dynamic) = serialize_dynamic_sections(dynamic_sections, transport)? {
+        Self::prepare_budgeted(
+            messages,
+            dynamic_sections,
+            transport,
+            current_turn_message,
+            &crate::context_budget::BudgetConfig::default(),
+        )
+    }
+
+    pub(crate) fn prepare_budgeted(
+        mut messages: Vec<Message>,
+        dynamic_sections: &[PromptSection],
+        transport: DynamicContextTransport,
+        current_turn_message: Message,
+        budget: &crate::context_budget::BudgetConfig,
+    ) -> Result<Self, ContextAssemblyError> {
+        let base_tokens = estimate_messages(&messages).saturating_add(estimate_messages(
+            std::slice::from_ref(&current_turn_message),
+        ));
+        let plan = ContextBudgetPlan::from_config(budget);
+        let (selected_sections, assembly_report) =
+            select_dynamic_sections(dynamic_sections, base_tokens, &plan);
+        if let Some(dynamic) = serialize_dynamic_sections(&selected_sections, transport)? {
             messages.push(dynamic);
         }
         messages.push(current_turn_message);
@@ -59,6 +85,7 @@ impl PreparedTurnContext {
         Ok(Self {
             messages,
             turn_messages_start,
+            assembly_report,
         })
     }
 }
@@ -230,16 +257,19 @@ impl AgentLoop {
         self.clear_session_cancellation(session_key);
         let budget_report = {
             let session = self.sessions.get_or_create(session_key);
-            check_budget(&session.get_history(50), &self.tool_config.budget)
+            check_budget(&session.get_history(usize::MAX), &self.tool_config.budget)
         };
-        let (mut history, mut compaction_history, did_compact) = if budget_report.should_compact {
+        let (mut history, mut compaction_history, did_compact, legacy_count_cap) = if budget_report
+            .should_compact
+        {
             info!(
                     "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                     budget_report.pressure_ratio * 100.0,
                     budget_report.history_estimated,
-                    budget_report
-                        .total_estimated
-                        .saturating_sub(budget_report.system_estimated),
+                    self.tool_config.budget.max_tokens.saturating_sub(
+                        (self.tool_config.budget.max_tokens as f64
+                            * self.tool_config.budget.system_budget_ratio) as usize
+                    ),
                 );
             let compact_result = if let Some(session) = self.sessions.get(session_key) {
                 ContextCompactor::compact(
@@ -260,9 +290,10 @@ impl AgentLoop {
                     session.last_compacted = result.new_compacted_index;
                     session.compaction_history.push(result.summary);
                     (
-                        session.get_history(50),
+                        session.get_history(usize::MAX),
                         session.compaction_history.clone(),
                         true,
+                        false,
                     )
                 }
                 Err(error) => {
@@ -272,14 +303,16 @@ impl AgentLoop {
                         session.get_history(50),
                         session.compaction_history.clone(),
                         false,
+                        true,
                     )
                 }
             }
         } else {
             let session = self.sessions.get_or_create(session_key);
             (
-                session.get_history(50),
+                session.get_history(usize::MAX),
                 session.compaction_history.clone(),
+                false,
                 false,
             )
         };
@@ -422,7 +455,7 @@ impl AgentLoop {
         let stable_prefix = self
             .context
             .stable_prefix_snapshot_for_session(active_mask, session_key);
-        let prepared = PreparedTurnContext::prepare(
+        let mut prepared = PreparedTurnContext::prepare_budgeted(
             self.context.build_prefix_messages_from_snapshot(
                 history,
                 &compaction_history,
@@ -431,7 +464,40 @@ impl AgentLoop {
             &dynamic_sections,
             self.provider.dynamic_context_transport(),
             current_turn_message.clone(),
+            &self.tool_config.budget,
         )?;
+        if did_compact {
+            prepared.assembly_report.compacted.push(AssemblyDecision {
+                id: "history".to_string(),
+                layer: BudgetLayer::History,
+                reason: AssemblyDecisionReason::MacroCompaction,
+            });
+        }
+        if legacy_count_cap {
+            prepared.assembly_report.dropped.push(AssemblyDecision {
+                id: "history".to_string(),
+                layer: BudgetLayer::History,
+                reason: AssemblyDecisionReason::LegacyCountCap,
+            });
+        }
+
+        if prepared.assembly_report.has_pressure_action() {
+            warn!(
+                trace_id = %trace_id,
+                total_estimated = prepared.assembly_report.total_estimated,
+                total_max = prepared.assembly_report.total_max,
+                dropped = prepared.assembly_report.dropped.len(),
+                compacted = prepared.assembly_report.compacted.len(),
+                "context assembly applied budget pressure actions"
+            );
+        } else {
+            trace!(
+                trace_id = %trace_id,
+                total_estimated = prepared.assembly_report.total_estimated,
+                total_max = prepared.assembly_report.total_max,
+                "context assembly report"
+            );
+        }
 
         Ok(RuntimeTurnContext {
             message_content,
@@ -440,6 +506,7 @@ impl AgentLoop {
             turn_messages_start: prepared.turn_messages_start,
             dynamic_sections,
             stable_prefix,
+            assembly_report: prepared.assembly_report,
         })
     }
 }

@@ -15,8 +15,8 @@ use super::super::AgentLoop;
 use super::context::PreparedTurnContext;
 use crate::compaction::ContextCompactor;
 use crate::context_assembly::{
-    apply_core_tool_cache_anchor, CacheObservationTicket, CacheObserveInput, PromptSection,
-    StablePrefixSnapshot,
+    apply_core_tool_cache_anchor, measure_provider_context, CacheObservationTicket,
+    CacheObserveInput, ContextBudgetPlan, PromptSection, StablePrefixSnapshot,
 };
 use agent_diva_tooling::ToolDefinitionSet;
 
@@ -103,6 +103,29 @@ impl AgentLoop {
         let mut reactive_retry_attempted = false;
         loop {
             self.enforce_session_token_budget(session_key)?;
+            let assembly_report = measure_provider_context(
+                messages,
+                tool_definitions,
+                &ContextBudgetPlan::from_config(&self.tool_config.budget),
+            );
+            if assembly_report.total_estimated > assembly_report.total_max {
+                warn!(
+                    session_id = %session_key,
+                    total_estimated = assembly_report.total_estimated,
+                    total_max = assembly_report.total_max,
+                    dropped = assembly_report.dropped.len(),
+                    compacted = assembly_report.compacted.len(),
+                    "provider context exceeds the typed hard budget"
+                );
+            } else {
+                debug!(
+                    session_id = %session_key,
+                    total_estimated = assembly_report.total_estimated,
+                    total_max = assembly_report.total_max,
+                    layers = assembly_report.totals_by_layer.len(),
+                    "provider context assembly report"
+                );
+            }
             let profile = self.provider.prompt_cache_profile(model);
             let (cache_ticket, _) = self.cache_observer.note_pre_call(CacheObserveInput {
                 session_id: session_key,
@@ -210,11 +233,12 @@ impl AgentLoop {
                     if let Some(first) = prefix.first_mut() {
                         *first = stable_prefix;
                     }
-                    let prepared = PreparedTurnContext::prepare(
+                    let prepared = PreparedTurnContext::prepare_budgeted(
                         prefix,
                         dynamic_sections,
                         self.provider.dynamic_context_transport(),
                         current_turn_message.clone(),
+                        &self.tool_config.budget,
                     )?;
                     *turn_messages_start = prepared.turn_messages_start;
                     *messages = prepared.messages;

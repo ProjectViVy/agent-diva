@@ -351,6 +351,7 @@ impl AgentLoop {
         let mut turn_messages_start = runtime_context.turn_messages_start;
         let dynamic_sections = runtime_context.dynamic_sections;
         let stable_prefix = runtime_context.stable_prefix;
+        let _assembly_report = runtime_context.assembly_report;
         let mut messages = runtime_context.messages;
 
         // Agent loop
