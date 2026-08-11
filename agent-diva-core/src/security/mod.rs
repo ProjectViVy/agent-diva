@@ -33,6 +33,7 @@ pub mod path;
 pub mod pii;
 pub mod policy;
 pub mod rate_limit;
+pub mod rejection_circuit;
 pub mod skill;
 pub mod tool_result_filter;
 
@@ -55,6 +56,7 @@ pub use pii::{redact_pii, PiiConfig, PiiKind, PiiMatch, RedactionResult};
 pub use crate::audit::PiiSeverity;
 pub use policy::{SecurityPolicy, SharedSecurityPolicy};
 pub use rate_limit::ActionTracker;
+pub use rejection_circuit::RejectionCircuitBreaker;
 pub use skill::trust::TrustTier;
 pub use skill::{
     check_context_budget, should_inject, validate_skill_md, validate_skill_zip_size, Provenance,

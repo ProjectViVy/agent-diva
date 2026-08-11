@@ -12,7 +12,7 @@ use agent_diva_core::memory::{
 };
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
-use agent_diva_core::security::SecurityConfig;
+use agent_diva_core::security::{RejectionCircuitBreaker, SecurityConfig};
 use agent_diva_core::session::SessionManager;
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{FileConfig, FileManager};
@@ -114,6 +114,8 @@ pub struct AgentLoop {
     tool_config: ToolConfig,
     session_token_budget_limit: Option<u64>,
     token_ledger_data_root: PathBuf,
+    /// Dead-loop safety valve counting model/provider rejection failures.
+    rejection_circuit: RejectionCircuitBreaker,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
@@ -453,6 +455,10 @@ impl AgentLoop {
             tool_config,
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
+            rejection_circuit: RejectionCircuitBreaker::new(
+                runtime_security.rejection_circuit_window_secs,
+                runtime_security.rejection_circuit_threshold,
+            ),
             tools,
             subagent_manager,
             runtime_control_rx: None,
@@ -474,6 +480,11 @@ impl AgentLoop {
     #[cfg(test)]
     pub(crate) fn session_token_budget_limit_for_test(&self) -> Option<u64> {
         self.session_token_budget_limit
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rejection_circuit(&self) -> &RejectionCircuitBreaker {
+        &self.rejection_circuit
     }
 
     /// Create a new agent loop with tool configuration
@@ -604,6 +615,10 @@ impl AgentLoop {
             tool_config: tool_config.clone(),
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
+            rejection_circuit: RejectionCircuitBreaker::new(
+                runtime_security.rejection_circuit_window_secs,
+                runtime_security.rejection_circuit_threshold,
+            ),
             tools,
             subagent_manager,
             runtime_control_rx,
@@ -685,6 +700,10 @@ impl AgentLoop {
             tool_config: toolset.config.clone(),
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
+            rejection_circuit: RejectionCircuitBreaker::new(
+                runtime_security.rejection_circuit_window_secs,
+                runtime_security.rejection_circuit_threshold,
+            ),
             tools: toolset.registry,
             subagent_manager,
             runtime_control_rx,
@@ -2198,6 +2217,27 @@ mod tests {
             agent.subagent_manager.per_task_token_budget_for_test(),
             Some(75)
         );
+    }
+
+    #[tokio::test]
+    async fn test_rejection_circuit_reads_config_values() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(workspace.join(".agent-diva")).unwrap();
+        std::fs::write(
+            workspace.join(".agent-diva").join("security.json"),
+            r#"{"rejection_circuit_window_secs":120,"rejection_circuit_threshold":5}"#,
+        )
+        .unwrap();
+
+        let agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+
+        assert_eq!(agent.rejection_circuit().threshold(), 5);
+        assert!(!agent.rejection_circuit().is_triggered());
     }
 
     #[tokio::test]
