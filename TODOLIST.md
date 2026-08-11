@@ -717,7 +717,11 @@ standing policy（非功能债，执行相关验证时遵守）：
   Windows 系统代理/环境干扰 wiremock 本地端口。需独立迭代排查（代理绕过
   或 mock 服务器隔离），并在 `just test` 全绿后关闭。
 
-- [ ] **GATEWAY-PORT-CONFIG-IGNORED: CLI gateway run 忽略 config.gateway.port** `sev-P3`
+- [x] **GATEWAY-PORT-CONFIG-IGNORED: CLI gateway run 忽略 config.gateway.port** `sev-P3`
+  ✅ 2026-08-11 已修并合入主线（`83b87787`，`fix/small-fixes-batch` 合并
+  `c05ce32a`）：`build_gateway_runtime_config` 改用 `config.gateway.port`，
+  新增两个单测。人工验收步骤见
+  `docs/logs/2026-08-small-fixes-batch/v0.5.1-small-fixes-batch/acceptance.md`。
   2026-08-06 做 GUI provider 错误可见性 smoke 时发现：`config.json` 的
   `gateway.port` 字段已存在，但 `agent-diva-cli/src/main.rs`
   `build_gateway_runtime_config` 硬编码 `port: DEFAULT_GATEWAY_PORT`（3000），
@@ -733,7 +737,10 @@ standing policy（非功能债，执行相关验证时遵守）：
   前端可能保持挂起。期望行为：与主 chat 流一致，循环退出无终止事件时
   emit `agent-error`（或等价恢复事件）。本次按计划未动，待独立迭代统一。
 
-- [ ] **PROVIDERS-EXAMPLE-1.94-CLIPPY: pre-existing example clippy lint** `sev-P3`
+- [x] **PROVIDERS-EXAMPLE-1.94-CLIPPY: pre-existing example clippy lint** `sev-P3`
+  ✅ 2026-08-11 已修并合入主线（`1aba27a3`，`fix/small-fixes-batch` 合并
+  `c05ce32a`）：移除 `useless_conversion`、`too_many_arguments` allow、
+  retry 测试 bool 断言改写；`--all-targets` clippy 通过。
   `cargo clippy --all-targets -- -D warnings` 命中 `agent-diva-providers/examples/
   minimax_sync_tts.rs:99` `useless_conversion`（Rust 1.94 新 lint；
   `tls.into()` 转为同类型）。该文件本迭代未改动；`just check`/`just ci`
@@ -820,8 +827,15 @@ standing policy（非功能债，执行相关验证时遵守）：
   独立 pin/升级切片；勿削弱 clean-break gate。
 - [ ] **MSRV 探测污染默认 target cache** `sev-P2`
   未来 `cargo +1.80` 须用独立 `CARGO_TARGET_DIR`。
-- [ ] **Laputa service 预存 clippy `int_plus_one`** `sev-P3`
-  `agent-diva-laputa/tests/service.rs` 四处断言风格问题。
+- [x] **Laputa service 预存 clippy `int_plus_one`** `sev-P3`
+  ✅ 2026-08-11 核查确认已解决：`agent-diva-laputa/tests/service.rs` 已无
+  `int_plus_one` 命中（small-fixes-batch 期间验证），关闭。
+- [ ] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY: laputa test-target Rust 1.94 lints** `sev-P3`
+  2026-08-11 small-fixes-batch 期间发现：`cargo clippy -p agent-diva-laputa
+  --all-targets -- -D warnings` 命中 7 处既有测试目标 lint——
+  authority_boundary_guard / direct_write_guard / governance_proof_loop
+  `dead_code` ×5、context_plane_invariants `cmp_owned`、authority_boundaries ×1。
+  生产库目标与官方 `just check` 不受影响；在独立兼容性提交中机械修复。
 - [ ] **StepFun 真实 endpoint E2E（model pass-through）** `sev-P3`
   单测已覆盖透传；缺真实 key 时的 E2E。使用桌面 `keys.txt`，勿入库。
 
