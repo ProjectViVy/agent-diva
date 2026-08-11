@@ -261,6 +261,13 @@ impl AgentLoop {
             }
         };
 
+        if !is_error
+            && tool_call.name == "memory_distill"
+            && memory_distill_created_skill(&raw_result)
+        {
+            self.mark_workspace_skills_for_reload("memory-distill");
+        }
+
         let canonical_result = if is_error {
             agent_diva_core::tool_artifact::CanonicalToolResult::inline(raw_result, true)
         } else {
@@ -415,6 +422,18 @@ impl AgentLoop {
     }
 }
 
+fn memory_distill_created_skill(raw_result: &str) -> bool {
+    serde_json::from_str::<Value>(raw_result)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("status")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+        .is_some_and(|status| status == "applied")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +450,19 @@ mod tests {
 
     struct CountingCron {
         calls: Arc<AtomicUsize>,
+    }
+
+    #[test]
+    fn memory_distill_reload_only_accepts_applied_outcome() {
+        assert!(memory_distill_created_skill(
+            r#"{"status":"applied","entry":null}"#
+        ));
+        assert!(!memory_distill_created_skill(
+            r#"{"status":"proposal_created","proposal_id":"p1"}"#
+        ));
+        assert!(!memory_distill_created_skill(
+            r#"{"status":"failed","reason":"nope"}"#
+        ));
     }
 
     #[async_trait]

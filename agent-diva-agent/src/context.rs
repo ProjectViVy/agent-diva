@@ -232,6 +232,25 @@ impl ContextBuilder {
         );
     }
 
+    /// Re-read the workspace skill catalog for every Session already cached by
+    /// this builder on its next context assembly. The invalidation is lazy:
+    /// no prompt is rebuilt and no Session history is touched here.
+    pub fn invalidate_skills_for_all_sessions(&self) -> usize {
+        let mut stable_cache = self
+            .stable_cache
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut invalidated = 0;
+        for cache in stable_cache.sessions.values_mut() {
+            cache.pending_invalidations.insert(
+                ContextSection::AgentRulesAndSkills,
+                CacheBreakReason::SkillsReload,
+            );
+            invalidated += 1;
+        }
+        invalidated
+    }
+
     /// Mark every stable section for recapture after a session reset.
     pub fn reset_session_cache(&self, session_key: &str) {
         let mut stable_cache = self
@@ -1189,6 +1208,50 @@ mod tests {
                 .body
                 .contains("cached-skill")
         );
+    }
+
+    #[test]
+    fn c1c_workspace_skill_reload_invalidates_all_sessions_lazily() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let first_a = builder.stable_prefix_snapshot_for_session(None, "session-a");
+        let first_b = builder.stable_prefix_snapshot_for_session(None, "session-b");
+
+        let skill_dir = workspace.path().join("skills").join("shared-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: shared-skill\ndescription: shared cache test\n---\n\n# Shared skill\n",
+        )
+        .unwrap();
+
+        assert_eq!(builder.invalidate_skills_for_all_sessions(), 2);
+        let cached_a = builder.stable_prefix_snapshot_for_session(None, "session-a");
+        let cached_b = builder.stable_prefix_snapshot_for_session(None, "session-b");
+        for cached in [&cached_a, &cached_b] {
+            assert_eq!(cached.prefix_version, 2);
+            assert_eq!(
+                cached.cache_break_reasons(),
+                vec![CacheBreakReason::SkillsReload]
+            );
+            assert!(
+                snapshot_section(cached, ContextSection::AgentRulesAndSkills)
+                    .body
+                    .contains("shared-skill")
+            );
+        }
+        for (first, refreshed) in [(&first_a, &cached_a), (&first_b, &cached_b)] {
+            for section in [
+                ContextSection::MaskAndIdentity,
+                ContextSection::FrozenCore,
+                ContextSection::MemoryPolicyAndIndex,
+            ] {
+                assert_eq!(
+                    snapshot_section(first, section).body,
+                    snapshot_section(refreshed, section).body
+                );
+            }
+        }
     }
 
     #[test]

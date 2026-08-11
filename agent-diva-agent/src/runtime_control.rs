@@ -4,6 +4,13 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum RuntimeControlCommand {
+    /// Invalidate the workspace skill section for every cached Session. The
+    /// next prompt assembly reloads the on-disk catalog; this is an internal
+    /// control-plane event and never a user-visible Session message.
+    ReloadWorkspaceSkills {
+        workspace_id: String,
+        change_id: String,
+    },
     /// Refresh the workspace-scoped Memory authority projection after a
     /// committed BML write. The change is internal control-plane state, not a
     /// user-visible Session message.

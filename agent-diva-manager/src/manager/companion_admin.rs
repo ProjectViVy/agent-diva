@@ -102,10 +102,18 @@ impl Manager {
         request: SkillUploadRequest,
         reply: oneshot::Sender<Result<crate::skill_service::SkillDto, String>>,
     ) {
-        let result = self
+        let mutation = self
             .skill_service()
-            .upload_skill_zip(&request.file_name, request.bytes)
+            .upload_skill_zip_with_change(&request.file_name, request.bytes);
+        let result = mutation
+            .as_ref()
+            .map(|upload| upload.skill.clone())
             .map_err(|e| e.to_string());
+        if let Ok(upload) = mutation {
+            if upload.changed {
+                self.reload_runtime_skills("upload", &upload.skill.name);
+            }
+        }
         let _ = reply.send(result);
     }
 
@@ -118,6 +126,9 @@ impl Manager {
             .skill_service()
             .delete_skill(&name)
             .map_err(|e| e.to_string());
+        if result.is_ok() {
+            self.reload_runtime_skills("delete", &name);
+        }
         let _ = reply.send(result);
     }
 

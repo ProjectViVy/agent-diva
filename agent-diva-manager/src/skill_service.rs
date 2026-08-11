@@ -23,6 +23,15 @@ pub struct SkillDto {
     pub can_delete: bool,
 }
 
+/// Result of a workspace skill upload, including whether the installed
+/// directory actually changed. The change marker prevents a no-op replacement
+/// from invalidating every cached Session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillUploadResult {
+    pub skill: SkillDto,
+    pub changed: bool,
+}
+
 #[derive(Clone)]
 pub struct SkillService {
     loader: ConfigLoader,
@@ -75,6 +84,15 @@ impl SkillService {
     }
 
     pub fn upload_skill_zip(&self, file_name: &str, bytes: Vec<u8>) -> anyhow::Result<SkillDto> {
+        self.upload_skill_zip_with_change(file_name, bytes)
+            .map(|result| result.skill)
+    }
+
+    pub fn upload_skill_zip_with_change(
+        &self,
+        file_name: &str,
+        bytes: Vec<u8>,
+    ) -> anyhow::Result<SkillUploadResult> {
         let workspace = self.workspace_dir()?;
         let skills_dir = workspace.join("skills");
         fs::create_dir_all(&skills_dir).with_context(|| {
@@ -152,6 +170,29 @@ impl SkillService {
             SecurityDecision::Sanitize { .. } | SecurityDecision::Allow => {}
         }
 
+        let changed = if target_dir.exists() {
+            !skill_directories_equal(&target_dir, &tmp_dir)?
+        } else {
+            true
+        };
+        if !changed {
+            fs::remove_dir_all(&tmp_dir).with_context(|| {
+                format!(
+                    "failed to clean unchanged uploaded skill {}",
+                    tmp_dir.display()
+                )
+            })?;
+            let skill = self
+                .list_skills()?
+                .into_iter()
+                .find(|skill| skill.name == skill_name)
+                .ok_or_else(|| anyhow!("uploaded skill was not visible after no-op install"))?;
+            return Ok(SkillUploadResult {
+                skill,
+                changed: false,
+            });
+        }
+
         if target_dir.exists() {
             fs::remove_dir_all(&target_dir).with_context(|| {
                 format!(
@@ -178,10 +219,15 @@ impl SkillService {
             provenance: "workspace".to_string(),
         });
 
-        self.list_skills()?
+        let skill = self
+            .list_skills()?
             .into_iter()
             .find(|skill| skill.name == skill_name)
-            .ok_or_else(|| anyhow!("uploaded skill was not visible after install"))
+            .ok_or_else(|| anyhow!("uploaded skill was not visible after install"))?;
+        Ok(SkillUploadResult {
+            skill,
+            changed: true,
+        })
     }
 
     pub fn delete_skill(&self, name: &str) -> anyhow::Result<()> {
@@ -223,6 +269,45 @@ impl SkillService {
             builtin_skills_dir: Some(builtin_skills_dir),
         }
     }
+}
+
+fn skill_directories_equal(left: &Path, right: &Path) -> anyhow::Result<bool> {
+    let mut left_files = Vec::new();
+    let mut right_files = Vec::new();
+    collect_skill_files(left, left, &mut left_files)?;
+    collect_skill_files(right, right, &mut right_files)?;
+    if left_files.len() != right_files.len() {
+        return Ok(false);
+    }
+    left_files.sort();
+    right_files.sort();
+    for (left_path, right_path) in left_files.iter().zip(right_files.iter()) {
+        if left_path != right_path
+            || fs::read(left.join(left_path))? != fs::read(right.join(right_path))?
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn collect_skill_files(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<PathBuf>,
+) -> anyhow::Result<()> {
+    let mut entries = fs::read_dir(current)?.collect::<Result<Vec<_>, _>>()?;
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_skill_files(root, &path, files)?;
+        } else if file_type.is_file() {
+            files.push(path.strip_prefix(root)?.to_path_buf());
+        }
+    }
+    Ok(())
 }
 
 fn emit_skill_rejected(skill_name: &str, reason: String) {
@@ -551,6 +636,27 @@ mod tests {
 
         let uploaded = service.upload_skill_zip("ignored.zip", bytes).unwrap();
         assert_eq!(uploaded.name, "flat-skill");
+    }
+
+    #[test]
+    fn upload_skill_zip_reports_no_change_for_identical_directory() {
+        let config_dir = TempDir::new().unwrap();
+        let workspace = TempDir::new().unwrap();
+        write_config(config_dir.path(), workspace.path());
+        let service = SkillService::new(ConfigLoader::with_dir(config_dir.path()));
+
+        let skill = valid_skill_md("stable-skill", "Stable");
+        let bytes = make_zip(&[("stable-skill/SKILL.md", skill.as_str())]);
+        let first = service
+            .upload_skill_zip_with_change("stable-skill.zip", bytes.clone())
+            .unwrap();
+        let second = service
+            .upload_skill_zip_with_change("stable-skill.zip", bytes)
+            .unwrap();
+
+        assert!(first.changed);
+        assert!(!second.changed);
+        assert_eq!(first.skill, second.skill);
     }
 
     #[test]

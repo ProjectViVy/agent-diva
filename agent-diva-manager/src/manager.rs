@@ -156,6 +156,24 @@ impl Manager {
         }
     }
 
+    pub(super) fn reload_runtime_skills(&self, operation: &str, skill_name: &str) {
+        let Some(tx) = &self.runtime_control_tx else {
+            return;
+        };
+        if let Err(error) = tx.send(runtime_skills_reload_command(
+            &self.workspace,
+            operation,
+            skill_name,
+        )) {
+            error!(
+                operation,
+                skill_name,
+                %error,
+                "failed to send workspace skills reload"
+            );
+        }
+    }
+
     fn model_matches_provider(provider_id: &str, model: &str) -> bool {
         let trimmed_provider = provider_id.trim();
         let trimmed_model = model.trim();
@@ -379,6 +397,17 @@ impl Manager {
                 }
             }
         }
+    }
+}
+
+fn runtime_skills_reload_command(
+    workspace: &std::path::Path,
+    operation: &str,
+    skill_name: &str,
+) -> RuntimeControlCommand {
+    RuntimeControlCommand::ReloadWorkspaceSkills {
+        workspace_id: agent_diva_core::workspace_identity::canonical_workspace_id(workspace),
+        change_id: format!("skills:{operation}:{skill_name}"),
     }
 }
 
@@ -675,5 +704,23 @@ mod tests {
         .await;
 
         assert_eq!(model, "ByteDance-Seed/Seed-OSS-36B-Instruct");
+    }
+
+    #[test]
+    fn runtime_skills_reload_command_is_workspace_scoped() {
+        let workspace = tempfile::tempdir().unwrap();
+        let command = runtime_skills_reload_command(workspace.path(), "upload", "research");
+        let RuntimeControlCommand::ReloadWorkspaceSkills {
+            workspace_id,
+            change_id,
+        } = command
+        else {
+            panic!("expected skills reload command");
+        };
+        assert_eq!(
+            workspace_id,
+            agent_diva_core::workspace_identity::canonical_workspace_id(workspace.path())
+        );
+        assert_eq!(change_id, "skills:upload:research");
     }
 }
