@@ -212,7 +212,7 @@ mod tests {
     fn test_classify_503_is_retryable() {
         let status = reqwest::StatusCode::from_u16(503).unwrap();
         let result = classify_response_status(status, "Service Unavailable".into());
-        assert_eq!(result.unwrap(), false); // false = retryable
+        assert!(!result.unwrap()); // false = retryable
     }
 
     #[test]
@@ -226,7 +226,7 @@ mod tests {
     fn test_classify_200_is_success() {
         let status = reqwest::StatusCode::from_u16(200).unwrap();
         let result = classify_response_status(status, String::new());
-        assert_eq!(result.unwrap(), true);
+        assert!(result.unwrap());
     }
 
     #[test]

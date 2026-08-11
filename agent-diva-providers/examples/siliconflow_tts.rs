@@ -93,6 +93,7 @@ fn resolve_output_path(env_key: &str, format: &str) -> PathBuf {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn synthesize_speech(
     client: &Client,
     api_key: &str,

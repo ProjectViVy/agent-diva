@@ -96,7 +96,7 @@ async fn establish_connection(base_url: &str, api_key: &str) -> Result<MiniMaxSo
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
         .build()?;
-    let connector = Connector::NativeTls(tls.into());
+    let connector = Connector::NativeTls(tls);
 
     let (mut socket, _) = timeout(
         Duration::from_secs(10),
