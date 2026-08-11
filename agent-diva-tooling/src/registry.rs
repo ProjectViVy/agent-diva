@@ -3,9 +3,7 @@
 use crate::{Tool, ToolError};
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
-use agent_diva_core::security::{
-    sanitize_tool_output, truncate_tool_result, MAX_TOOL_RESULT_CHARS,
-};
+use agent_diva_core::security::sanitize_tool_output;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -579,17 +577,9 @@ impl ToolRegistry {
 
     /// Execute a tool by name with given parameters.
     pub async fn execute(&self, name: &str, params: Value) -> crate::Result<String> {
-        self.execute_structured(name, params).await.map(|output| {
-            let truncated = truncate_tool_result(&output.content, MAX_TOOL_RESULT_CHARS);
-            if truncated == output.content {
-                truncated
-            } else {
-                format!(
-                    "{truncated}\n[artifact unavailable; legacy safety fallback applied: {} total characters]",
-                    output.char_count
-                )
-            }
-        })
+        self.execute_structured(name, params)
+            .await
+            .map(|output| output.content)
     }
 
     /// Execute without prompt truncation so the caller can persist the complete sanitized result.
@@ -796,6 +786,7 @@ impl Default for ToolRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_core::security::MAX_TOOL_RESULT_CHARS;
     use async_trait::async_trait;
 
     struct MockTool;
@@ -1198,20 +1189,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_success_truncates() {
+    async fn test_execute_success_preserves_complete_sanitized_output() {
         let mut registry = ToolRegistry::new();
         let large_tool = MockLargeOutputTool;
         registry.register(Arc::new(large_tool));
         let result = registry.execute("mock_large", serde_json::json!({})).await;
         let output = result.unwrap();
-        assert!(
-            output.contains("truncated"),
-            "truncation notice should be present"
-        );
-        assert!(
-            output.chars().count() <= MAX_TOOL_RESULT_CHARS + 200,
-            "output should be bounded near MAX_TOOL_RESULT_CHARS"
-        );
+        assert!(output.chars().count() >= MAX_TOOL_RESULT_CHARS + 5_000);
+        assert!(!output.contains("legacy safety fallback"));
+        assert!(!output.contains("Result truncated"));
     }
 
     /// A mock tool that produces output exceeding MAX_TOOL_RESULT_CHARS.

@@ -20,6 +20,7 @@ pub const ARTIFACT_TTL_DAYS: i64 = 30;
 pub const INLINE_THRESHOLD_CHARS: usize = 12_000;
 pub const PREVIEW_HEAD_CHARS: usize = 2_000;
 pub const PREVIEW_TAIL_CHARS: usize = 1_000;
+pub const CANONICAL_TOOL_RESULT_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ToolResultRef {
@@ -55,6 +56,82 @@ impl ToolResultRef {
 
     pub fn render(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
+    }
+}
+
+/// The single model- and transcript-facing representation of one tool result.
+///
+/// Small successful results remain inline. Large successful results carry a
+/// durable artifact reference. Materialization failures are explicit tool
+/// failures and never masquerade as truncated successful output.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CanonicalToolResult {
+    content: String,
+    reference: Option<ToolResultRef>,
+    is_error: bool,
+    error_code: Option<String>,
+}
+
+impl CanonicalToolResult {
+    pub fn inline(content: String, is_error: bool) -> Self {
+        Self {
+            content,
+            reference: None,
+            is_error,
+            error_code: None,
+        }
+    }
+
+    pub fn artifact(reference: ToolResultRef) -> Result<Self, serde_json::Error> {
+        let content = reference.render()?;
+        Ok(Self {
+            content,
+            reference: Some(reference),
+            is_error: false,
+            error_code: None,
+        })
+    }
+
+    pub fn materialization_failure(
+        code: impl Into<String>,
+        char_count: usize,
+        byte_count: usize,
+    ) -> Self {
+        let code = code.into();
+        let content = serde_json::json!({
+            "version": CANONICAL_TOOL_RESULT_VERSION,
+            "error": code,
+            "message": "Tool output could not be stored safely; no partial output was returned.",
+            "char_count": char_count,
+            "byte_count": byte_count,
+        })
+        .to_string();
+        Self {
+            content,
+            reference: None,
+            is_error: true,
+            error_code: Some(code),
+        }
+    }
+
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    pub fn into_content(self) -> String {
+        self.content
+    }
+
+    pub fn reference(&self) -> Option<&ToolResultRef> {
+        self.reference.as_ref()
+    }
+
+    pub const fn is_error(&self) -> bool {
+        self.is_error
+    }
+
+    pub fn error_code(&self) -> Option<&str> {
+        self.error_code.as_deref()
     }
 }
 

@@ -125,7 +125,7 @@ impl AgentLoop {
                 .get(&BudgetLayer::ToolResultInline)
                 .copied()
                 .unwrap_or_default();
-            let microcompacted = if tool_result_tokens
+            let microcompact = if tool_result_tokens
                 > budget_plan.layer(BudgetLayer::ToolResultInline).soft_limit
             {
                 crate::tool_results::microcompact_tool_results(
@@ -135,22 +135,35 @@ impl AgentLoop {
                 )
                 .await
             } else {
-                Vec::new()
+                crate::tool_results::MicrocompactReport::default()
             };
             let mut assembly_report =
                 measure_provider_context(messages, tool_definitions, &budget_plan);
             assembly_report
                 .compacted
-                .extend(microcompacted.iter().map(|tool_call_id| AssemblyDecision {
-                    id: format!("tool_result:{tool_call_id}"),
-                    layer: BudgetLayer::ToolResultInline,
-                    reason: AssemblyDecisionReason::Microcompact,
-                }));
-            if !microcompacted.is_empty() {
+                .extend(
+                    microcompact
+                        .compacted
+                        .iter()
+                        .map(|tool_call_id| AssemblyDecision {
+                            id: format!("tool_result:{tool_call_id}"),
+                            layer: BudgetLayer::ToolResultInline,
+                            reason: AssemblyDecisionReason::Microcompact,
+                        }),
+                );
+            if !microcompact.compacted.is_empty() {
                 debug!(
                     session_id = %session_key,
-                    compacted_tool_results = microcompacted.len(),
+                    compacted_tool_results = microcompact.compacted.len(),
                     "microcompacted old inline tool results before cache observation"
+                );
+            }
+            for (tool_call_id, error_code) in &microcompact.failures {
+                warn!(
+                    session_id = %session_key,
+                    tool_call_id,
+                    error_code,
+                    "tool result microcompact left the original message unchanged"
                 );
             }
             if assembly_report.total_estimated > assembly_report.total_max {
@@ -231,7 +244,7 @@ impl AgentLoop {
                 session_id: session_key,
                 snapshot,
                 break_reasons: &stable_prefix.cache_break_reasons(),
-                expected_deletion: !microcompacted.is_empty(),
+                expected_deletion: !microcompact.compacted.is_empty(),
             });
             match stream_result {
                 Ok(stream) => return Ok((stream, cache_ticket)),

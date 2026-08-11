@@ -1,8 +1,8 @@
 //! Unified prompt representation for complete sanitized tool outputs.
 
-use agent_diva_core::security::{truncate_tool_result, MAX_TOOL_RESULT_CHARS};
 use agent_diva_core::tool_artifact::{
-    ToolArtifactSecurityContext, ToolArtifactStore, ToolResultRef, INLINE_THRESHOLD_CHARS,
+    CanonicalToolResult, ToolArtifactSecurityContext, ToolArtifactStore, ToolResultRef,
+    INLINE_THRESHOLD_CHARS,
 };
 use agent_diva_providers::{Message, MessageContent};
 use std::collections::HashMap;
@@ -10,27 +10,45 @@ use std::path::Path;
 
 pub(crate) const MICROCOMPACT_THRESHOLD_CHARS: usize = 4_000;
 
-pub(crate) struct PromptToolResult {
-    pub content: String,
-    pub reference: Option<ToolResultRef>,
-    pub degraded: bool,
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct MicrocompactReport {
+    pub compacted: Vec<String>,
+    pub failures: Vec<(String, String)>,
 }
 
-pub(crate) async fn prepare_prompt_tool_result(
+pub(crate) async fn canonicalize_tool_result(
     workspace: &Path,
     session_id: &str,
     tool_name: &str,
     tool_call_id: &str,
     status: &str,
     content: String,
-) -> PromptToolResult {
+) -> CanonicalToolResult {
     if content.chars().count() <= INLINE_THRESHOLD_CHARS {
-        return PromptToolResult {
-            content,
-            reference: None,
-            degraded: false,
-        };
+        return CanonicalToolResult::inline(content, false);
     }
+
+    persist_artifact_result(
+        workspace,
+        session_id,
+        tool_name,
+        tool_call_id,
+        status,
+        content,
+    )
+    .await
+}
+
+async fn persist_artifact_result(
+    workspace: &Path,
+    session_id: &str,
+    tool_name: &str,
+    tool_call_id: &str,
+    status: &str,
+    content: String,
+) -> CanonicalToolResult {
+    let char_count = content.chars().count();
+    let byte_count = content.len();
 
     let store = ToolArtifactStore::new(workspace);
     let context = ToolArtifactSecurityContext::new(workspace, session_id);
@@ -51,32 +69,21 @@ pub(crate) async fn prepare_prompt_tool_result(
     {
         Ok(Ok(metadata)) => {
             let reference = ToolResultRef::from_metadata(&metadata, &content);
-            let rendered = reference.render().unwrap_or_else(|_| {
-                "{\"error\":\"artifact_corrupt\",\"truncated\":true}".to_string()
-            });
-            PromptToolResult {
-                content: rendered,
-                reference: Some(reference),
-                degraded: false,
+            match CanonicalToolResult::artifact(reference) {
+                Ok(result) => result,
+                Err(_) => CanonicalToolResult::materialization_failure(
+                    "artifact_corrupt",
+                    char_count,
+                    byte_count,
+                ),
             }
         }
-        Ok(Err(error)) => PromptToolResult {
-            content: format!(
-                "{}\n[artifact unavailable: {}; legacy safety fallback applied]",
-                truncate_tool_result(&content, MAX_TOOL_RESULT_CHARS),
-                error.code()
-            ),
-            reference: None,
-            degraded: true,
-        },
-        Err(_) => PromptToolResult {
-            content: format!(
-                "{}\n[artifact unavailable: artifact_io; legacy safety fallback applied]",
-                truncate_tool_result(&content, MAX_TOOL_RESULT_CHARS)
-            ),
-            reference: None,
-            degraded: true,
-        },
+        Ok(Err(error)) => {
+            CanonicalToolResult::materialization_failure(error.code(), char_count, byte_count)
+        }
+        Err(_) => {
+            CanonicalToolResult::materialization_failure("artifact_io", char_count, byte_count)
+        }
     }
 }
 
@@ -84,7 +91,7 @@ pub(crate) async fn microcompact_tool_results(
     workspace: &Path,
     session_id: &str,
     messages: &mut [Message],
-) -> Vec<String> {
+) -> MicrocompactReport {
     let protected_start = messages
         .iter()
         .rposition(|message| message.role == "assistant" && message.tool_calls.is_some())
@@ -95,9 +102,7 @@ pub(crate) async fn microcompact_tool_results(
         .flatten()
         .map(|call| (call.id.clone(), call.name.clone()))
         .collect::<HashMap<_, _>>();
-    let store = ToolArtifactStore::new(workspace);
-    let context = ToolArtifactSecurityContext::new(workspace, session_id);
-    let mut compacted = Vec::new();
+    let mut report = MicrocompactReport::default();
 
     for (index, message) in messages.iter_mut().enumerate() {
         if index >= protected_start || message.role != "tool" {
@@ -119,30 +124,26 @@ pub(crate) async fn microcompact_tool_results(
             .get(&tool_call_id)
             .cloned()
             .unwrap_or_else(|| "unknown".to_string());
-        let store = store.clone();
-        let context = context.clone();
-        let content_for_store = content.clone();
-        let call_for_store = tool_call_id.clone();
-        let tool_for_store = tool_name.clone();
-        let persisted = tokio::task::spawn_blocking(move || {
-            store.put(
-                &context,
-                &tool_for_store,
-                &call_for_store,
-                "ok",
-                &content_for_store,
-            )
-        })
+        let canonical = persist_artifact_result(
+            workspace,
+            session_id,
+            &tool_name,
+            &tool_call_id,
+            "ok",
+            content,
+        )
         .await;
-        if let Ok(Ok(metadata)) = persisted {
-            let reference = ToolResultRef::from_metadata(&metadata, &content);
-            if let Ok(rendered) = reference.render() {
-                message.content = MessageContent::Text(rendered);
-                compacted.push(tool_call_id);
-            }
+        if canonical.is_error() {
+            report.failures.push((
+                tool_call_id,
+                canonical.error_code().unwrap_or("artifact_io").to_string(),
+            ));
+        } else {
+            message.content = MessageContent::Text(canonical.into_content());
+            report.compacted.push(tool_call_id);
         }
     }
-    compacted
+    report
 }
 
 #[cfg(test)]
@@ -169,10 +170,9 @@ mod tests {
             current_assistant,
             Message::tool("新".repeat(4_001), "current".to_string()),
         ];
-        assert_eq!(
-            microcompact_tool_results(workspace.path(), "session", &mut messages).await,
-            vec!["old"]
-        );
+        let report = microcompact_tool_results(workspace.path(), "session", &mut messages).await;
+        assert_eq!(report.compacted, vec!["old"]);
+        assert!(report.failures.is_empty());
         assert!(
             serde_json::from_str::<ToolResultRef>(messages[1].content.as_text().unwrap()).is_ok()
         );
@@ -180,6 +180,7 @@ mod tests {
         assert!(
             microcompact_tool_results(workspace.path(), "session", &mut messages)
                 .await
+                .compacted
                 .is_empty()
         );
     }
@@ -187,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn inline_boundary_and_large_reference_are_stable() {
         let workspace = tempfile::tempdir().unwrap();
-        let inline = prepare_prompt_tool_result(
+        let inline = canonicalize_tool_result(
             workspace.path(),
             "session",
             "exec",
@@ -196,10 +197,11 @@ mod tests {
             "x".repeat(INLINE_THRESHOLD_CHARS),
         )
         .await;
-        assert!(inline.reference.is_none());
-        assert_eq!(inline.content.chars().count(), INLINE_THRESHOLD_CHARS);
+        assert!(inline.reference().is_none());
+        assert_eq!(inline.content().chars().count(), INLINE_THRESHOLD_CHARS);
+        assert!(!inline.is_error());
 
-        let referenced = prepare_prompt_tool_result(
+        let referenced = canonicalize_tool_result(
             workspace.path(),
             "session",
             "exec",
@@ -208,17 +210,18 @@ mod tests {
             "界".repeat(INLINE_THRESHOLD_CHARS + 1),
         )
         .await;
-        let reference = referenced.reference.unwrap();
+        let reference = referenced.reference().unwrap();
         assert_eq!(reference.tool_call_id, "large");
         assert_eq!(reference.char_count, INLINE_THRESHOLD_CHARS + 1);
         assert!(reference.truncated);
-        assert!(referenced.content.len() < INLINE_THRESHOLD_CHARS);
+        assert!(referenced.content().len() < INLINE_THRESHOLD_CHARS);
+        assert!(!referenced.is_error());
     }
 
     #[tokio::test]
-    async fn over_single_item_limit_uses_explicit_legacy_fallback() {
+    async fn over_single_item_limit_is_an_explicit_materialization_failure() {
         let workspace = tempfile::tempdir().unwrap();
-        let result = prepare_prompt_tool_result(
+        let result = canonicalize_tool_result(
             workspace.path(),
             "session",
             "exec",
@@ -227,9 +230,10 @@ mod tests {
             "x".repeat(agent_diva_core::tool_artifact::MAX_ARTIFACT_BYTES as usize + 1),
         )
         .await;
-        assert!(result.degraded);
-        assert!(result.reference.is_none());
-        assert!(result.content.contains("artifact_capacity_exceeded"));
-        assert!(result.content.contains("80000 chars"));
+        assert!(result.is_error());
+        assert!(result.reference().is_none());
+        assert_eq!(result.error_code(), Some("artifact_capacity_exceeded"));
+        assert!(result.content().contains("artifact_capacity_exceeded"));
+        assert!(!result.content().contains(&"x".repeat(1_000)));
     }
 }

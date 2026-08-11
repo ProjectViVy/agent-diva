@@ -291,14 +291,10 @@ impl AgentLoop {
             }
         }
 
-        let prompt_result = if is_error {
-            crate::tool_results::PromptToolResult {
-                content: raw_result,
-                reference: None,
-                degraded: false,
-            }
+        let canonical_result = if is_error {
+            agent_diva_core::tool_artifact::CanonicalToolResult::inline(raw_result, true)
         } else {
-            crate::tool_results::prepare_prompt_tool_result(
+            crate::tool_results::canonicalize_tool_result(
                 &self.workspace,
                 context.session_key,
                 &tool_call.name,
@@ -308,8 +304,8 @@ impl AgentLoop {
             )
             .await
         };
-        let result = prompt_result.content;
-        if let Some(reference) = &prompt_result.reference {
+        let is_error = is_error || canonical_result.is_error();
+        if let Some(reference) = canonical_result.reference() {
             trace!(
                 artifact_id = %reference.artifact_id,
                 char_count = reference.char_count,
@@ -317,13 +313,15 @@ impl AgentLoop {
                 "tool result persisted as artifact reference"
             );
         }
-        if prompt_result.degraded {
+        if let Some(error_code) = canonical_result.error_code() {
             warn!(
                 call_id = %tool_call.id,
                 tool_name = %tool_call.name,
-                "tool artifact persistence degraded to prompt safety fallback"
+                error_code,
+                "tool result materialization failed without returning partial output"
             );
         }
+        let result = canonical_result.into_content();
 
         let experience_outcome = if !is_error {
             OutcomeKind::Succeeded

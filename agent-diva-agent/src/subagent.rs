@@ -732,7 +732,7 @@ impl SubagentManager {
                     tool_trace.push(tool_call.name.clone());
                     match tools.execute_structured(&tool_call.name, args_json).await {
                         Ok(output) => {
-                            let prompt = crate::tool_results::prepare_prompt_tool_result(
+                            let canonical = crate::tool_results::canonicalize_tool_result(
                                 workspace,
                                 task_id,
                                 &tool_call.name,
@@ -741,7 +741,10 @@ impl SubagentManager {
                                 output.content,
                             )
                             .await;
-                            messages.push(Message::tool(prompt.content, tool_call.id.clone()));
+                            messages.push(Message::tool(
+                                canonical.into_content(),
+                                tool_call.id.clone(),
+                            ));
                         }
                         Err(e) => messages
                             .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
@@ -858,7 +861,7 @@ impl SubagentManager {
                     );
                     match tools.execute_structured(&tool_call.name, args_json).await {
                         Ok(output) => {
-                            let prompt = crate::tool_results::prepare_prompt_tool_result(
+                            let canonical = crate::tool_results::canonicalize_tool_result(
                                 workspace,
                                 task_id,
                                 &tool_call.name,
@@ -867,7 +870,10 @@ impl SubagentManager {
                                 output.content,
                             )
                             .await;
-                            messages.push(Message::tool(prompt.content, tool_call.id.clone()));
+                            messages.push(Message::tool(
+                                canonical.into_content(),
+                                tool_call.id.clone(),
+                            ));
                         }
                         Err(e) => messages
                             .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
