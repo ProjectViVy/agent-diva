@@ -78,9 +78,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
             Session 在下一轮按 startup revision 懒刷新。覆盖外部写入、重复 revision、
             workspace 隔离与通知接线；无用户可见消息、无每轮文件轮询。日志：
             `docs/logs/2026-08-context-management-enhancement/v0.0.10-c1c-workspace-memory-epoch/`。
-      - [ ] **C1c Skills reload 入口接线**：`invalidate_skills` 已提供显式失效 API，
-            但 Manager skill upload/delete 与 `memory_distill` 尚未通知 AgentLoop；后续接入
-            runtime reload 事件，保持“文件变化不轮询、显式事件生效”的会话语义。
+      - [x] **C1c Skills reload 入口接线**（2026-08-12）：新增工作区隔离的
+            `ReloadWorkspaceSkills` Runtime Control；Manager skill upload/delete 仅在
+            实际成功变更后通知，重复上传 no-op 不通知；`memory_distill` 仅新建并返回
+            `Applied` 时标记 reload。所有已缓存 Session 仅在下一轮重建
+            `AgentRulesAndSkills`，无文件轮询、无用户可见消息。日志：
+            `docs/logs/2026-08-context-management-enhancement/v0.0.11-c1c-skills-reload/`。
     - [x] **P0-3 / C1b**（2026-08-10）：`ToolRegistry` 新增显式
           `ToolSchemaPartition::{Core, Deferred}`，definitions 固定为 CORE 字典序连续前缀 +
           MCP/custom DEFERRED 字典序后缀；schema JSON object 递归规范化键序且保留 array
