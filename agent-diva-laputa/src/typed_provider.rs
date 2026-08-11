@@ -16,8 +16,9 @@ use agent_diva_core::memory::{
     RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome,
     SectionWriteProposalRequest, SessionEndRequest, SessionEndResponse, SessionEndStatus,
     StartupInjectionShape, SyncTurnRequest, SyncTurnResponse, SystemPromptBlock,
-    SystemPromptRequest, SystemPromptResponse, WorkingMemoryRequest, WorkingMemoryResponse,
-    DEFAULT_L1_INDEX_LINES, MAX_CONFIDENCE_BPS,
+    SystemPromptRefreshRequest, SystemPromptRefreshResponse, SystemPromptRequest,
+    SystemPromptResponse, WorkingMemoryRequest, WorkingMemoryResponse, DEFAULT_L1_INDEX_LINES,
+    MAX_CONFIDENCE_BPS,
 };
 use chrono::{Duration, Utc};
 
@@ -33,6 +34,8 @@ pub struct TypedLaputaMemoryProvider {
     workspace_id: String,
     startup_markdown: RwLock<Option<String>>,
     startup_revision: AtomicU64,
+    authority_revision: AtomicU64,
+    startup_refresh: tokio::sync::Mutex<()>,
     l1_index_lines: usize,
     recall: LaputaRecallService,
     crud_store: TypedMemoryStore,
@@ -62,6 +65,8 @@ impl TypedLaputaMemoryProvider {
         if !integrity.corrupt_record_ids.is_empty() || integrity.orphan_fts_rows != 0 {
             return Err(TypedMemoryStoreError::CorruptRecord);
         }
+        let authority_revision = u64::try_from(store.metadata().await?.store_revision)
+            .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
         let startup_markdown =
             RwLock::new(Self::render_startup_index(&store, l1_index_lines).await?);
         let proposal_sink = LaputaMemoryProvider::open(workspace)
@@ -78,6 +83,8 @@ impl TypedLaputaMemoryProvider {
             workspace_id,
             startup_markdown,
             startup_revision: AtomicU64::new(0),
+            authority_revision: AtomicU64::new(authority_revision),
+            startup_refresh: tokio::sync::Mutex::new(()),
             l1_index_lines,
             recall: LaputaRecallService::new(store),
             crud_store,
@@ -109,17 +116,51 @@ impl TypedLaputaMemoryProvider {
             .then(|| format!("## Embedded Laputa Typed Memory\n\n{rendered}")))
     }
 
-    async fn refresh_startup_markdown(&self) -> Result<(), TypedMemoryStoreError> {
+    async fn refresh_startup_markdown_at(
+        &self,
+        requested_revision: u64,
+    ) -> Result<SystemPromptRefreshResponse, TypedMemoryStoreError> {
+        let _refresh_guard = self.startup_refresh.lock().await;
+        let metadata = self.crud_store.metadata().await?;
+        let actual_revision = u64::try_from(metadata.store_revision)
+            .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+        if actual_revision < requested_revision {
+            return Err(TypedMemoryStoreError::StoreRevisionConflict {
+                expected: i64::try_from(requested_revision).unwrap_or(i64::MAX),
+                actual: metadata.store_revision,
+            });
+        }
+        let observed_revision = self.authority_revision.load(Ordering::Acquire);
+        if actual_revision <= observed_revision {
+            return Ok(SystemPromptRefreshResponse {
+                authority_revision: observed_revision,
+                projection_changed: false,
+            });
+        }
+
         let rendered = Self::render_startup_index(&self.crud_store, self.l1_index_lines).await?;
         let mut guard = self
             .startup_markdown
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if *guard != rendered {
+        let projection_changed = *guard != rendered;
+        if projection_changed {
             *guard = rendered;
             self.startup_revision.fetch_add(1, Ordering::AcqRel);
         }
-        Ok(())
+        self.authority_revision
+            .store(actual_revision, Ordering::Release);
+        Ok(SystemPromptRefreshResponse {
+            authority_revision: actual_revision,
+            projection_changed,
+        })
+    }
+
+    async fn refresh_startup_markdown(&self) -> Result<(), TypedMemoryStoreError> {
+        let metadata = self.crud_store.metadata().await?;
+        let revision = u64::try_from(metadata.store_revision)
+            .map_err(|_| TypedMemoryStoreError::CorruptRecord)?;
+        self.refresh_startup_markdown_at(revision).await.map(|_| ())
     }
 
     /// Stable record id for a session working checkpoint.
@@ -334,6 +375,22 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
 
     fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
         self.startup_revision.load(Ordering::Acquire)
+    }
+
+    async fn refresh_system_prompt_projection(
+        &self,
+        request: SystemPromptRefreshRequest,
+    ) -> agent_diva_core::Result<SystemPromptRefreshResponse> {
+        if request.workspace_root != self.workspace {
+            return Err(agent_diva_core::Error::Internal(format!(
+                "memory projection workspace mismatch: expected {}, got {}",
+                self.workspace.display(),
+                request.workspace_root.display()
+            )));
+        }
+        self.refresh_startup_markdown_at(request.authority_revision)
+            .await
+            .map_err(|error| agent_diva_core::Error::Internal(error.to_string()))
     }
 
     async fn prefetch(
@@ -1406,7 +1463,7 @@ mod wave3_tests {
     use super::*;
     use agent_diva_core::memory::{
         MemorySearchRequest, MemoryTombstone, PrefetchRequest, SessionEndRequest,
-        SystemPromptRequest,
+        SystemPromptRefreshRequest, SystemPromptRequest,
     };
     use agent_diva_core::workspace_identity::canonical_workspace_id;
 
@@ -1522,6 +1579,69 @@ mod wave3_tests {
         assert!(
             markdown.contains("kestrel release plan"),
             "startup L1 index must include the content preview, got: {markdown}"
+        );
+    }
+
+    #[tokio::test]
+    async fn external_authority_refresh_updates_stale_provider_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let stale = open_provider(&temp).await;
+        let writer = open_provider(&temp).await;
+        let prompt_request = SystemPromptRequest {
+            workspace_root: temp.path().to_path_buf(),
+        };
+        let initial_projection_revision = stale.system_prompt_revision(&prompt_request);
+
+        writer
+            .memory_add(
+                &context(&temp),
+                MemoryAddRequest {
+                    content: "external authority refresh contract".into(),
+                    evidence_refs: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        let revision = TypedMemoryStore::open_canonical(temp.path())
+            .await
+            .unwrap()
+            .metadata()
+            .await
+            .unwrap()
+            .store_revision as u64;
+
+        let refreshed = stale
+            .refresh_system_prompt_projection(SystemPromptRefreshRequest {
+                workspace_root: temp.path().to_path_buf(),
+                authority_revision: revision,
+            })
+            .await
+            .unwrap();
+        assert!(refreshed.projection_changed);
+        assert_eq!(refreshed.authority_revision, revision);
+        assert!(stale.system_prompt_revision(&prompt_request) > initial_projection_revision);
+        assert!(stale
+            .system_prompt_block(&prompt_request)
+            .unwrap()
+            .prompt_block
+            .expect("refreshed startup block")
+            .markdown
+            .contains("external authority refresh contract"));
+
+        let duplicate = stale
+            .refresh_system_prompt_projection(SystemPromptRefreshRequest {
+                workspace_root: temp.path().to_path_buf(),
+                authority_revision: revision,
+            })
+            .await
+            .unwrap();
+        assert!(!duplicate.projection_changed);
+        assert_eq!(
+            stale.system_prompt_revision(&prompt_request),
+            refreshed
+                .projection_changed
+                .then_some(initial_projection_revision + 1)
+                .unwrap()
         );
     }
 

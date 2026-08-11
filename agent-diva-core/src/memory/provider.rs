@@ -244,6 +244,29 @@ pub struct SystemPromptRequest {
     pub workspace_root: PathBuf,
 }
 
+/// Input for refreshing a cached startup projection after an authority write.
+///
+/// The authority revision is durable and workspace-scoped. Providers may use
+/// it to coalesce duplicate or out-of-order refresh notifications without
+/// exposing storage-specific types to the Agent runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemPromptRefreshRequest {
+    /// Workspace root for the changed authority.
+    pub workspace_root: PathBuf,
+    /// Monotonic revision observed after the authority write committed.
+    pub authority_revision: u64,
+}
+
+/// Result of refreshing a cached startup projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemPromptRefreshResponse {
+    /// Latest authority revision observed by the provider.
+    pub authority_revision: u64,
+    /// Whether the rendered startup projection changed and its in-process
+    /// prompt revision was advanced.
+    pub projection_changed: bool,
+}
+
 /// Startup block injected into the Agent-Diva system prompt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemPromptBlock {
@@ -404,6 +427,21 @@ pub trait MemoryProvider: Send + Sync {
     /// system access, blocking work, or async I/O from this method.
     fn system_prompt_revision(&self, _request: &SystemPromptRequest) -> u64 {
         0
+    }
+
+    /// Refresh a cached startup projection after an external authority write.
+    ///
+    /// Providers that do not maintain a refreshable in-process projection may
+    /// acknowledge the authority revision without changing their prompt
+    /// revision. The default keeps those providers source-compatible.
+    async fn refresh_system_prompt_projection(
+        &self,
+        request: SystemPromptRefreshRequest,
+    ) -> crate::Result<SystemPromptRefreshResponse> {
+        Ok(SystemPromptRefreshResponse {
+            authority_revision: request.authority_revision,
+            projection_changed: false,
+        })
     }
 
     /// Perform optional intent-aware prefetch for a live turn.

@@ -817,6 +817,7 @@ impl AgentLoop {
         loop {
             if let Some(control_rx) = self.runtime_control_rx.as_mut() {
                 tokio::select! {
+                    biased;
                     control = control_rx.recv() => {
                         match control {
                             Some(cmd) => self.handle_runtime_control_command(cmd).await,

@@ -657,6 +657,7 @@ pub async fn apply_laputa_proposal_handler(
         })?,
         LegacyApplyState::Prepared => unreachable!("prepared journal is consumed before apply"),
     };
+    notify_typed_memory_projection(&state, &outcome.changelog.id).await;
     if state.memory_authority_mode == MemoryAuthorityMode::Typed {
         let correlation_complete = !payload.governance_request_id.is_empty()
             && !id.is_empty()
@@ -919,6 +920,68 @@ pub async fn get_laputa_persona_workspace_handler(
     }))
 }
 
+/// Queue an internal workspace-scoped projection refresh after a Typed BML
+/// authority commit. The authority write remains successful even when the
+/// AgentLoop is unavailable; a restarted provider opens the latest revision.
+async fn notify_typed_memory_projection(state: &AppState, change_id: &str) {
+    if state.memory_authority_mode != MemoryAuthorityMode::Typed {
+        return;
+    }
+    let Some(runtime_control_tx) = state.runtime_control_tx.as_ref() else {
+        return;
+    };
+    let store = match TypedMemoryStore::open_canonical(&state.workspace_root).await {
+        Ok(store) => store,
+        Err(error) => {
+            tracing::error!(
+                change_id,
+                error = %error,
+                "failed to open Typed BML store for runtime refresh"
+            );
+            return;
+        }
+    };
+    let revision = match store.metadata().await {
+        Ok(metadata) => match u64::try_from(metadata.store_revision) {
+            Ok(revision) => revision,
+            Err(_) => {
+                tracing::error!(
+                    change_id,
+                    store_revision = metadata.store_revision,
+                    "Typed BML store revision cannot be represented for runtime refresh"
+                );
+                return;
+            }
+        },
+        Err(error) => {
+            tracing::error!(
+                change_id,
+                error = %error,
+                "failed to read Typed BML revision for runtime refresh"
+            );
+            return;
+        }
+    };
+    let workspace_id =
+        agent_diva_core::workspace_identity::canonical_workspace_id(&state.workspace_root);
+    if runtime_control_tx
+        .send(
+            agent_diva_agent::runtime_control::RuntimeControlCommand::RefreshMemoryAuthority {
+                workspace_id,
+                authority_revision: revision,
+                change_id: change_id.to_string(),
+            },
+        )
+        .is_err()
+    {
+        tracing::warn!(
+            change_id,
+            authority_revision = revision,
+            "AgentLoop Memory projection refresh channel is unavailable"
+        );
+    }
+}
+
 pub async fn get_laputa_cognitive_handler(
     State(state): State<AppState>,
     Path(kind): Path<String>,
@@ -1077,6 +1140,7 @@ pub async fn rollback_laputa_changelog_handler(
             .map_err(laputa_error_response)?
     };
     if state.memory_authority_mode == MemoryAuthorityMode::Typed {
+        notify_typed_memory_projection(&state, &outcome.changelog.id).await;
         LaputaService::record_typed_rollback_metrics(
             !outcome.changelog.id.is_empty()
                 && !outcome.audit_event.id.is_empty()
@@ -1754,6 +1818,29 @@ mod recovery_tests {
                 .is_err(),
             "unknown cognitive file must fail"
         );
+    }
+
+    #[tokio::test]
+    async fn typed_commit_queues_workspace_memory_refresh_command() {
+        let temp = tempfile::tempdir().unwrap();
+        agent_diva_laputa::TypedMemoryStore::open_canonical(temp.path())
+            .await
+            .unwrap();
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let (runtime_tx, mut runtime_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
+        state.runtime_control_tx = Some(runtime_tx);
+
+        notify_typed_memory_projection(&state, "changelog-1").await;
+        let command = runtime_rx.recv().await.expect("refresh command");
+        assert!(matches!(
+            command,
+            agent_diva_agent::runtime_control::RuntimeControlCommand::RefreshMemoryAuthority {
+                authority_revision: 0,
+                change_id,
+                ..
+            } if change_id == "changelog-1"
+        ));
     }
 }
 

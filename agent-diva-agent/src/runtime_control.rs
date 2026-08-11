@@ -4,6 +4,14 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum RuntimeControlCommand {
+    /// Refresh the workspace-scoped Memory authority projection after a
+    /// committed BML write. The change is internal control-plane state, not a
+    /// user-visible Session message.
+    RefreshMemoryAuthority {
+        workspace_id: String,
+        authority_revision: u64,
+        change_id: String,
+    },
     UpdateNetwork(NetworkToolConfig),
     UpdateMcp {
         servers: HashMap<String, MCPServerConfig>,

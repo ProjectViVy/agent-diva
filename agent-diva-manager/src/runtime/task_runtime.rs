@@ -97,6 +97,7 @@ async fn start_runtime_tasks_inner(
             "recovered incomplete Plan approvals at startup"
         );
     }
+    let runtime_control_tx_for_state = runtime_control_tx.clone();
     let manager = Manager::new(
         api_rx,
         bus.clone(),
@@ -126,7 +127,7 @@ async fn start_runtime_tasks_inner(
     );
     let agent_handle = spawn_agent_runtime(agent);
     let manager_handle = spawn_manager_runtime(manager);
-    let app_state = AppState::new_with_runtime_governance(
+    let app_state = AppState::new_with_runtime_governance_and_control(
         api_tx,
         bus.clone(),
         workspace,
@@ -135,6 +136,7 @@ async fn start_runtime_tasks_inner(
         config.memory.authority_mode,
         governance,
         planning_service,
+        runtime_control_tx_for_state,
     )
     .expect("manager AppState storage services initialize");
     let recovered_memory = crate::handlers::laputa::recover_memory_approvals(&app_state)

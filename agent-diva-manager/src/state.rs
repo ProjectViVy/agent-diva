@@ -24,6 +24,7 @@ use crate::planning_service::{
     UpdateExecutionTodoRequest,
 };
 use crate::skill_service::SkillDto;
+use agent_diva_agent::runtime_control::RuntimeControlCommand;
 
 #[derive(Clone)]
 pub struct HealthSignals {
@@ -79,6 +80,9 @@ pub struct AppState {
     pub governance: Option<ApprovalCoordinator>,
     /// Canonical Plan service shared with the Manager command loop.
     pub planning_service: Option<Arc<crate::planning_service::PlanningService>>,
+    /// Internal AgentLoop control channel for workspace-scoped authority
+    /// projection refreshes. It is absent in isolated handler fixtures.
+    pub runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
 }
 
 impl AppState {
@@ -144,6 +148,7 @@ impl AppState {
             memory_authority_mode,
             None,
             None,
+            None,
         )
     }
 
@@ -167,6 +172,34 @@ impl AppState {
             memory_authority_mode,
             Some(governance),
             Some(planning_service),
+            None,
+        )
+    }
+
+    /// Construct production AppState with the AgentLoop control channel used
+    /// for post-commit Memory projection refresh notifications.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_runtime_governance_and_control(
+        api_tx: mpsc::Sender<ManagerCommand>,
+        bus: MessageBus,
+        workspace_root: impl Into<PathBuf>,
+        command_approvals: CommandApprovalCoordinator,
+        ask_user: agent_diva_core::ask_user::AskUserCoordinator,
+        memory_authority_mode: MemoryAuthorityMode,
+        governance: ApprovalCoordinator,
+        planning_service: Arc<crate::planning_service::PlanningService>,
+        runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_runtime_governance_inner(
+            api_tx,
+            bus,
+            workspace_root.into(),
+            command_approvals,
+            ask_user,
+            memory_authority_mode,
+            Some(governance),
+            Some(planning_service),
+            Some(runtime_control_tx),
         )
     }
 
@@ -180,6 +213,7 @@ impl AppState {
         memory_authority_mode: MemoryAuthorityMode,
         governance: Option<ApprovalCoordinator>,
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
+        runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     ) -> anyhow::Result<Self> {
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
@@ -222,6 +256,7 @@ impl AppState {
             ask_user,
             governance,
             planning_service,
+            runtime_control_tx,
         };
         match state.autodream.resumable_runs() {
             Ok(runs) if !runs.is_empty() => {

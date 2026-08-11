@@ -20,8 +20,8 @@ pub use provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,
     RecallTurnOutcome, SessionEndRequest, SessionEndResponse, SessionEndStatus,
     StartupContextSnapshot, StartupInjectionShape, StartupStatus, SyncTurnRequest,
-    SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRequest, SystemPromptResponse,
-    WakeupPackSummary,
+    SyncTurnResponse, SyncTurnStatus, SystemPromptBlock, SystemPromptRefreshRequest,
+    SystemPromptRefreshResponse, SystemPromptRequest, SystemPromptResponse, WakeupPackSummary,
 };
 pub use recall::{
     compare_recall_shadow, estimate_recall_tokens, ConservativeRecallTokenEstimator,

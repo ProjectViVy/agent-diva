@@ -2,6 +2,7 @@ use super::AgentLoop;
 use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
+use agent_diva_core::memory::SystemPromptRefreshRequest;
 use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
@@ -11,6 +12,46 @@ use tracing::{info, warn};
 impl AgentLoop {
     pub(super) async fn handle_runtime_control_command(&mut self, cmd: RuntimeControlCommand) {
         match cmd {
+            RuntimeControlCommand::RefreshMemoryAuthority {
+                workspace_id,
+                authority_revision,
+                change_id,
+            } => {
+                let expected_workspace_id =
+                    agent_diva_core::workspace_identity::canonical_workspace_id(&self.workspace);
+                if workspace_id != expected_workspace_id {
+                    tracing::warn!(
+                        expected_workspace_id,
+                        received_workspace_id = %workspace_id,
+                        authority_revision,
+                        change_id = %change_id,
+                        "ignored Memory authority refresh for another workspace"
+                    );
+                    return;
+                }
+                let request = SystemPromptRefreshRequest {
+                    workspace_root: self.workspace.clone(),
+                    authority_revision,
+                };
+                match self
+                    .memory_provider
+                    .refresh_system_prompt_projection(request)
+                    .await
+                {
+                    Ok(result) => tracing::info!(
+                        authority_revision = result.authority_revision,
+                        projection_changed = result.projection_changed,
+                        change_id = %change_id,
+                        "Memory authority projection refresh applied"
+                    ),
+                    Err(error) => tracing::error!(
+                        authority_revision,
+                        change_id = %change_id,
+                        error = %error,
+                        "Memory authority projection refresh failed"
+                    ),
+                }
+            }
             RuntimeControlCommand::UpdateNetwork(network) => {
                 self.apply_network_config(network).await;
                 self.rebuild_tools_for_active_phase().await;
