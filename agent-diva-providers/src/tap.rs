@@ -50,6 +50,13 @@ impl<P: LLMProvider> LLMProvider for ProviderTap<P> {
         self.inner.set_retry_listener(listener);
     }
 
+    fn set_final_wire_cache_listener(
+        &self,
+        listener: Option<crate::final_wire::FinalWireCacheListener>,
+    ) {
+        self.inner.set_final_wire_cache_listener(listener);
+    }
+
     async fn chat(
         &self,
         messages: Vec<Message>,

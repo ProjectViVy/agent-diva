@@ -8,6 +8,7 @@ pub mod catalog;
 mod deepseek_v4_dsml;
 pub mod discovery;
 pub mod factory;
+pub mod final_wire;
 mod http_util;
 pub mod ollama;
 pub mod openai_compatible;
@@ -33,6 +34,7 @@ pub use discovery::{
     fetch_provider_model_catalog, ModelCatalogSource, ProviderAccess, ProviderModelCatalog,
 };
 pub use factory::{build_llm_provider, LlmProviderBuildOptions};
+pub use final_wire::{FinalWireCacheListener, FinalWireCacheSnapshot};
 pub use ollama::OllamaProvider;
 pub use openai_compatible::OpenAiCompatibleClient;
 pub use registry::{ProviderRegistry, ProviderSpec};
@@ -109,5 +111,13 @@ impl LLMProvider for DynamicProvider {
 
     fn prompt_cache_profile(&self, model: &str) -> PromptCacheProfile {
         self.current().prompt_cache_profile(model)
+    }
+
+    fn set_retry_listener(&self, listener: Option<crate::retry::RetryListener>) {
+        self.current().set_retry_listener(listener);
+    }
+
+    fn set_final_wire_cache_listener(&self, listener: Option<FinalWireCacheListener>) {
+        self.current().set_final_wire_cache_listener(listener);
     }
 }

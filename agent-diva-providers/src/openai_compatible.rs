@@ -5,6 +5,7 @@ use regex::Regex;
 use reqwest::Client;
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tracing::{debug, error, warn};
@@ -179,6 +180,7 @@ pub struct OpenAiCompatibleClient {
     response_protocol: agent_diva_core::config::ProviderResponseProtocol,
     /// Snapshot by each request to notify retry progress; set per call by the agent.
     retry_listener: std::sync::Mutex<Option<crate::retry::RetryListener>>,
+    final_wire_cache_listener: std::sync::Mutex<Option<crate::final_wire::FinalWireCacheListener>>,
 }
 
 fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -335,6 +337,7 @@ impl OpenAiCompatibleClient {
             reasoning_config,
             response_protocol,
             retry_listener: std::sync::Mutex::new(None),
+            final_wire_cache_listener: std::sync::Mutex::new(None),
         }
     }
 
@@ -791,6 +794,13 @@ impl LLMProvider for OpenAiCompatibleClient {
         *self.retry_listener.lock().unwrap() = listener;
     }
 
+    fn set_final_wire_cache_listener(
+        &self,
+        listener: Option<crate::final_wire::FinalWireCacheListener>,
+    ) {
+        *self.final_wire_cache_listener.lock().unwrap() = listener;
+    }
+
     fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
         // OpenAI-compatible endpoints vary in whether they accept a system
         // role after history. Stay conservative until a concrete adapter has
@@ -855,6 +865,26 @@ impl LLMProvider for OpenAiCompatibleClient {
             Self::apply_cache_control(&mut body);
         }
         Self::normalize_assistant_tool_call_content(&mut body);
+        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+            let stable_system = body
+                .get("messages")
+                .and_then(Value::as_array)
+                .and_then(|messages| messages.first())
+                .cloned()
+                .unwrap_or(Value::Null);
+            let tools = body
+                .get("tools")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            listener(crate::final_wire::snapshot_from_wire(
+                self.fallback_provider_name(),
+                resolved_model.clone(),
+                self.prompt_cache_profile(&model),
+                &stable_system,
+                tools,
+            ));
+        }
 
         // Build HTTP request
         let url = format!("{}/chat/completions", self.api_base);
@@ -942,6 +972,26 @@ impl LLMProvider for OpenAiCompatibleClient {
             Self::apply_cache_control(&mut body);
         }
         Self::normalize_assistant_tool_call_content(&mut body);
+        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+            let stable_system = body
+                .get("messages")
+                .and_then(Value::as_array)
+                .and_then(|messages| messages.first())
+                .cloned()
+                .unwrap_or(Value::Null);
+            let tools = body
+                .get("tools")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            listener(crate::final_wire::snapshot_from_wire(
+                self.fallback_provider_name(),
+                resolved_model.clone(),
+                self.prompt_cache_profile(&model),
+                &stable_system,
+                tools,
+            ));
+        }
 
         let url = format!("{}/chat/completions", self.api_base);
         let body_json = Self::serialize_request_body(&body)?;

@@ -770,6 +770,13 @@ pub trait LLMProvider: Send + Sync {
     /// internally (e.g. via [`crate::retry::send_with_retry`]) should store
     /// it and invoke it on each attempt so callers can surface progress.
     fn set_retry_listener(&self, _listener: Option<crate::retry::RetryListener>) {}
+
+    /// Observe cache-relevant structure after provider-specific request shaping.
+    fn set_final_wire_cache_listener(
+        &self,
+        _listener: Option<crate::final_wire::FinalWireCacheListener>,
+    ) {
+    }
 }
 
 #[cfg(test)]

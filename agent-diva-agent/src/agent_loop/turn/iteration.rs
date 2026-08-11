@@ -5,7 +5,7 @@ use agent_diva_providers::{
     LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
 };
 use futures::StreamExt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -171,20 +171,11 @@ impl AgentLoop {
                 );
             }
             let profile = self.provider.prompt_cache_profile(model);
-            let (cache_ticket, _) = self.cache_observer.note_pre_call(CacheObserveInput {
-                session_id: session_key,
-                model,
-                profile: &profile,
-                stable_prefix: &stable_prefix.rendered,
-                prefix_version: stable_prefix.prefix_version,
-                break_reasons: &stable_prefix.cache_break_reasons(),
-                tools: tool_definitions,
-                expected_deletion: !microcompacted.is_empty(),
-            });
             let mut cacheable_tools = tool_definitions.clone();
             apply_core_tool_cache_anchor(&mut cacheable_tools, &profile);
             let tools = (!cacheable_tools.is_empty()).then_some(cacheable_tools.definitions);
             crate::context::ContextBuilder::sanitize_messages_for_provider(messages);
+            let final_wire_snapshot = Arc::new(Mutex::new(None));
             let stream_result = {
                 let bus = self.bus.clone();
                 let channel = message.channel.clone();
@@ -203,6 +194,13 @@ impl AgentLoop {
                     );
                 });
                 self.provider.set_retry_listener(Some(listener));
+                let snapshot_slot = final_wire_snapshot.clone();
+                self.provider
+                    .set_final_wire_cache_listener(Some(Arc::new(move |snapshot| {
+                        if let Ok(mut slot) = snapshot_slot.lock() {
+                            *slot = Some(snapshot);
+                        }
+                    })));
                 let result = self
                     .provider
                     .chat_stream(
@@ -221,8 +219,19 @@ impl AgentLoop {
                     )
                     .await;
                 self.provider.set_retry_listener(None);
+                self.provider.set_final_wire_cache_listener(None);
                 result
             };
+            let snapshot = final_wire_snapshot
+                .lock()
+                .ok()
+                .and_then(|mut slot| slot.take());
+            let (cache_ticket, _) = self.cache_observer.note_pre_call(CacheObserveInput {
+                session_id: session_key,
+                snapshot,
+                break_reasons: &stable_prefix.cache_break_reasons(),
+                expected_deletion: !microcompacted.is_empty(),
+            });
             match stream_result {
                 Ok(stream) => return Ok((stream, cache_ticket)),
                 Err(error) if !reactive_retry_attempted && is_context_overflow_error(&error) => {

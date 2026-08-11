@@ -176,6 +176,7 @@ pub struct AnthropicClient {
     provider_name: Option<String>,
     /// Snapshot by each request to notify retry progress; set per call by the agent.
     retry_listener: std::sync::Mutex<Option<crate::retry::RetryListener>>,
+    final_wire_cache_listener: std::sync::Mutex<Option<crate::final_wire::FinalWireCacheListener>>,
 }
 
 impl AnthropicClient {
@@ -199,6 +200,7 @@ impl AnthropicClient {
             extra_headers: extra_headers.unwrap_or_default(),
             provider_name,
             retry_listener: std::sync::Mutex::new(None),
+            final_wire_cache_listener: std::sync::Mutex::new(None),
         }
     }
 
@@ -314,6 +316,13 @@ impl LLMProvider for AnthropicClient {
         *self.retry_listener.lock().unwrap() = listener;
     }
 
+    fn set_final_wire_cache_listener(
+        &self,
+        listener: Option<crate::final_wire::FinalWireCacheListener>,
+    ) {
+        *self.final_wire_cache_listener.lock().unwrap() = listener;
+    }
+
     fn dynamic_context_transport(&self) -> crate::base::DynamicContextTransport {
         crate::base::DynamicContextTransport::UserContextEnvelope
     }
@@ -341,7 +350,23 @@ impl LLMProvider for AnthropicClient {
             false,
         )?;
         let api_key = self.require_api_key()?;
-        let body = serde_json::to_string(&request)?;
+        let body_value = serde_json::to_value(&request)?;
+        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+            let stable_system = body_value.get("system").cloned().unwrap_or(Value::Null);
+            let tools = body_value
+                .get("tools")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            listener(crate::final_wire::snapshot_from_wire(
+                self.provider_name(),
+                model.clone(),
+                self.prompt_cache_profile(&model),
+                &stable_system,
+                tools,
+            ));
+        }
+        let body = serde_json::to_string(&body_value)?;
         let url = format!("{}/v1/messages", self.api_base);
         let retry_listener = self.retry_listener.lock().unwrap().clone();
         let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
@@ -373,7 +398,23 @@ impl LLMProvider for AnthropicClient {
             true,
         )?;
         let api_key = self.require_api_key()?;
-        let body = serde_json::to_string(&request)?;
+        let body_value = serde_json::to_value(&request)?;
+        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+            let stable_system = body_value.get("system").cloned().unwrap_or(Value::Null);
+            let tools = body_value
+                .get("tools")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            listener(crate::final_wire::snapshot_from_wire(
+                self.provider_name(),
+                model.clone(),
+                self.prompt_cache_profile(&model),
+                &stable_system,
+                tools,
+            ));
+        }
+        let body = serde_json::to_string(&body_value)?;
         let url = format!("{}/v1/messages", self.api_base);
         let retry_listener = self.retry_listener.lock().unwrap().clone();
         let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
