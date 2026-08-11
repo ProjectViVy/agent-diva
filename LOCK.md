@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `LOCK.md`; `agent-diva-migration/src/`; `agent-diva-core/src/token_ledger/`; `agent-diva-core/src/security/`; `agent-diva-agent/src/agent_loop.rs`; `agent-diva-agent/src/agent_loop/turn/`; `.github/workflows/ci.yml`; `scripts/ci/check_laputa_clean_break.py`; `TODOLIST.md`; `docs/logs/2026-08-gmh-closure/`
-- Owner: `QoderCN`
-- Session/Task: `GMH closure (GMH-41/50/52 code-only)`
+- Lock State: `RELEASED`
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-11T10:00:00+08:00`
-- Last Heartbeat: `2026-08-11T10:00:00+08:00`
-- Expires At: `2026-08-11T14:00:00+08:00`
+- Started At: `N/A`
+- Last Heartbeat: `2026-08-11T10:15:00+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -25,15 +25,25 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `GMH closure (GMH-41/50/52 code-only)` — owner `QoderCN`; scope listed above;
-  started `2026-08-11T10:00+08:00`; expires `2026-08-11T14:00+08:00`.
-  No overlap with any other active lock.
+- None.
+  `GMH closure` lock released 2026-08-11T10:15+08:00 after S1a rollback; see
+  Handoff Notes for the pending GMH-41 day/hour budget decision.
 - `small-fixes-batch (gateway port config + clippy lint batch)` — owner
   `QoderCN` — **RELEASED 2026-08-11T09:40+08:00**; 3 commits on branch
   `fix/small-fixes-batch` in worktree `../agent-diva-small-fixes`
   （`83b87787` / `1aba27a3` / `2ccb05e6`，未 push，待主线评审合并）.
 
 ## Handoff Notes
+
+- `2026-08-11T10:15:00+08:00`: Released GMH closure lock (QoderCN). S2a
+  (GMH-50 dead migration module removal) is committed as `93e9f5b6` and kept.
+  S1a (GMH-41 day/hour token budget) was implemented then **rolled back** at the
+  user's request — the global day/hour window semantics felt odd and need a
+  product decision before re-implementation. Work tree is clean. Open question
+  for the next session: whether day/hour token budgets should be global
+  (multi-session) or per-session/window-shaped, and how they interact with the
+  existing session `token_budget_limit`. GMH-41 remaining slices (rejection
+  circuit, offline queue) and GMH-52 CI fix are still pending.
 
 - `2026-08-11T08:15:00+08:00`: Released after CTX-C2 layered context budget
   and AssemblyReport closure. Stable rules, CORE/DEFERRED schemas, L1, WM,
