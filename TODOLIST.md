@@ -441,6 +441,53 @@ standing policy（非功能债，执行相关验证时遵守）：
 
 ---
 
+## 人工测试验收汇总（Human / Real-Device Smoke）
+
+> 所有需要**真实设备 / 真实 LLM / 人工 GUI 操作**的待验收项集中于此，作为统一
+> 检查清单；原始条目仍保留在各自位置（勾选时两处同步）。执行纪律遵守上方
+> Operational Rules：真机里程碑须先提醒用户，列出环境、步骤、观察点与失败
+> 诊断物；禁止用模拟冒充真机。
+
+### A. G2D+ 真实桌面最终验收（`sev-P0`，伞项；待自动化发布门通过后执行）
+
+- [ ] 原六场景：批准、拒绝、编辑后批准、重复点击、重启恢复、回滚
+- [ ] 新旅程：真实任务 evidence → AutoDream → proposal → apply → 新会话
+      Recall → rollback 后消失
+- [ ] F3：agent 产生 proposal → GUI/CLI 审批中心批准 → apply → typed 更新联通
+      （原条目：GA-MEM-PARITY Wave 3 延期项 F3）
+- [ ] F7：tombstone 历史在 GUI 可见（用户审批 → 历史面板）
+- [ ] U1/U2：「记住→下次会话还在」「你还记得吗」真机联通
+- [ ] S6-4：节律 daemon-cron 真机挂跑补跑（LAPUTA-COGNITIVE-SYNC 收尾项）
+- [ ] GUI provider 重试/错误可见性人工 smoke（GUI-PROVIDER-RETRY-VISIBILITY /
+      GUI-PROVIDER-ERROR-SILENT 修复后遗留）
+- [ ] Wave 4 延期真机 E2E：G1 手动触发、G2 自动阈值、G3 多源输入、G5 候选→
+      proposal、G6 审查 UI、G7 节律报告可见、G10 即时记忆分工、G11 L4/salient、
+      G12 Action-Verified 对齐
+- [ ] 产物要求：保留脱敏 ID、revision、桌面版本、界面结果和 Manager/Tauri 日志
+
+### B. 独立人工 smoke（可在 G2D+ 之前单独执行）
+
+- [ ] **M3 审批 HITL 集中人工 smoke**：候选 `2fbb07d3`；首道硬门禁 =
+      WINDOWS-RELEASE-EXEC-ACCESS（release EXE OS error 5，需人工/策略授权）
+- [ ] **SANDBOX-SAVE-FIX-DESKTOP-SMOKE**：GUI 沙箱设置保存——切换模式保存、
+      检查 `~/.agent-diva/config.json`、清空 timeout 边界；步骤见
+      `docs/logs/2026-08-sandbox-settings-save-fix/v0.1.0-sandbox-save-fix/acceptance.md`
+- [ ] **CLARIFY-HITL 人工 smoke**：真实 LLM 触发 `ask_user` 的 CLI/GUI 验收；
+      步骤见 `docs/logs/2026-08-ask-user-hitl-research/v0.2.0-ask-user-surface/acceptance.md`
+- [ ] **StepFun 真实 endpoint E2E**：model pass-through 真机验证；使用桌面
+      `keys.txt`，勿入库
+- [ ] **gateway 端口配置验收**（`fix/small-fixes-batch`，待合并）：配置
+      `gateway.port` 后 `gateway` 命令监听配置端口，未配置仍 3000；步骤见
+      `docs/logs/2026-08-small-fixes-batch/v0.5.1-small-fixes-batch/acceptance.md`
+
+### C. 与里程碑绑定的真机项
+
+- [ ] **GMH-52 全量验收**中的真实 smoke 部分（排期决策：稍后；与 G2D+ 旅程重合）
+- [ ] **G2D+ 前置**：Windows release 可执行启动恢复（WINDOWS-RELEASE-EXEC-ACCESS，
+      `sev-P1`）——自动化无法推进，需系统策略/人工授权
+
+---
+
 ## Open Backlog
 
 ### feat/laputa-cognitive-sync 延期项
