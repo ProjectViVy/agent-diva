@@ -32,6 +32,7 @@ pub mod session;
 pub mod supervised;
 pub mod todo;
 pub mod token_ledger;
+pub mod tool_artifact;
 pub mod utils;
 pub mod workspace_identity;
 
