@@ -128,7 +128,27 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         清理、重复 mount 幂等、compact 有界重宣告、provider retry 不重复修改 revision，
         以及 PrefetchRecall 空/失败/成功/层级超限/总预算超限矩阵。日志：
         `docs/logs/2026-08-context-management-enhancement/v0.0.9-c4-deferred-tool-discovery-recall/`。
-  - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
+  - [ ] **CTX-C5：轻量上下文收敛 + 长任务压缩/恢复验收**（ADR-CTX-5） `sev-P1`
+        2026-08-11 计划已修订，施工权威：
+        [`docs/research/context-management-enhancement-2026-08/c5-lightweight-context-convergence.md`](docs/research/context-management-enhancement-2026-08/c5-lightweight-context-convergence.md)。
+        从“继续扩展缓存模型”改为三段上下文（稳定前缀 + 单一规范检查点 + 活跃尾部）
+        和两级轻量压缩（机械折叠优先，必要时才语义摘要）。本功能尚未发布，采用严格
+        clean break：禁止旧新 metadata 双写/双读、兼容 fallback、影子执行器、长期
+        feature flag 和无 artifact 静默截断；每个切片都必须删除被替代垃圾代码并提供
+        deletion-proof。保留 C1–C4 的行为契约，不保留重复状态实现。
+    - [ ] **C5a / FINAL-WIRE-PREFIX**：在 provider shaping 后计算唯一稳定前缀指纹；
+          adapter 提供 cache namespace，真实 provider usage 判定命中；删除推测式
+          hit/miss、旧 bucket/pending 和混合 CORE/DEFERRED 完整工具 hash 判断。
+    - [ ] **C5b / CANONICAL-CHECKPOINT**：一个 session 只注入一个有界
+          `canonical_checkpoint`；主动/reactive compact 统一消费当前内存快照；完成工具链
+          机械折叠、未决调用结果成组保留；删除多摘要注入和双压缩执行路径。
+    - [ ] **C5c / TOOL-RESULT-SINGLE-REPRESENTATION**：发送、保存、恢复统一为小结果
+          原文或 artifact ref + preview；删除无 artifact 静默截断和重复 preview 路径，
+          保持 session/workspace 隔离及容量、TTL、校验与明确缺失语义。
+    - [ ] **C5d / BOUNDED-RECOVERY-DELETION-PROOF**：预算顶层收敛为稳定前缀、
+          检查点、活跃尾部；覆盖 cache 禁用、重启、overflow、工具调用中断、artifact
+          缺失、Recall Drop 与 mounted 工具恢复；用测试和符号扫描证明旧 metadata 写入、
+          旧入口、双路径、dead state 和临时 flag 已删除。
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
   - [x] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
         **2026-08-11 用户决策：明确取消，不实施。**
