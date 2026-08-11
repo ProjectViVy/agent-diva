@@ -82,6 +82,31 @@ impl GuardianConfig {
             enable_auto_learning: true,
         }
     }
+
+    /// Create a balanced "smart" configuration: auto-approve known-safe and
+    /// read-only, but do not auto-learn.
+    pub fn smart() -> Self {
+        Self {
+            max_consecutive_rejections: 8,
+            rejection_window_secs: 60,
+            auto_approve_known_safe: true,
+            auto_approve_read_only: true,
+            min_execution_time_for_approval_ms: 50,
+            enable_auto_learning: false,
+        }
+    }
+
+    /// Pick a Guardian config for a GUI approval mode:
+    /// cautious → strict (all ask), smart → balanced (low-risk auto),
+    /// trusted → liberal (unknown auto + auto-learn), never → default.
+    pub fn for_ask(approval_policy: AskForApproval) -> Self {
+        match approval_policy {
+            AskForApproval::OnRequest => Self::strict(),
+            AskForApproval::OnFailure => Self::smart(),
+            AskForApproval::UnlessTrusted => Self::liberal(),
+            AskForApproval::Never => Self::default(),
+        }
+    }
 }
 
 // ============================================================================
@@ -763,6 +788,34 @@ mod tests {
         assert!(config.auto_approve_known_safe);
         assert!(config.auto_approve_read_only);
         assert!(config.enable_auto_learning);
+    }
+
+    #[test]
+    fn for_ask_maps_gui_modes_to_distinct_configs() {
+        let cautious = GuardianConfig::for_ask(AskForApproval::OnRequest);
+        assert!(!cautious.auto_approve_read_only, "cautious asks everything");
+        assert!(!cautious.auto_approve_known_safe);
+
+        let smart = GuardianConfig::for_ask(AskForApproval::OnFailure);
+        assert!(
+            smart.auto_approve_read_only,
+            "smart auto-approves read-only"
+        );
+        assert!(smart.auto_approve_known_safe);
+        assert!(!smart.enable_auto_learning, "smart does not auto-learn");
+
+        let trusted = GuardianConfig::for_ask(AskForApproval::UnlessTrusted);
+        assert!(trusted.auto_approve_read_only);
+        assert!(trusted.enable_auto_learning, "trusted auto-learns");
+
+        let never = GuardianConfig::for_ask(AskForApproval::Never);
+        let default = GuardianConfig::default();
+        assert_eq!(never.auto_approve_read_only, default.auto_approve_read_only);
+        assert_eq!(
+            never.auto_approve_known_safe,
+            default.auto_approve_known_safe
+        );
+        assert_eq!(never.enable_auto_learning, default.enable_auto_learning);
     }
 
     #[test]

@@ -334,6 +334,19 @@ impl ToolOrchestrator {
         }
     }
 
+    /// Chained builder attaching an optional Guardian and optional shared
+    /// ExecPolicy. Used by the production shell wiring to attach a
+    /// mode-driven Guardian alongside the coordinator's rule store.
+    pub fn with_guardian_and_exec_policy(
+        mut self,
+        guardian: Arc<GuardianManager>,
+        exec_policy: Option<Arc<ExecPolicyManager>>,
+    ) -> Self {
+        self.guardian = Some(guardian);
+        self.exec_policy = exec_policy;
+        self
+    }
+
     /// Get the sandbox manager
     pub fn sandbox_manager(&self) -> &Arc<SandboxManager> {
         &self.sandbox_manager
@@ -369,12 +382,16 @@ impl ToolOrchestrator {
                     bypass_sandbox: false,
                     amendment: None,
                 },
-                AskForApproval::OnRequest | AskForApproval::UnlessTrusted => {
-                    ApprovalRequirement::NeedsApproval {
-                        reason: "Approval policy requires it".to_string(),
-                        amendment: None,
-                    }
-                }
+                AskForApproval::OnRequest => ApprovalRequirement::NeedsApproval {
+                    reason: "Approval policy requires it".to_string(),
+                    amendment: None,
+                },
+                // Trusted allows unknown commands by default; the Guardian
+                // still asks for dangerous ones.
+                AskForApproval::UnlessTrusted => ApprovalRequirement::Skip {
+                    bypass_sandbox: false,
+                    amendment: None,
+                },
             }
         }
     }
