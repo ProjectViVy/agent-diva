@@ -4,6 +4,7 @@
 //! and evaluates command rules. Inspired by Codex CLI's execpolicy system,
 //! simplified to TOML format.
 
+use crate::command_rules::CommandRuleStore;
 use crate::decision::{Decision, Evaluation};
 use crate::policy::AskForApproval;
 use crate::rules::{Policy, PrefixRule};
@@ -195,6 +196,20 @@ impl ExecPolicyManager {
             update_lock: Mutex::new(()),
             rules_path: None,
         }
+    }
+
+    /// Derive an ExecPolicy from the production `CommandRuleStore`, converting
+    /// every enabled Allow rule into a matching `PrefixRule`. This lets the
+    /// Guardian's `is_known_safe` reuse the same rule source the coordinator
+    /// enforces, without reading a second execpolicy.toml schema.
+    pub fn from_command_rule_store(rules: &CommandRuleStore) -> Self {
+        let prefix_rules = rules
+            .list()
+            .into_iter()
+            .filter(|rule| rule.enabled && rule.decision == "allow")
+            .map(|rule| PrefixRule::new(rule.pattern, Decision::Allow))
+            .collect();
+        Self::with_policy(Policy::from_rules(prefix_rules))
     }
 
     /// Create a manager that loads rules from a file
@@ -527,6 +542,30 @@ fn extract_pattern_from_line(line: &str) -> Option<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn from_command_rule_store_converts_enabled_allow_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap();
+        let suggestion = crate::command_rules::safe_prefix_suggestion("git status").unwrap();
+        store.add_suggestion(&suggestion).unwrap();
+
+        let policy = ExecPolicyManager::from_command_rule_store(&store);
+        assert!(
+            policy
+                .evaluate(&["git".to_string(), "status".to_string()])
+                .decision
+                .allows_execution(),
+            "seeded allow rule must carry into the derived ExecPolicy"
+        );
+        assert!(
+            !policy
+                .evaluate(&["whoami".to_string()])
+                .decision
+                .allows_execution(),
+            "unknown command must not be allowed"
+        );
+    }
 
     #[test]
     fn test_banned_prefix_detection() {

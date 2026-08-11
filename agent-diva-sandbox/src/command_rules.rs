@@ -105,10 +105,15 @@ impl CommandRuleStore {
         let Ok(tokens) = shell_words::split(command) else {
             return false;
         };
+        self.allows_tokens(&tokens)
+    }
+
+    /// Whether any enabled Allow rule exactly matches the given command tokens.
+    pub fn allows_tokens(&self, tokens: &[String]) -> bool {
         self.rules
             .read()
             .iter()
-            .any(|rule| rule.enabled && rule.decision == "allow" && rule.pattern == tokens)
+            .any(|rule| rule.enabled && rule.decision == "allow" && rule.pattern == *tokens)
     }
 
     pub fn add_suggestion(

@@ -8,6 +8,7 @@
 //! Inspired by Codex CLI's Guardian system for safe auto-approval.
 
 use crate::approval::{CommandApprovalKey, ReviewDecision};
+use crate::command_rules::CommandRuleStore;
 use crate::exec_policy::{ApprovalRequirement, ExecPolicyManager};
 use crate::policy::AskForApproval;
 use parking_lot::Mutex;
@@ -193,6 +194,10 @@ pub struct DefaultGuardianReviewer {
     /// ExecPolicy manager (optional)
     exec_policy: Option<Arc<ExecPolicyManager>>,
 
+    /// Production rule store (optional). Used for `is_known_safe` when a
+    /// `CommandRuleStore` is available instead of an ExecPolicy.
+    rules: Option<Arc<CommandRuleStore>>,
+
     /// Approval policy
     approval_policy: AskForApproval,
 }
@@ -202,6 +207,7 @@ impl DefaultGuardianReviewer {
     pub fn new(approval_policy: AskForApproval) -> Self {
         Self {
             exec_policy: None,
+            rules: None,
             approval_policy,
         }
     }
@@ -213,6 +219,19 @@ impl DefaultGuardianReviewer {
     ) -> Self {
         Self {
             exec_policy: Some(exec_policy),
+            rules: None,
+            approval_policy,
+        }
+    }
+
+    /// Create with the production rule store for known-safe detection.
+    pub fn with_rules(
+        approval_policy: AskForApproval,
+        rules: Option<Arc<CommandRuleStore>>,
+    ) -> Self {
+        Self {
+            exec_policy: None,
+            rules,
             approval_policy,
         }
     }
@@ -222,6 +241,8 @@ impl DefaultGuardianReviewer {
         if let Some(policy) = &self.exec_policy {
             // Check if there's an explicit Allow rule
             policy.has_allow_rule(command)
+        } else if let Some(rules) = &self.rules {
+            rules.allows_tokens(command)
         } else {
             false
         }
@@ -667,6 +688,25 @@ impl GuardianManager {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn known_safe_uses_command_rule_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap());
+        let suggestion = crate::command_rules::safe_prefix_suggestion("git status").unwrap();
+        store.add_suggestion(&suggestion).unwrap();
+
+        let reviewer =
+            DefaultGuardianReviewer::with_rules(AskForApproval::OnRequest, Some(store.clone()));
+        assert!(reviewer.is_known_safe(&["git".to_string(), "status".to_string()]));
+        assert!(!reviewer.is_known_safe(&["whoami".to_string()]));
+
+        let bare = DefaultGuardianReviewer::new(AskForApproval::OnRequest);
+        assert!(
+            !bare.is_known_safe(&["git".to_string(), "status".to_string()]),
+            "without a rule source nothing is known-safe"
+        );
+    }
 
     #[test]
     fn test_guardian_config_default() {

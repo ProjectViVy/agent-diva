@@ -271,7 +271,7 @@ pub struct ToolOrchestrator {
     sandbox_manager: Arc<SandboxManager>,
 
     /// ExecPolicy manager (optional)
-    exec_policy: Option<ExecPolicyManager>,
+    exec_policy: Option<Arc<ExecPolicyManager>>,
 
     /// Approval policy
     approval_policy: AskForApproval,
@@ -295,7 +295,7 @@ impl ToolOrchestrator {
     pub fn with_exec_policy(
         sandbox_manager: Arc<SandboxManager>,
         approval_policy: AskForApproval,
-        exec_policy: ExecPolicyManager,
+        exec_policy: Arc<ExecPolicyManager>,
     ) -> Self {
         Self {
             sandbox_manager,
@@ -323,7 +323,7 @@ impl ToolOrchestrator {
     pub fn with_exec_policy_and_guardian(
         sandbox_manager: Arc<SandboxManager>,
         approval_policy: AskForApproval,
-        exec_policy: ExecPolicyManager,
+        exec_policy: Arc<ExecPolicyManager>,
         guardian: Arc<GuardianManager>,
     ) -> Self {
         Self {
