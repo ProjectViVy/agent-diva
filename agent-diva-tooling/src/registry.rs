@@ -1049,9 +1049,13 @@ mod tests {
         ));
         registry.search_deferred("fixture", 8);
         registry.mount_tool("deferred_fixture").unwrap();
+        let valid_arguments = serde_json::json!({
+            "zeta": true,
+            "alpha": {"zulu": true, "alpha": true}
+        });
         assert_eq!(
             registry
-                .execute("deferred_fixture", serde_json::json!({}))
+                .execute("deferred_fixture", valid_arguments.clone())
                 .await
                 .unwrap(),
             "ok"
