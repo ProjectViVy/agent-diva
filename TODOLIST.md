@@ -140,9 +140,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           CORE 工具前缀指纹；adapter 保留 cache namespace/raw model，真实 provider
           usage 仅按原始计数记录。已删除推测式 hit/miss、warmup/连续 miss 状态和混合
           CORE/DEFERRED 完整工具 hash 判断（`73dff1bc`、`a8747e86`）。
-    - [ ] **C5b / CANONICAL-CHECKPOINT**：一个 session 只注入一个有界
+    - [x] **C5b / CANONICAL-CHECKPOINT**：一个 session 只注入一个有界
           `canonical_checkpoint`；主动/reactive compact 统一消费当前内存快照；完成工具链
-          机械折叠、未决调用结果成组保留；删除多摘要注入和双压缩执行路径。
+          机械折叠、未决调用结果成组保留；删除多摘要注入和双压缩执行路径。已完成
+          `CanonicalCheckpoint`/`CheckpointTrigger`/`CheckpointSnapshot`/`PendingCheckpointUpdate`，
+          原子替换与 reactive finalize pending，JSONL clean break，以及自动/手动/reactive
+          统一入口；提交 `19a5bfec`、`c6e3ace4`。
     - [ ] **C5c / TOOL-RESULT-SINGLE-REPRESENTATION**：发送、保存、恢复统一为小结果
           原文或 artifact ref + preview；删除无 artifact 静默截断和重复 preview 路径，
           保持 session/workspace 隔离及容量、TTL、校验与明确缺失语义。
