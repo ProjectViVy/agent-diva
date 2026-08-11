@@ -110,9 +110,16 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         `legacy_count_cap` 均记录原因；provider call 输出无正文的分层报告。
         未提前实现 C3 artifact/ref 或 C4 deferred mount。日志：
         `docs/logs/2026-08-context-management-enhancement/v0.0.8-c2-layered-budget-report/`。
-  - [ ] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
-        C1-0 发现：`agent-diva-tooling::registry` 与 `agent-diva-tools::sanitize` 存在两处
-        工具输出截断 seam；实施必须统一覆盖，避免只替换其中一条路径。
+  - [x] **CTX-C3：工具结果引用化 + microcompact**（ADR-CTX-3；遵守 memory write-path 契约）
+        （2026-08-11）：大于 12k 字符的完整脱敏工具结果写入 session-bound
+        `.agent-diva/tool-artifacts/`，Prompt 仅保留版本化 opaque ref、3k preview、
+        tool-call/status/size/SHA-256 与读取提示；`read_tool_result` 由 ToolAssembly
+        绑定 workspace/session，范围读取最多 12k 字符。统一 registry/tools 80k
+        fallback seam；C2 soft limit 触发时按最旧优先把 4k 以上旧成功结果
+        microcompact，保留最新工具组、错误和 assistant/tool 配对，并在 cache observer
+        前声明 expected deletion。重启恢复、TTL/容量/损坏/越权/session 删除均由
+        artifact store 管理；不进入 BML/Laputa 或 Experience Journal 正文。日志：
+        `docs/logs/2026-08-ctx-c3-tool-artifacts/v0.0.9-tool-result-artifacts/`。
   - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
   - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
