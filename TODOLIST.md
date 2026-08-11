@@ -72,12 +72,12 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           `MemoryPolicyAndIndex`；reset/delete/shutdown 已接生命周期，compact 不清缓存。
           T5–T6 已覆盖；未引入 `prefix_hash`、观测或 `apply_cache_control`。日志：
           `docs/logs/2026-08-context-management-enhancement/v0.0.5-c1c-session-section-cache/`。
-      - [ ] **C1c 外部 L1 apply 通知接线**：Manager 的 BML/Laputa 治理 apply 使用独立
-            store/service 路径，当前不会递增 AgentLoop 持有 provider 的 startup revision。
-            后续增加 Manager → runtime control → provider refresh/section invalidation 通知，
-            并覆盖成功 apply、恢复 apply 与幂等重放；相关入口：
-            `agent-diva-manager/src/handlers/laputa.rs`、
-            `agent-diva-agent/src/runtime_control.rs`。
+      - [x] **C1c 外部 L1 apply 通知接线**（2026-08-11）：以 BML `store_revision` 作为
+            工作区 authority epoch，Manager 在 Typed apply、恢复、幂等重放与 rollback
+            成功后通过 Runtime Control 刷新共享 Provider；Provider single-flight 去重，
+            Session 在下一轮按 startup revision 懒刷新。覆盖外部写入、重复 revision、
+            workspace 隔离与通知接线；无用户可见消息、无每轮文件轮询。日志：
+            `docs/logs/2026-08-context-management-enhancement/v0.0.10-c1c-workspace-memory-epoch/`。
       - [ ] **C1c Skills reload 入口接线**：`invalidate_skills` 已提供显式失效 API，
             但 Manager skill upload/delete 与 `memory_distill` 尚未通知 AgentLoop；后续接入
             runtime reload 事件，保持“文件变化不轮询、显式事件生效”的会话语义。
