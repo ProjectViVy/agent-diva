@@ -12,7 +12,7 @@ use agent_diva_core::memory::{
 };
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
-use agent_diva_core::security::{RejectionCircuitBreaker, SecurityConfig};
+use agent_diva_core::security::{ActionTracker, RejectionCircuitBreaker, SecurityConfig};
 use agent_diva_core::session::SessionManager;
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{FileConfig, FileManager};
@@ -116,6 +116,10 @@ pub struct AgentLoop {
     token_ledger_data_root: PathBuf,
     /// Dead-loop safety valve counting model/provider rejection failures.
     rejection_circuit: RejectionCircuitBreaker,
+    /// Per-process sliding-window turn admission limiter (default 100/hour).
+    turn_rate_limiter: ActionTracker,
+    /// Window threshold for `turn_rate_limiter`, from `max_actions_per_hour`.
+    max_actions_per_hour: u32,
     tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
@@ -459,6 +463,8 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
+            turn_rate_limiter: ActionTracker::with_window(3600),
+            max_actions_per_hour: runtime_security.max_actions_per_hour,
             tools,
             subagent_manager,
             runtime_control_rx: None,
@@ -485,6 +491,16 @@ impl AgentLoop {
     #[cfg(test)]
     pub(crate) fn rejection_circuit(&self) -> &RejectionCircuitBreaker {
         &self.rejection_circuit
+    }
+
+    #[cfg(test)]
+    pub(crate) fn max_actions_per_hour_for_test(&self) -> u32 {
+        self.max_actions_per_hour
+    }
+
+    #[cfg(test)]
+    pub(crate) fn turn_rate_limiter_for_test(&self) -> &ActionTracker {
+        &self.turn_rate_limiter
     }
 
     /// Create a new agent loop with tool configuration
@@ -619,6 +635,8 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
+            turn_rate_limiter: ActionTracker::with_window(3600),
+            max_actions_per_hour: runtime_security.max_actions_per_hour,
             tools,
             subagent_manager,
             runtime_control_rx,
@@ -704,6 +722,8 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
+            turn_rate_limiter: ActionTracker::with_window(3600),
+            max_actions_per_hour: runtime_security.max_actions_per_hour,
             tools: toolset.registry,
             subagent_manager,
             runtime_control_rx,
@@ -2238,6 +2258,31 @@ mod tests {
 
         assert_eq!(agent.rejection_circuit().threshold(), 5);
         assert!(!agent.rejection_circuit().is_triggered());
+    }
+
+    #[tokio::test]
+    async fn test_turn_rate_limiter_reads_max_actions_per_hour() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(FailingStreamProvider);
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        std::fs::create_dir_all(workspace.join(".agent-diva")).unwrap();
+        std::fs::write(
+            workspace.join(".agent-diva").join("security.json"),
+            r#"{"max_actions_per_hour":7}"#,
+        )
+        .unwrap();
+
+        let agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
+            .await
+            .unwrap();
+
+        assert_eq!(agent.max_actions_per_hour_for_test(), 7);
+        // Recording 7 turns at the limit should trip the limiter.
+        for _ in 0..7 {
+            assert!(agent.turn_rate_limiter_for_test().try_record(7));
+        }
+        assert!(!agent.turn_rate_limiter_for_test().try_record(7));
     }
 
     #[tokio::test]

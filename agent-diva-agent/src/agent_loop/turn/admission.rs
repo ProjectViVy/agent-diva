@@ -9,6 +9,11 @@ use super::super::AgentLoop;
 use super::policy::TurnSnapshot;
 use crate::mask::MaskFile;
 
+const ADMISSION_CIRCUIT_TRIPPED: &str =
+    "model/provider rejection storm tripped the circuit breaker; refusing new turn admission";
+const ADMISSION_TURN_RATE_EXCEEDED: &str =
+    "max_actions_per_hour exhausted; refusing new turn admission";
+
 /// Side-effect-free result of inbound turn classification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TurnMode {
@@ -87,6 +92,25 @@ pub(crate) struct AdmittedTurn {
 }
 
 impl AgentLoop {
+    /// Reject admission when the rejection circuit is tripped or the
+    /// per-process turn rate limit (`max_actions_per_hour`) is exhausted.
+    /// This is the offline-high-risk "reject" branch of S1c; the day/hour
+    /// "queue" branch is deferred as a pending product decision.
+    fn enforce_turn_admission(&self, session_key: &str) -> anyhow::Result<()> {
+        if self.rejection_circuit.is_triggered() {
+            anyhow::bail!(ADMISSION_CIRCUIT_TRIPPED);
+        }
+        if !self.turn_rate_limiter.try_record(self.max_actions_per_hour) {
+            tracing::warn!(
+                session_id = %session_key,
+                max_actions_per_hour = self.max_actions_per_hour,
+                "max_actions_per_hour exhausted; refusing new turn admission"
+            );
+            anyhow::bail!(ADMISSION_TURN_RATE_EXCEEDED);
+        }
+        Ok(())
+    }
+
     pub(crate) async fn admit_turn(
         &mut self,
         message: &InboundMessage,
@@ -112,6 +136,7 @@ impl AgentLoop {
         );
 
         let admission = TurnAdmission::classify(message);
+        self.enforce_turn_admission(&admission.session_key)?;
         let plan_mode = admission.mode.is_plan();
         let mut execution_start = message
             .metadata
