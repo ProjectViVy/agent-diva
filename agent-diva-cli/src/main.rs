@@ -53,7 +53,7 @@ mod service;
 use agent_diva_cli::client::ApiClient;
 use service::{run_service_command, ServiceCommands};
 
-use agent_diva_manager::{run_local_gateway, GatewayRuntimeConfig, DEFAULT_GATEWAY_PORT};
+use agent_diva_manager::{run_local_gateway, GatewayRuntimeConfig};
 use agent_diva_tools::wtf;
 
 #[derive(Parser)]
@@ -999,12 +999,13 @@ fn build_gateway_runtime_config(
     config: Config,
     workspace: PathBuf,
 ) -> GatewayRuntimeConfig {
+    let port = config.gateway.port;
     GatewayRuntimeConfig {
         config,
         loader: runtime.loader().clone(),
         workspace,
         cron_store: runtime.cron_store_path(),
-        port: DEFAULT_GATEWAY_PORT,
+        port,
     }
 }
 
@@ -2361,6 +2362,7 @@ async fn run_tui_remote(api_url: Option<String>, session: Option<String>) -> Res
 mod tests {
     use super::*;
     use agent_diva_core::planning::update_plan::PlanItem;
+    use agent_diva_manager::DEFAULT_GATEWAY_PORT;
 
     #[test]
     fn tui_disables_terminal_logging() {
@@ -2604,5 +2606,28 @@ mod tests {
         // The plan update should clear the assistant line so subsequent deltas
         // start a new assistant line rather than appending to the plan text.
         assert!(app.assistant_line.is_none());
+    }
+
+    #[test]
+    fn gateway_runtime_config_uses_configured_port() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = CliRuntime::from_paths(None, Some(temp.path().to_path_buf()), None);
+        let mut config = Config::default();
+        config.gateway.port = 3999;
+
+        let gateway = build_gateway_runtime_config(&runtime, config, temp.path().join("workspace"));
+
+        assert_eq!(gateway.port, 3999);
+    }
+
+    #[test]
+    fn gateway_runtime_config_keeps_default_port_when_unconfigured() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = CliRuntime::from_paths(None, Some(temp.path().to_path_buf()), None);
+        let config = Config::default();
+
+        let gateway = build_gateway_runtime_config(&runtime, config, temp.path().join("workspace"));
+
+        assert_eq!(gateway.port, DEFAULT_GATEWAY_PORT);
     }
 }
