@@ -197,7 +197,13 @@ const updateNarrowLayout = () => {
 const showModeMenu = ref(false);
 const showPermissionMenu = ref(false);
 const execMode = ref<'agent' | 'plan' | 'ask'>('agent');
-const permissionMode = ref<'cautious' | 'smart' | 'trusted'>('smart');
+const PERMISSION_MODE_KEY = 'agent-diva.permissionMode';
+const permissionMode = ref<'cautious' | 'smart' | 'trusted'>(
+  (localStorage.getItem(PERMISSION_MODE_KEY) as 'cautious' | 'smart' | 'trusted') ?? 'smart',
+);
+watch(permissionMode, (mode) => {
+  localStorage.setItem(PERMISSION_MODE_KEY, mode);
+});
 // const showAttachments = ref(false); // 预留
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留

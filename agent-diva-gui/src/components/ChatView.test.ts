@@ -23,6 +23,22 @@ function mountChat(messages: Array<Record<string, unknown>>) {
 }
 
 describe('ChatView streaming states', () => {
+  it('restores and persists the permission mode via localStorage', async () => {
+    localStorage.setItem('agent-diva.permissionMode', 'trusted');
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+      },
+    });
+    expect((wrapper.vm as unknown as { permissionMode: string }).permissionMode).toBe('trusted');
+
+    (wrapper.vm as unknown as { permissionMode: string }).permissionMode = 'cautious';
+    await wrapper.vm.$nextTick();
+    expect(localStorage.getItem('agent-diva.permissionMode')).toBe('cautious');
+    localStorage.clear();
+  });
+
   it('does not render approval cards inline (approval UI lives in drawer)', () => {
     const wrapper = shallowMount(ChatView, {
       props: {
