@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `NONE`
-- Owner: `NONE`
-- Session/Task: `NONE`
+- Lock State: `HELD`
+- Scope: `LOCK.md`; `agent-diva-migration/src/`; `agent-diva-core/src/token_ledger/`; `agent-diva-core/src/security/`; `agent-diva-agent/src/agent_loop.rs`; `agent-diva-agent/src/agent_loop/turn/`; `.github/workflows/ci.yml`; `scripts/ci/check_laputa_clean_break.py`; `TODOLIST.md`; `docs/logs/2026-08-gmh-closure/`
+- Owner: `QoderCN`
+- Session/Task: `GMH closure (GMH-41/50/52 code-only)`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-08-11T08:15:00+08:00`
-- Expires At: `N/A`
+- Started At: `2026-08-11T10:00:00+08:00`
+- Last Heartbeat: `2026-08-11T10:00:00+08:00`
+- Expires At: `2026-08-11T14:00:00+08:00`
 
 ## Lock Rules
 
@@ -25,9 +25,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- None.
-  Lock expired but uncommitted C2 work remains in this tree; per user
-  instruction the mainline is active — scope respected, not taken over.
+- `GMH closure (GMH-41/50/52 code-only)` — owner `QoderCN`; scope listed above;
+  started `2026-08-11T10:00+08:00`; expires `2026-08-11T14:00+08:00`.
+  No overlap with any other active lock.
 - `small-fixes-batch (gateway port config + clippy lint batch)` — owner
   `QoderCN` — **RELEASED 2026-08-11T09:40+08:00**; 3 commits on branch
   `fix/small-fixes-batch` in worktree `../agent-diva-small-fixes`
