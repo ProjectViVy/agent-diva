@@ -25,6 +25,9 @@
 //! ```
 
 use crate::security::injection::detect_tool_output_injection;
+use crate::security::pii::{redact_pii, PiiConfig};
+use regex::Regex;
+use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -68,7 +71,9 @@ pub fn sanitize_tool_output(content: &str) -> String {
         return String::new();
     }
 
-    let detection = detect_tool_output_injection(content);
+    let normalized = normalize_terminal_output(content);
+    let redacted = redact_pii(&normalized, &PiiConfig::default()).redacted;
+    let detection = detect_tool_output_injection(&redacted);
 
     if detection.is_injection {
         // Mark the entire content as suspicious but still deliver it
@@ -83,14 +88,29 @@ pub fn sanitize_tool_output(content: &str) -> String {
         crate::audit::emit(crate::audit::AuditEvent::ToolOutputSanitized {
             tool_name: "unknown".to_string(),
             bytes_in: content.len() as u32,
-            bytes_out: content.len() as u32 + 12, // + "[SUSPICIOUS] "
+            bytes_out: redacted.len().saturating_add(13) as u32,
             suspicious_spans: detection.patterns.clone(),
         });
 
-        format!("[SUSPICIOUS] {content}")
+        format!("[SUSPICIOUS] {redacted}")
     } else {
-        content.to_string()
+        redacted
     }
+}
+
+fn normalize_terminal_output(content: &str) -> String {
+    static ANSI: OnceLock<Regex> = OnceLock::new();
+    let ansi = ANSI.get_or_init(|| {
+        Regex::new(r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))")
+            .expect("valid terminal escape regex")
+    });
+    ansi.replace_all(content, "")
+        .chars()
+        .filter(|character| {
+            let code = *character as u32;
+            (code >= 0x20 || matches!(code, 0x09 | 0x0a | 0x0d)) && code != 0x7f
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -103,18 +123,14 @@ pub fn sanitize_tool_output(content: &str) -> String {
 /// a marker is appended: `[... truncated at {max_chars} chars ...]`.
 /// Content at or below the limit is returned unchanged.
 pub fn truncate_tool_result(content: &str, max_chars: usize) -> String {
-    if content.len() <= max_chars {
+    let char_count = content.chars().count();
+    if char_count <= max_chars {
         return content.to_string();
     }
-
-    // Find a safe truncation point — don't split a multi-byte character
-    let mut boundary = max_chars;
-    while !content.is_char_boundary(boundary) && boundary > 0 {
-        boundary -= 1;
-    }
-
-    let truncated = &content[..boundary];
-    format!("{truncated}\n[... truncated at {max_chars} chars ...]")
+    let truncated: String = content.chars().take(max_chars).collect();
+    format!(
+        "{truncated}\n[... truncated at {max_chars} chars ...]\n[Result truncated: {char_count} total characters, showing first {max_chars}]"
+    )
 }
 
 // ---------------------------------------------------------------------------

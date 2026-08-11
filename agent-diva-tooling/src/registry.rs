@@ -3,15 +3,22 @@
 use crate::{Tool, ToolError};
 use agent_diva_core::audit::{self, AuditEvent};
 use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
-use agent_diva_core::security::sanitize_tool_output;
+use agent_diva_core::security::{
+    sanitize_tool_output, truncate_tool_result, MAX_TOOL_RESULT_CHARS,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, warn};
 
-/// Maximum length for tool results (in characters) to prevent oversized API requests.
-const MAX_TOOL_RESULT_CHARS: usize = 80_000;
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ToolExecutionOutput {
+    pub content: String,
+    pub char_count: usize,
+    pub byte_count: usize,
+    pub status: String,
+}
 
 /// Stable placement of a tool schema in the provider `tools` array.
 ///
@@ -65,20 +72,6 @@ impl ToolDefinitionSet {
 struct RegisteredTool {
     tool: Arc<dyn Tool>,
     schema_partition: ToolSchemaPartition,
-}
-
-/// Truncate tool result to prevent oversized API requests.
-fn truncate_tool_result(result: &str) -> String {
-    let char_count = result.chars().count();
-    if char_count <= MAX_TOOL_RESULT_CHARS {
-        result.to_string()
-    } else {
-        let truncated: String = result.chars().take(MAX_TOOL_RESULT_CHARS).collect();
-        format!(
-            "{}\n\n... [Result truncated: {} total characters, showing first {}]",
-            truncated, char_count, MAX_TOOL_RESULT_CHARS
-        )
-    }
 }
 
 /// Registry of available tools.
@@ -172,6 +165,25 @@ impl ToolRegistry {
 
     /// Execute a tool by name with given parameters.
     pub async fn execute(&self, name: &str, params: Value) -> crate::Result<String> {
+        self.execute_structured(name, params).await.map(|output| {
+            let truncated = truncate_tool_result(&output.content, MAX_TOOL_RESULT_CHARS);
+            if truncated == output.content {
+                truncated
+            } else {
+                format!(
+                    "{truncated}\n[artifact unavailable; legacy safety fallback applied: {} total characters]",
+                    output.char_count
+                )
+            }
+        })
+    }
+
+    /// Execute without prompt truncation so the caller can persist the complete sanitized result.
+    pub async fn execute_structured(
+        &self,
+        name: &str,
+        params: Value,
+    ) -> crate::Result<ToolExecutionOutput> {
         let tool = match self.tools.get(name) {
             Some(registered) => &registered.tool,
             None => {
@@ -236,7 +248,12 @@ impl ToolRegistry {
                     result_size,
                     status: "ok".to_string(),
                 });
-                Ok(truncate_tool_result(&sanitized_output))
+                Ok(ToolExecutionOutput {
+                    char_count: sanitized_output.chars().count(),
+                    byte_count: sanitized_output.len(),
+                    content: sanitized_output,
+                    status: "ok".to_string(),
+                })
             }
             Ok(Err(tool_err)) => {
                 let error_msg = tool_err.to_string();

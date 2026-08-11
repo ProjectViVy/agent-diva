@@ -15,13 +15,14 @@ use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::SecurityConfig;
 use agent_diva_core::session::SessionManager;
 use agent_diva_core::supervised::RunStore;
+use agent_diva_core::tool_artifact::{ToolArtifactSecurityContext, ToolArtifactStore};
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -262,7 +263,8 @@ fn build_agent_tools(
         )
         .with_plan_phase(turn_options.plan_phase)
         .with_execution_session(turn_options.execution_session_id)
-        .with_working_memory_session(turn_options.session_key);
+        .with_working_memory_session(turn_options.session_key.clone())
+        .with_artifact_session(turn_options.session_key);
 
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
@@ -277,6 +279,14 @@ fn build_agent_tools(
     }
 
     assembly.build()
+}
+
+async fn gc_tool_artifacts(workspace: &Path) {
+    let store = ToolArtifactStore::new(workspace);
+    let context = ToolArtifactSecurityContext::new(workspace, "__startup_gc__");
+    if let Ok(Err(error)) = tokio::task::spawn_blocking(move || store.gc(&context)).await {
+        tracing::warn!(error_code = error.code(), "tool artifact startup GC failed");
+    }
 }
 
 impl AgentLoop {
@@ -402,6 +412,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
         let tool_config = ToolConfig {
@@ -543,6 +554,7 @@ impl AgentLoop {
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
         let tool_config = ToolConfig {
@@ -645,6 +657,7 @@ impl AgentLoop {
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
         let mut context = ContextBuilder::with_skills(workspace.clone(), None);

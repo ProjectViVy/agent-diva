@@ -14,7 +14,6 @@ use agent_diva_core::memory::{
 };
 use agent_diva_laputa::{capture_frozen_core_for_session, DEFAULT_FROZEN_CORE_BUDGET};
 use agent_diva_providers::{DynamicContextTransport, Message};
-use agent_diva_tools::sanitize::truncate_tool_result;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -692,8 +691,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
 
     /// Add a tool result to the message list
     ///
-    /// Large tool results are truncated to prevent oversized API requests
-    /// that could cause 400 errors from LLM providers.
+    /// The caller has already converted large results to artifact references.
     pub fn add_tool_result(
         &self,
         messages: &mut Vec<Message>,
@@ -701,9 +699,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         _tool_name: String,
         result: String,
     ) {
-        // Truncate large tool results to prevent API errors
-        let truncated_result = truncate_tool_result(&result);
-        messages.push(Message::tool(truncated_result, tool_call_id));
+        messages.push(Message::tool(result, tool_call_id));
     }
 
     /// Add an assistant message with optional tool calls

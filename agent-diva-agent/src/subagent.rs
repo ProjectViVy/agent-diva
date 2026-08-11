@@ -657,6 +657,7 @@ impl SubagentManager {
             .with_exec_timeout(exec_timeout)
             .restrict_to_workspace(restrict_to_workspace)
             .mcp_servers(mcp_servers.clone())
+            .with_artifact_session(Some(task_id.to_string()))
             .build_subagent_registry();
 
         let system_prompt = Self::build_isolated_subagent_prompt(task, workspace);
@@ -729,8 +730,19 @@ impl SubagentManager {
                     );
                     tool_call_count += 1;
                     tool_trace.push(tool_call.name.clone());
-                    match tools.execute(&tool_call.name, args_json).await {
-                        Ok(text) => messages.push(Message::tool(text, tool_call.id.clone())),
+                    match tools.execute_structured(&tool_call.name, args_json).await {
+                        Ok(output) => {
+                            let prompt = crate::tool_results::prepare_prompt_tool_result(
+                                workspace,
+                                task_id,
+                                &tool_call.name,
+                                &tool_call.id,
+                                &output.status,
+                                output.content,
+                            )
+                            .await;
+                            messages.push(Message::tool(prompt.content, tool_call.id.clone()));
+                        }
                         Err(e) => messages
                             .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
                     }
@@ -771,6 +783,7 @@ impl SubagentManager {
             .with_exec_timeout(exec_timeout)
             .restrict_to_workspace(restrict_to_workspace)
             .mcp_servers(mcp_servers.clone())
+            .with_artifact_session(Some(task_id.to_string()))
             .build_subagent_registry();
 
         // Build messages with subagent-specific prompt
@@ -843,8 +856,19 @@ impl SubagentManager {
                         "Subagent [{}] executing: {} with arguments: {}",
                         task_id, tool_call.name, args_str
                     );
-                    match tools.execute(&tool_call.name, args_json).await {
-                        Ok(text) => messages.push(Message::tool(text, tool_call.id.clone())),
+                    match tools.execute_structured(&tool_call.name, args_json).await {
+                        Ok(output) => {
+                            let prompt = crate::tool_results::prepare_prompt_tool_result(
+                                workspace,
+                                task_id,
+                                &tool_call.name,
+                                &tool_call.id,
+                                &output.status,
+                                output.content,
+                            )
+                            .await;
+                            messages.push(Message::tool(prompt.content, tool_call.id.clone()));
+                        }
                         Err(e) => messages
                             .push(Message::tool(format!("Error: {}", e), tool_call.id.clone())),
                     }

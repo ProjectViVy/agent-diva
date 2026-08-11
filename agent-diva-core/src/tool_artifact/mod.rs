@@ -17,6 +17,46 @@ pub const MAX_SESSION_BYTES: u64 = 100 * 1024 * 1024;
 pub const MAX_WORKSPACE_BYTES: u64 = 1024 * 1024 * 1024;
 pub const MAX_READ_CHARS: usize = 12_000;
 pub const ARTIFACT_TTL_DAYS: i64 = 30;
+pub const INLINE_THRESHOLD_CHARS: usize = 12_000;
+pub const PREVIEW_HEAD_CHARS: usize = 2_000;
+pub const PREVIEW_TAIL_CHARS: usize = 1_000;
+
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+pub struct ToolResultRef {
+    pub version: u32,
+    pub artifact_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub status: String,
+    pub char_count: usize,
+    pub byte_count: u64,
+    pub sha256: String,
+    pub preview: String,
+    pub truncated: bool,
+    pub read_hint: String,
+}
+
+impl ToolResultRef {
+    pub fn from_metadata(metadata: &ToolArtifactMetadata, content: &str) -> Self {
+        Self {
+            version: TOOL_ARTIFACT_VERSION,
+            artifact_id: metadata.artifact_id.clone(),
+            tool_call_id: metadata.tool_call_id.clone(),
+            tool_name: metadata.tool_name.clone(),
+            status: metadata.status.clone(),
+            char_count: metadata.char_count,
+            byte_count: metadata.byte_count,
+            sha256: metadata.sha256.clone(),
+            preview: tool_result_preview(content),
+            truncated: true,
+            read_hint: "Use read_tool_result with artifact_id and an optional [start,end) character range (maximum 12000 characters).".to_string(),
+        }
+    }
+
+    pub fn render(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ToolArtifactSecurityContext {
@@ -309,6 +349,19 @@ impl ToolArtifactStore {
 fn sanitize_for_artifact(content: &str) -> String {
     let injection_safe = sanitize_tool_output(content);
     redact_pii(&injection_safe, &PiiConfig::default()).redacted
+}
+
+pub fn tool_result_preview(content: &str) -> String {
+    let total = content.chars().count();
+    if total <= PREVIEW_HEAD_CHARS + PREVIEW_TAIL_CHARS {
+        return content.to_string();
+    }
+    let head: String = content.chars().take(PREVIEW_HEAD_CHARS).collect();
+    let tail: String = content.chars().skip(total - PREVIEW_TAIL_CHARS).collect();
+    format!(
+        "{head}\n... [artifact preview omitted {} characters] ...\n{tail}",
+        total - PREVIEW_HEAD_CHARS - PREVIEW_TAIL_CHARS
+    )
 }
 
 fn validate_artifact_id(id: &str) -> Result<(), ToolArtifactError> {

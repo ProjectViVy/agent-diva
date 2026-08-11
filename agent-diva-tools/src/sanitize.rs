@@ -7,9 +7,7 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
-/// Maximum length for tool results (in characters) to prevent oversized API requests.
-/// This helps avoid 400 errors from LLM providers when the request body is too large.
-pub const MAX_TOOL_RESULT_CHARS: usize = 80_000;
+pub use agent_diva_core::security::MAX_TOOL_RESULT_CHARS;
 
 /// Maximum length for file content returned by read_file tool.
 /// Files larger than this will be truncated with a preview.
@@ -93,16 +91,7 @@ pub fn truncate_file_content(content: &str) -> String {
 /// Truncate tool result to prevent oversized API requests.
 /// This is a safety net to avoid 400 errors from LLM providers.
 pub fn truncate_tool_result(result: &str) -> String {
-    let char_count = result.chars().count();
-    if char_count <= MAX_TOOL_RESULT_CHARS {
-        result.to_string()
-    } else {
-        let truncated: String = result.chars().take(MAX_TOOL_RESULT_CHARS).collect();
-        format!(
-            "{}\n\n... [Result truncated: {} total characters, showing first {}]",
-            truncated, char_count, MAX_TOOL_RESULT_CHARS
-        )
-    }
+    agent_diva_core::security::truncate_tool_result(result, MAX_TOOL_RESULT_CHARS)
 }
 
 #[cfg(test)]

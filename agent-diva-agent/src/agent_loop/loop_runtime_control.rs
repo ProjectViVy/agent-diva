@@ -54,6 +54,25 @@ impl AgentLoop {
                     .delete(&session_key)
                     .map_err(|e| e.to_string());
                 if result.is_ok() {
+                    let store =
+                        agent_diva_core::tool_artifact::ToolArtifactStore::new(&self.workspace);
+                    let artifact_context =
+                        agent_diva_core::tool_artifact::ToolArtifactSecurityContext::new(
+                            &self.workspace,
+                            &session_key,
+                        );
+                    match tokio::task::spawn_blocking(move || {
+                        store.delete_session(&artifact_context)
+                    })
+                    .await
+                    {
+                        Ok(Ok(())) => {}
+                        Ok(Err(error)) => warn!(
+                            error_code = error.code(),
+                            "Failed to delete session tool artifacts"
+                        ),
+                        Err(error) => warn!(%error, "Tool artifact deletion task failed"),
+                    }
                     agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
                     self.context.end_session_cache(&session_key);
                     self.cache_observer.clear_session(&session_key);

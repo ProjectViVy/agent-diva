@@ -102,9 +102,13 @@ impl ToolStepPolicy {
             );
         }
 
-        match context.registry.execute(tool_name, parameters).await {
+        match context
+            .registry
+            .execute_structured(tool_name, parameters)
+            .await
+        {
             Ok(output) => ToolStepResult {
-                output,
+                output: output.content,
                 is_error: false,
             },
             Err(error) => ToolStepResult::error(format!("Error: {error}")),
@@ -225,7 +229,7 @@ impl AgentLoop {
             event,
         );
 
-        let (result, is_error) = match serde_json::to_value(&tool_call.arguments) {
+        let (raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
             Ok(arguments) => {
                 let result = policy
                     .execute(
@@ -256,6 +260,40 @@ impl AgentLoop {
                 )
             }
         };
+
+        let prompt_result = if is_error {
+            crate::tool_results::PromptToolResult {
+                content: raw_result,
+                reference: None,
+                degraded: false,
+            }
+        } else {
+            crate::tool_results::prepare_prompt_tool_result(
+                &self.workspace,
+                context.session_key,
+                &tool_call.name,
+                &tool_call.id,
+                "ok",
+                raw_result,
+            )
+            .await
+        };
+        let result = prompt_result.content;
+        if let Some(reference) = &prompt_result.reference {
+            trace!(
+                artifact_id = %reference.artifact_id,
+                char_count = reference.char_count,
+                sha256 = %reference.sha256,
+                "tool result persisted as artifact reference"
+            );
+        }
+        if prompt_result.degraded {
+            warn!(
+                call_id = %tool_call.id,
+                tool_name = %tool_call.name,
+                "tool artifact persistence degraded to prompt safety fallback"
+            );
+        }
 
         let experience_outcome = if !is_error {
             OutcomeKind::Succeeded

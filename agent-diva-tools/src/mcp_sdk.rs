@@ -309,14 +309,11 @@ fn render_tool_result(result: &rust_mcp_sdk::schema::CallToolResult) -> String {
         }
     }
 
-    let raw = if parts.is_empty() {
+    if parts.is_empty() {
         "(no output)".to_string()
     } else {
         parts.join("\n")
-    };
-
-    // Apply truncation to prevent oversized results from causing 400 errors
-    crate::sanitize::truncate_tool_result(&raw)
+    }
 }
 
 // ============================================================================

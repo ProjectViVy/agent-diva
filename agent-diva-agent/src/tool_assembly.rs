@@ -11,14 +11,15 @@ use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::policy::allows_for_phase;
 use agent_diva_core::security::{SecurityConfig, SecurityLevel, SecurityPolicy};
 use agent_diva_core::supervised::RunStore;
+use agent_diva_core::tool_artifact::{ToolArtifactSecurityContext, ToolArtifactStore};
 use agent_diva_files::FileManager;
 use agent_diva_sandbox::{AskForApproval, CommandApprovalCoordinator};
 use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
 use agent_diva_tools::{
     load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
     EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
-    ListDirTool, ReadAttachmentTool, ReadFileTool, SpawnTool, UpdatePlanTool, WebFetchTool,
-    WebSearchTool, WriteFileTool,
+    ListDirTool, ReadAttachmentTool, ReadFileTool, ReadToolResultTool, SpawnTool, UpdatePlanTool,
+    WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -58,6 +59,7 @@ pub struct ToolAssembly {
     ask_user_coordinator: Option<AskUserCoordinator>,
     memory_provider: Option<Arc<dyn MemoryProvider>>,
     working_memory_session: Option<String>,
+    artifact_session: Option<String>,
 }
 
 impl ToolAssembly {
@@ -85,6 +87,7 @@ impl ToolAssembly {
             ask_user_coordinator: None,
             memory_provider: None,
             working_memory_session: None,
+            artifact_session: None,
         }
     }
 
@@ -195,6 +198,12 @@ impl ToolAssembly {
         self
     }
 
+    /// Bind opaque artifact reads to the runtime-owned session identity.
+    pub fn with_artifact_session(mut self, session_id: Option<String>) -> Self {
+        self.artifact_session = session_id;
+        self
+    }
+
     pub fn with_ask_user_coordinator(mut self, coordinator: Option<AskUserCoordinator>) -> Self {
         self.ask_user_coordinator = coordinator;
         self
@@ -235,6 +244,13 @@ impl ToolAssembly {
         // represented by legacy planning-record tools.
         let action_restricted = read_only_mode || matches!(self.plan_phase, Some(PlanPhase::Plan));
         let mut registry = ToolRegistry::with_timeout(self.global_timeout_secs);
+
+        if let Some(session_id) = self.artifact_session.as_deref() {
+            registry.register(Arc::new(ReadToolResultTool::new(
+                Arc::new(ToolArtifactStore::new(&self.workspace)),
+                ToolArtifactSecurityContext::new(&self.workspace, session_id),
+            )));
+        }
 
         if self.builtin_config.filesystem {
             let security_config = if self.restrict_to_workspace {
