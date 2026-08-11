@@ -474,8 +474,6 @@ standing policy（非功能债，执行相关验证时遵守）：
       `docs/logs/2026-08-sandbox-settings-save-fix/v0.1.0-sandbox-save-fix/acceptance.md`
 - [ ] **CLARIFY-HITL 人工 smoke**：真实 LLM 触发 `ask_user` 的 CLI/GUI 验收；
       步骤见 `docs/logs/2026-08-ask-user-hitl-research/v0.2.0-ask-user-surface/acceptance.md`
-- [ ] **StepFun 真实 endpoint E2E**：model pass-through 真机验证；使用桌面
-      `keys.txt`，勿入库
 - [ ] **gateway 端口配置验收**（`fix/small-fixes-batch`，待合并）：配置
       `gateway.port` 后 `gateway` 命令监听配置端口，未配置仍 3000；步骤见
       `docs/logs/2026-08-small-fixes-batch/v0.5.1-small-fixes-batch/acceptance.md`
@@ -485,6 +483,27 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [ ] **GMH-52 全量验收**中的真实 smoke 部分（排期决策：稍后；与 G2D+ 旅程重合）
 - [ ] **G2D+ 前置**：Windows release 可执行启动恢复（WINDOWS-RELEASE-EXEC-ACCESS，
       `sev-P1`）——自动化无法推进，需系统策略/人工授权
+
+---
+
+## E2E 自动化验收汇总（Automated E2E）
+
+> 以**自动化测试**形式执行的集成/端到端验收项（部分需要真实 key 或真实外部
+> endpoint——仅执行环境需人工配合，测试本体是自动化的，不属于上方人工区块）。
+> 原始条目仍保留在各自位置（勾选时两处同步）。
+
+### 外部 endpoint（需真实 key，走桌面 `keys.txt`，勿入库）
+
+- [ ] **StepFun 真实 endpoint E2E**：model pass-through 透传真机验证
+      （单测已覆盖透传，缺真实 key 的 E2E；原条目：Reliability / Test Debt）
+
+### 生产路径 E2E 证明（Wave 3 residual，原条目：Deferred Product）
+
+- [ ] `enqueue_background_task` 生产路径 E2E 证明
+      （`agent-diva-tools/src/enqueue_background_task.rs`、assembly / agent_loop）
+- [ ] supervised subagent worker bootstrap 刻画（启动/排空/取消/重启生产路径测试）
+- [ ] subagent 终态生命周期 E2E
+- [ ] background task 上下文与预算继承 E2E
 
 ---
 
