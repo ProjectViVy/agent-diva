@@ -29,6 +29,9 @@ pub struct BuiltInToolsConfig {
     pub memory: bool,
     #[serde(default = "default_true")]
     pub working_memory: bool,
+    /// CORE discovery protocol for authorized deferred tools.
+    #[serde(default = "default_true")]
+    pub tool_discovery: bool,
 }
 
 fn default_true() -> bool {
@@ -51,6 +54,7 @@ impl BuiltInToolsConfig {
             ask_user: false,
             memory: false,
             working_memory: false,
+            tool_discovery: false,
         }
     }
 
@@ -69,6 +73,7 @@ impl BuiltInToolsConfig {
             ask_user: false,
             memory: false,
             working_memory: false,
+            tool_discovery: false,
         }
     }
 
@@ -87,6 +92,7 @@ impl BuiltInToolsConfig {
             ask_user: true,
             memory: true,
             working_memory: true,
+            tool_discovery: true,
         }
     }
 
@@ -105,6 +111,7 @@ impl BuiltInToolsConfig {
             ask_user: false,
             memory: false,
             working_memory: false,
+            tool_discovery: self.tool_discovery,
         }
     }
 }
@@ -125,6 +132,7 @@ impl Default for BuiltInToolsConfig {
             ask_user: true,
             memory: true,
             working_memory: true,
+            tool_discovery: true,
         }
     }
 }

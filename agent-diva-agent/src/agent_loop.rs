@@ -19,7 +19,10 @@ use agent_diva_core::tool_artifact::{ToolArtifactSecurityContext, ToolArtifactSt
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_sandbox::CommandApprovalCoordinator;
-use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
+use agent_diva_tooling::{
+    Tool, ToolDiscoveryState, ToolDiscoveryStateHandle, ToolError, ToolRegistry,
+    ToolSchemaPartition, TOOL_DISCOVERY_SCHEMA_VERSION,
+};
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -133,6 +136,8 @@ pub struct AgentLoop {
     thinking_mode: ThinkingMode,
     active_tool_surface: ActiveToolSurface,
     cache_observer: crate::context_assembly::CacheObserveState,
+    /// Session-scoped discovery state reused by authorized registry rebuilds.
+    tool_discovery_states: HashMap<String, ToolDiscoveryStateHandle>,
 }
 
 pub struct AgentLoopToolSet {
@@ -208,10 +213,12 @@ struct ToolTurnOptions<'a> {
     execution_session_id: Option<String>,
     session_key: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
+    discovery_state: Option<ToolDiscoveryStateHandle>,
 }
 
 #[derive(Clone, Debug, Default)]
 struct ActiveToolSurface {
+    session_key: Option<String>,
     plan_phase: Option<PlanPhase>,
     execution_session_id: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
@@ -272,6 +279,10 @@ fn build_agent_tools(
         .with_working_memory_session(turn_options.session_key.clone())
         .with_artifact_session(turn_options.session_key);
 
+    if let Some(state) = turn_options.discovery_state {
+        assembly = assembly.with_discovery_state(state);
+    }
+
     if let Some(cron_service) = cron_service {
         assembly = assembly.with_cron_service(cron_service);
     }
@@ -300,6 +311,68 @@ impl AgentLoop {
         SecurityConfig::load_budget_overrides_for_workspace(workspace)
     }
 
+    /// Load or create the in-memory discovery handle for one conversation.
+    /// Older session files simply start with an empty state.
+    fn tool_discovery_state_for_session(&mut self, session_key: &str) -> ToolDiscoveryStateHandle {
+        if let Some(state) = self.tool_discovery_states.get(session_key) {
+            return state.clone();
+        }
+
+        let restored = self
+            .sessions
+            .get_or_load(session_key)
+            .and_then(|session| session.metadata.get("tool_discovery_v1"))
+            .filter(|value| {
+                value.get("version").and_then(serde_json::Value::as_u64)
+                    == Some(u64::from(TOOL_DISCOVERY_SCHEMA_VERSION))
+            })
+            .and_then(|value| serde_json::from_value::<ToolDiscoveryState>(value.clone()).ok())
+            .unwrap_or_default();
+        let state = Arc::new(std::sync::RwLock::new(restored));
+        self.tool_discovery_states
+            .insert(session_key.to_string(), state.clone());
+        state
+    }
+
+    /// Persist only the versioned discovery metadata. This is called directly
+    /// after a search/mount revision change, so a process restart does not
+    /// lose a successful same-turn mount.
+    pub(crate) fn persist_tool_discovery_state(
+        &mut self,
+        session_key: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let Some(state) = self.tool_discovery_states.get(session_key) else {
+            return Ok(());
+        };
+        let state = state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let session_to_save = {
+            let session = self.sessions.get_or_create(session_key.to_string());
+            let metadata = session
+                .metadata
+                .as_object_mut()
+                .ok_or_else(|| anyhow::anyhow!("session metadata is not a JSON object"))?;
+            metadata.insert(
+                "tool_discovery_v1".to_string(),
+                serde_json::json!({
+                    "version": TOOL_DISCOVERY_SCHEMA_VERSION,
+                    "discovered": state.discovered,
+                    "mounted": state.mounted,
+                    "revision": state.revision,
+                }),
+            );
+            session.clone()
+        };
+        self.sessions.save(&session_to_save)?;
+        Ok(())
+    }
+
+    fn clear_tool_discovery_state(&mut self, session_key: &str) {
+        self.tool_discovery_states.remove(session_key);
+    }
+
     pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
         let registry = MaskRegistry::new(self.workspace.join("masks"));
         registry.current_mask().cloned()
@@ -324,10 +397,14 @@ impl AgentLoop {
         background_task_context: Option<BackgroundTaskContext>,
     ) {
         self.active_tool_surface = ActiveToolSurface {
+            session_key: session_key.clone(),
             plan_phase: plan_phase.clone(),
             execution_session_id: execution_session_id.clone(),
             background_task_context: background_task_context.clone(),
         };
+        let discovery_state = session_key
+            .as_deref()
+            .map(|key| self.tool_discovery_state_for_session(key));
         self.tools = build_agent_tools(
             self.workspace.clone(),
             &self.tool_config,
@@ -344,6 +421,7 @@ impl AgentLoop {
                 execution_session_id,
                 session_key,
                 background_task_context,
+                discovery_state,
             },
         );
     }
@@ -361,7 +439,7 @@ impl AgentLoop {
             active_mask.as_ref(),
             surface.plan_phase,
             surface.execution_session_id,
-            None,
+            surface.session_key,
             surface.background_task_context,
         );
     }
@@ -376,7 +454,7 @@ impl AgentLoop {
             active_mask.as_ref(),
             surface.plan_phase,
             surface.execution_session_id,
-            None,
+            surface.session_key,
             surface.background_task_context,
         );
     }
@@ -486,6 +564,7 @@ impl AgentLoop {
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
+            tool_discovery_states: HashMap::new(),
         })
     }
 
@@ -659,6 +738,7 @@ impl AgentLoop {
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
+            tool_discovery_states: HashMap::new(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -719,6 +799,7 @@ impl AgentLoop {
         );
         context = context.with_memory_provider(memory_provider.clone());
 
+        let custom_tools = toolset.registry.deferred_tools();
         Ok(Self {
             bus,
             provider,
@@ -743,10 +824,11 @@ impl AgentLoop {
             cancelled_sessions: HashSet::new(),
             file_manager,
             memory_provider,
-            custom_tools: Vec::new(),
+            custom_tools,
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
+            tool_discovery_states: HashMap::new(),
         })
     }
 
@@ -841,6 +923,7 @@ impl AgentLoop {
 
         self.context.clear_session_caches();
         self.cache_observer.clear();
+        self.tool_discovery_states.clear();
 
         Ok(())
     }
@@ -1095,6 +1178,139 @@ mod tests {
     #[derive(Default)]
     struct CapturingStreamProvider {
         captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
+    #[derive(Default)]
+    struct DeferredMountProvider {
+        calls: Mutex<usize>,
+        tool_sets: Mutex<Vec<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for DeferredMountProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            let names = tools
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|tool| {
+                    tool.get("function")
+                        .and_then(|function| function.get("name"))
+                        .and_then(|name| name.as_str())
+                        .map(str::to_string)
+                })
+                .collect::<Vec<_>>();
+            self.tool_sets.lock().unwrap().push(names);
+            let call_index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+            let response = match call_index {
+                0 => LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "discovery-search".to_string(),
+                        call_type: "function".to_string(),
+                        name: "tool_search".to_string(),
+                        arguments: HashMap::from([(
+                            "query".to_string(),
+                            serde_json::Value::String("target".to_string()),
+                        )]),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+                1 => LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "discovery-mount".to_string(),
+                        call_type: "function".to_string(),
+                        name: "mount_tool".to_string(),
+                        arguments: HashMap::from([(
+                            "name".to_string(),
+                            serde_json::Value::String("target_tool".to_string()),
+                        )]),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+                2 => LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "discovery-target".to_string(),
+                        call_type: "function".to_string(),
+                        name: "target_tool".to_string(),
+                        arguments: HashMap::new(),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+                _ => LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    struct TargetTool {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl Tool for TargetTool {
+        fn name(&self) -> &str {
+            "target_tool"
+        }
+
+        fn description(&self) -> &str {
+            "Target deferred fixture tool"
+        }
+
+        fn parameters(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object","properties":{}})
+        }
+
+        async fn execute(&self, _args: serde_json::Value) -> agent_diva_tooling::Result<String> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok("target result".to_string())
+        }
     }
 
     #[derive(Default)]
@@ -2787,5 +3003,79 @@ mod tests {
             prompt.contains("Frozen Core"),
             "populated Frozen Core must be projected into the prompt"
         );
+    }
+
+    #[tokio::test]
+    async fn deferred_tool_search_mount_applies_to_the_next_same_turn_call() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(DeferredMountProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace = temp_dir.path().to_path_buf();
+        let target_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let toolset = AgentLoopToolSet::builder(ToolConfig::default())
+            .with_tool(Arc::new(TargetTool {
+                calls: target_calls.clone(),
+            }))
+            .build();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_toolset(
+            bus,
+            provider.clone(),
+            workspace.clone(),
+            None,
+            Some(6),
+            toolset,
+            None,
+            file_manager,
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct(
+                "find the target",
+                "session-discovery",
+                "gui",
+                "chat-discovery",
+            )
+            .await
+            .unwrap();
+        assert_eq!(response, "done");
+        assert_eq!(target_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let tool_sets = provider.tool_sets.lock().unwrap().clone();
+        assert!(tool_sets.len() >= 4);
+        assert!(!tool_sets[0].iter().any(|name| name == "target_tool"));
+        assert!(!tool_sets[1].iter().any(|name| name == "target_tool"));
+        assert!(tool_sets[2].iter().any(|name| name == "target_tool"));
+
+        let session_path = workspace.join("sessions").join("gui_chat-discovery.jsonl");
+        let session_text = std::fs::read_to_string(session_path).unwrap();
+        assert!(session_text.contains("tool_discovery_v1"));
+        assert!(session_text.contains("target_tool"));
+
+        let restored_provider = Arc::new(FailingStreamProvider);
+        let mut restored = AgentLoop::new(
+            MessageBus::new(),
+            restored_provider,
+            workspace,
+            None,
+            Some(1),
+        )
+        .await
+        .unwrap();
+        let state = restored.tool_discovery_state_for_session("gui:chat-discovery");
+        let state = state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        assert!(state.discovered.contains("target_tool"));
+        assert!(state.mounted.contains("target_tool"));
     }
 }

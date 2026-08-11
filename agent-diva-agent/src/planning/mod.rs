@@ -35,6 +35,7 @@ pub fn builtin_tool_capability(tool_name: &str) -> ToolCapability {
         "todo_write" => ToolCapability::WorkItem,
         "write_file" | "edit_file" => ToolCapability::WorkspaceWrite,
         "exec" => ToolCapability::Execute,
+        "tool_search" | "mount_tool" => ToolCapability::Inspect,
         "cron" | "spawn" | "enqueue_background_task" | "web_search" | "web_fetch" => {
             ToolCapability::External
         }
@@ -66,6 +67,8 @@ mod policy_tests {
             ("enqueue_background_task", ToolCapability::External),
             ("web_search", ToolCapability::External),
             ("web_fetch", ToolCapability::External),
+            ("tool_search", ToolCapability::Inspect),
+            ("mount_tool", ToolCapability::Inspect),
         ] {
             assert_eq!(builtin_tool_capability(name), expected, "{name}");
         }

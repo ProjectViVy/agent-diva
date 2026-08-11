@@ -423,6 +423,25 @@ impl AgentLoop {
             }
         }
 
+        // Compact/rebuild can preserve a session mount without carrying the
+        // full catalog into the prompt. Re-declare only a bounded list of
+        // currently authorized mounted names in the dynamic envelope.
+        let mounted_tools = self.tools.mounted_deferred_names();
+        if !mounted_tools.is_empty() {
+            dynamic_sections.push(PromptSection::new(
+                ContextSection::VolatileMeta,
+                format!(
+                    "## Mounted deferred tools\n{}",
+                    mounted_tools
+                        .into_iter()
+                        .take(20)
+                        .map(|name| format!("- {name}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                ),
+            ));
+        }
+
         dynamic_sections.push(
             self.context
                 .build_volatile_meta_section(Some(&message.channel), Some(&message.chat_id)),

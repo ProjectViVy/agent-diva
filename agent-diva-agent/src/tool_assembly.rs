@@ -14,12 +14,14 @@ use agent_diva_core::supervised::RunStore;
 use agent_diva_core::tool_artifact::{ToolArtifactSecurityContext, ToolArtifactStore};
 use agent_diva_files::FileManager;
 use agent_diva_sandbox::{AskForApproval, CommandApprovalCoordinator};
-use agent_diva_tooling::{Tool, ToolError, ToolRegistry, ToolSchemaPartition};
+use agent_diva_tooling::{
+    Tool, ToolDiscoveryStateHandle, ToolError, ToolRegistry, ToolSchemaPartition,
+};
 use agent_diva_tools::{
     load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
     EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
-    ListDirTool, ReadAttachmentTool, ReadFileTool, ReadToolResultTool, SpawnTool, UpdatePlanTool,
-    WebFetchTool, WebSearchTool, WriteFileTool,
+    ListDirTool, MountTool, ReadAttachmentTool, ReadFileTool, ReadToolResultTool, SpawnTool,
+    ToolSearchTool, UpdatePlanTool, WebFetchTool, WebSearchTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -60,6 +62,7 @@ pub struct ToolAssembly {
     memory_provider: Option<Arc<dyn MemoryProvider>>,
     working_memory_session: Option<String>,
     artifact_session: Option<String>,
+    discovery_state: Option<ToolDiscoveryStateHandle>,
 }
 
 impl ToolAssembly {
@@ -88,6 +91,7 @@ impl ToolAssembly {
             memory_provider: None,
             working_memory_session: None,
             artifact_session: None,
+            discovery_state: None,
         }
     }
 
@@ -204,6 +208,13 @@ impl ToolAssembly {
         self
     }
 
+    /// Reuse the session/task discovery state across authorized registry
+    /// rebuilds.
+    pub fn with_discovery_state(mut self, state: ToolDiscoveryStateHandle) -> Self {
+        self.discovery_state = Some(state);
+        self
+    }
+
     pub fn with_ask_user_coordinator(mut self, coordinator: Option<AskUserCoordinator>) -> Self {
         self.ask_user_coordinator = coordinator;
         self
@@ -243,7 +254,16 @@ impl ToolAssembly {
         // Plan exploration is a hard runtime read-only boundary.  It is not
         // represented by legacy planning-record tools.
         let action_restricted = read_only_mode || matches!(self.plan_phase, Some(PlanPhase::Plan));
-        let mut registry = ToolRegistry::with_timeout(self.global_timeout_secs);
+        let mut registry = match self.discovery_state {
+            Some(state) => ToolRegistry::with_discovery_state(self.global_timeout_secs, state),
+            None => ToolRegistry::with_timeout(self.global_timeout_secs),
+        };
+
+        if self.builtin_config.tool_discovery {
+            let discovery = registry.discovery_handle();
+            registry.register(Arc::new(ToolSearchTool::new(discovery.clone())));
+            registry.register(Arc::new(MountTool::new(discovery)));
+        }
 
         if let Some(session_id) = self.artifact_session.as_deref() {
             registry.register(Arc::new(ReadToolResultTool::new(
@@ -609,12 +629,23 @@ mod tests {
     }
 
     #[test]
-    fn custom_tools_follow_the_sorted_core_prefix() {
+    fn custom_tools_are_deferred_until_discovered_and_mounted() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
-            .builtin(BuiltInToolsConfig::minimal())
+            .builtin(BuiltInToolsConfig {
+                tool_discovery: true,
+                ..BuiltInToolsConfig::minimal()
+            })
             .with_tool(Arc::new(NamedTool { name: "aaa_custom" }))
             .build();
 
+        let hidden_names = registry
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        assert!(!hidden_names.iter().any(|name| name == "aaa_custom"));
+        registry.search_deferred("custom", 8);
+        registry.mount_tool("aaa_custom").unwrap();
         let names = registry
             .get_definitions()
             .into_iter()
@@ -625,9 +656,11 @@ mod tests {
             vec![
                 "edit_file",
                 "list_dir",
+                "mount_tool",
                 "read_file",
+                "tool_search",
                 "write_file",
-                "aaa_custom"
+                "aaa_custom",
             ]
         );
     }
@@ -979,11 +1012,16 @@ mod tests {
     #[tokio::test]
     async fn test_tool_assembly_applies_global_timeout_to_registry() {
         let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
-            .builtin(BuiltInToolsConfig::none())
+            .builtin(BuiltInToolsConfig {
+                tool_discovery: true,
+                ..BuiltInToolsConfig::none()
+            })
             .with_global_timeout(1)
             .with_tool(Arc::new(SlowTool))
             .build();
 
+        registry.search_deferred("slow", 8);
+        registry.mount_tool("slow_tool").unwrap();
         let result = registry.execute("slow_tool", serde_json::json!({})).await;
         assert!(matches!(
             result,

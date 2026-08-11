@@ -29,6 +29,8 @@ impl ToolPolicy {
         "read_attachment",
         "web_search",
         "web_fetch",
+        "tool_search",
+        "mount_tool",
     ];
 
     /// Compute the effective tool list given global tools and mask limits.

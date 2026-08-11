@@ -74,6 +74,7 @@ pub fn build_builtin_tools_config(config: &Config) -> BuiltInToolsConfig {
         ask_user: config.tools.builtin.ask_user,
         memory: config.tools.builtin.memory,
         working_memory: config.tools.builtin.working_memory,
+        tool_discovery: config.tools.builtin.tool_discovery,
     }
 }
 
