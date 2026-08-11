@@ -146,14 +146,16 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           `CanonicalCheckpoint`/`CheckpointTrigger`/`CheckpointSnapshot`/`PendingCheckpointUpdate`，
           原子替换与 reactive finalize pending，JSONL clean break，以及自动/手动/reactive
           统一入口；提交 `19a5bfec`、`c6e3ace4`。
-    - [ ] **C5c / TOOL-RESULT-SINGLE-REPRESENTATION**：发送、保存、恢复统一为小结果
+    - [x] **C5c / TOOL-RESULT-SINGLE-REPRESENTATION**：发送、保存、恢复统一为小结果
           原文或 artifact ref + preview；删除无 artifact 静默截断和重复 preview 路径，
-          保持 session/workspace 隔离及容量、TTL、校验与明确缺失语义。
+          保持 session/workspace 隔离及容量、TTL、校验与明确缺失语义。已完成于
+          `6f1331f0`，日志：
+          `docs/logs/2026-08-context-lightweight-convergence/v0.0.5-c5c-tool-result-representation/`。
     - [ ] **C5d / BOUNDED-RECOVERY-DELETION-PROOF**：预算顶层收敛为稳定前缀、
           检查点、活跃尾部；覆盖 cache 禁用、重启、overflow、工具调用中断、artifact
           缺失、Recall Drop 与 mounted 工具恢复；用测试和符号扫描证明旧 metadata 写入、
           旧入口、双路径、dead state 和临时 flag 已删除。
-    - [ ] **C5e / AUTO-DEFERRED-TOOL-ACTIVATION**：对齐 Codex 的自动工具管理链路，
+    - [x] **C5e / AUTO-DEFERRED-TOOL-ACTIVATION**：对齐 Codex 的自动工具管理链路，
           保留 `tool_search`，搜索结果在运行时自动进入下一次 provider call 的有界
           `active_deferred_tools`；删除模型可见 `mount_tool`、持久 `discovered`、独立 mount
           revision 及 `tool_not_discovered` 协议。用户只控制 Installed/Authorized（builtin、
@@ -162,6 +164,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           新 turn 回收未使用项；只在同 turn 中断恢复确有需要时持久化有界 active names。
           采用 clean break，不兼容 `tool_discovery_v1` 的实验状态。验收覆盖 search → 下一次
           call 直接执行、授权不可绕过、容量回收、重试幂等、中断配对和旧符号删除证明。
+          已完成于 `3ce9eba2`，日志：
+          `docs/logs/2026-08-context-lightweight-convergence/v0.0.6-c5e-auto-tool-activation/`。
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
   - [x] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
         **2026-08-11 用户决策：明确取消，不实施。**
