@@ -58,6 +58,7 @@ pub enum AssemblyDecisionReason {
     TotalHardLimit,
     LegacyCountCap,
     MacroCompaction,
+    Microcompact,
 }
 
 impl AssemblyDecisionReason {
@@ -67,6 +68,7 @@ impl AssemblyDecisionReason {
             Self::TotalHardLimit => "total_hard_limit",
             Self::LegacyCountCap => "legacy_count_cap",
             Self::MacroCompaction => "macro_compaction",
+            Self::Microcompact => "microcompact",
         }
     }
 }

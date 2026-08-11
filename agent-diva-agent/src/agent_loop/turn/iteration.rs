@@ -15,8 +15,9 @@ use super::super::AgentLoop;
 use super::context::PreparedTurnContext;
 use crate::compaction::ContextCompactor;
 use crate::context_assembly::{
-    apply_core_tool_cache_anchor, measure_provider_context, CacheObservationTicket,
-    CacheObserveInput, ContextBudgetPlan, PromptSection, StablePrefixSnapshot,
+    apply_core_tool_cache_anchor, measure_provider_context, AssemblyDecision,
+    AssemblyDecisionReason, BudgetLayer, CacheObservationTicket, CacheObserveInput,
+    ContextBudgetPlan, PromptSection, StablePrefixSnapshot,
 };
 use agent_diva_tooling::ToolDefinitionSet;
 
@@ -103,11 +104,42 @@ impl AgentLoop {
         let mut reactive_retry_attempted = false;
         loop {
             self.enforce_session_token_budget(session_key)?;
-            let assembly_report = measure_provider_context(
-                messages,
-                tool_definitions,
-                &ContextBudgetPlan::from_config(&self.tool_config.budget),
-            );
+            let budget_plan = ContextBudgetPlan::from_config(&self.tool_config.budget);
+            let preliminary_report =
+                measure_provider_context(messages, tool_definitions, &budget_plan);
+            let tool_result_tokens = preliminary_report
+                .totals_by_layer
+                .get(&BudgetLayer::ToolResultInline)
+                .copied()
+                .unwrap_or_default();
+            let microcompacted = if tool_result_tokens
+                > budget_plan.layer(BudgetLayer::ToolResultInline).soft_limit
+            {
+                crate::tool_results::microcompact_tool_results(
+                    &self.workspace,
+                    session_key,
+                    messages,
+                )
+                .await
+            } else {
+                Vec::new()
+            };
+            let mut assembly_report =
+                measure_provider_context(messages, tool_definitions, &budget_plan);
+            assembly_report
+                .compacted
+                .extend(microcompacted.iter().map(|tool_call_id| AssemblyDecision {
+                    id: format!("tool_result:{tool_call_id}"),
+                    layer: BudgetLayer::ToolResultInline,
+                    reason: AssemblyDecisionReason::Microcompact,
+                }));
+            if !microcompacted.is_empty() {
+                debug!(
+                    session_id = %session_key,
+                    compacted_tool_results = microcompacted.len(),
+                    "microcompacted old inline tool results before cache observation"
+                );
+            }
             if assembly_report.total_estimated > assembly_report.total_max {
                 warn!(
                     session_id = %session_key,
@@ -135,7 +167,7 @@ impl AgentLoop {
                 prefix_version: stable_prefix.prefix_version,
                 break_reasons: &stable_prefix.cache_break_reasons(),
                 tools: tool_definitions,
-                expected_deletion: false,
+                expected_deletion: !microcompacted.is_empty(),
             });
             let mut cacheable_tools = tool_definitions.clone();
             apply_core_tool_cache_anchor(&mut cacheable_tools, &profile);
