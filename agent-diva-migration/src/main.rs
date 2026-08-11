@@ -13,8 +13,29 @@ mod workspace_identity;
 #[command(name = "agent-diva-migrate", version)]
 #[command(about = "Explicit offline migration utility for Agent Diva")]
 struct Cli {
+    /// Comma-separated migration feature flags. Only `Apply` operations whose
+    /// feature is enabled are permitted; `DryRun`/`Rollback` are always allowed.
+    #[arg(long, global = true, value_delimiter = ',')]
+    features: Vec<String>,
     #[command(subcommand)]
     command: Command,
+}
+
+/// Canonical migration feature names, matching the mounted module names.
+const FEATURE_EXPERIENCE: &str = "experience";
+const FEATURE_MEMORY: &str = "memory";
+const FEATURE_WORKSPACE_IDENTITY: &str = "workspace_identity";
+
+/// Reject an `Apply` when its feature flag is not enabled.
+fn require_feature(enabled: &[String], name: &str) -> Result<()> {
+    if enabled.iter().any(|feature| feature == name) {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "Apply for `{}` is disabled until the `--features {name}` flag is passed",
+            name
+        )
+    }
 }
 
 #[derive(Subcommand)]
@@ -121,12 +142,14 @@ struct RollbackArgs {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
+    let features = &cli.features;
     let report = match cli.command {
         Command::Memory { operation } => match operation {
             MemoryOperation::DryRun(args) => {
                 serde_json::to_value(typed_memory::dry_run(&request(args)).await?)?
             }
             MemoryOperation::Apply(args) => {
+                require_feature(features, FEATURE_MEMORY)?;
                 serde_json::to_value(typed_memory::apply(&request(args)).await?)?
             }
             MemoryOperation::Rollback(args) => {
@@ -143,6 +166,7 @@ async fn main() -> Result<()> {
                     serde_json::to_value(workspace_identity::dry_run(&args.workspace).await?)?
                 }
                 IdentityOperation::Apply(args) => {
+                    require_feature(features, FEATURE_WORKSPACE_IDENTITY)?;
                     serde_json::to_value(workspace_identity::apply(&args.workspace).await?)?
                 }
                 IdentityOperation::Rollback(args) => {
@@ -152,7 +176,10 @@ async fn main() -> Result<()> {
         },
         Command::Experience { operation } => serde_json::to_value(match operation {
             ExperienceOperation::DryRun(args) => experience::dry_run(&args.workspace)?,
-            ExperienceOperation::Apply(args) => experience::apply(&args.workspace)?,
+            ExperienceOperation::Apply(args) => {
+                require_feature(features, FEATURE_EXPERIENCE)?;
+                experience::apply(&args.workspace)?
+            }
             ExperienceOperation::Rollback(args) => {
                 experience::rollback(&args.workspace, &args.migration_id)?
             }
@@ -172,5 +199,38 @@ fn request(args: ImportArgs) -> typed_memory::MemoryImportRequest {
         workspace: args.workspace,
         tenant_id: args.tenant_id,
         workspace_id,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn require_feature_rejects_when_flag_disabled() {
+        let err = require_feature(&[], FEATURE_MEMORY).unwrap_err();
+        assert!(err.to_string().contains("is disabled"));
+        assert!(err.to_string().contains(FEATURE_MEMORY));
+    }
+
+    #[test]
+    fn require_feature_allows_when_flag_enabled() {
+        let enabled = vec![FEATURE_MEMORY.to_string(), FEATURE_EXPERIENCE.to_string()];
+        assert!(require_feature(&enabled, FEATURE_MEMORY).is_ok());
+        assert!(require_feature(&enabled, FEATURE_EXPERIENCE).is_ok());
+        assert!(
+            require_feature(&enabled, FEATURE_WORKSPACE_IDENTITY).is_err(),
+            "unlisted feature must stay disabled"
+        );
+    }
+
+    #[test]
+    fn require_feature_is_exact_match() {
+        let enabled = vec!["memory".to_string()];
+        assert!(require_feature(&enabled, "memory").is_ok());
+        assert!(
+            require_feature(&enabled, "MEMORY").is_err(),
+            "feature match must be case-sensitive"
+        );
     }
 }

@@ -92,8 +92,8 @@ jobs:
           just check
           just build
 
-      - name: Run Sprint 5 default-lane regressions
-        run: just sprint5-default-check
+      - name: Run Sprint 5 default-lane provider regressions
+        run: just memory-provider-check
 
       - name: Run feature gate check
         run: just feature-gate-check

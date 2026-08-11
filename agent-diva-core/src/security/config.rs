@@ -110,6 +110,29 @@ pub struct SecurityConfig {
     /// (the session-level budget).
     #[serde(default)]
     pub per_task_token_budget: Option<u64>,
+
+    /// Sliding window (in seconds) for the model/provider rejection circuit
+    /// breaker. This is a dead-loop safety valve, not budget management: it
+    /// counts provider rejection failures (rate-limit, context-length, auth)
+    /// and trips the loop only when the count within the window reaches
+    /// `rejection_circuit_threshold`. Defaults are large so normal operation
+    /// never trips it.
+    #[serde(default = "default_rejection_circuit_window_secs")]
+    pub rejection_circuit_window_secs: u64,
+
+    /// Maximum provider rejection failures allowed within
+    /// `rejection_circuit_window_secs` before the loop refuses to start a new
+    /// model iteration until the window slides clear.
+    #[serde(default = "default_rejection_circuit_threshold")]
+    pub rejection_circuit_threshold: u32,
+}
+
+fn default_rejection_circuit_window_secs() -> u64 {
+    60
+}
+
+fn default_rejection_circuit_threshold() -> u32 {
+    50
 }
 
 fn default_global_tool_timeout() -> u64 {
@@ -149,6 +172,8 @@ impl Default for SecurityConfig {
             global_tool_timeout_secs: default_global_tool_timeout(),
             token_budget_limit: None,
             per_task_token_budget: None,
+            rejection_circuit_window_secs: default_rejection_circuit_window_secs(),
+            rejection_circuit_threshold: default_rejection_circuit_threshold(),
         }
     }
 }
@@ -278,6 +303,12 @@ impl SecurityConfig {
         if other.per_task_token_budget.is_some() {
             self.per_task_token_budget = other.per_task_token_budget;
         }
+        if other.rejection_circuit_window_secs != default_rejection_circuit_window_secs() {
+            self.rejection_circuit_window_secs = other.rejection_circuit_window_secs;
+        }
+        if other.rejection_circuit_threshold != default_rejection_circuit_threshold() {
+            self.rejection_circuit_threshold = other.rejection_circuit_threshold;
+        }
     }
 
     fn load_from_json_file(path: &Path) -> Option<Self> {
@@ -377,6 +408,27 @@ mod tests {
         assert_eq!(base.token_budget_limit, Some(1200));
         assert_eq!(base.per_task_token_budget, Some(400));
         assert_eq!(base.global_tool_timeout_secs, 45);
+    }
+
+    #[test]
+    fn test_config_merge_copies_rejection_circuit_fields() {
+        let mut base = SecurityConfig::default();
+        let other = SecurityConfig {
+            rejection_circuit_window_secs: 120,
+            rejection_circuit_threshold: 5,
+            ..Default::default()
+        };
+
+        base.merge(other);
+        assert_eq!(base.rejection_circuit_window_secs, 120);
+        assert_eq!(base.rejection_circuit_threshold, 5);
+    }
+
+    #[test]
+    fn test_default_rejection_circuit_is_a_large_dead_loop_safety_valve() {
+        let config = SecurityConfig::default();
+        assert_eq!(config.rejection_circuit_window_secs, 60);
+        assert_eq!(config.rejection_circuit_threshold, 50);
     }
 
     #[test]

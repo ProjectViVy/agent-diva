@@ -21,6 +21,9 @@ use crate::context_assembly::{
 };
 use agent_diva_tooling::ToolDefinitionSet;
 
+const REJECTION_CIRCUIT_TRIPPED: &str =
+    "model/provider rejection storm tripped the circuit breaker; refusing new iteration";
+
 const INTERNAL_PROTOCOL_MARKERS: &[&str] = &[
     "<｜DSML｜tool_calls>",
     "<｜DSML｜invoke",
@@ -103,6 +106,15 @@ impl AgentLoop {
     ) -> Result<(ProviderEventStream, CacheObservationTicket), Box<dyn std::error::Error>> {
         let mut reactive_retry_attempted = false;
         loop {
+            if self.rejection_circuit.is_triggered() {
+                warn!(
+                    session_id = %session_key,
+                    rejections = self.rejection_circuit.rejection_count(),
+                    threshold = self.rejection_circuit.threshold(),
+                    "model/provider rejection storm tripped the circuit breaker"
+                );
+                return Err(REJECTION_CIRCUIT_TRIPPED.into());
+            }
             self.enforce_session_token_budget(session_key)?;
             let budget_plan = ContextBudgetPlan::from_config(&self.tool_config.budget);
             let preliminary_report =
@@ -278,6 +290,15 @@ impl AgentLoop {
                 }
                 Err(error) => {
                     self.cache_observer.abandon_call(cache_ticket);
+                    let count = self.rejection_circuit.record_rejection();
+                    warn!(
+                        session_id = %session_key,
+                        model = %model,
+                        rejection_count = count,
+                        threshold = self.rejection_circuit.threshold(),
+                        "provider call failed; counted toward rejection circuit: {}",
+                        error
+                    );
                     return Err(error.into());
                 }
             }
