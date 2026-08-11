@@ -68,7 +68,10 @@ mod tests {
     #[test]
     fn trips_only_when_threshold_met() {
         let breaker = threshold_breaker();
-        assert!(!breaker.is_triggered(), "fresh breaker must not be triggered");
+        assert!(
+            !breaker.is_triggered(),
+            "fresh breaker must not be triggered"
+        );
         breaker.record_rejection();
         breaker.record_rejection();
         assert!(
@@ -76,7 +79,10 @@ mod tests {
             "below threshold must not trip the circuit"
         );
         breaker.record_rejection();
-        assert!(breaker.is_triggered(), "threshold hit must trip the circuit");
+        assert!(
+            breaker.is_triggered(),
+            "threshold hit must trip the circuit"
+        );
         assert_eq!(breaker.rejection_count(), 3);
     }
 
