@@ -116,7 +116,8 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
   - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
   - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
-  - [ ] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
+  - [x] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
+        **2026-08-11 用户决策：明确取消，不实施。**
 
 - [ ] **GA-MEM-PARITY：GenericAgent 功能对齐 × Memory/Laputa/AutoDream 完全可用** `sev-P0`
   2026-08-05 完成只读盘点：相对 GenericAgent，Agent 侧记忆管理工具面基本缺失
