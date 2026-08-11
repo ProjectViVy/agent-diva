@@ -9,8 +9,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `NONE`
 - Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-08-11T10:15:00+08:00`
+- Started At: `2026-08-11T08:47:00+08:00`
+- Last Heartbeat: `2026-08-11T09:18:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -25,15 +25,33 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- None.
-  `GMH closure` lock released 2026-08-11T10:15+08:00 after S1a rollback; see
-  Handoff Notes for the pending GMH-41 day/hour budget decision.
+- None. `CTX-C3 tool-result artifact references and microcompact` released
+  `2026-08-11T09:18+08:00`; see Handoff Notes.
 - `small-fixes-batch (gateway port config + clippy lint batch)` — owner
   `QoderCN` — **RELEASED 2026-08-11T09:40+08:00**; 3 commits on branch
   `fix/small-fixes-batch` in worktree `../agent-diva-small-fixes`
   （`83b87787` / `1aba27a3` / `2ccb05e6`，未 push，待主线评审合并）.
 
 ## Handoff Notes
+
+- `2026-08-11T09:18:00+08:00`: Released after CTX-C3 closure. Secure
+  session-persistent tool artifacts, structured full-output execution,
+  versioned references, bound `read_tool_result`, main/supervised wiring,
+  session deletion/startup GC, and C2-driven oldest-first microcompact are
+  complete. Commits: `b6959dc2`, `02fe040c`, `ffff0fe6`, `cdc88fe7`.
+  Full `just fmt-check`, `just check`, `just test`, `just ci`, affected strict
+  all-target Clippy, and CLI `--help` smoke passed. C4 remains next.
+
+- `2026-08-11T10:25:00+08:00`: QoderCN edited `TODOLIST.md` **with explicit
+  user authorization** while the CTX-C3 lock covers it: inserted a new
+  aggregation section 「人工测试验收汇总（Human / Real-Device Smoke）」
+  between Operational Rules and Open Backlog. Follow-up (same user request,
+  commit after this note): StepFun moved out of the manual section into a
+  new 「E2E 自动化验收汇总」 section, which also aggregates the Wave 3
+  residual production-path E2E items. No existing items were moved,
+  reworded, or checked. Mainline session: if in-flight TODOLIST edits touch
+  those insertion points, keep both changes. Committed as standalone docs
+  changes; `LOCK.md` itself left uncommitted (shared live mutex file).
 
 - `2026-08-11T10:15:00+08:00`: Released GMH closure lock (QoderCN). S2a
   (GMH-50 dead migration module removal) is committed as `93e9f5b6` and kept.
