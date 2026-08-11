@@ -3,7 +3,7 @@
 //! Provides [`validate_summary`] which scores a generated summary against
 //! the source messages on three axes: length, keyword coverage, and semantic
 //! completeness. The composite [`QualityReport::score`] is used by
-//! [`ContextCompactor`](super::ContextCompactor) to decide whether to retry.
+//! [`CheckpointCompactor`](super::CheckpointCompactor) to decide whether to retry.
 
 use agent_diva_core::session::ChatMessage;
 use once_cell::sync::Lazy;

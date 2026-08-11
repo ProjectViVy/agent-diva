@@ -77,8 +77,7 @@ impl SessionManager {
         let mut created_at = None;
         let mut title: Option<String> = None;
         let mut last_consolidated: usize = 0;
-        let mut last_compacted: usize = 0;
-        let mut compaction_history: Vec<super::store::CompactSummary> = Vec::new();
+        let mut canonical_checkpoint = None;
 
         for line in content.lines() {
             let line = line.trim();
@@ -104,28 +103,9 @@ impl SessionManager {
                         .get("last_consolidated")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0) as usize;
-                    last_compacted = value
-                        .get("last_compacted")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0) as usize;
-                    // New format: array of summaries
-                    if let Some(arr) = value.get("compaction_history") {
-                        if let Ok(v) =
-                            serde_json::from_value::<Vec<super::store::CompactSummary>>(arr.clone())
-                        {
-                            compaction_history = v;
-                        }
-                    }
-                    // Old format: single compaction object (backward compat)
-                    if compaction_history.is_empty() {
-                        if let Some(v) = value.get("compaction") {
-                            if let Ok(cs) =
-                                serde_json::from_value::<super::store::CompactSummary>(v.clone())
-                            {
-                                compaction_history.push(cs);
-                            }
-                        }
-                    }
+                    canonical_checkpoint = value
+                        .get("canonical_checkpoint")
+                        .and_then(|value| serde_json::from_value(value.clone()).ok());
                 } else if let Ok(msg) = serde_json::from_value::<super::store::ChatMessage>(value) {
                     messages.push(msg);
                 }
@@ -140,8 +120,7 @@ impl SessionManager {
             metadata,
             title,
             last_consolidated,
-            last_compacted,
-            compaction_history,
+            canonical_checkpoint,
         };
         if let Some(title) = session.conversation_title() {
             session.title = Some(title);
@@ -197,8 +176,7 @@ impl SessionManager {
             "metadata": metadata_map,
             "title": session.conversation_title(),
             "last_consolidated": session.last_consolidated,
-            "last_compacted": session.last_compacted,
-            "compaction_history": session.compaction_history,
+            "canonical_checkpoint": session.canonical_checkpoint,
         });
         lines.push(serde_json::to_string(&metadata)?);
 
@@ -718,8 +696,7 @@ mod tests {
             "updated_at": chrono::Utc::now().to_rfc3339(),
             "metadata": {},
             "last_consolidated": 0,
-            "last_compacted": 0,
-            "compaction_history": [],
+            "canonical_checkpoint": null,
         });
         fs::write(&path, format!("{}\n", metadata_line)).unwrap();
 

@@ -199,8 +199,7 @@ fn parse_session_jsonl(session_id: &str, raw: &str) -> Result<Session, String> {
     let mut metadata = serde_json::Value::Object(serde_json::Map::new());
     let mut created_at = None;
     let mut last_consolidated = 0usize;
-    let mut last_compacted = 0usize;
-    let mut compaction_history = Vec::new();
+    let mut canonical_checkpoint = None;
 
     for (line_index, line) in raw.lines().enumerate() {
         let line = line.trim();
@@ -220,18 +219,9 @@ fn parse_session_jsonl(session_id: &str, raw: &str) -> Result<Session, String> {
                 .get("last_consolidated")
                 .and_then(|value| value.as_u64())
                 .unwrap_or_default() as usize;
-            last_compacted = value
-                .get("last_compacted")
-                .and_then(|value| value.as_u64())
-                .unwrap_or_default() as usize;
-            if let Some(history) = value.get("compaction_history") {
-                compaction_history = serde_json::from_value(history.clone()).map_err(|error| {
-                    format!(
-                        "invalid compaction history on line {}: {error}",
-                        line_index + 1
-                    )
-                })?;
-            }
+            canonical_checkpoint = value
+                .get("canonical_checkpoint")
+                .and_then(|value| serde_json::from_value(value.clone()).ok());
             continue;
         }
 
@@ -248,8 +238,7 @@ fn parse_session_jsonl(session_id: &str, raw: &str) -> Result<Session, String> {
         metadata,
         title: None,
         last_consolidated,
-        last_compacted,
-        compaction_history,
+        canonical_checkpoint,
     })
 }
 

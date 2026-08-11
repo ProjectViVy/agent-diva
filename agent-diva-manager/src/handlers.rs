@@ -1284,8 +1284,7 @@ mod tests {
                         metadata: serde_json::Value::Object(serde_json::Map::new()),
                         title: Some("History Title".to_string()),
                         last_consolidated: 0,
-                        last_compacted: 0,
-                        compaction_history: Vec::new(),
+                        canonical_checkpoint: None,
                     };
                     let _ = tx.send(Ok(Some(session)));
                 }

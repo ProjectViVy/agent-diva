@@ -503,23 +503,21 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
 
     /// Build the complete message list for an LLM call.
     ///
-    /// If `session_compaction_history` is non-empty, each compacted summary is
-    /// injected as a boundary marker + system message before the raw history,
-    /// so the LLM sees all summaries and the recent messages.
+    /// Inject at most one canonical checkpoint before the active history.
     pub fn build_messages(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
         current_message: String,
         channel: Option<&str>,
         chat_id: Option<&str>,
-        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        canonical_checkpoint: Option<&agent_diva_core::session::CanonicalCheckpoint>,
     ) -> Vec<Message> {
         self.build_messages_for_session(
             history,
             current_message,
             channel,
             chat_id,
-            session_compaction_history,
+            canonical_checkpoint,
             &self.default_session_key,
         )
     }
@@ -530,12 +528,12 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         current_message: String,
         channel: Option<&str>,
         chat_id: Option<&str>,
-        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        canonical_checkpoint: Option<&agent_diva_core::session::CanonicalCheckpoint>,
         session_key: &str,
     ) -> Vec<Message> {
         let mut messages = self.build_prefix_messages_for_session(
             history,
-            session_compaction_history,
+            canonical_checkpoint,
             session_key,
             None,
         );
@@ -549,41 +547,33 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         messages
     }
 
-    /// Build stable system, compaction boundaries, and raw history without
+    /// Build stable system, one canonical checkpoint, and raw history without
     /// volatile context or the current user message.
     pub(crate) fn build_prefix_messages_for_session(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
-        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        canonical_checkpoint: Option<&agent_diva_core::session::CanonicalCheckpoint>,
         session_key: &str,
         mask: Option<&MaskFile>,
     ) -> Vec<Message> {
         let snapshot = self.stable_prefix_snapshot_for_session(mask, session_key);
-        self.build_prefix_messages_from_snapshot(history, session_compaction_history, &snapshot)
+        self.build_prefix_messages_from_snapshot(history, canonical_checkpoint, &snapshot)
     }
 
     pub(crate) fn build_prefix_messages_from_snapshot(
         &self,
         history: Vec<agent_diva_core::session::ChatMessage>,
-        session_compaction_history: &[agent_diva_core::session::CompactSummary],
+        canonical_checkpoint: Option<&agent_diva_core::session::CanonicalCheckpoint>,
         snapshot: &StablePrefixSnapshot,
     ) -> Vec<Message> {
         let mut messages = vec![Message::system(snapshot.rendered.clone())];
 
-        // Inject compaction boundaries for each summary
-        for (i, compaction) in session_compaction_history.iter().enumerate() {
-            if compaction.summary.is_empty() {
-                continue;
-            }
-            if i == 0 {
-                // First compaction: full boundary markers
-                messages.push(Message::system(prompt::COMPACTION_BOUNDARY));
-            } else {
-                // Subsequent compactions: shorter markers
-                messages.push(Message::system(prompt::subsequent_compaction(i + 1)));
-            }
-            messages.push(Message::system(&compaction.summary));
-            messages.push(Message::system("[compacted context end]"));
+        if let Some(checkpoint) = canonical_checkpoint {
+            messages.push(Message::system(format!(
+                "{}\n{}",
+                prompt::CANONICAL_CHECKPOINT_HINT,
+                checkpoint.render_for_context()
+            )));
         }
 
         // History - convert from ChatMessage to Message
@@ -1059,7 +1049,7 @@ mod tests {
     fn test_build_messages() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let messages =
-            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), &[]);
+            builder.build_messages(vec![], "Hello".to_string(), Some("cli"), Some("test"), None);
         assert_eq!(messages.len(), 3); // stable system + volatile envelope + user
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[1].role, "user");

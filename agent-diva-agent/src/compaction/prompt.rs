@@ -1,43 +1,32 @@
-//! Versioned LLM-facing prompt contracts for context compaction.
+//! Versioned LLM-facing prompt contract for the canonical checkpoint.
 
-pub const COMPACTION_PROMPT_ID: &str = "compaction.summary";
-pub const COMPACTION_PROMPT_VERSION: u16 = 2;
+pub const CHECKPOINT_PROMPT_ID: &str = "canonical_checkpoint_v1";
+pub const CHECKPOINT_PROMPT_VERSION: u16 = 1;
 
-pub const COMPACTION_SYSTEM_PROMPT: &str = r#"You are a conversation compactor. Compress the supplied conversation into a dense, lossy summary while preserving all actionable context.
+pub const CHECKPOINT_SYSTEM_PROMPT: &str = r#"You maintain one canonical checkpoint for a long-running conversation.
+Return only a <checkpoint>...</checkpoint> body with exactly these sections:
 
-Output exactly this structure:
+## 目标与约束
+## 已完成事项
+## 关键决定
+## 当前状态
+## 未解决问题
+## 下一步
+## 保留标识符与 artifact 引用
 
-<analysis>
-Briefly analyze the key topics, decisions, actions, and current state in third-person past tense.
-</analysis>
+Merge the previous checkpoint with the newly supplied compacted prefix. Preserve
+paths, IDs, commands, decisions, blockers, and artifact references. Do not
+invent facts. Mark uncertainty as [uncertain]. Completed tool groups are already
+mechanically represented; do not reproduce their large result bodies."#;
 
-<summary>
-Write a dense summary preserving project state, tasks, decisions, user constraints, tool calls, edited paths, commands, results, blockers, and next steps. Use third-person past tense and no more than 2,000 characters.
-</summary>
-
-Rules:
-- Emit only the structure above.
-- Do not invent information.
-- Mark uncertain information as [uncertain].
-- Preserve important domain terms in their original language."#;
-
-pub const PRIOR_SUMMARIES_PREFIX: &str = "\
-The following summaries preserve context from earlier portions of the conversation:
-
-{prior_summaries}
-
-Merge them with the new messages into one coherent hierarchical summary. Preserve continuity and resolve no uncertainty by guessing.
-
-";
-
-pub fn compaction_request(message_count: usize, formatted: &str) -> String {
-    format!("Compact the following {message_count} conversation messages:\n\n{formatted}")
-}
-
-pub fn quality_retry(score: f64, issues: &[String], base: &str) -> String {
+pub fn checkpoint_request(
+    previous_body: Option<&str>,
+    message_count: usize,
+    formatted: &str,
+) -> String {
+    let previous = previous_body.unwrap_or("（无旧检查点；从本次输入建立。）");
     format!(
-        "The previous summary failed the quality gate ({score:.2}/1.0). Issues: {}.\nProduce a more complete summary covering every material fact.\n\n{base}",
-        issues.join("; ")
+        "旧 canonical checkpoint（仅一份，成功后替换）：\n<previous_checkpoint>\n{previous}\n</previous_checkpoint>\n\n本次安全裁剪的 {message_count} 条消息（工具链已机械折叠）：\n\n{formatted}\n\n请输出新的完整 canonical checkpoint。"
     )
 }
 
@@ -47,8 +36,8 @@ mod tests {
 
     #[test]
     fn prompt_contract_is_versioned_and_structured() {
-        assert_eq!(COMPACTION_PROMPT_ID, "compaction.summary");
-        assert_eq!(COMPACTION_PROMPT_VERSION, 2);
-        assert!(COMPACTION_SYSTEM_PROMPT.contains("<summary>"));
+        assert_eq!(CHECKPOINT_PROMPT_ID, "canonical_checkpoint_v1");
+        assert_eq!(CHECKPOINT_PROMPT_VERSION, 1);
+        assert!(CHECKPOINT_SYSTEM_PROMPT.contains("<checkpoint>"));
     }
 }

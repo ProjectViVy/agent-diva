@@ -1,181 +1,176 @@
-//! Context compaction — generate a summary of old messages to free context budget.
+//! Canonical checkpoint compaction.
 //!
-//! The compactor selects messages to compact (everything except the recent tail),
-//! calls the LLM with a structured compaction prompt, and produces a
-//! `CompactSummary` that is stored in the session.
+//! A checkpoint is replacement state, not an append-only summary log.  This
+//! module owns the complete production path used by automatic, manual, and
+//! reactive compaction.
 
 use agent_diva_core::session::{
-    ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
+    bound_checkpoint_body, CanonicalCheckpoint, ChatMessage, CheckpointTrigger, Session,
 };
 use agent_diva_providers::{LLMProvider, Message};
 use chrono::Utc;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
-use super::meta::MetaCompactor;
-use super::prompt::{
-    compaction_request, quality_retry, COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX,
-};
-use super::quality::{validate_summary, QualityGate};
+use super::prompt::{checkpoint_request, CHECKPOINT_SYSTEM_PROMPT};
+use super::quality::validate_summary;
 use crate::context_budget::BudgetConfig;
 use crate::token_estimate::estimate_total_tokens;
 
-// ---------------------------------------------------------------------------
-// ContextCompactor
-// ---------------------------------------------------------------------------
-
-/// Executes context compaction by calling an LLM to summarize old messages.
-pub struct ContextCompactor;
-
-/// Result of a successful compaction.
-#[derive(Debug)]
-pub struct CompactionResult {
-    /// The generated summary record
-    pub summary: CompactSummary,
-    /// New value for `session.last_compacted`
-    pub new_compacted_index: usize,
+/// A complete immutable input to one checkpoint attempt.
+#[derive(Debug, Clone)]
+pub struct CheckpointSnapshot {
+    /// The checkpoint currently visible to the session, if any.
+    pub previous_checkpoint: Option<CanonicalCheckpoint>,
+    /// The complete durable transcript, including messages hidden by the old checkpoint.
+    pub durable_messages: Vec<ChatMessage>,
+    /// Messages from the active turn that have not yet been durably saved.
+    pub current_turn_messages: Vec<ChatMessage>,
+    /// A non-compaction floor, such as memory consolidation progress.
+    pub durable_start_index: usize,
 }
 
-impl ContextCompactor {
-    /// Execute true LLM-driven compaction.
+impl CheckpointSnapshot {
+    /// Build a snapshot from a session and an optional in-memory turn suffix.
+    pub fn from_session(session: &Session, current_turn_messages: Vec<ChatMessage>) -> Self {
+        Self {
+            previous_checkpoint: session.canonical_checkpoint.clone(),
+            durable_messages: session.messages.clone(),
+            current_turn_messages,
+            durable_start_index: session.last_consolidated,
+        }
+    }
+
+    /// Construct a full-transcript snapshot for focused callers and tests.
+    pub fn new(
+        previous_checkpoint: Option<CanonicalCheckpoint>,
+        durable_messages: Vec<ChatMessage>,
+        current_turn_messages: Vec<ChatMessage>,
+    ) -> Self {
+        Self {
+            previous_checkpoint,
+            durable_messages,
+            current_turn_messages,
+            durable_start_index: 0,
+        }
+    }
+
+    /// Set the non-compaction durable floor.
+    pub fn with_durable_start_index(mut self, index: usize) -> Self {
+        self.durable_start_index = index;
+        self
+    }
+}
+
+/// The result held in memory until a reactive turn is finalized.
+#[derive(Debug, Clone)]
+pub struct PendingCheckpointUpdate {
+    /// The replacement checkpoint.  It is never appended to another checkpoint.
+    pub checkpoint: CanonicalCheckpoint,
+    /// Durable messages that remain active after the selected prefix.
+    pub active_durable_messages: Vec<ChatMessage>,
+    /// Current-turn messages that remain active after the selected prefix.
+    pub active_current_turn_messages: Vec<ChatMessage>,
+    /// The source range in the combined snapshot that was folded.
+    pub source_start_index: usize,
+    pub source_end_index: usize,
+    /// Whether this update actually replaced checkpoint state.
+    pub changed: bool,
+    /// Whether the body contains an unsaved current-turn snapshot.
+    pub includes_current_turn: bool,
+}
+
+impl PendingCheckpointUpdate {
+    /// Finalize a reactive update against the actual post-turn durable length.
+    pub fn finalize_for_durable_message_count(&self, count: usize) -> CanonicalCheckpoint {
+        if self.includes_current_turn {
+            self.checkpoint.with_durable_message_index(count)
+        } else {
+            self.checkpoint.clone()
+        }
+    }
+}
+
+/// The unique production entry point for checkpoint compaction.
+pub struct CheckpointCompactor;
+
+impl CheckpointCompactor {
+    /// Compact one durable/current-turn snapshot and return a replacement update.
     ///
-    /// 1. Selects messages in `[session.last_compacted .. messages.len() - keep_recent_count]`
-    /// 2. Formats messages for the LLM
-    /// 3. Calls the provider with [`COMPACTION_SYSTEM_PROMPT`]
-    /// 4. Extracts `<summary>` from the LLM response
-    /// 5. Validates summary quality, retries if below threshold (max 2 retries)
-    /// 6. Returns a [`CompactionResult`] with a full [`CompactSummary`]
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` when the provider call fails or when the response is empty.
-    /// Callers should log the error and continue (compaction is best-effort).
-    pub async fn compact(
-        session: &Session,
+    /// `Ok(None)` means the safe boundary had no prefix to fold.  Provider,
+    /// empty-response, and quality failures return `Err` and leave the caller's
+    /// session untouched.
+    pub async fn compact_snapshot(
+        snapshot: CheckpointSnapshot,
         config: &BudgetConfig,
         provider: Arc<dyn LLMProvider>,
         model: &str,
-        trigger: CompactTrigger,
-        prior_summaries: &[CompactSummary],
-    ) -> Result<CompactionResult, anyhow::Error> {
-        let keep = config.keep_recent_count.min(session.messages.len());
-        let start = session.last_compacted;
-        let end = session.messages.len().saturating_sub(keep);
+        trigger: CheckpointTrigger,
+    ) -> Result<Option<PendingCheckpointUpdate>, anyhow::Error> {
+        let durable_len = snapshot.durable_messages.len();
+        let mut combined = snapshot.durable_messages.clone();
+        combined.extend(snapshot.current_turn_messages.clone());
 
-        // Nothing to compact — return empty placeholder
-        if start >= end {
-            return Ok(CompactionResult {
-                summary: CompactSummary {
-                    schema_version: 1,
-                    compact_id: String::new(),
-                    created_at: String::new(),
-                    trigger: trigger.clone(),
-                    source_range: CompactionRange {
-                        start_index: start,
-                        end_index: end,
-                    },
-                    kept_recent_count: keep,
-                    pre_compact_message_count: 0,
-                    pre_compact_estimated_tokens: 0,
-                    summary: String::new(),
-                    quality_score: None,
-                    retry_count: 0,
-                },
-                new_compacted_index: session.last_compacted,
-            });
+        let checkpoint_floor = snapshot
+            .previous_checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.durable_message_index)
+            .unwrap_or_default();
+        let start = snapshot
+            .durable_start_index
+            .max(checkpoint_floor)
+            .min(combined.len());
+        let keep = config
+            .keep_recent_count
+            .min(combined.len().saturating_sub(start));
+        let tentative_end = combined.len().saturating_sub(keep);
+        let end = select_safe_compaction_end(&combined, start, tentative_end);
+
+        if end <= start {
+            return Ok(None);
         }
 
-        let range = &session.messages[start..end];
-        let pre_compact_message_count = range.len();
-        let pre_compact_estimated_tokens = estimate_total_tokens(range);
-
+        let source = &combined[start..end];
+        let formatted = Self::format_messages_for_compaction(source);
+        let source_message_count = source.len();
+        let source_token_count = estimate_total_tokens(source);
         info!(
-            "Compacting {} messages (indices {}-{}, ~{} tokens)",
-            pre_compact_message_count, start, end, pre_compact_estimated_tokens
+            source_message_count,
+            source_start = start,
+            source_end = end,
+            source_token_count,
+            "building canonical checkpoint"
         );
 
-        // Format messages for the LLM
-        let formatted = Self::format_messages_for_compaction(range);
-
-        // Build prior summaries context (if any)
-        // Apply meta-compaction if prior summaries exceed budget
-        let mut prior_summary_texts: Vec<String> =
-            prior_summaries.iter().map(|s| s.summary.clone()).collect();
-
-        // Meta-compaction: keep prior summaries within a reasonable token budget.
-        // The budget is a fraction of the overall context budget, reserved for
-        // prior summaries.  Default: 10% of max_tokens, capped at 2000 tokens.
-        let max_prior_summary_tokens = config.max_tokens / 10;
-        let prior_tokens: usize = prior_summary_texts
-            .iter()
-            .map(|s| crate::token_estimate::estimate_tokens(s))
-            .sum();
-
-        if prior_tokens > max_prior_summary_tokens {
-            info!(
-                "Prior summaries token count ({} tokens) exceeds budget ({} tokens); triggering meta-compaction",
-                prior_tokens, max_prior_summary_tokens
-            );
-            let quality_gate = QualityGate::default();
-            let meta_compactor = MetaCompactor::new(quality_gate);
-            if let Err(e) =
-                meta_compactor.compact(&mut prior_summary_texts, max_prior_summary_tokens)
-            {
-                warn!("Meta-compaction failed: {}; falling back to truncation", e);
-            }
-        }
-
-        let prior_context = if prior_summary_texts.is_empty() {
-            String::new()
-        } else {
-            let combined = prior_summary_texts
-                .iter()
-                .enumerate()
-                .map(|(i, s)| format!("[{}/{}] {}", i + 1, prior_summary_texts.len(), s))
-                .collect::<Vec<_>>()
-                .join("\n\n");
-            format!(
-                "{}\n",
-                PRIOR_SUMMARIES_PREFIX.replace("{prior_summaries}", &combined)
-            )
-        };
-
-        // Build the base user prompt
-        let base_user_prompt = format!(
-            "{}{}",
-            prior_context,
-            compaction_request(pre_compact_message_count, &formatted)
-        );
-
-        // Retry loop: up to 3 attempts (1 initial + 2 retries)
         const MAX_RETRIES: u32 = 2;
         const QUALITY_THRESHOLD: f64 = 0.6;
+        let prior_body = snapshot
+            .previous_checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.body.as_str());
+        let base_prompt = checkpoint_request(prior_body, source_message_count, &formatted);
 
-        let mut best_summary_text = String::new();
-        let mut best_score: f64 = 0.0;
-        let mut best_report_issues: Vec<String> = Vec::new();
-        let mut attempts = 0u32;
+        let mut best_body = String::new();
+        let mut best_score = 0.0;
+        let mut best_issues = Vec::new();
+        let mut attempts: u32 = 0;
 
         for attempt in 0..=MAX_RETRIES {
             attempts += 1;
-
-            // On retry, prepend quality feedback to the user prompt
             let user_prompt = if attempt == 0 {
-                base_user_prompt.clone()
+                base_prompt.clone()
             } else {
-                quality_retry(best_score, &best_report_issues, &base_user_prompt)
+                format!(
+                    "The previous checkpoint body scored {best_score:.2}/1.0 and had these issues: {}.\nProduce a complete replacement with every required section.\n\n{base_prompt}",
+                    best_issues.join("; ")
+                )
             };
-
-            // Build messages for the LLM call
-            let messages = vec![
-                Message::system(COMPACTION_SYSTEM_PROMPT),
-                Message::user(user_prompt),
-            ];
-
-            // Call LLM (non-streaming, synchronous compaction)
-            let response = match provider
+            let response = provider
                 .chat(
-                    messages,
+                    vec![
+                        Message::system(CHECKPOINT_SYSTEM_PROMPT),
+                        Message::user(user_prompt),
+                    ],
                     None,
                     agent_diva_providers::ToolChoiceMode::Unspecified,
                     Some(model.to_string()),
@@ -183,203 +178,266 @@ impl ContextCompactor {
                     0.3,
                 )
                 .await
-            {
-                Ok(resp) => resp,
-                Err(e) => {
-                    warn!(
-                        "LLM compaction call failed on attempt {}: {}",
-                        attempt + 1,
-                        e
-                    );
-                    continue;
-                }
-            };
-
+                .map_err(|error| anyhow::anyhow!("checkpoint provider call failed: {error}"))?;
             let response_text = response.content.unwrap_or_default();
-
             if response_text.trim().is_empty() {
-                warn!(
-                    "LLM returned empty compaction response on attempt {}",
-                    attempt + 1
-                );
-                continue;
+                return Err(anyhow::anyhow!(
+                    "checkpoint provider returned an empty body"
+                ));
             }
-
-            // Parse <summary> from response
-            let summary_text = Self::extract_summary(&response_text);
-
-            // Validate quality
-            let report = validate_summary(&summary_text, range);
-
-            info!(
-                "Compaction attempt {}/{}: score={:.2} (len={:.2}, kw={:.2}, comp={:.2}), issues={:?}",
-                attempt + 1,
-                MAX_RETRIES + 1,
-                report.score,
-                report.length_score,
-                report.keyword_score,
-                report.completeness_score,
-                report.issues
-            );
-
-            // Track the best attempt
+            let candidate = Self::extract_checkpoint_body(&response_text);
+            let report = validate_summary(&candidate, source);
             if report.score > best_score {
                 best_score = report.score;
-                best_summary_text = summary_text;
-                best_report_issues = report.issues.clone();
+                best_body = candidate;
+                best_issues = report.issues;
             }
-
-            // Early exit if quality is acceptable
             if report.score >= QUALITY_THRESHOLD {
-                info!(
-                    "Compaction quality acceptable on attempt {} (score {:.2} >= {})",
-                    attempt + 1,
-                    report.score,
-                    QUALITY_THRESHOLD
-                );
                 break;
-            }
-
-            if attempt < MAX_RETRIES {
-                info!(
-                    "Compaction quality insufficient (score {:.2} < {}), retrying…",
-                    report.score, QUALITY_THRESHOLD
-                );
             }
         }
 
-        if best_summary_text.is_empty() {
+        if best_body.trim().is_empty() || best_score < QUALITY_THRESHOLD {
             return Err(anyhow::anyhow!(
-                "All compaction attempts produced empty summaries"
+                "checkpoint quality gate rejected all attempts (best score {best_score:.2})"
             ));
         }
 
-        let retry_count = attempts.saturating_sub(1);
-
-        info!(
-            "Compaction complete: {} messages → {} chars summary (score={:.2}, retries={})",
-            pre_compact_message_count,
-            best_summary_text.len(),
-            best_score,
-            retry_count
+        let body = normalize_checkpoint_body(prior_body, &best_body);
+        let checkpoint = CanonicalCheckpoint::new(
+            format!(
+                "checkpoint-{}-{}",
+                Utc::now().format("%Y%m%d-%H%M%S"),
+                &uuid::Uuid::new_v4().to_string()[..8]
+            ),
+            Utc::now().to_rfc3339(),
+            trigger,
+            end.min(durable_len),
+            source_message_count,
+            source_token_count,
+            Some(best_score),
+            best_issues,
+            attempts.saturating_sub(1),
+            body,
         );
 
-        // Generate a unique compact_id
-        let compact_id = format!(
-            "compact-{}-{}",
-            Utc::now().format("%Y%m%d-%H%M%S"),
-            &uuid::Uuid::new_v4().to_string()[..8]
-        );
-
-        let summary = CompactSummary {
-            schema_version: 1,
-            compact_id,
-            created_at: Utc::now().to_rfc3339(),
-            trigger: trigger.clone(),
-            source_range: CompactionRange {
-                start_index: start,
-                end_index: end,
-            },
-            kept_recent_count: keep,
-            pre_compact_message_count,
-            pre_compact_estimated_tokens,
-            summary: best_summary_text,
-            quality_score: Some(best_score),
-            retry_count,
+        let current_start = end
+            .saturating_sub(durable_len)
+            .min(snapshot.current_turn_messages.len());
+        let active_durable_messages = if end < durable_len {
+            combined[end..durable_len].to_vec()
+        } else {
+            Vec::new()
+        };
+        let active_current_turn_messages = if end < combined.len() {
+            snapshot.current_turn_messages[current_start..].to_vec()
+        } else {
+            Vec::new()
         };
 
-        Ok(CompactionResult {
-            summary,
-            new_compacted_index: end,
-        })
+        Ok(Some(PendingCheckpointUpdate {
+            checkpoint,
+            active_durable_messages,
+            active_current_turn_messages,
+            source_start_index: start,
+            source_end_index: end,
+            changed: true,
+            includes_current_turn: end > durable_len,
+        }))
     }
 
-    /// Format a slice of chat messages as a text block suitable for the LLM.
-    fn format_messages_for_compaction(messages: &[ChatMessage]) -> String {
-        let mut out = String::new();
-        for (i, msg) in messages.iter().enumerate() {
-            let role_label = msg.role.as_str();
+    /// Mechanically fold completed tool groups before the semantic call.
+    pub fn format_messages_for_compaction(messages: &[ChatMessage]) -> String {
+        let mut output = String::new();
+        let mut index = 0;
+        while index < messages.len() {
+            if let Some(group) = completed_tool_group(messages, index) {
+                let tool_names = group.tool_names.to_vec().join(", ");
+                let artifacts = group.artifact_refs.to_vec().join(", ");
+                output.push_str(&format!(
+                    "[tool-group completed] tools={tool_names}; status=completed; artifact_refs={}\n",
+                    if artifacts.is_empty() { "none" } else { &artifacts }
+                ));
+                index = group.end;
+                continue;
+            }
 
-            // Truncate very long messages to avoid blowing the compaction prompt
-            let content = if msg.content.len() > 2000 {
-                format!(
-                    "{}…[truncated, {} chars total]",
-                    &msg.content[..2000],
-                    msg.content.len()
-                )
+            let message = &messages[index];
+            let content = message.content.chars().take(2_000).collect::<String>();
+            let suffix = if message.content.chars().count() > 2_000 {
+                "…[truncated]"
             } else {
-                msg.content.clone()
+                ""
             };
-
-            out.push_str(&format!("[{}. {}] {}\n", i + 1, role_label, content));
+            output.push_str(&format!(
+                "[{}. {}] {content}{suffix}\n",
+                index + 1,
+                message.role
+            ));
+            index += 1;
         }
-        out
+        output
     }
 
-    /// Extract the `<summary>...</summary>` section from the LLM response.
-    ///
-    /// Returns the inner text of the first `<summary>` tag pair.
-    /// If no `<summary>` tags are found, returns the raw response text as-is
-    /// (degraded mode — the prompt told the model to output structured format).
-    fn extract_summary(response: &str) -> String {
-        // Try to extract <summary>...</summary> using simple string search
-        let start_tag = "<summary>";
-        let end_tag = "</summary>";
-
-        if let Some(start_pos) = response.find(start_tag) {
-            let after_start = &response[start_pos + start_tag.len()..];
-            if let Some(end_pos) = after_start.find(end_tag) {
-                let summary = after_start[..end_pos].trim();
-                if !summary.is_empty() {
-                    return summary.to_string();
-                }
+    fn extract_checkpoint_body(response: &str) -> String {
+        let response = response.trim();
+        if let Some(start) = response.find("<checkpoint>") {
+            let content = &response[start + "<checkpoint>".len()..];
+            if let Some(end) = content.find("</checkpoint>") {
+                return content[..end].trim().to_string();
             }
         }
-
-        // Degraded mode: return the raw text (stripped of any trailing tags)
-        warn!("Failed to extract <summary> from compaction response; using raw text");
-        // Strip common tags from the raw response for a cleaner fallback
-        let cleaned = response
+        if let Some(start) = response.find("<summary>") {
+            let content = &response[start + "<summary>".len()..];
+            if let Some(end) = content.find("</summary>") {
+                return content[..end].trim().to_string();
+            }
+        }
+        response
             .replace("<analysis>", "")
             .replace("</analysis>", "")
-            .replace("<summary>", "")
-            .replace("</summary>", "")
             .trim()
-            .to_string();
-        cleaned
+            .to_string()
     }
+}
+
+const CHECKPOINT_SECTIONS: [&str; 7] = [
+    "目标与约束",
+    "已完成事项",
+    "关键决定",
+    "当前状态",
+    "未解决问题",
+    "下一步",
+    "保留标识符与 artifact 引用",
+];
+
+fn normalize_checkpoint_body(previous: Option<&str>, candidate: &str) -> String {
+    let has_all_sections = CHECKPOINT_SECTIONS
+        .iter()
+        .all(|section| candidate.contains(section));
+    if has_all_sections {
+        return bound_checkpoint_body(candidate.trim());
+    }
+
+    let inherited = previous.unwrap_or("无历史检查点。");
+    bound_checkpoint_body(&format!(
+        "## 目标与约束\n从历史检查点继承，除非当前状态明确覆盖。\n\n## 已完成事项\n{candidate}\n\n## 关键决定\n{inherited}\n\n## 当前状态\n{candidate}\n\n## 未解决问题\n未在本次压缩输入中确认。\n\n## 下一步\n依据当前状态继续处理用户请求。\n\n## 保留标识符与 artifact 引用\n保留原文中的路径、ID 和 artifact 引用。\n"
+    ))
+}
+
+#[derive(Debug)]
+struct ToolGroup {
+    end: usize,
+    complete: bool,
+    tool_names: Vec<String>,
+    artifact_refs: Vec<String>,
+}
+
+fn completed_tool_group(messages: &[ChatMessage], start: usize) -> Option<ToolGroup> {
+    let assistant = messages.get(start)?;
+    if assistant.role != "assistant" {
+        return None;
+    }
+    let calls = assistant.tool_calls.as_ref()?.iter().collect::<Vec<_>>();
+    if calls.is_empty() {
+        return None;
+    }
+    let ids = calls
+        .iter()
+        .filter_map(|call| call.get("id").and_then(|id| id.as_str()))
+        .collect::<Vec<_>>();
+    if ids.len() != calls.len() {
+        return None;
+    }
+    let tool_names = calls
+        .iter()
+        .filter_map(|call| {
+            call.get("function")
+                .and_then(|function| function.get("name"))
+                .and_then(|name| name.as_str())
+                .map(str::to_string)
+        })
+        .collect::<Vec<_>>();
+    let mut matched = Vec::new();
+    let mut artifacts = Vec::new();
+    let mut end = start + 1;
+    while end < messages.len() && messages[end].role == "tool" {
+        if let Some(id) = messages[end].tool_call_id.as_deref() {
+            if ids.contains(&id) {
+                matched.push(id);
+                artifacts.extend(extract_artifact_refs(&messages[end].content));
+            }
+        }
+        end += 1;
+    }
+    matched.sort_unstable();
+    matched.dedup();
+    artifacts.sort_unstable();
+    artifacts.dedup();
+    Some(ToolGroup {
+        end,
+        complete: matched.len() == ids.len(),
+        tool_names,
+        artifact_refs: artifacts,
+    })
+}
+
+fn extract_artifact_refs(content: &str) -> Vec<String> {
+    content
+        .split_whitespace()
+        .filter(|token| token.contains("artifact://") || token.starts_with("[artifact:"))
+        .map(|token| {
+            token
+                .trim_matches(|ch: char| ",.;)]}".contains(ch))
+                .to_string()
+        })
+        .collect()
+}
+
+/// Select a prefix that ends at a complete conversation/tool boundary.
+pub fn select_safe_compaction_end(
+    messages: &[ChatMessage],
+    start: usize,
+    tentative_end: usize,
+) -> usize {
+    let mut end = tentative_end.min(messages.len());
+    if end <= start {
+        return start;
+    }
+
+    for index in start..end {
+        if let Some(group) = completed_tool_group(messages, index) {
+            if !group.complete || (index < end && end < group.end) {
+                end = index;
+                break;
+            }
+        }
+    }
+
+    // A regular user turn is also indivisible.  The active tail must start at
+    // a user boundary, never at an assistant/tool half-turn.
+    if end > start && end < messages.len() && messages[end].role != "user" {
+        if let Some(previous_user) = (start..end)
+            .rev()
+            .find(|index| messages[*index].role == "user")
+        {
+            end = previous_user;
+        }
+    }
+    end.max(start)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::session::ChatMessage;
-    use agent_diva_providers::{LLMProvider, LLMResponse, ProviderError, ProviderResult};
+    use agent_diva_providers::{LLMResponse, ProviderError, ProviderResult};
     use async_trait::async_trait;
-    use chrono::Utc;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
 
-    fn make_msg(role: &str, content: &str) -> ChatMessage {
-        ChatMessage {
-            role: role.to_string(),
-            content: content.to_string(),
-            timestamp: Utc::now(),
-            tool_call_id: None,
-            tool_calls: None,
-            name: None,
-            reasoning_content: None,
-            thinking_blocks: None,
-            metadata: None,
-            token_usage: None,
-        }
-    }
-
-    struct AlwaysFailProvider;
+    struct GoodProvider;
 
     #[async_trait]
-    impl LLMProvider for AlwaysFailProvider {
+    impl LLMProvider for GoodProvider {
         async fn chat(
             &self,
             _messages: Vec<Message>,
@@ -389,181 +447,129 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
-                "forced provider failure".to_string(),
-            ))
-        }
-
-        fn get_default_model(&self) -> String {
-            "mock-model".to_string()
-        }
-    }
-
-    struct LowQualityProvider {
-        call_count: AtomicUsize,
-    }
-
-    impl LowQualityProvider {
-        fn new() -> Self {
-            Self {
-                call_count: AtomicUsize::new(0),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl LLMProvider for LowQualityProvider {
-        async fn chat(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _tool_choice: agent_diva_providers::ToolChoiceMode,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<LLMResponse> {
-            self.call_count.fetch_add(1, Ordering::SeqCst);
             Ok(LLMResponse {
-                content: Some("<summary>too short</summary>".to_string()),
+                content: Some("目标与约束：保留 task constraint decision。\n已完成事项：完成 task。\n关键决定：继续当前 decision。\n当前状态：任务可继续。\n未解决问题：无。\n下一步：继续执行。\n保留标识符与 artifact 引用：artifact://one。".into()),
                 tool_calls: Vec::new(),
-                finish_reason: "stop".to_string(),
+                finish_reason: "stop".into(),
                 usage: HashMap::new(),
                 reasoning_content: None,
             })
         }
 
         fn get_default_model(&self) -> String {
-            "mock-model".to_string()
+            "mock".into()
         }
     }
 
-    #[test]
-    fn test_extract_summary_normal() {
-        let response = "<analysis>\n一些分析内容\n</analysis>\n<summary>\n这是摘要内容\n</summary>";
-        let summary = ContextCompactor::extract_summary(response);
-        assert_eq!(summary, "这是摘要内容");
+    struct FailingProvider;
+
+    #[async_trait]
+    impl LLMProvider for FailingProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: agent_diva_providers::ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError("failed".into()))
+        }
+
+        fn get_default_model(&self) -> String {
+            "mock".into()
+        }
+    }
+
+    fn msg(role: &str, content: &str) -> ChatMessage {
+        ChatMessage::new(role, content)
+    }
+
+    fn assistant_with_tool(id: &str) -> ChatMessage {
+        ChatMessage::with_tool_metadata(
+            "assistant",
+            "",
+            None,
+            Some(vec![serde_json::json!({
+                "id": id,
+                "type": "function",
+                "function": {"name": "read_file", "arguments": "{}"}
+            })]),
+            None,
+        )
     }
 
     #[test]
-    fn test_extract_summary_multiline() {
-        let response = "<analysis>分析</analysis>\n<summary>\n第一行\n第二行\n第三行\n</summary>";
-        let summary = ContextCompactor::extract_summary(response);
-        assert_eq!(summary, "第一行\n第二行\n第三行");
-    }
-
-    #[test]
-    fn test_extract_summary_degraded() {
-        let response = "这是一段没有标签的原始回复";
-        let summary = ContextCompactor::extract_summary(response);
-        // Degraded mode: returns the raw text
-        assert!(!summary.is_empty());
-        assert!(summary.contains("原始回复"));
-    }
-
-    #[test]
-    fn test_extract_summary_empty_tags() {
-        let response = "<analysis></analysis>\n<summary></summary>";
-        let summary = ContextCompactor::extract_summary(response);
-        // Empty tags with no content → result is empty (nothing to extract)
-        assert!(
-            summary.is_empty(),
-            "Empty tags with no content should produce empty summary, got: {:?}",
-            summary
-        );
-    }
-
-    #[test]
-    fn test_format_messages_for_compaction() {
-        let msgs = vec![
-            make_msg("user", "你好"),
-            make_msg("assistant", "你好！有什么可以帮助你的？"),
-            make_msg("user", "今天天气怎么样？"),
+    fn completed_tool_group_is_folded_without_result_body() {
+        let messages = vec![
+            msg("user", "read src/main.rs"),
+            assistant_with_tool("call-1"),
+            ChatMessage::with_tool_metadata(
+                "tool",
+                "large result artifact://one",
+                Some("call-1".into()),
+                None,
+                Some("read_file".into()),
+            ),
         ];
-        let formatted = ContextCompactor::format_messages_for_compaction(&msgs);
-        assert!(formatted.contains("[1. user]"));
-        assert!(formatted.contains("[2. assistant]"));
-        assert!(formatted.contains("[3. user]"));
-        assert!(formatted.contains("你好"));
+        let formatted = CheckpointCompactor::format_messages_for_compaction(&messages);
+        assert!(formatted.contains("tool-group completed"));
+        assert!(formatted.contains("artifact://one"));
+        assert!(!formatted.contains("large result"));
     }
 
     #[test]
-    fn test_format_messages_truncates_long() {
-        let long_content = "x".repeat(3000);
-        let msgs = vec![make_msg("user", &long_content)];
-        let formatted = ContextCompactor::format_messages_for_compaction(&msgs);
-        assert!(formatted.contains("[truncated"));
-        assert!(formatted.len() < long_content.len() + 100);
+    fn incomplete_tool_group_stays_out_of_prefix() {
+        let messages = vec![msg("user", "read"), assistant_with_tool("call-1")];
+        assert_eq!(select_safe_compaction_end(&messages, 0, messages.len()), 0);
     }
 
     #[tokio::test]
-    async fn test_compact_returns_error_when_provider_fails_every_attempt() {
-        let mut session = Session::new("provider-failure");
-        for idx in 0..20 {
-            session.add_message(
-                if idx % 2 == 0 { "user" } else { "assistant" },
-                format!("message {} with enough context to compact", idx),
-            );
-        }
-
+    async fn failed_provider_does_not_create_update() {
+        let snapshot = CheckpointSnapshot::new(
+            None,
+            (0..10).map(|i| msg("user", &i.to_string())).collect(),
+            vec![],
+        );
         let config = BudgetConfig {
-            max_tokens: 5_000,
-            system_budget_ratio: 0.0,
-            compact_threshold_ratio: 0.8,
-            keep_recent_count: 4,
+            keep_recent_count: 2,
+            ..BudgetConfig::default()
         };
-
-        let err = ContextCompactor::compact(
-            &session,
+        let error = CheckpointCompactor::compact_snapshot(
+            snapshot,
             &config,
-            Arc::new(AlwaysFailProvider),
-            "mock-model",
-            CompactTrigger::Auto,
-            &[],
+            Arc::new(FailingProvider),
+            "mock",
+            CheckpointTrigger::Reactive,
         )
         .await
         .unwrap_err();
-
-        assert!(err.to_string().contains("empty summaries"));
+        assert!(error.to_string().contains("provider"));
     }
 
     #[tokio::test]
-    async fn test_compact_keeps_best_effort_summary_after_quality_gate_rejects_all_attempts() {
-        let mut session = Session::new("quality-degraded");
-        for idx in 0..24 {
-            session.add_message(
-                if idx % 2 == 0 { "user" } else { "assistant" },
-                format!(
-                    "turn {} discusses provider routing, retries, and persistence ordering",
-                    idx
-                ),
-            );
-        }
-
+    async fn checkpoint_body_is_fixed_and_bounded() {
+        let durable = (0..12)
+            .map(|_| msg("user", "task constraint decision"))
+            .collect();
         let config = BudgetConfig {
-            max_tokens: 5_000,
-            system_budget_ratio: 0.0,
-            compact_threshold_ratio: 0.8,
-            keep_recent_count: 6,
+            keep_recent_count: 2,
+            ..BudgetConfig::default()
         };
-        let provider = Arc::new(LowQualityProvider::new());
-
-        let result = ContextCompactor::compact(
-            &session,
+        let update = CheckpointCompactor::compact_snapshot(
+            CheckpointSnapshot::new(None, durable, vec![]),
             &config,
-            provider.clone(),
-            "mock-model",
-            CompactTrigger::Auto,
-            &[],
+            Arc::new(GoodProvider),
+            "mock",
+            CheckpointTrigger::Auto,
         )
         .await
-        .expect("best-effort compaction should still succeed");
-
-        assert_eq!(provider.call_count.load(Ordering::SeqCst), 3);
-        assert_eq!(result.summary.retry_count, 2);
-        assert_eq!(result.summary.summary, "too short");
-        assert!(
-            result.summary.quality_score.unwrap_or_default() < 0.6,
-            "degraded summary should keep the best attempt even below the quality gate"
-        );
+        .unwrap()
+        .unwrap();
+        assert!(update.checkpoint.body.chars().count() <= 8_000);
+        for section in CHECKPOINT_SECTIONS {
+            assert!(update.checkpoint.body.contains(section));
+        }
     }
 }

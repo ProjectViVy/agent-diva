@@ -633,8 +633,7 @@ mod tests {
             metadata: serde_json::json!({}),
             title: None,
             last_consolidated: 0,
-            last_compacted: 0,
-            compaction_history: vec![],
+            canonical_checkpoint: None,
         }
     }
 
@@ -710,8 +709,7 @@ mod wave5_tests {
             metadata: serde_json::json!({}),
             title: None,
             last_consolidated: 0,
-            last_compacted: 0,
-            compaction_history: vec![],
+            canonical_checkpoint: None,
         }
     }
 

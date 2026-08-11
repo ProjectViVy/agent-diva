@@ -138,6 +138,9 @@ pub struct AgentLoop {
     cache_observer: crate::context_assembly::CacheObserveState,
     /// Session-scoped discovery state reused by authorized registry rebuilds.
     tool_discovery_states: HashMap<String, ToolDiscoveryStateHandle>,
+    /// Turn-local reactive checkpoint updates; committed only after finalize.
+    pub(crate) pending_checkpoint_updates:
+        HashMap<String, crate::compaction::PendingCheckpointUpdate>,
 }
 
 pub struct AgentLoopToolSet {
@@ -565,6 +568,7 @@ impl AgentLoop {
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             tool_discovery_states: HashMap::new(),
+            pending_checkpoint_updates: HashMap::new(),
         })
     }
 
@@ -739,6 +743,7 @@ impl AgentLoop {
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             tool_discovery_states: HashMap::new(),
+            pending_checkpoint_updates: HashMap::new(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -829,6 +834,7 @@ impl AgentLoop {
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             tool_discovery_states: HashMap::new(),
+            pending_checkpoint_updates: HashMap::new(),
         })
     }
 

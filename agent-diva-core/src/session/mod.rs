@@ -12,7 +12,8 @@ pub use search::{
     SessionSearchDiagnostic, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
 };
 pub use store::{
-    align_chat_history, ChatMessage, CompactSummary, CompactTrigger, CompactionRange, Session,
+    align_chat_history, bound_checkpoint_body, CanonicalCheckpoint, ChatMessage, CheckpointTrigger,
+    Session, CANONICAL_CHECKPOINT_MAX_CHARS, CANONICAL_CHECKPOINT_SCHEMA_VERSION,
 };
 
 // Re-export TokenUsage for convenience — it's used alongside ChatMessage

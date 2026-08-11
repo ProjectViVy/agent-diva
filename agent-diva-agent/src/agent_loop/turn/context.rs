@@ -6,11 +6,11 @@ use agent_diva_core::planning::{
     ExecutionSession,
 };
 use agent_diva_core::security::{check_security, SecurityContext, SecurityDecision};
-use agent_diva_core::session::{align_chat_history, CompactTrigger};
+use agent_diva_core::session::{align_chat_history, CanonicalCheckpoint, CheckpointTrigger};
 use agent_diva_providers::{supports_vision_model, DynamicContextTransport, Message};
 use tracing::{error, info, trace, warn};
 
-use crate::compaction::ContextCompactor;
+use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::context::ContextBuilder;
 use crate::context_assembly::{
     estimate_messages, select_dynamic_sections, serialize_dynamic_sections, AssemblyDecision,
@@ -106,6 +106,10 @@ impl AgentLoop {
         scheduled: bool,
         trace_id: &str,
     ) -> Result<RuntimeTurnContext, Box<dyn std::error::Error>> {
+        // A pending reactive update belongs to one turn only.  If the prior
+        // turn was cancelled before finalize, discard it before starting a
+        // fresh snapshot.
+        self.pending_checkpoint_updates.remove(session_key);
         let processed_media = if message.media.is_empty() {
             ProcessedInboundMedia::default()
         } else {
@@ -173,28 +177,24 @@ impl AgentLoop {
                                     anyhow::anyhow!("execution transcript unavailable")
                                 })?;
                             snapshot.messages.truncate(boundary_count);
-                            snapshot.last_compacted = 0;
-                            snapshot.compaction_history.clear();
                             let mut config = self.tool_config.budget.clone();
                             config.keep_recent_count = 0;
-                            match ContextCompactor::compact(
-                                &snapshot,
+                            match CheckpointCompactor::compact_snapshot(
+                                CheckpointSnapshot::new(None, snapshot.messages, Vec::new()),
                                 &config,
                                 self.provider.clone(),
                                 &self.model,
-                                CompactTrigger::Manual,
-                                &[],
+                                CheckpointTrigger::Manual,
                             )
                             .await
                             {
-                                Ok(result)
-                                    if !result.summary.summary.trim().is_empty()
-                                        && result.summary.quality_score.unwrap_or_default()
-                                            >= 0.6 =>
+                                Ok(Some(result))
+                                    if result.checkpoint.quality_score.unwrap_or_default()
+                                        >= 0.6 =>
                                 {
-                                    Some(result.summary.summary)
+                                    Some(result.checkpoint.body)
                                 }
-                                Ok(_) => {
+                                Ok(None) | Ok(Some(_)) => {
                                     let updated = planning
                                         .registry
                                         .update_execution_context(
@@ -203,7 +203,7 @@ impl AgentLoop {
                                             None,
                                             ExecutionInitializationStatus::Blocked,
                                             Some(
-                                                "Compact summary did not pass quality validation"
+                                                "Canonical checkpoint did not pass quality validation"
                                                     .to_string(),
                                             ),
                                         )
@@ -211,7 +211,7 @@ impl AgentLoop {
                                     persist_execution_context(planning, session_key, &updated)
                                         .await?;
                                     return Err(anyhow::anyhow!(
-                                        "approved plan execution is blocked: Compact summary did not pass quality validation"
+                                        "approved plan execution is blocked: Canonical checkpoint did not pass quality validation"
                                     )
                                     .into());
                                 }
@@ -224,13 +224,16 @@ impl AgentLoop {
                                             Some(boundary),
                                             None,
                                             ExecutionInitializationStatus::Blocked,
-                                            Some("Compact summary generation failed".to_string()),
+                                            Some(
+                                                "Canonical checkpoint generation failed"
+                                                    .to_string(),
+                                            ),
                                         )
                                         .await?;
                                     persist_execution_context(planning, session_key, &updated)
                                         .await?;
                                     return Err(anyhow::anyhow!(
-                                        "approved plan execution is blocked: Compact summary generation failed"
+                                        "approved plan execution is blocked: Canonical checkpoint generation failed"
                                     )
                                     .into());
                                 }
@@ -259,10 +262,9 @@ impl AgentLoop {
             let session = self.sessions.get_or_create(session_key);
             check_budget(&session.get_history(usize::MAX), &self.tool_config.budget)
         };
-        let (mut history, mut compaction_history, did_compact, legacy_count_cap) = if budget_report
-            .should_compact
-        {
-            info!(
+        let (mut history, mut canonical_checkpoint, did_compact, legacy_count_cap) =
+            if budget_report.should_compact {
+                info!(
                     "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                     budget_report.pressure_ratio * 100.0,
                     budget_report.history_estimated,
@@ -271,51 +273,58 @@ impl AgentLoop {
                             * self.tool_config.budget.system_budget_ratio) as usize
                     ),
                 );
-            let compact_result = if let Some(session) = self.sessions.get(session_key) {
-                ContextCompactor::compact(
-                    session,
-                    &self.tool_config.budget,
-                    self.provider.clone(),
-                    &self.model,
-                    CompactTrigger::Auto,
-                    &session.compaction_history,
-                )
-                .await
+                let compact_result = if let Some(session) = self.sessions.get(session_key) {
+                    CheckpointCompactor::compact_snapshot(
+                        CheckpointSnapshot::from_session(session, Vec::new()),
+                        &self.tool_config.budget,
+                        self.provider.clone(),
+                        &self.model,
+                        CheckpointTrigger::Auto,
+                    )
+                    .await
+                } else {
+                    Err(anyhow::anyhow!("Session not found for compaction"))
+                };
+                match compact_result {
+                    Ok(Some(result)) => {
+                        let session = self.sessions.get_or_create(session_key);
+                        session.canonical_checkpoint = Some(result.checkpoint);
+                        (
+                            session.get_history(usize::MAX),
+                            session.canonical_checkpoint.clone(),
+                            true,
+                            false,
+                        )
+                    }
+                    Ok(None) => {
+                        let session = self.sessions.get_or_create(session_key);
+                        (
+                            session.get_history(usize::MAX),
+                            session.canonical_checkpoint.clone(),
+                            false,
+                            false,
+                        )
+                    }
+                    Err(error) => {
+                        warn!("Compaction failed (non-blocking): {}", error);
+                        let session = self.sessions.get_or_create(session_key);
+                        (
+                            session.get_history(50),
+                            session.canonical_checkpoint.clone(),
+                            false,
+                            true,
+                        )
+                    }
+                }
             } else {
-                Err(anyhow::anyhow!("Session not found for compaction"))
+                let session = self.sessions.get_or_create(session_key);
+                (
+                    session.get_history(usize::MAX),
+                    session.canonical_checkpoint.clone(),
+                    false,
+                    false,
+                )
             };
-            match compact_result {
-                Ok(result) => {
-                    let session = self.sessions.get_or_create(session_key);
-                    session.last_compacted = result.new_compacted_index;
-                    session.compaction_history.push(result.summary);
-                    (
-                        session.get_history(usize::MAX),
-                        session.compaction_history.clone(),
-                        true,
-                        false,
-                    )
-                }
-                Err(error) => {
-                    warn!("Compaction failed (non-blocking): {}", error);
-                    let session = self.sessions.get_or_create(session_key);
-                    (
-                        session.get_history(50),
-                        session.compaction_history.clone(),
-                        false,
-                        true,
-                    )
-                }
-            }
-        } else {
-            let session = self.sessions.get_or_create(session_key);
-            (
-                session.get_history(usize::MAX),
-                session.compaction_history.clone(),
-                false,
-                false,
-            )
-        };
         if did_compact {
             if let Some(session) = self.sessions.get(session_key) {
                 if let Err(error) = self.sessions.save(session) {
@@ -340,24 +349,20 @@ impl AgentLoop {
                                 .cloned()
                                 .collect(),
                         );
-                        compaction_history.clear();
+                        canonical_checkpoint = None;
                         if let Some(summary) = execution.compacted_context.as_ref() {
-                            compaction_history.push(agent_diva_core::session::CompactSummary {
-                                schema_version: 1,
-                                compact_id: format!("execution:{}", execution.id),
-                                created_at: execution.updated_at.to_rfc3339(),
-                                trigger: CompactTrigger::Manual,
-                                source_range: agent_diva_core::session::CompactionRange {
-                                    start_index: 0,
-                                    end_index: boundary.message_count,
-                                },
-                                kept_recent_count: 0,
-                                pre_compact_message_count: boundary.message_count,
-                                pre_compact_estimated_tokens: 0,
-                                summary: summary.clone(),
-                                quality_score: Some(1.0),
-                                retry_count: 0,
-                            });
+                            canonical_checkpoint = Some(CanonicalCheckpoint::new(
+                                format!("execution:{}", execution.id),
+                                execution.updated_at.to_rfc3339(),
+                                CheckpointTrigger::Manual,
+                                boundary.message_count,
+                                boundary.message_count,
+                                0,
+                                Some(1.0),
+                                Vec::new(),
+                                0,
+                                summary,
+                            ));
                         }
                     }
                 }
@@ -477,7 +482,7 @@ impl AgentLoop {
         let mut prepared = PreparedTurnContext::prepare_budgeted(
             self.context.build_prefix_messages_from_snapshot(
                 history,
-                &compaction_history,
+                canonical_checkpoint.as_ref(),
                 &stable_prefix,
             ),
             &dynamic_sections,

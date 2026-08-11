@@ -1,4 +1,4 @@
-//! Context compaction — budget-aware conversation summarization.
+//! Canonical checkpoint compaction — bounded, replacement-based context state.
 //!
 //! This module provides token estimation, budget monitoring, and LLM-driven
 //! compaction that keeps long-running agent sessions within the provider's
@@ -7,7 +7,7 @@
 //! # Architecture (P0)
 //!
 //! ```text
-//! TokenEstimator ──► ContextBudgetMonitor ──► ContextCompactor
+//! TokenEstimator ──► ContextBudgetMonitor ──► CheckpointCompactor
 //!      │                      │                       │
 //!  chars→tokens          .check()               .compact()
 //!                         budget→pct             history→summary
@@ -22,11 +22,11 @@
 //! and are re-used by this module.
 
 pub mod compaction_exec;
-pub mod meta;
 pub mod prompt;
 pub mod quality;
 
-pub use compaction_exec::ContextCompactor;
-pub use meta::{CompactionError, MetaCompactor};
-pub use prompt::{COMPACTION_SYSTEM_PROMPT, PRIOR_SUMMARIES_PREFIX};
+pub use compaction_exec::{
+    select_safe_compaction_end, CheckpointCompactor, CheckpointSnapshot, PendingCheckpointUpdate,
+};
+pub use prompt::{CHECKPOINT_PROMPT_ID, CHECKPOINT_PROMPT_VERSION, CHECKPOINT_SYSTEM_PROMPT};
 pub use quality::{validate_summary, QualityGate, QualityReport, QualityResult};

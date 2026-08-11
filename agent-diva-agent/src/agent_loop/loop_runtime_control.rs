@@ -1,8 +1,8 @@
 use super::AgentLoop;
-use crate::compaction::ContextCompactor;
+use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
-use agent_diva_core::session::CompactTrigger;
+use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -219,14 +219,12 @@ impl AgentLoop {
         // Run compaction with Manual trigger (immutable borrow, like auto-compaction)
         let compact_result = {
             if let Some(session) = self.sessions.get(session_key) {
-                let prior = session.compaction_history.clone();
-                ContextCompactor::compact(
-                    session,
+                CheckpointCompactor::compact_snapshot(
+                    CheckpointSnapshot::from_session(session, Vec::new()),
                     &budget_config,
                     provider,
                     &model,
-                    CompactTrigger::Manual,
-                    &prior,
+                    CheckpointTrigger::Manual,
                 )
                 .await
             } else {
@@ -235,19 +233,15 @@ impl AgentLoop {
         };
 
         match compact_result {
-            Ok(result) => {
-                // Check if there was actually anything to compact
-                if result.summary.summary.is_empty()
-                    && result.summary.pre_compact_message_count == 0
-                {
-                    return Ok("nothing to compact — session is already lean".to_string());
-                }
+            Ok(None) => Ok("nothing to compact — session is already lean".to_string()),
+            Ok(Some(result)) => {
+                let source_message_count = result.checkpoint.source_message_count;
+                let source_token_count = result.checkpoint.source_token_count;
+                let body = result.checkpoint.body.clone();
 
-                // Persist compaction state — push to history chain
                 {
                     let session = self.sessions.get_or_create(session_key);
-                    session.last_compacted = result.new_compacted_index;
-                    session.compaction_history.push(result.summary.clone());
+                    session.canonical_checkpoint = Some(result.checkpoint.clone());
                 }
                 if let Some(s) = self.sessions.get(session_key) {
                     if let Err(e) = self.sessions.save(s) {
@@ -256,16 +250,14 @@ impl AgentLoop {
                 }
 
                 info!(
-                    "Manual compaction complete: {} msgs → {} chars summary",
-                    result.summary.pre_compact_message_count,
-                    result.summary.summary.len()
+                    "Manual checkpoint complete: {} msgs → {} chars",
+                    source_message_count,
+                    body.len()
                 );
 
                 Ok(format!(
-                    "compact done — {} messages compressed, ~{} tokens saved\nsummary: {}",
-                    result.summary.pre_compact_message_count,
-                    result.summary.pre_compact_estimated_tokens,
-                    result.summary.summary
+                    "compact done — {} messages compressed, ~{} tokens saved\ncheckpoint: {}",
+                    source_message_count, source_token_count, body
                 ))
             }
             Err(e) => Err(format!("compaction failed: {}", e)),

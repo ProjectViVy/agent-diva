@@ -11,57 +11,114 @@ pub const SESSION_META_TITLE_MANUALLY_SET: &str = "title_manually_set";
 pub const SESSION_META_PINNED: &str = "pinned";
 
 // ---------------------------------------------------------------------------
-// Compaction types
+// Canonical checkpoint types
 // ---------------------------------------------------------------------------
 
-/// What triggered a context compaction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The only durable checkpoint schema written by the runtime.
+pub const CANONICAL_CHECKPOINT_SCHEMA_VERSION: u32 = 1;
+/// Maximum number of Unicode scalar values in a checkpoint body.
+pub const CANONICAL_CHECKPOINT_MAX_CHARS: usize = 8_000;
+
+/// Why a canonical checkpoint was produced.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum CompactTrigger {
-    /// Budget threshold exceeded — automatic compaction
+pub enum CheckpointTrigger {
+    /// The active context crossed its configured budget threshold.
     Auto,
-    /// User-triggered (e.g. /compact command)
+    /// The user explicitly requested compaction.
     Manual,
-    /// Provider overflow catch — reactive compaction (P1)
+    /// A provider rejected the context as too large.
     Reactive,
 }
 
-/// Index range of compacted messages in the session
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompactionRange {
-    /// Start index (inclusive) of compacted messages
-    pub start_index: usize,
-    /// End index (exclusive) of compacted messages
-    pub end_index: usize,
-}
-
-/// A type-safe, serializable compaction record stored in the session
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompactSummary {
-    /// Schema version for forward compatibility
+/// The bounded, durable model-visible state for a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CanonicalCheckpoint {
+    /// Schema version for the `canonical_checkpoint_v1` representation.
     pub schema_version: u32,
-    /// Unique compact event ID
-    pub compact_id: String,
-    /// ISO8601 timestamp when compaction occurred
+    /// Stable identifier for this replacement, not an append-only event ID.
+    pub checkpoint_id: String,
+    /// ISO-8601 creation time.
     pub created_at: String,
-    /// What triggered this compaction
-    pub trigger: CompactTrigger,
-    /// Index range of the compacted messages
-    pub source_range: CompactionRange,
-    /// Number of recent messages kept (not compacted)
-    pub kept_recent_count: usize,
-    /// Message count before compaction
-    pub pre_compact_message_count: usize,
-    /// Estimated tokens before compaction
-    pub pre_compact_estimated_tokens: usize,
-    /// The generated natural-language summary
-    pub summary: String,
-    /// Quality score of the adopted summary (0.0–1.0), if quality validation ran
+    /// Trigger used for diagnostics only; it does not change compaction semantics.
+    pub trigger: CheckpointTrigger,
+    /// Durable transcript index covered by this checkpoint.
+    pub durable_message_index: usize,
+    /// Number of source messages folded into this checkpoint.
+    pub source_message_count: usize,
+    /// Estimated source token count before folding.
+    pub source_token_count: usize,
+    /// Quality score of the adopted body, when semantic validation ran.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub quality_score: Option<f64>,
-    /// Number of LLM retries before the final summary was adopted (0 = first attempt succeeded)
+    /// Quality-gate diagnostics retained for operators, not injected separately.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quality_issues: Vec<String>,
+    /// Number of provider retries used to produce the body.
     #[serde(default)]
     pub retry_count: u32,
+    /// Fixed-section checkpoint body, bounded to [`CANONICAL_CHECKPOINT_MAX_CHARS`].
+    #[serde(deserialize_with = "deserialize_bounded_body")]
+    pub body: String,
+}
+
+impl CanonicalCheckpoint {
+    /// Create a checkpoint while enforcing the body bound.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        checkpoint_id: impl Into<String>,
+        created_at: impl Into<String>,
+        trigger: CheckpointTrigger,
+        durable_message_index: usize,
+        source_message_count: usize,
+        source_token_count: usize,
+        quality_score: Option<f64>,
+        quality_issues: Vec<String>,
+        retry_count: u32,
+        body: impl AsRef<str>,
+    ) -> Self {
+        Self {
+            schema_version: CANONICAL_CHECKPOINT_SCHEMA_VERSION,
+            checkpoint_id: checkpoint_id.into(),
+            created_at: created_at.into(),
+            trigger,
+            durable_message_index,
+            source_message_count,
+            source_token_count,
+            quality_score,
+            quality_issues,
+            retry_count,
+            body: bound_checkpoint_body(body.as_ref()),
+        }
+    }
+
+    /// Render the one model-visible checkpoint block.
+    pub fn render_for_context(&self) -> String {
+        format!(
+            "## Canonical Checkpoint v{}\n{}\n[canonical checkpoint end]",
+            self.schema_version, self.body
+        )
+    }
+
+    /// Move the durable coverage forward when a pending reactive turn is finalized.
+    pub fn with_durable_message_index(&self, durable_message_index: usize) -> Self {
+        let mut checkpoint = self.clone();
+        checkpoint.durable_message_index = durable_message_index;
+        checkpoint
+    }
+}
+
+/// Apply the checkpoint body bound without splitting UTF-8.
+pub fn bound_checkpoint_body(body: &str) -> String {
+    body.chars().take(CANONICAL_CHECKPOINT_MAX_CHARS).collect()
+}
+
+fn deserialize_bounded_body<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let body = String::deserialize(deserializer)?;
+    Ok(bound_checkpoint_body(&body))
 }
 
 // ---------------------------------------------------------------------------
@@ -87,19 +144,9 @@ pub struct Session {
     /// Index of last consolidated message (for memory consolidation)
     #[serde(default)]
     pub last_consolidated: usize,
-    /// Index of last compacted message (messages before this are summarized in `compaction_history`)
+    /// The single bounded model-visible checkpoint, if one has been adopted.
     #[serde(default)]
-    pub last_compacted: usize,
-    /// Context compaction history — chain of summaries from multiple compactions.
-    ///
-    /// Backward compatible: old sessions with a single `compaction` object are
-    /// automatically deserialized into a one-element vec.
-    #[serde(
-        alias = "compaction",
-        deserialize_with = "compaction_compat::deserialize_compaction_history",
-        default
-    )]
-    pub compaction_history: Vec<CompactSummary>,
+    pub canonical_checkpoint: Option<CanonicalCheckpoint>,
 }
 
 impl Session {
@@ -114,8 +161,7 @@ impl Session {
             metadata: serde_json::Value::Object(serde_json::Map::new()),
             title: None,
             last_consolidated: 0,
-            last_compacted: 0,
-            compaction_history: Vec::new(),
+            canonical_checkpoint: None,
         }
     }
 
@@ -144,13 +190,17 @@ impl Session {
 
     /// Get message history for LLM context.
     ///
-    /// Uses the *higher* of `last_consolidated` and `last_compacted` as the
-    /// floor so that both compacted and consolidated messages are excluded.
+    /// Uses the higher of consolidation progress and the checkpoint coverage as
+    /// the durable transcript floor.
     pub fn get_history(&self, max_messages: usize) -> Vec<ChatMessage> {
-        // Floor = max of the two progress pointers
+        let checkpoint_floor = self
+            .canonical_checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.durable_message_index)
+            .unwrap_or_default();
         let floor = self
             .last_consolidated
-            .max(self.last_compacted)
+            .max(checkpoint_floor)
             .min(self.messages.len());
         let window = &self.messages[floor..];
         let start = window.len().saturating_sub(max_messages);
@@ -166,8 +216,7 @@ impl Session {
     pub fn clear(&mut self) {
         self.messages.clear();
         self.last_consolidated = 0;
-        self.last_compacted = 0;
-        self.compaction_history.clear();
+        self.canonical_checkpoint = None;
         self.updated_at = Utc::now();
     }
 
@@ -245,24 +294,6 @@ impl Session {
     fn set_metadata_bool(&mut self, key: &str, value: bool) {
         let metadata = ensure_object(&mut self.metadata);
         metadata.insert(key.to_string(), serde_json::Value::Bool(value));
-    }
-
-    /// Get the most recent compaction summary, if any.
-    pub fn latest_compaction(&self) -> Option<&CompactSummary> {
-        self.compaction_history.last()
-    }
-
-    /// Concatenate all compaction summaries into a single text block.
-    ///
-    /// Each summary is prefixed with its ordinal position for context.
-    pub fn all_summaries_text(&self) -> String {
-        let total = self.compaction_history.len();
-        self.compaction_history
-            .iter()
-            .enumerate()
-            .map(|(i, s)| format!("[Compaction record {}/{}]\n{}", i + 1, total, s.summary))
-            .collect::<Vec<_>>()
-            .join("\n\n")
     }
 }
 
@@ -419,41 +450,6 @@ impl ChatMessage {
     }
 }
 
-/// Backward-compatible deserialization helpers for `compaction_history`.
-///
-/// Old sessions stored a single `compaction: Option<CompactSummary>`.
-/// New sessions store `compaction_history: Vec<CompactSummary>`.
-/// This module lets serde accept both formats transparently.
-mod compaction_compat {
-    use serde::{Deserialize, Deserializer};
-
-    use super::CompactSummary;
-
-    /// Deserialize either a single `CompactSummary` or a `Vec<CompactSummary>`.
-    ///
-    /// Old format: `"compaction": { ... }` → one-element vec.
-    /// New format: `"compaction_history": [ ... ]` → vec as-is.
-    pub fn deserialize_compaction_history<'de, D>(
-        deserializer: D,
-    ) -> Result<Vec<CompactSummary>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Compat {
-            History(Vec<CompactSummary>),
-            Single(CompactSummary),
-        }
-
-        Ok(match Compat::deserialize(deserializer)? {
-            Compat::History(v) => v,
-            Compat::Single(s) => vec![s],
-        })
-    }
-}
-
-// Compatibility helpers intentionally follow the tests to keep the public model first.
 #[allow(clippy::items_after_test_module)]
 #[cfg(test)]
 mod tests {
@@ -464,7 +460,7 @@ mod tests {
         let session = Session::new("telegram:12345");
         assert_eq!(session.key, "telegram:12345");
         assert!(session.messages.is_empty());
-        assert!(session.compaction_history.is_empty());
+        assert!(session.canonical_checkpoint.is_none());
     }
 
     #[test]
@@ -631,72 +627,52 @@ mod tests {
     }
 
     #[test]
-    fn test_session_deserialization_tolerates_unknown_fields() {
+    fn canonical_checkpoint_is_bounded_and_old_fields_are_ignored() {
+        let body = "x".repeat(CANONICAL_CHECKPOINT_MAX_CHARS + 100);
+        let checkpoint = CanonicalCheckpoint::new(
+            "checkpoint-1",
+            "2026-01-01T00:00:00Z",
+            CheckpointTrigger::Auto,
+            4,
+            4,
+            120,
+            Some(0.9),
+            Vec::new(),
+            0,
+            body,
+        );
+        assert_eq!(
+            checkpoint.body.chars().count(),
+            CANONICAL_CHECKPOINT_MAX_CHARS
+        );
+
         let json = serde_json::json!({
-            "key": "gui:compat-unknown",
+            "key": "clean-break",
             "messages": [],
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
             "metadata": {},
-            "last_consolidated": 0,
-            "last_compacted": 1,
-            "compaction_history": [{
-                "schema_version": 1,
-                "compact_id": "compact-001",
-                "created_at": "2026-01-01T00:00:00Z",
-                "trigger": "auto",
-                "source_range": { "start_index": 0, "end_index": 1 },
-                "kept_recent_count": 8,
-                "pre_compact_message_count": 1,
-                "pre_compact_estimated_tokens": 42,
-                "summary": "kept fact",
-                "future_field": "ignored"
-            }],
-            "unexpected_top_level": {
-                "schema_version": 99,
-                "note": "should be ignored"
-            }
+            "legacy_compaction_metadata": { "ignored": true },
+            "canonical_checkpoint": checkpoint,
         });
-
-        let session: Session = serde_json::from_value(json).unwrap();
-        assert_eq!(session.key, "gui:compat-unknown");
-        assert_eq!(session.compaction_history.len(), 1);
-        assert_eq!(session.compaction_history[0].summary, "kept fact");
+        let restored: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            restored.canonical_checkpoint.unwrap().durable_message_index,
+            4
+        );
     }
 
     #[test]
-    fn test_session_deserialization_tolerates_future_compaction_schema_version() {
+    fn missing_checkpoint_defaults_to_none() {
         let json = serde_json::json!({
-            "key": "gui:compat-future",
+            "key": "fresh",
             "messages": [],
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
-            "metadata": {},
-            "last_consolidated": 0,
-            "last_compacted": 4,
-            "compaction_history": [{
-                "schema_version": 7,
-                "compact_id": "compact-future",
-                "created_at": "2026-01-02T00:00:00Z",
-                "trigger": "reactive",
-                "source_range": { "start_index": 0, "end_index": 4 },
-                "kept_recent_count": 6,
-                "pre_compact_message_count": 4,
-                "pre_compact_estimated_tokens": 120,
-                "summary": "future schema summary",
-                "quality_score": 0.91,
-                "retry_count": 1
-            }]
+            "metadata": {}
         });
-
         let session: Session = serde_json::from_value(json).unwrap();
-        assert_eq!(session.last_compacted, 4);
-        assert_eq!(session.compaction_history.len(), 1);
-        assert_eq!(session.compaction_history[0].schema_version, 7);
-        assert!(matches!(
-            session.compaction_history[0].trigger,
-            CompactTrigger::Reactive
-        ));
+        assert!(session.canonical_checkpoint.is_none());
     }
 }
 

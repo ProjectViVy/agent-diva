@@ -171,6 +171,10 @@ impl AgentLoop {
                 &finalization.content,
                 finalization.usage.clone(),
             );
+            if let Some(pending) = self.pending_checkpoint_updates.remove(&session_key) {
+                session.canonical_checkpoint =
+                    Some(pending.finalize_for_durable_message_count(session.messages.len()));
+            }
         }
 
         {

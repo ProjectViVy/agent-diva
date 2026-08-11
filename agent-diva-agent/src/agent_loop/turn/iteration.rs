@@ -1,5 +1,5 @@
 use agent_diva_core::bus::{AgentEvent, InboundMessage};
-use agent_diva_core::session::{CompactTrigger, TokenUsage};
+use agent_diva_core::session::{ChatMessage, CheckpointTrigger, TokenUsage};
 use agent_diva_providers::retry::{RetryAttempt, RetryListener};
 use agent_diva_providers::{
     LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
@@ -8,12 +8,13 @@ use futures::StreamExt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use super::super::loop_turn::is_context_overflow_error;
 use super::super::AgentLoop;
 use super::context::PreparedTurnContext;
-use crate::compaction::ContextCompactor;
+use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
+use crate::context::ContextBuilder;
 use crate::context_assembly::{
     apply_core_tool_cache_anchor, measure_provider_context, AssemblyDecision,
     AssemblyDecisionReason, BudgetLayer, CacheObservationTicket, CacheObserveInput,
@@ -241,61 +242,97 @@ impl AgentLoop {
                         error
                     );
                     reactive_retry_attempted = true;
+                    let current_turn_snapshot =
+                        std::iter::once(provider_message_to_chat_message(current_turn_message))
+                            .flatten()
+                            .chain(
+                                messages[*turn_messages_start..]
+                                    .iter()
+                                    .filter_map(provider_message_to_chat_message),
+                            )
+                            .collect::<Vec<_>>();
                     let compact_result = if let Some(session) = self.sessions.get(session_key) {
-                        ContextCompactor::compact(
-                            session,
+                        CheckpointCompactor::compact_snapshot(
+                            CheckpointSnapshot::from_session(session, current_turn_snapshot),
                             &self.tool_config.budget,
                             self.provider.clone(),
                             &self.model,
-                            CompactTrigger::Reactive,
-                            &session.compaction_history,
+                            CheckpointTrigger::Reactive,
                         )
                         .await
                     } else {
                         Err(anyhow::anyhow!("Session not found for reactive compaction"))
                     };
 
-                    let (history, compaction_history) = match compact_result {
-                        Ok(result) => {
+                    let (history, canonical_checkpoint, current_turn_tail) = match compact_result {
+                        Ok(Some(pending)) => {
+                            let checkpoint = pending.checkpoint.clone();
+                            let mut active = pending.active_durable_messages.clone();
+                            let mut turn_tail = pending.active_current_turn_messages.clone();
+                            if turn_tail
+                                .first()
+                                .is_some_and(|message| message.role == "user")
+                            {
+                                turn_tail.remove(0);
+                            }
+                            let provider_tail = turn_tail
+                                .iter()
+                                .filter_map(chat_message_to_provider_message)
+                                .collect::<Vec<_>>();
+                            active.append(&mut turn_tail);
+                            self.pending_checkpoint_updates
+                                .insert(session_key.to_string(), pending);
+                            (
+                                agent_diva_core::session::align_chat_history(active),
+                                Some(checkpoint),
+                                provider_tail,
+                            )
+                        }
+                        Ok(None) => {
                             let session = self.sessions.get_or_create(session_key);
-                            session.last_compacted = result.new_compacted_index;
-                            session.compaction_history.push(result.summary);
-                            (session.get_history(50), session.compaction_history.clone())
+                            (
+                                session.get_history(50),
+                                session.canonical_checkpoint.clone(),
+                                messages[*turn_messages_start..].to_vec(),
+                            )
                         }
                         Err(error) => {
                             warn!("Reactive compaction failed (non-blocking): {}", error);
                             let session = self.sessions.get_or_create(session_key);
-                            (session.get_history(50), session.compaction_history.clone())
+                            (
+                                session.get_history(50),
+                                session.canonical_checkpoint.clone(),
+                                messages[*turn_messages_start..].to_vec(),
+                            )
                         }
                     };
-                    if let Some(session) = self.sessions.get(session_key) {
-                        if let Err(error) = self.sessions.save(session) {
-                            error!("Failed to persist reactive compaction state: {}", error);
-                        }
-                    }
 
                     let stable_prefix = messages.first().cloned().ok_or_else(|| {
                         anyhow::anyhow!("reactive compaction cannot recover a stable prefix")
                     })?;
                     let mut prefix = self.context.build_prefix_messages_for_session(
                         history,
-                        &compaction_history,
+                        canonical_checkpoint.as_ref(),
                         session_key,
                         None,
                     );
                     if let Some(first) = prefix.first_mut() {
                         *first = stable_prefix;
                     }
-                    let prepared = PreparedTurnContext::prepare_budgeted(
+                    let mut prepared = PreparedTurnContext::prepare_budgeted(
                         prefix,
                         dynamic_sections,
                         self.provider.dynamic_context_transport(),
                         current_turn_message.clone(),
                         &self.tool_config.budget,
                     )?;
+                    if !current_turn_tail.is_empty() {
+                        prepared.messages.extend(current_turn_tail);
+                        ContextBuilder::sanitize_messages_for_provider(&mut prepared.messages);
+                    }
                     *turn_messages_start = prepared.turn_messages_start;
                     *messages = prepared.messages;
-                    info!("Reactive compaction complete, retrying provider call...");
+                    info!("Reactive checkpoint rebuild complete, retrying provider call...");
                 }
                 Err(error) => {
                     self.cache_observer.abandon_call(cache_ticket);
@@ -487,6 +524,52 @@ pub(crate) struct IterationOutcome {
 impl IterationOutcome {
     pub(crate) fn resolved_content(&self) -> &str {
         self.content.as_deref().unwrap_or_default()
+    }
+}
+
+fn provider_message_to_chat_message(message: &Message) -> Option<ChatMessage> {
+    match message.role.as_str() {
+        "user" | "assistant" | "tool" => {
+            let tool_calls = message.tool_calls.as_ref().map(|calls| {
+                calls
+                    .iter()
+                    .filter_map(|call| serde_json::to_value(call).ok())
+                    .collect::<Vec<_>>()
+            });
+            Some(ChatMessage::with_tool_metadata(
+                message.role.clone(),
+                message.content.to_text_lossy(),
+                message.tool_call_id.clone(),
+                tool_calls,
+                message.name.clone(),
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn chat_message_to_provider_message(message: &ChatMessage) -> Option<Message> {
+    match message.role.as_str() {
+        "user" => Some(Message::user(&message.content)),
+        "assistant" => {
+            let mut provider = Message::assistant(&message.content);
+            if let Some(calls) = message.tool_calls.as_ref() {
+                provider.tool_calls =
+                    serde_json::from_value(serde_json::Value::Array(calls.clone())).ok();
+            }
+            provider.reasoning_content = message.reasoning_content.clone();
+            provider.thinking_blocks = message.thinking_blocks.clone();
+            Some(provider)
+        }
+        "tool" => {
+            let mut provider = Message::tool(
+                &message.content,
+                message.tool_call_id.clone().unwrap_or_default(),
+            );
+            provider.name = message.name.clone();
+            Some(provider)
+        }
+        _ => None,
     }
 }
 
