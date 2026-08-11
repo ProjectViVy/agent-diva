@@ -123,6 +123,23 @@ search-before-mount、artifact 隔离校验、Recall 顺序与 Drop 语义。保
   Recall Drop、mounted 工具重宣告和 cache 完全失效场景。
 - 执行旧符号/旧 metadata 写入/双路径 deletion-proof，更新 ADR 与运维指标说明。
 
+### C5e：DEFERRED 工具自动激活
+
+- 用户配置和 policy 只决定 Installed/Authorized；模型不修改长期授权，只管理当前任务的
+  Active 工具集合。
+- 保留 `tool_search`，搜索返回项自动进入下一次 provider call；删除模型可见
+  `mount_tool`，不再要求“搜索 → 挂载 → 执行”三步协议。
+- 将持久 `discovered`/`mounted`/revision 收敛为最多 8 个 task-local
+  `active_deferred_tools`；新搜索替换旧集合，新 turn 回收未使用项。
+- 未完成 assistant tool call 与 result 配对所需工具强制保留；provider retry 复用同一个
+  active snapshot，不重复搜索或修改状态。
+- 自动激活不等于批准执行：builtin、MCP server、mask、plan phase、read-only 和 approval
+  仍在 Authorized/Executable 边界生效，registry rebuild 必须重新过滤。
+- 采用 clean break，删除 `tool_discovery_v1`、`tool_not_discovered`、独立 mount revision
+  和兼容恢复；仅在同 turn 中断恢复确有必要时持久化有界 active names。
+- deletion-proof 和闭环测试覆盖 search → 下一次 call 直接执行、授权不可绕过、容量回收、
+  重试幂等、工具组中断恢复和旧符号消失。
+
 ## 6. 验收指标
 
 - 正确性：cache 完全禁用时，会话行为、恢复与工具配对仍一致。
@@ -138,4 +155,4 @@ search-before-mount、artifact 隔离校验、Recall 顺序与 Drop 语义。保
 - 不改变 BML/Laputa、Recall 排序算法或工具授权策略。
 - 不引入 TF-IDF、embedding、长期任务 soak 平台或新的 provider 缓存协议。
 - 不为尚未发布的 C1–C4 实验 metadata 提供跨版本迁移承诺。
-- 本文只修订技术计划；生产代码将在后续按 C5a–C5d 独立锁、独立提交实施。
+- 本文只修订技术计划；生产代码将在后续按 C5a–C5e 独立锁、独立提交实施。

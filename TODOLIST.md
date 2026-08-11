@@ -149,6 +149,15 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           检查点、活跃尾部；覆盖 cache 禁用、重启、overflow、工具调用中断、artifact
           缺失、Recall Drop 与 mounted 工具恢复；用测试和符号扫描证明旧 metadata 写入、
           旧入口、双路径、dead state 和临时 flag 已删除。
+    - [ ] **C5e / AUTO-DEFERRED-TOOL-ACTIVATION**：对齐 Codex 的自动工具管理链路，
+          保留 `tool_search`，搜索结果在运行时自动进入下一次 provider call 的有界
+          `active_deferred_tools`；删除模型可见 `mount_tool`、持久 `discovered`、独立 mount
+          revision 及 `tool_not_discovered` 协议。用户只控制 Installed/Authorized（builtin、
+          MCP server、mask、plan、approval），模型仅决定 task-local Active；自动激活不等于
+          自动批准执行。默认最多激活 8 个，新搜索替换旧集合，未完成 tool-call 组强制保留，
+          新 turn 回收未使用项；只在同 turn 中断恢复确有需要时持久化有界 active names。
+          采用 clean break，不兼容 `tool_discovery_v1` 的实验状态。验收覆盖 search → 下一次
+          call 直接执行、授权不可绕过、容量回收、重试幂等、中断配对和旧符号删除证明。
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
   - [x] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线
         **2026-08-11 用户决策：明确取消，不实施。**
