@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `LOCK.md`; `TODOLIST.md`; merge of `feat/gmh41-budget-closure` into `agent-diva-pro` (`agent-diva-agent/src/agent_loop.rs`; `agent-diva-agent/src/agent_loop/turn/`; `agent-diva-core/src/security/`; `agent-diva-migration/src/main.rs`; `.github/workflows/ci.yml`; `scripts/ci/check_laputa_clean_break.py`; `docs/logs/`)
-- Owner: `QoderCN`
-- Session/Task: `merge feat/gmh41-budget-closure (GMH-41/50/52 closure batch)`
+- Lock State: `RELEASED`
+- Scope: `NONE`
+- Owner: `NONE`
+- Session/Task: `NONE`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-11T09:28:00+08:00`
-- Last Heartbeat: `2026-08-11T09:30:00+08:00`
-- Expires At: `2026-08-11T13:28:00+08:00`
+- Started At: `N/A`
+- Last Heartbeat: `2026-08-11T09:39:00+08:00`
+- Expires At: `N/A`
 
 ## Lock Rules
 
@@ -25,17 +25,32 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `merge feat/gmh41-budget-closure (GMH-41/50/52 closure batch)` — owner
-  `QoderCN`; scope listed above; started `2026-08-11T09:28+08:00`; expires
-  `2026-08-11T13:28+08:00`.
+- None. `merge feat/gmh41-budget-closure + fix/small-fixes-batch` — owner
+  `QoderCN` — **RELEASED 2026-08-11T09:39+08:00**; merges `8c1f5b39` (GMH
+  batch) + `c05ce32a` (small-fixes) on `agent-diva-pro`, marker cleanup
+  `a1a60355`, TODOLIST bookkeeping `5245e92f`; gates green except the 6
+  pre-existing CLI wiremock 502 cases; not pushed.
 - None. `CTX-C3 tool-result artifact references and microcompact` released
   `2026-08-11T09:18+08:00`; see Handoff Notes.
 - `small-fixes-batch (gateway port config + clippy lint batch)` — owner
-  `QoderCN` — **RELEASED 2026-08-11T09:40+08:00**; 3 commits on branch
-  `fix/small-fixes-batch` in worktree `../agent-diva-small-fixes`
-  （`83b87787` / `1aba27a3` / `2ccb05e6`，未 push，待主线评审合并）.
+  `QoderCN` — **RELEASED 2026-08-11T09:40+08:00; MERGED 2026-08-11 via
+  `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-11T09:39:00+08:00`: Released after merging both parked batches
+  into `agent-diva-pro` (QoderCN, user-approved). `feat/gmh41-budget-closure`
+  merged `8c1f5b39` (only LOCK.md conflicted: kept mainline notes + branch's
+  12:00 GMH closure note superseding the 10:15 interim; stray marker cleaned
+  in `a1a60355`). `fix/small-fixes-batch` merged `c05ce32a` (clean). TODOLIST
+  bookkeeping `5245e92f`: GATEWAY-PORT-CONFIG-IGNORED and
+  PROVIDERS-EXAMPLE-1.94-CLIPPY checked, laputa `int_plus_one` closed,
+  LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY added. Gates on merged tree:
+  `just fmt-check` / `just check` green; `just test` fails only the 6
+  pre-existing `CLI-WIREMOCK-502-PREEXISTING` cases; CLI bin 16/16 including
+  the two new gateway-port tests. Not pushed. Follow-up: remove merged
+  worktrees `agent-diva-gmh41` / `agent-diva-small-fixes` (pending user OK);
+  gateway 端口人工验收仍挂人工测试汇总区。
 
 - `2026-08-11T09:18:00+08:00`: Released after CTX-C3 closure. Secure
   session-persistent tool artifacts, structured full-output execution,
