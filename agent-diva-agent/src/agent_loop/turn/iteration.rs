@@ -18,7 +18,7 @@ use crate::context::ContextBuilder;
 use crate::context_assembly::{
     apply_core_tool_cache_anchor, measure_provider_context, AssemblyDecision,
     AssemblyDecisionReason, BudgetLayer, CacheObservationTicket, CacheObserveInput,
-    ContextBudgetPlan, PromptSection, StablePrefixSnapshot,
+    ContextBudgetPlan, ContextBudgetRegion, PromptSection, StablePrefixSnapshot,
 };
 use agent_diva_tooling::ToolDefinitionSet;
 
@@ -147,6 +147,7 @@ impl AgentLoop {
                         .iter()
                         .map(|tool_call_id| AssemblyDecision {
                             id: format!("tool_result:{tool_call_id}"),
+                            region: ContextBudgetRegion::ActiveTail,
                             layer: BudgetLayer::ToolResultInline,
                             reason: AssemblyDecisionReason::Microcompact,
                         }),
@@ -304,7 +305,7 @@ impl AgentLoop {
                         Ok(None) => {
                             let session = self.sessions.get_or_create(session_key);
                             (
-                                session.get_history(50),
+                                session.get_history(usize::MAX),
                                 session.canonical_checkpoint.clone(),
                                 messages[*turn_messages_start..].to_vec(),
                             )
@@ -313,7 +314,7 @@ impl AgentLoop {
                             warn!("Reactive compaction failed (non-blocking): {}", error);
                             let session = self.sessions.get_or_create(session_key);
                             (
-                                session.get_history(50),
+                                session.get_history(usize::MAX),
                                 session.canonical_checkpoint.clone(),
                                 messages[*turn_messages_start..].to_vec(),
                             )

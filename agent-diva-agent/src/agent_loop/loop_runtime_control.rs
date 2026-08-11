@@ -206,7 +206,7 @@ impl AgentLoop {
                 .sessions
                 .get(session_key)
                 .ok_or_else(|| "session not found".to_string())?;
-            let history = session.get_history(50);
+            let history = session.get_history(usize::MAX);
             if history.is_empty() {
                 return Err("session has no messages to compact".to_string());
             }

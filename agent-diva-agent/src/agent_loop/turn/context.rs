@@ -15,9 +15,9 @@ use crate::context::ContextBuilder;
 use crate::context_assembly::{
     estimate_messages, select_dynamic_sections, serialize_dynamic_sections, AssemblyDecision,
     AssemblyDecisionReason, BudgetLayer, ContextAssemblyError, ContextAssemblyReport,
-    ContextBudgetPlan, ContextSection, PromptSection, StablePrefixSnapshot,
+    ContextBudgetPlan, ContextBudgetRegion, ContextSection, PromptSection, StablePrefixSnapshot,
 };
-use crate::context_budget::check_budget;
+use crate::context_budget::check_context_budget;
 use crate::mask::MaskFile;
 
 use super::super::loop_turn::{
@@ -260,11 +260,18 @@ impl AgentLoop {
         self.clear_session_cancellation(session_key);
         let budget_report = {
             let session = self.sessions.get_or_create(session_key);
-            check_budget(&session.get_history(usize::MAX), &self.tool_config.budget)
+            let checkpoint = session
+                .canonical_checkpoint
+                .as_ref()
+                .map(|value| value.render_for_context());
+            check_context_budget(
+                &session.get_history(usize::MAX),
+                checkpoint.as_deref(),
+                &self.tool_config.budget,
+            )
         };
-        let (mut history, mut canonical_checkpoint, did_compact, legacy_count_cap) =
-            if budget_report.should_compact {
-                info!(
+        let (mut history, mut canonical_checkpoint, did_compact) = if budget_report.should_compact {
+            info!(
                     "Compaction triggered — budget pressure {:.1}% ({} tokens used of ~{} history budget)",
                     budget_report.pressure_ratio * 100.0,
                     budget_report.history_estimated,
@@ -273,58 +280,54 @@ impl AgentLoop {
                             * self.tool_config.budget.system_budget_ratio) as usize
                     ),
                 );
-                let compact_result = if let Some(session) = self.sessions.get(session_key) {
-                    CheckpointCompactor::compact_snapshot(
-                        CheckpointSnapshot::from_session(session, Vec::new()),
-                        &self.tool_config.budget,
-                        self.provider.clone(),
-                        &self.model,
-                        CheckpointTrigger::Auto,
-                    )
-                    .await
-                } else {
-                    Err(anyhow::anyhow!("Session not found for compaction"))
-                };
-                match compact_result {
-                    Ok(Some(result)) => {
-                        let session = self.sessions.get_or_create(session_key);
-                        session.canonical_checkpoint = Some(result.checkpoint);
-                        (
-                            session.get_history(usize::MAX),
-                            session.canonical_checkpoint.clone(),
-                            true,
-                            false,
-                        )
-                    }
-                    Ok(None) => {
-                        let session = self.sessions.get_or_create(session_key);
-                        (
-                            session.get_history(usize::MAX),
-                            session.canonical_checkpoint.clone(),
-                            false,
-                            false,
-                        )
-                    }
-                    Err(error) => {
-                        warn!("Compaction failed (non-blocking): {}", error);
-                        let session = self.sessions.get_or_create(session_key);
-                        (
-                            session.get_history(50),
-                            session.canonical_checkpoint.clone(),
-                            false,
-                            true,
-                        )
-                    }
-                }
-            } else {
-                let session = self.sessions.get_or_create(session_key);
-                (
-                    session.get_history(usize::MAX),
-                    session.canonical_checkpoint.clone(),
-                    false,
-                    false,
+            let compact_result = if let Some(session) = self.sessions.get(session_key) {
+                CheckpointCompactor::compact_snapshot(
+                    CheckpointSnapshot::from_session(session, Vec::new()),
+                    &self.tool_config.budget,
+                    self.provider.clone(),
+                    &self.model,
+                    CheckpointTrigger::Auto,
                 )
+                .await
+            } else {
+                Err(anyhow::anyhow!("Session not found for compaction"))
             };
+            match compact_result {
+                Ok(Some(result)) => {
+                    let session = self.sessions.get_or_create(session_key);
+                    session.canonical_checkpoint = Some(result.checkpoint);
+                    (
+                        session.get_history(usize::MAX),
+                        session.canonical_checkpoint.clone(),
+                        true,
+                    )
+                }
+                Ok(None) => {
+                    let session = self.sessions.get_or_create(session_key);
+                    (
+                        session.get_history(usize::MAX),
+                        session.canonical_checkpoint.clone(),
+                        false,
+                    )
+                }
+                Err(error) => {
+                    warn!("Compaction failed (non-blocking): {}", error);
+                    let session = self.sessions.get_or_create(session_key);
+                    (
+                        session.get_history(usize::MAX),
+                        session.canonical_checkpoint.clone(),
+                        false,
+                    )
+                }
+            }
+        } else {
+            let session = self.sessions.get_or_create(session_key);
+            (
+                session.get_history(usize::MAX),
+                session.canonical_checkpoint.clone(),
+                false,
+            )
+        };
         if did_compact {
             if let Some(session) = self.sessions.get(session_key) {
                 if let Err(error) = self.sessions.save(session) {
@@ -474,15 +477,9 @@ impl AgentLoop {
         if did_compact {
             prepared.assembly_report.compacted.push(AssemblyDecision {
                 id: "history".to_string(),
+                region: ContextBudgetRegion::CanonicalCheckpoint,
                 layer: BudgetLayer::History,
                 reason: AssemblyDecisionReason::MacroCompaction,
-            });
-        }
-        if legacy_count_cap {
-            prepared.assembly_report.dropped.push(AssemblyDecision {
-                id: "history".to_string(),
-                layer: BudgetLayer::History,
-                reason: AssemblyDecisionReason::LegacyCountCap,
             });
         }
 

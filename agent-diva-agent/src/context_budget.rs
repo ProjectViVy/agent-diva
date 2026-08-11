@@ -126,6 +126,9 @@ pub struct BudgetReport {
     /// Estimated tokens consumed by the message history.
     pub history_estimated: usize,
 
+    /// Estimated tokens occupied by the single canonical checkpoint.
+    pub checkpoint_estimated: usize,
+
     /// Pressure ratio: `history_estimated / history_budget`.
     ///
     /// - `0.0` = empty history
@@ -159,32 +162,45 @@ pub struct BudgetReport {
 /// 3. Compute `compact_threshold = history_budget × compact_threshold_ratio`.
 /// 4. Set `should_compact = history_estimated > compact_threshold && history_estimated > 0`.
 pub fn check_budget(history: &[ChatMessage], config: &BudgetConfig) -> BudgetReport {
+    check_context_budget(history, None, config)
+}
+
+/// Check the complete compacted context, including the canonical checkpoint.
+pub fn check_context_budget(
+    history: &[ChatMessage],
+    checkpoint: Option<&str>,
+    config: &BudgetConfig,
+) -> BudgetReport {
     let history_estimated = token_estimate::estimate_total_tokens(history);
+    let checkpoint_estimated = checkpoint
+        .map(token_estimate::estimate_tokens)
+        .unwrap_or_default();
 
     let system_budget = (config.max_tokens as f64 * config.system_budget_ratio) as usize;
     let history_budget = config.max_tokens.saturating_sub(system_budget);
     let compact_threshold = (history_budget as f64 * config.compact_threshold_ratio) as usize;
 
     let system_estimated = 0;
-    let total_estimated = history_estimated;
+    let total_estimated = history_estimated.saturating_add(checkpoint_estimated);
 
     let pressure_ratio = if history_budget > 0 {
-        history_estimated as f64 / history_budget as f64
+        total_estimated as f64 / history_budget as f64
     } else {
         // Degenerate case: no history budget → always at pressure
-        if history_estimated > 0 {
+        if total_estimated > 0 {
             f64::INFINITY
         } else {
             0.0
         }
     };
 
-    let should_compact = history_estimated > compact_threshold && history_estimated > 0;
+    let should_compact = total_estimated > compact_threshold && total_estimated > 0;
 
     BudgetReport {
         total_estimated,
         system_estimated,
         history_estimated,
+        checkpoint_estimated,
         pressure_ratio,
         should_compact,
     }
@@ -221,6 +237,21 @@ mod tests {
         assert_eq!(report.pressure_ratio, 0.0);
         // A configured limit is not reported as consumed tokens.
         assert_eq!(report.system_estimated, 0);
+        assert_eq!(report.checkpoint_estimated, 0);
+    }
+
+    #[test]
+    fn canonical_checkpoint_counts_toward_the_same_context_budget() {
+        let config = BudgetConfig {
+            max_tokens: 100,
+            system_budget_ratio: 0.0,
+            compact_threshold_ratio: 0.8,
+            keep_recent_count: 10,
+        };
+        let report = check_context_budget(&[], Some(&"checkpoint ".repeat(30)), &config);
+        assert!(report.checkpoint_estimated > 0);
+        assert_eq!(report.total_estimated, report.checkpoint_estimated);
+        assert!(report.should_compact);
     }
 
     #[test]

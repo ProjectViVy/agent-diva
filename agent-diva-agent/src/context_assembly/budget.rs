@@ -10,6 +10,24 @@ use crate::token_estimate::estimate_tokens;
 
 use super::{ContextSection, PromptSection, SectionStability};
 
+/// The only three top-level regions allowed in a provider context.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ContextBudgetRegion {
+    StablePrefix,
+    CanonicalCheckpoint,
+    ActiveTail,
+}
+
+impl ContextBudgetRegion {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StablePrefix => "stable_prefix",
+            Self::CanonicalCheckpoint => "canonical_checkpoint",
+            Self::ActiveTail => "active_tail",
+        }
+    }
+}
+
 /// Independently measured context budget buckets.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum BudgetLayer {
@@ -48,7 +66,6 @@ pub enum EvictionPolicy {
     Never,
     Compact,
     Drop,
-    LegacyCountCap,
 }
 
 /// Why a fragment was omitted or reduced.
@@ -56,7 +73,6 @@ pub enum EvictionPolicy {
 pub enum AssemblyDecisionReason {
     LayerSoftLimit,
     TotalHardLimit,
-    LegacyCountCap,
     MacroCompaction,
     Microcompact,
 }
@@ -66,7 +82,6 @@ impl AssemblyDecisionReason {
         match self {
             Self::LayerSoftLimit => "layer_soft_limit",
             Self::TotalHardLimit => "total_hard_limit",
-            Self::LegacyCountCap => "legacy_count_cap",
             Self::MacroCompaction => "macro_compaction",
             Self::Microcompact => "microcompact",
         }
@@ -77,6 +92,7 @@ impl AssemblyDecisionReason {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContextFragment {
     pub id: String,
+    pub region: ContextBudgetRegion,
     pub section: ContextSection,
     pub layer: BudgetLayer,
     pub stability: SectionStability,
@@ -97,6 +113,7 @@ pub struct LayerBudget {
 pub struct ContextBudgetPlan {
     pub total_max: usize,
     pub layers: BTreeMap<BudgetLayer, LayerBudget>,
+    pub regions: BTreeMap<ContextBudgetRegion, LayerBudget>,
 }
 
 impl ContextBudgetPlan {
@@ -129,14 +146,46 @@ impl ContextBudgetPlan {
                 hard_limit: total,
             },
         );
+        let stable = ratio(total, config.system_budget_ratio);
+        let checkpoint = ratio(total, 0.10);
+        let mut regions = BTreeMap::new();
+        regions.insert(
+            ContextBudgetRegion::StablePrefix,
+            LayerBudget {
+                soft_limit: stable,
+                hard_limit: stable,
+            },
+        );
+        regions.insert(
+            ContextBudgetRegion::CanonicalCheckpoint,
+            LayerBudget {
+                soft_limit: checkpoint,
+                hard_limit: checkpoint,
+            },
+        );
+        regions.insert(
+            ContextBudgetRegion::ActiveTail,
+            LayerBudget {
+                soft_limit: total.saturating_sub(stable),
+                hard_limit: total,
+            },
+        );
         Self {
             total_max: total,
             layers,
+            regions,
         }
     }
 
     pub fn layer(&self, layer: BudgetLayer) -> LayerBudget {
         self.layers.get(&layer).copied().unwrap_or(LayerBudget {
+            soft_limit: self.total_max,
+            hard_limit: self.total_max,
+        })
+    }
+
+    pub fn region(&self, region: ContextBudgetRegion) -> LayerBudget {
+        self.regions.get(&region).copied().unwrap_or(LayerBudget {
             soft_limit: self.total_max,
             hard_limit: self.total_max,
         })
@@ -147,6 +196,7 @@ impl ContextBudgetPlan {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssemblyDecision {
     pub id: String,
+    pub region: ContextBudgetRegion,
     pub layer: BudgetLayer,
     pub reason: AssemblyDecisionReason,
 }
@@ -159,6 +209,7 @@ pub struct ContextAssemblyReport {
     pub dropped: Vec<AssemblyDecision>,
     pub compacted: Vec<AssemblyDecision>,
     pub totals_by_layer: BTreeMap<BudgetLayer, usize>,
+    pub totals_by_region: BTreeMap<ContextBudgetRegion, usize>,
     pub total_estimated: usize,
     pub total_max: usize,
 }
@@ -168,6 +219,7 @@ impl ContextAssemblyReport {
         self.selected += 1;
         self.total_estimated = self.total_estimated.saturating_add(fragment.token_estimate);
         *self.totals_by_layer.entry(fragment.layer).or_default() += fragment.token_estimate;
+        *self.totals_by_region.entry(fragment.region).or_default() += fragment.token_estimate;
     }
 
     pub fn has_pressure_action(&self) -> bool {
@@ -195,6 +247,9 @@ pub fn select_dynamic_sections(
         report
             .totals_by_layer
             .insert(BudgetLayer::History, base_tokens);
+        report
+            .totals_by_region
+            .insert(ContextBudgetRegion::ActiveTail, base_tokens);
     }
     let mut selected = Vec::with_capacity(sections.len());
     for (index, section) in sections.iter().enumerate() {
@@ -213,6 +268,7 @@ pub fn select_dynamic_sections(
         if fragment.eviction == EvictionPolicy::Drop && (exceeds_layer || exceeds_total) {
             report.dropped.push(AssemblyDecision {
                 id: fragment.id,
+                region: fragment.region,
                 layer: fragment.layer,
                 reason: if exceeds_total {
                     AssemblyDecisionReason::TotalHardLimit
@@ -251,6 +307,11 @@ pub fn measure_provider_context(
         };
         let fragment = ContextFragment {
             id: format!("message:{index}"),
+            region: if index == 0 && message.role == "system" {
+                ContextBudgetRegion::StablePrefix
+            } else {
+                ContextBudgetRegion::ActiveTail
+            },
             section: if index + 1 == messages.len() {
                 ContextSection::CurrentUser
             } else {
@@ -284,6 +345,11 @@ pub fn measure_provider_context(
         };
         let fragment = ContextFragment {
             id: format!("tool_schema:{index}"),
+            region: if index < tools.core_count {
+                ContextBudgetRegion::StablePrefix
+            } else {
+                ContextBudgetRegion::ActiveTail
+            },
             section: ContextSection::History,
             layer,
             stability: SectionStability::SessionStable,
@@ -332,6 +398,11 @@ fn fragment_for_section(index: usize, section: &PromptSection) -> ContextFragmen
     };
     ContextFragment {
         id: format!("{}:{index}", section.section.wire_name()),
+        region: match section.section {
+            ContextSection::Compaction => ContextBudgetRegion::CanonicalCheckpoint,
+            section if section.is_prefix() => ContextBudgetRegion::StablePrefix,
+            _ => ContextBudgetRegion::ActiveTail,
+        },
         section: section.section,
         layer,
         stability: section.stability,
@@ -455,6 +526,44 @@ mod tests {
             report.totals_by_layer.values().sum::<usize>(),
             report.total_estimated
         );
+        assert_eq!(
+            report.totals_by_region.values().sum::<usize>(),
+            report.total_estimated
+        );
+    }
+
+    #[test]
+    fn top_level_budget_has_only_prefix_checkpoint_and_active_tail() {
+        let plan = ContextBudgetPlan::from_config(&BudgetConfig::default());
+        assert_eq!(plan.regions.len(), 3);
+        assert_eq!(
+            plan.regions.keys().copied().collect::<Vec<_>>(),
+            vec![
+                ContextBudgetRegion::StablePrefix,
+                ContextBudgetRegion::CanonicalCheckpoint,
+                ContextBudgetRegion::ActiveTail,
+            ]
+        );
+        assert_eq!(
+            ContextBudgetRegion::CanonicalCheckpoint.as_str(),
+            "canonical_checkpoint"
+        );
+    }
+
+    #[test]
+    fn checkpoint_fragment_is_measured_as_its_own_top_level_region() {
+        let plan = ContextBudgetPlan::from_config(&BudgetConfig::default());
+        let sections = vec![
+            PromptSection::new(ContextSection::Compaction, "checkpoint body"),
+            PromptSection::new(ContextSection::WorkingMemory, "active state"),
+        ];
+        let (_, report) = select_dynamic_sections(&sections, 0, &plan);
+        assert!(report
+            .totals_by_region
+            .contains_key(&ContextBudgetRegion::CanonicalCheckpoint));
+        assert!(report
+            .totals_by_region
+            .contains_key(&ContextBudgetRegion::ActiveTail));
     }
 
     fn empty_tools() -> ToolDefinitionSet {
