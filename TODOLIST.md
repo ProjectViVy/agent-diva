@@ -548,6 +548,15 @@ standing policy（非功能债，执行相关验证时遵守）：
 > endpoint——仅执行环境需人工配合，测试本体是自动化的，不属于上方人工区块）。
 > 原始条目仍保留在各自位置（勾选时两处同步）。
 
+- [x] **G2D-AUTO-E2E：AutoDream–Laputa Manager HTTP 自动化纵向验收** `sev-P0`
+      2026-08-12 已新增独立 deterministic integration suite：
+      `agent-diva-manager/tests/autodream_laputa_e2e.rs`，6 个场景覆盖
+      evidence→run→proposal→governance→typed apply→Recall feedback→rollback、
+      rejection suppression、edit 后旧 request 撤销、apply 幂等重放、provider
+      unavailable fail-closed、prompt-injection Candidate Gate。真实桌面六场景与
+      第七旅程仍必须在 G2D+ 人工验收执行，不以本自动化替代真机。
+      日志：`docs/logs/2026-08-g2d-automated-e2e/v0.0.1-manager-http-vertical/`。
+
 ### 外部 endpoint（需真实 key，走桌面 `keys.txt`，勿入库）
 
 - [ ] **StepFun 真实 endpoint E2E**：model pass-through 透传真机验证
@@ -708,6 +717,12 @@ standing policy（非功能债，执行相关验证时遵守）：
 `docs/logs` 四件套；单 concern Conventional Commit；不擅自 push。
 
 ### Reliability / Test Debt
+
+- [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE：stale lock 回收全量测试偶发超时** `sev-P2`
+  2026-08-12 首次 `just test` 在
+  `agent-diva-laputa/tests/storage.rs::lock_recovers_stale_lock_file` 偶发
+  `LockTimeout`，随后定向重跑与 `just ci` 均通过。需隔离 Windows 临时目录锁回收的
+  时序敏感性，避免全工作区负载导致误报；关联 `agent-diva-laputa/src/lock.rs`。
 
 - [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES: full-suite startup/timeout tests are load-sensitive** `sev-P2`
   2026-08-11 CTX-C2 validation observed two non-deterministic full-suite failures:
