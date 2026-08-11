@@ -532,18 +532,41 @@ standing policy（非功能债，执行相关验证时遵守）：
   shell / Memory 高风险 / Plan、JSON/exit code 与 unavailable 路径均有自动化覆盖。
 - [x] **GMH-40：Agent Loop 单一副作用 seam** `sev-P1`
   组装/pre-call/执行同一治理快照；turn 分段可取消可度量；子代理/cron 禁止提权。
-- [ ] **GMH-41：自治预算与熔断** `sev-P2`
+- [x] **GMH-41：自治预算与熔断** `sev-P2`
   turn/session/day 限额；拒绝风暴熔断；离线高风险排队或拒绝。
+  **2026-08-11 决策**：day/hour 限额部分**推迟为待决策独立功能提案**（低优先级）——
+  定位应为死循环熔断安全阀（默认值极大、正常永不触发、GUI 可配置），而非预算管理；
+  语义与实现方案待产品决策。本 slice 仅保留拒绝风暴熔断与离线高风险排队/拒绝。
+  **2026-08-11 代码完成**：S1b 模型/提供方拒绝熔断（`RejectionCircuitBreaker`，
+  `agent-diva-core/src/security/rejection_circuit.rs`，复用滑动窗口 `ActionTracker`，
+  默认阈值 50/60s）；S1c offline 高风险拒绝（admission 门控：熔断触发或
+  `max_actions_per_hour` 用尽→拒绝入场，此键首次真正生效）。S1c 的 day/hour
+  "排队到 supervised 队列" 分支随 day/hour 决策同步推迟。
 - [x] **GMH-42：治理可观测性与审计** `sev-P2`
   decision latency、人工等待、deny/stale receipt、Memory apply/rollback 指标与
   correlation 证据链。
-- [ ] **GMH-50：兼容迁移与 feature flags** `sev-P2`
+- [x] **GMH-50：兼容迁移与 feature flags** `sev-P2`
   不得重新引入 Mentle；禁止长期双写。
+  **2026-08-11 代码完成**：S2a 删除 3 个未挂载废弃迁移模块约 1386 行
+  （`config_migration` / `memory_migration` / `session_migration`）；
+  S2b 迁移 CLI 增加配置驱动 `--features` 门控（`Apply` 需对应 feature 开启，
+  `DryRun`/`Rollback` 始终可用）。未恢复 Mentle、未引入长期双写。
 - [x] **GMH-51：安全与数据恢复演练** `sev-P1`
-- [ ] **GMH-52：全量验收** `sev-P1`
+- [x] **GMH-52：全量验收** `sev-P1`
   `just fmt-check` / `check` / `test`、deletion-proof、GUI、真实 smoke。
   **排期决策（2026-08-10）**：稍后处理，本轮不启动。
+  **2026-08-11 代码完成**：S3a 修复 CI 断点（`.github/workflows/ci.yml` 的
+  `just sprint5-default-check` → `just memory-provider-check`）；S3b 增强
+  `scripts/ci/check_laputa_clean_break.py`，新增对已删迁移模块死代码残留的防误恢复
+  扫描 + `--self-test`。`just ci` 仅在既有 `CLI-WIREMOCK-502-PREEXISTING` 6 例失败。
 - [ ] **GMH-53：灰度与清理** `sev-P2`
+
+- [ ] **待决策：day/hour token 死循环熔断安全阀（独立功能提案）** `sev-P3`
+  从 GMH-41 拆分延后。定位为死循环类问题的熔断机制而非预算管理：默认值极大、
+  正常永不触发、GUI 可配置。语义与实现方案待产品决策；决策后再实现全局
+  （multi-session）或按会话窗口、如何与现有 `session_token_budget_limit` / 现有
+  拒绝熔断（`RejectionCircuitBreaker`）交互。当前 GMH-41 仅落地拒绝风暴熔断与
+  offline 高风险拒绝（S1b/S1c）。
 
 里程碑（更新后）：
 

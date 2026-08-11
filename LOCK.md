@@ -8,9 +8,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Scope: `NONE`
 - Owner: `NONE`
 - Session/Task: `NONE`
-- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Branch/Worktree: `feat/gmh41-budget-closure / C:\Users\Administrator\Desktop\morediva\agent-diva-gmh41`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-11T10:15:00+08:00`
+- Last Heartbeat: `2026-08-11T12:00:00+08:00`
 - Expires At: `N/A`
 
 ## Lock Rules
@@ -35,15 +35,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
-- `2026-08-11T10:15:00+08:00`: Released GMH closure lock (QoderCN). S2a
-  (GMH-50 dead migration module removal) is committed as `93e9f5b6` and kept.
-  S1a (GMH-41 day/hour token budget) was implemented then **rolled back** at the
-  user's request — the global day/hour window semantics felt odd and need a
-  product decision before re-implementation. Work tree is clean. Open question
-  for the next session: whether day/hour token budgets should be global
-  (multi-session) or per-session/window-shaped, and how they interact with the
-  existing session `token_budget_limit`. GMH-41 remaining slices (rejection
-  circuit, offline queue) and GMH-52 CI fix are still pending.
+- `2026-08-11T12:00:00+08:00`: Released GMH closure lock (QoderCN,
+  `feat/gmh41-budget-closure` worktree `agent-diva-gmh41`). GMH-41/50/52 代码可完成
+  项全部落地并逐片单 concern 提交（未 push）：S2a 删迁移死代码 `93e9f5b6`；S1b
+  拒绝熔断 `321f4405`；S1c offline 拒绝 `9e772267`；S2b migration feature flags
+  `325c834d`；S3 CI+deletion-proof `77380b5f`；fmt `f388dda6`。`just ci` 仅剩既有
+  `CLI-WIREMOCK-502-PREEXISTING` 6 例失败（未触碰 agent-diva-cli）。day/hour 限额
+  已按用户决策推迟为待决策独立功能提案（见 TODOLIST.md）。
 
 - `2026-08-11T08:15:00+08:00`: Released after CTX-C2 layered context budget
   and AssemblyReport closure. Stable rules, CORE/DEFERRED schemas, L1, WM,
