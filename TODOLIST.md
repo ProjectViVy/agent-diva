@@ -128,7 +128,7 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         清理、重复 mount 幂等、compact 有界重宣告、provider retry 不重复修改 revision，
         以及 PrefetchRecall 空/失败/成功/层级超限/总预算超限矩阵。日志：
         `docs/logs/2026-08-context-management-enhancement/v0.0.9-c4-deferred-tool-discovery-recall/`。
-  - [ ] **CTX-C5：轻量上下文收敛 + 长任务压缩/恢复验收**（ADR-CTX-5） `sev-P1`
+  - [x] **CTX-C5：轻量上下文收敛 + 长任务压缩/恢复验收**（ADR-CTX-5） `sev-P1`
         2026-08-11 计划已修订，施工权威：
         [`docs/research/context-management-enhancement-2026-08/c5-lightweight-context-convergence.md`](docs/research/context-management-enhancement-2026-08/c5-lightweight-context-convergence.md)。
         从“继续扩展缓存模型”改为三段上下文（稳定前缀 + 单一规范检查点 + 活跃尾部）
@@ -151,10 +151,11 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
           保持 session/workspace 隔离及容量、TTL、校验与明确缺失语义。已完成于
           `6f1331f0`，日志：
           `docs/logs/2026-08-context-lightweight-convergence/v0.0.5-c5c-tool-result-representation/`。
-    - [ ] **C5d / BOUNDED-RECOVERY-DELETION-PROOF**：预算顶层收敛为稳定前缀、
+    - [x] **C5d / BOUNDED-RECOVERY-DELETION-PROOF**：预算顶层收敛为稳定前缀、
           检查点、活跃尾部；覆盖 cache 禁用、重启、overflow、工具调用中断、artifact
           缺失、Recall Drop 与 mounted 工具恢复；用测试和符号扫描证明旧 metadata 写入、
-          旧入口、双路径、dead state 和临时 flag 已删除。
+          旧入口、双路径、dead state 和临时 flag 已删除。已完成于 `e25a97fd`，日志：
+          `docs/logs/2026-08-context-lightweight-convergence/v0.0.7-c5d-recovery-closure/`。
     - [x] **C5e / AUTO-DEFERRED-TOOL-ACTIVATION**：对齐 Codex 的自动工具管理链路，
           保留 `tool_search`，搜索结果在运行时自动进入下一次 provider call 的有界
           `active_deferred_tools`；删除模型可见 `mount_tool`、持久 `discovered`、独立 mount
