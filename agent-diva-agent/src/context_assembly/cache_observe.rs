@@ -277,4 +277,22 @@ mod tests {
             PostCallClassification::UsageUnavailable
         );
     }
+
+    #[test]
+    fn retired_guessing_state_cannot_reenter_the_observer() {
+        let source = include_str!("cache_observe.rs");
+        let retired = [
+            ["warmup", "_pending"].concat(),
+            ["consecutive", "_misses"].concat(),
+            ["Suspected", "CacheMiss"].concat(),
+            ["last", "_tools_hash"].concat(),
+            ["per", "_tool_hashes"].concat(),
+        ];
+        for symbol in retired {
+            assert!(
+                !source.contains(&symbol),
+                "retired symbol returned: {symbol}"
+            );
+        }
+    }
 }

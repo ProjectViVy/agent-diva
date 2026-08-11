@@ -10,6 +10,8 @@
 
 use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderError, ToolChoiceMode};
 use mockito::Server;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// Helper: build a OpenAiCompatibleClient for testing with a mock server URL.
 fn test_client(mock_url: &str) -> agent_diva_providers::OpenAiCompatibleClient {
@@ -77,6 +79,48 @@ async fn test_retry_on_503_then_success() {
     );
     mock.assert_async().await;
     success_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn final_wire_snapshot_is_emitted_once_across_internal_retries() {
+    let mut server = Server::new_async().await;
+    let failures = server
+        .mock("POST", "/chat/completions")
+        .with_status(503)
+        .with_body(r#"{"error":"unavailable"}"#)
+        .expect(2)
+        .create_async()
+        .await;
+    let success = server
+        .mock("POST", "/chat/completions")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let client = test_client(&server.url());
+    let observations = Arc::new(AtomicUsize::new(0));
+    let observed = observations.clone();
+    client.set_final_wire_cache_listener(Some(Arc::new(move |_| {
+        observed.fetch_add(1, Ordering::SeqCst);
+    })));
+
+    client
+        .chat(
+            vec![Message::system("stable"), Message::user("hello")],
+            None,
+            ToolChoiceMode::Unspecified,
+            None,
+            100,
+            0.7,
+        )
+        .await
+        .expect("request should succeed after retries");
+
+    assert_eq!(observations.load(Ordering::SeqCst), 1);
+    failures.assert_async().await;
+    success.assert_async().await;
 }
 
 #[tokio::test]
