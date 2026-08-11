@@ -7,11 +7,12 @@
 
 ---
 
-- [ ] **LAPUTA-CLEAN-BREAK-BML-DOCSTRING**：`just laputa-clean-break-check` 当前命中
+- [x] **LAPUTA-CLEAN-BREAK-BML-DOCSTRING**：`just laputa-clean-break-check` 曾命中
       `agent-diva-laputa/src/bml/mod.rs:3` 的退休术语；该行已存在于当前 HEAD
       （`9758ac32`），与 C1c 差异无关，但会使 `just ci` 在完成 fmt/check/test 后最终
       返回 1。应在独立术语清理提交中改为纯 BML 描述，并重跑 clean-break gate；不要
-      放宽 `scripts/ci/check_laputa_clean_break.py`。
+      放宽 `scripts/ci/check_laputa_clean_break.py`。2026-08-11 已改为纯 BML 描述，
+      focused clean-break gate 通过。
 
 ## Active Plan
 

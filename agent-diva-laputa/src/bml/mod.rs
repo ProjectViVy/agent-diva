@@ -1,7 +1,7 @@
 //! BML (Basic Memory Layer) logical layer boundary.
 //!
-//! BML is the memory storage layer (successor of the retired "Mentle"
-//! system); its production entity is the profile-local typed SQLite + FTS5
+//! BML is the memory storage layer; its production entity is the
+//! profile-local typed SQLite + FTS5
 //! authority (`.laputa/memory.sqlite3`), the sole production Memory authority.
 //! See AGENTS.md "Memory is layered into three concepts" for the frozen
 //! BML / Laputa / Garden model (decision D3, 2026-08-08).
