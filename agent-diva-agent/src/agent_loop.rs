@@ -20,8 +20,7 @@ use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::LLMProvider;
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use agent_diva_tooling::{
-    Tool, ToolDiscoveryState, ToolDiscoveryStateHandle, ToolError, ToolRegistry,
-    ToolSchemaPartition, TOOL_DISCOVERY_SCHEMA_VERSION,
+    ActiveDeferredToolsHandle, Tool, ToolError, ToolRegistry, ToolSchemaPartition,
 };
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet};
@@ -136,8 +135,8 @@ pub struct AgentLoop {
     thinking_mode: ThinkingMode,
     active_tool_surface: ActiveToolSurface,
     cache_observer: crate::context_assembly::CacheObserveState,
-    /// Session-scoped discovery state reused by authorized registry rebuilds.
-    tool_discovery_states: HashMap<String, ToolDiscoveryStateHandle>,
+    /// Task-local deferred tool activation, reclaimed at each new turn.
+    active_deferred_tools: HashMap<String, ActiveDeferredToolsHandle>,
     /// Turn-local reactive checkpoint updates; committed only after finalize.
     pub(crate) pending_checkpoint_updates:
         HashMap<String, crate::compaction::PendingCheckpointUpdate>,
@@ -216,7 +215,7 @@ struct ToolTurnOptions<'a> {
     execution_session_id: Option<String>,
     session_key: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
-    discovery_state: Option<ToolDiscoveryStateHandle>,
+    active_deferred_tools: Option<ActiveDeferredToolsHandle>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -282,8 +281,8 @@ fn build_agent_tools(
         .with_working_memory_session(turn_options.session_key.clone())
         .with_artifact_session(turn_options.session_key);
 
-    if let Some(state) = turn_options.discovery_state {
-        assembly = assembly.with_discovery_state(state);
+    if let Some(state) = turn_options.active_deferred_tools {
+        assembly = assembly.with_active_deferred_tools(state);
     }
 
     if let Some(cron_service) = cron_service {
@@ -314,66 +313,23 @@ impl AgentLoop {
         SecurityConfig::load_budget_overrides_for_workspace(workspace)
     }
 
-    /// Load or create the in-memory discovery handle for one conversation.
-    /// Older session files simply start with an empty state.
-    fn tool_discovery_state_for_session(&mut self, session_key: &str) -> ToolDiscoveryStateHandle {
-        if let Some(state) = self.tool_discovery_states.get(session_key) {
-            return state.clone();
-        }
-
-        let restored = self
-            .sessions
-            .get_or_load(session_key)
-            .and_then(|session| session.metadata.get("tool_discovery_v1"))
-            .filter(|value| {
-                value.get("version").and_then(serde_json::Value::as_u64)
-                    == Some(u64::from(TOOL_DISCOVERY_SCHEMA_VERSION))
-            })
-            .and_then(|value| serde_json::from_value::<ToolDiscoveryState>(value.clone()).ok())
-            .unwrap_or_default();
-        let state = Arc::new(std::sync::RwLock::new(restored));
-        self.tool_discovery_states
-            .insert(session_key.to_string(), state.clone());
-        state
-    }
-
-    /// Persist only the versioned discovery metadata. This is called directly
-    /// after a search/mount revision change, so a process restart does not
-    /// lose a successful same-turn mount.
-    pub(crate) fn persist_tool_discovery_state(
+    /// Load or create the in-memory activation handle for one task turn.
+    fn active_deferred_tools_for_session(
         &mut self,
         session_key: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let Some(state) = self.tool_discovery_states.get(session_key) else {
-            return Ok(());
-        };
-        let state = state
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
-        let session_to_save = {
-            let session = self.sessions.get_or_create(session_key.to_string());
-            let metadata = session
-                .metadata
-                .as_object_mut()
-                .ok_or_else(|| anyhow::anyhow!("session metadata is not a JSON object"))?;
-            metadata.insert(
-                "tool_discovery_v1".to_string(),
-                serde_json::json!({
-                    "version": TOOL_DISCOVERY_SCHEMA_VERSION,
-                    "discovered": state.discovered,
-                    "mounted": state.mounted,
-                    "revision": state.revision,
-                }),
-            );
-            session.clone()
-        };
-        self.sessions.save(&session_to_save)?;
-        Ok(())
+    ) -> ActiveDeferredToolsHandle {
+        self.active_deferred_tools
+            .entry(session_key.to_string())
+            .or_insert_with(|| {
+                Arc::new(std::sync::RwLock::new(
+                    agent_diva_tooling::ActiveDeferredTools::default(),
+                ))
+            })
+            .clone()
     }
 
-    fn clear_tool_discovery_state(&mut self, session_key: &str) {
-        self.tool_discovery_states.remove(session_key);
+    fn clear_active_deferred_tools(&mut self, session_key: &str) {
+        self.active_deferred_tools.remove(session_key);
     }
 
     pub(crate) fn load_active_mask(&self) -> Option<MaskFile> {
@@ -405,9 +361,9 @@ impl AgentLoop {
             execution_session_id: execution_session_id.clone(),
             background_task_context: background_task_context.clone(),
         };
-        let discovery_state = session_key
+        let active_deferred_tools = session_key
             .as_deref()
-            .map(|key| self.tool_discovery_state_for_session(key));
+            .map(|key| self.active_deferred_tools_for_session(key));
         self.tools = build_agent_tools(
             self.workspace.clone(),
             &self.tool_config,
@@ -424,7 +380,7 @@ impl AgentLoop {
                 execution_session_id,
                 session_key,
                 background_task_context,
-                discovery_state,
+                active_deferred_tools,
             },
         );
     }
@@ -567,7 +523,7 @@ impl AgentLoop {
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
-            tool_discovery_states: HashMap::new(),
+            active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
         })
     }
@@ -742,7 +698,7 @@ impl AgentLoop {
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
-            tool_discovery_states: HashMap::new(),
+            active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
         };
 
@@ -833,7 +789,7 @@ impl AgentLoop {
             thinking_mode: ThinkingMode::default(),
             active_tool_surface: ActiveToolSurface::default(),
             cache_observer: crate::context_assembly::CacheObserveState::default(),
-            tool_discovery_states: HashMap::new(),
+            active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
         })
     }
@@ -929,7 +885,7 @@ impl AgentLoop {
 
         self.context.clear_session_caches();
         self.cache_observer.clear();
-        self.tool_discovery_states.clear();
+        self.active_deferred_tools.clear();
 
         Ok(())
     }
@@ -1187,13 +1143,13 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct DeferredMountProvider {
+    struct DeferredActivationProvider {
         calls: Mutex<usize>,
         tool_sets: Mutex<Vec<Vec<String>>>,
     }
 
     #[async_trait]
-    impl LLMProvider for DeferredMountProvider {
+    impl LLMProvider for DeferredActivationProvider {
         async fn chat(
             &self,
             _messages: Vec<Message>,
@@ -1253,27 +1209,19 @@ mod tests {
                 1 => LLMResponse {
                     content: None,
                     tool_calls: vec![ToolCallRequest {
-                        id: "discovery-mount".to_string(),
-                        call_type: "function".to_string(),
-                        name: "mount_tool".to_string(),
-                        arguments: HashMap::from([(
-                            "name".to_string(),
-                            serde_json::Value::String("target_tool".to_string()),
-                        )]),
-                    }],
-                    finish_reason: "tool_calls".to_string(),
-                    usage: HashMap::new(),
-                    reasoning_content: None,
-                },
-                2 => LLMResponse {
-                    content: None,
-                    tool_calls: vec![ToolCallRequest {
                         id: "discovery-target".to_string(),
                         call_type: "function".to_string(),
                         name: "target_tool".to_string(),
                         arguments: HashMap::new(),
                     }],
                     finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+                2 => LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
                     usage: HashMap::new(),
                     reasoning_content: None,
                 },
@@ -3012,9 +2960,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn deferred_tool_search_mount_applies_to_the_next_same_turn_call() {
+    async fn deferred_tool_search_auto_activates_for_the_next_same_turn_call() {
         let bus = MessageBus::new();
-        let provider = Arc::new(DeferredMountProvider::default());
+        let provider = Arc::new(DeferredActivationProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
         let target_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -3056,18 +3004,17 @@ mod tests {
         assert_eq!(target_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
 
         let tool_sets = provider.tool_sets.lock().unwrap().clone();
-        assert!(tool_sets.len() >= 4);
+        assert!(tool_sets.len() >= 3);
         assert!(!tool_sets[0].iter().any(|name| name == "target_tool"));
-        assert!(!tool_sets[1].iter().any(|name| name == "target_tool"));
-        assert!(tool_sets[2].iter().any(|name| name == "target_tool"));
+        assert!(tool_sets[1].iter().any(|name| name == "target_tool"));
 
         let session_path = workspace.join("sessions").join("gui_chat-discovery.jsonl");
         let session_text = std::fs::read_to_string(session_path).unwrap();
-        assert!(session_text.contains("tool_discovery_v1"));
+        assert!(!session_text.contains("discovered"));
         assert!(session_text.contains("target_tool"));
 
         let restored_provider = Arc::new(FailingStreamProvider);
-        let mut restored = AgentLoop::new(
+        let restored = AgentLoop::new(
             MessageBus::new(),
             restored_provider,
             workspace,
@@ -3076,12 +3023,6 @@ mod tests {
         )
         .await
         .unwrap();
-        let state = restored.tool_discovery_state_for_session("gui:chat-discovery");
-        let state = state
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone();
-        assert!(state.discovered.contains("target_tool"));
-        assert!(state.mounted.contains("target_tool"));
+        assert!(restored.active_deferred_tools.is_empty());
     }
 }

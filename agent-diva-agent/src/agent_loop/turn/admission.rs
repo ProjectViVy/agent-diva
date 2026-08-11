@@ -289,6 +289,9 @@ impl AgentLoop {
                 .map(str::to_string),
             token_budget_limit: self.session_token_budget_limit,
         };
+        // Deferred tool activation is task-local. A new user turn starts with
+        // a clean provider surface; same-turn runtime rebuilds reuse it.
+        self.clear_active_deferred_tools(&admission.session_key);
         self.rebuild_tools_for_turn(
             active_mask.as_ref(),
             snapshot.policy_phase.clone(),

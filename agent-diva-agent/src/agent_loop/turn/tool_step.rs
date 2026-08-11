@@ -206,15 +206,6 @@ impl AgentLoop {
             persisted_plan_present: planning_before.is_some(),
             reviewer_read_only: turn_snapshot.reviewer_read_only,
         };
-        let discovery_revision_before =
-            self.tool_discovery_states
-                .get(context.session_key)
-                .map(|state| {
-                    state
-                        .read()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .revision
-                });
         if !policy.may_enter_executor() {
             self.emit_error_event(
                 context.message,
@@ -269,27 +260,6 @@ impl AgentLoop {
                 )
             }
         };
-
-        if matches!(tool_call.name.as_str(), "tool_search" | "mount_tool") {
-            let discovery_revision_after =
-                self.tool_discovery_states
-                    .get(context.session_key)
-                    .map(|state| {
-                        state
-                            .read()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner())
-                            .revision
-                    });
-            if discovery_revision_after > discovery_revision_before {
-                if let Err(error) = self.persist_tool_discovery_state(context.session_key) {
-                    warn!(
-                        session_key = %context.session_key,
-                        %error,
-                        "failed to persist tool discovery state"
-                    );
-                }
-            }
-        }
 
         let canonical_result = if is_error {
             agent_diva_core::tool_artifact::CanonicalToolResult::inline(raw_result, true)

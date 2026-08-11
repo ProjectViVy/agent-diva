@@ -81,25 +81,10 @@ pub enum ToolError {
     #[error("Tool execution timed out after {secs}s")]
     Timeout { secs: u64 },
 
-    /// The model attempted to mount a deferred tool before discovering it in
-    /// the current session.
-    #[error("tool_not_discovered: tool '{name}' must be returned by tool_search before mounting")]
-    ToolNotDiscovered { name: String },
-
-    /// The model attempted to call a discovered deferred tool before mounting
-    /// it into the provider-facing tool set.
-    #[error("tool_not_mounted: tool '{name}' must be mounted before execution")]
-    ToolNotMounted { name: String },
-
-    /// A session mount intent survived, but the currently authorized source
-    /// no longer provides the tool.
+    /// The requested deferred tool is not active or the authorized source no
+    /// longer provides it.
     #[error("tool_unavailable: tool '{name}' is no longer available")]
     ToolUnavailable { name: String },
-
-    /// The requested name is not a mountable deferred tool in the current
-    /// authorized catalog.
-    #[error("tool_mount_forbidden: tool '{name}' cannot be mounted in the current tool surface")]
-    ToolMountForbidden { name: String },
 }
 
 pub type Result<T> = std::result::Result<T, ToolError>;
@@ -114,11 +99,7 @@ impl agent_diva_core::error_category::CategorizeError for ToolError {
             Self::InvalidParams(_) | Self::InvalidArguments(_) => {
                 agent_diva_core::error_category::ErrorCategory::Config
             }
-            Self::Error(_)
-            | Self::ToolNotDiscovered { .. }
-            | Self::ToolNotMounted { .. }
-            | Self::ToolUnavailable { .. }
-            | Self::ToolMountForbidden { .. } => {
+            Self::Error(_) | Self::ToolUnavailable { .. } => {
                 agent_diva_core::error_category::ErrorCategory::Unknown
             }
         }
@@ -129,10 +110,7 @@ impl ToolError {
     /// Return the stable machine-readable error code for this tool error.
     pub fn code(&self) -> &'static str {
         match self {
-            Self::ToolNotDiscovered { .. } => "tool_not_discovered",
-            Self::ToolNotMounted { .. } => "tool_not_mounted",
             Self::ToolUnavailable { .. } => "tool_unavailable",
-            Self::ToolMountForbidden { .. } => "tool_mount_forbidden",
             Self::InvalidParams(_) => "invalid_params",
             Self::InvalidArguments(_) => "invalid_arguments",
             Self::ExecutionFailed(_) => "execution_failed",

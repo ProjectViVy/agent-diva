@@ -50,7 +50,7 @@ pub use read_tool_result::ReadToolResultTool;
 pub use sanitize::sanitize_for_json;
 pub use shell::ExecTool;
 pub use spawn::SpawnTool;
-pub use tool_discovery::{MountTool, ToolSearchTool};
+pub use tool_discovery::ToolSearchTool;
 pub use update_plan::UpdatePlanTool;
 pub use update_working_checkpoint::UpdateWorkingCheckpointTool;
 pub use web::{WebFetchTool, WebSearchTool};
