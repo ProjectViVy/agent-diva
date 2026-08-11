@@ -328,8 +328,7 @@ fn seed_session_at(workspace: &std::path::Path, key: &str, content: &str, timest
         "metadata": {},
         "title": null,
         "last_consolidated": null,
-        "last_compacted": 0,
-        "compaction_history": [],
+        "canonical_checkpoint": null,
     })
     .to_string()
         + "\n"
