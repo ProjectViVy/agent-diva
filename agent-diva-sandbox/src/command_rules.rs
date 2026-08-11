@@ -101,6 +101,11 @@ impl CommandRuleStore {
         self.rules.read().clone()
     }
 
+    /// The path this store persists to.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn allows(&self, command: &str) -> bool {
         let Ok(tokens) = shell_words::split(command) else {
             return false;

@@ -128,8 +128,17 @@ impl ExecTool {
                 rules.clone(),
             ));
             let guardian = GuardianManager::new(guardian_config, reviewer);
-            let exec_policy =
-                rules.map(|store| Arc::new(ExecPolicyManager::from_command_rule_store(&store)));
+            let exec_policy = rules.map(|store| {
+                let guardian_path = store
+                    .path()
+                    .parent()
+                    .map(|dir| dir.join("execpolicy-guardian.toml"))
+                    .unwrap_or_else(|| PathBuf::from("execpolicy-guardian.toml"));
+                Arc::new(
+                    ExecPolicyManager::from_command_rule_store(&store)
+                        .with_rules_path(guardian_path),
+                )
+            });
             self.orchestrator = Some(Arc::new(
                 ToolOrchestrator::new(manager, approval_policy)
                     .with_guardian_and_exec_policy(Arc::new(guardian), exec_policy),

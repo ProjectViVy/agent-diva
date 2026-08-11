@@ -458,14 +458,27 @@ impl ToolOrchestrator {
                         guardian.record_approval(key, ReviewDecision::ApprovedForSession);
                     }
 
-                    // Create Allow rule if configured
+                    // Create Allow rule if configured (trusted auto-learning)
                     if create_rule {
-                        if let Some(_policy) = &self.exec_policy {
-                            let _amendment = crate::exec_policy::ExecPolicyAmendment::new(
+                        if let Some(policy) = &self.exec_policy {
+                            let amendment = crate::exec_policy::ExecPolicyAmendment::new(
                                 command_parts.to_vec(),
                             );
-                            // Note: This would need mutable access, skip for now
-                            debug!("Would create Allow rule for: {}", command_parts.join(" "));
+                            match policy.append_amendment_shared(&amendment) {
+                                Ok(()) => {
+                                    info!(
+                                        "Guardian auto-learned Allow rule for: {}",
+                                        command_parts.join(" ")
+                                    );
+                                }
+                                Err(err) => {
+                                    debug!(
+                                        "Guardian did not learn rule for {}: {}",
+                                        command_parts.join(" "),
+                                        err
+                                    );
+                                }
+                            }
                         }
                     }
 
