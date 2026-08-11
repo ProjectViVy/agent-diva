@@ -136,9 +136,10 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         clean break：禁止旧新 metadata 双写/双读、兼容 fallback、影子执行器、长期
         feature flag 和无 artifact 静默截断；每个切片都必须删除被替代垃圾代码并提供
         deletion-proof。保留 C1–C4 的行为契约，不保留重复状态实现。
-    - [ ] **C5a / FINAL-WIRE-PREFIX**：在 provider shaping 后计算唯一稳定前缀指纹；
-          adapter 提供 cache namespace，真实 provider usage 判定命中；删除推测式
-          hit/miss、旧 bucket/pending 和混合 CORE/DEFERRED 完整工具 hash 判断。
+    - [x] **C5a / FINAL-WIRE-PREFIX**：Provider 在最终请求塑形后上报稳定 system 与
+          CORE 工具前缀指纹；adapter 保留 cache namespace/raw model，真实 provider
+          usage 仅按原始计数记录。已删除推测式 hit/miss、warmup/连续 miss 状态和混合
+          CORE/DEFERRED 完整工具 hash 判断（`73dff1bc`、`a8747e86`）。
     - [ ] **C5b / CANONICAL-CHECKPOINT**：一个 session 只注入一个有界
           `canonical_checkpoint`；主动/reactive compact 统一消费当前内存快照；完成工具链
           机械折叠、未决调用结果成组保留；删除多摘要注入和双压缩执行路径。
