@@ -37,7 +37,6 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Handoff Notes
 
-<<<<<<< HEAD
 - `2026-08-11T09:18:00+08:00`: Released after CTX-C3 closure. Secure
   session-persistent tool artifacts, structured full-output execution,
   versioned references, bound `read_tool_result`, main/supervised wiring,
