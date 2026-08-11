@@ -423,6 +423,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "async-trait",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",

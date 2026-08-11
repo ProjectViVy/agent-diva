@@ -6,4 +6,8 @@ mod registry;
 
 pub use base::{Result, Tool, ToolError};
 pub use module::{Bootstrap, BootstrapError, Module, ModuleCtx, ModuleRegistry};
-pub use registry::{ToolDefinitionSet, ToolExecutionOutput, ToolRegistry, ToolSchemaPartition};
+pub use registry::{
+    ToolDefinitionSet, ToolDiscoveryHandle, ToolDiscoveryState, ToolDiscoveryStateHandle,
+    ToolExecutionOutput, ToolRegistry, ToolSchemaPartition, ToolSearchResult,
+    TOOL_DISCOVERY_SCHEMA_VERSION,
+};

@@ -6,9 +6,11 @@ use agent_diva_core::error_context::{find_problematic_chars, ErrorContext};
 use agent_diva_core::security::{
     sanitize_tool_output, truncate_tool_result, MAX_TOOL_RESULT_CHARS,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::time::{Duration, Instant};
 use tracing::{error, warn};
 
@@ -37,6 +39,319 @@ pub enum ToolSchemaPartition {
 pub struct ToolDefinitionSet {
     pub definitions: Vec<Value>,
     pub core_count: usize,
+}
+
+/// Version of the session metadata payload used to restore discovery state.
+pub const TOOL_DISCOVERY_SCHEMA_VERSION: u32 = 1;
+
+/// Session-scoped discovery and mount state.
+///
+/// The sets are ordered so persistence, search results, and definition
+/// rebuilds remain deterministic. The revision changes only when a new name
+/// is discovered or mounted; rebuilding an authorized catalog never changes
+/// it.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ToolDiscoveryState {
+    #[serde(default)]
+    pub discovered: BTreeSet<String>,
+    #[serde(default)]
+    pub mounted: BTreeSet<String>,
+    #[serde(default)]
+    pub revision: u64,
+}
+
+impl ToolDiscoveryState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Shared handle used by all registry instances for one session or task.
+pub type ToolDiscoveryStateHandle = Arc<RwLock<ToolDiscoveryState>>;
+
+/// A deterministic result returned by `tool_search`.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ToolSearchResult {
+    pub name: String,
+    pub description: String,
+    pub score: u32,
+    pub mounted: bool,
+}
+
+#[derive(Clone)]
+pub struct ToolDiscoveryHandle {
+    state: ToolDiscoveryStateHandle,
+    catalog: Arc<RwLock<BTreeMap<String, CatalogEntry>>>,
+}
+
+#[derive(Clone)]
+struct CatalogEntry {
+    description: String,
+    schema_keywords: String,
+}
+
+impl ToolDiscoveryHandle {
+    /// Create an empty authorized catalog around a shared state handle.
+    pub fn new(state: ToolDiscoveryStateHandle) -> Self {
+        Self {
+            state,
+            catalog: Arc::new(RwLock::new(BTreeMap::new())),
+        }
+    }
+
+    /// Create a fresh task/session state handle.
+    pub fn new_state() -> ToolDiscoveryStateHandle {
+        Arc::new(RwLock::new(ToolDiscoveryState::default()))
+    }
+
+    /// Return the state handle so a runtime can persist or inspect it.
+    pub fn state(&self) -> ToolDiscoveryStateHandle {
+        Arc::clone(&self.state)
+    }
+
+    /// Return a lock-independent snapshot suitable for persistence.
+    pub fn snapshot(&self) -> ToolDiscoveryState {
+        self.state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Replace session state during restart recovery.
+    pub fn restore(&self, state: ToolDiscoveryState) {
+        *self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = state;
+    }
+
+    /// Return the current revision without exposing the lock.
+    pub fn revision(&self) -> u64 {
+        self.state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .revision
+    }
+
+    /// Search the currently authorized deferred catalog and record returned
+    /// names as discovered in this session.
+    pub fn search(&self, query: &str, limit: usize) -> Vec<ToolSearchResult> {
+        let query = query.trim();
+        let query_lower = query.to_lowercase();
+        let query_tokens = keyword_tokens(query);
+        let entries = self
+            .catalog
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let state = self.snapshot();
+
+        let mut results = entries
+            .into_iter()
+            .map(|(name, entry)| {
+                let score = score_catalog_entry(
+                    &name,
+                    &entry.description,
+                    &entry.schema_keywords,
+                    &query_lower,
+                    &query_tokens,
+                );
+                ToolSearchResult {
+                    mounted: state.mounted.contains(&name),
+                    name,
+                    description: entry.description,
+                    score,
+                }
+            })
+            .filter(|result| query_lower.is_empty() || result.score > 0)
+            .collect::<Vec<_>>();
+        results.sort_by(|left, right| {
+            right
+                .score
+                .cmp(&left.score)
+                .then_with(|| left.name.cmp(&right.name))
+        });
+        results.truncate(limit.clamp(1, 20));
+
+        if !results.is_empty() {
+            let mut state = self
+                .state
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut changed = false;
+            for result in &results {
+                changed |= state.discovered.insert(result.name.clone());
+            }
+            if changed {
+                state.revision = state.revision.saturating_add(1);
+            }
+        }
+        results
+    }
+
+    /// Mount a discovered, currently authorized deferred tool.
+    pub fn mount(&self, name: &str) -> crate::Result<bool> {
+        let name = name.trim();
+        let catalog = self
+            .catalog
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !catalog.contains_key(name) {
+            let state = self.snapshot();
+            if state.mounted.contains(name) || state.discovered.contains(name) {
+                return Err(ToolError::ToolUnavailable {
+                    name: name.to_string(),
+                });
+            }
+            return Err(ToolError::ToolMountForbidden {
+                name: name.to_string(),
+            });
+        }
+
+        let mut state = self
+            .state
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !state.discovered.contains(name) {
+            return Err(ToolError::ToolNotDiscovered {
+                name: name.to_string(),
+            });
+        }
+        if !state.mounted.insert(name.to_string()) {
+            return Ok(false);
+        }
+        state.revision = state.revision.saturating_add(1);
+        Ok(true)
+    }
+
+    fn set_catalog_entry(&self, name: String, tool: &dyn Tool) {
+        self.catalog
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(
+                name,
+                CatalogEntry {
+                    description: tool.description().to_string(),
+                    schema_keywords: schema_keywords(&tool.parameters()),
+                },
+            );
+    }
+
+    fn remove_catalog_entry(&self, name: &str) {
+        self.catalog
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(name);
+    }
+
+    fn is_mounted(&self, name: &str) -> bool {
+        self.state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .mounted
+            .contains(name)
+    }
+
+    fn is_discovered(&self, name: &str) -> bool {
+        self.state
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .discovered
+            .contains(name)
+    }
+}
+
+fn keyword_tokens(value: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    for character in value.chars() {
+        if character.is_alphanumeric() {
+            current.extend(character.to_lowercase());
+        } else if !current.is_empty() {
+            tokens.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens.sort();
+    tokens.dedup();
+    tokens
+}
+
+fn schema_keywords(schema: &Value) -> String {
+    fn visit(value: &Value, output: &mut Vec<String>) {
+        match value {
+            Value::Object(object) => {
+                for (key, value) in object {
+                    output.extend(keyword_tokens(key));
+                    visit(value, output);
+                }
+            }
+            Value::Array(values) => {
+                for value in values {
+                    visit(value, output);
+                }
+            }
+            Value::String(string) => output.extend(keyword_tokens(string)),
+            _ => {}
+        }
+    }
+
+    let mut keywords = Vec::new();
+    visit(schema, &mut keywords);
+    keywords.sort();
+    keywords.dedup();
+    keywords.join(" ")
+}
+
+fn score_catalog_entry(
+    name: &str,
+    description: &str,
+    schema: &str,
+    query_lower: &str,
+    query_tokens: &[String],
+) -> u32 {
+    if query_lower.is_empty() {
+        return 0;
+    }
+
+    let name_lower = name.to_lowercase();
+    let name_tokens = keyword_tokens(name);
+    let description_tokens = keyword_tokens(description);
+    let schema_tokens = keyword_tokens(schema);
+    if name_lower == query_lower {
+        return 600;
+    }
+    if name_lower.starts_with(query_lower) {
+        return 500;
+    }
+    if name_lower.contains(query_lower) {
+        return 400;
+    }
+
+    let name_hits = query_tokens
+        .iter()
+        .filter(|token| name_tokens.binary_search(token).is_ok())
+        .count();
+    if name_hits > 0 {
+        return 300 + name_hits.min(99) as u32;
+    }
+    let description_hits = query_tokens
+        .iter()
+        .filter(|token| description_tokens.binary_search(token).is_ok())
+        .count();
+    if description_hits > 0 {
+        return 200 + description_hits.min(99) as u32;
+    }
+    let schema_hits = query_tokens
+        .iter()
+        .filter(|token| schema_tokens.binary_search(token).is_ok())
+        .count();
+    if schema_hits > 0 {
+        return 100 + schema_hits.min(99) as u32;
+    }
+    0
 }
 
 impl ToolDefinitionSet {
@@ -78,6 +393,7 @@ struct RegisteredTool {
 pub struct ToolRegistry {
     tools: HashMap<String, RegisteredTool>,
     global_timeout_secs: u64,
+    discovery: ToolDiscoveryHandle,
 }
 
 impl ToolRegistry {
@@ -86,6 +402,7 @@ impl ToolRegistry {
         Self {
             tools: HashMap::new(),
             global_timeout_secs: 120,
+            discovery: ToolDiscoveryHandle::new(ToolDiscoveryHandle::new_state()),
         }
     }
 
@@ -94,7 +411,89 @@ impl ToolRegistry {
         Self {
             tools: HashMap::new(),
             global_timeout_secs,
+            discovery: ToolDiscoveryHandle::new(ToolDiscoveryHandle::new_state()),
         }
+    }
+
+    /// Create a registry that reuses one session/task discovery state.
+    pub fn with_discovery_state(global_timeout_secs: u64, state: ToolDiscoveryStateHandle) -> Self {
+        Self {
+            tools: HashMap::new(),
+            global_timeout_secs,
+            discovery: ToolDiscoveryHandle::new(state),
+        }
+    }
+
+    /// Return the shared discovery handle used by discovery tools.
+    pub fn discovery_handle(&self) -> ToolDiscoveryHandle {
+        self.discovery.clone()
+    }
+
+    /// Return the current session/task discovery snapshot.
+    pub fn discovery_state_snapshot(&self) -> ToolDiscoveryState {
+        self.discovery.snapshot()
+    }
+
+    /// Alias for callers that use the shorter state terminology.
+    pub fn discovery_state(&self) -> ToolDiscoveryState {
+        self.discovery_state_snapshot()
+    }
+
+    /// Restore a persisted discovery snapshot.
+    pub fn restore_discovery_state(&self, state: ToolDiscoveryState) {
+        self.discovery.restore(state);
+    }
+
+    /// Restore a previously captured session/task snapshot.
+    pub fn restore_discovery_snapshot(&self, state: ToolDiscoveryState) {
+        self.restore_discovery_state(state);
+    }
+
+    /// Search the authorized deferred catalog.
+    pub fn search_deferred(&self, query: &str, limit: usize) -> Vec<ToolSearchResult> {
+        self.discovery.search(query, limit)
+    }
+
+    /// Search alias for the authorized deferred catalog.
+    pub fn search_catalog(&self, query: &str, limit: usize) -> Vec<ToolSearchResult> {
+        self.search_deferred(query, limit)
+    }
+
+    /// Mount a discovered deferred tool; repeated mounts are idempotent.
+    pub fn mount_tool(&self, name: &str) -> crate::Result<bool> {
+        self.discovery.mount(name)
+    }
+
+    /// Mount alias for a discovered deferred tool.
+    pub fn mount_deferred(&self, name: &str) -> crate::Result<bool> {
+        self.mount_tool(name)
+    }
+
+    /// Return currently mounted deferred names that are still authorized in
+    /// this registry rebuild.
+    pub fn mounted_deferred_names(&self) -> Vec<String> {
+        let mut names = self
+            .tools
+            .iter()
+            .filter(|(_, registered)| registered.schema_partition == ToolSchemaPartition::Deferred)
+            .filter(|(name, _)| self.discovery.is_mounted(name))
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    /// Return deferred tool handles so an agent rebuilt for a turn can retain
+    /// programmatically supplied custom tools while reapplying authorization.
+    pub fn deferred_tools(&self) -> Vec<Arc<dyn Tool>> {
+        let mut tools = self
+            .tools
+            .iter()
+            .filter(|(_, registered)| registered.schema_partition == ToolSchemaPartition::Deferred)
+            .map(|(name, registered)| (name.clone(), Arc::clone(&registered.tool)))
+            .collect::<Vec<_>>();
+        tools.sort_by(|left, right| left.0.cmp(&right.0));
+        tools.into_iter().map(|(_, tool)| tool).collect()
     }
 
     /// Register a tool.
@@ -109,6 +508,11 @@ impl ToolRegistry {
         schema_partition: ToolSchemaPartition,
     ) {
         let name = tool.name().to_string();
+        self.discovery.remove_catalog_entry(&name);
+        if schema_partition == ToolSchemaPartition::Deferred {
+            self.discovery
+                .set_catalog_entry(name.clone(), tool.as_ref());
+        }
         self.tools.insert(
             name,
             RegisteredTool {
@@ -121,6 +525,7 @@ impl ToolRegistry {
     /// Unregister a tool by name.
     pub fn unregister(&mut self, name: &str) {
         self.tools.remove(name);
+        self.discovery.remove_catalog_entry(name);
     }
 
     /// Get a tool by name.
@@ -144,8 +549,13 @@ impl ToolRegistry {
     pub fn get_definition_set(&self) -> ToolDefinitionSet {
         let mut tools = self.tools.iter().collect::<Vec<_>>();
         tools.sort_by(|(left_name, left), (right_name, right)| {
-            left.schema_partition
-                .cmp(&right.schema_partition)
+            let left_visible = left.schema_partition == ToolSchemaPartition::Core
+                || self.discovery.is_mounted(left_name);
+            let right_visible = right.schema_partition == ToolSchemaPartition::Core
+                || self.discovery.is_mounted(right_name);
+            right_visible
+                .cmp(&left_visible)
+                .then_with(|| left.schema_partition.cmp(&right.schema_partition))
                 .then_with(|| left_name.cmp(right_name))
         });
 
@@ -155,6 +565,10 @@ impl ToolRegistry {
             .count();
         let definitions = tools
             .into_iter()
+            .filter(|(name, registered)| {
+                registered.schema_partition == ToolSchemaPartition::Core
+                    || self.discovery.is_mounted(name)
+            })
             .map(|(_, registered)| canonicalize_json(registered.tool.to_schema()))
             .collect();
         ToolDefinitionSet {
@@ -187,6 +601,17 @@ impl ToolRegistry {
         let tool = match self.tools.get(name) {
             Some(registered) => &registered.tool,
             None => {
+                if self.discovery.is_mounted(name) || self.discovery.is_discovered(name) {
+                    audit::emit(AuditEvent::ToolExecuted {
+                        tool_name: name.to_string(),
+                        duration_ms: 0,
+                        result_size: 0,
+                        status: "unavailable".to_string(),
+                    });
+                    return Err(ToolError::ToolUnavailable {
+                        name: name.to_string(),
+                    });
+                }
                 audit::emit(AuditEvent::ToolExecuted {
                     tool_name: name.to_string(),
                     duration_ms: 0,
@@ -200,6 +625,23 @@ impl ToolRegistry {
                 return Err(ToolError::Error(format!("Tool '{}' not found", name)));
             }
         };
+
+        if self
+            .tools
+            .get(name)
+            .is_some_and(|registered| registered.schema_partition == ToolSchemaPartition::Deferred)
+            && !self.discovery.is_mounted(name)
+        {
+            audit::emit(AuditEvent::ToolExecuted {
+                tool_name: name.to_string(),
+                duration_ms: 0,
+                result_size: 0,
+                status: "not_mounted".to_string(),
+            });
+            return Err(ToolError::ToolNotMounted {
+                name: name.to_string(),
+            });
+        }
 
         let errors = tool.validate_params(&params);
         if !errors.is_empty() {
@@ -312,7 +754,9 @@ impl ToolRegistry {
 
     /// Get list of registered tool names.
     pub fn tool_names(&self) -> Vec<String> {
-        self.tools.keys().cloned().collect()
+        let mut names = self.tools.keys().cloned().collect::<Vec<_>>();
+        names.sort();
+        names
     }
 
     /// Get number of registered tools.
@@ -500,6 +944,9 @@ mod tests {
 
         let mut first = ToolRegistry::new();
         register_fixture(&mut first, false);
+        first.search_deferred("", 20);
+        first.mount_tool("alpha_deferred").unwrap();
+        first.mount_tool("zeta_deferred").unwrap();
         let first_definitions = first.get_definitions();
         assert_eq!(first.get_definition_set().core_count, 2);
         let first_names = first_definitions
@@ -520,6 +967,9 @@ mod tests {
 
         let mut second = ToolRegistry::new();
         register_fixture(&mut second, true);
+        second.search_deferred("", 20);
+        second.mount_tool("alpha_deferred").unwrap();
+        second.mount_tool("zeta_deferred").unwrap();
         assert_eq!(
             first_bytes,
             serde_json::to_vec(&second.get_definitions()).unwrap()
@@ -542,6 +992,8 @@ mod tests {
             ToolSchemaPartition::Deferred,
         );
 
+        registry.search_deferred("gamma", 8);
+        registry.mount_tool("gamma").unwrap();
         let mut set = registry.get_definition_set();
         set.retain(|definition| definition["function"]["name"] != "alpha");
         assert_eq!(set.core_count, 1);
@@ -573,6 +1025,115 @@ mod tests {
         registry.unregister("mock");
         assert_eq!(registry.len(), 0);
         assert!(!registry.has("mock"));
+    }
+
+    #[tokio::test]
+    async fn deferred_execution_errors_are_stable_and_source_removal_is_unavailable() {
+        let mut registry = ToolRegistry::new();
+        registry.register_in_partition(
+            Arc::new(NamedSchemaTool {
+                name: "deferred_fixture",
+            }),
+            ToolSchemaPartition::Deferred,
+        );
+
+        assert!(matches!(
+            registry
+                .execute("deferred_fixture", serde_json::json!({}))
+                .await,
+            Err(ToolError::ToolNotMounted { .. })
+        ));
+        assert!(matches!(
+            registry.mount_tool("deferred_fixture"),
+            Err(ToolError::ToolNotDiscovered { .. })
+        ));
+        registry.search_deferred("fixture", 8);
+        registry.mount_tool("deferred_fixture").unwrap();
+        assert_eq!(
+            registry
+                .execute("deferred_fixture", serde_json::json!({}))
+                .await
+                .unwrap(),
+            "ok"
+        );
+
+        registry.unregister("deferred_fixture");
+        assert!(matches!(
+            registry
+                .execute("deferred_fixture", serde_json::json!({}))
+                .await,
+            Err(ToolError::ToolUnavailable { .. })
+        ));
+        assert!(matches!(
+            registry
+                .execute("unknown_fixture", serde_json::json!({}))
+                .await,
+            Err(ToolError::Error(_))
+        ));
+    }
+
+    #[test]
+    fn discovery_search_is_case_insensitive_bounded_and_deterministic() {
+        let mut registry = ToolRegistry::new();
+        for name in ["calendar_lookup", "calendar_create", "weather_read"] {
+            registry.register_in_partition(
+                Arc::new(NamedSchemaTool { name }),
+                ToolSchemaPartition::Deferred,
+            );
+        }
+
+        let first = registry.search_deferred("CALENDAR", 1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].score, 500);
+        assert_eq!(first[0].name, "calendar_create");
+        assert!(first[0].description.contains("schema"));
+        assert!(registry
+            .discovery_state_snapshot()
+            .discovered
+            .contains("calendar_create"));
+
+        let second = registry.search_deferred("does-not-exist", 20);
+        assert!(second.is_empty());
+        let empty = registry.search_deferred("", 20);
+        assert_eq!(
+            empty
+                .iter()
+                .map(|result| result.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["calendar_create", "calendar_lookup", "weather_read"]
+        );
+    }
+
+    #[test]
+    fn discovery_state_is_isolated_and_restorable_across_rebuilds() {
+        let state = ToolDiscoveryHandle::new_state();
+        let mut first = ToolRegistry::with_discovery_state(120, state.clone());
+        first.register_in_partition(
+            Arc::new(NamedSchemaTool {
+                name: "persisted_tool",
+            }),
+            ToolSchemaPartition::Deferred,
+        );
+        first.search_deferred("persisted", 8);
+        first.mount_tool("persisted_tool").unwrap();
+
+        let mut rebuilt = ToolRegistry::with_discovery_state(120, state);
+        rebuilt.register_in_partition(
+            Arc::new(NamedSchemaTool {
+                name: "persisted_tool",
+            }),
+            ToolSchemaPartition::Deferred,
+        );
+        assert!(rebuilt
+            .get_definitions()
+            .iter()
+            .any(|definition| definition["function"]["name"] == "persisted_tool"));
+
+        let isolated = ToolRegistry::new();
+        assert!(!isolated
+            .discovery_state_snapshot()
+            .mounted
+            .contains("persisted_tool"));
     }
 
     #[tokio::test]
