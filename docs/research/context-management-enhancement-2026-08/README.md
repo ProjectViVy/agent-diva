@@ -37,8 +37,8 @@ Prompt Cache 专章 §4.4、§5：
 7. Cache 观测必须记录 provider/model/policy 与连续趋势；预期 break、策略变化和
    无结构变化的异常 miss 分级处理，禁止仅凭一次 `cache_read` 下降告警。
 
-**当前进度：** C1-0、C1a/P0-1、C1b/P0-3、C1c/P0-2、C1d/P0-4..5 与
-CTX-C2 均已完成。stable system
+**当前进度：** C1-0、C1a/P0-1、C1b/P0-3、C1c/P0-2、C1d/P0-4..5、
+CTX-C2 与 CTX-C4 均已完成。stable system
 已移除 Current Time/session/WM/Recall/Plan 等动态内容；工具定义固定为 CORE
 字典序连续前缀 + MCP/custom DEFERRED 字典序后缀；四个稳定 section 现在按 session
 快照缓存，mask/L1 只刷新目标 section，并携带版本化 break reason；生产请求记录

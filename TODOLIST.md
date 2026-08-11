@@ -120,7 +120,14 @@ Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械
         前声明 expected deletion。重启恢复、TTL/容量/损坏/越权/session 删除均由
         artifact store 管理；不进入 BML/Laputa 或 Experience Journal 正文。日志：
         `docs/logs/2026-08-ctx-c3-tool-artifacts/v0.0.9-tool-result-artifacts/`。
-  - [ ] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
+  - [x] **CTX-C4：CORE/DEFERRED 工具 + tool_search + Recall 测试矩阵**（ADR-CTX-4）
+        （2026-08-11）：新增 session 级 `tool_discovery_v1` 状态、关键词 MVP
+        `tool_search`/`mount_tool` CORE 工具和同回合下一次 provider call 挂载；MCP/custom
+        DEFERRED 默认隐藏，授权重建重新经过 mask、Assist、plan phase、builtin gate，源下线
+        返回稳定 `tool_unavailable`。覆盖 session 隔离、JSONL 恢复、reset/delete/shutdown
+        清理、重复 mount 幂等、compact 有界重宣告、provider retry 不重复修改 revision，
+        以及 PrefetchRecall 空/失败/成功/层级超限/总预算超限矩阵。日志：
+        `docs/logs/2026-08-context-management-enhancement/v0.0.9-c4-deferred-tool-discovery-recall/`。
   - [ ] **CTX-C5：长任务压缩/恢复验收用例**（ADR-CTX-5）
   - [ ] **（分轨）Plan Mode 物理限制状态机** — 非 Context 主线
   - [x] **（分轨）Subagent Git Worktree 隔离** — 非 Context 主线

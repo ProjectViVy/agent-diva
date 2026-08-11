@@ -391,6 +391,24 @@ mod tests {
     }
 
     #[test]
+    fn recall_is_dropped_when_the_total_budget_is_already_exhausted() {
+        let plan = ContextBudgetPlan::from_config(&BudgetConfig {
+            max_tokens: 100,
+            ..BudgetConfig::default()
+        });
+        let sections = vec![PromptSection::new(ContextSection::PrefetchRecall, "recall")];
+        let (selected, report) = select_dynamic_sections(&sections, 100, &plan);
+        assert!(selected.is_empty());
+        assert_eq!(report.dropped.len(), 1);
+        assert_eq!(report.dropped[0].layer, BudgetLayer::PrefetchRecall);
+        assert_eq!(
+            report.dropped[0].reason,
+            AssemblyDecisionReason::TotalHardLimit
+        );
+        assert_eq!(report.total_estimated, 100);
+    }
+
+    #[test]
     fn current_user_and_stable_prefix_are_measured_not_dropped() {
         let plan = ContextBudgetPlan::from_config(&BudgetConfig {
             max_tokens: 1,
