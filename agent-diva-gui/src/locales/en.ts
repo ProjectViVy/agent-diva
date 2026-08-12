@@ -395,6 +395,7 @@ export default {
       highRiskBanner: 'High-risk proposals must be reviewed with evidence visible before approval.',
       missingEvidence: 'Missing evidence is explicitly blocked for high-risk approval.',
       highRiskMissingEvidence: 'High-risk proposals cannot be approved without evidence.',
+      governanceUnavailable: 'Governance status is unavailable. Refresh before approving this proposal.',
       unavailable: 'This action is currently unavailable.',
       rollbackUnavailable: 'Rollback is unavailable for this proposal.',
       rollbackRequiresApplied: 'Rollback requires an applied changelog record.',
@@ -1459,6 +1460,7 @@ export default {
       currentEffective: 'Current authority active',
       nextSessionEffective: 'Effective next session',
       cognitiveBoundary: 'MEMRULES and WORLD are read-only cognitive governance boundaries in this workspace.',
+      proposalPending: 'A proposal is awaiting governance review. The editor still shows the effective authority; proposed content is not active yet.',
     },
     lifecycle: {
       title: 'Effect lifecycle',
@@ -1467,6 +1469,7 @@ export default {
       session: 'Session snapshot',
       audit: 'Audit and rollback',
       none: 'No proposal',
+      governanceUnavailable: 'Governance status is unavailable. Refresh to recover it before approving or rejecting this proposal.',
       effective: 'Active in this session',
       'next-session': 'Authority changed; starts next session',
       'not-captured': 'No session snapshot',

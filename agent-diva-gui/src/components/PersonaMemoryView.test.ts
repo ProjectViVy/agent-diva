@@ -8,7 +8,6 @@ import en from '../locales/en';
 vi.mock('../api/desktop', async () => ({
   ...await vi.importActual<typeof desktop>('../api/desktop'),
   getLaputaPersonaWorkspace: vi.fn(),
-  listLaputaProposals: vi.fn(),
   writeLaputaSection: vi.fn(),
   isTauriRuntime: vi.fn(() => true),
 }));
@@ -34,7 +33,6 @@ describe('PersonaMemoryView lifecycle workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue(projection);
-    (desktop.listLaputaProposals as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
   it('loads the aggregate projection for the active session', async () => {
@@ -55,12 +53,47 @@ describe('PersonaMemoryView lifecycle workspace', () => {
   });
 
   it('renders a real pending proposal in the lifecycle rail', async () => {
-    (desktop.listLaputaProposals as ReturnType<typeof vi.fn>).mockResolvedValue([{
-      id: 'proposal-1', target_section: 'identity', state: 'pending_review', updated_at: '2026-08-09T09:00:00Z',
-      governance: { request_id: 'request-1', request_version: 1 },
-    }]);
+    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...projection,
+      proposals: [{
+        id: 'proposal-1', target_section: 'identity', state: 'pending_review', updated_at: '2026-08-09T09:00:00Z',
+        governance: { request_id: 'request-1', request_version: 1 },
+      }],
+    });
     const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
     await flushPromises();
     expect(wrapper.find('.lifecycle-rail').text()).toContain('pending_review');
+    expect(wrapper.find('.proposal-pending-note').text()).toContain('not active yet');
+  });
+
+  it('renders null authority as an editable empty JSON object', async () => {
+    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...projection,
+      snapshot: {
+        ...projection.snapshot,
+        sections: {
+          ...projection.snapshot.sections,
+          identity: { ...section('identity', ''), status: 'tbd', content: null },
+        },
+      },
+    });
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
+    await flushPromises();
+    expect(wrapper.find('textarea').element.value).toBe('{}');
+  });
+
+  it('shows a structured error message and preserves the last successful workspace', async () => {
+    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(projection)
+      .mockRejectedValueOnce({ message: 'governance ledger unavailable', status: 503 });
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
+    await flushPromises();
+
+    await wrapper.find('.workspace-header button').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.workspace-error').text()).toContain('governance ledger unavailable');
+    expect(wrapper.find('.workspace-error').text()).not.toContain('[object Object]');
+    expect(wrapper.find('textarea').element.value).toContain('Diva');
   });
 });

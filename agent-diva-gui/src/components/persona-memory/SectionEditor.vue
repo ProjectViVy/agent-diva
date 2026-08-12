@@ -17,11 +17,13 @@ const props = withDefaults(
     initialContent: string;
     status?: 'owned' | 'tbd';
     lastUpdated?: string;
+    pendingProposal?: boolean;
   }>(),
   {
     modelValue: '',
     status: 'tbd',
     lastUpdated: undefined,
+    pendingProposal: false,
   },
 );
 
@@ -220,6 +222,10 @@ function onKeyDown(event: KeyboardEvent): void {
     <div v-if="saveError" class="section-editor-save-error" role="alert">
       <span>{{ t('laputa.saveFailed', { message: saveError }) }}</span>
     </div>
+
+    <p v-if="pendingProposal" class="proposal-pending-note" role="status">
+      {{ t('laputa.workspace.proposalPending') }}
+    </p>
 
     <div class="section-editor-reason">
       <label :for="`laputa-reason-${sectionName}`">{{ t('laputa.changeReason') }}</label>
@@ -445,6 +451,16 @@ function onKeyDown(event: KeyboardEvent): void {
   background: var(--danger-bg);
   color: var(--danger);
   font-size: 13px;
+}
+
+.proposal-pending-note {
+  margin: 12px 16px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .section-editor-reason {

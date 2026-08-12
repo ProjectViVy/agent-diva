@@ -8,7 +8,6 @@ import PersonaLifecyclePanel from './persona-memory/PersonaLifecyclePanel.vue';
 import {
   getLaputaPersonaWorkspace,
   isTauriRuntime,
-  listLaputaProposals,
 } from '../api/desktop';
 import type {
   ChangelogRecord,
@@ -19,6 +18,7 @@ import type {
 } from '../api/desktop';
 import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
+import { errorMessage } from '../utils/errorMessage';
 
 const props = defineProps<{ sessionKey?: string }>();
 const emit = defineEmits<{ (event: 'proposal-created', proposalId: string): void }>();
@@ -83,15 +83,12 @@ async function load() {
       governedProposals.value = [];
       return;
     }
-    const [projection, proposals] = await Promise.all([
-      getLaputaPersonaWorkspace(props.sessionKey),
-      listLaputaProposals(),
-    ]);
+    const projection = await getLaputaPersonaWorkspace(props.sessionKey);
     workspace.value = projection;
-    governedProposals.value = proposals;
+    governedProposals.value = projection.proposals;
     syncEditor();
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause);
+    error.value = errorMessage(cause, t('laputa.loadError'));
     showAppToast(error.value, 'error');
   } finally {
     loading.value = false;
@@ -131,12 +128,12 @@ onMounted(load);
     </div>
 
     <div v-if="error" class="workspace-error" role="alert">{{ error }} <button @click="load">{{ t('laputa.retry') }}</button></div>
-    <div v-else class="workspace-grid">
+    <div v-if="loading && !workspace" class="loading"><Loader2 :size="22" class="spin" />{{ t('laputa.loading') }}</div>
+    <div v-if="workspace" class="workspace-grid">
       <SectionGroupList :snapshot="snapshot" :selected-section="selectedSection" @select="selectSection" />
 
       <main class="workspace-main">
-        <div v-if="loading && !workspace" class="loading"><Loader2 :size="22" class="spin" />{{ t('laputa.loading') }}</div>
-        <section v-else-if="isCognitive" class="cognitive-panel">
+        <section v-if="isCognitive" class="cognitive-panel">
           <header><ScrollText :size="16" />{{ t(`laputa.sections.${selectedSection}`) }}<span>{{ t('laputa.cognitiveReadOnly') }}</span></header>
           <pre>{{ cognitiveContent }}</pre>
         </section>
@@ -149,6 +146,7 @@ onMounted(load);
           :initial-content="originalContent"
           :status="section?.status === 'owned' ? 'owned' : 'tbd'"
           :last-updated="section?.last_modified"
+          :pending-proposal="Boolean(selectedProposal && !['applied', 'rejected'].includes(selectedProposal.state))"
           @proposal-created="onProposalCreated"
           @save-failed="(_name, message) => showAppToast(message, 'error')"
           @update:dirty="(value) => isDirty = value"

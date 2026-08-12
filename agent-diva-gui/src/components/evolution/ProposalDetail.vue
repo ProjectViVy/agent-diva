@@ -193,7 +193,7 @@ const safetyChecks = computed(() => {
     <GovernanceActionBar
       :proposal="proposal"
       :busy-action="busyAction"
-      :disable-approval="missingEvidence && (proposal.risk_level === 'high' || proposal.risk_level === 'critical')"
+      :disable-approval="!proposal.governance || (missingEvidence && (proposal.risk_level === 'high' || proposal.risk_level === 'critical'))"
       :disable-rollback="!rollbackEligible"
       :missing-evidence="missingEvidence"
       :rollback-reason="rollbackReason"

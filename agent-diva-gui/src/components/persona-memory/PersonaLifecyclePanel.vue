@@ -12,6 +12,7 @@ import {
 import type { ChangelogRecord, EvolutionProposal, LaputaSectionName } from '../../api/desktop';
 import { appConfirm } from '../../utils/appDialog';
 import { showAppToast } from '../../utils/appToast';
+import { errorMessage } from '../../utils/errorMessage';
 
 const props = defineProps<{
   sectionName: LaputaSectionName;
@@ -38,7 +39,7 @@ async function run(name: string, action: () => Promise<unknown>) {
     await action();
     emit('changed');
   } catch (error) {
-    showAppToast(error instanceof Error ? error.message : String(error), 'error');
+    showAppToast(errorMessage(error, t('laputa.loadError')), 'error');
   } finally {
     busy.value = '';
   }
@@ -136,11 +137,12 @@ async function rollback() {
     </ol>
 
     <div v-if="proposal && !['applied', 'rejected'].includes(proposal.state)" class="lifecycle-actions">
-      <button :disabled="Boolean(busy)" @click="approveAndApply"><Loader2 v-if="busy === 'apply'" :size="13" class="spin" /><Check v-else :size="13" />{{ t('evolution.actions.approveApply') }}</button>
-      <button :disabled="Boolean(busy)" @click="decide('allow')">{{ t('evolution.actions.approveOnly') }}</button>
+      <p v-if="!proposal.governance" class="governance-unavailable" role="status">{{ t('laputa.lifecycle.governanceUnavailable') }}</p>
+      <button :disabled="Boolean(busy) || !proposal.governance" @click="approveAndApply"><Loader2 v-if="busy === 'apply'" :size="13" class="spin" /><Check v-else :size="13" />{{ t('evolution.actions.approveApply') }}</button>
+      <button :disabled="Boolean(busy) || !proposal.governance" @click="decide('allow')">{{ t('evolution.actions.approveOnly') }}</button>
       <button :disabled="Boolean(busy)" @click="deferProposal">{{ t('evolution.actions.defer') }}</button>
       <button :disabled="Boolean(busy)" @click="beginEdit">{{ t('evolution.actions.edit') }}</button>
-      <button class="danger" :disabled="Boolean(busy)" @click="decide('deny')"><X :size="13" />{{ t('evolution.actions.reject') }}</button>
+      <button class="danger" :disabled="Boolean(busy) || !proposal.governance" @click="decide('deny')"><X :size="13" />{{ t('evolution.actions.reject') }}</button>
     </div>
     <div v-if="editing" class="proposal-edit">
       <textarea v-model="editedPatch" :aria-label="t('evolution.actions.edit')" />
@@ -165,6 +167,7 @@ header div { display: flex; align-items: center; gap: 6px; color: var(--text); f
 .lifecycle-rail b { color: var(--text); font-size: 12px; }
 .lifecycle-rail small { margin-top: 3px; font-size: 11px; overflow-wrap: anywhere; }
 .lifecycle-actions { display: grid; gap: 7px; }
+.governance-unavailable { margin: 0; padding: 8px; border: 1px solid var(--warning); border-radius: var(--radius-sm); color: var(--warning); font-size: 11px; line-height: 1.45; }
 .proposal-edit { display: grid; gap: 7px; margin-top: 10px; }
 .proposal-edit textarea { min-height: 140px; resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); color: var(--text); padding: 8px; font-family: ui-monospace, monospace; font-size: 11px; }
 .proposal-edit div { display: flex; justify-content: flex-end; gap: 6px; }

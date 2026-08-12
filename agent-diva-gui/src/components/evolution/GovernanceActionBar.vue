@@ -35,6 +35,9 @@ const approveHint = computed(() => {
   ) {
     return t('evolution.actions.highRiskMissingEvidence');
   }
+  if (!props.proposal.governance) {
+    return t('evolution.actions.governanceUnavailable');
+  }
   if (props.disableApproval) {
     return t('evolution.actions.unavailable');
   }
@@ -58,6 +61,10 @@ const rollbackHint = computed(() => {
     <div v-if="missingEvidence" class="governance-warning-banner">
       <AlertTriangle :size="16" />
       <span>{{ t('evolution.actions.missingEvidence') }}</span>
+    </div>
+    <div v-if="!proposal.governance" class="governance-warning-banner" role="status">
+      <AlertTriangle :size="16" />
+      <span>{{ t('evolution.actions.governanceUnavailable') }}</span>
     </div>
 
     <div class="governance-grid">

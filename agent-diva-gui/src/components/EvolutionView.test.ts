@@ -265,6 +265,41 @@ describe('EvolutionView governance detail', () => {
     expect(notice.text()).toContain('evolution.stageNotice.desc');
   });
 
+  it('keeps proposals visible when an auxiliary event feed fails', async () => {
+    vi.mocked(pollLaputaEvents).mockImplementation(async (kind) => {
+      if (kind === 'errors') throw { message: 'event feed unavailable', status: 503 };
+      return [];
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').exists()).toBe(true);
+    expect(wrapper.find('.evolution-error').text()).toContain('event feed unavailable');
+    expect(wrapper.find('.evolution-error').text()).not.toContain('[object Object]');
+  });
+
+  it('preserves the last proposal list when a refresh fails', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    vi.mocked(listLaputaProposals).mockRejectedValue({ message: 'proposal refresh failed' });
+
+    await wrapper.find('.evolution-header .evolution-refresh').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="proposal-row-proposal-1"]').exists()).toBe(true);
+    expect(wrapper.find('.evolution-error').text()).toContain('proposal refresh failed');
+  });
+
+  it('disables approval when the authoritative governance projection is unavailable', async () => {
+    vi.mocked(listLaputaProposals).mockResolvedValue([{ ...baseProposal, governance: null }]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('evolution.actions.governanceUnavailable');
+    expect(wrapper.find('.governance-btn--primary').attributes('disabled')).toBeDefined();
+  });
+
   it('shows typed workspace status and triggers a manual run', async () => {
     const wrapper = mountView();
     await flushPromises();

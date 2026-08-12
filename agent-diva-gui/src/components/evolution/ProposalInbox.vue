@@ -130,13 +130,17 @@ const selectedActionProposals = computed(() =>
 const canApproveSelection = computed(
   () =>
     selectedActionProposals.value.length > 0 &&
-    selectedActionProposals.value.every((proposal) => approveStates.has(proposal.state)),
+    selectedActionProposals.value.every(
+      (proposal) => approveStates.has(proposal.state) && Boolean(proposal.governance),
+    ),
 );
 
 const canRejectSelection = computed(
   () =>
     selectedActionProposals.value.length > 0 &&
-    selectedActionProposals.value.every((proposal) => rejectStates.has(proposal.state)),
+    selectedActionProposals.value.every(
+      (proposal) => rejectStates.has(proposal.state) && Boolean(proposal.governance),
+    ),
 );
 
 const canDeferSelection = computed(

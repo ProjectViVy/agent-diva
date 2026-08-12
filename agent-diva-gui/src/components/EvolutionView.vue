@@ -45,6 +45,7 @@ import ProposalDetail from './evolution/ProposalDetail.vue';
 import ProposalInbox from './evolution/ProposalInbox.vue';
 import { appConfirm } from '../utils/appDialog';
 import { showAppToast } from '../utils/appToast';
+import { errorMessage } from '../utils/errorMessage';
 
 type EvolutionTab = 'inbox' | 'runs' | 'audit' | 'policy';
 type CountTone = 'none' | 'accent' | 'warning' | 'danger';
@@ -95,6 +96,7 @@ const selectedChangelog = ref<ChangelogRecord | null>(null);
 const detailLoading = ref(false);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
+const auxiliaryError = ref<string | null>(null);
 const detailError = ref<string | null>(null);
 const actionError = ref<string | null>(null);
 const busyAction = ref<string | null>(null);
@@ -248,10 +250,7 @@ function emitCount() {
 }
 
 function normalizeError(error: unknown) {
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return error instanceof Error ? error.message : String(error);
+  return errorMessage(error, t('evolution.errorTitle'));
 }
 
 function idempotencyKey(action: string, proposal: EvolutionProposal) {
@@ -376,7 +375,6 @@ async function loadAudit() {
     const page = await listLaputaChangelog(1, 25);
     auditRecords.value = page.items;
   } catch (error) {
-    auditRecords.value = [];
     auditError.value = normalizeError(error);
   } finally {
     auditLoading.value = false;
@@ -390,9 +388,7 @@ async function loadRuns() {
     runs.value = await listAutoDreamRunRecords();
     runsLoaded.value = true;
   } catch (error) {
-    runs.value = [];
     runsError.value = normalizeError(error);
-    runsLoaded.value = false;
   } finally {
     runsLoading.value = false;
   }
@@ -406,18 +402,22 @@ function formatRunTimestamp(value?: string | null) {
 
 async function loadWorkspaceStatus() {
   workspaceError.value = null;
-  try {
-    const [health, feedback] = await Promise.all([
-      getEvolutionHealth(),
-      listRecallFeedback(50),
-    ]);
-    evolutionHealth.value = health;
-    recallFeedback.value = feedback;
-  } catch (error) {
-    evolutionHealth.value = null;
-    recallFeedback.value = [];
-    workspaceError.value = normalizeError(error);
+  const [health, feedback] = await Promise.allSettled([
+    getEvolutionHealth(),
+    listRecallFeedback(50),
+  ]);
+  const failures: string[] = [];
+  if (health.status === 'fulfilled') {
+    evolutionHealth.value = health.value;
+  } else {
+    failures.push(normalizeError(health.reason));
   }
+  if (feedback.status === 'fulfilled') {
+    recallFeedback.value = feedback.value;
+  } else {
+    failures.push(normalizeError(feedback.reason));
+  }
+  workspaceError.value = failures.length > 0 ? failures.join(' · ') : null;
 }
 
 async function handleTriggerRun() {
@@ -498,9 +498,7 @@ async function loadPolicy() {
     policyConfig.value = await getSelfEvolutionConfig();
     policyLoaded.value = true;
   } catch (error) {
-    policyConfig.value = null;
     policyError.value = normalizeError(error);
-    policyLoaded.value = false;
   } finally {
     policyLoading.value = false;
   }
@@ -551,19 +549,11 @@ async function loadDetail(id: string) {
 async function refresh() {
   loading.value = true;
   loadError.value = null;
+  auxiliaryError.value = null;
 
   try {
-    const [proposalList, proposalEventList, changelogEventList, errorEventList] =
-      await Promise.all([
-        listLaputaProposals(),
-        pollLaputaEvents('proposals'),
-        pollLaputaEvents('changelog'),
-        pollLaputaEvents('errors'),
-      ]);
+    const proposalList = await listLaputaProposals();
     proposals.value = proposalList;
-    proposalEvents.value = proposalEventList;
-    changelogEvents.value = changelogEventList;
-    errorEvents.value = errorEventList;
 
     const candidateList = activeSourceRunId.value
       ? proposalList.filter((proposal) => proposal.source_run_id === activeSourceRunId.value)
@@ -584,14 +574,27 @@ async function refresh() {
     }
   } catch (error) {
     loadError.value = normalizeError(error);
-    proposals.value = [];
-    proposalEvents.value = [];
-    changelogEvents.value = [];
-    errorEvents.value = [];
   } finally {
     loading.value = false;
     emitCount();
   }
+
+  const eventResults = await Promise.allSettled([
+    pollLaputaEvents('proposals'),
+    pollLaputaEvents('changelog'),
+    pollLaputaEvents('errors'),
+  ]);
+  const eventTargets = [proposalEvents, changelogEvents, errorEvents] as const;
+  const eventFailures: string[] = [];
+  eventResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      eventTargets[index].value = result.value;
+    } else {
+      eventFailures.push(normalizeError(result.reason));
+    }
+  });
+  auxiliaryError.value = eventFailures.length > 0 ? eventFailures.join(' · ') : null;
+  emitCount();
 
   await Promise.all([loadWorkspaceStatus(), loadRuns()]);
   if (activeTab.value !== 'inbox') {
@@ -903,11 +906,11 @@ onBeforeUnmount(stopRunMonitor);
       </button>
     </div>
 
-    <div v-if="loadError" class="evolution-error" role="status">
+    <div v-if="loadError || auxiliaryError" class="evolution-error" role="status">
       <AlertTriangle :size="17" />
       <div>
         <strong>{{ t('evolution.errorTitle') }}</strong>
-        <p>{{ loadError }}</p>
+        <p>{{ loadError || auxiliaryError }}</p>
       </div>
     </div>
 
@@ -922,8 +925,8 @@ onBeforeUnmount(stopRunMonitor);
         <ProposalInbox
           :proposals="visibleProposals"
           :selected-proposal-id="selectedProposalId"
-          :loading="loading"
-          :load-error="loadError"
+          :loading="loading && proposals.length === 0"
+          :load-error="proposals.length === 0 ? loadError : null"
           :read-ids="readProposalIds"
           :deferred-ids="deferredProposalIds"
           :busy-action="busyAction"

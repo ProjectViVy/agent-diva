@@ -395,6 +395,7 @@ export default {
       highRiskBanner: '高风险提案必须在证据可见的情况下审查后才能批准。',
       missingEvidence: '高风险提案在缺少证据时会被明确阻断。',
       highRiskMissingEvidence: '高风险提案缺少证据时不能批准。',
+      governanceUnavailable: '治理状态暂不可用。请刷新恢复后再批准此提案。',
       unavailable: '该动作当前不可用。',
       rollbackUnavailable: '该提案当前不可回滚。',
       rollbackRequiresApplied: '只有已应用并产生 changelog 的提案才可回滚。',
@@ -1402,6 +1403,7 @@ export default {
       currentEffective: '已使用当前权威',
       nextSessionEffective: '新会话生效',
       cognitiveBoundary: 'MEMRULES 与 WORLD 属于认知治理边界，仅用于核验，不在此工作台写入。',
+      proposalPending: '变更提案正在等待治理审核。编辑器仍显示当前生效内容，提案内容尚未生效。',
     },
     lifecycle: {
       title: '生效链路',
@@ -1410,6 +1412,7 @@ export default {
       session: '会话快照',
       audit: '审计与回滚',
       none: '暂无提案',
+      governanceUnavailable: '治理状态暂不可用。请刷新恢复后再批准或拒绝此提案。',
       effective: '当前会话已生效',
       'next-session': '权威已更新，新会话生效',
       'not-captured': '尚无会话快照',
