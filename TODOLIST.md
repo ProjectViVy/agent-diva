@@ -25,6 +25,16 @@
   或恢复承担误操作保护。聊天页统一 Approval Center 仅保留危险工具执行等运行时授权。
   与 Evolution 重置共享依赖盘点，但代码删除和验证使用独立切片与提交。
 
+- [ ] **PERSONA-MARKDOWN-CLEAN-BREAK：人格 Markdown 权威与工作区重构** `sev-P0`
+  将 Identity、Relationship、Commitment、Preferences 的权威正文、版本、Diff、历史、
+  回滚、Frozen Core 快照和 Prompt 投影全部改为 Markdown 字符串。GUI 重构为人格导航、
+  极简代码编辑器、人类预览和文本 Diff；用户手动编辑直接保存并产生审计，不创建二次
+  审批 Proposal。删除 Persona 内 Governance/批准/拒绝/apply，以及人格 `.json`、JSON
+  patch、JSON format/parse、旧 SOUL/IDENTITY/USER 映射、迁移、双读写和 fallback。
+  实施前建立删除前保护性分支，不自动导入旧用户数据。HTTP/Tauri 可继续用结构化信封，
+  但人格正文和用户界面不得再出现 JSON。决策：
+  [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)。
+
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
