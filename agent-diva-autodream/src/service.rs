@@ -20,8 +20,9 @@ use crate::{
     atomic::atomic_write_json,
     metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
-    AutoDreamMonthlyReportGenerator, AutoDreamRhythmReportGenerator, AutoDreamStorage,
-    AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker, ReflectionEngine, Result,
+    AutoDreamMonthlyReportGenerator, AutoDreamProposalGovernance, AutoDreamRhythmReportGenerator,
+    AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker,
+    ReflectionEngine, Result,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -89,6 +90,7 @@ pub struct AutoDreamService {
     stale_lock_after: Duration,
     narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
+    proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     llm_curation: LlmCurationConfig,
 }
 
@@ -118,6 +120,7 @@ impl AutoDreamService {
             stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
             narrative_generator: None,
             reflection_engine: None,
+            proposal_governance: None,
             llm_curation: LlmCurationConfig::default(),
         }
     }
@@ -140,6 +143,14 @@ impl AutoDreamService {
 
     pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
         self.reflection_engine = engine;
+        self
+    }
+
+    pub fn with_proposal_governance(
+        mut self,
+        governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
+    ) -> Self {
+        self.proposal_governance = governance;
         self
     }
 
@@ -356,7 +367,8 @@ impl AutoDreamService {
             agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
         )
-        .with_reflection_engine(self.reflection_engine.clone());
+        .with_reflection_engine(self.reflection_engine.clone())
+        .with_proposal_governance(self.proposal_governance.clone());
         worker.execute(run_id).await.inspect_err(|_| {
             Self::metrics().record_failure();
         })

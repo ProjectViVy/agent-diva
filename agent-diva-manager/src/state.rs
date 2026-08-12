@@ -1,5 +1,5 @@
 use agent_diva_agent::AgentEvent;
-use agent_diva_autodream::AutoDreamService;
+use agent_diva_autodream::{AutoDreamProposalGovernance, AutoDreamService};
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, SelfEvolutionConfig, WebFetchConfig,
@@ -83,6 +83,27 @@ pub struct AppState {
     /// Internal AgentLoop control channel for workspace-scoped authority
     /// projection refreshes. It is absent in isolated handler fixtures.
     pub runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+}
+
+#[derive(Clone)]
+struct AutoDreamGovernanceRegistrar {
+    coordinator: MemoryGovernanceCoordinator,
+}
+
+#[async_trait::async_trait]
+impl AutoDreamProposalGovernance for AutoDreamGovernanceRegistrar {
+    async fn register_proposals(
+        &self,
+        proposals: &[agent_diva_core::evolution::EvolutionProposal],
+    ) -> Result<(), String> {
+        for proposal in proposals {
+            self.coordinator
+                .submit(proposal, None, chrono::Utc::now())
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
 }
 
 impl AppState {
@@ -219,17 +240,6 @@ impl AppState {
         std::fs::create_dir_all(&audit_root)?;
         let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
             || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
-        let autodream =
-            match crate::runtime::open_autodream_with_report_curation(workspace_root.clone()) {
-                Ok(service) => service,
-                Err(error) => {
-                    tracing::warn!(
-                        error = %error,
-                        "failed to configure AutoDream providers; reflection remains unavailable"
-                    );
-                    AutoDreamService::open(workspace_root.clone())?
-                }
-            };
         let laputa = LaputaService::open(workspace_root.clone())?;
         let workspace_id =
             agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
@@ -241,6 +251,20 @@ impl AppState {
             )?,
             None => MemoryGovernanceCoordinator::open_lazy(&workspace_root, workspace_id)?,
         };
+        let autodream =
+            match crate::runtime::open_autodream_with_report_curation(workspace_root.clone()) {
+                Ok(service) => service,
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        "failed to configure AutoDream providers; reflection remains unavailable"
+                    );
+                    AutoDreamService::open(workspace_root.clone())?
+                }
+            }
+            .with_proposal_governance(Some(Arc::new(AutoDreamGovernanceRegistrar {
+                coordinator: memory_governance.clone(),
+            })));
         let state = Self {
             api_tx,
             bus,

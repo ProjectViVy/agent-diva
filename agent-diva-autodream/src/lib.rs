@@ -45,7 +45,7 @@ pub use service::{
     AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
 };
 pub use worker::{
-    AutoDreamReflectionStage, AutoDreamReflectionStageRecord, AutoDreamRestrictedAction,
-    AutoDreamRestrictedProfile, AutoDreamWorker, AutoDreamWorkerConfig, AutoDreamWorkerOutcome,
-    AutoDreamWorkerReport, AutoDreamWorkerStageStatus,
+    AutoDreamProposalGovernance, AutoDreamReflectionStage, AutoDreamReflectionStageRecord,
+    AutoDreamRestrictedAction, AutoDreamRestrictedProfile, AutoDreamWorker, AutoDreamWorkerConfig,
+    AutoDreamWorkerOutcome, AutoDreamWorkerReport, AutoDreamWorkerStageStatus,
 };

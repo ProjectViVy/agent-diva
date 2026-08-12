@@ -8,7 +8,7 @@ use std::{
 
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
-    MemoryCandidate, RiskLevel,
+    EvolutionProposal, MemoryCandidate, RiskLevel,
 };
 use agent_diva_core::experience::ExperienceJournal;
 use agent_diva_laputa::LaputaService;
@@ -142,6 +142,14 @@ pub struct AutoDreamWorkerConfig {
     pub profile: AutoDreamRestrictedProfile,
 }
 
+#[async_trait::async_trait]
+pub trait AutoDreamProposalGovernance: Send + Sync {
+    async fn register_proposals(
+        &self,
+        proposals: &[EvolutionProposal],
+    ) -> std::result::Result<(), String>;
+}
+
 impl Default for AutoDreamWorkerConfig {
     fn default() -> Self {
         Self {
@@ -157,6 +165,7 @@ pub struct AutoDreamWorker {
     laputa: LaputaService,
     config: AutoDreamWorkerConfig,
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
+    proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
 }
 
 impl AutoDreamWorker {
@@ -166,6 +175,7 @@ impl AutoDreamWorker {
             laputa,
             config: AutoDreamWorkerConfig::default(),
             reflection_engine: None,
+            proposal_governance: None,
         }
     }
 
@@ -176,6 +186,14 @@ impl AutoDreamWorker {
 
     pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
         self.reflection_engine = engine;
+        self
+    }
+
+    pub fn with_proposal_governance(
+        mut self,
+        governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
+    ) -> Self {
+        self.proposal_governance = governance;
         self
     }
 
@@ -246,6 +264,7 @@ impl AutoDreamWorker {
                 AutoDreamReflectionStage::Propose => {
                     self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
                     self.propose(run_id, collected.as_ref(), candidates.as_ref())
+                        .await
                 }
             };
 
@@ -446,7 +465,7 @@ impl AutoDreamWorker {
         Ok(gated.accepted)
     }
 
-    fn propose(
+    async fn propose(
         &self,
         run_id: &str,
         collected: Option<&AutoDreamCollectedInputs>,
@@ -498,8 +517,8 @@ impl AutoDreamWorker {
                 metadata: Some(candidate.clone()),
             })
             .collect();
-        AutoDreamOutputEmitter::new(self.storage.clone(), self.laputa.clone()).emit_outputs(
-            AutoDreamOutputRequest {
+        let emitted = AutoDreamOutputEmitter::new(self.storage.clone(), self.laputa.clone())
+            .emit_outputs(AutoDreamOutputRequest {
                 run,
                 generated_at: Utc::now(),
                 confidence: candidates
@@ -510,8 +529,17 @@ impl AutoDreamWorker {
                 evidence_refs,
                 output_summary: summary,
                 proposal_candidates: drafts,
-            },
-        )?;
+            })?;
+        if let Some(governance) = &self.proposal_governance {
+            governance
+                .register_proposals(&emitted.proposals)
+                .await
+                .map_err(|error| {
+                    AutoDreamError::InvalidState(format!(
+                        "proposal governance registration failed: {error}"
+                    ))
+                })?;
+        }
         Ok(())
     }
 
