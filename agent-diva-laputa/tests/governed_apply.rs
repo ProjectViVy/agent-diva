@@ -4,9 +4,10 @@ use agent_diva_core::{
         ProposalType, RiskLevel,
     },
     governance::{
-        ApprovalGrant, ApprovalReceipt, ApprovalRecord, ApprovalRequest, ApprovalStatus,
-        AuditCorrelation, Capability, Decision, GovernanceSubject, GovernanceSubjectKind,
-        PolicyReasonCode, ResourceKind, ResourceScope, RiskClass,
+        ApprovalCoordinator, ApprovalGrant, ApprovalReceipt, ApprovalRecord, ApprovalRequest,
+        ApprovalStatus, AuditCorrelation, Capability, Decision, GovernanceSubject,
+        GovernanceSubjectKind, PolicyReasonCode, ResourceKind, ResourceScope, RiskClass,
+        SqliteGovernanceLedger,
     },
     memory::{
         memory_content_digest, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
@@ -18,6 +19,8 @@ use agent_diva_laputa::{
     MemoryGovernanceError, TypedMemoryStore, TypedMemoryStoreError,
 };
 use chrono::{Duration, TimeZone, Utc};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::sync::Arc;
 
 fn now() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 7, 30, 8, 0, 0).single().unwrap()
@@ -44,6 +47,100 @@ fn proposal(risk: RiskLevel) -> EvolutionProposal {
         state: ProposalState::PendingReview,
         source_run_id: None,
     }
+}
+
+async fn governance_at(path: &std::path::Path) -> ApprovalCoordinator {
+    let pool = SqlitePoolOptions::new()
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(path)
+                .create_if_missing(true),
+        )
+        .await
+        .unwrap();
+    ApprovalCoordinator::new(Arc::new(SqliteGovernanceLedger::new(pool).await.unwrap()))
+}
+
+#[tokio::test]
+async fn injected_governance_is_the_only_approval_ledger_authority() {
+    let temp = tempfile::tempdir().unwrap();
+    let shared = governance_at(&temp.path().join("governance.db")).await;
+    let coordinator =
+        MemoryGovernanceCoordinator::governed(temp.path(), "workspace-1", shared.clone()).unwrap();
+    let proposal = proposal(RiskLevel::High);
+
+    let pending = coordinator.submit(&proposal, None, now()).await.unwrap();
+    assert_eq!(
+        shared
+            .state(&pending.request_id, now())
+            .await
+            .unwrap()
+            .status,
+        ApprovalStatus::Pending
+    );
+    assert_eq!(
+        coordinator
+            .existing(&proposal, now())
+            .await
+            .unwrap()
+            .unwrap()
+            .request_id,
+        pending.request_id
+    );
+
+    let mapping_database = temp.path().join(".laputa").join("governance.sqlite3");
+    let mapping_pool = SqlitePoolOptions::new()
+        .connect_with(SqliteConnectOptions::new().filename(mapping_database))
+        .await
+        .unwrap();
+    let event_table_exists: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='governance_ledger_events'",
+    )
+    .fetch_one(&mapping_pool)
+    .await
+    .unwrap();
+    assert_eq!(event_table_exists, 0);
+}
+
+#[tokio::test]
+async fn missing_shared_request_restores_pending_without_importing_old_allow() {
+    let temp = tempfile::tempdir().unwrap();
+    let proposal = proposal(RiskLevel::High);
+    let retired = MemoryGovernanceCoordinator::open_lazy(temp.path(), "workspace-1").unwrap();
+    let pending = retired.submit(&proposal, None, now()).await.unwrap();
+    retired
+        .decide(
+            &proposal,
+            pending.request_version,
+            MemoryGovernanceDecision {
+                decision: Decision::Allow,
+                grant: ApprovalGrant::Once,
+                actor: GovernanceSubject {
+                    kind: GovernanceSubjectKind::User,
+                    id: "old-reviewer".into(),
+                },
+                idempotency_key: "old-allow",
+                decided_at: now() + Duration::minutes(1),
+            },
+        )
+        .await
+        .unwrap();
+
+    let shared = governance_at(&temp.path().join("governance.db")).await;
+    let coordinator =
+        MemoryGovernanceCoordinator::governed(temp.path(), "workspace-1", shared).unwrap();
+    assert!(matches!(
+        coordinator.existing(&proposal, now()).await.unwrap_err(),
+        MemoryGovernanceError::Ledger(agent_diva_core::governance::ApprovalLedgerError::NotFound)
+    ));
+
+    let restored = coordinator
+        .restore_pending_request(&proposal, now() + Duration::minutes(2))
+        .await
+        .unwrap();
+    assert_eq!(restored.request_id, pending.request_id);
+    assert_eq!(restored.status, ApprovalStatus::Pending);
+    assert!(restored.receipt.is_none());
 }
 
 #[tokio::test]

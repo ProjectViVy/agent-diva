@@ -197,7 +197,7 @@ impl MemoryGovernanceCoordinator {
             let old_digest: String = row.get("content_digest");
             if old_digest == digest {
                 let state = self.coordinator().await?.state(&old_request, now).await?;
-                return Ok(self.view(proposal, &request, state, now));
+                return Ok(self.view(proposal, state, now));
             }
             let governance = self.coordinator().await?;
             if let Ok(old_state) = governance.state(&old_request, now).await {
@@ -259,7 +259,68 @@ impl MemoryGovernanceCoordinator {
         .bind(now.to_rfc3339())
         .execute(&self.pool)
         .await?;
-        Ok(self.view(proposal, &request, state, now))
+        Ok(self.view(proposal, state, now))
+    }
+
+    /// Read an existing proposal governance projection without creating or
+    /// changing approval ledger events.
+    pub async fn existing(
+        &self,
+        proposal: &EvolutionProposal,
+        now: DateTime<Utc>,
+    ) -> Result<Option<MemoryGovernanceView>, MemoryGovernanceError> {
+        self.initialize_mapping().await?;
+        let mapping = sqlx::query(
+            "SELECT request_id, content_digest FROM memory_proposal_governance WHERE proposal_id = ?",
+        )
+        .bind(&proposal.id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(mapping) = mapping else {
+            return Ok(None);
+        };
+        let request_id: String = mapping.get("request_id");
+        let content_digest: String = mapping.get("content_digest");
+        if content_digest != proposal_digest(proposal).value {
+            return Err(MemoryGovernanceError::StaleProposal);
+        }
+        let state = self.coordinator().await?.state(&request_id, now).await?;
+        Ok(Some(self.view(proposal, state, now)))
+    }
+
+    /// Rebuild a missing pending request using its prior stable request id.
+    /// No receipt or historical decision is imported from a retired ledger.
+    pub async fn restore_pending_request(
+        &self,
+        proposal: &EvolutionProposal,
+        now: DateTime<Utc>,
+    ) -> Result<MemoryGovernanceView, MemoryGovernanceError> {
+        self.initialize_mapping().await?;
+        let mapping = sqlx::query(
+            "SELECT request_id, content_digest FROM memory_proposal_governance WHERE proposal_id = ?",
+        )
+        .bind(&proposal.id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let digest = proposal_digest(proposal).value;
+        let request_id = mapping
+            .as_ref()
+            .filter(|row| row.get::<String, _>("content_digest") == digest)
+            .map(|row| row.get::<String, _>("request_id"))
+            .unwrap_or_else(|| self.request_for(proposal, None, now).correlation.request_id);
+        self.submit_with_request_id(proposal, None, now, request_id)
+            .await
+    }
+
+    /// Remove only the domain mapping for a request whose authoritative
+    /// approval event no longer exists.
+    pub async fn clear_mapping(&self, proposal_id: &str) -> Result<(), MemoryGovernanceError> {
+        self.initialize_mapping().await?;
+        sqlx::query("DELETE FROM memory_proposal_governance WHERE proposal_id = ?")
+            .bind(proposal_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     pub async fn decide(
@@ -301,7 +362,7 @@ impl MemoryGovernanceCoordinator {
                 receipt,
             )
             .await?;
-        Ok(self.view(proposal, &request, state, input.decided_at))
+        Ok(self.view(proposal, state, input.decided_at))
     }
 
     pub async fn allowed_receipt(
@@ -555,18 +616,42 @@ impl MemoryGovernanceCoordinator {
         .bind(now.to_rfc3339())
         .execute(&self.pool)
         .await?;
-        Ok(self.view(proposal, &request, state, now))
+        Ok(self.view(proposal, state, now))
     }
 
     fn view(
         &self,
         proposal: &EvolutionProposal,
-        request: &ApprovalRequest<()>,
         state: ApprovalState,
         now: DateTime<Utc>,
     ) -> MemoryGovernanceView {
+        let request = ApprovalRequest {
+            correlation: state.request.correlation.clone(),
+            subject: state.request.subject.clone(),
+            capability: state.request.capability.clone(),
+            resource: state.request.resource.clone(),
+            risk: state.request.risk.clone(),
+            content_digest: state.request.content_digest.clone(),
+            policy_version: state.request.policy_version.clone(),
+            created_at: state.request.created_at,
+            expires_at: state.request.expires_at,
+            evidence_refs: state
+                .request
+                .evidence_refs
+                .iter()
+                .map(|evidence| agent_diva_core::governance::EvidenceRef {
+                    id: evidence.id.clone(),
+                    source: evidence.source.clone(),
+                    uri: evidence.uri.clone(),
+                    excerpt: None,
+                    hash: evidence.hash.clone(),
+                    created_at: evidence.created_at,
+                })
+                .collect(),
+            payload: (),
+        };
         let mut policy = evaluate_policy(
-            request,
+            &request,
             &PolicyContext {
                 evaluated_at: now,
                 autonomy: AutonomyLevel::L1,

@@ -549,13 +549,14 @@ impl LaputaService {
             Err(source) => return Err(LaputaError::io(path, source)),
         };
 
+        let status = section_status(&content);
         Ok(LaputaSection {
             name: name.clone(),
-            status: section_status(&name),
+            status: status.clone(),
             content,
             metadata: json!({
-                "status": section_status(&name),
-                "content_type": section_content_type(&name),
+                "status": status,
+                "content_type": section_content_type(&status),
             }),
             last_modified,
             version: self.schema_version()?,
@@ -1033,15 +1034,16 @@ pub struct LaputaEvent {
     pub timestamp: DateTime<Utc>,
 }
 
-fn section_status(section: &LaputaSectionName) -> SectionStatus {
-    match section {
-        LaputaSectionName::Changelog => SectionStatus::Tbd,
-        _ => SectionStatus::Owned,
+fn section_status(content: &serde_json::Value) -> SectionStatus {
+    if content.is_null() {
+        SectionStatus::Tbd
+    } else {
+        SectionStatus::Owned
     }
 }
 
-fn section_content_type(section: &LaputaSectionName) -> &'static str {
-    match section_status(section) {
+fn section_content_type(status: &SectionStatus) -> &'static str {
+    match status {
         SectionStatus::Owned => "json",
         SectionStatus::Tbd => "tbd",
     }

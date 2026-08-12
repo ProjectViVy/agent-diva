@@ -6,7 +6,7 @@ use agent_diva_core::audit::{emit as audit_emit, AuditEvent};
 use agent_diva_core::evolution::{
     EvidenceRef, EvidenceSource, EvolutionProposal, ProposalState, ProposalType, RiskLevel,
 };
-use agent_diva_core::governance::AuditCorrelation;
+use agent_diva_core::governance::{ApprovalCoordinator, AuditCorrelation};
 use agent_diva_core::memory::{
     memory_content_digest, render_checkpoint_block, render_l1_index_block, CheckpointWriteRequest,
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
@@ -58,6 +58,26 @@ impl TypedLaputaMemoryProvider {
         workspace_id: impl Into<String>,
         l1_index_lines: usize,
     ) -> Result<Self, TypedMemoryStoreError> {
+        Self::open_with_l1_budget_inner(workspace, workspace_id, l1_index_lines, None).await
+    }
+
+    /// Open the production provider over the process-wide governance authority.
+    pub async fn open_with_l1_budget_and_governance(
+        workspace: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+        l1_index_lines: usize,
+        governance: ApprovalCoordinator,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        Self::open_with_l1_budget_inner(workspace, workspace_id, l1_index_lines, Some(governance))
+            .await
+    }
+
+    async fn open_with_l1_budget_inner(
+        workspace: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+        l1_index_lines: usize,
+        governance: Option<ApprovalCoordinator>,
+    ) -> Result<Self, TypedMemoryStoreError> {
         let workspace = workspace.as_ref();
         let workspace_id = workspace_id.into();
         let store = TypedMemoryStore::open_existing(workspace, workspace_id.clone()).await?;
@@ -75,9 +95,14 @@ impl TypedLaputaMemoryProvider {
             LaputaStorage::open(workspace).map_err(|_| TypedMemoryStoreError::CorruptRecord)?,
         );
         let crud_store = TypedMemoryStore::open(workspace, workspace_id.clone()).await?;
-        let coordinator = MemoryGovernanceCoordinator::open_lazy(workspace, workspace_id.clone())
-            .map_err(|_| TypedMemoryStoreError::CorruptRecord)
-            .ok();
+        let coordinator = match governance {
+            Some(governance) => {
+                MemoryGovernanceCoordinator::governed(workspace, workspace_id.clone(), governance)
+            }
+            None => MemoryGovernanceCoordinator::open_lazy(workspace, workspace_id.clone()),
+        }
+        .map_err(|_| TypedMemoryStoreError::CorruptRecord)
+        .ok();
         Ok(Self {
             workspace: workspace.to_path_buf(),
             workspace_id,

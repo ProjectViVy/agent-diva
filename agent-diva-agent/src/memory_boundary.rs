@@ -12,7 +12,10 @@ use agent_diva_core::memory::{
     SessionEndRequest, SessionEndResponse, SessionEndStatus, SyncTurnRequest, SyncTurnResponse,
     SyncTurnStatus, SystemPromptRequest, SystemPromptResponse,
 };
-use agent_diva_core::{config::schema::MemoryAuthorityMode, governance::AuditCorrelation};
+use agent_diva_core::{
+    config::schema::MemoryAuthorityMode,
+    governance::{ApprovalCoordinator, AuditCorrelation},
+};
 use chrono::Utc;
 use tracing::warn;
 
@@ -31,8 +34,33 @@ pub async fn memory_provider_for_mode(
     mode: MemoryAuthorityMode,
     l1_index_lines: usize,
 ) -> Arc<dyn MemoryProvider> {
+    memory_provider_for_mode_inner(workspace, mode, l1_index_lines, None).await
+}
+
+/// Construct the configured production Memory boundary over one shared
+/// process-wide governance authority.
+pub async fn memory_provider_for_mode_with_governance(
+    workspace: &Path,
+    mode: MemoryAuthorityMode,
+    l1_index_lines: usize,
+    governance: ApprovalCoordinator,
+) -> Arc<dyn MemoryProvider> {
+    memory_provider_for_mode_inner(workspace, mode, l1_index_lines, Some(governance)).await
+}
+
+async fn memory_provider_for_mode_inner(
+    workspace: &Path,
+    mode: MemoryAuthorityMode,
+    l1_index_lines: usize,
+    governance: Option<ApprovalCoordinator>,
+) -> Arc<dyn MemoryProvider> {
     if mode == MemoryAuthorityMode::Legacy {
-        return Arc::new(LegacyCrudMemoryProvider::new(workspace, l1_index_lines));
+        return Arc::new(match governance {
+            Some(governance) => {
+                LegacyCrudMemoryProvider::new_with_governance(workspace, l1_index_lines, governance)
+            }
+            None => LegacyCrudMemoryProvider::new(workspace, l1_index_lines),
+        });
     }
     let store_result = if mode == MemoryAuthorityMode::Shadow {
         agent_diva_laputa::TypedMemoryStore::open_existing_canonical(workspace).await
@@ -67,13 +95,27 @@ pub async fn memory_provider_for_mode(
     }
     let typed = Arc::new(agent_diva_laputa::LaputaRecallService::new(existing_store));
     if mode == MemoryAuthorityMode::Typed {
-        return match agent_diva_laputa::TypedLaputaMemoryProvider::open_with_l1_budget(
-            workspace,
-            agent_diva_core::workspace_identity::canonical_workspace_id(workspace),
-            l1_index_lines,
-        )
-        .await
-        {
+        let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
+        let provider = match governance {
+            Some(governance) => {
+                agent_diva_laputa::TypedLaputaMemoryProvider::open_with_l1_budget_and_governance(
+                    workspace,
+                    workspace_id,
+                    l1_index_lines,
+                    governance,
+                )
+                .await
+            }
+            None => {
+                agent_diva_laputa::TypedLaputaMemoryProvider::open_with_l1_budget(
+                    workspace,
+                    workspace_id,
+                    l1_index_lines,
+                )
+                .await
+            }
+        };
+        return match provider {
             Ok(provider) => Arc::new(provider),
             Err(error) => Arc::new(DegradedMemoryProvider::new(
                 workspace.to_path_buf(),
@@ -299,14 +341,38 @@ pub(crate) struct LegacyCrudMemoryProvider {
 
 impl LegacyCrudMemoryProvider {
     pub(crate) fn new(workspace: &Path, l1_index_lines: usize) -> Self {
+        Self::new_inner(workspace, l1_index_lines, None)
+    }
+
+    pub(crate) fn new_with_governance(
+        workspace: &Path,
+        l1_index_lines: usize,
+        governance: ApprovalCoordinator,
+    ) -> Self {
+        Self::new_inner(workspace, l1_index_lines, Some(governance))
+    }
+
+    fn new_inner(
+        workspace: &Path,
+        l1_index_lines: usize,
+        governance: Option<ApprovalCoordinator>,
+    ) -> Self {
         let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
-        let coordinator =
-            agent_diva_laputa::governed_apply::MemoryGovernanceCoordinator::open_lazy(
+        let coordinator = match governance {
+            Some(governance) => {
+                agent_diva_laputa::governed_apply::MemoryGovernanceCoordinator::governed(
+                    workspace,
+                    workspace_id,
+                    governance,
+                )
+            }
+            None => agent_diva_laputa::governed_apply::MemoryGovernanceCoordinator::open_lazy(
                 workspace,
                 workspace_id,
-            )
-            .map_err(|error| warn!("legacy CRUD governance unavailable: {error}"))
-            .ok();
+            ),
+        }
+        .map_err(|error| warn!("legacy CRUD governance unavailable: {error}"))
+        .ok();
         Self {
             workspace: workspace.to_path_buf(),
             legacy: MemoryManager::new(workspace).with_l1_index_lines(l1_index_lines),

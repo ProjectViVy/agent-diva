@@ -153,14 +153,9 @@ pub async fn list_laputa_proposals_handler(
         .map_err(laputa_error_response)?;
     let mut governance = serde_json::Map::new();
     for proposal in &proposals {
-        let view = state
-            .memory_governance
-            .submit(proposal, None, Utc::now())
-            .await
-            .map_err(memory_governance_error_response)?;
         governance.insert(
             proposal.id.clone(),
-            serde_json::to_value(view).unwrap_or_default(),
+            governance_projection(&state, proposal).await,
         );
     }
     ok(serde_json::json!({
@@ -209,11 +204,7 @@ pub async fn get_laputa_proposal_handler(
         .laputa
         .get_proposal(&id)
         .map_err(laputa_error_response)?;
-    let governance = state
-        .memory_governance
-        .submit(&proposal, None, Utc::now())
-        .await
-        .map_err(memory_governance_error_response)?;
+    let governance = governance_projection(&state, &proposal).await;
     ok(serde_json::json!({ "status": "ok", "proposal": proposal, "governance": governance }))
 }
 
@@ -280,9 +271,10 @@ pub async fn decide_laputa_proposal_handler(
         .map_err(laputa_error_response)?;
     let current = state
         .memory_governance
-        .submit(&proposal, None, Utc::now())
+        .existing(&proposal, Utc::now())
         .await
-        .map_err(memory_governance_error_response)?;
+        .map_err(memory_governance_error_response)?
+        .ok_or_else(|| memory_governance_error_response(MemoryGovernanceError::ApprovalRequired))?;
     let decision_was_new = !matches!(
         current.status,
         ApprovalStatus::Allowed | ApprovalStatus::Denied
@@ -690,6 +682,7 @@ fn legacy_apply_journal_path(workspace_root: &FsPath, idempotency_key: &str) -> 
 }
 
 pub(crate) async fn recover_memory_approvals(state: &AppState) -> Result<usize, String> {
+    let mut recovered = reconcile_memory_proposal_governance(state).await?;
     let journal_dir = state
         .workspace_root
         .join(".laputa")
@@ -713,7 +706,6 @@ pub(crate) async fn recover_memory_approvals(state: &AppState) -> Result<usize, 
     let workspace_id =
         agent_diva_core::workspace_identity::canonical_workspace_id(&state.workspace_root);
     let mut cursor = None;
-    let mut recovered = 0;
     loop {
         let page = state
             .memory_governance
@@ -801,6 +793,79 @@ pub(crate) async fn recover_memory_approvals(state: &AppState) -> Result<usize, 
     Ok(recovered)
 }
 
+async fn reconcile_memory_proposal_governance(state: &AppState) -> Result<usize, String> {
+    let proposals = state
+        .laputa
+        .list_proposals(ProposalFilter::default())
+        .map_err(|error| error.to_string())?;
+    let now = Utc::now();
+    let mut recovered = 0;
+    for proposal in proposals {
+        let projection = state.memory_governance.existing(&proposal, now).await;
+        match projection {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                recovered +=
+                    recover_missing_proposal_governance(state, &proposal, false, now).await?;
+            }
+            Err(MemoryGovernanceError::Ledger(ApprovalLedgerError::NotFound)) => {
+                recovered +=
+                    recover_missing_proposal_governance(state, &proposal, true, now).await?;
+            }
+            Err(MemoryGovernanceError::StaleProposal) => {
+                if is_reviewable_state(&proposal.state) {
+                    state
+                        .memory_governance
+                        .submit(&proposal, None, now)
+                        .await
+                        .map_err(|error| error.to_string())?;
+                    recovered += 1;
+                }
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(recovered)
+}
+
+async fn recover_missing_proposal_governance(
+    state: &AppState,
+    proposal: &EvolutionProposal,
+    mapping_exists: bool,
+    now: DateTime<Utc>,
+) -> Result<usize, String> {
+    if is_reviewable_state(&proposal.state) {
+        state
+            .memory_governance
+            .restore_pending_request(proposal, now)
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(1);
+    }
+    if proposal.state == ProposalState::Approved {
+        if mapping_exists {
+            state
+                .memory_governance
+                .clear_mapping(&proposal.id)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        state
+            .laputa
+            .transition_proposal(&proposal.id, ProposalState::NeedsAttention, now)
+            .map_err(|error| error.to_string())?;
+        return Ok(1);
+    }
+    Ok(0)
+}
+
+fn is_reviewable_state(state: &ProposalState) -> bool {
+    matches!(
+        state,
+        ProposalState::PendingReview | ProposalState::Edited | ProposalState::Deferred
+    )
+}
+
 fn read_legacy_apply_journal(path: &FsPath) -> Result<Option<LegacyApplyJournal>, std::io::Error> {
     match fs::read(path) {
         Ok(bytes) => serde_json::from_slice(&bytes)
@@ -855,6 +920,12 @@ pub async fn get_laputa_persona_workspace_handler(
         .laputa
         .list_proposals(ProposalFilter::default())
         .map_err(laputa_error_response)?;
+    let mut proposal_values = Vec::with_capacity(proposals.len());
+    for proposal in proposals {
+        let mut value = serde_json::to_value(&proposal).unwrap_or_default();
+        value["governance"] = governance_projection(&state, &proposal).await;
+        proposal_values.push(value);
+    }
     let changelog = state
         .laputa
         .list_changelog(ChangelogFilter {
@@ -910,7 +981,7 @@ pub async fn get_laputa_persona_workspace_handler(
             "snapshot": snapshot,
             "authority_versions": authority_versions,
             "session": session_value,
-            "proposals": proposals,
+            "proposals": proposal_values,
             "changelog": changelog.items,
             "cognitive": {
                 "memrules": memrules,
@@ -1297,6 +1368,24 @@ fn memory_governance_error_response(
     error_response(status, code, error.to_string())
 }
 
+async fn governance_projection(
+    state: &AppState,
+    proposal: &EvolutionProposal,
+) -> serde_json::Value {
+    match state.memory_governance.existing(proposal, Utc::now()).await {
+        Ok(Some(view)) => serde_json::to_value(view).unwrap_or(serde_json::Value::Null),
+        Ok(None) => serde_json::Value::Null,
+        Err(error) => {
+            tracing::warn!(
+                proposal_id = %proposal.id,
+                error = %error,
+                "Memory governance projection is unavailable"
+            );
+            serde_json::Value::Null
+        }
+    }
+}
+
 fn typed_store_error_response(
     error: agent_diva_laputa::TypedMemoryStoreError,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -1413,6 +1502,126 @@ mod recovery_tests {
             state: ProposalState::PendingReview,
             source_run_id: None,
         }
+    }
+
+    async fn ledger_event_count(root: &FsPath) -> i64 {
+        let pool = SqlitePoolOptions::new()
+            .connect_with(SqliteConnectOptions::new().filename(root.join(".laputa/governance.db")))
+            .await
+            .unwrap();
+        sqlx::query_scalar("SELECT COUNT(*) FROM governance_ledger_events")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn read_projections_do_not_append_governance_events() {
+        let temp = tempfile::tempdir().unwrap();
+        let (state, _) = governed_state(temp.path()).await;
+        let proposal = state.laputa.create_proposal(proposal()).unwrap();
+        state
+            .memory_governance
+            .submit(&proposal, None, Utc::now())
+            .await
+            .unwrap();
+        let before = ledger_event_count(temp.path()).await;
+
+        let list = list_laputa_proposals_handler(
+            State(state.clone()),
+            Query(ProposalQuery {
+                state: None,
+                proposal_type: None,
+                target_section: None,
+                source_run_id: None,
+                since: None,
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            list.0["governance"][&proposal.id]["status"],
+            serde_json::json!("pending")
+        );
+        let _ = get_laputa_proposal_handler(State(state.clone()), Path(proposal.id.clone()))
+            .await
+            .unwrap();
+        let workspace = get_laputa_persona_workspace_handler(
+            State(state),
+            Query(PersonaWorkspaceQuery { session_key: None }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            workspace.0["workspace"]["proposals"][0]["governance"]["status"],
+            serde_json::json!("pending")
+        );
+
+        assert_eq!(ledger_event_count(temp.path()).await, before);
+    }
+
+    #[tokio::test]
+    async fn startup_restores_private_pending_request_into_shared_ledger_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let proposal = service.create_proposal(proposal()).unwrap();
+        let retired = agent_diva_laputa::MemoryGovernanceCoordinator::open_lazy(
+            temp.path(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(temp.path()),
+        )
+        .unwrap();
+        let old = retired.submit(&proposal, None, Utc::now()).await.unwrap();
+        let (state, governance) = governed_state(temp.path()).await;
+
+        assert_eq!(recover_memory_approvals(&state).await.unwrap(), 1);
+        assert_eq!(recover_memory_approvals(&state).await.unwrap(), 0);
+        let restored = governance.state(&old.request_id, Utc::now()).await.unwrap();
+        assert_eq!(restored.status, ApprovalStatus::Pending);
+        assert!(restored.receipt.is_none());
+    }
+
+    #[tokio::test]
+    async fn startup_never_imports_private_allow_without_authoritative_receipt() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = LaputaService::open(temp.path()).unwrap();
+        let proposal = service.create_proposal(proposal()).unwrap();
+        let retired = agent_diva_laputa::MemoryGovernanceCoordinator::open_lazy(
+            temp.path(),
+            agent_diva_core::workspace_identity::canonical_workspace_id(temp.path()),
+        )
+        .unwrap();
+        let pending = retired.submit(&proposal, None, Utc::now()).await.unwrap();
+        retired
+            .decide(
+                &proposal,
+                pending.request_version,
+                MemoryGovernanceDecision {
+                    decision: Decision::Allow,
+                    grant: ApprovalGrant::Once,
+                    actor: GovernanceSubject {
+                        kind: GovernanceSubjectKind::User,
+                        id: "retired-reviewer".into(),
+                    },
+                    idempotency_key: "retired-allow",
+                    decided_at: Utc::now(),
+                },
+            )
+            .await
+            .unwrap();
+        service
+            .transition_proposal(&proposal.id, ProposalState::Approved, Utc::now())
+            .unwrap();
+        let (state, governance) = governed_state(temp.path()).await;
+
+        assert_eq!(recover_memory_approvals(&state).await.unwrap(), 1);
+        assert_eq!(
+            state.laputa.get_proposal(&proposal.id).unwrap().state,
+            ProposalState::NeedsAttention
+        );
+        assert!(matches!(
+            governance.state(&pending.request_id, Utc::now()).await,
+            Err(ApprovalLedgerError::NotFound)
+        ));
     }
 
     #[tokio::test]

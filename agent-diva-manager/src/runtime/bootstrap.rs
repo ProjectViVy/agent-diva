@@ -149,6 +149,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         Arc::clone(&run_store),
         command_approvals.clone(),
         ask_user.clone(),
+        governance.clone(),
     )
     .await?;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;

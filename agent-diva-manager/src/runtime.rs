@@ -19,6 +19,7 @@ use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::evolution::{CandidateValue, EvidenceRef, MemoryCandidate, ProposalType};
+use agent_diva_core::governance::ApprovalCoordinator;
 use agent_diva_core::memory::{MemoryScope, MemorySensitivity};
 use agent_diva_core::supervised::RunStore;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
@@ -1013,6 +1014,7 @@ async fn build_agent_loop(
     run_store: Arc<RunStore>,
     command_approvals: CommandApprovalCoordinator,
     ask_user: agent_diva_core::ask_user::AskUserCoordinator,
+    governance: ApprovalCoordinator,
 ) -> Result<AgentLoop> {
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
@@ -1033,10 +1035,11 @@ async fn build_agent_loop(
     };
 
     let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = Some(
-        agent_diva_agent::memory_boundary::memory_provider_for_mode(
+        agent_diva_agent::memory_boundary::memory_provider_for_mode_with_governance(
             &workspace,
             config.memory.authority_mode,
             config.memory.l1_index_lines,
+            governance,
         )
         .await,
     );

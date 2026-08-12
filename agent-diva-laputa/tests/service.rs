@@ -52,7 +52,7 @@ fn snapshot_lists_all_sections_and_marks_tbd_sections() {
 
     assert_eq!(snapshot.sections.len(), 9);
     assert_eq!(snapshot.sections["changelog"].status, SectionStatus::Tbd);
-    assert_eq!(snapshot.sections["memory_md"].status, SectionStatus::Owned);
+    assert_eq!(snapshot.sections["memory_md"].status, SectionStatus::Tbd);
 }
 
 #[test]
@@ -64,6 +64,10 @@ fn section_reads_return_explicit_tbd_status_without_file() {
 
     assert_eq!(section.status, SectionStatus::Tbd);
     assert!(section.content.is_null());
+
+    let seeded = service.read_section(LaputaSectionName::Identity).unwrap();
+    assert_eq!(seeded.status, SectionStatus::Tbd);
+    assert!(seeded.content.is_null());
 }
 
 #[test]
