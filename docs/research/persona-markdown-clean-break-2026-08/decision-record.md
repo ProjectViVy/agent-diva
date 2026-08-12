@@ -113,6 +113,72 @@ JSON 重构偏离了该产品语义。本次恢复 Markdown 方向，但不恢�
   runtime，也不成为 fallback。
 - 旧用户数据如何人工备份由发布说明明确，但产品不承担自动导入。
 
+### P9：首次启动只初始化 Laputa 核心权威
+
+首次引导不是普通 Memory 收集，也不是 Agent 在聊天中自行触发的一组 Proposal。它只负责
+建立四份 Persona Markdown 权威与一份 WORLD 权威：
+
+| 权威 | 首次引导要回答的问题 | 初始化语义 |
+| --- | --- | --- |
+| Identity | Agent 是谁、叫什么、具有什么职责、性格和表达方式？ | Agent 的初始自我定义 |
+| Relationship | 用户是谁、如何称呼、双方希望建立什么关系？ | Agent 对用户及双方关系的初始理解 |
+| Commitment | 初次相遇后 Agent 承诺什么、永远不越过哪些边界？ | 双方的初始契约与红线 |
+| Preferences | 用户希望 Agent 朝什么方向努力，有哪些长期要求？ | 长期偏好与成长方向 |
+| WORLD | 用户目前处于怎样的工作、生活或旅行环境？ | 独立的可行动环境认知 |
+
+- Agent 对用户的初次看法属于 Relationship；Commitment 不是“第一印象”，而是承诺、
+  约束和红线。Agent 不得自行解除 Commitment，但用户可以通过后续显式编辑修订当前版本。
+- “不可变”有两个精确含义：每一个已经形成的历史版本永不改写；Frozen Core 在同一会话
+  内冻结，当前权威的后续修改从下一会话生效。当前 Persona 文档本身不是永久锁死。
+- WORLD 参加同一次首次引导和提交，但仍是独立的 claim 型权威；不得作为第五个 Frozen
+  Core 整体注入 Prompt。
+
+### P10：首次引导只由五份权威的物理存在状态触发
+
+服务端以四份 Persona authority 文件和 `WORLD.MD` 的真实存在/有效性为唯一状态源：
+
+```text
+五份权威全部不存在 -> uninitialized -> 显示一次首次引导
+五份权威全部存在且有效 -> ready -> 永不再显示首次引导
+部分存在、空文件或内容损坏 -> incomplete -> 进入修复，不重跑首次引导
+```
+
+- 首次引导只能在五份权威全部不存在时出现；不能以“内容为空”“任意 section 有内容”、
+  `localStorage`、聊天 session、配置向导完成标记或 Proposal 数量判断。
+- 空文件表示已存在但不完整，不表示全新用户。不得借首次引导覆盖它。
+- 实施时删除四个空 `null` Persona 文件和空壳 WORLD 的启动预种子；否则物理缺失条件永远
+  不会成立。目录可以预创建，权威文件不能预创建。
+- 部分写入或损坏是恢复问题。UI 应保留已有内容并引导进入 Persona/WORLD 修复入口，不能
+  伪装成全新初始化，也不能自动补写默认正文。
+
+### P11：初始化直接原子写入，不经过任何审批
+
+- 用户完成引导后，只执行一次“完成初始化”。服务端在一个原子提交边界内创建五份权威
+  和各自的首个历史版本；任一验证、写入或历史落盘失败，整体不得进入 `ready`。
+- 初始化不创建 EvolutionProposal、PersonaChangeRequest、Memory proposal 或 WORLD
+  pending proposal，不进入 Governance Ledger 或聊天页 Approval Center，也不拆成
+  submit/approve/apply。
+- 提交失败必须保留五项输入和当前步骤，允许用户就地修正或重试。
+- 初始化应在第一个正式 Agent 会话/Frozen Core capture 之前完成，使第一次正式对话直接
+  使用新人格；不得先创建空人格会话再热替换。
+- 现有 Prompt 注入式 `First-Run Onboarding`、`ask_user ->
+  laputa_propose_section_write` 初始化链路和 GUI `WELCOME_STORAGE_KEY` 判定均列入删除范围。
+  技术配置向导若继续存在，也必须与 Laputa 人格初始化分离。
+
+### P12：完整历史永久保留 Agent 的人格变化轨迹
+
+- 四份 Persona 文档和 WORLD 的每次真实、成功内容变化都追加一个不可变历史版本，包括
+  首次初始化、用户直接保存、接受 Agent 变更和从历史版本恢复后再次保存。
+- 历史至少记录 revision、完整 Markdown 快照、相对上一版本的文本 Diff、actor/source、
+  时间、变更原因和 base revision，使用户能够阅读 Agent 人格演变的连续轨迹。
+- 历史版本不得覆盖、删除、重编号或原位编辑；默认不设自动裁剪、保留天数或数量上限。
+  当前权威可以继续演进，但每次演进都只能追加新版本。
+- 载入历史只产生本地草稿；再次保存产生新的头部版本，不回拨或抹除中间历程。
+- 内容未变化的 no-op 保存不创建重复 revision；被拒绝的变更请求不属于人格变化，只保留
+  请求决策审计，不写入文档历史。
+- 完整历史属于审计/浏览面，不整体注入模型上下文。Frozen Core 和 WORLD 投影仍只读取
+  当前权威并遵守既有会话冻结、scope 与预算边界。
+
 ## “不再有 JSON”的精确定义
 
 禁止 JSON 的范围是**人格正文及其用户可见/领域内表达**：
@@ -166,6 +232,8 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 - Frozen Core capture、section version、预算与 prompt render；
 - 删除人格 JSON proposal type/route/parser 及 persona legacy migration；
 - 保持 Persona 与普通 BML Memory 的类型和物理边界。
+- 五份权威 absence-only 初始化检测、无预种子布局、原子创建与 incomplete recovery 状态；
+- Persona/WORLD 永久 append-only revision store，历史与当前权威物理分离。
 
 ### Manager / Tauri
 
@@ -174,6 +242,8 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 - 删除 Persona 对通用 Evolution Proposal、governance projection 和 apply receipt 的依赖；
 - 接受变更必须由单一服务端命令完成 CAS、authority write、history append 和状态终结；
 - 传输层错误必须保留稳定 reason code，保存冲突不得覆盖用户草稿。
+- first-run status/initialize 的窄接口；服务端返回 `uninitialized | ready | incomplete`，
+  GUI 不自行推断或持久化第二套完成标记。
 
 ### GUI
 
@@ -183,6 +253,8 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 - 当前文档提供 Markdown 源码、可折叠预览和直接保存；待审状态提供只读前后对比；
 - 历史详情展示不可变 Markdown 版本与文本 Diff，并支持载入为未保存草稿；
 - 保存失败和 revision 冲突保留草稿、选中分区与滚动位置。
+- 首次引导一次收集 Identity/Relationship/Commitment/Preferences/WORLD，使用一个统一提交
+  边界；incomplete 使用修复状态而非重弹初始化。
 
 ## 测试与删除证明要求
 
@@ -193,6 +265,11 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 - 当前文档/待审变更/历史三态及窄屏切换，源码/预览折叠、草稿失败恢复和快捷键测试；
 - 待审变更 before/after 对齐、接受/拒绝原子性、stale CAS 拦截和无 approve/apply 分裂；
 - 历史载入只替换本地草稿、未保存草稿确认、保存后新增版本且旧历史不变；
+- 五份权威全缺失/全存在/部分存在/空文件/损坏矩阵，初始化一次成功后不再出现；
+- 五份权威与首批历史原子创建、任一点失败不留半初始化、重试保留输入；
+- 初始化直写不产生 Proposal/Approval/Governance，且首个正式会话捕获完整 Frozen Core；
+- Persona/WORLD 每次真实变化永久追加 revision，no-op/拒绝不生成文档版本，完整历史不进
+  Prompt；
 - Manager HTTP、Tauri 与真实桌面纵向 smoke；
 - 符号和路径扫描证明人格 `.json`、JSON parse/format、旧 persona migration、
   Governance UI 和 fallback 均未回潮。
@@ -203,7 +280,6 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 - 同一人格文档允许同时存在多少个待审请求及其排队策略；
 - 最终 Persona authority 目录名；
 - CodeMirror 6 的具体扩展集合与主题细节；
-- 历史版本的长期保留数量；
 - Markdown 模板是否提供默认章节。
 
 这些问题不得被实现者自行扩展为兼容层、自动合并器或第二套人格系统。

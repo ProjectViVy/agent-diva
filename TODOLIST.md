@@ -34,6 +34,13 @@
   Governance，且不拆分 approve/apply。历史版本只读，载入仅覆盖本地草稿，显式保存后
   才成为新当前版本。删除永久右栏、人格 `.json`、JSON patch/format/parse、旧
   SOUL/IDENTITY/USER 映射、迁移、双读写和 fallback。
+  首次引导仅在 Identity/Relationship/Commitment/Preferences/WORLD 五份权威全部不存在时
+  出现，一次原子直写五份内容与首个历史版本，不创建 Proposal、审批或 Governance；
+  全存在即永久不再出现，部分存在/空/损坏进入修复状态。删除空 `null` Persona、空壳
+  WORLD 预种子、Prompt `First-Run Onboarding`、`ask_user ->
+  laputa_propose_section_write` 初始化路径和 GUI localStorage 完成判定。Persona/WORLD
+  每次真实成功变化永久追加不可变完整快照+文本 Diff 历史，不自动裁剪、不整体注入 Prompt，
+  以保存 Agent 人格演变轨迹。
   实施前建立删除前保护性分支，不自动导入旧用户数据。HTTP/Tauri 可继续用结构化信封，
   但人格正文和用户界面不得再出现 JSON。决策：
   [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)。
