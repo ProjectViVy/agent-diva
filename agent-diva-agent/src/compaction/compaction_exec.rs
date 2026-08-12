@@ -251,7 +251,9 @@ impl CheckpointCompactor {
         let mut output = String::new();
         let mut index = 0;
         while index < messages.len() {
-            if let Some(group) = completed_tool_group(messages, index) {
+            if let Some(group) =
+                completed_tool_group(messages, index).filter(|group| group.complete)
+            {
                 let tool_names = group.tool_names.to_vec().join(", ");
                 let artifacts = group.artifact_refs.to_vec().join(", ");
                 output.push_str(&format!(
@@ -523,6 +525,14 @@ mod tests {
     fn incomplete_tool_group_stays_out_of_prefix() {
         let messages = vec![msg("user", "read"), assistant_with_tool("call-1")];
         assert_eq!(select_safe_compaction_end(&messages, 0, messages.len()), 0);
+    }
+
+    #[test]
+    fn formatter_keeps_incomplete_tool_group_messages_verbatim() {
+        let messages = vec![msg("user", "read"), assistant_with_tool("call-1")];
+        let formatted = CheckpointCompactor::format_messages_for_compaction(&messages);
+        assert!(!formatted.contains("status=completed"));
+        assert!(formatted.contains("assistant"));
     }
 
     #[tokio::test]
