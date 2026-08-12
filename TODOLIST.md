@@ -28,9 +28,12 @@
 - [ ] **PERSONA-MARKDOWN-CLEAN-BREAK：人格 Markdown 权威与工作区重构** `sev-P0`
   将 Identity、Relationship、Commitment、Preferences 的权威正文、版本、Diff、历史、
   回滚、Frozen Core 快照和 Prompt 投影全部改为 Markdown 字符串。GUI 重构为人格导航、
-  极简代码编辑器、人类预览和文本 Diff；用户手动编辑直接保存并产生审计，不创建二次
-  审批 Proposal。删除 Persona 内 Governance/批准/拒绝/apply，以及人格 `.json`、JSON
-  patch、JSON format/parse、旧 SOUL/IDENTITY/USER 映射、迁移、双读写和 fallback。
+  单一中央工作区及“当前文档 / 待审变更 / 历史”三态；用户手动编辑直接保存并产生审计。
+  Agent/系统建议使用 Persona 专属 Markdown 内容审查：只读 before/after Diff、原子接受
+  或拒绝、base revision 失配即 stale；它不进入聊天 Approval Center，也不复用通用
+  Governance，且不拆分 approve/apply。历史版本只读，载入仅覆盖本地草稿，显式保存后
+  才成为新当前版本。删除永久右栏、人格 `.json`、JSON patch/format/parse、旧
+  SOUL/IDENTITY/USER 映射、迁移、双读写和 fallback。
   实施前建立删除前保护性分支，不自动导入旧用户数据。HTTP/Tauri 可继续用结构化信封，
   但人格正文和用户界面不得再出现 JSON。决策：
   [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)。

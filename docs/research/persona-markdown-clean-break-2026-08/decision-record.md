@@ -34,35 +34,66 @@ JSON 重构偏离了该产品语义。本次恢复 Markdown 方向，但不恢�
   `content_type: json` 表达正文。
 - 空内容使用空 Markdown/TBD 状态，不使用 `null`、`{}` 或占位 JSON。
 
-### P2：Persona 页面是人格文档工作区，不是审批中心
+### P2：Persona 页面是人格文档工作区，不是安全审批中心
 
 - Persona 页面只负责查看、编辑、预览、比较和管理人格文档历史。
 - 用户手动编辑直接保存到人格权威，同时生成 changelog/audit；不创建一个还需要同一
   用户再次批准的 Proposal。
-- 删除 Persona 页面中的 Governance Ledger、批准、仅批准、拒绝、暂缓、应用和
+- 删除 Persona 页面中的 Governance Ledger、通用 Proposal、仅批准、暂缓、独立应用和
   proposal patch 编辑入口。
+- Agent 或系统提出的人格文本修改进入 Persona 专属“变更审查”，由用户在文档工作区
+  接受或拒绝。这里的接受/拒绝是内容审阅，不是工具权限或风险授权。
 - 危险工具执行继续由聊天页右侧统一 Approval Center 负责；人格页面不复制审批入口。
-- Agent 自动建议人格修改是否需要审批、采用何种入口，留作独立决策，不能阻塞用户
-  对自己人格文档的直接编辑。
+- Persona 变更审查不得进入聊天页 Approval Center，也不得复用 Evolution、Memory 或
+  Sandbox 的治理状态机；用户对自己人格文档的直接编辑不受待审变更阻塞。
 
-### P3：编辑体验使用“源码 + 人类预览 + Diff”
+### P3：工作区只保留左侧导航和一个中央文档工作区
 
-宽屏主结构：
+删除永久右侧生命周期栏。左侧继续作为四个人格文件导航；中央区域在三个互斥状态之间
+切换：
 
 ```text
-人格分区导航 | Markdown 源码编辑器 | 人类可读预览 / Diff
+当前文档 | 待审变更 (n) | 历史
 ```
 
-- 左侧：四个人格分区及其状态、更新时间；不混入普通 Memory、AutoDream 或 Evolution。
-- 中间：极简 VS Code 风格 Markdown 编辑器，至少支持行号、Markdown 语法高亮、当前行、
-  查找、撤销/重做、滚动、`Ctrl/Cmd+S` 和明确 dirty 状态。
-- 右侧：安全 Markdown 渲染预览；顶部可在 `预览` 与 `Diff` 间切换。
-- Diff 比较当前权威版本与尚未保存的草稿，按文本行展示新增、删除与修改；不得比较
-  JSON 序列化结果。
-- 窄屏退化为 `编辑 / 预览 / Diff` 单工作区标签，不把三个区域挤在同一行。
-- 页面主操作是保存人格文档；历史和回滚属于次级文档管理动作。
+- 左侧只显示四个人格文档、更新时间、未保存草稿标记和待审数量，不混入普通 Memory、
+  AutoDream 或 Evolution。
+- 三个中央状态不能同时挤在多栏页面中；每个状态只呈现完成当前任务所需的主操作。
+- 宽屏允许中央状态内部使用双栏；窄屏退化为明确的单工作区标签或顺序视图。
 
-### P4：采用成熟编辑器能力，不手写 textarea 伪装
+### P4：当前文档状态使用“Markdown 源码 + 人类预览”
+
+- 左侧为极简 VS Code 风格 Markdown 编辑器，至少支持行号、语法高亮、当前行、查找、
+  撤销/重做、自动换行、滚动、`Ctrl/Cmd+S` 和明确 dirty 状态。
+- 右侧实时渲染当前草稿的人类可读预览；预览可以收起，收起后编辑器占满中央区域。
+- 用户保存时携带显式 base revision/CAS；成功后正文原子成为当前权威并追加不可变历史。
+- 保存失败或 revision 冲突必须保留草稿、当前文件选择和编辑位置，不得回填服务端内容
+  覆盖用户输入。
+- 切换文件或载入历史会丢弃未保存草稿时，必须在动作边界明确提示。
+
+### P5：待审变更状态是只读的 Markdown 内容审查
+
+- 左框显示变更请求创建时的准确 base Markdown，右框显示 proposed Markdown；两侧只读、
+  同步滚动，并使用真实的逐行文本 Diff 高亮新增、删除和修改。
+- 主动作只有“接受变更”和“拒绝变更”。接受必须在一次原子操作中校验 base revision、
+  写入人格权威、追加历史并终结请求，不再拆成 approve 与 apply 两步。
+- 拒绝只终结请求，不修改人格权威。
+- 第一版不提供仅批准、暂缓、逐段接受、提案内编辑或自动三方合并。
+- 如果用户在请求产生后直接保存了当前文档，base revision 不再匹配，请求进入 `stale`；
+  UI 必须禁用接受并要求重新生成或显式重建变更，不得让旧建议覆盖新的人类编辑。
+- Persona 内容审查的最小领域状态为 `pending | accepted | rejected | stale`，不得映射回
+  通用 Governance lifecycle。
+
+### P6：历史状态区分不可变版本与当前草稿
+
+- 历史记录作为中央工作区的独立状态，不放入永久右侧栏。
+- “当前版本”和每个历史版本必须明确标识；历史记录只能查看，不能原位编辑。
+- “载入到编辑器”只把选定历史正文复制到本地草稿，并标记为未保存；不会立即移动
+  当前版本、写入权威或删除后续历史。
+- 用户随后执行“保存为当前版本”才会写入人格权威，并形成一条新的历史记录。
+- 如果编辑器已经存在未保存草稿，载入历史前必须提示本地草稿将被替换。
+
+### P7：采用成熟编辑器与真实文本 Diff，不手写 textarea 伪装
 
 - 实施前评估 CodeMirror 6 与当前 Vue/Vite/Tauri 依赖和包体；默认优先 CodeMirror 6，
   完整 Monaco 只有在确需语言服务时才考虑。
@@ -70,7 +101,7 @@ JSON 重构偏离了该产品语义。本次恢复 Markdown 方向，但不恢�
   边界。
 - 不通过给普通 textarea 增加行号背景或 CSS 高亮声称已实现代码编辑器。
 
-### P5：破坏性 Clean Break，不做任何人格旧格式兼容
+### P8：破坏性 Clean Break，不做任何人格旧格式兼容
 
 - 删除 `.laputa/sections/identity.json`、`relationship.json`、`commitment.json`、
   `preferences.json` 作为人格权威的能力。
@@ -113,28 +144,44 @@ HTTP/Tauri 外层仍可使用 JSON/serde 传输结构化信封，例如 section 
 
 ## 必须改写的架构面
 
+实现不得继续把 Persona 塞入 `EvolutionProposal`。最小专用模型应等价表达：
+
+```text
+PersonaDocument(section, markdown, revision, updated_at)
+PersonaChangeRequest(id, section, base_revision, before_markdown,
+                     after_markdown, summary, state)
+PersonaRevision(revision, markdown, diff, actor, created_at)
+```
+
+这些是人格领域对象；HTTP/Tauri 可以用结构化信封传输，但 Markdown 正文不能退化成
+JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型功能复用，业务状态机
+不得因此重新合并为通用 Proposal。
+
 ### Laputa / Core
 
 - 独立 Persona 文档路径和原子文本写入；
 - `LaputaSection` 或替代 Persona DTO 的正文类型；
-- 用户直接保存、revision/CAS、changelog、unified text diff、历史和 rollback；
+- 用户直接保存、revision/CAS、changelog、真实 aligned text diff、历史和 rollback；
+- PersonaChangeRequest 的创建、stale 检测与原子接受/拒绝；
 - Frozen Core capture、section version、预算与 prompt render；
 - 删除人格 JSON proposal type/route/parser 及 persona legacy migration；
 - 保持 Persona 与普通 BML Memory 的类型和物理边界。
 
 ### Manager / Tauri
 
-- Persona workspace/read/save/history/rollback 的窄接口；
+- Persona workspace/read/save/history/rollback/change-request 的窄接口；
 - 正文使用 Markdown string，revision 作为显式并发前置条件；
 - 删除 Persona 对通用 Evolution Proposal、governance projection 和 apply receipt 的依赖；
+- 接受变更必须由单一服务端命令完成 CAS、authority write、history append 和状态终结；
 - 传输层错误必须保留稳定 reason code，保存冲突不得覆盖用户草稿。
 
 ### GUI
 
-- `PersonaMemoryView` 收敛为四分区人格工作区；
-- `SectionEditor` 替换为 Markdown 源码编辑器、预览和 Diff；
-- 删除 JSON format/parse/error、proposal pending note 和生命周期审批栏；
-- 历史详情展示 Markdown 版本与文本 Diff，并支持复制/回滚；
+- `PersonaMemoryView` 收敛为左侧四分区导航和单一中央工作区；
+- `SectionEditor` 替换为当前文档、待审变更、历史三个显式状态；
+- 删除 JSON format/parse/error、通用 proposal pending note 和永久生命周期审批栏；
+- 当前文档提供 Markdown 源码、可折叠预览和直接保存；待审状态提供只读前后对比；
+- 历史详情展示不可变 Markdown 版本与文本 Diff，并支持载入为未保存草稿；
 - 保存失败和 revision 冲突保留草稿、选中分区与滚动位置。
 
 ## 测试与删除证明要求
@@ -143,20 +190,30 @@ HTTP/Tauri 外层仍可使用 JSON/serde 传输结构化信封，例如 section 
 - Markdown Diff 对新增/删除/修改、Unicode、换行和空文档的确定性测试；
 - Frozen Core 同一会话冻结、下一会话生效、顺序与预算测试；
 - Markdown 预览禁用 HTML/危险链接的 GUI 测试；
-- 编辑、预览、Diff 三态及窄屏切换，草稿失败恢复和快捷键测试；
+- 当前文档/待审变更/历史三态及窄屏切换，源码/预览折叠、草稿失败恢复和快捷键测试；
+- 待审变更 before/after 对齐、接受/拒绝原子性、stale CAS 拦截和无 approve/apply 分裂；
+- 历史载入只替换本地草稿、未保存草稿确认、保存后新增版本且旧历史不变；
 - Manager HTTP、Tauri 与真实桌面纵向 smoke；
 - 符号和路径扫描证明人格 `.json`、JSON parse/format、旧 persona migration、
   Governance UI 和 fallback 均未回潮。
 
 ## 当前不决定
 
-- Agent 自动建议人格修改的具体授权模型；
+- Agent/系统在什么时机提出人格变更，以及变更摘要如何生成；
+- 同一人格文档允许同时存在多少个待审请求及其排队策略；
 - 最终 Persona authority 目录名；
 - CodeMirror 6 的具体扩展集合与主题细节；
 - 历史版本的长期保留数量；
 - Markdown 模板是否提供默认章节。
 
-这些问题不得被实现者自行扩展为兼容层或第二套人格系统。
+这些问题不得被实现者自行扩展为兼容层、自动合并器或第二套人格系统。
+
+## 对先前记录的修订
+
+本版本取代同一记录早先 P2 中“Persona 页面不再承担批准/拒绝”以及“Agent 自动建议
+修改入口待决策”的宽泛表述。准确边界现为：Persona 删除安全审批和通用 Governance，
+但在中央文档工作区保留专用的 Markdown 内容变更审查；聊天页 Approval Center 仍是
+危险执行授权的唯一入口。v0.0.1 iteration log 保留为决策演进证据，不回写历史记录。
 
 ## 被取代的依据
 

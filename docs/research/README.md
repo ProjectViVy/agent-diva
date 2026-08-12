@@ -43,7 +43,7 @@
 - `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
 - `evolution-genericagent-reset-2026-08/decision-record.md` - **Evolution 非兼容重置讨论决策**：Memory 退出审批、旧 AutoDream–Evolution 链路待删除、保护性分支前置及更新 GenericAgent 后的专项调研清单（2026-08-13，Research Hold）
-- `persona-markdown-clean-break-2026-08/decision-record.md` - **Persona Markdown Clean Break 决策**：四个人格文档改为 Markdown 权威，源码编辑/预览/Diff，删除 Persona 审批 UI 与全部人格 JSON/旧文件兼容链路（2026-08-13，Approved Direction）
+- `persona-markdown-clean-break-2026-08/decision-record.md` - **Persona Markdown Clean Break 决策**：四个人格文档改为 Markdown 权威，工作区收敛为当前文档/待审变更/历史三态；删除通用 Governance 与永久右栏，以专用 Markdown 内容审查处理 Agent 建议，并删除全部人格 JSON/旧文件兼容链路（2026-08-13，Approved Direction）
 
 ### 上下文管理 / Harness Context
 - `context-management-enhancement-2026-08/` - **上下文管理增强**（2026-08-10）
