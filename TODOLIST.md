@@ -25,6 +25,19 @@
   或恢复承担误操作保护。聊天页统一 Approval Center 仅保留危险工具执行等运行时授权。
   与 Evolution 重置共享依赖盘点，但代码删除和验证使用独立切片与提交。
 
+- [ ] **STM-CROSS-SESSION-CLEAN-BREAK：STM 跨会话活动上下文专项调研与非兼容修复** `sev-P0`
+  已拍板边界：BML typed records 是普通长期 Memory 的唯一权威；非兼容删除
+  `LaputaSectionName::MemoryMd`、`memory_md` 文件/API/Proposal/Prompt/Persona/Evolution/
+  Notebook/迁移和 fallback；不自动导入旧数据。STM 改为 workspace/profile 级、Agent
+  自动维护、跨 session 持续、有界的当前目标/开放回路/下一步/约束/Skill-SOP 与证据指针
+  工作集，日常更新和用户修正均不走审批。现有 session-scoped `working_memory` 只是
+  SessionCheckpoint，结束清理，必须与 STM 拆类型/命名。GUI 在 Memory 页右上角提供唯一
+  STM 状态入口和完整工作区，不在 Persona/Evolution/Notebook 暴露。物理存储、schema、
+  自动触发、并发合并、容量淘汰、历史、STM→BML/Skill 晋升和 Layer 1 装配顺序全部进入
+  Research Hold；完成 C1–C5/BML/session/Plan/Skills/Garden/GenericAgent 盘点和 E2E 矩阵后
+  才能实施。决策：
+  [`docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`](docs/research/stm-cross-session-clean-break-2026-08/decision-record.md)。
+
 - [ ] **PERSONA-MARKDOWN-CLEAN-BREAK：人格 Markdown 权威与工作区重构** `sev-P0`
   将 Identity、Relationship、Commitment、Preferences 的权威正文、版本、Diff、历史、
   回滚、Frozen Core 快照和 Prompt 投影全部改为 Markdown 字符串。GUI 重构为人格导航、

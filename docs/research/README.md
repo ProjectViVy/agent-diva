@@ -44,6 +44,7 @@
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
 - `evolution-genericagent-reset-2026-08/decision-record.md` - **Evolution 非兼容重置讨论决策**：Memory 退出审批、旧 AutoDream–Evolution 链路待删除、保护性分支前置及更新 GenericAgent 后的专项调研清单（2026-08-13，Research Hold）
 - `persona-markdown-clean-break-2026-08/decision-record.md` - **Persona Markdown Clean Break 决策**：四个人格文档改为 Markdown 权威；工作区收敛为当前文档/待审变更/历史三态；首次引导 absence-only 原子直写四人格+WORLD，不走审批；Persona/WORLD 永久保留完整版本轨迹；删除通用 Governance、永久右栏及全部人格 JSON/旧文件兼容链路（2026-08-13，Approved Direction）
+- `stm-cross-session-clean-break-2026-08/decision-record.md` - **STM 跨会话 Clean Break 决策**：BML 为唯一长期记忆；非兼容删除 `memory_md` 文件型 LTM；STM 收敛为自动管理、跨 session、有界的活动工作集并归 Memory GUI 管理；现有 session checkpoint 与 STM 拆分；物理存储、自动化和 Layer 1 装配进入专项调研（2026-08-13，Approved Boundary / Research Hold）
 
 ### 上下文管理 / Harness Context
 - `context-management-enhancement-2026-08/` - **上下文管理增强**（2026-08-10）
