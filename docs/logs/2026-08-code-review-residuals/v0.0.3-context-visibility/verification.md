@@ -6,3 +6,4 @@
 - `cargo test -p agent-diva-core --lib`：通过，含 ContextCompaction serde roundtrip。
 - GUI targeted tests：12 passed。
 - `npm run build`：通过。
+- `cargo run -p agent-diva-cli -- --help`：CLI 用户入口 smoke 通过。
