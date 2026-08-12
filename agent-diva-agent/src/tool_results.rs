@@ -5,6 +5,7 @@ use agent_diva_core::tool_artifact::{
     INLINE_THRESHOLD_CHARS,
 };
 use agent_diva_providers::{Message, MessageContent};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -114,7 +115,7 @@ pub(crate) async fn microcompact_tool_results(
         let Some(content) = message.content.as_text().map(str::to_string) else {
             continue;
         };
-        if content.starts_with("Error:")
+        if is_failed_result(&content)
             || content.chars().count() <= MICROCOMPACT_THRESHOLD_CHARS
             || serde_json::from_str::<ToolResultRef>(&content).is_ok()
         {
@@ -144,6 +145,22 @@ pub(crate) async fn microcompact_tool_results(
         }
     }
     report
+}
+
+fn is_failed_result(content: &str) -> bool {
+    if content.trim_start().starts_with("Error:") {
+        return true;
+    }
+    serde_json::from_str::<Value>(content)
+        .ok()
+        .and_then(|value| value.as_object().cloned())
+        .is_some_and(|object| {
+            object.get("error").and_then(Value::as_str).is_some()
+                || object
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .is_some_and(|status| status != "ok")
+        })
 }
 
 #[cfg(test)]
@@ -216,6 +233,28 @@ mod tests {
         assert!(reference.truncated);
         assert!(referenced.content().len() < INLINE_THRESHOLD_CHARS);
         assert!(!referenced.is_error());
+    }
+
+    #[tokio::test]
+    async fn materialization_failures_are_not_rewritten_as_success_artifacts() {
+        let workspace = tempfile::tempdir().unwrap();
+        let mut assistant = Message::assistant("");
+        assistant.tool_calls = Some(vec![ToolCallRequest {
+            id: "failed".into(),
+            call_type: "function".into(),
+            name: "read_file".into(),
+            arguments: HashMap::new(),
+        }]);
+        let failure = serde_json::json!({
+            "version": 1,
+            "error": "artifact_io",
+            "message": "Tool output could not be stored safely; no partial output was returned."
+        })
+        .to_string();
+        let mut messages = vec![assistant, Message::tool(failure.clone(), "failed")];
+        let report = microcompact_tool_results(workspace.path(), "session", &mut messages).await;
+        assert!(report.compacted.is_empty());
+        assert_eq!(messages[1].content.as_text(), Some(failure.as_str()));
     }
 
     #[tokio::test]

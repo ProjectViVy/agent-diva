@@ -156,8 +156,14 @@ pub(crate) struct ToolOrchestrationResult {
 
 impl ToolStepResult {
     fn error(error: impl Into<String>) -> Self {
+        let error = error.into();
+        let output = if error.trim_start().starts_with("Error:") {
+            error
+        } else {
+            format!("Error: {error}")
+        };
         Self {
-            output: error.into(),
+            output,
             is_error: true,
         }
     }
