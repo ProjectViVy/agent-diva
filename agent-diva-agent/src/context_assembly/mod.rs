@@ -18,8 +18,8 @@ pub use budget::{
     ContextBudgetRegion, ContextFragment, EvictionPolicy, LayerBudget,
 };
 pub use cache_observe::{
-    apply_core_tool_cache_anchor, CacheObservationTicket, CacheObserveInput, CacheObserveState,
-    PostCallClassification, PreCallClassification,
+    apply_core_tool_cache_anchor, core_tool_hash, CacheObservationTicket, CacheObserveInput,
+    CacheObserveState, PostCallClassification, PreCallClassification,
 };
 pub use section_cache::{CacheBreakReason, StablePrefixSnapshot};
 

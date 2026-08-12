@@ -16,7 +16,7 @@ use super::context::PreparedTurnContext;
 use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::context::ContextBuilder;
 use crate::context_assembly::{
-    apply_core_tool_cache_anchor, measure_provider_context, AssemblyDecision,
+    apply_core_tool_cache_anchor, core_tool_hash, measure_provider_context, AssemblyDecision,
     AssemblyDecisionReason, BudgetLayer, CacheObservationTicket, CacheObserveInput,
     ContextBudgetPlan, ContextBudgetRegion, PromptSection, StablePrefixSnapshot,
 };
@@ -104,6 +104,7 @@ impl AgentLoop {
         current_turn_message: &Message,
         turn_messages_start: &mut usize,
         stable_prefix: &StablePrefixSnapshot,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<(ProviderEventStream, CacheObservationTicket), Box<dyn std::error::Error>> {
         let mut reactive_retry_attempted = false;
         loop {
@@ -237,10 +238,19 @@ impl AgentLoop {
                 self.provider.set_final_wire_cache_listener(None);
                 result
             };
-            let snapshot = final_wire_snapshot
+            let mut snapshot = final_wire_snapshot
                 .lock()
                 .ok()
                 .and_then(|mut slot| slot.take());
+            // A provider without a cache-control anchor reports an empty CORE
+            // prefix.  Preserve the provider's final-wire snapshot when it has
+            // an anchor, otherwise fill the hash from the agent-owned
+            // CORE/DEFERRED boundary captured before the call.
+            if let Some(snapshot) = snapshot.as_mut() {
+                if !snapshot.profile.is_enabled() || snapshot.core_tools_hash.is_empty() {
+                    snapshot.core_tools_hash = core_tool_hash(tool_definitions);
+                }
+            }
             let (cache_ticket, _) = self.cache_observer.note_pre_call(CacheObserveInput {
                 session_id: session_key,
                 snapshot,

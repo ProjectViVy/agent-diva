@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use agent_diva_providers::{FinalWireCacheSnapshot, PromptCachePolicy, PromptCacheProfile};
 use agent_diva_tooling::ToolDefinitionSet;
+use sha2::{Digest, Sha256};
 use tracing::{debug, info, warn};
 
 use super::CacheBreakReason;
@@ -212,6 +213,18 @@ pub fn apply_core_tool_cache_anchor(tools: &mut ToolDefinitionSet, profile: &Pro
     }
 }
 
+/// Hash the canonical CORE prefix captured at the agent boundary.
+///
+/// Providers that do not expose a cache anchor still need a structural key so
+/// deferred activation cannot perturb the CORE cache identity.  The caller
+/// passes the pre-provider `ToolDefinitionSet`, whose `core_count` is the
+/// authoritative partition boundary.
+pub fn core_tool_hash(tools: &ToolDefinitionSet) -> String {
+    let end = tools.core_count.min(tools.definitions.len());
+    let bytes = serde_json::to_vec(&tools.definitions[..end]).unwrap_or_default();
+    format!("{:x}", Sha256::digest(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +289,28 @@ mod tests {
             state.note_post_call(ticket, &HashMap::new()),
             PostCallClassification::UsageUnavailable
         );
+    }
+
+    #[test]
+    fn core_hash_uses_only_the_explicit_core_prefix() {
+        let first = ToolDefinitionSet {
+            definitions: vec![
+                serde_json::json!({"name":"core"}),
+                serde_json::json!({"name":"deferred-a"}),
+            ],
+            core_count: 1,
+        };
+        let second = ToolDefinitionSet {
+            definitions: vec![
+                serde_json::json!({"name":"core"}),
+                serde_json::json!({"name":"deferred-b"}),
+            ],
+            core_count: 1,
+        };
+        assert_eq!(core_tool_hash(&first), core_tool_hash(&second));
+        let mut changed = first.clone();
+        changed.definitions[0]["description"] = serde_json::json!("changed");
+        assert_ne!(core_tool_hash(&first), core_tool_hash(&changed));
     }
 
     #[test]
