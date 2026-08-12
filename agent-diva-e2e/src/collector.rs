@@ -137,7 +137,8 @@ impl EventCollector {
                     | AgentEvent::PlanReportReadyForApproval { .. }
                     | AgentEvent::ChatPlanUpdate { .. }
                     | AgentEvent::ProviderRetry { .. }
-                    | AgentEvent::ProviderStalled { .. } => {}
+                    | AgentEvent::ProviderStalled { .. }
+                    | AgentEvent::ContextCompaction { .. } => {}
                 }
             }
         })

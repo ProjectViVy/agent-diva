@@ -265,6 +265,16 @@ impl AgentLoop {
                         "Context overflow detected from provider: {}. Triggering reactive compaction...",
                         error
                     );
+                    self.emit_agent_event(
+                        message,
+                        event_tx,
+                        AgentEvent::ContextCompaction {
+                            session_id: session_key.to_string(),
+                            trigger: "reactive".to_string(),
+                            phase: "started".to_string(),
+                            summary: Some("provider context limit exceeded".to_string()),
+                        },
+                    );
                     reactive_retry_attempted = true;
                     let current_turn_snapshot =
                         std::iter::once(provider_message_to_chat_message(current_turn_message))
@@ -290,6 +300,19 @@ impl AgentLoop {
 
                     let (history, canonical_checkpoint, current_turn_tail) = match compact_result {
                         Ok(Some(pending)) => {
+                            self.emit_agent_event(
+                                message,
+                                event_tx,
+                                AgentEvent::ContextCompaction {
+                                    session_id: session_key.to_string(),
+                                    trigger: "reactive".to_string(),
+                                    phase: "completed".to_string(),
+                                    summary: Some(format!(
+                                        "{} messages compressed",
+                                        pending.checkpoint.source_message_count
+                                    )),
+                                },
+                            );
                             let checkpoint = pending.checkpoint.clone();
                             let mut active = pending.active_durable_messages.clone();
                             let mut turn_tail = pending.active_current_turn_messages.clone();
@@ -313,6 +336,18 @@ impl AgentLoop {
                             )
                         }
                         Ok(None) => {
+                            self.emit_agent_event(
+                                message,
+                                event_tx,
+                                AgentEvent::ContextCompaction {
+                                    session_id: session_key.to_string(),
+                                    trigger: "reactive".to_string(),
+                                    phase: "completed".to_string(),
+                                    summary: Some(
+                                        "nothing to compact; original context retained".to_string(),
+                                    ),
+                                },
+                            );
                             let session = self.sessions.get_or_create(session_key);
                             (
                                 session.get_history(usize::MAX),
@@ -322,6 +357,16 @@ impl AgentLoop {
                         }
                         Err(error) => {
                             warn!("Reactive compaction failed (non-blocking): {}", error);
+                            self.emit_agent_event(
+                                message,
+                                event_tx,
+                                AgentEvent::ContextCompaction {
+                                    session_id: session_key.to_string(),
+                                    trigger: "reactive".to_string(),
+                                    phase: "failed".to_string(),
+                                    summary: Some(format!("{error}; original context retained")),
+                                },
+                            );
                             let session = self.sessions.get_or_create(session_key);
                             (
                                 session.get_history(usize::MAX),

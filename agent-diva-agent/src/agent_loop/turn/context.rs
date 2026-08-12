@@ -1,5 +1,5 @@
 use agent_diva_core::audit::{self, AuditEvent};
-use agent_diva_core::bus::InboundMessage;
+use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::{
     ExecutionContextBoundary, ExecutionContextPolicy, ExecutionInitializationStatus,
@@ -105,6 +105,7 @@ impl AgentLoop {
         active_mask: Option<&MaskFile>,
         scheduled: bool,
         trace_id: &str,
+        event_tx: Option<&tokio::sync::mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<RuntimeTurnContext, Box<dyn std::error::Error>> {
         // A pending reactive update belongs to one turn only.  If the prior
         // turn was cancelled before finalize, discard it before starting a
@@ -280,6 +281,16 @@ impl AgentLoop {
                             * self.tool_config.budget.system_budget_ratio) as usize
                     ),
                 );
+            self.emit_agent_event(
+                message,
+                event_tx,
+                AgentEvent::ContextCompaction {
+                    session_id: session_key.to_string(),
+                    trigger: "auto".to_string(),
+                    phase: "started".to_string(),
+                    summary: None,
+                },
+            );
             let compact_result = if let Some(session) = self.sessions.get(session_key) {
                 CheckpointCompactor::compact_snapshot(
                     CheckpointSnapshot::from_session(session, Vec::new()),
@@ -294,6 +305,19 @@ impl AgentLoop {
             };
             match compact_result {
                 Ok(Some(result)) => {
+                    self.emit_agent_event(
+                        message,
+                        event_tx,
+                        AgentEvent::ContextCompaction {
+                            session_id: session_key.to_string(),
+                            trigger: "auto".to_string(),
+                            phase: "completed".to_string(),
+                            summary: Some(format!(
+                                "{} messages compressed",
+                                result.checkpoint.source_message_count
+                            )),
+                        },
+                    );
                     let session = self.sessions.get_or_create(session_key);
                     session.canonical_checkpoint = Some(result.checkpoint);
                     (
@@ -303,6 +327,16 @@ impl AgentLoop {
                     )
                 }
                 Ok(None) => {
+                    self.emit_agent_event(
+                        message,
+                        event_tx,
+                        AgentEvent::ContextCompaction {
+                            session_id: session_key.to_string(),
+                            trigger: "auto".to_string(),
+                            phase: "completed".to_string(),
+                            summary: Some("nothing to compact".to_string()),
+                        },
+                    );
                     let session = self.sessions.get_or_create(session_key);
                     (
                         session.get_history(usize::MAX),
@@ -312,6 +346,16 @@ impl AgentLoop {
                 }
                 Err(error) => {
                     warn!("Compaction failed (non-blocking): {}", error);
+                    self.emit_agent_event(
+                        message,
+                        event_tx,
+                        AgentEvent::ContextCompaction {
+                            session_id: session_key.to_string(),
+                            trigger: "auto".to_string(),
+                            phase: "failed".to_string(),
+                            summary: Some(format!("{error}; original context retained")),
+                        },
+                    );
                     let session = self.sessions.get_or_create(session_key);
                     (
                         session.get_history(usize::MAX),

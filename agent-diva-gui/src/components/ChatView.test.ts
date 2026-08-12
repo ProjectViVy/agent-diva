@@ -9,6 +9,15 @@ vi.mock('vue-i18n', () => ({
       'chat.toolSuccess': '调用成功',
       'chat.toolFailed': '调用失败',
       'chat.thinking': '正在深度思考...',
+      'chat.viewDetails': '查看详情',
+      'chat.hideDetails': '收起详情',
+      'chat.artifactSize': '结果大小:',
+      'chat.artifactId': 'Artifact ID:',
+      'chat.readHint': '读取提示:',
+      'chat.copyArtifactReference': '复制 artifact 引用',
+      'chat.compactionRunning': '正在压缩上下文…',
+      'chat.compactionCompleted': '上下文压缩已完成。',
+      'chat.compactionFailed': '上下文压缩失败，原上下文已保留。',
     })[key] ?? key,
   }),
 }));
@@ -100,6 +109,64 @@ describe('ChatView streaming states', () => {
     expect(wrapper.text()).toContain('shell');
     expect(wrapper.find('.streaming-dots-only').exists()).toBe(false);
     expect(wrapper.findAll('.streaming-dots i')).toHaveLength(0);
+  });
+
+  it('renders ToolResultRef preview and copies a real artifact reference', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const toolResultRef = JSON.stringify({
+      version: 1,
+      artifact_id: 'artifact-123',
+      tool_call_id: 'call-123',
+      tool_name: 'shell',
+      status: 'ok',
+      char_count: 2048,
+      byte_count: 2100,
+      sha256: 'a'.repeat(64),
+      preview: 'first lines only',
+      truncated: true,
+      read_hint: 'agent-diva artifacts read artifact-123',
+    });
+    const wrapper = mountChat([{
+      id: 'tool-ref',
+      role: 'tool',
+      content: 'tool completed',
+      toolName: 'shell',
+      toolStatus: 'success',
+      toolResult: toolResultRef,
+    }]);
+
+    expect(wrapper.text()).toContain('first lines only');
+    expect(wrapper.text()).not.toContain('"artifact_id"');
+    const detailsButton = wrapper.findAll('button').find((button) => button.text().includes('查看详情'));
+    expect(detailsButton).toBeDefined();
+    await detailsButton!.trigger('click');
+    expect(wrapper.text()).toContain('artifact-123');
+    const copyButton = wrapper.findAll('button').find((button) => button.text().includes('复制 artifact 引用'));
+    expect(copyButton).toBeDefined();
+    await copyButton!.trigger('click');
+    expect(writeText).toHaveBeenCalledWith('artifact://artifact-123');
+  });
+
+  it('shows one non-spinning failed compaction status with context-retention text', () => {
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+        compactionStatus: {
+          trigger: 'reactive',
+          phase: 'failed',
+          summary: 'provider rejected the compacted context; original context retained',
+        },
+      },
+    });
+    expect(wrapper.findAll('.compaction-status-line')).toHaveLength(1);
+    expect(wrapper.text()).toContain('原上下文已保留');
+    expect(wrapper.text()).toContain('original context retained');
+    expect(wrapper.find('.compaction-status-line .animate-spin').exists()).toBe(false);
   });
 
   it('opens session history as an overlay on narrow windows', async () => {

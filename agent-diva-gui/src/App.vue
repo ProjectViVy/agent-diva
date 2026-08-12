@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import type { AskUserQuestionView } from './components/ChatView.vue';
+import type { AskUserQuestionView, CompactionStatus } from './components/ChatView.vue';
 import NormalMode from "./components/NormalMode.vue";
 import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
@@ -108,6 +108,16 @@ interface StreamRetryPayload {
 interface StreamStalledPayload {
   request_id: string;
   model?: string | null;
+}
+
+interface StreamContextCompactionPayload {
+  request_id: string;
+  data: {
+    session_id: string;
+    trigger: string;
+    phase: string;
+    summary?: string | null;
+  };
 }
 
 interface StreamToolStartPayload extends ToolStartPayload {
@@ -243,6 +253,7 @@ const suppressNextStopError = ref(false);
 const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
+const compactionStatus = ref<CompactionStatus | null>(null);
 const activeStreamRequestId = ref<string | null>(null);
 const activePlanRuntime = ref<PlanRuntimeState | null>(null);
 const pendingApprovalPlan = ref<PlanRuntimeState | null>(null);
@@ -251,6 +262,10 @@ const executingPlan = ref<PlanRuntimeState | null>(null);
 const approvingPlan = ref(false);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 const titleGenerationInFlight = ref<Set<string>>(new Set());
+
+watch(currentSessionKey, () => {
+  compactionStatus.value = null;
+});
 
 // Config state
 const config = ref({
@@ -2014,15 +2029,6 @@ onMounted(async () => {
     }
     try {
       await withTimeout(
-        invoke("start_command_approval_stream"),
-        STARTUP_TASK_TIMEOUT_MS,
-        "start_command_approval_stream"
-      );
-    } catch (e) {
-      console.warn("Failed to start command approval stream:", e);
-    }
-    try {
-      await withTimeout(
         invoke('start_approval_stream', { initialCursor: null }),
         STARTUP_TASK_TIMEOUT_MS,
         'start_approval_stream',
@@ -2431,6 +2437,19 @@ onMounted(async () => {
     }
   }));
 
+  // Listen for automatic/reactive context compaction progress.
+  unlisteners.push(await listen<StreamContextCompactionPayload>('agent-context-compaction', (event) => {
+    const payload = event.payload?.data;
+    if (!payload || payload.session_id !== currentSessionKey.value) return;
+    if (payload.trigger !== 'auto' && payload.trigger !== 'reactive') return;
+    if (payload.phase !== 'started' && payload.phase !== 'completed' && payload.phase !== 'failed') return;
+    compactionStatus.value = {
+      trigger: payload.trigger,
+      phase: payload.phase,
+      summary: payload.summary,
+    };
+  }));
+
   // Listen for external hook messages
   unlisteners.push(await listen<string>("external-message", (event) => {
     messages.value.push({ 
@@ -2492,6 +2511,7 @@ onUnmounted(() => {
       :approval-center-open="approvalCenterOpen"
       :approval-pending-count="approvalPendingCount"
       :ask-user-questions="pendingQuestions"
+      :compaction-status="compactionStatus"
       :save-config-action="saveConfig"
       :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"

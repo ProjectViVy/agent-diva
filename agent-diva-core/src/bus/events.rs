@@ -132,6 +132,16 @@ pub enum AgentEvent {
     ProviderStalled {
         model: Option<String>,
     },
+    /// Automatic or reactive context compaction progress for one session.
+    /// `summary` is present when the backend can provide a bounded result or
+    /// failure explanation; the original session context remains authoritative
+    /// when `phase` is `failed`.
+    ContextCompaction {
+        session_id: String,
+        trigger: String,
+        phase: String,
+        summary: Option<String>,
+    },
 }
 
 /// Event with context for the bus
@@ -309,6 +319,23 @@ mod tests {
             }
             other => panic!("expected ProviderStalled, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn context_compaction_serde_roundtrip() {
+        let original = AgentEvent::ContextCompaction {
+            session_id: "gui:chat".into(),
+            trigger: "reactive".into(),
+            phase: "failed".into(),
+            summary: Some("original context retained".into()),
+        };
+        let back: AgentEvent =
+            serde_json::from_str(&serde_json::to_string(&original).unwrap()).unwrap();
+        assert!(
+            matches!(back, AgentEvent::ContextCompaction { session_id, trigger, phase, summary }
+            if session_id == "gui:chat" && trigger == "reactive" && phase == "failed"
+                && summary.as_deref() == Some("original context retained"))
+        );
     }
 }
 

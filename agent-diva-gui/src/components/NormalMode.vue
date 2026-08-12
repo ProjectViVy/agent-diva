@@ -21,7 +21,7 @@ import {
   X,
 } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
-import ChatView, { type AskUserQuestionView } from './ChatView.vue';
+import ChatView, { type AskUserQuestionView, type CompactionStatus } from './ChatView.vue';
 import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
 import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
@@ -122,6 +122,7 @@ interface Props {
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
   askUserQuestions?: AskUserQuestionView[];
+  compactionStatus?: CompactionStatus | null;
   currentSessionKey?: string;
   savedModels?: SavedModel[];
   sessions?: {
@@ -1108,6 +1109,7 @@ defineExpose({
               :approval-center-open="approvalCenterOpen"
               :approval-pending-count="approvalPendingCount"
               :ask-user-questions="askUserQuestions"
+              :compaction-status="compactionStatus"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
               @revoke-plan="emit('revoke-plan', $event)"

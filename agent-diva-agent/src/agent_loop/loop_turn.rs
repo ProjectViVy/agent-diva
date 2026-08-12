@@ -344,6 +344,7 @@ impl AgentLoop {
                 active_mask.as_ref(),
                 is_cron_trigger,
                 &trace_id,
+                event_tx,
             )
             .await?;
         let message_content = runtime_context.message_content;
@@ -443,6 +444,7 @@ impl AgentLoop {
                     &current_turn_message,
                     &mut turn_messages_start,
                     &stable_prefix,
+                    event_tx,
                 )
                 .await?;
             let model_step = match self

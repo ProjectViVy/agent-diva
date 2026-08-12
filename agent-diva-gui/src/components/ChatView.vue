@@ -84,6 +84,57 @@ interface Message {
   attachments?: string[];
 }
 
+export interface CompactionStatus {
+  trigger: 'auto' | 'reactive';
+  phase: 'started' | 'completed' | 'failed';
+  summary?: string | null;
+}
+
+interface ToolResultRefV1 {
+  version: 1;
+  artifact_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  status: string;
+  char_count: number;
+  byte_count: number;
+  sha256: string;
+  preview: string;
+  truncated: boolean;
+  read_hint: string;
+}
+
+function parseToolResultRef(content?: string): ToolResultRefV1 | null {
+  if (!content) return null;
+  try {
+    const value = JSON.parse(content) as Partial<ToolResultRefV1>;
+    if (
+      value.version !== 1 ||
+      typeof value.artifact_id !== 'string' ||
+      typeof value.tool_call_id !== 'string' ||
+      typeof value.tool_name !== 'string' ||
+      typeof value.status !== 'string' ||
+      typeof value.char_count !== 'number' ||
+      typeof value.byte_count !== 'number' ||
+      typeof value.sha256 !== 'string' ||
+      typeof value.preview !== 'string' ||
+      typeof value.truncated !== 'boolean' ||
+      typeof value.read_hint !== 'string'
+    ) return null;
+    return value as ToolResultRefV1;
+  } catch {
+    return null;
+  }
+}
+
+const toolResultRef = (msg: Message) => parseToolResultRef(msg.toolResult || msg.content);
+const toolResultPreview = (msg: Message) => {
+  const reference = toolResultRef(msg);
+  if (reference) return reference.preview;
+  const result = msg.toolResult || '';
+  return result.length > 160 ? `${result.slice(0, 160)}...` : result;
+};
+
 const expandedTools = ref<Record<string, boolean>>({});
 const expandedReasoning = ref<Record<string, boolean>>({});
 const expandedRawMeta = ref<Record<string, boolean>>({});
@@ -152,6 +203,7 @@ const props = defineProps<{
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
   askUserQuestions?: AskUserQuestionView[];
+  compactionStatus?: CompactionStatus | null;
 }>();
 
 const emit = defineEmits<{
@@ -641,6 +693,11 @@ const copyMessage = async (content: string) => {
   }
 };
 
+const copyArtifactReference = async (msg: Message) => {
+  const reference = toolResultRef(msg);
+  if (reference) await copyMessage(`artifact://${reference.artifact_id}`);
+};
+
 // 格式化时间戳
 const formatTime = (timestamp?: number) => {
   if (!timestamp) return '';
@@ -719,6 +776,18 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
 
       <!-- Messages List -->
+      <div
+        v-if="compactionStatus"
+        class="compaction-status-line mx-4 mb-2 rounded-lg border border-sky-200/60 bg-sky-50/70 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-200"
+        role="status"
+      >
+        <span v-if="compactionStatus.phase === 'started'">{{ t('chat.compactionRunning') }}</span>
+        <span v-else-if="compactionStatus.phase === 'completed'">{{ t('chat.compactionCompleted') }}</span>
+        <span v-else>
+          {{ t('chat.compactionFailed') }}
+          <span v-if="compactionStatus.summary">{{ ` ${compactionStatus.summary}` }}</span>
+        </span>
+      </div>
       <div ref="chatListRef" class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
@@ -830,10 +899,10 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
                 <!-- Tool Details Toggle -->
                 <div
-                  v-if="msg.toolStatus !== 'running' && msg.toolResult"
+                  v-if="msg.toolStatus !== 'running' && (msg.toolResult || toolResultRef(msg))"
                   class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
                 >
-                  {{ msg.toolResult.length > 160 ? `${msg.toolResult.slice(0, 160)}...` : msg.toolResult }}
+                  {{ toolResultPreview(msg) }}
                 </div>
                 <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
                   <button
@@ -855,7 +924,27 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                     <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
                     <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
                   </div>
-                  <div v-if="msg.toolResult">
+                  <div v-if="toolResultRef(msg)" class="space-y-2">
+                    <div>
+                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.artifactSize') }}</div>
+                      <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all">
+                        {{ toolResultRef(msg)?.char_count }} chars / {{ toolResultRef(msg)?.byte_count }} bytes
+                      </div>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.artifactId') }}</div>
+                      <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all">{{ toolResultRef(msg)?.artifact_id }}</div>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.readHint') }}</div>
+                      <div class="text-gray-600 break-words">{{ toolResultRef(msg)?.read_hint }}</div>
+                    </div>
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800" @click="copyArtifactReference(msg)">
+                      <Copy :size="12" />
+                      <span>{{ t('chat.copyArtifactReference') }}</span>
+                    </button>
+                  </div>
+                  <div v-else-if="msg.toolResult">
                     <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
                     <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
                   </div>

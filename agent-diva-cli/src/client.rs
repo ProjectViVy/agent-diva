@@ -211,6 +211,35 @@ impl ApiClient {
                             let _ = event_tx.send(AgentEvent::ChatPlanUpdate { args });
                         }
                     }
+                    "context_compaction" => {
+                        if let Ok(data) = serde_json::from_str::<Value>(&event.data) {
+                            let session_id = data
+                                .get("session_id")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            let trigger = data
+                                .get("trigger")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            let phase = data
+                                .get("phase")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            let summary = data
+                                .get("summary")
+                                .and_then(Value::as_str)
+                                .map(str::to_string);
+                            let _ = event_tx.send(AgentEvent::ContextCompaction {
+                                session_id,
+                                trigger,
+                                phase,
+                                summary,
+                            });
+                        }
+                    }
                     _ => {}
                 },
                 Err(e) => {

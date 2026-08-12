@@ -277,6 +277,22 @@ pub async fn chat_handler(
                         .event("provider_stalled")
                         .data(data.to_string())
                 }
+                AgentEvent::ContextCompaction {
+                    session_id,
+                    trigger,
+                    phase,
+                    summary,
+                } => {
+                    let data = serde_json::json!({
+                        "session_id": session_id,
+                        "trigger": trigger,
+                        "phase": phase,
+                        "summary": summary,
+                    });
+                    Event::default()
+                        .event("context_compaction")
+                        .data(data.to_string())
+                }
                 _ => Event::default().comment("keep-alive"),
             };
             Ok(evt)
