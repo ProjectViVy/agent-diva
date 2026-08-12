@@ -1009,13 +1009,28 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [x] **CTX compact/checkpoint 无用户可见进度** `sev-P3`
   Core/Manager/Tauri/CLI 已转发 auto/reactive started/completed/failed 事件，GUI 当前
   会话显示单一非旋转状态行，失败文案明确原上下文保留；手动 `/compact` 反馈不重复。
+- [x] **Memory governance 双账本导致 approval request not found** `sev-P0`
+  **2026-08-12 修复：** Agent 生产写路径与 Manager 现在共享同一个
+  `ApprovalCoordinator` / `governance.db` 权威；启动时只重建仍可审核且在共享账本缺失的
+  pending 请求，复用稳定 request ID，绝不迁移旧私有账本中的 allow receipt。已批准但
+  缺失权威 receipt 的提案转为 `needs_attention`，读取接口不再通过 submit 产生事件。
+  见 `docs/logs/2026-08-governance-persona-recovery/v0.0.1-unified-governance/`。
+- [x] **Persona / Evolution 工作台加载与错误状态不可用** `sev-P0`
+  **2026-08-12 修复：** Persona 只消费单一权威 workspace projection，结构化 Tauri
+  错误不再显示 `[object Object]`，`null` Frozen Core 作为 `tbd` 和可编辑 `{}` 展示；
+  Evolution 主提案与辅助事件/健康请求隔离，刷新失败保留最后一次成功数据。治理投影
+  缺失时批准动作 fail closed 并显示恢复提示。前端 462 项测试和生产构建通过。见
+  `docs/logs/2026-08-governance-persona-recovery/v0.0.2-persona-evolution-usability/`。
 - [ ] **M3 HITL 合入主干后的人工 smoke 与回归** `sev-P2`
   **代码已在 `agent-diva-pro`（merge `131d2dc5`）**；仍需人工：三模式桌面切换、
   trusted 学习规则落盘、permissionMode 重启保持、shell 危险命令审批路径。
   关联既有「M3 审批 HITL 集中人工 smoke」与 WINDOWS-RELEASE-EXEC-ACCESS；
   步骤可参考 `docs/logs/2026-08-m3-hitl-closure/v0.*.0-*/acceptance.md`。
   代码级回归与 GUI 自动化已通过；真实桌面三模式、重启保持、学习规则和危险命令
-  路径仍待用户配合的真机验收，本迭代不以自动化冒充通过。
+  路径仍待用户配合的真机验收，本迭代不以自动化冒充通过。2026-08-12 已将桌面
+  Gateway 重启到 `78e2bcf5` / `ab4705e4`，GUI 也已在 `d6f82ea3` 后热重建；真实工作区
+  Persona/Evolution API 返回 5 个提案且治理投影缺失数为 0。视觉交互、批准并 apply、
+  三模式和重启保持仍需用户在当前窗口人工确认，因此尚不能勾选。
 - [x] **审批 UI 三重显示去重** `sev-P2`  *(v0.5.1 已修)*
   同一 ExecTool 审批请求在 GUI 同时出现三种视觉形态：
   (1) Drawer 内的 `ApprovalCenterCard`（完整样式，`ApprovalCenterDrawer.vue:155`）；
