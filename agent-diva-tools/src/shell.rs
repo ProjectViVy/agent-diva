@@ -3,8 +3,8 @@
 use crate::sanitize::sanitize_for_json;
 use agent_diva_sandbox::{
     AskForApproval, CommandApprovalCoordinator, CommandApprovalKey, CommandApprovalScope,
-    CommandApprovalStatus, ReviewDecision, SandboxConfig, SandboxError, SandboxManager,
-    ToolOrchestrator,
+    CommandApprovalStatus, DefaultGuardianReviewer, ExecPolicyManager, GuardianConfig,
+    GuardianManager, ReviewDecision, SandboxConfig, SandboxError, SandboxManager, ToolOrchestrator,
 };
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
@@ -112,7 +112,38 @@ impl ExecTool {
         let mut config = SandboxConfig::workspace_write(workspace);
         config.timeout_seconds = self.timeout_secs;
         let manager = Arc::new(SandboxManager::new(&config));
-        self.orchestrator = Some(Arc::new(ToolOrchestrator::new(manager, approval_policy)));
+        if approval_policy == AskForApproval::Never {
+            self.orchestrator = Some(Arc::new(ToolOrchestrator::new(manager, approval_policy)));
+        } else {
+            // Attach a mode-driven Guardian so smart/cautious/trusted produce
+            // distinct approval behavior in production. Known-safe detection
+            // reuses the coordinator's rule store.
+            let rules = coordinator
+                .as_ref()
+                .and_then(CommandApprovalCoordinator::command_rules)
+                .cloned();
+            let guardian_config = GuardianConfig::for_ask(approval_policy);
+            let reviewer = Arc::new(DefaultGuardianReviewer::with_rules(
+                approval_policy,
+                rules.clone(),
+            ));
+            let guardian = GuardianManager::new(guardian_config, reviewer);
+            let exec_policy = rules.map(|store| {
+                let guardian_path = store
+                    .path()
+                    .parent()
+                    .map(|dir| dir.join("execpolicy-guardian.toml"))
+                    .unwrap_or_else(|| PathBuf::from("execpolicy-guardian.toml"));
+                Arc::new(
+                    ExecPolicyManager::from_command_rule_store(&store)
+                        .with_rules_path(guardian_path),
+                )
+            });
+            self.orchestrator = Some(Arc::new(
+                ToolOrchestrator::new(manager, approval_policy)
+                    .with_guardian_and_exec_policy(Arc::new(guardian), exec_policy),
+            ));
+        }
         self.approval_coordinator = coordinator;
         self
     }
@@ -126,6 +157,14 @@ impl ExecTool {
         self.orchestrator = Some(orchestrator);
         self.approval_coordinator = coordinator;
         self
+    }
+
+    #[cfg(test)]
+    fn has_guardian_for_test(&self) -> bool {
+        self.orchestrator
+            .as_ref()
+            .map(|o| o.has_guardian())
+            .unwrap_or(false)
     }
 
     /// Default dangerous command patterns
@@ -427,6 +466,23 @@ fn approval_scope_from_params(params: &Value) -> Result<CommandApprovalScope, St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn with_approval_backend_attaches_guardian_unless_never() {
+        let coordinator = CommandApprovalCoordinator::new(std::time::Duration::from_secs(2));
+        let trusted =
+            ExecTool::new().with_approval_backend(Some(coordinator), AskForApproval::UnlessTrusted);
+        assert!(
+            trusted.has_guardian_for_test(),
+            "trusted mode must attach a Guardian in production wiring"
+        );
+
+        let never = ExecTool::new().with_approval_backend(None, AskForApproval::Never);
+        assert!(
+            !never.has_guardian_for_test(),
+            "Never mode must keep the plain orchestrator path"
+        );
+    }
 
     #[tokio::test]
     async fn test_exec_simple_command() {

@@ -271,7 +271,7 @@ pub struct ToolOrchestrator {
     sandbox_manager: Arc<SandboxManager>,
 
     /// ExecPolicy manager (optional)
-    exec_policy: Option<ExecPolicyManager>,
+    exec_policy: Option<Arc<ExecPolicyManager>>,
 
     /// Approval policy
     approval_policy: AskForApproval,
@@ -295,7 +295,7 @@ impl ToolOrchestrator {
     pub fn with_exec_policy(
         sandbox_manager: Arc<SandboxManager>,
         approval_policy: AskForApproval,
-        exec_policy: ExecPolicyManager,
+        exec_policy: Arc<ExecPolicyManager>,
     ) -> Self {
         Self {
             sandbox_manager,
@@ -323,7 +323,7 @@ impl ToolOrchestrator {
     pub fn with_exec_policy_and_guardian(
         sandbox_manager: Arc<SandboxManager>,
         approval_policy: AskForApproval,
-        exec_policy: ExecPolicyManager,
+        exec_policy: Arc<ExecPolicyManager>,
         guardian: Arc<GuardianManager>,
     ) -> Self {
         Self {
@@ -332,6 +332,19 @@ impl ToolOrchestrator {
             approval_policy,
             guardian: Some(guardian),
         }
+    }
+
+    /// Chained builder attaching an optional Guardian and optional shared
+    /// ExecPolicy. Used by the production shell wiring to attach a
+    /// mode-driven Guardian alongside the coordinator's rule store.
+    pub fn with_guardian_and_exec_policy(
+        mut self,
+        guardian: Arc<GuardianManager>,
+        exec_policy: Option<Arc<ExecPolicyManager>>,
+    ) -> Self {
+        self.guardian = Some(guardian);
+        self.exec_policy = exec_policy;
+        self
     }
 
     /// Get the sandbox manager
@@ -369,12 +382,16 @@ impl ToolOrchestrator {
                     bypass_sandbox: false,
                     amendment: None,
                 },
-                AskForApproval::OnRequest | AskForApproval::UnlessTrusted => {
-                    ApprovalRequirement::NeedsApproval {
-                        reason: "Approval policy requires it".to_string(),
-                        amendment: None,
-                    }
-                }
+                AskForApproval::OnRequest => ApprovalRequirement::NeedsApproval {
+                    reason: "Approval policy requires it".to_string(),
+                    amendment: None,
+                },
+                // Trusted allows unknown commands by default; the Guardian
+                // still asks for dangerous ones.
+                AskForApproval::UnlessTrusted => ApprovalRequirement::Skip {
+                    bypass_sandbox: false,
+                    amendment: None,
+                },
             }
         }
     }
@@ -441,14 +458,27 @@ impl ToolOrchestrator {
                         guardian.record_approval(key, ReviewDecision::ApprovedForSession);
                     }
 
-                    // Create Allow rule if configured
+                    // Create Allow rule if configured (trusted auto-learning)
                     if create_rule {
-                        if let Some(_policy) = &self.exec_policy {
-                            let _amendment = crate::exec_policy::ExecPolicyAmendment::new(
+                        if let Some(policy) = &self.exec_policy {
+                            let amendment = crate::exec_policy::ExecPolicyAmendment::new(
                                 command_parts.to_vec(),
                             );
-                            // Note: This would need mutable access, skip for now
-                            debug!("Would create Allow rule for: {}", command_parts.join(" "));
+                            match policy.append_amendment_shared(&amendment) {
+                                Ok(()) => {
+                                    info!(
+                                        "Guardian auto-learned Allow rule for: {}",
+                                        command_parts.join(" ")
+                                    );
+                                }
+                                Err(err) => {
+                                    debug!(
+                                        "Guardian did not learn rule for {}: {}",
+                                        command_parts.join(" "),
+                                        err
+                                    );
+                                }
+                            }
                         }
                     }
 

@@ -4,10 +4,11 @@
 //! and evaluates command rules. Inspired by Codex CLI's execpolicy system,
 //! simplified to TOML format.
 
+use crate::command_rules::CommandRuleStore;
 use crate::decision::{Decision, Evaluation};
 use crate::policy::AskForApproval;
 use crate::rules::{Policy, PrefixRule};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -168,8 +169,8 @@ impl ExecPolicyAmendment {
 /// - Rule evaluation for commands
 /// - Rule amendment (auto-learning from approvals)
 pub struct ExecPolicyManager {
-    /// Current policy (atomic for concurrent reads)
-    policy: Arc<Policy>,
+    /// Current policy (RwLock-guarded so a shared `Arc` can auto-learn).
+    policy: RwLock<Arc<Policy>>,
 
     /// Update lock for rule modifications
     update_lock: Mutex<()>,
@@ -182,7 +183,7 @@ impl ExecPolicyManager {
     /// Create a new manager with empty policy
     pub fn new() -> Self {
         Self {
-            policy: Arc::new(Policy::empty()),
+            policy: RwLock::new(Arc::new(Policy::empty())),
             update_lock: Mutex::new(()),
             rules_path: None,
         }
@@ -191,10 +192,24 @@ impl ExecPolicyManager {
     /// Create a manager with a pre-loaded policy
     pub fn with_policy(policy: Policy) -> Self {
         Self {
-            policy: Arc::new(policy),
+            policy: RwLock::new(Arc::new(policy)),
             update_lock: Mutex::new(()),
             rules_path: None,
         }
+    }
+
+    /// Derive an ExecPolicy from the production `CommandRuleStore`, converting
+    /// every enabled Allow rule into a matching `PrefixRule`. This lets the
+    /// Guardian's `is_known_safe` reuse the same rule source the coordinator
+    /// enforces, without reading a second execpolicy.toml schema.
+    pub fn from_command_rule_store(rules: &CommandRuleStore) -> Self {
+        let prefix_rules = rules
+            .list()
+            .into_iter()
+            .filter(|rule| rule.enabled && rule.decision == "allow")
+            .map(|rule| PrefixRule::new(rule.pattern, Decision::Allow))
+            .collect();
+        Self::with_policy(Policy::from_rules(prefix_rules))
     }
 
     /// Create a manager that loads rules from a file
@@ -203,7 +218,7 @@ impl ExecPolicyManager {
             .map_err(|e| ExecPolicyError::LoadError(format!("{}: {}", path.display(), e)))?;
 
         Ok(Self {
-            policy: Arc::new(policy),
+            policy: RwLock::new(Arc::new(policy)),
             update_lock: Mutex::new(()),
             rules_path: Some(path),
         })
@@ -215,7 +230,7 @@ impl ExecPolicyManager {
             .map_err(|e| ExecPolicyError::LoadError(format!("{}: {}", path.display(), e)))?;
 
         // Merge rules (new rules are appended)
-        let mut merged = (*self.policy).clone();
+        let mut merged = self.policy.read().as_ref().clone();
         for rule in new_policy.prefix_rules {
             // Skip duplicates
             if merged.find_rule_by_pattern(&rule.pattern).is_none() {
@@ -224,7 +239,7 @@ impl ExecPolicyManager {
         }
 
         let rule_count = merged.rule_count();
-        self.policy = Arc::new(merged);
+        *self.policy.write() = Arc::new(merged);
         self.rules_path = Some(path.clone());
 
         info!("Loaded {} rules from {}", rule_count, path.display());
@@ -232,23 +247,23 @@ impl ExecPolicyManager {
     }
 
     /// Get the current policy
-    pub fn policy(&self) -> &Arc<Policy> {
-        &self.policy
+    pub fn policy(&self) -> Arc<Policy> {
+        self.policy.read().clone()
     }
 
     /// Evaluate a command against the policy
     pub fn evaluate(&self, command: &[String]) -> Evaluation {
-        self.policy.evaluate(command)
+        self.policy.read().evaluate(command)
     }
 
     /// Evaluate multiple commands and aggregate decisions
     pub fn evaluate_multiple(&self, commands: &[Vec<String>]) -> Evaluation {
-        self.policy.evaluate_multiple(commands)
+        self.policy.read().evaluate_multiple(commands)
     }
 
     /// Check if a command has an explicit Allow rule
     pub fn has_allow_rule(&self, command: &[String]) -> bool {
-        let matches = self.policy.matches_for_command(command);
+        let matches = self.policy.read().matches_for_command(command);
         matches.iter().any(|m| m.decision == Decision::Allow)
     }
 
@@ -313,6 +328,15 @@ impl ExecPolicyManager {
         &mut self,
         amendment: &ExecPolicyAmendment,
     ) -> Result<(), ExecPolicyError> {
+        self.append_amendment_shared(amendment)
+    }
+
+    /// Append an amendment through a shared reference (works on an `Arc`), so
+    /// the Guardian can auto-learn rules in the trusted mode.
+    pub fn append_amendment_shared(
+        &self,
+        amendment: &ExecPolicyAmendment,
+    ) -> Result<(), ExecPolicyError> {
         // Validate amendment
         if !amendment.is_valid() {
             return Err(ExecPolicyError::BannedPrefix(amendment.command.join(" ")));
@@ -321,6 +345,7 @@ impl ExecPolicyManager {
         // Check for duplicate
         if self
             .policy
+            .read()
             .find_rule_by_pattern(&amendment.command)
             .is_some()
         {
@@ -339,12 +364,19 @@ impl ExecPolicyManager {
         }
 
         // Update in-memory policy
-        let mut new_policy = (*self.policy).clone();
+        let mut new_policy = self.policy.read().as_ref().clone();
         new_policy.add_rule(rule);
-        self.policy = Arc::new(new_policy);
+        *self.policy.write() = Arc::new(new_policy);
 
         info!("Added rule: {} -> Allow", amendment.command.join(" "));
         Ok(())
+    }
+
+    /// Set the rules file path for persistence (e.g. a Guardian-learned rules
+    /// file separate from the coordinator's execpolicy.toml).
+    pub fn with_rules_path(mut self, path: PathBuf) -> Self {
+        self.rules_path = Some(path);
+        self
     }
 
     /// Get the rules file path
@@ -527,6 +559,56 @@ fn extract_pattern_from_line(line: &str) -> Option<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn append_amendment_shared_persists_and_updates_in_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("execpolicy-guardian.toml");
+        let policy = Arc::new(ExecPolicyManager::new().with_rules_path(path.clone()));
+        let amendment = ExecPolicyAmendment::new(vec!["npm".into(), "run".into(), "build".into()]);
+
+        policy.append_amendment_shared(&amendment).unwrap();
+
+        // In-memory policy now allows the command.
+        assert!(
+            policy
+                .evaluate(&["npm".into(), "run".into(), "build".into()])
+                .decision
+                .allows_execution(),
+            "learned rule must be reflected in-memory"
+        );
+        // Persisted to the guardian rules file.
+        assert!(path.exists(), "learned rule must persist to file");
+        // Duplicate rule rejected.
+        assert!(
+            policy.append_amendment_shared(&amendment).is_err(),
+            "duplicate learned rule must be rejected"
+        );
+    }
+
+    #[test]
+    fn from_command_rule_store_converts_enabled_allow_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap();
+        let suggestion = crate::command_rules::safe_prefix_suggestion("git status").unwrap();
+        store.add_suggestion(&suggestion).unwrap();
+
+        let policy = ExecPolicyManager::from_command_rule_store(&store);
+        assert!(
+            policy
+                .evaluate(&["git".to_string(), "status".to_string()])
+                .decision
+                .allows_execution(),
+            "seeded allow rule must carry into the derived ExecPolicy"
+        );
+        assert!(
+            !policy
+                .evaluate(&["whoami".to_string()])
+                .decision
+                .allows_execution(),
+            "unknown command must not be allowed"
+        );
+    }
 
     #[test]
     fn test_banned_prefix_detection() {

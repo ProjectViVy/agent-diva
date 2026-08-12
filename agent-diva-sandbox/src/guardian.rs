@@ -8,6 +8,7 @@
 //! Inspired by Codex CLI's Guardian system for safe auto-approval.
 
 use crate::approval::{CommandApprovalKey, ReviewDecision};
+use crate::command_rules::CommandRuleStore;
 use crate::exec_policy::{ApprovalRequirement, ExecPolicyManager};
 use crate::policy::AskForApproval;
 use parking_lot::Mutex;
@@ -79,6 +80,31 @@ impl GuardianConfig {
             auto_approve_read_only: true,
             min_execution_time_for_approval_ms: 50,
             enable_auto_learning: true,
+        }
+    }
+
+    /// Create a balanced "smart" configuration: auto-approve known-safe and
+    /// read-only, but do not auto-learn.
+    pub fn smart() -> Self {
+        Self {
+            max_consecutive_rejections: 8,
+            rejection_window_secs: 60,
+            auto_approve_known_safe: true,
+            auto_approve_read_only: true,
+            min_execution_time_for_approval_ms: 50,
+            enable_auto_learning: false,
+        }
+    }
+
+    /// Pick a Guardian config for a GUI approval mode:
+    /// cautious → strict (all ask), smart → balanced (low-risk auto),
+    /// trusted → liberal (unknown auto + auto-learn), never → default.
+    pub fn for_ask(approval_policy: AskForApproval) -> Self {
+        match approval_policy {
+            AskForApproval::OnRequest => Self::strict(),
+            AskForApproval::OnFailure => Self::smart(),
+            AskForApproval::UnlessTrusted => Self::liberal(),
+            AskForApproval::Never => Self::default(),
         }
     }
 }
@@ -193,6 +219,10 @@ pub struct DefaultGuardianReviewer {
     /// ExecPolicy manager (optional)
     exec_policy: Option<Arc<ExecPolicyManager>>,
 
+    /// Production rule store (optional). Used for `is_known_safe` when a
+    /// `CommandRuleStore` is available instead of an ExecPolicy.
+    rules: Option<Arc<CommandRuleStore>>,
+
     /// Approval policy
     approval_policy: AskForApproval,
 }
@@ -202,6 +232,7 @@ impl DefaultGuardianReviewer {
     pub fn new(approval_policy: AskForApproval) -> Self {
         Self {
             exec_policy: None,
+            rules: None,
             approval_policy,
         }
     }
@@ -213,6 +244,19 @@ impl DefaultGuardianReviewer {
     ) -> Self {
         Self {
             exec_policy: Some(exec_policy),
+            rules: None,
+            approval_policy,
+        }
+    }
+
+    /// Create with the production rule store for known-safe detection.
+    pub fn with_rules(
+        approval_policy: AskForApproval,
+        rules: Option<Arc<CommandRuleStore>>,
+    ) -> Self {
+        Self {
+            exec_policy: None,
+            rules,
             approval_policy,
         }
     }
@@ -222,6 +266,8 @@ impl DefaultGuardianReviewer {
         if let Some(policy) = &self.exec_policy {
             // Check if there's an explicit Allow rule
             policy.has_allow_rule(command)
+        } else if let Some(rules) = &self.rules {
+            rules.allows_tokens(command)
         } else {
             false
         }
@@ -339,8 +385,11 @@ impl GuardianReviewer for DefaultGuardianReviewer {
             return GuardianDecision::denied("Command forbidden by policy".to_string());
         }
 
-        // If needs approval is not required by policy, defer
-        if approval_requirement.can_skip() {
+        // If approval is not required by policy, defer. Only `Never` short-
+        // circuits here: the three production modes (OnRequest/OnFailure/
+        // UnlessTrusted) must still run risk prediction so that e.g. cautious
+        // asks every command instead of auto-running when a rule matched.
+        if approval_requirement.can_skip() && self.approval_policy == AskForApproval::Never {
             return GuardianDecision::Defer;
         }
 
@@ -363,29 +412,56 @@ impl GuardianReviewer for DefaultGuardianReviewer {
                 GuardianDecision::auto_approve(false, config.enable_auto_learning)
             }
             AskForApproval::OnFailure => {
-                // Allow first, prompt on failure - defer for now
-                GuardianDecision::Defer
-            }
-            AskForApproval::OnRequest | AskForApproval::UnlessTrusted => {
-                // Check if command is known safe
+                // Smart mode: auto-approve known-safe and read-only, ask for
+                // dangerous and unknown. No longer a blind "run then ask".
                 if config.auto_approve_known_safe && self.is_known_safe(command) {
                     return GuardianDecision::auto_approve(true, false);
                 }
-
-                // Check if read-only
                 if config.auto_approve_read_only && self.appears_read_only(command) {
                     return GuardianDecision::auto_approve(true, false);
                 }
-
-                // Check if dangerous
                 if self.is_potentially_dangerous(command) {
                     return GuardianDecision::require_approval(
                         "Potentially dangerous command requires approval".to_string(),
                     );
                 }
-
-                // Require approval for unknown commands
+                GuardianDecision::require_approval(
+                    "Untrusted command requires approval".to_string(),
+                )
+            }
+            AskForApproval::OnRequest => {
+                // Cautious mode: auto-approve known-safe/read-only only when
+                // the config allows (strict → all off, so everything is asked);
+                // dangerous and unknown always require approval.
+                if config.auto_approve_known_safe && self.is_known_safe(command) {
+                    return GuardianDecision::auto_approve(true, false);
+                }
+                if config.auto_approve_read_only && self.appears_read_only(command) {
+                    return GuardianDecision::auto_approve(true, false);
+                }
+                if self.is_potentially_dangerous(command) {
+                    return GuardianDecision::require_approval(
+                        "Potentially dangerous command requires approval".to_string(),
+                    );
+                }
                 GuardianDecision::require_approval("Unknown command requires approval".to_string())
+            }
+            AskForApproval::UnlessTrusted => {
+                // Trusted mode: auto-approve known-safe/read-only and unknown;
+                // only dangerous commands require approval. Unknown may be
+                // auto-learned when the config enables it.
+                if config.auto_approve_known_safe && self.is_known_safe(command) {
+                    return GuardianDecision::auto_approve(true, false);
+                }
+                if config.auto_approve_read_only && self.appears_read_only(command) {
+                    return GuardianDecision::auto_approve(true, false);
+                }
+                if self.is_potentially_dangerous(command) {
+                    return GuardianDecision::require_approval(
+                        "Potentially dangerous command requires approval".to_string(),
+                    );
+                }
+                GuardianDecision::auto_approve(false, config.enable_auto_learning)
             }
         }
     }
@@ -669,6 +745,25 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
+    fn known_safe_uses_command_rule_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CommandRuleStore::open(dir.path().join("execpolicy.toml")).unwrap());
+        let suggestion = crate::command_rules::safe_prefix_suggestion("git status").unwrap();
+        store.add_suggestion(&suggestion).unwrap();
+
+        let reviewer =
+            DefaultGuardianReviewer::with_rules(AskForApproval::OnRequest, Some(store.clone()));
+        assert!(reviewer.is_known_safe(&["git".to_string(), "status".to_string()]));
+        assert!(!reviewer.is_known_safe(&["whoami".to_string()]));
+
+        let bare = DefaultGuardianReviewer::new(AskForApproval::OnRequest);
+        assert!(
+            !bare.is_known_safe(&["git".to_string(), "status".to_string()]),
+            "without a rule source nothing is known-safe"
+        );
+    }
+
+    #[test]
     fn test_guardian_config_default() {
         let config = GuardianConfig::default();
         assert_eq!(config.max_consecutive_rejections, 5);
@@ -693,6 +788,34 @@ mod tests {
         assert!(config.auto_approve_known_safe);
         assert!(config.auto_approve_read_only);
         assert!(config.enable_auto_learning);
+    }
+
+    #[test]
+    fn for_ask_maps_gui_modes_to_distinct_configs() {
+        let cautious = GuardianConfig::for_ask(AskForApproval::OnRequest);
+        assert!(!cautious.auto_approve_read_only, "cautious asks everything");
+        assert!(!cautious.auto_approve_known_safe);
+
+        let smart = GuardianConfig::for_ask(AskForApproval::OnFailure);
+        assert!(
+            smart.auto_approve_read_only,
+            "smart auto-approves read-only"
+        );
+        assert!(smart.auto_approve_known_safe);
+        assert!(!smart.enable_auto_learning, "smart does not auto-learn");
+
+        let trusted = GuardianConfig::for_ask(AskForApproval::UnlessTrusted);
+        assert!(trusted.auto_approve_read_only);
+        assert!(trusted.enable_auto_learning, "trusted auto-learns");
+
+        let never = GuardianConfig::for_ask(AskForApproval::Never);
+        let default = GuardianConfig::default();
+        assert_eq!(never.auto_approve_read_only, default.auto_approve_read_only);
+        assert_eq!(
+            never.auto_approve_known_safe,
+            default.auto_approve_known_safe
+        );
+        assert_eq!(never.enable_auto_learning, default.enable_auto_learning);
     }
 
     #[test]
@@ -876,8 +999,10 @@ mod tests {
 
     #[test]
     fn test_guardian_manager_review_skip() {
+        // Only `Never` defers on a Skip requirement; the production three modes
+        // still run risk prediction.
         let config = GuardianConfig::default();
-        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::OnRequest);
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::Never);
 
         let skip = ApprovalRequirement::Skip {
             bypass_sandbox: false,
@@ -886,6 +1011,127 @@ mod tests {
         let decision = manager.review(&["ls".to_string()], &PathBuf::from("/workspace"), &skip);
 
         assert!(decision.is_defer());
+    }
+
+    #[test]
+    fn test_cautious_asks_even_when_policy_skips() {
+        // OnRequest (cautious) must NOT defer on a Skip requirement: it asks
+        // every command, including unknown ones.
+        let config = GuardianConfig::strict();
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::OnRequest);
+
+        let skip = ApprovalRequirement::Skip {
+            bypass_sandbox: false,
+            amendment: None,
+        };
+        let decision = manager.review(&["ls".to_string()], &PathBuf::from("/workspace"), &skip);
+
+        assert!(decision.requires_approval());
+    }
+
+    #[test]
+    fn cautious_asks_everything_including_read_only() {
+        let config = GuardianConfig::strict();
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::OnRequest);
+        let needs = ApprovalRequirement::NeedsApproval {
+            reason: "approval required".into(),
+            amendment: None,
+        };
+        // Read-only commands are still asked under strict cautious.
+        assert!(manager
+            .review(
+                &["git".into(), "status".into()],
+                &PathBuf::from("/workspace"),
+                &needs
+            )
+            .requires_approval());
+        assert!(manager
+            .review(
+                &["rm".into(), "-rf".into(), "/".into()],
+                &PathBuf::from("/workspace"),
+                &needs
+            )
+            .requires_approval());
+        assert!(manager
+            .review(&["whoami".into()], &PathBuf::from("/workspace"), &needs)
+            .requires_approval());
+    }
+
+    #[test]
+    fn smart_auto_approves_read_only_but_asks_dangerous_and_unknown() {
+        let config = GuardianConfig {
+            auto_approve_known_safe: true,
+            auto_approve_read_only: true,
+            enable_auto_learning: false,
+            ..GuardianConfig::default()
+        };
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::OnFailure);
+        let needs = ApprovalRequirement::NeedsApproval {
+            reason: "approval required".into(),
+            amendment: None,
+        };
+        assert!(
+            manager
+                .review(
+                    &["git".into(), "status".into()],
+                    &PathBuf::from("/workspace"),
+                    &needs
+                )
+                .is_auto_approved(),
+            "smart auto-approves read-only"
+        );
+        assert!(
+            manager
+                .review(
+                    &["rm".into(), "-rf".into(), "/".into()],
+                    &PathBuf::from("/workspace"),
+                    &needs
+                )
+                .requires_approval(),
+            "smart asks dangerous"
+        );
+        assert!(
+            manager
+                .review(
+                    &["curl".into(), "https://example.com".into()],
+                    &PathBuf::from("/workspace"),
+                    &needs
+                )
+                .requires_approval(),
+            "smart asks unknown"
+        );
+    }
+
+    #[test]
+    fn trusted_auto_approves_unknown_but_asks_dangerous_and_learns() {
+        let config = GuardianConfig::liberal();
+        let manager = GuardianManager::with_default_reviewer(config, AskForApproval::UnlessTrusted);
+        let needs = ApprovalRequirement::NeedsApproval {
+            reason: "approval required".into(),
+            amendment: None,
+        };
+        let unknown = manager.review(
+            &["curl".into(), "https://example.com".into()],
+            &PathBuf::from("/workspace"),
+            &needs,
+        );
+        match unknown {
+            GuardianDecision::AutoApprove { create_rule, .. } => assert!(
+                create_rule,
+                "trusted + liberal must auto-learn unknown commands"
+            ),
+            other => panic!("trusted unknown should auto-approve, got {other:?}"),
+        }
+        assert!(
+            manager
+                .review(
+                    &["rm".into(), "-rf".into(), "/".into()],
+                    &PathBuf::from("/workspace"),
+                    &needs
+                )
+                .requires_approval(),
+            "trusted still asks dangerous"
+        );
     }
 
     #[test]
