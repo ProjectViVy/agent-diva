@@ -16,15 +16,34 @@
 
 ## Active Plan
 
-当前主线：在 **typed Laputa clean-break（GMH-24）之后**，先完成
-**AutoDream → 候选 → Laputa 提案 → typed Memory → Recall 反馈**的产品纵向闭环，
-再执行最终真实桌面验收。GMH-00..24 架构底座已完成并归档，但 Evolution 当前仍是
-占位/不可用产品，不能以已有页面或提案底座宣称可用。
+当前主线已于 2026-08-13 暂停：真实桌面测试否定了
+**AutoDream → 候选 → Laputa 提案 → typed Memory → Recall 反馈**作为 Evolution
+产品模型的可用性。旧链路、旧 Evolution UI 与对应 G2D+ 路径冻结，不得继续修补或
+作为当前验收依据。下一步只开展更新 GenericAgent 后的专项调研与 Diva 全链删除盘点；
+调研完成并由用户拍板前不实施替代模型。
 
 全量执行顺序、依赖、人工暂停点和项目级完成定义见
 [`docs/architecture/todolist-master-execution-plan.md`](docs/architecture/todolist-master-execution-plan.md)。
 Codex“目标”功能必须按该蓝图逐切片推进，不得把清单机械并行执行。完整产品闭环计划见
 [`docs/dev/autodream-laputa-product-closure/`](docs/dev/autodream-laputa-product-closure/)。
+
+> **Supersession notice（2026-08-13）**：上述总蓝图和旧产品闭环计划保留为历史材料，
+> 其中 AutoDream / Evolution / Memory proposal 相关路线已被
+> [`Evolution 非兼容重置讨论决策`](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)
+> 取代。下方既有完成项记录过去实现事实；未完成的旧 G2D+ 项不得继续执行，待专项调研
+> 给出处置清单后统一归档。
+
+- [ ] **EVOLUTION-GENERICAGENT-RESET-RESEARCH：Evolution 非兼容重置专项调研** `sev-P0`
+  先更新并逐提交审查上层 `.workspace/GenericAgent` 主分支，研究其最新自进化触发、
+  Action-Verified 沉淀、L0–L4、SOP/Skill 产物、发现复用和可管理性；同时盘点 Diva
+  现有 AutoDream、Laputa proposal、Memory governance、Skill、Manager/Tauri、GUI、
+  持久化和测试的完整依赖。输出单一领域模型建议、失败模型、非兼容删除清单、数据处置、
+  测试矩阵和真实桌面验收方案。实施前必须从删除前已验证提交建立保护性分支；保护分支
+  不得成为兼容 runtime。已拍板约束：Memory CRUD 全部无审批；Memory 不进入 Evolution
+  或 Governance Ledger；旧 AutoDream–Evolution 链路不修补、待非兼容删除；Evolution
+  不管理人格或普通记忆；SOP/Skill 最终关系继续待调研，不提前实现晋升状态机。
+  决策记录：
+  [`docs/research/evolution-genericagent-reset-2026-08/decision-record.md`](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)。
 
 - [x] **OPENHARNESS-BENCHMARK-RESEARCH：OpenHarness 深度调研与 Agent-Diva 演进提案（已决策关闭）** `sev-P1`
   2026-08-10 用户决策：不实施 `agent-diva dry-run` 离线 Pre-flight、Workflow

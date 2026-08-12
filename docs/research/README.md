@@ -42,6 +42,7 @@
 ### Laputa / BML / Garden 架构
 - `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
+- `evolution-genericagent-reset-2026-08/decision-record.md` - **Evolution 非兼容重置讨论决策**：Memory 退出审批、旧 AutoDream–Evolution 链路待删除、保护性分支前置及更新 GenericAgent 后的专项调研清单（2026-08-13，Research Hold）
 
 ### 上下文管理 / Harness Context
 - `context-management-enhancement-2026-08/` - **上下文管理增强**（2026-08-10）

@@ -3,6 +3,13 @@
 - 状态：`Deferred`
 - 日期：2026-07-30
 
+> **2026-08-13 superseded for Evolution construction:** 本文保留为历史决策，
+> 但“SOP 只是 Skill 的自然语言称呼”不再视为已冻结结论。真实测试促使项目暂停旧
+> AutoDream–Evolution 链路，并重新调研 GenericAgent 的渐进沉淀模型。当前有效边界、
+> 已确认删除方向和未决问题见
+> `docs/research/evolution-genericagent-reset-2026-08/decision-record.md`。在专项调研完成前，
+> 不实施本文的 Skill 编辑器方向，也不实施 SOP Candidate → Skill 晋升模型。
+
 ## 最终边界
 
 Agent Diva 的产品对象只有 **Skill**。SOP 不是独立类型、能力或子系统：
