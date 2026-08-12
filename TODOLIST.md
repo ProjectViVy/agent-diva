@@ -5,58 +5,90 @@
 
 严重度：`sev-P0` 阻断，`sev-P1` 高，`sev-P2` 中，`sev-P3` 低。
 
-## 当前决策门
+## 总 EPIC：Laputa 认知工作区 Clean Break
 
-- [ ] **EVOLUTION-GENERICAGENT-RESET-RESEARCH：Evolution 非兼容重置专项调研** `sev-P0`
-  先更新并逐提交审查上层 `.workspace/GenericAgent` 主分支，研究最新自进化触发、
-  Action-Verified 沉淀、L0–L4、SOP/Skill 产物、发现复用和可管理性；同时盘点 Diva
-  现有 AutoDream、Laputa proposal、Memory governance、Skill、Manager/Tauri、GUI、
-  持久化和测试的完整依赖。输出单一领域模型建议、失败模型、非兼容删除清单、数据处置、
-  测试矩阵和真实桌面验收方案。实施前必须从删除前已验证提交建立保护性分支；保护分支
-  不得成为兼容 runtime。已拍板约束：旧 AutoDream–Evolution 链路不再修补；Evolution
-  不管理人格或普通记忆；SOP/Skill 最终关系继续待调研，不提前实现晋升状态机。
-  决策：
-  [`docs/research/evolution-genericagent-reset-2026-08/decision-record.md`](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)。
+- [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
+  当前状态：`Epic Defined / Research Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
+  只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
+  总编排与门禁：
+  [`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
 
-- [ ] **MEMORY-APPROVAL-CLEAN-BREAK：Memory CRUD 完全退出审批体系** `sev-P0`
-  Memory 的增、删、改、查直接作用于 Memory 权威，不创建 Laputa Proposal，不进入
-  Evolution 或 Governance Ledger。实施时非兼容删除 Memory 专属审批、proposal-first
-  写入、治理投影、旧 DTO/状态映射和 fallback，并以精确目标、软删除、历史版本、撤销
-  或恢复承担误操作保护。聊天页统一 Approval Center 仅保留危险工具执行等运行时授权。
-  与 Evolution 重置共享依赖盘点，但代码删除和验证使用独立切片与提交。
+**已冻结产品边界（不是待重新决策项）：**
 
-- [ ] **STM-CROSS-SESSION-CLEAN-BREAK：STM 跨会话活动上下文专项调研与非兼容修复** `sev-P0`
-  已拍板边界：BML typed records 是普通长期 Memory 的唯一权威；非兼容删除
-  `LaputaSectionName::MemoryMd`、`memory_md` 文件/API/Proposal/Prompt/Persona/Evolution/
-  Notebook/迁移和 fallback；不自动导入旧数据。STM 改为 workspace/profile 级、Agent
-  自动维护、跨 session 持续、有界的当前目标/开放回路/下一步/约束/Skill-SOP 与证据指针
-  工作集，日常更新和用户修正均不走审批。现有 session-scoped `working_memory` 只是
-  SessionCheckpoint，结束清理，必须与 STM 拆类型/命名。GUI 在 Memory 页右上角提供唯一
-  STM 状态入口和完整工作区，不在 Persona/Evolution/Notebook 暴露。物理存储、schema、
-  自动触发、并发合并、容量淘汰、历史、STM→BML/Skill 晋升和 Layer 1 装配顺序全部进入
-  Research Hold；完成 C1–C5/BML/session/Plan/Skills/Garden/GenericAgent 盘点和 E2E 矩阵后
-  才能实施。决策：
-  [`docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`](docs/research/stm-cross-session-clean-break-2026-08/decision-record.md)。
+- Memory CRUD 与 STM 维护不走审批；BML 是普通长期 Memory 唯一权威；完整删除
+  `MemoryMd` / `memory_md` 链路且不自动导入旧数据。
+- Persona 是四份核心 Markdown + WORLD，不等于 Memory；用户直接保存，Agent 建议只走
+  Persona 专属 before/after 内容审查；首次初始化 absence-only 原子直写五份权威；所有
+  Persona/WORLD 历史永久保留。
+- Evolution 只管理 Skill；旧 AutoDream Evolution 不再修补；SOP/Skill 最终关系由最新
+  GenericAgent 研究决定。
+- Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
+- 全部重构采用 clean break；实施前从验证提交建立保护性分支，保护分支不作为 fallback。
 
-- [ ] **PERSONA-MARKDOWN-CLEAN-BREAK：人格 Markdown 权威与工作区重构** `sev-P0`
-  将 Identity、Relationship、Commitment、Preferences 的权威正文、版本、Diff、历史、
-  回滚、Frozen Core 快照和 Prompt 投影全部改为 Markdown 字符串。GUI 重构为人格导航、
-  单一中央工作区及“当前文档 / 待审变更 / 历史”三态；用户手动编辑直接保存并产生审计。
-  Agent/系统建议使用 Persona 专属 Markdown 内容审查：只读 before/after Diff、原子接受
-  或拒绝、base revision 失配即 stale；它不进入聊天 Approval Center，也不复用通用
-  Governance，且不拆分 approve/apply。历史版本只读，载入仅覆盖本地草稿，显式保存后
-  才成为新当前版本。删除永久右栏、人格 `.json`、JSON patch/format/parse、旧
-  SOUL/IDENTITY/USER 映射、迁移、双读写和 fallback。
-  首次引导仅在 Identity/Relationship/Commitment/Preferences/WORLD 五份权威全部不存在时
-  出现，一次原子直写五份内容与首个历史版本，不创建 Proposal、审批或 Governance；
-  全存在即永久不再出现，部分存在/空/损坏进入修复状态。删除空 `null` Persona、空壳
-  WORLD 预种子、Prompt `First-Run Onboarding`、`ask_user ->
-  laputa_propose_section_write` 初始化路径和 GUI localStorage 完成判定。Persona/WORLD
-  每次真实成功变化永久追加不可变完整快照+文本 Diff 历史，不自动裁剪、不整体注入 Prompt，
-  以保存 Agent 人格演变轨迹。
-  实施前建立删除前保护性分支，不自动导入旧用户数据。HTTP/Tauri 可继续用结构化信封，
-  但人格正文和用户界面不得再出现 JSON。决策：
-  [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)。
+决策依据：
+[Evolution](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)、
+[Persona](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)、
+[STM/Memory](docs/research/stm-cross-session-clean-break-2026-08/decision-record.md)。
+
+### Research Gate：现在允许执行
+
+- [ ] **COGNITIVE-R0-CURRENT-STATE：当前系统、数据与耦合全景盘点** `sev-P0`
+  追踪 Persona、WORLD、BML、`memory_md`、SessionCheckpoint、AutoDream、Evolution、
+  Proposal/Governance/Approval 的真实读写、事件、Prompt、GUI 与持久化链路；输出当前状态图、
+  数据/依赖矩阵、保留/改名/删除/待决策清单。把 Persona `[object Object]`、Evolution
+  加载失败和 `approval request not found` 固化为旧架构失败基线，不先沿旧模型打补丁。
+
+- [ ] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0` `blocked:R0`
+  安全核对并同步 `.workspace/GenericAgent` 主分支，固定 upstream commit，逐提交研究触发、
+  Action-Verified、L0–L4、SOP/Skill、发现复用与管理；用真实实验区分宣称和行为，输出 Diva
+  差距与 SOP/Skill 建议。研究完成前禁止实现晋升状态机。
+
+- [ ] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0` `blocked:R0`
+  联合盘点 C1–C5、BML、session lifecycle、canonical checkpoint、Plan/background task、
+  Skill/SOP、Frozen Core、WORLD、Garden 与 GenericAgent；研究 STM 存储、scope、并发、
+  自动触发、失败恢复、预算历史、晋升证据和 Layer 1 装配，输出方案实验与失败矩阵。
+
+- [ ] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0` `blocked:R0`
+  盘点 Frozen Core、WORLD、首次初始化、旧 JSON Proposal 与 Prompt 投影；评估 Markdown
+  revision、完整快照、文本 Diff、CAS/stale、永久历史、编辑/预览/Diff/草稿恢复和安全
+  渲染能力。只形成事实与技术选项，不提前选择目标架构。
+
+- [ ] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0` `blocked:R0-R3`
+  以 R0–R3 为输入，明确旧 Persona JSON、`memory_md`、AutoDream/Evolution 与 Governance
+  数据的删除影响、保护性分支协议、一次性人工备份说明、恢复演练和零残留证明；禁止借机
+  设计导入、迁移、双读写或 runtime fallback。
+
+### Architecture Gate：全部 Research 通过用户评审后才能开始
+
+- [ ] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0` `blocked:R0-R4`
+  为 Persona/WORLD、BML、STM、SessionCheckpoint、Evolution/Skill、Approval 形成单一权威
+  和跨域不变量 ADR；当前只登记设计任务，不写目标方案。
+
+- [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0` `blocked:D0`
+  研究通过后设计 Markdown 权威、revision/Diff、直接保存、专属内容审查、Frozen Core、
+  原子初始化、incomplete repair、永久历史及 Manager/Tauri/GUI 契约。
+
+- [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0` `blocked:D0`
+  研究通过后设计 BML CRUD、STM 权威/自动化、SessionCheckpoint 分离、Layer 1 装配、
+  并发失败恢复、历史和 Memory/STM GUI。
+
+- [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
+  研究通过后设计唯一 Evolution 领域模型、触发、验证、可管理性、SOP/Skill 关系、Skill
+  runtime 接线和 GUI；人格及普通 Memory 必须排除。
+
+- [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0` `blocked:D1-D3`
+  汇总窄 API/事件/错误、实施依赖、删除矩阵、保护分支、提交切片、发布/恢复、自动测试和
+  真机验收。D4 用户批准后才允许领取生产代码范围。
+
+### Implementation Gate：架构批准后再展开
+
+- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：建立并验证删除前保护性分支** `sev-P0` `blocked:D4`
+  从 D4 指定且验证通过的准确提交创建；不提前创建，不作为兼容 runtime。
+
+- [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0` `blocked:I0`
+  具体文件、顺序和提交数量等待 D4 决定；要求每片独立验证、独立 Conventional Commit，
+  最终执行旧符号/路由/数据/GUI/Prompt 零残留证明、全仓 gate、真实桌面 smoke 和恢复演练。
 
 ## 产品与架构
 

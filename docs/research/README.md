@@ -40,6 +40,7 @@
 - `ask-user-clarify-hitl-proposal.md` - **对话询问** Clarify/Ask-User HITL 缺口研究与提案（与 M3 审批 HITL 分轨；2026-08-05 归档）
 
 ### Laputa / BML / Garden 架构
+- `cognitive-workspace-reset-epic-2026-08/epic-orchestration.md` - **Laputa 认知工作区 Clean-Break 总 EPIC**：统一编排 Persona、Memory/BML、跨会话 STM、Evolution/Skill 与聊天审批边界；区分已冻结产品决策、R0–R4 调研、D0–D4 架构设计门禁及设计批准后的破坏性实施，当前明确禁止提前定稿新架构（2026-08-13，Epic Defined / Research Pending）
 - `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
 - `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
 - `evolution-genericagent-reset-2026-08/decision-record.md` - **Evolution 非兼容重置讨论决策**：Memory 退出审批、旧 AutoDream–Evolution 链路待删除、保护性分支前置及更新 GenericAgent 后的专项调研清单（2026-08-13，Research Hold）
