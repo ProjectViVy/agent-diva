@@ -1,5 +1,10 @@
 # Acceptance
 
+> **历史记录 / superseded:** 本文记录 C4 时期的 `tool_search → mount_tool`
+> 验收假设。C5e 已以自动 deferred tool activation 取代 `mount_tool` 与持久
+> `tool_discovery_v1`；当前验收不得再把 search→mount 作为产品步骤。请以
+> C5e 日志和当前工具调用链为准。
+
 1. 启动正常 Agent，确认 CORE `tool_search` 与 `mount_tool` 常驻；配置 MCP/custom 后确认其 DEFERRED schema 首轮隐藏。
 2. 让模型执行 `tool_search` → `mount_tool`，确认同一 turn 的下一次 provider call 携带 mounted schema，并成功调用目标工具。
 3. 重启并加载相同 session，确认 `tool_discovery_v1` 恢复 discovered/mounted；执行 compact 后只看到有界 mounted 工具重宣告。
