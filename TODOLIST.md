@@ -974,20 +974,26 @@ standing policy（非功能债，执行相关验证时遵守）：
 - [ ] **Wave 3 residual：workspace CLI managed-path 与任意路径产品契约** `sev-P3`
   路径穿越已修；managed `config_dir/workspaces/*` 与 runtime 任意路径模型仍分歧。
 - [ ] **Approval dual-channel unification + 超时 UX** `sev-P3`
-  Legacy `command-approval-requested` SSE（`App.vue:2003`）与统一 `approval-event`
-  （`App.vue:2006`）两套通道并存，GUI 同时维护 `commandApprovals` 与 `unifiedApprovals`，
-  容易丢事件。同时 `ApprovalCoordinator` 默认超时后直接 `Expired`，前端无倒计时，
-  用户无法感知剩余审批窗口。2026-08 cautious-mode 修复时仅修了后端透传+escalation，
-  通道合并与倒计时待独立迭代。
+  **2026-08-12 审查更新（`docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/`）：**
+  前端已只维护 `unifiedApprovals` 并只 listen `approval-event`（Chat 内联卡/Banner 已去）；
+  但仍 `start_command_approval_stream` + Tauri emit `command-approval-requested`（无消费者），
+  属半残留双启动。`ApprovalCoordinator` 超时 → `Expired` 无倒计时 UX 仍在。
   关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
 - [ ] **审批三模式完善（对齐 Claude Code 三窗口）** `sev-P2`
   GUI「智能/谨慎/信任」三模式后端行为趋同，属半残：
   (1) 信任≡谨慎（`guardian.rs:369` OnRequest|UnlessTrusted 同分支、`exec_policy.rs:299` 同处理）；
   (2) 智能=盲跑（`guardian.rs:365` OnFailure 直接 Defer，无风险预判）；
-  (3) 自动放行开关生产默认全关（`orchestrator.rs:885` 固定 `GuardianConfig::default()`）；
-  (4) 模式不持久化（`ChatView.vue:191`）。
-  完善方案：谨慎→全问+strict；智能→只读/known-safe 自动放行+危险询问；信任→未知放行+危险询问+自动学习。
-  详见 `docs/research/approval-model-claude-code-vs-agent-diva.md` §4-§5。
+  (3) 生产 shell（`ShellTool::with_approval_backend`）未挂 mode-driven Guardian；
+  (4) 模式不持久化（`ChatView.vue` permissionMode 默认 smart、无 localStorage）。
+  **2026-08-12 审查：** 完整修复已在侧分支 `feat/m3-hitl-closure`
+  （`2c8db02a`…`defb84fd` S1–S5），**尚未合入 `agent-diva-pro` HEAD**；
+  勿将侧分支 commit 当作主干已交付。优先 rebase/merge 该分支或在主干重做 S2+S3+S5。
+  详见 `docs/research/approval-model-claude-code-vs-agent-diva.md` §4-§5；
+  审查：`docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/findings.md`。
+- [ ] **CTX/工具链前端可读性（artifact ref）** `sev-P3`
+  大工具结果在 prompt 中为 JSON `ToolResultRef`（含 preview）；GUI tool row 按普通字符串
+  截断 160 字，不解析 preview、无「用 read_tool_result 展开」引导。运行时正确，产品可读性弱。
+  审查：`docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/coverage-matrix.md`。
 - [x] **审批 UI 三重显示去重** `sev-P2`  *(v0.5.1 已修)*
   同一 ExecTool 审批请求在 GUI 同时出现三种视觉形态：
   (1) Drawer 内的 `ApprovalCenterCard`（完整样式，`ApprovalCenterDrawer.vue:155`）；
