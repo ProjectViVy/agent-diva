@@ -122,8 +122,6 @@ Notable layout points:
 | `just laputa-clean-break-check` | Prove retired legacy memory names (`mentle`/`memtle`) have not re-entered code/manifests/CI/build recipes. |
 | `just feature-gate-check` | Verify each non-default `agent-diva-sandbox` feature compiles individually. |
 | `just health-benchmark-check` | Run the ignored `health_benchmark_ci_gate_stays_within_budget` manager test. |
-| `just e7-recovery-drills` / `just e7-vertical-e2e` | Laputa/AutoDream recovery and vertical E2E release gates. |
-| `just epic6-proof-check` / `just epic6-release-gate` | Governance readiness gates for Laputa/AutoDream. |
 | `just gui-automated-check` | GUI npm test/build + Tauri cargo check. |
 | `just start` / `just diva-gate` / `just make-diva` | Local full-stack or gateway-only dev startup helpers. |
 

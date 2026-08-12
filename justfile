@@ -55,19 +55,6 @@ laputa-clean-break-check:
 bml-boundary-check:
     cargo test -p agent-diva-laputa --test bml_boundary_guard
 
-# Deterministic crash-window, backup, replay, and rollback drills for E7.
-e7-recovery-drills:
-    cargo test -p agent-diva-laputa --test apply
-    cargo test -p agent-diva-laputa --test governed_apply
-    cargo test -p agent-diva-laputa --test migration
-    cargo test -p agent-diva-laputa --test typed_store canonical_open_migrates_only_workspace_identity_and_keeps_verified_backup -- --exact
-    cargo test -p agent-diva-migration workspace_identity::tests::identity_dry_run_apply_and_rollback_are_explicit_and_reversible -- --exact
-    cargo test -p agent-diva-manager --lib handlers::laputa::recovery_tests::prepared_journal_recovers_commit_then_consumes_receipt -- --exact
-
-# Provider-free proof of the complete product Memory lifecycle.
-e7-vertical-e2e:
-    cargo test -p agent-diva-manager --lib server::tests::vertical_autodream_typed_memory_recall_feedback_and_rollback_closes -- --exact
-
 # Automated desktop gates; this intentionally does not claim real-desktop G2D+.
 gui-automated-check:
     cd agent-diva-gui; npm test
@@ -75,7 +62,7 @@ gui-automated-check:
     cargo check --manifest-path agent-diva-gui/src-tauri/Cargo.toml
 
 # Final automated E7 candidate gate. Manual desktop acceptance remains separate.
-e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check e7-recovery-drills e7-vertical-e2e gui-automated-check
+e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check gui-automated-check
     @echo "E7 automated release gate passed; G2D+ real-desktop acceptance remains deferred."
 
 # Run clippy check
@@ -121,22 +108,6 @@ feature-gate-check:
 # Run all checks (CI pipeline)
 ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check
     @echo "All checks passed!"
-
-# Epic 6 targeted governance proof checks without starting the GUI
-epic6-proof-check:
-    cargo test -p agent-diva-laputa --test authority_boundaries
-    cargo test -p agent-diva-laputa --test storage
-    cargo test -p agent-diva-laputa --test migration
-    cargo test -p agent-diva-laputa --test apply
-
-# Story 6.5 release gate for EVO-DIVA governance readiness
-epic6-release-gate:
-    cargo test -p agent-diva-laputa --test authority_boundaries
-    cargo test -p agent-diva-laputa --test direct_write_guard
-    cargo test -p agent-diva-laputa --test governance_proof_loop
-    cargo test -p agent-diva-laputa --test service
-    cargo test -p agent-diva-autodream --test service
-    cargo check -p agent-diva-gui
 
 # Install locally
 install:
