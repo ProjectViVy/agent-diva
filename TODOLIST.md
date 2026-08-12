@@ -979,16 +979,17 @@ standing policy（非功能债，执行相关验证时遵守）：
   但仍 `start_command_approval_stream` + Tauri emit `command-approval-requested`（无消费者），
   属半残留双启动。`ApprovalCoordinator` 超时 → `Expired` 无倒计时 UX 仍在。
   关联：`docs/logs/2026-08-cautious-approval-fix/v0.5.0-cautious-approval/`.
-- [ ] **审批三模式完善（对齐 Claude Code 三窗口）** `sev-P2`
-  GUI「智能/谨慎/信任」三模式后端行为趋同，属半残：
-  (1) 信任≡谨慎（`guardian.rs:369` OnRequest|UnlessTrusted 同分支、`exec_policy.rs:299` 同处理）；
-  (2) 智能=盲跑（`guardian.rs:365` OnFailure 直接 Defer，无风险预判）；
-  (3) 生产 shell（`ShellTool::with_approval_backend`）未挂 mode-driven Guardian；
-  (4) 模式不持久化（`ChatView.vue` permissionMode 默认 smart、无 localStorage）。
-  **2026-08-12 审查：** 完整修复已在侧分支 `feat/m3-hitl-closure`
-  （`2c8db02a`…`defb84fd` S1–S5），**尚未合入 `agent-diva-pro` HEAD**；
-  勿将侧分支 commit 当作主干已交付。优先 rebase/merge 该分支或在主干重做 S2+S3+S5。
-  详见 `docs/research/approval-model-claude-code-vs-agent-diva.md` §4-§5；
+- [x] **审批三模式完善（对齐 Claude Code 三窗口）** `sev-P2`
+  **2026-08-12 已合入主干：** `merge 131d2dc5` ← `feat/m3-hitl-closure`
+  （S1–S5：`2c8db02a`…`defb84fd`）。HEAD 现含：
+  (1) Guardian 三模式分臂 + `GuardianConfig::for_ask`；
+  (2) smart=`OnFailure` 风险预判（非盲 Defer）；
+  (3) `ShellTool::with_approval_backend` 挂 mode-driven Guardian；
+  (4) ChatView `permissionMode` localStorage 持久化。
+  验证：`cargo test -p agent-diva-sandbox --lib` 127 passed。
+  **残留：** 桌面人工 smoke 见下方「M3 HITL 合入主干后的人工 smoke」；
+  dual-channel 半残留与超时倒计时仍独立 open。
+  日志：`docs/logs/2026-08-m3-hitl-closure/`；
   审查：`docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/findings.md`。
 - [ ] **CTX/工具链前端可读性（artifact ref）** `sev-P3`
   大工具结果在 prompt 中为 JSON `ToolResultRef`（含 preview）；GUI tool row 按普通字符串
@@ -1018,9 +1019,10 @@ standing policy（非功能债，执行相关验证时遵守）：
   长任务机械折叠/语义检查点时 GUI/CLI 无专用进度提示，易误判为卡住。
   审查：coverage-matrix Track A。
 - [ ] **M3 HITL 合入主干后的人工 smoke 与回归** `sev-P2`
-  合并 `feat/m3-hitl-closure` 后仍需：三模式桌面切换、trusted 学习规则落盘、
-  permissionMode 重启保持、shell 危险命令审批路径。关联既有
-  「M3 审批 HITL 集中人工 smoke」与 WINDOWS-RELEASE-EXEC-ACCESS。
+  **代码已在 `agent-diva-pro`（merge `131d2dc5`）**；仍需人工：三模式桌面切换、
+  trusted 学习规则落盘、permissionMode 重启保持、shell 危险命令审批路径。
+  关联既有「M3 审批 HITL 集中人工 smoke」与 WINDOWS-RELEASE-EXEC-ACCESS；
+  步骤可参考 `docs/logs/2026-08-m3-hitl-closure/v0.*.0-*/acceptance.md`。
 - [x] **审批 UI 三重显示去重** `sev-P2`  *(v0.5.1 已修)*
   同一 ExecTool 审批请求在 GUI 同时出现三种视觉形态：
   (1) Drawer 内的 `ApprovalCenterCard`（完整样式，`ApprovalCenterDrawer.vue:155`）；
