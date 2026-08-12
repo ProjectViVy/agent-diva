@@ -349,7 +349,6 @@ pub fn run() {
             commands::start_background_stream,
             commands::get_command_approvals,
             commands::resolve_command_approval,
-            commands::start_command_approval_stream,
             commands::list_approvals,
             commands::get_approval,
             commands::decide_approval,

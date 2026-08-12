@@ -46,4 +46,21 @@ describe('ApprovalCenterCard', () => {
     expect(wrapper.get('button.allow').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('approvalCenter.missingEvidence');
   });
+
+  it('refreshes once when the server-side approval TTL reaches zero', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2029-12-31T23:59:00Z'));
+    const expiring = {
+      ...approval,
+      expires_at: '2029-12-31T23:59:02Z',
+    } as ApprovalView;
+    const wrapper = mount(ApprovalCenterCard, { props: { approval: expiring, detail: expiring } });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(wrapper.emitted('refresh')).toEqual([[approval.request_id]]);
+    expect(wrapper.get('button.allow').attributes('disabled')).toBeDefined();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(wrapper.emitted('refresh')).toHaveLength(1);
+  });
 });

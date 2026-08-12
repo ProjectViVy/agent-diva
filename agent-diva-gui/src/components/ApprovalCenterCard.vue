@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { AlertTriangle, Clock3, FileDiff, RefreshCw, ShieldCheck, ShieldX, X } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import type { ApprovalGrant, ApprovalView } from '../api/approvals';
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const now = ref(Date.now());
 const grant = ref<ApprovalGrant>('once');
+const expiryRefreshSent = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
@@ -48,6 +49,17 @@ const highRiskMissingEvidence = computed(() =>
 );
 const allowDisabled = computed(() =>
   props.submitting || props.outcomeUnknown || terminal.value || remainingSeconds.value === 0 || highRiskMissingEvidence.value,
+);
+watch(
+  () => [remainingSeconds.value, view.value.status] as const,
+  ([seconds, status]) => {
+    if (status === 'pending' && seconds > 0) expiryRefreshSent.value = false;
+    if (status === 'pending' && seconds === 0 && !expiryRefreshSent.value) {
+      expiryRefreshSent.value = true;
+      emit('refresh', view.value.request_id);
+    }
+  },
+  { immediate: true },
 );
 const title = computed(() => String(presentation.value.title ?? t(`approvalCenter.domain.${view.value.domain}`)));
 const summary = computed(() => {

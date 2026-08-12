@@ -51,7 +51,7 @@ export const GUI_CAPABILITIES: readonly GuiCapability[] = [
   },
   {
     id: 'command.approval',
-    entrypoint: 'get_command_approvals / resolve_command_approval / start_command_approval_stream',
+    entrypoint: 'get_command_approvals / resolve_command_approval',
     transport: 'tauri-manager-proxy',
     classification: 'MANAGER',
     authority: 'Manager command approval coordinator',

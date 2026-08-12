@@ -1201,6 +1201,14 @@ struct ProviderStalledEvent {
     model: Option<String>,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+struct ContextCompactionEvent {
+    session_id: String,
+    trigger: String,
+    phase: String,
+    summary: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct BackgroundFinalEvent {
     content: String,
@@ -1279,6 +1287,12 @@ struct StreamTurnPlanPayload {
 struct StreamJsonPayload {
     request_id: String,
     data: serde_json::Value,
+}
+
+#[derive(Serialize, Clone)]
+struct StreamContextCompactionPayload {
+    request_id: String,
+    data: ContextCompactionEvent,
 }
 
 #[tauri::command]
@@ -1374,6 +1388,19 @@ pub async fn send_message(
                                 StreamStalledPayload {
                                     request_id: stream_request_id.clone(),
                                     model: data.model,
+                                },
+                            );
+                        }
+                    }
+                    "context_compaction" => {
+                        if let Ok(data) =
+                            serde_json::from_str::<ContextCompactionEvent>(&event.data)
+                        {
+                            let _ = window.emit(
+                                "agent-context-compaction",
+                                StreamContextCompactionPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
                                 },
                             );
                         }
@@ -2685,6 +2712,19 @@ pub async fn start_background_stream(
                         "error" => {
                             let _ = window.emit("agent-error", event.data);
                         }
+                        "context_compaction" => {
+                            if let Ok(data) =
+                                serde_json::from_str::<ContextCompactionEvent>(&event.data)
+                            {
+                                let _ = window.emit(
+                                    "agent-context-compaction",
+                                    StreamContextCompactionPayload {
+                                        request_id: data.session_id.clone(),
+                                        data,
+                                    },
+                                );
+                            }
+                        }
                         "provider_retry" | "provider_stalled" => {
                             // Background streams have no request_id channel; the
                             // manager-level stall handling still applies upstream.
@@ -2973,72 +3013,6 @@ async fn command_rule_api_error(response: reqwest::Response) -> CommandApprovalA
         })
         .unwrap_or_else(|| format!("http_{status}"));
     CommandApprovalApiError { status, code }
-}
-
-#[tauri::command]
-pub async fn start_command_approval_stream(
-    window: Window,
-    state: State<'_, AgentState>,
-    shutdown_manager: State<'_, ShutdownManager>,
-) -> Result<(), String> {
-    let client = state.client.clone();
-    let cancel_token = shutdown_manager.cancel_token();
-    let url = format!(
-        "{}/command-approvals/events?channel=gui",
-        state.api_base_url()
-    );
-    tauri::async_runtime::spawn(async move {
-        loop {
-            let response = tokio::select! {
-                _ = cancel_token.cancelled() => break,
-                response = client.get(&url).send() => response,
-            };
-            let response = match response {
-                Ok(response) if response.status().is_success() => response,
-                Ok(response) => {
-                    error!(
-                        "Command approval stream server error: {}",
-                        response.status()
-                    );
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-                Err(error) => {
-                    error!("Failed to connect command approval stream: {error}");
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-            let _ = window.emit("command-approval-stream-connected", ());
-            let mut stream = response.bytes_stream().eventsource();
-            while let Some(event) = tokio::select! {
-                _ = cancel_token.cancelled() => None,
-                event = stream.next() => event,
-            } {
-                match event {
-                    Ok(event) if event.event == "command_approval_requested" => {
-                        if let Ok(request) =
-                            serde_json::from_str::<CommandApprovalRequestDto>(&event.data)
-                        {
-                            if request.scope.channel == "gui" {
-                                let _ = window.emit("command-approval-requested", request);
-                            }
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(error) => {
-                        error!("Command approval stream error: {error}");
-                        break;
-                    }
-                }
-            }
-            tokio::select! {
-                _ = cancel_token.cancelled() => break,
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
-            }
-        }
-    });
-    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
