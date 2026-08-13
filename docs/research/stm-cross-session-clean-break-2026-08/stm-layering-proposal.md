@@ -2,6 +2,7 @@
 
 - 状态：`Proposal / Awaiting User Review` — **不是已批准架构，不授权施工**
 - 日期：2026-08-14
+- 修订：同日用户同意「一份注入文件 + 胶囊不注入」；旧 Garden / `MEMORY.MD` 舍弃；文件名待选
 - 性质：把跨会话不失忆拆成可执行的分层合同，供用户拍板或驳回
 - 边界依据：[decision-record.md](./decision-record.md) S1–S6
 - 研究依据：[R2](../cognitive-r2-stm-context-2026-08/README.md)（本提案选推荐项；R2 原文仍是选项集）
@@ -55,20 +56,22 @@ STM 是 workspace 级、严格限容、实时可控的**跨会话活动层**。�
 - 禁止 STM 记录出现在 BML 列表、FTS 默认检索、L1 长期索引
 - 禁止 AutoDream 对 STM 走 Laputa Proposal / Governance
 - 禁止 Persona 页展示 STM
-- 禁止把 BML 行投影进 `WORK.md` 当正文（只允许指针）
+- 禁止把 BML 行投影进注入文件的 Work 节当正文（只允许指针）
 
 ---
 
-## 3. 三层对象（本提案的核心）
+## 3. 对象：一份注入文件 + 不注入的胶囊
 
-不要做成「一份 STM 文件无限追加，超了再原地摘要」。那样会把「五个你好」洗成「用户打过招呼」，模式和近事都会糊。
+2026-08-14 用户同意：注入权威是**一个** Markdown；旧 Garden / `MEMORY.MD` 全舍弃。
+不要做成「一份文件无限追加再原地摘要」。那样会把「五个你好」洗成「用户打过招呼」。
 
 ```text
                     ┌─────────────────────────────┐
-  每轮注入（极小）    │  近讯 Pulse                 │  实时环形：跨会话最近事件
-                    │  活动集 Work                │  S3：目标 / 回路 / 下一步
+  每轮整份注入        │  {NAME}.MD                  │  两节：Pulse + Work
+  （硬顶）            │    ## Pulse  近讯           │  实时环形
+                    │    ## Work   活动集          │  目标 / 回路 / 下一步
                     └─────────────┬───────────────┘
-                                  │ 一行目录 / 指针
+                                  │ 目录行（算进 Pulse 预算）
                     ┌─────────────▼───────────────┐
   默认不注入         │  会话胶囊 Capsules          │  每个旧 session 的压缩本
   工具打开           └─────────────┬───────────────┘
@@ -79,14 +82,33 @@ STM 是 workspace 级、严格限容、实时可控的**跨会话活动层**。�
                     └─────────────────────────────┘
 ```
 
-| 层 | 产品名 | 权威文件（推荐） | 进默认上下文 | 时效 |
+| 层 | 产品名 | 权威 | 进默认上下文 | 时效 |
 | --- | --- | --- | --- | --- |
-| Pulse | 近讯 | `.laputa/stm/PULSE.md` | **必须进**，硬顶 | 用户一发言就追加 |
-| Work | 活动集 | `.laputa/stm/WORK.md` | **必须进**，硬顶 | 有目标/回路变化才改 |
+| Pulse | 近讯 | `{NAME}.MD` 的 `## Pulse` | **必须进**（整文件有界注入） | 用户一发言就追加 |
+| Work | 活动集 | `{NAME}.MD` 的 `## Work` | 同上 | 有目标/回路变化才改 |
 | Capsule | 会话胶囊 | `.laputa/stm/capsules/{session}.md` | **不进** | 空闲或会话结束写 |
-| CapsuleIndex | 胶囊目录 | `.laputa/stm/capsules/INDEX.md` | 只进 **目录行**（算在 Pulse 预算内） | 随胶囊更新 |
+| CapsuleIndex | 胶囊目录 | 注入文件 Pulse 里的目录行，或 `capsules/INDEX.md` 投影进 Pulse | 只进目录行 | 随胶囊更新 |
 
-三层加起来才叫产品 STM 面。S3 原文的「目标/回路/下一步」落在 Work。你要的「换会话还记得刚才、能看见连发你好」落在 Pulse。旧会话「都还在」落在 CapsuleIndex + Capsule。
+`{NAME}.MD` 见 §3.1，尚未选定。S3 的目标/回路/下一步落在 Work 节。跨会话「刚才聊了啥 / 连发你好」落在 Pulse 节。旧会话「都还在」落在目录行 + 胶囊。
+
+### 3.1 注入文件名（待用户点名）
+
+约定：全大写 + `.MD`，与 Laputa 权威文件观感一致，但**不是** Persona 七文件，也不进种类表。
+禁止：`MEMORY.MD`、`MEMORY.md`、`memory_md`、任何旧 Garden 文件名。
+
+| 候选 | 读音/含义 | 好处 | 风险 |
+| --- | --- | --- | --- |
+| **`STM.MD`** | 就叫产品名 | 最短；决策/代码/口头一致；不含 MEMORY | 文件名略术语；GUI 应用中文「活动记忆」兜住 |
+| **`ACTMEM.MD`** | activity memory | 好记；有「记忆」感又不是 LTM | 造词；ACT 也可读成 actor/account |
+| **`STMEM.MD`** | short-term memory | 直观 | 像拼写错误；「短期」容易被理解成会话结束就清空（与跨会话持续相反） |
+| **`ACTIVE.MD`** | 当前活动 | 不含 MEM，最难和 BML 搞混 | 不像一份记忆，像开关状态 |
+| **`FOCUS.MD`** | 当前焦点 | 短、好记 | 偏 Work，装不下「刚才发生了什么」 |
+| **`LIVE.MD`** | 活着的上下文 | 短 | 太飘，也像直播/运行状态 |
+| **`BOARD.MD`** | 看板 | 活动和近讯都能往上钉 | 偏项目管理，不像记忆 |
+
+**本提案推荐：`STM.MD`。** 若必须文件名里带 MEM、又不要 `MEMORY.MD`，退而选 `ACTMEM.MD`。不推荐 `STMEM.MD`（丑，且短期语义和 S3 打架）。
+
+GUI / 入口文案用中文（「活动记忆」或「STM」），不要让用户只靠文件名认路。
 
 ---
 
@@ -98,13 +120,12 @@ STM 是 workspace 级、严格限容、实时可控的**跨会话活动层**。�
 
 ```text
 .laputa/stm/
-  PULSE.md
-  WORK.md
+  {NAME}.MD                # 注入权威：## Pulse + ## Work；名称见 §3.1
   capsules/
     INDEX.md
     {safe_session_key}.md
   revisions/
-    work-{rev}.md          # Work 有界快照，失败可回上一份
+    {NAME}-{rev}.MD        # 注入文件有界快照，失败可回上一份
 ```
 
 备选（本提案不选，仅供否决）：
@@ -253,7 +274,7 @@ Subagent / cron：默认可读同一 workspace STM；写 Pulse 允许（它们�
 - CanonicalCheckpoint
 - Frozen Core / Persona
 
-投影内容 = `PULSE.md` 裁切后的全文 + `WORK.md` 裁切后的全文。合计推荐 ≤ 3200 字。超了先削 Pulse 最老事件（装配侧禁止静默丢 Work 卡片——淘汰必须发生在权威文件里，否则 GUI 和模型分叉）。
+投影内容 = `{NAME}.MD` 经权威侧裁切后的全文（Pulse 节 + Work 节）。合计推荐 ≤ 3200 字。超了先削 Pulse 最老事件（装配侧禁止静默丢 Work 卡片——淘汰必须发生在权威文件里，否则 GUI 和模型分叉）。
 
 新 session 第一轮就必须读到这份投影。这是「不应失忆」的机制，不是靠模型自觉去调工具。
 
@@ -379,14 +400,15 @@ Persona / Evolution / Notebook / Approval **不**出现 STM。BML 列表默认�
 
 请明确同意或改数字/改否，不要留成「实现者看着办」：
 
-1. **三层拆分**：Pulse / Work / Capsule。同意还是要合成一份文件？
-2. **物理**：独立 `.laputa/stm/*.md`，不进 BML sqlite。同意吗？
-3. **注入**：Pulse + Work 每轮必注入；胶囊只工具。同意吗？
-4. **实时**：用户发言立刻写 Pulse；空闲只写胶囊。同意吗？
+1. **注入面合成一份文件**（Pulse + Work 两节），胶囊仍分开、不注入。——**用户已同意方向**
+2. **物理**：独立 `.laputa/stm/`，不进 BML sqlite。同意吗？
+3. **注入**：`{NAME}.MD` 每轮必注入；胶囊只工具。——**用户已同意方向**
+4. **实时**：用户发言立刻写 Pulse 节；空闲只写胶囊。同意吗？
 5. **用户短句原文进 Pulse，助手全文不进 Pulse。** 同意吗？
 6. **预算初值**：Pulse 1600 字 / Work 1600 字 / 单胶囊 800 字。要改数吗？
 7. **Scope**：每 workspace 一份。对吗？
 8. **cron/subagent 第一版只写 Pulse、不改 Work。** 对吗？
+9. **注入文件名**：`STM.MD` / `ACTMEM.MD` / `STMEM.MD` / `ACTIVE.MD` / `FOCUS.MD` / `LIVE.MD` / `BOARD.MD`？本提案推 `STM.MD`。
 
 下面这些即使本方案被接受，也仍留给 D2 细设计，不在这次拍板：
 
