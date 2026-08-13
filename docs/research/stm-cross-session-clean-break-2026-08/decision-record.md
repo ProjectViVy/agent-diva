@@ -2,7 +2,7 @@
 
 - 状态：`Approved Boundary / Research Hold / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）
+- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼
 - 性质：产品与领域边界已拍板；分层装配和自动化算法待专项调研
 
 ## 问题判断
@@ -116,6 +116,14 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 
 用户动作限定为查看来源、编辑/修正、完成开放事项、移除失效事项和查看历史。每个动作
 必须真实修改 STM，不产生 Approval。普通长期记忆仍使用 BML 列表/详情工作区。
+
+### S7：概念叫 STM/LTM，核心文件叫 `ACTMEM.MD`
+
+- **STM / LTM 只是概念称呼**，因为短时活动 vs 长期事实好记、好分层。决策正文和口头可以继续这么说。
+- **注入权威文件名冻结为 `ACTMEM.MD`**（activity memory）。不是 Persona 七文件，不是 BML，不是 Laputa section。
+- **禁止**核心文件使用 `STM.MD`、`STMEM.MD`、`MEMORY.MD`。`STM` 来自远古 UPSP 调研叫法，要撇清，不进核心文件名。
+- 旧 Garden `MEMORY.MD` / `05 MEMORY.MD` 全舍弃，不继承文件名。
+- 本条只冻文件名与称呼分层。物理目录细部、胶囊是否分文件、装配位置仍见下方 Hold 与未批准提案。
 
 ## 分层与装配 Research Hold
 

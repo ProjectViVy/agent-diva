@@ -17,7 +17,10 @@
 **已冻结产品边界（不是待重新决策项）：**
 
 - Memory CRUD 与 STM 维护不走审批；BML 是普通长期 Memory 唯一权威；完整删除
-  `MemoryMd` / `memory_md` 链路且不自动导入旧数据。
+  `MemoryMd` / `memory_md` 链路且不自动导入旧数据。概念上可称 STM/LTM；注入
+  权威文件名冻结为 `ACTMEM.MD`，禁止核心文件 `STM.MD` / `MEMORY.MD`（撇清 UPSP /
+  旧 Garden）。
+
 - Persona 权威为 `IDENTITY.MD`（含当前身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` /
   `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK
   不进首次引导；DARK 为 FEAR/SHADOW 双展位。v1 种类闭集；架构可加、用户不可加。

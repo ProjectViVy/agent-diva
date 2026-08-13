@@ -19,6 +19,8 @@
 - `memory_md` / `MemoryMd` 文件型长期记忆链路属于 clean-break 删除范围。
 - STM 是 workspace/profile 级、自动维护、有界、跨 session 的活动工作集；它不是长期
   Memory、transcript、canonical checkpoint 或旧 `working_memory` checkpoint。
+  概念上仍称 STM / LTM；注入权威文件名是 `ACTMEM.MD`，禁止核心文件叫 `STM.MD` /
+  `MEMORY.MD`（撇清远古 UPSP / 旧 Garden）。`ACTMEM.MD` 不是 Persona 七文件。
 - Laputa 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、`USER.MD`、
   `DREAM.MD`、`DARK.MD`、`WORLD.MD`。正文以 Markdown 为依据。`IDENTITY.MD` 含当前
   身体/形态。`DARK.MD` 为 FEAR/SHADOW 两展位，不单开 BODY/FEAR/SHADOW 文件。
