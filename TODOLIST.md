@@ -126,10 +126,10 @@
   [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
   仍不改生产代码。
 
-- [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0`
-  **设计稿已交（2026-08-15），待用户评审：**
+- [x] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
   [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
-  通过 ≠ 改生产代码。
+  仍不改生产代码。
 
 - [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
   按 **D6**：AutoDream 诞生进化提案，提炼结果为 SOP/Skill 文件。设计审查面、

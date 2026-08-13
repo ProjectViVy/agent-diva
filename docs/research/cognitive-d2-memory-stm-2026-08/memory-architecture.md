@@ -1,9 +1,10 @@
 # D2 — Memory、BML、ACTMEM、SessionCheckpoint 与上下文
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Approved / Implementation Pending`
 - 日期：2026-08-15
 - 性质：D2 架构合同。把 S1–S9、D0、已批准 D1 收成可实施的存储、触发、工具与 GUI。
 - **不是** Architecture Gate，**不授权**改生产代码。
+- 用户批准：`2026-08-15`（对话「同意」）。
 
 不得重开：S1–S9、P20/P21/P22、D0-A/B/C、D1 人格目录与三态 API、C1–C5 现合同。  
 R2 当时 Hold 的物理权威：产品已选 **独立 Markdown `ACTMEM.MD`**（S8），本包不再重开 A/B/C/D 库选项。

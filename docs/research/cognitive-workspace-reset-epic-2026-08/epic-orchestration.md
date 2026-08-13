@@ -255,7 +255,8 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 
 **进展（2026-08-15）：** 设计稿已交
 [`../cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
-状态：`Design Draft / Awaiting User Review`。不改生产代码。
+状态：`Approved / Implementation Pending`（用户 2026-08-15 对话「同意」）。
+仍不改生产代码。
 
 #### D3 — Evolution、SOP 与 Skill 架构
 
