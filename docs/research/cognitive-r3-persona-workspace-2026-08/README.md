@@ -64,7 +64,7 @@ section + `EvolutionProposal` 治理链；`content_version` 只是展示用 SHA�
 - [x] 可复用文档基础设施 vs Persona 专用状态已拆开
 - [x] R0 被引用，不重写全景
 - [x] 未解决问题显式交给 D1 / R4 / D0
-- [ ] 用户 Research Gate 评审（待）
+- [x] 用户 Research Gate 评审（2026-08-14：**过**；预种子/`null`/`# WORLD` 应删；按最新决策）
 
 ## 明确不做
 

@@ -1,9 +1,10 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Epic Defined / R0–R4 Packages Complete / Research Gate Pending / Architecture Design Blocked`
+- 状态：`Research Gate Partial / R1 Held / Architecture Design Blocked except as noted`
 - 记录日期：2026-08-13
-- 当前授权：仅冻结产品边界、编排研究与后续设计；**不授权目标架构定稿或代码实施**
+- 修订：`2026-08-14` 用户评审见 [`research-gate-verdict-2026-08-14.md`](./research-gate-verdict-2026-08-14.md)
+- 当前授权：R0/R2/R3/R4 可当设计输入；**R1 未过，D3 与 GA 进化落地停**；仍不授权生产认知主链修改
 
 ## 一句话目标
 

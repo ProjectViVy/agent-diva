@@ -8,7 +8,8 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Epic Defined / R0–R4 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  当前状态：`Research Gate Partial / R1 Held`。R0/R2/R3/R4 已过；R1 须先说清
+  GenericAgent 自主进化从哪来，才能做 D3 / 抄 GA 进化。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -57,6 +58,10 @@
   本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；触发/Action-Verified/L0–L4/SOP-Skill/
   实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
   实现晋升状态机与 D3 架构定稿。
+
+- [ ] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
+  Research Gate 挂起项（2026-08-14）。谁触发、写到哪、有没有代码门。提示词纪律保留。
+  未清之前不做 D3、不落地 GA 进化。材料在 R1 `evolution-trigger-and-lifecycle.md`。
 
 - [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
   在具备隔离密钥与 temp 记忆沙箱时，测量 Action-Verified 遵守率、未验证写入率、

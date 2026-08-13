@@ -55,7 +55,7 @@
 - [x] KEEP / RENAME / DELETE / DECIDE 矩阵可供 R4 引用
 - [x] R1 Evolution 切片被引用，不重复成第二份权威
 - [x] 未解决问题显式列出
-- [ ] 用户 Research Gate 评审（待）
+- [x] 用户 Research Gate 评审（2026-08-14：**过**；按最新产品决策读，不按包内四文件旧措辞）
 
 ## 明确不做
 

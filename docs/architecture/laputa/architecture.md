@@ -6,7 +6,7 @@
 - 决策原文：[sources.md](./sources.md)
 - 旧说法黑名单：[do-not-read-as-current.md](./do-not-read-as-current.md)
 
-实施门禁仍有效：R0–R4 研究包已交，**用户尚未宣布 Research Gate 通过**；通过前不得定稿 D0–D4 实现架构，不得按本文改生产认知主链。本文冻结的是**产品形状**。
+实施门禁：Research Gate **部分通过**（R0/R2/R3/R4 过，R1 挂起）。不得按本文改生产认知主链。D3 / GA 进化落地停到 R1 自主进化说清。本文冻结的是**产品形状**。
 
 ---
 
@@ -148,7 +148,7 @@ AutoDream 产品职责：批处理整理 ACTMEM；按 P19 给人格提待审案�
 
 ## 10. 仍开放（不要假装已冻）
 
-- Research Gate：R0–R4 用户是否宣布研究过关。
+- Research Gate：**部分通过**（2026-08-14）。R0/R2/R3/R4 过；**R1 挂起**（GA 自主进化来源未清，D3 停）。见 [`research-gate-verdict-2026-08-14.md`](../../research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md)。
 - ACTMEM 的 Pulse/Work 归 P20 哪条车道（动态加载 vs 工具）。
 - 七份人格目录的绝对路径字符串（同一目录原则已冻）。
 - Evolution：SOP 与 Skill 的关系。
