@@ -2,7 +2,7 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
@@ -65,9 +65,11 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
   `USER.MD`、`DREAM.MD`、`DARK.MD`、`WORLD.MD`。
 - 禁止小写或大小写混用文件名（`identity.md`、`User.md`、`dark.md` 均非法）。
 - 一个对象对应一个文件。不得把多个旧文件合并映射到同一对象。
-- 不得复用 `.laputa/sections/` JSON 目录。最终物理目录（例如 `.laputa/persona/`）
-  仍由 D1 一次拍板，拍板后作为 deletion-proof 契约。
-- `WORLD.MD` 与四份人格可以不同子目录，但文件名必须是 `WORLD.MD`。
+- 不得复用 `.laputa/sections/` JSON 目录。
+- **七份权威在同一目录。** 一个 Diva（一份 profile / 一套治理）只有这一套人格文件，
+  不按 git 项目再复制一套。目录绝对路径仍可由 D1 写死为 deletion-proof 契约，
+  但不得再拆成「WORLD 另放一个子目录」或「每个 workspace 一套人格」。
+- `WORLD.MD` 与其它六份同目录、同套治理。
 
 ### P14：每份权威都有字数上限；DREAM 的 Frozen Core 为 10 字
 
@@ -217,8 +219,21 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 - **`DREAM.MD` 与 `DARK.MD` 都不进首次引导。** 二者缺席不构成 `incomplete`，也不阻断
   第一次正式对话。
 - Frozen Core 捕获：`IDENTITY`（含当前形态）、`RELATIONSHIP`、`REDLINE`、`USER`、
-  `DREAM`（10 字）。`DARK.MD` 可以进 Frozen Core，但必须极短，字数由 D1 写死，不得
-  默认与 Identity 同长。`WORLD.MD` 不作为 Frozen Core 整包注入。
+  `DREAM`（10 字）。`DARK.MD` 进 Frozen Core，投影 60 字（P14）。`WORLD.MD` 不作为
+  Frozen Core 整包注入。
+
+### P20：Laputa 进上下文只有三条车道，不能另立第四套规矩
+
+这不是新发明，是把 P1 / P14 / P16 已经冻住的装配方式写清楚。问「某份文件要不要进上下文」
+必须先归入其中一条，禁止再问成「全注入还是全工具」。
+
+| 车道 | 含义 | 已归属 |
+| --- | --- | --- |
+| **永冻装配（Frozen Core）** | 会话开始捕获，本会话 prefix 里一直在，中途不随文件改写而变 | `IDENTITY` 200、`RELATIONSHIP` 120、`REDLINE` 200、`USER` 160、`DREAM` 10、`DARK` 60 |
+| **动态加载** | 不进 Frozen Core；可按轮/按 scope 刷新的有界投影 | `WORLD.MD` 有界投影（不整包）；不是 FC |
+| **工具增删改查** | 默认不进 Prompt；要读要写走工具或 Persona 工作区 | 七份文件的**全文超出投影的部分**、完整历史、BML LTM、报告。Agent 改 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5 审查；DREAM/DARK/USER 观察走 P16 直写 |
+
+完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一，但**只能占用上面三条车道里的一条或组合**（例如 Work/Pulse 走动态加载、胶囊走工具），不能再发明「ACTMEM 专用装配政策」。具体占哪条尚未归类。
 - `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` 的用户直编：直接保存。
 - `USER.MD` 偏好块：用户直编直接保存。观察块：允许 Agent 直写当前头（否则「用户
   不自知」无法落地）；用户之后可改可删。
@@ -483,6 +498,8 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 5. P18：v1 锁死七种；架构按种类登记表实现，便于以后产品加种；用户不能自由加权威。
 6. P19：AutoDream 必须整理 STM（直写）；人格整理只允许按表提案；旧实现未通过；
    2026-08-14 已跑独立测试，STM 路径仍测不到。
+7. P13：七份同一目录，一个 Diva 一套；不再允许 WORLD 另放子目录。
+8. P20：进上下文只有永冻 / 动态加载 / 工具三条车道；ACTMEM 必须归入其中。
 
 ## 被取代的依据
 

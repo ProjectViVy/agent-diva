@@ -21,7 +21,8 @@
   Memory、transcript、canonical checkpoint 或旧 `working_memory` checkpoint。
   概念上仍称 STM / LTM；权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，
   禁止核心文件叫 `STM.MD` / `MEMORY.MD`。发言即写 Pulse；空闲 10 分钟写胶囊。
-  子代理不进。是否自动装配进主 Agent 上下文尚未拍板。`ACTMEM.MD` 不是 Persona 七文件。
+  子代理不进。进上下文必须按 P20 三车道归类，不能另立「全工具/全注入」。
+  `ACTMEM.MD` 不是 Persona 七文件；七份人格同一目录、一个 Diva 一套。
 - Laputa 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、`USER.MD`、
   `DREAM.MD`、`DARK.MD`、`WORLD.MD`。正文以 Markdown 为依据。`IDENTITY.MD` 含当前
   身体/形态。`DARK.MD` 为 FEAR/SHADOW 两展位，不单开 BODY/FEAR/SHADOW 文件。
