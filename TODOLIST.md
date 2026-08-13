@@ -24,7 +24,7 @@
   `MemoryMd` / `memory_md` 链路且不自动导入旧数据。概念上可称 STM/LTM；注入
   权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，禁止核心文件 `STM.MD` /
   `MEMORY.MD`。发言即写 Pulse；空闲 10 分钟写胶囊。子代理不进。第一版不自动晋升
-  BML。整份走工具、不自动装配；第一版一个读工具，聊天 Agent 不配写工具。
+  BML。正文不装配。CORE 只有一个查询工具；管理工具必须 DEFER。
 
 - Persona 权威为 `IDENTITY.MD`（含当前身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` /
   `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK

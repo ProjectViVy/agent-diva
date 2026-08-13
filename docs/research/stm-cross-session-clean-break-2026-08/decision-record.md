@@ -136,9 +136,12 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 - **第一版不做 STM→BML 自动晋升**；晋升以后另议。
 - **整份 ACTMEM（Pulse、Work、胶囊）走工具车道。** 不进 Frozen Core，不动态装配进
   Prompt。自动装配会把事情搞复杂，先用工具试。
-- **获取工具要少。** 第一版主 Agent 只暴露 **一个读工具**（例如 `actmem`：取近讯/
-  活动集/某胶囊/目录，有界返回）。不拆成一串 CRUD。写入仍由「发言即写 Pulse /
-  空闲写胶囊 / AutoDream 整理 / 用户在 Memory 页改」，聊天 Agent 第一版不配写工具。
+- **日常只常驻一个查询工具。** 走现成 C4/C5e：**CORE** 里只有 `actmem`（读 Pulse /
+  Work / 胶囊 / 目录，有界）。这是工具 schema 常驻，**不是**把 ACTMEM 正文装配进 Prompt。
+- **管理工具要做，必须 DEFER。** 整理、改 Work、删条、折叠胶囊等经 `tool_search`
+  发现后才挂上，不得进 CORE、不得撑稳定前缀。具体管理工具名单 D2 再列，不得先做成
+  BML 那种一串常驻 CRUD。
+- 系统自动写（发言 Pulse、空闲胶囊、AutoDream）不经过聊天工具。用户 Memory 页仍直改。
 
 ## 分层与装配 Research Hold
 

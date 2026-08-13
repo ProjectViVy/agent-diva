@@ -20,12 +20,14 @@
   policy 约束。
 - provider cache 命中、hash 和 observer 只属于性能/诊断遥测，不是恢复或压缩语义的权威。
 
-## 与 STM 的关系
+## 与 STM / ACTMEM 的关系
 
-当前 session `working_memory`、session transcript、canonical checkpoint 和未来跨会话 STM
-必须保持不同生命周期。C1–C5 的实现是 R2 输入；R2 研究包见
-[`../../research/cognitive-r2-stm-context-2026-08/README.md`](../../research/cognitive-r2-stm-context-2026-08/README.md)。
-不证明 STM 已经实现，也不授权把现有 checkpoint 直接改名为 STM。
+当前 session `working_memory`、session transcript、canonical checkpoint 和跨会话 ACTMEM
+必须保持不同生命周期。不证明 ACTMEM 已经实现。
+
+产品（2026-08-14）：ACTMEM **正文不进**稳定前缀。日常 CORE 只允许一个查询工具
+`actmem`；管理工具必须划进已有 DEFERRED，经 `tool_search` 激活。不得为 ACTMEM
+另做一套挂载机制。
 
 ## 证据
 

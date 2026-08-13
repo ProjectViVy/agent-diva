@@ -68,7 +68,7 @@ v1 种类闭集。架构按登记表可加第八种，用户不能自加。禁�
 
 完整历史永不整包注入。禁止把 WORLD 再接回 `WorldStore::project()` 当默认上下文。
 
-**ACTMEM 整份走工具。** 不进 Frozen Core，不动态装配。第一版主 Agent **一个读工具**，不配写工具（写仍靠发言/空闲/AutoDream/用户页）。自动装配先不试。
+**ACTMEM 整份走工具，正文不装配。** CORE 日常只挂一个查询 `actmem`。改/整理类管理工具要做，但必须进 **DEFERRED**（`tool_search` 才挂上），沿用已有延迟工具集，不进稳定前缀。
 
 子代理不进 Laputa 人格/ACTMEM/BML 生态。子代理上下文以后由主 Agent 装配（面具仍进）。本阶段不设计。
 
@@ -114,7 +114,7 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 - 用户一发言就写 Pulse。空闲 **10 分钟** 写该会话胶囊。
 - Pulse：原文可进，全文不进。预算 Pulse 1600 / Work 1600 / 单胶囊 800。
 - 第一版不做 STM→BML 自动晋升。
-- **不自动装配进 Prompt。** 主 Agent 第一版只有一个读工具。
+- **不自动装配正文。** CORE 只有一个查询工具；管理工具 DEFER。
 - 旧 Garden `MEMORY.MD` 全舍弃。
 
 产品 STM ≠ SessionCheckpoint ≠ CanonicalCheckpoint ≠ BML。
