@@ -7,10 +7,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`, `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`, `docs/architecture/current/runtime-approval-boundary-2026-08.md`, `docs/architecture/README.md`, `TODOLIST.md`, `docs/research/cognitive-r0-current-state-2026-08/dependency-and-data-inventory.md`, `docs/research/cognitive-r3-persona-workspace-2026-08/README.md`, `docs/logs/2026-08-persona-markdown-decision/`
 - Owner: `Grok`
-- Session/Task: `Record IDENTITY body + DARK.MD booths`
+- Session/Task: `P18 v1-closed roster, team-extensible kinds`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-13T21:20:00+08:00`
-- Last Heartbeat: `2026-08-13T22:10:00+08:00`
+- Last Heartbeat: `2026-08-13T22:40:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `P18 v1-closed roster, team-extensible kinds` — **RELEASED 2026-08-13T22:50:00+08:00**
+  by `Grok`; P18 recorded. No production code.
 
 - `Record IDENTITY body + DARK.MD booths` — **RELEASED 2026-08-13T22:25:00+08:00**
   by `Grok`; P17 DARK booths + IDENTITY body recorded. No production code.
@@ -145,6 +148,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-13T22:50:00+08:00`: Released after P18 (v1 closed set, team-extensible
+  kind registry, users cannot add authority kinds). Docs only.
 
 - `2026-08-13T22:25:00+08:00`: Released after recording IDENTITY-includes-body
   and DARK.MD FEAR/SHADOW booths. Docs only.

@@ -53,7 +53,8 @@
    和用户修正不走审批。
 4. **Persona 不等于 Memory。** 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、
    `REDLINE.MD`、`USER.MD`、`DREAM.MD`、`DARK.MD`、`WORLD.MD`；正文均为 Markdown。
-   Identity 含当前形态；Dark 为怕与丑的双展位。不再使用 Commitment / Preferences
+   Identity 含当前形态；Dark 为怕与丑的双展位。v1 锁死这七种；架构按种类登记表
+   实现，便于以后产品加种，用户不能自增权威。不再使用 Commitment / Preferences
    作为权威名。
 5. **Persona 工作区只有一个中央区域。** 当前文档使用 Markdown 源码/人类可读预览；
    待审变更使用只读 before/after Diff 并明确接受/拒绝；历史只读，载入只覆盖本地草稿，

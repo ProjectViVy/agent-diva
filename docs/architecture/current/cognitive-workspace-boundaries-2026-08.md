@@ -23,6 +23,7 @@
   `DREAM.MD`、`DARK.MD`、`WORLD.MD`。正文以 Markdown 为依据。`IDENTITY.MD` 含当前
   身体/形态。`DARK.MD` 为 FEAR/SHADOW 两展位，不单开 BODY/FEAR/SHADOW 文件。
   `DREAM.MD` Frozen Core 投影严格 10 字。`WORLD.MD` 不进 Frozen Core 整包。
+  v1 种类闭集；实现按登记表可加，用户不能自增权威种类。
 - Persona 内容审查是文档领域动作，不是工具风险授权；聊天 Approval Center 不参与其中。
 - Memory CRUD、STM 日常维护和 Persona 首次初始化不创建 Proposal、Approval 或
   Governance Ledger 记录。
