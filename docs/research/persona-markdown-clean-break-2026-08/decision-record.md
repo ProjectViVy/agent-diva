@@ -2,7 +2,7 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道；同日 `WORLD.MD` 改走工具、不做动态加载
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
@@ -46,7 +46,7 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 | `USER.MD` | 用户习惯 | 用户偏好；Agent 对用户**认知与行为**的观察 | 是 | 是（只收能自述的偏好） |
 | `DREAM.MD` | Agent 欲望 | Agent 自己的心愿 | 是（**严格 10 字**） | **否** |
 | `DARK.MD` | Agent 内侧 | 害怕；自己承认的丑。馆内两个展位：`FEAR` / `SHADOW` | 可进，必须极短（数字 D1 定） | **否** |
-| `WORLD.MD` | 环境 | 当前工作、生活或旅行处境 | **否**（不整包注入） | 是 |
+| `WORLD.MD` | 环境 | 当前工作、生活或旅行处境 | **否**（不进 FC，不动态装配，工具读写） | 是 |
 
 禁止再用 `COMMITMENT` / `PREFERENCES` 作为权威文件名或产品对象名。`Commitment`
 这个词过于中性，不能表达红线。`Preferences` 不能覆盖「用户不自知、由 Agent 记载」
@@ -91,7 +91,7 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 | `USER.MD` | 800 | 160 | 偏好 + 观察；FC 偏偏好，观察不必整段冻住 |
 | `DREAM.MD` | 40 | **10** | 本体略宽于 FC；投影仍严格 10 字 |
 | `DARK.MD` | 300 | 60 | 进 FC，但必须极短（怕/丑各一小段） |
-| `WORLD.MD` | 1000 | **不进** | 环境可变；不整包冻进会话 |
+| `WORLD.MD` | 1000 | **不进** | 环境可变；不装配进 Prompt，工具读写 |
 
 ### P15：七份文件的语义切分（禁止互相改写）
 
@@ -219,21 +219,8 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 - **`DREAM.MD` 与 `DARK.MD` 都不进首次引导。** 二者缺席不构成 `incomplete`，也不阻断
   第一次正式对话。
 - Frozen Core 捕获：`IDENTITY`（含当前形态）、`RELATIONSHIP`、`REDLINE`、`USER`、
-  `DREAM`（10 字）。`DARK.MD` 进 Frozen Core，投影 60 字（P14）。`WORLD.MD` 不作为
-  Frozen Core 整包注入。
-
-### P20：Laputa 进上下文只有三条车道，不能另立第四套规矩
-
-这不是新发明，是把 P1 / P14 / P16 已经冻住的装配方式写清楚。问「某份文件要不要进上下文」
-必须先归入其中一条，禁止再问成「全注入还是全工具」。
-
-| 车道 | 含义 | 已归属 |
-| --- | --- | --- |
-| **永冻装配（Frozen Core）** | 会话开始捕获，本会话 prefix 里一直在，中途不随文件改写而变 | `IDENTITY` 200、`RELATIONSHIP` 120、`REDLINE` 200、`USER` 160、`DREAM` 10、`DARK` 60 |
-| **动态加载** | 不进 Frozen Core；可按轮/按 scope 刷新的有界投影 | `WORLD.MD` 有界投影（不整包）；不是 FC |
-| **工具增删改查** | 默认不进 Prompt；要读要写走工具或 Persona 工作区 | 七份文件的**全文超出投影的部分**、完整历史、BML LTM、报告。Agent 改 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5 审查；DREAM/DARK/USER 观察走 P16 直写 |
-
-完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一，但**只能占用上面三条车道里的一条或组合**（例如 Work/Pulse 走动态加载、胶囊走工具），不能再发明「ACTMEM 专用装配政策」。具体占哪条尚未归类。
+  `DREAM`（10 字）。`DARK.MD` 进 Frozen Core，投影 60 字（P14）。`WORLD.MD` 不进
+  Frozen Core，也不动态装配进 Prompt；读写走工具或 Persona 工作区。
 - `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` 的用户直编：直接保存。
 - `USER.MD` 偏好块：用户直编直接保存。观察块：允许 Agent 直写当前头（否则「用户
   不自知」无法落地）；用户之后可改可删。
@@ -241,6 +228,20 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
   **默认 defer**（不强迫打开、不进引导必填）。
 - 除此以外，Agent 对 `IDENTITY` / `RELATIONSHIP` / `REDLINE` / `WORLD` 以及
   `USER` 偏好块的修改，仍走 Persona 专用内容审查（P5），不进 Approval Center。
+
+### P20：Laputa 进上下文只有三条车道，不能另立第四套规矩
+
+问「某份文件要不要进上下文」必须先归入其中一条，禁止再问成「全注入还是全工具」。
+
+| 车道 | 含义 | 已归属 |
+| --- | --- | --- |
+| **永冻装配（Frozen Core）** | 会话开始捕获，本会话 prefix 里一直在，中途不随文件改写而变 | `IDENTITY` 200、`RELATIONSHIP` 120、`REDLINE` 200、`USER` 160、`DREAM` 10、`DARK` 60 |
+| **动态加载** | 不进 Frozen Core；可按轮/按 scope 刷新的有界投影 | **七份人格当前无人占用。** 车道保留，供以后归类（例如 ACTMEM 的 Pulse/Work），不得把 WORLD 塞回来 |
+| **工具增删改查** | 默认不进 Prompt；要读要写走工具或 Persona 工作区 | **`WORLD.MD` 全文**、七份超出 FC 投影的正文、完整历史、BML LTM、报告。Agent 改 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5；DREAM/DARK/USER 观察走 P16 直写 |
+
+2026-08-14 用户改定：`WORLD.MD` **不做动态加载**，与 BML 一样走工具。仍参加首次引导、仍是同目录权威，只是不自动装配进 Prompt。禁止再接线 `WorldStore::project()` 当默认上下文。
+
+完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一，只能占用上面三条车道里的一条或组合（胶囊已属工具；Pulse/Work 未归类）。不能再发明「ACTMEM 专用装配政策」。
 
 ### P2：Persona 页面是人格文档工作区，不是安全审批中心
 
@@ -341,8 +342,8 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 
 - “不可变”有两个精确含义：每一个已经形成的历史版本永不改写；Frozen Core 在同一会话
   内冻结，当前权威的后续修改从下一会话生效。当前文档本身不是永久锁死。
-- `WORLD.MD` 参加同一次首次引导和提交，但仍是独立的环境权威；不得作为 Frozen Core
-  整体注入 Prompt。
+- `WORLD.MD` 参加同一次首次引导和提交，但仍是独立的环境权威；不进 Frozen Core，
+  不动态装配，读写走工具。
 
 ### P10：首次引导只由五份用户侧权威的物理存在状态触发
 
@@ -391,8 +392,8 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 - 载入历史只产生本地草稿；再次保存产生新的头部版本，不回拨或抹除中间历程。
 - 内容未变化的 no-op 保存不创建重复 revision；被拒绝的变更请求不属于文档变化，只保留
   请求决策审计，不写入文档历史。
-- 完整历史属于审计/浏览面，不整体注入模型上下文。Frozen Core 与 WORLD 投影只读取
-  当前权威，并遵守会话冻结与字数上限。
+- 完整历史属于审计/浏览面，不整体注入模型上下文。Frozen Core 只读取当前权威并遵守
+  会话冻结与字数上限。`WORLD.MD` 不投影进 Prompt。
 
 ## “不再有 JSON”的精确定义
 
@@ -499,7 +500,8 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 6. P19：AutoDream 必须整理 STM（直写）；人格整理只允许按表提案；旧实现未通过；
    2026-08-14 已跑独立测试，STM 路径仍测不到。
 7. P13：七份同一目录，一个 Diva 一套；不再允许 WORLD 另放子目录。
-8. P20：进上下文只有永冻 / 动态加载 / 工具三条车道；ACTMEM 必须归入其中。
+8. P20：进上下文只有永冻 / 动态加载 / 工具三条车道；`WORLD.MD` 走工具，不动态加载。
+   ACTMEM 必须归入其中一条。
 
 ## 被取代的依据
 
