@@ -8,7 +8,7 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Epic Defined / R0+R1+R2 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  当前状态：`Epic Defined / R0+R1+R2+R3 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -58,10 +58,12 @@
   三份完成物：装配约束、Hold 选项与静态实验、失败/并发矩阵。产品 STM 不存在；
   CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。未选物理权威。
 
-- [ ] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
-  R0 输入已交付。盘点 Frozen Core、WORLD、首次初始化、旧 JSON Proposal 与 Prompt
-  投影；评估 Markdown revision、完整快照、文本 Diff、CAS/stale、永久历史、编辑/
-  预览/Diff/草稿恢复和安全渲染能力。只形成事实与技术选项，不提前选择目标架构。
+- [x] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
+  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  [`docs/research/cognitive-r3-persona-workspace-2026-08/README.md`](docs/research/cognitive-r3-persona-workspace-2026-08/README.md)。
+  三份完成物：权威盘点、revision/Diff/CAS 选项、Markdown 工作区技术评估。JSON
+  section + Proposal 仍是权威；`content_version` 只展示；changelog ≠ 文档历史；
+  WORLD `project()` 无生产 Prompt 调用者。未选目录 / Diff 引擎 / CM6 扩展。
 
 - [ ] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0` `blocked:R0-R3`
   以 R0–R3 为输入，明确旧 Persona JSON、`memory_md`、AutoDream/Evolution 与 Governance

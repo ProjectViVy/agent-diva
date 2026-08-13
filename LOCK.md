@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-r1-genericagent-evolution-2026-08/`, `docs/research/README.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/logs/2026-08-cognitive-r1-genericagent-evolution/`, `TODOLIST.md` (research-only entries)
+- Scope: `docs/research/cognitive-r3-persona-workspace-2026-08/`, `docs/research/README.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/architecture/README.md`, `docs/research/cognitive-r0-current-state-2026-08/README.md`, `docs/research/cognitive-r2-stm-context-2026-08/README.md`, `docs/logs/2026-08-cognitive-r3-persona-workspace/`, `docs/logs/README.md`, `TODOLIST.md` (research-only R3 entries)
 - Owner: `Grok`
-- Session/Task: `COGNITIVE-R1-GENERICAGENT-EVOLUTION research package`
+- Session/Task: `COGNITIVE-R3-PERSONA-WORKSPACE research package`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-13T12:00:00+08:00`
-- Last Heartbeat: `2026-08-13T13:30:00+08:00`
+- Started At: `2026-08-13T19:20:00+08:00`
+- Last Heartbeat: `2026-08-13T20:15:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,21 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `COGNITIVE-R3-PERSONA-WORKSPACE research package` — **RELEASED 2026-08-13T20:15:00+08:00**
+  by `Grok`; documentation-only R3 research package delivered under
+  `docs/research/cognitive-r3-persona-workspace-2026-08/` plus logs/index.
+  No production source/config/build changes.
+
+- `COGNITIVE-R2-STM-CONTEXT research package` — **RELEASED 2026-08-13T19:05:00+08:00**
+  by `Grok`; documentation-only R2 research package delivered under
+  `docs/research/cognitive-r2-stm-context-2026-08/` plus logs/index.
+  No production source/config/build changes.
+
+- `COGNITIVE-R0-CURRENT-STATE research package` — **RELEASED 2026-08-13T17:20:00+08:00**
+  by `Grok`; documentation-only R0 current-state inventory delivered under
+  `docs/research/cognitive-r0-current-state-2026-08/` plus logs/index.
+  No production source/config/build changes.
 
 - `COGNITIVE-R1-GENERICAGENT-EVOLUTION research package` — **RELEASED 2026-08-13T13:30:00+08:00**
   by `Grok`; documentation-only R1 research package delivered under
@@ -119,6 +134,23 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-13T20:15:00+08:00`: Released after COGNITIVE-R3-PERSONA-WORKSPACE
+  documentation-only research package. Deliverables under
+  `docs/research/cognitive-r3-persona-workspace-2026-08/` plus EPIC/index/TODOLIST/logs.
+  No production source, config, or build changes; `just ci` not run (docs-only,
+  same as R0/R1/R2). Architecture design remains blocked.
+
+- `2026-08-13T19:20:00+08:00`: Claimed COGNITIVE-R3-PERSONA-WORKSPACE
+  documentation-only research package. Scope is research docs, EPIC/index,
+  R0 open-gap line, TODOLIST R3/EPIC status, and iteration logs. No
+  production source, config, or build changes.
+
+- `2026-08-13T19:05:00+08:00`: Released after COGNITIVE-R2-STM-CONTEXT
+  documentation-only research package. Deliverables under
+  `docs/research/cognitive-r2-stm-context-2026-08/` plus EPIC/index/TODOLIST/logs.
+  No production source, config, or build changes; `just ci` not run (docs-only,
+  same as R0/R1). Architecture design remains blocked.
 
 - `2026-08-12T12:55:00+08:00`: Released code-review residual scope. Runtime
   commits `b4c10047`, `bb92204d`, `bdef0f87`; approval `e3f6660d`; context/GUI

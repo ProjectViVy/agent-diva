@@ -81,7 +81,7 @@
 | 缺口 | 交给 |
 | --- | --- |
 | 选 STM 物理权威、scope、装配位置、触发器 | D2（需 Research Gate + Architecture Gate） |
-| Persona Markdown / Frozen Core 投影变化对 prefix 的影响 | R3 |
+| Persona Markdown / Frozen Core 投影变化对 prefix 的影响 | **R3 已交付盘点**（今天注入紧凑 JSON；D1 改载体） |
 | 用户机器真实 `.laputa` / `sessions/` 体积 | R4 |
 | BML `Identity` 等 kind 与 Persona 双权威 | D0 |
 | `run_startup_gc` 是否接线、Reset/Delete 是否调 `on_session_end` | D2 / session 生命周期 |

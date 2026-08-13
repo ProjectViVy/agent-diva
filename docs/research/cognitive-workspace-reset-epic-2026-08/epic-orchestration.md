@@ -1,7 +1,7 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Epic Defined / R0+R1+R2 Packages Complete / Research Gate Pending / Architecture Design Blocked`
+- 状态：`Epic Defined / R0+R1+R2+R3 Packages Complete / Research Gate Pending / Architecture Design Blocked`
 - 记录日期：2026-08-13
 - 当前授权：仅冻结产品边界、编排研究与后续设计；**不授权目标架构定稿或代码实施**
 
@@ -177,6 +177,13 @@ SessionCheckpoint/`WorkingMemory`、BmlStartupIndex）已拆名。Research Hold 
 
 完成物：`persona-authority-inventory.md`、`revision-diff-options.md`、
 `markdown-workspace-technical-evaluation.md`。
+
+**进展（2026-08-13）：** 研究包已落盘
+[`../cognitive-r3-persona-workspace-2026-08/README.md`](../cognitive-r3-persona-workspace-2026-08/README.md)。
+三份完成物齐全。JSON section + Proposal 链仍是权威；`content_version` 只展示；
+changelog ≠ 文档历史；WORLD `project()` 无生产 Prompt 调用者；首次引导三套判定
+打架。Research Hold 只给选项，未选目录 / Diff / CM6 扩展。状态：
+`Research package complete / Gate pending user review`。
 
 #### R4 — Clean-break 数据安全、删除和恢复研究
 
