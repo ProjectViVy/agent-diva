@@ -26,7 +26,8 @@
   v1 种类闭集；实现按登记表可加，用户不能自增权威种类。
 - Persona 内容审查是文档领域动作，不是工具风险授权；聊天 Approval Center 不参与其中。
 - Memory CRUD、STM 日常维护和 Persona 首次初始化不创建 Proposal、Approval 或
-  Governance Ledger 记录。
+  Governance Ledger 记录。AutoDream 批处理必须整理 STM（直写，与聊天 Agent 日常
+  维护同一对象）；人格整理只允许按 P19 提案，不能 apply。
 
 ## 当前禁止的推断
 

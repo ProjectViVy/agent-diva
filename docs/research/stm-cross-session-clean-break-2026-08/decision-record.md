@@ -2,6 +2,7 @@
 
 - 状态：`Approved Boundary / Research Hold / Implementation Pending`
 - 记录日期：2026-08-13
+- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）
 - 性质：产品与领域边界已拍板；分层装配和自动化算法待专项调研
 
 ## 问题判断
@@ -79,10 +80,14 @@ workspace/profile 级、由 Agent 自动维护、可被人类查看和修正的�
 
 - Agent 的日常 STM 更新是运行时上下文维护，不创建 Proposal，不进入 Evolution、
   Governance Ledger 或聊天页 Approval Center。
+- **AutoDream 必须修改和整理 STM**（批处理收敛：完成、失效、替代、预算）。这是
+  与聊天 Agent 同一对象上的第二条触发，同样直写、不走提案。不是 `MemoryPatch`，
+  也不是人格提案。算法与物理权威仍属下方 Research Hold。
 - 用户在 STM 工作区的修正直接生效；误操作保护依赖明确版本、历史/撤销或可恢复删除，
   不依赖审批。
 - STM 不能直接把推测升级为 BML 长期权威。任何长期沉淀仍须走 BML 的证据、来源和 CRUD
   边界；STM 到 BML 的具体晋升策略留待调研。
+- 2026-08-14 独立测试：当前 `agent-diva-autodream` 零 STM 符号，整理路径测不到。
 
 ### S6：STM 管理入口归 Memory 页面
 

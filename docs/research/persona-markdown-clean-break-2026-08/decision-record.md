@@ -2,7 +2,7 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
@@ -111,18 +111,27 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 松本可以是方盒子、不是机器人；「希」可以是仿人类女性的人形。Identity = 现在的形态；
 Dream = 还没有的身体。禁止把「我想要血肉身」写进 Identity。
 
-### P19：AutoDream 的产品职责是给 Laputa 生成提案；能改 / 不能改如下
+### P19：AutoDream 必须整理 STM；人格整理只允许提案
 
-AutoDream 的原意是**批处理反射，主要产出 Laputa 文档的待审变更**，不是聊天里的
-人格编辑器，也不是 Memory/Skill 流水线。它**只能提案，不能 apply、不能直写权威**。
-提案走 Persona 内容审查（P5），不走 EvolutionProposal / Governance / Approval
-Center。旧 JSON `IdentityPatch` / `LearningNote` / `MemoryPatch` 合同删除。
+AutoDream 是**批处理反射**，有两件产品主职，缺一不可：
 
-**未通过的是今天的实现**（读 Identity JSON、默认 `MemoryPatch`、闸门不拦人格
-type、几乎无日志），不是「AutoDream 不许碰 Laputa」这条产品原意。
+1. **必须修改和整理 STM**（跨会话活动上下文）。这是直写维护，不走提案、不走
+   Approval（与 STM **S5** 一致）。不是把 STM 做成 `MemoryPatch`。
+2. **人格整理可以提案，不能直写、不能 apply。** 提案走 Persona 内容审查（P5），
+   不走 EvolutionProposal / Governance / Approval Center。
+
+它不是聊天里的人格编辑器，也不是 BML Memory / Skill 流水线。旧 JSON
+`IdentityPatch` / `LearningNote` / `MemoryPatch` 合同删除。
+
+**未通过的是今天的实现**，不是「AutoDream 不许碰 Laputa」。2026-08-14 独立测试
+已跑通现有 crate + Manager e2e；测到的是旧合同（生命周期、`MemoryPatch`、闸门、
+报告）。crate 内零 STM 符号，产品 STM 对象不存在，**STM 整理路径测不到**。默认
+反射仍发 `MemoryPatch`。闸门接受 `IdentityPatch`，只把 `SopCreate` 当
+`UnsupportedType`。几乎无阶段日志。错在此前不测，不在「不该碰人格」。
 
 | 目标 | AutoDream | 说明 |
 | --- | --- | --- |
+| STM | **必须整理（直写，不走提案）** | 产品主职；当前无对象，路径测不到 |
 | `IDENTITY.MD` | **可提案，不可直写** | 自我认知更新；必须人审 |
 | `RELATIONSHIP.MD` | **可提案，不可直写** | 关系理解更新；必须人审 |
 | `USER.MD` 观察块 | **可提案，不可直写** | 用户不自知的习惯；批处理也要人看见 |
@@ -137,14 +146,17 @@ type、几乎无日志），不是「AutoDream 不许碰 Laputa」这条产品�
 | Skill / SOP | **不可** | Evolution；旧梦境晋升退役 |
 | 自己的提案 | **不可 apply** | 只有用户在 Persona 里接受/拒绝 |
 
-允许**读取**七份当前头作为反射输入（只读）。读取不等于可写。
+允许**读取**七份当前头和当前 STM 作为反射输入（只读人格；STM 可读可整理）。
+读取人格不等于可写人格。
 
 同会话 Agent 工具 `laputa_propose_section_write` 仍是旧治理链，删除。会话内改
 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5；DREAM/DARK/USER 观察走 P16
-直写。那是聊天 Agent，**不是** AutoDream。
+直写。那是聊天 Agent，**不是** AutoDream。聊天 Agent 日常也可维护 STM（S5），
+与 AutoDream 批处理整理是同一对象、两条触发，都不是提案。
 
-可靠性：AutoDream 必须先做完整日志与大型测试（D5 / TODOLIST），排清阶段失败后，
-才谈按上表接线新提案类型。诊断不得扩大上表。
+可靠性：2026-08-14 已做第一轮独立测试（crate 56+3、Manager e2e 6/6）。STM
+整理与人格允许表仍未覆盖。后续必须补阶段日志与对着上表的测试后，才接线新
+提案类型和 STM 整理器。诊断不得把 STM 改成提案，也不得写红线/梦/用户偏好。
 
 ### P17：`DARK.MD` 是一个馆、两个展位
 
@@ -460,7 +472,8 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    `DARK.MD` 两个展位。
 4. v0.0.1–v0.0.5 iteration log 保留为决策演进证据，不回写那些日志正文。
 5. P18：v1 锁死七种；架构按种类登记表实现，便于以后产品加种；用户不能自由加权威。
-6. P19：AutoDream 职责是 Laputa 待审提案；能改/不能改见表；旧实现未通过；诊断另轨。
+6. P19：AutoDream 必须整理 STM（直写）；人格整理只允许按表提案；旧实现未通过；
+   2026-08-14 已跑独立测试，STM 路径仍测不到。
 
 ## 被取代的依据
 

@@ -12,6 +12,7 @@
 - `2026-08-cognitive-r3-persona-workspace/`
 - `2026-08-cognitive-r4-clean-break-safety/`
 - `2026-08-persona-markdown-decision/`
+- `2026-08-autodream-independent-test/`
 - `2026-08-stm-cross-session-decision/`
 - `2026-08-evolution-reset-decision/`
 - `2026-08-governance-persona-recovery/`

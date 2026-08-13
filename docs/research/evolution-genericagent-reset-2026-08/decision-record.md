@@ -49,16 +49,21 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 - 保护性分支只用于保存旧实现，不作为兼容运行时、fallback 或长期双轨维护来源。
 - 当前仅记录该前置条件；本次讨论记录不创建分支、不删除代码。
 
-### D5：AutoDream 原意是 Laputa 提案器；旧实现未通过；先诊断再按允许表接线
+### D5：AutoDream 必须整理 STM，人格只允许提案；旧实现未通过；先测再接线
 
-- AutoDream 的产品职责是批处理反射并**生成 Laputa 待审变更**，不是 Evolution
-  收件箱，也不是 Memory/Skill 流水线。能改 / 不能改以 Persona **P19 表**为准。
-- **未通过**的是当前实现（JSON 提案、默认 MemoryPatch、人格 type 未闸死、日志
-  几乎没有），不是「不许对 Laputa 提案」本身。
-- 独立诊断轨仍然成立：端到端结构化日志 + 大型测试。不得在诊断里恢复
-  `MemoryPatch`、`SopCreate` 或对 `REDLINE` / `DREAM` / 用户偏好的写入。
-- D2 仍然成立：旧 AutoDream→通用治理主链退役。新提案必须是 Persona 内容审查，
-  不是 Governance Ledger。
+- AutoDream 的产品职责是批处理反射：**整理 STM（直写，不走提案）**，并对
+  P19 允许的人格文件**生成待审提案**。不是 Evolution 收件箱，也不是 BML /
+  Skill 流水线。能改 / 不能改以 Persona **P19 表**和 STM **S5** 为准。
+- **未通过**的是当前实现（JSON 提案、默认 MemoryPatch、crate 内无 STM、
+  人格 type 未按允许表接线、日志几乎没有），不是「不许对 Laputa 提案」。
+- 2026-08-14 已做独立测试：`cargo test -p agent-diva-autodream` 与
+  `agent-diva-manager` `autodream_laputa_e2e` 现有套件全绿。测到的是旧合同；
+  STM 整理测不到。表征测试见 `agent-diva-autodream/tests/current_contract.rs`。
+- 独立诊断轨仍然成立：端到端结构化日志 + 对着产品表的测试。不得在诊断里恢复
+  `MemoryPatch`、`SopCreate` 或对 `REDLINE` / `DREAM` / 用户偏好的写入，也不得
+  把 STM 整理改成提案。
+- D2 仍然成立：旧 AutoDream→通用治理主链退役。新人格提案必须是 Persona 内容
+  审查，不是 Governance Ledger。
 
 ## GenericAgent 当前核查事实
 
