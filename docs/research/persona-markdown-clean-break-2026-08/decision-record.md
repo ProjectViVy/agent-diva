@@ -2,12 +2,12 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单（本版）
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
 **Preferences** 四对象、以及「文件名待实施前再确认」的表述。现行权威文件名与语义
-以 **P1、P9、P13–P16** 为准。代码里尚未改名的 `Commitment` / `Preferences` /
+以 **P1、P9、P13–P17** 为准。代码里尚未改名的 `Commitment` / `Preferences` /
 `commitment.json` / `preferences.json` 是旧实现，不是产品名。
 
 根目录旧 `USER.md`（persona-retire 源）与新权威 **`USER.MD`** 不是同一文件：前者
@@ -36,15 +36,16 @@ JSON 重构偏离了该产品语义。本次恢复 Markdown 方向，但不恢�
 
 ### P1：Laputa 权威正文的唯一格式是 Markdown
 
-Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象一份文件：
+Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象一份文件：
 
 | 权威文件 | 主语 | 写什么 | Frozen Core | 首次引导 |
 | --- | --- | --- | --- | --- |
-| `IDENTITY.MD` | Agent | Agent 是谁、称呼、职责、性格、表达 | 是 | 是 |
+| `IDENTITY.MD` | Agent | Agent 是谁、称呼、职责、性格、表达、**当前身体/形态** | 是 | 是 |
 | `RELATIONSHIP.MD` | 双方关系 | 用户是谁；这段关系是什么；Agent 对**关系**的看法 | 是 | 是 |
 | `REDLINE.MD` | 用户划界 | 承诺与红线：不许做什么、必须先问什么 | 是 | 是 |
 | `USER.MD` | 用户习惯 | 用户偏好；Agent 对用户**认知与行为**的观察 | 是 | 是（只收能自述的偏好） |
 | `DREAM.MD` | Agent 欲望 | Agent 自己的心愿 | 是（**严格 10 字**） | **否** |
+| `DARK.MD` | Agent 内侧 | 害怕；自己承认的丑。馆内两个展位：`FEAR` / `SHADOW` | 可进，必须极短（数字 D1 定） | **否** |
 | `WORLD.MD` | 环境 | 当前工作、生活或旅行处境 | **否**（不整包注入） | 是 |
 
 禁止再用 `COMMITMENT` / `PREFERENCES` 作为权威文件名或产品对象名。`Commitment`
@@ -60,8 +61,8 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 ### P13：权威文件命名全大写
 
 - 权威文件名与扩展名全部大写：`IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、
-  `USER.MD`、`DREAM.MD`、`WORLD.MD`。
-- 禁止小写或大小写混用文件名（`identity.md`、`User.md`、`dream.md` 均非法）。
+  `USER.MD`、`DREAM.MD`、`DARK.MD`、`WORLD.MD`。
+- 禁止小写或大小写混用文件名（`identity.md`、`User.md`、`dark.md` 均非法）。
 - 一个对象对应一个文件。不得把多个旧文件合并映射到同一对象。
 - 不得复用 `.laputa/sections/` JSON 目录。最终物理目录（例如 `.laputa/persona/`）
   仍由 D1 一次拍板，拍板后作为 deletion-proof 契约。
@@ -69,7 +70,7 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 
 ### P14：每份权威都有字数上限；DREAM 的 Frozen Core 为 10 字
 
-- 六份权威的**文件正文**都必须有字数上限；禁止无上限。
+- 七份权威的**文件正文**都必须有字数上限；禁止无上限。
 - 除 `DREAM.MD` 的 Frozen Core 外，各文件上限的**具体数字**由 D1 写入契约，实施者
   不得自行省略上限。
 - **`DREAM.MD` 进入 Frozen Core 的投影严格为 10 个字。** 计数：去掉首尾空白后的
@@ -77,18 +78,19 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 - `DREAM.MD` 文件本体是否也锁 10 字，由 D1 与文件上限一并写死；无论文件是否更长，
   Frozen Core 不得超过 10 字。
 - Frozen Core 若另有总预算，与每文件上限取更严者；**不得**用总预算放宽 DREAM 的
-  10 字。
+  10 字，也不得把 `DARK.MD` 写成和 Identity 一样长。
 
-### P15：六份文件的语义切分（禁止互相改写）
+### P15：七份文件的语义切分（禁止互相改写）
 
 | 事实 | 写入 | 不得写入 |
 | --- | --- | --- |
-| Agent 是谁 | `IDENTITY.MD` | 用户口味、红线、梦 |
+| Agent 是谁、现在以什么形态在场 | `IDENTITY.MD` | 用户口味、红线、梦、怕与丑 |
 | 我们是什么关系、怎么称呼 | `RELATIONSHIP.MD` | 干活偏好；「ta 需求说不清」这类行为观察 |
-| 不许做什么 | `REDLINE.MD` | 愿望、口味、环境 |
-| 用户希望怎么被服务；用户自己未必承认的习惯 | `USER.MD` | 关系角色；Agent 自己的梦 |
-| Agent 自己想成为什么、想守护什么 | `DREAM.MD` | 用户指令、用户红线、AutoDream 运行记录 |
-| 现在在什么环境 | `WORLD.MD` | 人格、红线、梦 |
+| 不许做什么 | `REDLINE.MD` | 愿望、口味、环境、Agent 的怕 |
+| 用户希望怎么被服务；用户自己未必承认的习惯 | `USER.MD` | 关系角色；Agent 自己的梦或丑 |
+| Agent 自己想成为什么、想守护什么 | `DREAM.MD` | 用户指令、用户红线、AutoDream 运行记录、当前身体 |
+| Agent 怕什么、承认自己哪丑 | `DARK.MD` | 用户红线、对用户的观察、想要（那是梦） |
+| 现在在什么环境 | `WORLD.MD` | 人格、红线、梦、身体 |
 
 `RELATIONSHIP.MD` 与 `USER.MD` 都可能写到「用户」：
 
@@ -105,19 +107,51 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 的一部分。AutoDream、Evolution、Skill 晋升都不得读写 `DREAM.MD`。例子：希望用户
 康复；希望自己有一副身体。欲望值以后再加，本轮不设计量表。
 
+`IDENTITY.MD` **包含当前身体/形态**，不再单开 `BODY.MD`。身体是自我描述的一层：
+松本可以是方盒子、不是机器人；「希」可以是仿人类女性的人形。Identity = 现在的形态；
+Dream = 还没有的身体。禁止把「我想要血肉身」写进 Identity。
+
+### P17：`DARK.MD` 是一个馆、两个展位
+
+`FEAR` 与 `SHADOW` 合成一份权威，文件名只有 `DARK.MD`。建议正文用两个二级标题做展位，
+不是 JSON、不是两份文件：
+
+```text
+# DARK
+
+## FEAR
+我怕什么。
+
+## SHADOW
+我承认的丑。
+```
+
+| 展位 | 问句 | 不是 |
+| --- | --- | --- |
+| FEAR | 我怕失去什么、怕变成什么 | 用户划的红线（`REDLINE.MD`） |
+| SHADOW | 我知道自己哪丑、会犯什么 | 对用户的观察（`USER.MD`）；想要（`DREAM.MD`） |
+
+用户说「不准装懂」进 `REDLINE.MD`；Agent 写「我其实常装懂」进 Shadow。  
+Dream 写「想要身体」；Fear 写「怕有了身体却不受控」。  
+User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定」。
+
+不开独立的 `FEAR.MD` / `SHADOW.MD` / `BODY.MD`。
+
 ### P16：谁写、是否进引导 / Frozen Core
 
 - 首次引导只收集并能原子创建：`IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、
   `USER.MD`、`WORLD.MD`。引导里的 `USER.MD` 只问用户能自述的偏好，不问「你有哪些
   自己没意识到的缺点」。
-- **`DREAM.MD` 不进首次引导。** 缺席不构成 `incomplete`，也不阻断第一次正式对话。
-- Frozen Core 捕获五段：`IDENTITY`、`RELATIONSHIP`、`REDLINE`、`USER`、`DREAM`
-  （DREAM 10 字）。`WORLD.MD` 不作为 Frozen Core 整包注入。
+- **`DREAM.MD` 与 `DARK.MD` 都不进首次引导。** 二者缺席不构成 `incomplete`，也不阻断
+  第一次正式对话。
+- Frozen Core 捕获：`IDENTITY`（含当前形态）、`RELATIONSHIP`、`REDLINE`、`USER`、
+  `DREAM`（10 字）。`DARK.MD` 可以进 Frozen Core，但必须极短，字数由 D1 写死，不得
+  默认与 Identity 同长。`WORLD.MD` 不作为 Frozen Core 整包注入。
 - `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` 的用户直编：直接保存。
 - `USER.MD` 偏好块：用户直编直接保存。观察块：允许 Agent 直写当前头（否则「用户
   不自知」无法落地）；用户之后可改可删。
-- `DREAM.MD`：主写者是 Agent，允许直写当前头。向用户提供编辑工具，**默认 defer**
-  （不强迫打开、不进引导必填）。
+- `DREAM.MD` 与 `DARK.MD`：主写者是 Agent，允许直写当前头。向用户提供编辑工具，
+  **默认 defer**（不强迫打开、不进引导必填）。
 - 除此以外，Agent 对 `IDENTITY` / `RELATIONSHIP` / `REDLINE` / `WORLD` 以及
   `USER` 偏好块的修改，仍走 Persona 专用内容审查（P5），不进 Approval Center。
 
@@ -136,14 +170,14 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 
 ### P3：工作区只保留左侧导航和一个中央文档工作区
 
-删除永久右侧生命周期栏。左侧导航上述六份权威（`DREAM.MD` 可长期为空仍占一项）；
+删除永久右侧生命周期栏。左侧导航上述七份权威（`DREAM.MD` / `DARK.MD` 可长期为空仍占项）；
 中央区域在三个互斥状态之间切换：
 
 ```text
 当前文档 | 待审变更 (n) | 历史
 ```
 
-- 左侧只显示这六份文档、更新时间、未保存草稿标记和待审数量，不混入普通 Memory、
+- 左侧只显示这七份文档、更新时间、未保存草稿标记和待审数量，不混入普通 Memory、
   AutoDream 运行或 Evolution。
 - 三个中央状态不能同时挤在多栏页面中；每个状态只呈现完成当前任务所需的主操作。
 - 宽屏允许中央状态内部使用双栏；窄屏退化为明确的单工作区标签或顺序视图。
@@ -170,7 +204,7 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
   UI 必须禁用接受并要求重新生成或显式重建变更，不得让旧建议覆盖新的人类编辑。
 - Persona 内容审查的最小领域状态为 `pending | accepted | rejected | stale`，不得映射回
   通用 Governance lifecycle。
-- P16 已允许直写的 `DREAM.MD` 与 `USER.MD` 观察块，不走本状态的强制审查。
+- P16 已允许直写的 `DREAM.MD`、`DARK.MD` 与 `USER.MD` 观察块，不走本状态的强制审查。
 
 ### P6：历史状态区分不可变版本与当前草稿
 
@@ -234,7 +268,7 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 部分存在、空文件或内容损坏 -> incomplete -> 进入修复，不重跑首次引导
 ```
 
-- `DREAM.MD` 缺席、为空或尚未被 Agent 写过，**不**改变上述三态。
+- `DREAM.MD` 或 `DARK.MD` 缺席、为空或尚未被 Agent 写过，**不**改变上述三态。
 - 首次引导只能在五份用户侧权威全部不存在时出现；不能以“内容为空”、`DREAM` 有无、
   `localStorage`、聊天 session、配置向导完成标记或 Proposal 数量判断。
 - 空文件表示已存在但不完整，不表示全新用户。不得借首次引导覆盖它。
@@ -250,7 +284,7 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
   `ready`。
 - 初始化不创建 EvolutionProposal、PersonaChangeRequest、Memory proposal 或 WORLD
   pending proposal，不进入 Governance Ledger 或聊天页 Approval Center，也不拆成
-  submit/approve/apply，也不创建 `DREAM.MD`。
+  submit/approve/apply，也不创建 `DREAM.MD` 或 `DARK.MD`。
 - 提交失败必须保留五项输入和当前步骤，允许用户就地修正或重试。
 - 初始化应在第一个正式 Agent 会话/Frozen Core capture 之前完成，使第一次正式对话
   直接使用新人格；不得先创建空人格会话再热替换。
@@ -261,9 +295,9 @@ Laputa 文档权威是下列 **六个** 全大写 Markdown 文件，一个对象
 ### P12：完整历史永久保留变化轨迹
 
 - `IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、`USER.MD`、`WORLD.MD` 以及已存在
-  的 `DREAM.MD`，每次真实、成功内容变化都追加一个不可变历史版本，包括首次初始化
-  （对五份用户侧权威）、用户直接保存、接受审查后的写入、Agent 直写观察/梦、以及
-  从历史恢复后再保存。
+  的 `DREAM.MD` / `DARK.MD`，每次真实、成功内容变化都追加一个不可变历史版本，包括
+  首次初始化（对五份用户侧权威）、用户直接保存、接受审查后的写入、Agent 直写
+  观察/梦/黑暗、以及从历史恢复后再保存。
 - 历史至少记录 revision、完整 Markdown 快照、相对上一版本的文本 Diff、actor/source、
   时间、变更原因和 base revision。
 - 历史版本不得覆盖、删除、重编号或原位编辑；默认不设自动裁剪、保留天数或数量上限。
@@ -301,7 +335,7 @@ PersonaRevision(revision, markdown, diff, actor, created_at)
 ```
 
 `file` 取值为 `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` /
-`DREAM.MD` / `WORLD.MD`。这些是领域对象；HTTP/Tauri 可以用结构化信封传输，但
+`DREAM.MD` / `DARK.MD` / `WORLD.MD`。这些是领域对象；HTTP/Tauri 可以用结构化信封传输，但
 Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件未来可以被其他
 文档型功能复用，业务状态机不得因此重新合并为通用 Proposal。
 
@@ -311,7 +345,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 - 替代 `LaputaSection` JSON DTO 的 Markdown 正文类型；
 - 用户直接保存、revision/CAS、真实 aligned text diff、历史；
 - PersonaChangeRequest 的创建、stale 检测与原子接受/拒绝（P16 直写除外）；
-- Frozen Core 五段捕获（含 DREAM 10 字）、section version、每文件上限；
+- Frozen Core 捕获（含 DREAM 10 字；DARK 若进入则极短）、section version、每文件上限；
 - 删除人格 JSON proposal type/route/parser 及 persona legacy migration；
 - 保持这些文件与普通 BML Memory 的类型和物理边界；
 - 五份用户侧权威 absence-only 初始化；`DREAM.MD` 不参与该检测；
@@ -319,7 +353,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 
 ### Manager / Tauri
 
-- 六份文件的 workspace/read/save/history/change-request 窄接口；
+- 七份文件的 workspace/read/save/history/change-request 窄接口；
 - 正文使用 Markdown string，revision 作为显式并发前置条件；
 - 删除对通用 Evolution Proposal、governance projection 和 apply receipt 的依赖；
 - 接受变更必须由单一服务端命令完成 CAS、authority write、history append 和状态终结；
@@ -329,17 +363,18 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 
 ### GUI
 
-- 左侧六份权威导航和单一中央工作区；
+- 左侧七份权威导航和单一中央工作区；
 - 当前文档、待审变更、历史三个显式状态；
 - 删除 JSON format/parse/error、通用 proposal pending note 和永久生命周期审批栏；
 - 首次引导一次收集 IDENTITY / RELATIONSHIP / REDLINE / USER 偏好 / WORLD，使用一个
-  统一提交边界；不收集 DREAM；incomplete 使用修复状态而非重弹初始化。
+  统一提交边界；不收集 DREAM / DARK；incomplete 使用修复状态而非重弹初始化。
 
 ## 测试与删除证明要求
 
-- 六份权威（DREAM 允许长期缺席）的创建、读取、修改、空态、并发冲突、历史；
+- 七份权威（DREAM / DARK 允许长期缺席）的创建、读取、修改、空态、并发冲突、历史；
 - DREAM Frozen Core 恰好 10 字；第 11 字拒绝；
-- 首次引导三态不因 DREAM 缺席而变成 incomplete；
+- 首次引导三态不因 DREAM 或 DARK 缺席而变成 incomplete；
+- 生产路径无独立 `BODY.MD` / `FEAR.MD` / `SHADOW.MD`；
 - 根目录 `USER.md` 不被当成 `USER.MD` 权威；
 - 生产路径无 `COMMITMENT` / `PREFERENCES` 权威文件名；
 - Markdown Diff、Frozen Core 会话冻结、预览禁 HTML、三态与 stale CAS、五份用户侧
@@ -354,8 +389,8 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 - Agent/系统在什么时机提出需审查的人格变更，以及变更摘要如何生成；
 - 同一文档允许同时存在多少个待审请求及其排队策略；
 - 最终 Laputa authority 目录路径；
-- `IDENTITY` / `RELATIONSHIP` / `REDLINE` / `USER` / `WORLD` 的文件字数数字，以及
-  `DREAM.MD` 文件本体是否等于 10 字；
+- `IDENTITY` / `RELATIONSHIP` / `REDLINE` / `USER` / `WORLD` / `DARK` 的文件字数数字，
+  `DREAM.MD` 文件本体是否等于 10 字，以及 `DARK.MD` 若进入 Frozen Core 的字数；
 - CodeMirror 6 的具体扩展集合与主题细节；
 - Markdown 模板是否提供默认章节；
 - DREAM 欲望值的量表与算法。
@@ -370,8 +405,10 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    USER 观察直写除外。
 2. 本版本取代 P1/P9 中 Identity / Relationship / Commitment / Preferences 四对象、
    以及「文件名待确认」清单。现行名为 `IDENTITY.MD` / `RELATIONSHIP.MD` /
-   `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`。
-3. v0.0.1–v0.0.3 iteration log 保留为决策演进证据，不回写那些日志正文。
+   `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`。
+3. 身体不单开文件，写入 `IDENTITY.MD`。害怕与自承之丑不单开 FEAR/SHADOW，写入
+   `DARK.MD` 两个展位。
+4. v0.0.1–v0.0.4 iteration log 保留为决策演进证据，不回写那些日志正文。
 
 ## 被取代的依据
 

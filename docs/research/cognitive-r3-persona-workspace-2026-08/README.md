@@ -1,7 +1,7 @@
 # COGNITIVE-R3：Persona 文档权威与工作区技术研究
 
 - 状态：`Research Complete (package) / Research Gate Pending User Review`
-- 产品现行权威名：见 [`../persona-markdown-clean-break-2026-08/decision-record.md`](../persona-markdown-clean-break-2026-08/decision-record.md) P1（`IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`）。本包表格里的 Commitment / Preferences 是**当时代码对象**，不是现行产品名。
+- 产品现行权威名：见 [`../persona-markdown-clean-break-2026-08/decision-record.md`](../persona-markdown-clean-break-2026-08/decision-record.md) P1（七份：`IDENTITY.MD` 含身体 / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`）。本包表格里的 Commitment / Preferences 是**当时代码对象**，不是现行产品名。
 - 记录日期：2026-08-13
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET` → **R3**
 - 性质：专项研究事实、选项与 GUI 适配证据；**不授权**目标架构定稿或代码实施

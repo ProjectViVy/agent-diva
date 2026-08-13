@@ -8,7 +8,7 @@
 
 | 工作区 | 唯一职责 | 明确排除 |
 | --- | --- | --- |
-| Persona | `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`、内容审查、完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑、AutoDream |
+| Persona | `IDENTITY.MD`（含身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`、内容审查、完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑、AutoDream |
 | Memory | BML 长期记忆管理，以及独立的跨会话 STM 入口 | Persona、Evolution、治理提案、文件型长期记忆 |
 | Evolution | Skill 的形成、验证、管理与复用；SOP 关系待研究 | Persona 沉淀、普通 Memory、旧 AutoDream 流水线 |
 | Chat Approval Center | 危险工具执行等真正需要人类授权的运行时审批 | Memory CRUD、Persona 初始化、STM 日常维护、Evolution 页面治理 |
@@ -20,9 +20,9 @@
 - STM 是 workspace/profile 级、自动维护、有界、跨 session 的活动工作集；它不是长期
   Memory、transcript、canonical checkpoint 或旧 `working_memory` checkpoint。
 - Laputa 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、`USER.MD`、
-  `DREAM.MD`、`WORLD.MD`。正文、版本、Diff、历史和 Prompt 投影均以 Markdown 为依据；
-  正文不再使用 JSON object、JSON patch 或 `serde_json::Value`。`DREAM.MD` 进入
-  Frozen Core 的投影严格 10 字。`WORLD.MD` 不进 Frozen Core 整包。
+  `DREAM.MD`、`DARK.MD`、`WORLD.MD`。正文以 Markdown 为依据。`IDENTITY.MD` 含当前
+  身体/形态。`DARK.MD` 为 FEAR/SHADOW 两展位，不单开 BODY/FEAR/SHADOW 文件。
+  `DREAM.MD` Frozen Core 投影严格 10 字。`WORLD.MD` 不进 Frozen Core 整包。
 - Persona 内容审查是文档领域动作，不是工具风险授权；聊天 Approval Center 不参与其中。
 - Memory CRUD、STM 日常维护和 Persona 首次初始化不创建 Proposal、Approval 或
   Governance Ledger 记录。

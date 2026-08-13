@@ -12,7 +12,7 @@
 
 | 工作区 | 唯一职责 | 不再承担 |
 | --- | --- | --- |
-| Persona | `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`、内容审查与完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑、AutoDream 运行 |
+| Persona | `IDENTITY.MD`（含身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`、内容审查与完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑、AutoDream 运行 |
 | Memory | BML 长期记忆管理，以及独立的跨会话 STM 入口 | Persona、Evolution、治理提案、文件型长期记忆 |
 | Evolution | Skill 的形成、审查、管理与复用；SOP 关系由研究决定 | Persona 沉淀、Memory 提案、旧 AutoDream 梦境流水线 |
 | Chat Approval Center | 危险工具执行等真正需要人类授权的运行时审批 | Memory CRUD、Persona 首次初始化、STM 日常维护、Evolution 页面治理投影 |
@@ -52,8 +52,9 @@
    session-scoped `working_memory` checkpoint；用户入口只属于 Memory 工作区，日常维护
    和用户修正不走审批。
 4. **Persona 不等于 Memory。** 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、
-   `REDLINE.MD`、`USER.MD`、`DREAM.MD`、`WORLD.MD`；正文均为 Markdown。GUI 不再
-   显示或要求用户编辑人格 JSON。不再使用 Commitment / Preferences 作为权威名。
+   `REDLINE.MD`、`USER.MD`、`DREAM.MD`、`DARK.MD`、`WORLD.MD`；正文均为 Markdown。
+   Identity 含当前形态；Dark 为怕与丑的双展位。不再使用 Commitment / Preferences
+   作为权威名。
 5. **Persona 工作区只有一个中央区域。** 当前文档使用 Markdown 源码/人类可读预览；
    待审变更使用只读 before/after Diff 并明确接受/拒绝；历史只读，载入只覆盖本地草稿，
    显式保存才产生新版本。永久右栏删除。文档型变更可以复用同一套 Diff 交互基础设施，
