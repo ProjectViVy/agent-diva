@@ -2,7 +2,7 @@
 
 - 状态：`Proposal / Awaiting User Review` — **不是已批准架构，不授权施工**
 - 日期：2026-08-14
-- 修订：同日用户同意「一份注入文件 + 胶囊不注入」；注入文件名冻结为 `ACTMEM.MD`；STM/LTM 仅作概念称呼，不进核心文件名
+- 修订：同日冻结 `ACTMEM.MD`；继而拍板：一发言就写 Pulse、空闲 10 分钟写胶囊、原文进 Pulse 全文不进、预算 1600/1600/800、跨项目全局一份、子代理不进、第一版不晋升 BML。物理落点 = 配置目录下一份文件（不是第二套库）。「是否自动装配进上下文」仍开放。
 - 性质：把跨会话不失忆拆成可执行的分层合同，供用户拍板或驳回
 - 边界依据：[decision-record.md](./decision-record.md) S1–S6
 - 研究依据：[R2](../cognitive-r2-stm-context-2026-08/README.md)（本提案选推荐项；R2 原文仍是选项集）
@@ -42,7 +42,7 @@ STM 是 workspace 级、严格限容、实时可控的**跨会话活动层**。�
 | 寿命 | 有界，随完成/过期/预算收敛 | 长期，软删/版本/来源 |
 | 写入 | 自动维护 + 用户直接改 | Memory CRUD；不走 STM API |
 | 审批 | 不审批 | 不审批（已冻结）；也**不**经 STM |
-| 存储 | `.laputa/stm/` 独立树 | `.laputa/memory.sqlite3` |
+| 存储 | `{config_dir}/actmem/ACTMEM.MD` 一份文件 | `.laputa/memory.sqlite3` |
 | 类型 | 禁止 `MemoryRecordKind` | 唯一 LTM kind 权威 |
 | Prompt | 近讯 + 活动集有界投影 | 只允许索引 / 按需召回 |
 | 检索 | 胶囊/近讯/活动集专用工具 | `memory_search` / Recall |
@@ -86,7 +86,7 @@ STM 是 workspace 级、严格限容、实时可控的**跨会话活动层**。�
 | --- | --- | --- | --- | --- |
 | Pulse | 近讯 | `ACTMEM.MD` 的 `## Pulse` | **必须进**（整文件有界注入） | 用户一发言就追加 |
 | Work | 活动集 | `ACTMEM.MD` 的 `## Work` | 同上 | 有目标/回路变化才改 |
-| Capsule | 会话胶囊 | `.laputa/stm/capsules/{session}.md` | **不进** | 空闲或会话结束写 |
+| Capsule | 会话胶囊 | `{config_dir}/actmem/capsules/{workspace}__{session}.md` | **不进** | 空闲 10 分钟写 |
 | CapsuleIndex | 胶囊目录 | 注入文件 Pulse 里的目录行，或 `capsules/INDEX.md` 投影进 Pulse | 只进目录行 | 随胶囊更新 |
 
 S3 的目标/回路/下一步落在 Work 节。跨会话「刚才聊了啥 / 连发你好」落在 Pulse 节。旧会话「都还在」落在目录行 + 胶囊。
@@ -95,7 +95,7 @@ S3 的目标/回路/下一步落在 Work 节。跨会话「刚才聊了啥 / 连
 
 2026-08-14 用户拍板：
 
-- **核心文件只叫 `ACTMEM.MD`**（activity memory）。全大写 `.MD`。放在 `.laputa/stm/ACTMEM.MD`。
+- **核心文件只叫 `ACTMEM.MD`**（activity memory）。全大写 `.MD`。放在 `{config_dir}/actmem/ACTMEM.MD`。
 - **STM / LTM 只作概念称呼**：分层上仍然好记（短时活动 vs 长期事实），口头和决策正文可以这么说。
 - **禁止**把 `STM.MD` / `STMEM.MD` / `MEMORY.MD` 做成核心文件。`STM` 是远古 UPSP 调研里的叫法，要撇清，不进核心文件名。
 - `ACTMEM.MD` **不是** Persona 七文件，不进种类表，也不是 BML / Laputa section。
@@ -105,19 +105,23 @@ S3 的目标/回路/下一步落在 Work 节。跨会话「刚才聊了啥 / 连
 
 ## 4. 推荐物理落点
 
-**推荐：独立目录 Markdown，不进 `memory.sqlite3`。**
+**`ACTMEM.MD` 就是一个文件。** 「物理放哪」不是再拆权威，只问这份文件落在磁盘哪：
+不要放进 BML sqlite，也不要放进某个项目的 `.laputa/`（否则无法跨项目全局）。
 
-理由：和 BML 物理切开，人类可 diff，Memory 页可直接打开，AutoDream 可当文件整理，不会被 BML CAS / L1 索引 / session GC 误伤。
+2026-08-14 用户拍板：所有项目共用一份。因此推荐：
 
 ```text
-.laputa/stm/
-  ACTMEM.MD                # 注入权威：## Pulse + ## Work
+{config_dir}/actmem/
+  ACTMEM.MD                # 全局唯一注入/活动权威：## Pulse + ## Work
   capsules/
     INDEX.md
-    {safe_session_key}.md
+    {workspace_id}__{safe_session_key}.md
   revisions/
-    ACTMEM-{rev}.MD        # 注入文件有界快照，失败可回上一份
+    ACTMEM-{rev}.MD
 ```
+
+`{config_dir}` 与 CLI `--config-dir` / 用户 profile 同一层，不是某个 git workspace。
+胶囊文件名带 workspace，避免不同项目的同名 session 撞车。权威仍是**一份** `ACTMEM.MD`。
 
 备选（本提案不选，仅供否决）：
 
@@ -130,7 +134,7 @@ S3 的目标/回路/下一步落在 Work 节。跨会话「刚才聊了啥 / 连
 | 独立 sqlite | 可做，但第一版没有必要；人类不可读，GUI 还要再做一层 |
 | 写进 CanonicalCheckpoint | compact 有损替换，且绑死单个 session |
 
-Scope：**一个 workspace 一份** Pulse + Work。新 GUI chat、CLI、其它 channel 看到同一近讯和同一活动集。Capsule 按 `session_key` 分文件。
+Scope：**所有项目全局一份** `ACTMEM.MD`。不同 workspace / GUI / CLI / channel 看见同一近讯和同一活动集。胶囊按 `{workspace}__{session}` 分文件，避免撞名。
 
 多 agent / 多 profile 是否再拆，本提案不扩；默认跟 workspace。
 
@@ -391,15 +395,16 @@ Persona / Evolution / Notebook / Approval **不**出现 STM。BML 列表默认�
 
 请明确同意或改数字/改否，不要留成「实现者看着办」：
 
-1. **注入面合成一份文件**（Pulse + Work 两节），胶囊仍分开、不注入。——**用户已同意方向**
-2. **物理**：独立 `.laputa/stm/`，不进 BML sqlite。同意吗？
-3. **注入**：`ACTMEM.MD` 每轮必注入；胶囊只工具。——**用户已同意方向**
-4. **实时**：用户发言立刻写 Pulse 节；空闲只写胶囊。同意吗？
-5. **用户短句原文进 Pulse，助手全文不进 Pulse。** 同意吗？
-6. **预算初值**：Pulse 1600 字 / Work 1600 字 / 单胶囊 800 字。要改数吗？
-7. **Scope**：每 workspace 一份。对吗？
-8. **cron/subagent 第一版只写 Pulse、不改 Work。** 对吗？
-9. **注入文件名 `ACTMEM.MD`**。——**用户已冻结**。STM/LTM 仅概念称呼；禁止核心文件 `STM.MD`。
+1. **注入面合成一份文件**（Pulse + Work 两节），胶囊仍分开。——**已同意**
+2. **物理**：`ACTMEM.MD` 就是那一个文件；落在 `{config_dir}/actmem/`，不进 BML、不进项目 `.laputa/`。——**已同意（全局）**
+3. **是否每轮自动装配进上下文**：曾倾向必注入。用户 2026-08-14 改口在想「做成工具、不自动装配」。**仍开放**，见 §7 与本轮回复。
+4. **实时**：用户一发言就写 Pulse；空闲 **10 分钟** 写胶囊。——**已同意**
+5. **Pulse 原文进、全文不进**（用户原话可进；整段对话/助手全文不进）。——**已同意**
+6. **预算**：Pulse 1600 / Work 1600 / 单胶囊 800。——**已同意**
+7. **Scope**：所有项目全局一份 `ACTMEM.MD`。——**已同意**
+8. **子代理**：不读不写 ACTMEM，不进 Laputa 生态。子代理上下文由主 Agent 自行装配（面具仍进）。本阶段不做。——**已同意**
+9. **文件名 `ACTMEM.MD`**。——**已冻结**
+10. **第一版不做 STM→BML 自动晋升**；以后另议（有架构冲突）。——**已同意**
 
 下面这些即使本方案被接受，也仍留给 D2 细设计，不在这次拍板：
 
@@ -425,4 +430,4 @@ Persona / Evolution / Notebook / Approval **不**出现 STM。BML 列表默认�
 
 ## 16. 明确不在本提案里实施
 
-用户批准之前：不改生产代码，不建 `.laputa/stm/`，不接线 ContextBuilder，不改 AutoDream worker。Research Gate / D0–D2 门禁仍有效。本文件只是完整方案稿。
+用户批准之前：不改生产代码，不建 `{config_dir}/actmem/`，不接线 ContextBuilder，不改 AutoDream worker。Research Gate / D0–D2 门禁仍有效。本文件只是完整方案稿。

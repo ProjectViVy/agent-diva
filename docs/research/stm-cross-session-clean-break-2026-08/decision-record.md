@@ -123,7 +123,18 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 - **注入权威文件名冻结为 `ACTMEM.MD`**（activity memory）。不是 Persona 七文件，不是 BML，不是 Laputa section。
 - **禁止**核心文件使用 `STM.MD`、`STMEM.MD`、`MEMORY.MD`。`STM` 来自远古 UPSP 调研叫法，要撇清，不进核心文件名。
 - 旧 Garden `MEMORY.MD` / `05 MEMORY.MD` 全舍弃，不继承文件名。
-- 本条只冻文件名与称呼分层。物理目录细部、胶囊是否分文件、装配位置仍见下方 Hold 与未批准提案。
+- 本条冻文件名与称呼。落点与时效见 **S8**。
+
+### S8：`ACTMEM.MD` 是全局一份文件；发言即写；空闲 10 分钟写胶囊
+
+- **就是一个 Markdown 文件**，不是库、不是 BML 表。路径建议 `{config_dir}/actmem/ACTMEM.MD`，不进项目 `.laputa/`，不进 `memory.sqlite3`。
+- **所有项目共用这一份**（跨 workspace / 跨项目全局）。胶囊分文件时可在文件名里带 workspace，以免 session 撞名。
+- **用户一发言就写 Pulse 节。** 空闲 **10 分钟** 写该会话胶囊。
+- Pulse：**原文可进，全文不进**（短用户原话保留；整段对话和助手全文不进 Pulse）。
+- 字数顶：Pulse 1600、Work 1600、单胶囊 800。
+- **子代理不进** ACTMEM，也不进其它 Laputa 人格/记忆生态。子代理上下文由主 Agent 装配（面具仍进）。本阶段不设计。
+- **第一版不做 STM→BML 自动晋升**；晋升以后另议。
+- 是否把 `ACTMEM.MD` 自动装配进主 Agent 上下文，**尚未拍板**（工具 vs 注入）。
 
 ## 分层与装配 Research Hold
 
