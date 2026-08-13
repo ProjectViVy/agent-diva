@@ -7,10 +7,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`, `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`, `docs/architecture/current/runtime-approval-boundary-2026-08.md`, `docs/architecture/README.md`, `TODOLIST.md`, `docs/research/cognitive-r0-current-state-2026-08/dependency-and-data-inventory.md`, `docs/research/cognitive-r3-persona-workspace-2026-08/README.md`, `docs/logs/2026-08-persona-markdown-decision/`
 - Owner: `Grok`
-- Session/Task: `Reject AutoDream persona writes; schedule diagnostic`
+- Session/Task: `Clarify AutoDream Laputa allow/deny matrix`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-13T21:20:00+08:00`
-- Last Heartbeat: `2026-08-13T23:05:00+08:00`
+- Last Heartbeat: `2026-08-14T10:20:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Clarify AutoDream Laputa allow/deny matrix` — **RELEASED 2026-08-14T10:35:00+08:00**
+  by `Grok`; P19 allow/deny matrix. No production code.
 
 - `Reject AutoDream persona writes; schedule diagnostic` — **RELEASED 2026-08-14T00:20:00+08:00**
   by `Grok`; P19 + Evolution D5 + TODOLIST diagnostic. No AutoDream production code.
@@ -151,6 +154,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-14T10:35:00+08:00`: Released after correcting P19: AutoDream is a
+  Laputa proposal generator with an allow/deny matrix, not a total ban.
 
 - `2026-08-14T00:20:00+08:00`: Released after recording AutoDream-must-not-write
   persona (P19/D5) and diagnostic backlog. Source inventory confirmed two

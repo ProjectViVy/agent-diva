@@ -49,19 +49,16 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 - 保护性分支只用于保存旧实现，不作为兼容运行时、fallback 或长期双轨维护来源。
 - 当前仅记录该前置条件；本次讨论记录不创建分支、不删除代码。
 
-### D5：AutoDream 写人格未通过；先诊断与完整日志，不恢复该链路
+### D5：AutoDream 原意是 Laputa 提案器；旧实现未通过；先诊断再按允许表接线
 
-- 真实讨论结论：用 AutoDream 修改 Laputa 人格文件**没有通过**。不得把
-  AutoDream run 当成人格编辑入口，也不得把 `IdentityPatch` /
-  `LearningNote→Preferences` 等提案当作合法人格写入。
-- 为排查 AutoDream **自身**失败（阶段卡住、候选被拒、提案对不上、桌面不可理解），
-  授权一条**独立诊断轨**：端到端结构化日志（run_id、phase、input 摘要、gate
-  拒绝码、proposal_id、失败码）+ 大型复现/回归测试。今日 `agent-diva-autodream`
-  生产路径几乎只有两条 `tracing::warn`，不够排障。
-- 诊断轨**不是**修补旧 AutoDream→Evolution 产品，也**不是**批准写七份权威。
-  D2 退役结论仍然有效。日志与测试不得引入「梦境写 IDENTITY」新能力。
-- 该轨与认知工作区 D0–D4 并行登记，不占用 Architecture Gate 才能做的破坏性删除。
-  具体开工另开 lock；本条只冻结决策。
+- AutoDream 的产品职责是批处理反射并**生成 Laputa 待审变更**，不是 Evolution
+  收件箱，也不是 Memory/Skill 流水线。能改 / 不能改以 Persona **P19 表**为准。
+- **未通过**的是当前实现（JSON 提案、默认 MemoryPatch、人格 type 未闸死、日志
+  几乎没有），不是「不许对 Laputa 提案」本身。
+- 独立诊断轨仍然成立：端到端结构化日志 + 大型测试。不得在诊断里恢复
+  `MemoryPatch`、`SopCreate` 或对 `REDLINE` / `DREAM` / 用户偏好的写入。
+- D2 仍然成立：旧 AutoDream→通用治理主链退役。新提案必须是 Persona 内容审查，
+  不是 Governance Ledger。
 
 ## GenericAgent 当前核查事实
 

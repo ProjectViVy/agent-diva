@@ -22,8 +22,9 @@
   `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK
   不进首次引导；DARK 为 FEAR/SHADOW 双展位。v1 种类闭集；架构可加、用户不可加。
   历史永久保留。
-- Evolution 只管理 Skill；旧 AutoDream Evolution 不再修补；SOP/Skill 最终关系由最新
-  GenericAgent 研究决定。**AutoDream 写人格未通过**，不得读写七份 Laputa 权威。
+- Evolution 只管理 Skill；旧 AutoDream Evolution 不再修补。AutoDream 原意是给
+  Laputa **生成待审提案**（允许表见 Persona P19），不能直写、不能改红线/梦/用户偏好、
+  不能写 Memory/Skill。旧 JSON 提案实现未通过，先诊断日志再接线。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
 - 全部重构采用 clean break；实施前从验证提交建立保护性分支，保护分支不作为 fallback。
 
@@ -75,9 +76,9 @@
 ### 独立诊断（不复活旧主链）
 
 - [ ] **AUTODREAM-DIAGNOSTIC-LOGGING：AutoDream 大型排查、测试与完整日志** `sev-P1`
-  决策：写人格链路未通过（Persona P19 / Evolution D5）。对本 crate 做阶段级结构化
-  日志（run_id / phase / 输入摘要 / gate 拒绝 / proposal_id / 失败码）和可复现的
-  大型测试。禁止借机恢复 Identity/Preferences 提案或 Evolution 产品主链。
+  决策：旧实现未通过；产品职责是按 P19 允许表给 Laputa 提案。先补阶段级结构化
+  日志（run_id / phase / 输入摘要 / gate 拒绝 / proposal_id / 失败码）和大型测试。
+  禁止借机写 REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/Governance。
   今日生产路径几乎只有 `worker.rs` 两条 `tracing::warn`。
 
 ### Architecture Gate：全部 Research 通过用户评审后才能开始

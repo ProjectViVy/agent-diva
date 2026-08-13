@@ -111,22 +111,40 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 松本可以是方盒子、不是机器人；「希」可以是仿人类女性的人形。Identity = 现在的形态；
 Dream = 还没有的身体。禁止把「我想要血肉身」写进 Identity。
 
-### P19：AutoDream 不得写七份权威；写人格链路未通过
+### P19：AutoDream 的产品职责是给 Laputa 生成提案；能改 / 不能改如下
 
-- AutoDream **不得读作人格编辑器，也不得写** `IDENTITY.MD` / `RELATIONSHIP.MD` /
-  `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`。
-- 今天代码里 AutoDream 默认**读取** Identity JSON + `memory_md` 当输入；候选闸只拒
-  `SopCreate`，**不拒** `IdentityPatch` / `RelationshipUpdate` / `CommitmentSet` /
-  `LearningNote`（后者打到 Preferences）。`emit_outputs` 可按 `proposal_type` 建
-  提案。确定性反射默认是 `MemoryPatch`。这条「梦境改人格」链路**产品未通过**，
-  不得当成合法写入，也不得在修补后保留。
-- 人格写入只允许：用户在 Persona 工作区直存；P16 允许的 Agent 直写
-  （DREAM / DARK / USER 观察）；以及 P5 审查范围内的 Agent 变更。聊天工具
-  `laputa_propose_section_write` 属旧治理提案链，列入删除，不得继续当「Agent
-  改人格」的产品路径。
-- AutoDream 自身的可靠性问题另开诊断（完整日志 + 大型测试），**不**借诊断恢复
-  写人格或写 Evolution 主链。见 Evolution 决策 D5 与 TODOLIST
-  `AUTODREAM-DIAGNOSTIC-LOGGING`。
+AutoDream 的原意是**批处理反射，主要产出 Laputa 文档的待审变更**，不是聊天里的
+人格编辑器，也不是 Memory/Skill 流水线。它**只能提案，不能 apply、不能直写权威**。
+提案走 Persona 内容审查（P5），不走 EvolutionProposal / Governance / Approval
+Center。旧 JSON `IdentityPatch` / `LearningNote` / `MemoryPatch` 合同删除。
+
+**未通过的是今天的实现**（读 Identity JSON、默认 `MemoryPatch`、闸门不拦人格
+type、几乎无日志），不是「AutoDream 不许碰 Laputa」这条产品原意。
+
+| 目标 | AutoDream | 说明 |
+| --- | --- | --- |
+| `IDENTITY.MD` | **可提案，不可直写** | 自我认知更新；必须人审 |
+| `RELATIONSHIP.MD` | **可提案，不可直写** | 关系理解更新；必须人审 |
+| `USER.MD` 观察块 | **可提案，不可直写** | 用户不自知的习惯；批处理也要人看见 |
+| `DARK.MD` | **可提案，不可直写** | 增补 FEAR/SHADOW；必须人审 |
+| `WORLD.MD` | **可提案新 claim，不可直写** | 不得覆盖 `confirmed + source=user` |
+| `USER.MD` 偏好块 | **不可** | 用户自己的口味 |
+| `REDLINE.MD` | **不可** | 用户划界；Agent/梦境不得改红线 |
+| `DREAM.MD` | **不可** | Agent 自己的心愿，不是 AutoDream 管理面 |
+| 种类表 / 新文件名 | **不可** | P18；用户和 AutoDream 都不能加种 |
+| BML Memory | **不可走提案** | Memory 不审批；禁止 `MemoryPatch` |
+| `memory_md` | **不可** | 删除面 |
+| Skill / SOP | **不可** | Evolution；旧梦境晋升退役 |
+| 自己的提案 | **不可 apply** | 只有用户在 Persona 里接受/拒绝 |
+
+允许**读取**七份当前头作为反射输入（只读）。读取不等于可写。
+
+同会话 Agent 工具 `laputa_propose_section_write` 仍是旧治理链，删除。会话内改
+IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5；DREAM/DARK/USER 观察走 P16
+直写。那是聊天 Agent，**不是** AutoDream。
+
+可靠性：AutoDream 必须先做完整日志与大型测试（D5 / TODOLIST），排清阶段失败后，
+才谈按上表接线新提案类型。诊断不得扩大上表。
 
 ### P17：`DARK.MD` 是一个馆、两个展位
 
@@ -442,7 +460,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    `DARK.MD` 两个展位。
 4. v0.0.1–v0.0.5 iteration log 保留为决策演进证据，不回写那些日志正文。
 5. P18：v1 锁死七种；架构按种类登记表实现，便于以后产品加种；用户不能自由加权威。
-6. P19：AutoDream 写人格未通过；七份权威禁止梦境写入；诊断另轨。
+6. P19：AutoDream 职责是 Laputa 待审提案；能改/不能改见表；旧实现未通过；诊断另轨。
 
 ## 被取代的依据
 
