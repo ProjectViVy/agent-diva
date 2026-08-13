@@ -20,7 +20,7 @@
 
 已有冻结的认知分区依据明确把 `05 MEMORY.MD` 定位为“STM 权威检查点（当前目标、开放
 回路、下一步、证据指针）”，并把 Layer 1 定义为有界 STM bootstrap：
-`docs/research/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md`。
+归档批次 `research/2026-07-08-laputa-memory-history/laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md`。
 本决策恢复这一产品语义，但不提前沿用 `MEMORY.MD` 文件名或旧物理实现。
 
 ## 已确认边界
@@ -151,7 +151,7 @@ canonical checkpoint、Plan/Background Task、GUI MemoryView 与 GenericAgent/Ga
   证明跨会话 STM 已实现。
 - `memory-write-paths-contract.md` 中“Working memory = session-scoped volatile”的对象应在
   后续重命名为 SessionCheckpoint，不再与 STM 同名。
-- `laputa-memory-final-architecture.md` 中 working memory 与 long-term memory 分离、BML
+- 归档的 `laputa-memory-final-architecture.md` 中 working memory 与 long-term memory 分离、BML
   typed authority 和有界指针原则继续有效。
 
 本记录不授权立即修改分层装配代码；下一步是专项调研，而不是直接实现猜测版本。

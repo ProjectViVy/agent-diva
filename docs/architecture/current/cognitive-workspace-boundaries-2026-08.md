@@ -1,0 +1,41 @@
+# Cognitive Workspace 当前架构边界
+
+- 状态：`Product Boundaries Frozen / Research Pending / Target Architecture Blocked`
+- 日期：2026-08-13
+- 权威来源：[Cognitive Workspace Reset EPIC](../../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
+
+## 四个用户工作区
+
+| 工作区 | 唯一职责 | 明确排除 |
+| --- | --- | --- |
+| Persona | 四份核心人格 Markdown、WORLD、内容变更审查、完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑 |
+| Memory | BML 长期记忆管理，以及独立的跨会话 STM 入口 | Persona、Evolution、治理提案、文件型长期记忆 |
+| Evolution | Skill 的形成、验证、管理与复用；SOP 关系待研究 | Persona 沉淀、普通 Memory、旧 AutoDream 流水线 |
+| Chat Approval Center | 危险工具执行等真正需要人类授权的运行时审批 | Memory CRUD、Persona 初始化、STM 日常维护、Evolution 页面治理 |
+
+## 单一权威与生命周期边界
+
+- BML typed SQLite/FTS5 是普通长期 Memory 的唯一生产权威。
+- `memory_md` / `MemoryMd` 文件型长期记忆链路属于 clean-break 删除范围。
+- STM 是 workspace/profile 级、自动维护、有界、跨 session 的活动工作集；它不是长期
+  Memory、transcript、canonical checkpoint 或旧 `working_memory` checkpoint。
+- Persona 四份 Markdown 与 WORLD 的正文、版本、Diff、历史和 Prompt 投影均以 Markdown
+  为依据；正文不再使用 JSON object、JSON patch 或 `serde_json::Value`。
+- Persona 内容审查是文档领域动作，不是工具风险授权；聊天 Approval Center 不参与其中。
+- Memory CRUD、STM 日常维护和 Persona 首次初始化不创建 Proposal、Approval 或
+  Governance Ledger 记录。
+
+## 当前禁止的推断
+
+以下内容尚未完成研究，不得由实现者自行决定：STM 物理存储、schema、scope、并发合并、
+自动更新时机、预算和淘汰、Layer 1 装配、Evolution 的 SOP/Skill 状态机、Persona revision
+store 的具体目录和 API、clean-break 删除切片及迁移/备份流程。
+
+## 实施门禁
+
+1. R0–R4 研究完成并经用户评审；
+2. D0–D4 架构设计完成并经用户批准；
+3. 从已验证提交建立保护性分支；
+4. 分域实施、零残留证明、全量自动测试和真实桌面验收完成。
+
+详细问题、完成物和验收条件以 EPIC 为准，本摘要不替代研究记录。

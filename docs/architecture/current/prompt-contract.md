@@ -1,8 +1,11 @@
-# Agent Main Runtime Prompt Englishization Proposal
+# Agent Main Runtime Prompt Contract
 
-**Status:** Implemented for the main runtime prompt inventory on 2026-07-30  
-**Date:** 2026-07-30  
+**Status:** Implemented; retained as the current prompt inventory and wire-language contract
+**Date:** 2026-08-13 (original implementation 2026-07-30)
 **Scope:** LLM-facing prompts on the main agent runtime path (`agent-diva-agent` + minimal `agent-diva-core` context labels)
+
+> This document is now an active runtime contract. It is independent of the Laputa Cognitive
+> Workspace Reset and does not authorize any Persona, Memory, STM, or Evolution redesign.
 
 ---
 

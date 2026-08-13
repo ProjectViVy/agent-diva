@@ -50,7 +50,7 @@ Agent-Diva 已有 compaction、Working Memory checkpoint、L1 索引、prefetch 
 
 | 文档 | 关系 |
 |------|------|
-| `docs/architecture/memory-write-paths-contract.md` | **冻结**。C3 工具结果不得写成 BML 权威；WM / distill / consolidation 分工沿用该契约 |
+| [`docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`](../../architecture/current/cognitive-workspace-boundaries-2026-08.md) | 当前权威边界。C3 工具结果不得改变 BML/STM/SessionCheckpoint 的职责 |
 | GA-MEM-PARITY Wave 0–6 | Memory 工具面、WM checkpoint、L1 索引、prefetch、GC 已完成；本专题 **接装配层**，不重做权威 |
 | HARNESS-GAP-RESEARCH | 四个方向中 **Context 子集** 正式化为 C0–C5；Plan Mode / Worktree 仍 open 但不在本文实施 |
 | OPENHARNESS dry-run / ohmo | **已关闭**；本文不复活 |
@@ -106,7 +106,7 @@ AgentLoop::run_turn (loop_turn.rs)
 | Working Memory | MemoryProvider + turn 注入 | 每轮 `## Working Memory` | 位置 insert(1) 破前缀 |
 | Prefetch | MemoryProvider::prefetch | 意图检索注入 | 同上；失败 warn |
 | Frozen Core | `capture_frozen_core_for_session` | 会话级冻结人格投影 | SessionStable，适合进前缀 |
-| Memory 契约 | `memory-write-paths-contract.md` | WM / LTM / distill / AutoDream / consolidation | 与 C3 对齐，勿混淆 |
+| Memory 边界 | 当前 Cognitive Workspace 边界 | BML / STM / SessionCheckpoint / distill | 与 C3 对齐，勿混淆 |
 
 ### 3.3 当前上下文组成（逻辑层，非 token 实测）
 
@@ -456,7 +456,7 @@ tool_execute → raw_output
 | `microcompact_tool_result_chars` | 4_000 |
 | 安全上限 | 保留 80k 或更高作为 **单次 store 写入上限**，不是 prompt 常驻上限 |
 
-**与现有子系统分工（必须遵守 memory-write-paths-contract）：**
+**与现有子系统分工（必须遵守当前 Cognitive Workspace 边界）：**
 
 | 存储 | 职责 | 非职责 |
 |------|------|--------|
@@ -702,7 +702,7 @@ ADR-CTX-0 ─┬─► C1 ─► C2 ─► C3 ─► C5
 - `agent-diva-agent/src/compaction/` — macro compact  
 - `agent-diva-agent/src/tool_assembly.rs` — 工具注册  
 - `agent-diva-tools/src/sanitize.rs` — `MAX_TOOL_RESULT_CHARS`  
-- `docs/architecture/memory-write-paths-contract.md` — 写路径冻结契约  
+- `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md` — 当前权威边界
 
 ### 样本
 

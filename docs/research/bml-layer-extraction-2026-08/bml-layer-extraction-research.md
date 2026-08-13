@@ -25,9 +25,9 @@
 - **Garden** = facade（用户可见记忆管理面，agent-diva 中未实现）
 
 历史条款：GMH-23A（2026-07-24 冻结）将 "SQLite/FTS5 is owned by `agent-diva-laputa`"
-（`docs/architecture/laputa-memory-final-architecture.md:137-138`）——当时 "Laputa"
+（归档批次 `architecture/legacy/laputa-memory-final-architecture.md:137-138`）——当时 "Laputa"
 语义 = 存储 + 治理统一体；D3 之后 "Laputa" 语义收窄为治理层，BML 单独命名。
-`memory-framework-interfaces.md:19-22` 声明 "There is no `agent-diva-memory` crate"。
+归档的 `memory-framework-interfaces.md:19-22` 声明 "There is no `agent-diva-memory` crate"。
 
 **代码现状：BML 存储实体物理合体在 `agent-diva-laputa` crate 内部，未独立成层。**
 
@@ -152,7 +152,7 @@ B 先行（低成本、零运行时风险、防回归门）；GMH-23A 修订 + G
 
 ## 7. §8 禁令与 GMH-23A 论证
 
-**§8 禁令原文**（`memory-framework-interfaces.md:346`）：
+**§8 禁令原文**（归档的 `memory-framework-interfaces.md:346`）：
 "Creating an `agent-diva-memory` crate **merely to match historical documents**."
 
 论证：
@@ -162,7 +162,7 @@ B 先行（低成本、零运行时风险、防回归门）；GMH-23A 修订 + G
   同时该禁令条款与 GMH-20 基线声明（:19-22）应随决策追加 amendment 说明
   "BML 抽层系 2026-08-08 D3 架构决策的落地，非历史文档对齐"。
 
-**GMH-23A 所有权条款原文**（`laputa-memory-final-architecture.md:137-138`）：
+**GMH-23A 所有权条款原文**（归档的 `laputa-memory-final-architecture.md:137-138`）：
 "SQLite/FTS5 is owned by `agent-diva-laputa`…"
 
 论证：
@@ -170,7 +170,7 @@ B 先行（低成本、零运行时风险、防回归门）；GMH-23A 修订 + G
   （"owned by agent-diva-laputa"）仍覆盖 BML 实体。
 - 选 B/C：条款无需修订（所有权不变，仅增加分层声明）。
 - 选 A：需修订条款为 "SQLite/FTS5 is owned by `agent-diva-bml`"——修订路径：
-  `laputa-memory-final-architecture.md` 增加 Amendment 段 + TODOLIST 决策记录，标注
+  归档的 `laputa-memory-final-architecture.md` 增加 Amendment 段 + TODOLIST 决策记录，标注
   "GMH-23A 条款按 D3 语义拆分修订，2026-08-08"。
 
 ## 8. 决策建议与验收标准
@@ -216,8 +216,8 @@ Garden facade 落地时需穿透 laputa crate 私有实现，届时抽层成本�
 | manager 存储直调 | `agent-diva-manager/src/handlers/health.rs:95-110`、`handlers/laputa.rs:546-550,943-953,1130-1145`、`server.rs:966-969` |
 | migration 直碰存储 | `agent-diva-migration/src/workspace_identity.rs:4,19-57`、`typed_memory.rs:12-14,63-290`、`experience.rs:11` |
 | autodream 自有 atomic | `agent-diva-autodream/src/atomic.rs:28`（inputs.rs:177,768 仅用 LaputaStorage） |
-| §8 禁令原文 | `docs/architecture/memory-framework-interfaces.md:346`（基线声明 :19-22） |
-| GMH-23A 所有权条款 | `docs/architecture/laputa-memory-final-architecture.md:137-138`（GMH-23A 冻结契约 :14-35） |
+| §8 禁令原文 | 归档 `architecture/legacy/memory-framework-interfaces.md:346`（基线声明 :19-22） |
+| GMH-23A 所有权条款 | 归档 `architecture/legacy/laputa-memory-final-architecture.md:137-138`（GMH-23A 冻结契约 :14-35） |
 | Garden 三 module | `C:\Users\Administrator\Desktop\garden\README.md`（Laputa/Mentle/Garden 职责表 + "No module holds authority"） |
 | Garden Mentle 不持权威 | `C:\Users\Administrator\Desktop\garden\docs\architecture\0001-memoryos-vnext-architecture.md` 决策 2/3 |
 | Garden 存储层边界执行 | `C:\Users\Administrator\Desktop\garden\docs\architecture\0011-recoverable-indexing-and-evidence-contract.md` §1 + Gate E（E8） |

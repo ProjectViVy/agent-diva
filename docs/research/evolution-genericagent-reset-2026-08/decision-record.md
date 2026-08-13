@@ -100,9 +100,9 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 以下内容保留为历史证据，但不再作为当前 Evolution 实施依据：
 
 - `docs/dev/autodream-laputa-product-closure/`
-- `docs/architecture/evo-diva-architecture-2026-06-12.md`
-- `docs/architecture/autodream-architecture-2026-06-12.md`
-- `docs/architecture/skill-sop-unification.md` 中关于 SOP/Skill 最终关系的旧结论
+- 归档批次 `architecture/legacy/evo-diva-architecture-2026-06-12.md`
+- 归档批次 `architecture/legacy/autodream-architecture-2026-06-12.md`
+- 归档批次 `architecture/legacy/skill-sop-unification.md` 中关于 SOP/Skill 最终关系的旧结论
 - `TODOLIST.md` 中旧 AutoDream–Laputa–Memory 纵向闭环及其 G2D+ 验收路径
 
 这些记录不得直接删除；后续专项调研应逐项标注“保留、改写或删除”的处置结果。

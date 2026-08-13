@@ -1,10 +1,13 @@
 # 上下文管理增强（2026-08）
 
+> 当前状态（2026-08-13）：C1–C5 生产实现与验证已完成；本目录保留施工决策、边界和
+> 证据索引。C5 文档中的“实施前”表述只描述当时的施工阶段，不能覆盖最新日志结论。
+
 HARNESS-GAP-RESEARCH 在 **Context / Prompt Cache / 预算 / 工具结果 / 按需工具** 方向上的定向调研与架构决策。
 
 ## 阅读顺序
 
-1. **[c5-lightweight-context-convergence.md](./c5-lightweight-context-convergence.md)**（**当前施工权威** — C5 轻量收敛与 clean break）
+1. **[c5-lightweight-context-convergence.md](./c5-lightweight-context-convergence.md)**（**当前运行时合同** — C5 轻量收敛与 clean break）
    - 三段上下文、单一检查点、两级轻量压缩
    - C1–C4 新功能禁兼容、垃圾状态和双路径删除门禁
 2. **[claude-code-prompt-cache-alignment.md](./claude-code-prompt-cache-alignment.md)**（Cache / C1 历史施工图）
@@ -22,7 +25,7 @@ C0 测量 → C1 稳定前缀 → C2 类型化预算 → C3 工具结果引用
   → C4 按需工具/Recall → C5 轻量上下文收敛与长任务验收
 ```
 
-## 实施前冻结决策（2026-08-10 修订）
+## 已冻结并已验证的运行时决策（2026-08-10/11）
 
 以下决策是 C1–C5 的施工门，不是可选建议；详细契约见总论 §6.6，C1 细节见
 Prompt Cache 专章 §4.4、§5：
@@ -41,7 +44,7 @@ Prompt Cache 专章 §4.4、§5：
    无结构变化的异常 miss 分级处理，禁止仅凭一次 `cache_read` 下降告警。
 
 **当前进度：** C1-0、C1a/P0-1、C1b/P0-3、C1c/P0-2、C1d/P0-4..5、
-CTX-C2、CTX-C3 与 CTX-C4 均已完成。stable system
+CTX-C2、CTX-C3、CTX-C4 与 C5a–C5e 均已完成。stable system
 已移除 Current Time/session/WM/Recall/Plan 等动态内容；工具定义固定为 CORE
 字典序连续前缀 + MCP/custom DEFERRED 字典序后缀；四个稳定 section 现在按 session
 快照缓存，mask/L1 只刷新目标 section，并携带版本化 break reason；生产请求记录
@@ -58,7 +61,7 @@ C1c 采用聚焦边界：同一 AgentLoop/provider 实例内的 memory 写入通
 ## 边界
 
 - 本目录仍是调研与 ADR 权威入口；运行时代码按 C1a–C1d 切片在对应 crate 落地。
-- **不重做** BML/Laputa 权威；遵守 `docs/architecture/memory-write-paths-contract.md`。
+- **不重做** BML/Laputa 权威；遵守当前 [Cognitive Workspace 边界](../../architecture/current/cognitive-workspace-boundaries-2026-08.md)；旧 Memory 写路径合同仅作归档证据。
 - **不复活** 已关闭的 OpenHarness dry-run / ohmo 提案。
 - Plan Mode 硬状态机、Subagent Worktree 等其它 HARNESS-GAP 方向 **分轨**，不在本专题实施范围。
 

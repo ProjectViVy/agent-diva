@@ -19,7 +19,7 @@
 这不是局部 UI 缺陷，而是人格正文被错误建模为 JSON，并把审批系统混入人格管理。
 
 项目早期设计已明确要求 Markdown 编辑器，并特别禁止把 JSON 校验硬塞进 Markdown：
-`docs/architecture/architecture-persona-memory-laputa-ui-2026-07-05.md`。后续 Frozen Core
+历史架构稿（现位于归档批次的 `architecture/legacy/`）曾明确要求 Markdown 编辑器。后续 Frozen Core
 JSON 重构偏离了该产品语义。本次恢复 Markdown 方向，但不恢复早期 14-section、Memory
 混入人格、旧文件映射或隐式 proposal/apply 等旧设计。
 
@@ -295,8 +295,8 @@ JSON object 或 patch。文本 Diff 展示组件未来可以被其他文档型�
 
 以下材料保留为历史证据，但与本决策冲突的部分不再作为实施依据：
 
-- `docs/architecture/architecture-persona-memory-laputa-ui-2026-07-05.md`
-- `docs/prds/prd-persona-memory-laputa-ui-2026-07-05.md`
+- `docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/architecture/legacy/architecture-persona-memory-laputa-ui-2026-07-05.md`
+- `docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/legacy-docs/prds/content/prd-persona-memory-laputa-ui-2026-07-05.md`
 - `docs/logs/2026-08-laputa-persona-workspace/`
 - `agent-diva-laputa/src/persona_retire.rs` 所代表的旧文件退休/迁移模型
 

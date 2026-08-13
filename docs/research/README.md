@@ -1,60 +1,43 @@
-# 技术研究报告
+# 研究资料入口
 
-本目录包含 agent-diva 项目的技术研究报告，涵盖架构设计、技术对比、集成方案等内容。
+> 更新日期：2026-08-13
+>
+> 研究材料全部保留。当前研究包放在根目录；已经完成但未施工、较早或仅作参考的研究
+> 放在 `historical/`。研究结论不能自动升级为已批准架构，必须看文档状态和 8/12–8/13
+> 决策链。
 
-## 报告列表
+## 最新架构研究链
 
-### 后台任务队列管线设计研究报告.md
-- **研究范围**: Alife (C#) / Hermes (Python) / Diva (Rust)
-- **生成时间**: 2026-06-19
-- **分析视角**: Harness Engineering — 后台任务/子进程/队列管线
-- **核心发现**: 
-  - Alife: 最简设计，只有 Poke 消息缓存队列 + 模块级定时轮询
-  - Hermes: 最成熟，线程池调度 + 进程注册表 + 双层限流通知
-  - Diva: 基础设施最好，但缺通用后台任务队列/管线抽象
+1. [Cognitive Workspace Reset EPIC](./cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
+2. [Persona Markdown Clean Break](./persona-markdown-clean-break-2026-08/decision-record.md)
+3. [STM 跨会话 Clean Break](./stm-cross-session-clean-break-2026-08/decision-record.md)
+4. [Evolution / GenericAgent Reset](./evolution-genericagent-reset-2026-08/decision-record.md)
+5. [BML Layer Extraction](./bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
+6. [Context C1–C5](./context-management-enhancement-2026-08/README.md)
 
-### Alife 相关研究
-- `alife-function-skill-memory.md` - Alife 功能、技能、内存研究
-- `alife-harness-gap-inventory.md` - Alife Harness 差距清单
-- `alife-harness-overview.md` - Alife Harness 概述
-- `alife-plugin-module-di.md` - Alife 插件模块依赖注入
-- `alife-proactive-selfupgrade.md` - Alife 主动自我升级
-- `alife-user-presence-scan.md` - Alife 用户存在扫描
-- `alife-vs-diva-autonomous-flow.md` - Alife vs Diva 自主流程对比
+## 当前研究包
 
-### Hermes 相关研究
-- `hermes-cronjob-tool.md` - Hermes 定时任务工具
-- `hermes-harness-overview.md` - Hermes Harness 概述
+| 包 | 状态 |
+| --- | --- |
+| `cognitive-workspace-reset-epic-2026-08/` | R0–R4 研究编排，目标架构暂未授权 |
+| `persona-markdown-clean-break-2026-08/` | Persona/WORLD 边界已批准，实施待研究/设计门禁 |
+| `stm-cross-session-clean-break-2026-08/` | 边界已批准，存储与装配 Research Hold |
+| `evolution-genericagent-reset-2026-08/` | Research Hold |
+| `bml-layer-extraction-2026-08/` | BML 抽层研究，按研究结论推进 |
+| `context-management-enhancement-2026-08/` | C1–C5 当前运行时施工与验证依据 |
 
-### 集成与对比研究
-- `diva-alife-integration-plan.md` - Diva Alife 集成计划
-- `harness-engineering-three-way-comparison.md` - Harness Engineering 三方对比
-- `harness-engineering-three-way-detailed-checklist.md` - Harness Engineering 三方详细清单
-- `workspace-capability-matrix.md` - .workspace 13 项目 × agent-diva 综合能力矩阵（2026-07-03；15 维度合成）
-- `workspace-hooks-comparison.md` - .workspace Agent Hooks 实现横向对比（2026-07-03）
-- `workspace-subagent-comparison.md` - .workspace Sub-Agent 实现横向对比（2026-07-03；§7.1 含 `feature-swarm-humanlike` 分支预览）
+## 历史调研（全文保留）
 
-### 沙箱 / 审批 / HITL
-- `approval-model-claude-code-vs-agent-diva.md` - Claude Code 审批模型对照调研（2026-08-05）
-- `sandbox-hitl-approval-policy-proposal.md` - 沙箱审批策略 + HITL 完善提案（生产路径复核与 P0–P2 蓝图；2026-08-05 归档）
-- `ask-user-clarify-hitl-proposal.md` - **对话询问** Clarify/Ask-User HITL 缺口研究与提案（与 M3 审批 HITL 分轨；2026-08-05 归档）
+- [`historical/2026-06-harness-and-reference/`](./historical/2026-06-harness-and-reference/)：Alife、Hermes、Harness、Loop、Plan、workspace、后台任务。
+- [`historical/2026-07-08-laputa-memory-history/`](./historical/2026-07-08-laputa-memory-history/)：早期 Laputa/Garden/Memory 候选、认知同步提案。
+- [`historical/2026-08-approval-provider-history/`](./historical/2026-08-approval-provider-history/)：审批、HITL、Ask-User、Provider/DSML。
+- [`papers/`](./papers/)：学术论文及索引。
 
-### Laputa / BML / Garden 架构
-- `cognitive-workspace-reset-epic-2026-08/epic-orchestration.md` - **Laputa 认知工作区 Clean-Break 总 EPIC**：统一编排 Persona、Memory/BML、跨会话 STM、Evolution/Skill 与聊天审批边界；区分已冻结产品决策、R0–R4 调研、D0–D4 架构设计门禁及设计批准后的破坏性实施，当前明确禁止提前定稿新架构（2026-08-13，Epic Defined / Research Pending）
-- `laputa-garden-cognitive-sync-2026-08/gap-and-migration-proposal.md` - 桌面 Garden 认知分区回迁权威提案（ADR-0002/0004/0008；2026-08-07 冻结）
-- `bml-layer-extraction-2026-08/bml-layer-extraction-research.md` - **BML 存储层独立化调研**：耦合盘点（H1–H6 验证）、Garden 三 module 同构对照、抽层方案 A/B/C/D 对比与决策建议（2026-08-08，待拍板）
-- `evolution-genericagent-reset-2026-08/decision-record.md` - **Evolution 非兼容重置讨论决策**：Memory 退出审批、旧 AutoDream–Evolution 链路待删除、保护性分支前置及更新 GenericAgent 后的专项调研清单（2026-08-13，Research Hold）
-- `persona-markdown-clean-break-2026-08/decision-record.md` - **Persona Markdown Clean Break 决策**：四个人格文档改为 Markdown 权威；工作区收敛为当前文档/待审变更/历史三态；首次引导 absence-only 原子直写四人格+WORLD，不走审批；Persona/WORLD 永久保留完整版本轨迹；删除通用 Governance、永久右栏及全部人格 JSON/旧文件兼容链路（2026-08-13，Approved Direction）
-- `stm-cross-session-clean-break-2026-08/decision-record.md` - **STM 跨会话 Clean Break 决策**：BML 为唯一长期记忆；非兼容删除 `memory_md` 文件型 LTM；STM 收敛为自动管理、跨 session、有界的活动工作集并归 Memory GUI 管理；现有 session checkpoint 与 STM 拆分；物理存储、自动化和 Layer 1 装配进入专项调研（2026-08-13，Approved Boundary / Research Hold）
+历史调研是证据和参考，不是当前实施合同。与最新决策冲突的建议必须标记为 superseded，
+不能通过“旧文档仍存在”重新激活。
 
-### 上下文管理 / Harness Context
-- `context-management-enhancement-2026-08/` - **上下文管理增强**（2026-08-10）
-  - **优先读** `claude-code-prompt-cache-alignment.md` — Claude Code 导向 Prompt Cache 对齐规格（C1 / P0-1..P0-5）
-  - `c0-baseline-and-architecture-decisions.md` — C0 基线与 ADR-CTX-0..5 总论
+## 关联入口
 
-## 使用说明
-
-这些研究报告为 agent-diva 项目的架构设计和技术选型提供参考，可用于：
-- 了解不同框架的技术特点和优劣
-- 参考集成方案和最佳实践
-- 指导技术决策和架构演进
+- 关键方向决策：[`../decisions/README.md`](../decisions/README.md)
+- 当前架构：[`../architecture/README.md`](../architecture/README.md)
+- 8 月验证日志：[`../logs/README.md`](../logs/README.md)
