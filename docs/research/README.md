@@ -16,6 +16,7 @@
 6. [R4 Clean-break 数据安全研究包](./cognitive-r4-clean-break-safety-2026-08/README.md)
 7. [Persona Markdown Clean Break](./persona-markdown-clean-break-2026-08/decision-record.md)
 8. [STM 跨会话 Clean Break](./stm-cross-session-clean-break-2026-08/decision-record.md)
+    （另有未批准分层提案 [`stm-layering-proposal.md`](./stm-cross-session-clean-break-2026-08/stm-layering-proposal.md)）
 9. [Evolution / GenericAgent Reset](./evolution-genericagent-reset-2026-08/decision-record.md)
 10. [BML Layer Extraction](./bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
 11. [Context C1–C5](./context-management-enhancement-2026-08/README.md)

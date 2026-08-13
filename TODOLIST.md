@@ -60,6 +60,8 @@
   [`docs/research/cognitive-r2-stm-context-2026-08/README.md`](docs/research/cognitive-r2-stm-context-2026-08/README.md)。
   三份完成物：装配约束、Hold 选项与静态实验、失败/并发矩阵。产品 STM 不存在；
   CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。未选物理权威。
+  2026-08-14 另有用户评审用分层提案（未批准、不施工）：
+  [`docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md`](docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md)。
 
 - [x] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
   **研究包已交付（2026-08-13）**，待用户 Research Gate：

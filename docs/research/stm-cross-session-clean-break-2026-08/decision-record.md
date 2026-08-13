@@ -161,4 +161,11 @@ canonical checkpoint、Plan/Background Task、GUI MemoryView 与 GenericAgent/Ga
 - 归档的 `laputa-memory-final-architecture.md` 中 working memory 与 long-term memory 分离、BML
   typed authority 和有界指针原则继续有效。
 
-本记录不授权立即修改分层装配代码；下一步是专项调研，而不是直接实现猜测版本。
+本记录不授权立即修改分层装配代码。2026-08-14 另有一份**未批准**完整分层提案：
+[`stm-layering-proposal.md`](./stm-layering-proposal.md)。用户评审前不得当架构合同，
+也不得施工。
+
+## 分层提案指针（未批准）
+
+用户若采纳 `stm-layering-proposal.md`，再回头修订本文件的 Research Hold 条目。
+在那之前：物理权威、装配位置、表述、触发算法仍按上方 Hold。
