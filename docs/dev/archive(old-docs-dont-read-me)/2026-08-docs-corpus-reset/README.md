@@ -9,10 +9,11 @@
 - `architecture/legacy/`：旧架构、治理合同、Memory 合同、计划和旧决策。
 - `legacy-docs/`：旧设计、计划、PRD、报告、提示词、安全、UX、根目录历史文档及旧 docs archive。
 - `legacy-dev/`：旧开发专题包、开发归档和过往开发资料。
+- `legacy-batches/`：本次整理前已存在于归档根目录的 31 个历史批次，统一收拢但不改写原文。
 - `logs/pre-2026-08/`：2026-08-01 以前的全部迭代日志；按原目录结构保留。
 - `packages/`：上述归档集合的 ZIP 压缩副本及校验信息。
 
-调研全文不放在本批次中：已恢复并统一保留在 `docs/research/`，其中较早、已完成但未施工或仅作参考的材料在 `docs/research/historical/`。研究包仍可有 Research Hold，不因未实施而删除。
+调研全文不放在本批次中：已恢复并统一保留在 `docs/research/`，其中较早、已完成但未施工或仅作参考的材料在 `docs/research/historical/`。研究包仍可有 Research Hold，不因未实施而删除。`legacy-batches/` 中的旧研究副本保留作历史追溯，不与当前研究入口混用。
 
 ## 当前替代入口
 

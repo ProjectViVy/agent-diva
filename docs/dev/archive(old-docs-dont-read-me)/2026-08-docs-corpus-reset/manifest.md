@@ -23,6 +23,7 @@
 | `architecture/legacy/` | 旧架构、治理、Memory、Plan/TODO、AutoDream/Evolution | 26 |
 | `legacy-docs/` | 旧设计、计划、PRD、报告、提示词、安全、UX 和旧 docs archive | 53 |
 | `legacy-dev/` | 旧开发专题包、开发归档和过往开发资料 | 340 |
+| `legacy-batches/` | 本次整理前已存在的 31 个历史归档批次 | 1053 |
 | `logs/pre-2026-08/` | 2026-08-01 以前的迭代日志 | 1698 |
 
 调研没有被删除或丢入“不可读”归档：
@@ -41,6 +42,7 @@ ZIP 是对应归档集合的可移交压缩副本，不包含其他 ZIP，文件
 | `2026-legacy-architecture.zip` | `architecture/legacy/` | 26 | 69689 | `11761B248A7E3CA60A7C355392201277360B64EFD26F86563FDDBF0BC5D6F89A` |
 | `2026-legacy-docs.zip` | `legacy-docs/` | 53 | 290096 | `A26D25B527B26E34F8D6C66865086C64FD68E408BDA6B5F4FCC17FEF65690BE0` |
 | `2026-legacy-dev.zip` | `legacy-dev/` | 340 | 1189589 | `8182DF43DE66425D47AB0B88A5C27DED03EE078394C8F7B938A54138DDC6D76C` |
+| `2026-preexisting-archive-batches.zip` | `legacy-batches/` | 1053 | 5141135 | `DE5B9481CBBF4858C7949A5090477C079578783116EF145CAE04969CBFBAA4DF` |
 | `2026-pre-08-logs.zip` | `logs/pre-2026-08/` | 1698 | 1220606 | `3E971C5A46D3952EB04CDB4B45DDDD6869298E917A56D9727DEC87F705557125` |
 | `2026-06-harness-and-reference.zip` | `docs/research/historical/2026-06-harness-and-reference/` 的保留快照 | 26 | 166362 | `2C9FF859DC5E0A75CE103E87F9E85383C2F93FED6949F84389A3A67A9A0FA9E1` |
 | `2026-07-08-laputa-memory-history.zip` | `docs/research/historical/2026-07-08-laputa-memory-history/` 的保留快照 | 8 | 55724 | `C30F7343B0AFF361328D52622914C4418773475169C420A74E8A73D784C7789E` |
