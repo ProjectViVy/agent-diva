@@ -35,7 +35,7 @@
   用户偏好、不能写 BML/Skill。旧 JSON 提案实现未通过。2026-08-14 已跑独立测试；
   STM 整理路径因产品 STM 不存在而测不到。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
-- 全部重构采用 clean break；实施前从验证提交建立保护性分支，保护分支不作为 fallback。
+- 全部重构采用 clean break；无任何迁移。保护分支等文档收完后切备份，不作为 fallback。
 
 决策依据：
 [Evolution](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)、
@@ -64,8 +64,8 @@
   未清之前不做 D3、不落地 GA 进化。材料在 R1 `evolution-trigger-and-lifecycle.md`。
 
 - [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
-  在具备隔离密钥与 temp 记忆沙箱时，测量 Action-Verified 遵守率、未验证写入率、
-  L1 行数违规与 patch/overwrite 比；补强 `evolution-behavior-experiments.md` P1/P2。
+  若跑：用桌面 `keys.txt`（不入库、不进 git）。R1c 机制说清优先。测量
+  Action-Verified 遵守率、未验证写入率、L1 行数违规与 patch/overwrite 比。
 
 - [x] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
   **研究包已交付（2026-08-13）**，待用户 Research Gate：
@@ -126,8 +126,9 @@
 
 ### Implementation Gate：架构批准后再展开
 
-- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：建立并验证删除前保护性分支** `sev-P0` `blocked:D4`
-  从 D4 指定且验证通过的准确提交创建；不提前创建，不作为兼容 runtime。
+- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：文档收完后切一次备份分支** `sev-P0`
+  2026-08-14：不追混乱历史 SHA。文档收口后从当时 tip 建备份分支。不是
+  runtime fallback。无任何迁移；没了就没了。现在不建。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0` `blocked:I0`
   具体文件、顺序和提交数量等待 D4 决定；要求每片独立验证、独立 Conventional Commit，

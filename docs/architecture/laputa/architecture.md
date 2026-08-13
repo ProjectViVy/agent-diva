@@ -149,12 +149,12 @@ AutoDream 产品职责：批处理整理 ACTMEM；按 P19 给人格提待审案�
 ## 10. 仍开放（不要假装已冻）
 
 - Research Gate：**部分通过**（2026-08-14）。R0/R2/R3/R4 过；**R1 挂起**（GA 自主进化来源未清，D3 停）。见 [`research-gate-verdict-2026-08-14.md`](../../research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md)。
-- ACTMEM 的 Pulse/Work 归 P20 哪条车道（动态加载 vs 工具）。
+- ACTMEM 的 Pulse/Work 归 P20 哪条车道（动态加载 vs 工具）。**再决策，本轮不拍。**
 - 七份人格目录的绝对路径字符串（同一目录原则已冻）。
 - Evolution：SOP 与 Skill 的关系。
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
-- D0–D4 实现设计、删除切片、保护分支。
+- D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
 
 ---
 
