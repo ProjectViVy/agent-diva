@@ -132,8 +132,9 @@ AutoDream 是**批处理反射**，有两件产品主职，缺一不可：
 2. **人格整理可以提案，不能直写、不能 apply。** 提案走 Persona 内容审查（P5），
    不走 EvolutionProposal / Governance / Approval Center。
 
-它不是聊天里的人格编辑器，也不是 BML Memory / Skill 流水线。旧 JSON
-`IdentityPatch` / `LearningNote` / `MemoryPatch` 合同删除。
+它不是聊天里的人格编辑器，也不是 BML 流水线。能力提炼走 Evolution **D6**
+（提案 → SOP/Skill 文件），不是旧 JSON `MemoryPatch` 合同。旧
+`IdentityPatch` / `LearningNote` / `MemoryPatch` 删除。
 
 **未通过的是今天的实现**，不是「AutoDream 不许碰 Laputa」。2026-08-14 独立测试
 已跑通现有 crate + Manager e2e；测到的是旧合同（生命周期、`MemoryPatch`、闸门、
@@ -155,7 +156,7 @@ AutoDream 是**批处理反射**，有两件产品主职，缺一不可：
 | 种类表 / 新文件名 | **不可** | P18；用户和 AutoDream 都不能加种 |
 | BML Memory | **不可走提案** | Memory 不审批；禁止 `MemoryPatch` |
 | `memory_md` | **不可** | 删除面 |
-| Skill / SOP | **不可** | Evolution；旧梦境晋升退役 |
+| Skill / SOP | **可诞生 Evolution 提案；不可直写、不可 apply** | 提炼结果是 SOP/Skill 文件（**D6**）。不走旧 Governance/MemoryPatch。人格提案仍走 P5，不进 Evolution |
 | 自己的提案 | **不可 apply** | 只有用户在 Persona 里接受/拒绝 |
 
 允许**读取**七份当前头和当前 STM 作为反射输入（只读人格；STM 可读可整理）。
@@ -501,7 +502,8 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    2026-08-14 已跑独立测试，STM 路径仍测不到。
 7. P13：七份同一目录，一个 Diva 一套；不再允许 WORLD 另放子目录。
 8. P20：进上下文只有永冻 / 动态加载 / 工具三条车道；`WORLD.MD` 走工具，不动态加载。
-   ACTMEM 必须归入其中一条。
+   ACTMEM 整份走工具。
+9. P19/D6：AutoDream 可诞生 Evolution 提案，提炼结果为 SOP/Skill 文件；不可 apply。
 
 ## 被取代的依据
 

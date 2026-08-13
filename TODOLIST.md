@@ -8,8 +8,8 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Research Gate Partial / R1 Held`。R0/R2/R3/R4 已过；R1 须先说清
-  GenericAgent 自主进化从哪来，才能做 D3 / 抄 GA 进化。总 EPIC 统一编排
+  当前状态：`Research Gate Split-domain / D6 Frozen`。可按域开设计。进化走
+  AutoDream 整理→进化提案→SOP/Skill 文件，**不再跟 GA**。备份用户叫切再切。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -30,10 +30,9 @@
   `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK
   不进首次引导；DARK 为 FEAR/SHADOW 双展位。v1 种类闭集；架构可加、用户不可加。
   历史永久保留。
-- Evolution 只管理 Skill；旧 AutoDream Evolution 不再修补。AutoDream **必须整理
-  STM**（直写，不走提案），人格整理只按 P19 允许表提案，不能直写、不能改红线/梦/
-  用户偏好、不能写 BML/Skill。旧 JSON 提案实现未通过。2026-08-14 已跑独立测试；
-  STM 整理路径因产品 STM 不存在而测不到。
+- Evolution 管理人审后的能力文件。Diva 特色（**D6**）：AutoDream 整理 ACTMEM，
+  **诞生进化提案**，提炼结果为 **SOP/Skill 文件**；不可 apply。人格提案走 P5。
+  禁止 BML/`MemoryPatch`。旧混域 Inbox 仍删。不再以 GA 为进化参考。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
 - 全部重构采用 clean break；无任何迁移。保护分支等文档收完后切备份，不作为 fallback。
 
@@ -57,13 +56,12 @@
   [`docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md)。
   本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；触发/Action-Verified/L0–L4/SOP-Skill/
   实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
-  实现晋升状态机与 D3 架构定稿。
+  实现晋升状态机。进化设计改走 D6，不再跟 GA。
 
 - [x] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
   **因果页已交付（2026-08-14）**，等用户看过再过 R1 Gate：
   [`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md)。
-  结论：无独立进化引擎；定时器再丢任务 + 模型自愿改 `memory/`；无代码门。
-  用户确认前仍不做 D3。
+  结论：无独立进化引擎。用户已读论文并决策：进化走 D6，不再跟 GA。
 
 - [ ] **CONTEXT-DENSITY-PRINCIPLE：把「有限窗口决策信息密度」收成设计原则** `sev-P1`
   笔记：[`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md)。
@@ -124,8 +122,8 @@
   并发失败恢复、历史和 Memory/STM GUI。
 
 - [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
-  研究通过后设计唯一 Evolution 领域模型、触发、验证、可管理性、SOP/Skill 关系、Skill
-  runtime 接线和 GUI；人格及普通 Memory 必须排除。
+  按 **D6**：AutoDream 诞生进化提案，提炼结果为 SOP/Skill 文件。设计审查面、
+  文件形态、与 Skill runtime 接线。不抄 GA。人格走 P5，Memory 不进 Evolution。
 
 - [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0` `blocked:D1-D3`
   汇总窄 API/事件/错误、实施依赖、删除矩阵、保护分支、提交切片、发布/恢复、自动测试和
@@ -133,9 +131,8 @@
 
 ### Implementation Gate：架构批准后再展开
 
-- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：文档收完后切一次备份分支** `sev-P0`
-  2026-08-14：不追混乱历史 SHA。文档收口后从当时 tip 建备份分支。不是
-  runtime fallback。无任何迁移；没了就没了。现在不建。
+- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：备份分支** `sev-P0`
+  **用户叫切再切。** 不追旧 SHA。现在不建。无迁移。不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0` `blocked:I0`
   具体文件、顺序和提交数量等待 D4 决定；要求每片独立验证、独立 Conventional Commit，

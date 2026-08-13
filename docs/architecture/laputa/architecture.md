@@ -131,11 +131,15 @@ Memory CRUD 不走审批。STM/ACTMEM 清理不得删 BML；反之亦然。
 
 ## 8. Evolution 与 AutoDream
 
-Evolution **只**管理 Skill。SOP 与 Skill 的关系仍 Hold，未定状态机。  
-旧 AutoDream → Memory/SOP/Skill → Governance 主链退役，不修补。
+**Diva 特色路线（D6，已决策）：** AutoDream **整理** ACTMEM，并 **诞生进化提案**；
+人审接受后的提炼结果是 **SOP / Skill 文件**。不可自己 apply。  
+旧 AutoDream → Memory/人格混 Governance Inbox **仍退役**。这不是救旧链，是自有叙事。  
+不再以 GA 为进化参考（论文重点是密度）。后面可能自己写论文。
 
-AutoDream 产品职责：批处理整理 ACTMEM；按 P19 给人格提待审案。  
-2026-08-14 独立测试：现有 crate + Manager e2e 绿，测的是旧合同（默认 `MemoryPatch`）。ACTMEM 路径测不到。诊断与日志仍开着。
+人格提案仍走 P5，不进 Evolution。BML 不走提案。  
+SOP 与 Skill 的文件形态由 D3 设计。
+
+2026-08-14 独立测试：现有 crate 测的是旧 `MemoryPatch` 合同。新路线未接线。
 
 ---
 
@@ -149,7 +153,7 @@ AutoDream 产品职责：批处理整理 ACTMEM；按 P19 给人格提待审案�
 
 ## 10. 仍开放（不要假装已冻）
 
-- Research Gate：**部分通过**（2026-08-14）。R0/R2/R3/R4 过；**R1 挂起**（GA 自主进化来源未清，D3 停）。见 [`research-gate-verdict-2026-08-14.md`](../../research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md)。
+- Research Gate：**分域。** R0/R2/R3/R4 过。R1 不再跟 GA 做进化；D6 已冻 Diva 路线。D3 设计这条路线，不抄 GA。保护分支：**用户叫切再切**。
 - （ACTMEM 车道已冻：全部工具；第一版一个读工具。）
 - 七份人格目录的绝对路径字符串（同一目录原则已冻）。
 - Evolution：SOP 与 Skill 的关系。

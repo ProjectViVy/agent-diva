@@ -1,10 +1,10 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Research Gate Partial / R1 Held / Architecture Design Blocked except as noted`
+- 状态：`Research Gate Split-domain / D6 Path Frozen / Design Authorized per domain`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` 用户评审见 [`research-gate-verdict-2026-08-14.md`](./research-gate-verdict-2026-08-14.md)
-- 当前授权：R0/R2/R3/R4 可当设计输入；**R1 未过，D3 与 GA 进化落地停**；仍不授权生产认知主链修改
+- 修订：`2026-08-14` 见 verdict；**D6** AutoDream→进化提案→SOP/Skill；不再跟 GA 进化；用户叫切再切备份
+- 当前授权：可按域开 D0/D1/D2；D3 只设计 D6 路线。仍不授权生产认知主链修改；备份分支等用户说切
 
 ## 一句话目标
 

@@ -1,8 +1,9 @@
 # Evolution 非兼容重置：讨论决策记录
 
-- 状态：`Research Hold`
+- 状态：`Product Path Frozen / Design Pending`
 - 记录日期：2026-08-13
-- 性质：产品边界决策与后续调研任务；不是实施规格
+- 修订：`2026-08-14` **D6** Diva 特色路线：AutoDream 整理并诞生进化提案，提炼结果为 SOP/Skill 文件；不再以 GA 为进化参考
+- 性质：产品边界决策；不是实施规格
 
 ## 背景判断
 
@@ -37,10 +38,11 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 ### D3：Evolution 以“可管理性”为核心全面重构
 
 - Evolution 必须重新定义单一业务对象、权威来源和用户任务，再设计页面。
-- 新方向以 GenericAgent 的自进化模型为主要参考，但不能照搬当前本地旧快照。
-- 在研究完成前，不冻结 SOP、Skill、SOP Candidate、晋升或审批状态机；此前讨论的
-  “自动 SOP → 用户选择性固化 Skill”只保留为待验证假设，不视为最终决定。
-- Evolution 不再承担普通 Memory 管理，也不得承载 Laputa 人格提案。
+- **不再以 GenericAgent 为进化参考。** GA 论文重点是上下文密度，不是进化引擎；
+  用户已读完。进化走 **D6** 的 Diva 自有路线。密度尺子仍可借鉴（见 R1 对照笔记）。
+- SOP 与 Skill 的文件关系由 D3 设计，但 **提炼结果就是 SOP/Skill 文件** 已由 D6 冻结，
+  不再假设「必须先有第二物种再晋升」。
+- Evolution 不再承担普通 Memory 管理，也不得承载 Laputa 人格提案（人格走 P5）。
 
 ### D4：破坏性实施前必须建立保护性分支
 
@@ -51,9 +53,9 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 
 ### D5：AutoDream 必须整理 STM，人格只允许提案；旧实现未通过；先测再接线
 
-- AutoDream 的产品职责是批处理反射：**整理 STM（直写，不走提案）**，并对
-  P19 允许的人格文件**生成待审提案**。不是 Evolution 收件箱，也不是 BML /
-  Skill 流水线。能改 / 不能改以 Persona **P19 表**和 STM **S5** 为准。
+- AutoDream 的产品职责是批处理反射：**整理 ACTMEM/STM（直写）**，对 P19 允许的
+  人格**生成 Persona 待审提案**，并按 **D6** **诞生 Evolution 提案**（提炼结果为
+  SOP/Skill 文件）。不是 BML 流水线，不是旧 Governance Inbox。
 - **未通过**的是当前实现（JSON 提案、默认 MemoryPatch、crate 内无 STM、
   人格 type 未按允许表接线、日志几乎没有），不是「不许对 Laputa 提案」。
 - 2026-08-14 已做独立测试：`cargo test -p agent-diva-autodream` 与
@@ -62,8 +64,24 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 - 独立诊断轨仍然成立：端到端结构化日志 + 对着产品表的测试。不得在诊断里恢复
   `MemoryPatch`、`SopCreate` 或对 `REDLINE` / `DREAM` / 用户偏好的写入，也不得
   把 STM 整理改成提案。
-- D2 仍然成立：旧 AutoDream→通用治理主链退役。新人格提案必须是 Persona 内容
-  审查，不是 Governance Ledger。
+- D2 仍然成立：旧 AutoDream→Memory/人格混在 Governance Inbox 的主链退役。
+  D6 是**新**路线，不是把那条旧链救活。新人格提案走 P5，不进 Evolution。
+
+### D6：Diva 特色路线（已决策，可写自己的论文）
+
+用户原话要义：继续 Diva 特色——**AutoDream 整理，诞生进化提案；提炼结果即 SOP / Skill 文件。**  
+这条路已经清楚，**不用再看 GA**。后面可能自己写论文。
+
+冻结：
+
+1. AutoDream **整理** ACTMEM（直写，已冻）。  
+2. AutoDream **诞生进化提案**（Evolution 域，等人审）。  
+3. 提案被接受后的**提炼结果**是 **SOP/Skill 文件**，不是 MemoryPatch、不是人格直写。  
+4. AutoDream **不可自己 apply** 这些提案。  
+5. 旧 `SopCreate` / Memory 治理 Inbox / 把人格和 Skill 捆在一个提案箱 —— 仍按 D2 删除，不回潮。  
+6. SOP 与 Skill 是一份文件、两份文件还是 Skill 包里的写法，由 D3 设计；**不得**再把「没有 GA 式 Skill 系统」理解成「AutoDream 不能产能力文件」。
+
+这是产品主叙事，不是调研建议。
 
 ## GenericAgent 当前核查事实
 
