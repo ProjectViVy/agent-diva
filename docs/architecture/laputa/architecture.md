@@ -63,12 +63,12 @@ v1 种类闭集。架构按登记表可加第八种，用户不能自加。禁�
 | 车道 | 规则 | 现在谁在上面 |
 | --- | --- | --- |
 | **永冻装配（Frozen Core）** | 会话开始截取投影，本会话不变 | Identity 200、Relationship 120、Redline 200、User 160、Dream 10、Dark 60 |
-| **动态加载** | 不冻，可刷新的有界投影 | **空。** WORLD 已撤出。车道保留，供以后归类 |
-| **工具增删改查** | 默认不进 Prompt | **WORLD 全文**、超出 FC 的正文、完整历史、BML、报告、ACTMEM 胶囊 |
+| **动态加载** | 不冻，可刷新的有界投影 | **空。** WORLD / ACTMEM 都不塞回来 |
+| **工具增删改查** | 默认不进 Prompt | **WORLD 全文**、**整份 ACTMEM**、超出 FC 的正文、完整历史、BML、报告 |
 
 完整历史永不整包注入。禁止把 WORLD 再接回 `WorldStore::project()` 当默认上下文。
 
-**ACTMEM 必须占用这三条里的车道，不能另立第四套政策。** 已确定：不能进 Frozen Core（一发言就变）；胶囊走工具。Pulse/Work 走动态加载还是工具，**未归类**。
+**ACTMEM 整份走工具。** 不进 Frozen Core，不动态装配。第一版主 Agent **一个读工具**，不配写工具（写仍靠发言/空闲/AutoDream/用户页）。自动装配先不试。
 
 子代理不进 Laputa 人格/ACTMEM/BML 生态。子代理上下文以后由主 Agent 装配（面具仍进）。本阶段不设计。
 
@@ -114,6 +114,7 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 - 用户一发言就写 Pulse。空闲 **10 分钟** 写该会话胶囊。
 - Pulse：原文可进，全文不进。预算 Pulse 1600 / Work 1600 / 单胶囊 800。
 - 第一版不做 STM→BML 自动晋升。
+- **不自动装配进 Prompt。** 主 Agent 第一版只有一个读工具。
 - 旧 Garden `MEMORY.MD` 全舍弃。
 
 产品 STM ≠ SessionCheckpoint ≠ CanonicalCheckpoint ≠ BML。
@@ -149,7 +150,7 @@ AutoDream 产品职责：批处理整理 ACTMEM；按 P19 给人格提待审案�
 ## 10. 仍开放（不要假装已冻）
 
 - Research Gate：**部分通过**（2026-08-14）。R0/R2/R3/R4 过；**R1 挂起**（GA 自主进化来源未清，D3 停）。见 [`research-gate-verdict-2026-08-14.md`](../../research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md)。
-- ACTMEM 的 Pulse/Work 归 P20 哪条车道（动态加载 vs 工具）。**再决策，本轮不拍。**
+- （ACTMEM 车道已冻：全部工具；第一版一个读工具。）
 - 七份人格目录的绝对路径字符串（同一目录原则已冻）。
 - Evolution：SOP 与 Skill 的关系。
 - STM→BML 晋升（明确第一版不做）。

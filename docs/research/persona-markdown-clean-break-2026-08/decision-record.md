@@ -236,12 +236,12 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 | 车道 | 含义 | 已归属 |
 | --- | --- | --- |
 | **永冻装配（Frozen Core）** | 会话开始捕获，本会话 prefix 里一直在，中途不随文件改写而变 | `IDENTITY` 200、`RELATIONSHIP` 120、`REDLINE` 200、`USER` 160、`DREAM` 10、`DARK` 60 |
-| **动态加载** | 不进 Frozen Core；可按轮/按 scope 刷新的有界投影 | **七份人格当前无人占用。** 车道保留，供以后归类（例如 ACTMEM 的 Pulse/Work），不得把 WORLD 塞回来 |
-| **工具增删改查** | 默认不进 Prompt；要读要写走工具或 Persona 工作区 | **`WORLD.MD` 全文**、七份超出 FC 投影的正文、完整历史、BML LTM、报告。Agent 改 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好走 P5；DREAM/DARK/USER 观察走 P16 直写 |
+| **动态加载** | 不进 Frozen Core；可按轮/按 scope 刷新的有界投影 | **空。** 不得把 WORLD / ACTMEM 塞回来 |
+| **工具增删改查** | 默认不进 Prompt；要读要写走工具或工作区 | **`WORLD.MD` 全文**、**整份 ACTMEM**（一个读工具）、超出 FC 的正文、完整历史、BML LTM、报告 |
 
 2026-08-14 用户改定：`WORLD.MD` **不做动态加载**，与 BML 一样走工具。仍参加首次引导、仍是同目录权威，只是不自动装配进 Prompt。禁止再接线 `WorldStore::project()` 当默认上下文。
 
-完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一，只能占用上面三条车道里的一条或组合（胶囊已属工具；Pulse/Work 未归类）。不能再发明「ACTMEM 专用装配政策」。
+完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一；**整份走工具**，第一版一个读工具，不自动装配。
 
 ### P2：Persona 页面是人格文档工作区，不是安全审批中心
 
