@@ -13,6 +13,9 @@
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
   [`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
+  现行产品架构汇总（2026-08-14）：
+  [`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
+  根目录 `LAPUTA.md` 只做入口；6 月 14-section 旧稿已废。
 
 **已冻结产品边界（不是待重新决策项）：**
 

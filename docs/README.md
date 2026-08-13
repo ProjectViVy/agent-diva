@@ -1,17 +1,18 @@
 # agent-diva 文档总入口
 
-> 更新日期：2026-08-13
+> 更新日期：2026-08-14
 >
-> 当前唯一架构锚定是 2026-08-12 至 2026-08-13 的决策记录。其余资料按“当前架构、
-> 当前/历史调研、关键决策、验证日志、工程参考、历史归档”分类。历史文档不删除，
-> 但不再混在当前入口中。
+> Laputa 现行架构汇总在 [`architecture/laputa/`](./architecture/laputa/README.md)。
+> 决策原文仍是 2026-08-12 至 08-14 的记录。历史文档不删除，但不再混在当前入口中。
+> 根目录旧版 `LAPUTA.md`（14-section / state.json）已废，现文件只做指针。
 
 ## 阅读顺序
 
-1. [当前架构](./architecture/README.md)
-2. [关键决策集合](./decisions/README.md)
-3. [当前研究与未施工研究](./research/README.md)
-4. [8 月验证日志](./logs/README.md)
+1. [Laputa 现行架构](./architecture/laputa/architecture.md)
+2. [当前架构入口](./architecture/README.md)
+3. [关键决策集合](./decisions/README.md)
+4. [当前研究与未施工研究](./research/README.md)
+5. [8 月验证日志](./logs/README.md)
 
 ## 目录结构
 
@@ -25,12 +26,12 @@
 | `resources/` | 图片等非文档资源 | 不参与文档阅读链 |
 | `dev/archive(old-docs-dont-read-me)/` | 旧架构、设计、PRD、Sprint、报告、UX、开发包和旧日志 | 只用于历史追溯，附 ZIP 与 manifest |
 
-## 8/12–8/13 锚点
+## 8/12–8/14 锚点
 
 - Cognitive Workspace Reset：统一 Persona、Memory/BML、STM、Evolution/Skill 和 Chat Approval 边界。
-- Persona Markdown Clean Break：Markdown 权威、专用内容审查、五文件首次初始化、完整历史。
-- STM Clean Break：BML 唯一长期 Memory，STM 与 SessionCheckpoint 分离，具体存储/装配仍 Research Hold。
-- Evolution Reset：删除旧 AutoDream–Evolution 混合链路方向，GenericAgent 研究完成前不定稿。
+- Persona：七份 Markdown、同一目录一套、P20 三车道；WORLD 走工具；P14 字数默认。
+- STM / ACTMEM：概念叫 STM/LTM；核心文件 `ACTMEM.MD` 全局一份；不进 BML。
+- Evolution Reset：旧 AutoDream–Evolution 混合链路退役；AutoDream 整理 ACTMEM + P19 人格提案。
 
 ## 归档规则
 

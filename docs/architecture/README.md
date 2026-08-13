@@ -1,15 +1,17 @@
 # 当前架构入口
 
-> 更新日期：2026-08-13
+> 更新日期：2026-08-14
 >
-> 本目录只保留当前可作为实施入口的架构摘要。完整决策记录、研究证据和迭代验证分别位于 `docs/research/` 与 `docs/logs/`；历史架构全文位于 `docs/dev/archive(old-docs-dont-read-me)/`，不作为当前依据。
+> 本目录只保留当前可作为实施入口的架构摘要。**Laputa 现行架构汇总在 [`laputa/`](./laputa/README.md)。**
+> 完整决策记录、研究证据和迭代验证分别位于 `docs/research/` 与 `docs/logs/`；历史架构全文位于 `docs/dev/archive(old-docs-dont-read-me)/`，不作为当前依据。根目录 `LAPUTA.md` 只做入口。
 
 ## 首先阅读
 
-1. [认知工作区边界](./current/cognitive-workspace-boundaries-2026-08.md)
-2. [运行时审批边界](./current/runtime-approval-boundary-2026-08.md)
-3. [上下文运行时边界](./current/context-runtime-boundary-2026-08.md)
-4. [当前研究入口](../research/README.md)
+1. [Laputa 现行架构](./laputa/architecture.md)
+2. [认知工作区边界](./current/cognitive-workspace-boundaries-2026-08.md)
+3. [运行时审批边界](./current/runtime-approval-boundary-2026-08.md)
+4. [上下文运行时边界](./current/context-runtime-boundary-2026-08.md)
+5. [当前研究入口](../research/README.md)
 
 ## 当前权威决策
 
@@ -20,8 +22,9 @@
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |
 | Clean-break 安全 | [`cognitive-r4-clean-break-safety-2026-08`](../research/cognitive-r4-clean-break-safety-2026-08/README.md) | R4 影响与协议；不是删除切片 |
-| Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | Approved Direction（七份权威，含 DARK；IDENTITY 含身体）；Implementation Pending |
-| Memory / STM | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | Boundary Approved；存储与装配 Research Hold |
+| **Laputa 汇总** | [`laputa/architecture.md`](./laputa/architecture.md) | 2026-08-14 产品架构汇总；实施未授权 |
+| Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | 决策原文；七份权威、P20 车道、WORLD 走工具 |
+| Memory / STM / ACTMEM | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | 决策原文；`ACTMEM.MD` 全局一份；Pulse/Work 车道未归类 |
 | Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | Research Hold |
 | BML | [`bml-layer-extraction-2026-08`](../research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md) | 存储权威已冻结；抽层仍按研究结论实施 |
 | Context C1–C5 | [`context-management-enhancement-2026-08`](../research/context-management-enhancement-2026-08/README.md) | 当前运行时施工与验证依据 |

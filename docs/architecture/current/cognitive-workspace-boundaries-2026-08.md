@@ -1,8 +1,9 @@
 # Cognitive Workspace 当前架构边界
 
 - 状态：`Product Boundaries Frozen / Research Pending / Target Architecture Blocked`
-- 日期：2026-08-13
+- 日期：2026-08-14
 - 权威来源：[Cognitive Workspace Reset EPIC](../../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
+- Laputa 汇总：[../laputa/architecture.md](../laputa/architecture.md)
 
 ## 四个用户工作区
 

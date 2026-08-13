@@ -1,13 +1,15 @@
 # 研究资料入口
 
-> 更新日期：2026-08-13
+> 更新日期：2026-08-14
 >
-> 研究材料全部保留。当前研究包放在根目录；已经完成但未施工、较早或仅作参考的研究
-> 放在 `historical/`。研究结论不能自动升级为已批准架构，必须看文档状态和 8/12–8/13
-> 决策链。
+> 研究材料全部保留。当前研究包放在本目录；已经完成但未施工、较早或仅作参考的研究
+> 放在 `historical/`。研究结论不能自动升级为已批准架构。
+> **现行 Laputa 产品架构汇总**在 [`../architecture/laputa/`](../architecture/laputa/README.md)，
+> 不要从 6 月根目录旧 `LAPUTA.md` 或本目录 historical 反推现行合同。
 
 ## 最新架构研究链
 
+0. [Laputa 现行架构汇总](../architecture/laputa/architecture.md)（产品形状；不是本目录研究包）
 1. [Cognitive Workspace Reset EPIC](./cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
 2. [R0 当前系统盘点](./cognitive-r0-current-state-2026-08/README.md)
 3. [R1 GenericAgent Evolution 研究包](./cognitive-r1-genericagent-evolution-2026-08/README.md)

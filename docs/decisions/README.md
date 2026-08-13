@@ -1,16 +1,16 @@
 # 关键决策集合
 
-> 更新日期：2026-08-13
+> 更新日期：2026-08-14
 >
-> 本目录只保留仍具有方向性、范围约束或安全价值的真实决策。它不是新的架构设计；
-> 8 月 12–13 日的认知工作区记录仍是当前架构锚点，本文档集合中的旧决策若发生冲突，
-> 以后者为准。
+> 本目录只保留仍具有方向性、范围约束或安全价值的真实决策。它不是新的架构设计。
+> 与本目录 6 月条目冲突时，以 8 月决策和 [`../architecture/laputa/`](../architecture/laputa/README.md) 为准。
 
 ## 当前最高优先级
 
-1. [`../architecture/README.md`](../architecture/README.md)：当前架构入口。
-2. [`../research/README.md`](../research/README.md)：当前研究与 Research Hold 入口。
-3. [`../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)：8/13 总 EPIC。
+1. [`../architecture/laputa/architecture.md`](../architecture/laputa/architecture.md)：Laputa 现行架构汇总。
+2. [`../architecture/README.md`](../architecture/README.md)：当前架构入口。
+3. [`../research/README.md`](../research/README.md)：当前研究与 Research Hold 入口。
+4. [`../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)：8/13 总 EPIC。
 
 ## 保留的历史/方向性决策
 
