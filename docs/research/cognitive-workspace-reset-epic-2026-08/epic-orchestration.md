@@ -133,6 +133,11 @@ GenericAgent 分层研究          文档工作区研究    数据安全研究
 完成物：`genericagent-upstream-baseline.md`、`evolution-behavior-experiments.md`、
 `diva-evolution-gap.md`、`sop-skill-recommendation.md`。
 
+**进展（2026-08-13）：** 研究包已落盘  
+[`../cognitive-r1-genericagent-evolution-2026-08/README.md`](../cognitive-r1-genericagent-evolution-2026-08/README.md)。  
+本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；P0 静态实验完成；P1 活体因无密钥阻断。  
+含 R0 Evolution 切片（全量 R0 仍缺）。状态：`Research package complete / Gate pending user review`。
+
 #### R2 — STM 与上下文分层研究
 
 - 联合盘点 C1–C5 Context Assembly、BML provider、session lifecycle、canonical checkpoint、

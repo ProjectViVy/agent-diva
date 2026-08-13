@@ -38,11 +38,20 @@
   Proposal/Governance/Approval 的真实读写、事件、Prompt、GUI 与持久化链路；输出当前状态图、
   数据/依赖矩阵、保留/改名/删除/待决策清单。把 Persona `[object Object]`、Evolution
   加载失败和 `approval request not found` 固化为旧架构失败基线，不先沿旧模型打补丁。
+  注：R1 已交付 **R0 Evolution 切片**
+  （`docs/research/cognitive-r1-genericagent-evolution-2026-08/r0-evolution-slice.md`），
+  全量 R0 仍缺。
 
-- [ ] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0` `blocked:R0`
-  安全核对并同步 `.workspace/GenericAgent` 主分支，固定 upstream commit，逐提交研究触发、
-  Action-Verified、L0–L4、SOP/Skill、发现复用与管理；用真实实验区分宣称和行为，输出 Diva
-  差距与 SOP/Skill 建议。研究完成前禁止实现晋升状态机。
+- [x] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0`
+  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  [`docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md)。
+  本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；触发/Action-Verified/L0–L4/SOP-Skill/
+  实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
+  实现晋升状态机与 D3 架构定稿。
+
+- [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
+  在具备隔离密钥与 temp 记忆沙箱时，测量 Action-Verified 遵守率、未验证写入率、
+  L1 行数违规与 patch/overwrite 比；补强 `evolution-behavior-experiments.md` P1/P2。
 
 - [ ] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0` `blocked:R0`
   联合盘点 C1–C5、BML、session lifecycle、canonical checkpoint、Plan/background task、

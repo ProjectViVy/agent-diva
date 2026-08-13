@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `NONE`
-- Owner: `NONE`
-- Session/Task: `NONE`
+- Scope: `docs/research/cognitive-r1-genericagent-evolution-2026-08/`, `docs/research/README.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/logs/2026-08-cognitive-r1-genericagent-evolution/`, `TODOLIST.md` (research-only entries)
+- Owner: `Grok`
+- Session/Task: `COGNITIVE-R1-GENERICAGENT-EVOLUTION research package`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-08-11T09:39:00+08:00`
-- Expires At: `N/A`
+- Started At: `2026-08-13T12:00:00+08:00`
+- Last Heartbeat: `2026-08-13T13:30:00+08:00`
+- Expires At: `—`
 
 ## Lock Rules
 
@@ -25,6 +25,88 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
+- `COGNITIVE-R1-GENERICAGENT-EVOLUTION research package` — **RELEASED 2026-08-13T13:30:00+08:00**
+  by `Grok`; documentation-only R1 research package delivered under
+  `docs/research/cognitive-r1-genericagent-evolution-2026-08/` plus logs/index.
+  No production source/config/build changes.
+
+- `Collect remaining archive-root legacy files and refresh archive package` — **RELEASED 2026-08-13T10:07:16+08:00**
+  by `Codex`; documentation-only cleanup of seven legacy files left beside the
+  archive index, plus ZIP/manifest refresh is complete. No source, config, or build
+  files were changed; tests were not run per user instruction.
+
+- `Consolidate pre-existing archive batches and compress legacy corpus` — **RELEASED 2026-08-13T10:05:19+08:00**
+  by `Codex`; documentation-only consolidation of already archived historical batches
+  under `docs/dev/archive(old-docs-dont-read-me)/`; no source, config, or build files
+  were changed, and tests were not run per user instruction.
+
+- `Reorganize complete docs corpus and pre-August logs` — **RELEASED 2026-08-13T09:53:49+08:00**
+  by `Codex`; documentation-only cleanup of the complete `docs/` corpus, current
+  architecture/research entrypoints, retained decision summaries, legacy archive
+  folders, manifests, and ZIP packages is complete. Production source, config, and
+  build files were out of scope; tests were not run per user instruction.
+
+- `Cognitive workspace reset master EPIC` — **RELEASED 2026-08-13T02:47:47+08:00**
+  by `Codex`; documentation-only orchestration committed in `0d2acb60`. Today's
+  product decisions are consolidated into R0-R4 research, D0-D4 architecture,
+  and implementation gates; no production code or target architecture design
+  was created.
+
+- `STM cross-session clean-break decision` — **RELEASED 2026-08-13T02:35:20+08:00**
+  by `Codex`; documentation-only decision committed in `503c836d`. Freezes
+  memory/persona/STM boundaries and GUI ownership while leaving storage,
+  automation and context assembly to research.
+
+- `Laputa first-run initialization decision` — **RELEASED 2026-08-13T02:26:10+08:00**
+  by `Codex`; documentation-only decision committed in `544d1944`. Records
+  five-authority first-run initialization, direct atomic write, absence-only
+  trigger, and lifetime Persona/WORLD history.
+
+- `Persona workspace interaction decision` — **RELEASED 2026-08-13T01:45:30+08:00**
+  by `Codex`; documentation-only decision committed in `6ff3744b`. Records
+  current-document, pending-change and history states, plus the boundary between
+  content review and security approval.
+
+- `Persona Markdown authority decision` — **RELEASED 2026-08-13T01:17:17+08:00**
+  by `Codex`; Markdown authority, source/preview/diff workspace, direct-save
+  boundary and zero-compatibility deletion direction recorded in `262a8297`.
+
+- `TODOLIST stale-record archive` — **RELEASED 2026-08-13T01:01:09+08:00**
+  by `Codex`; root backlog reduced to 30 active items, full pre-cleanup snapshot
+  and archive index recorded in `77bac367`; no product code changes.
+
+- `Governance / Persona / Evolution recovery` — **RELEASED
+  2026-08-12T23:24:30+08:00** by `Codex`; unified Memory approval authority,
+  AutoDream proposal-boundary registration, Persona/Evolution resilient GUI state,
+  full isolated `just ci`, GUI tests/build, and real-workspace read-only smoke complete
+  in `78e2bcf5`, `d6f82ea3`, `ab4705e4`, and `df21bd17`. Gateway PID 27624 is
+  running the current branch; visual/state-changing M3 acceptance remains with user.
+
+- `CTX-C5b canonical checkpoint implementation` — **RELEASED
+  2026-08-11T18:30+08:00** by `Codex`; canonical checkpoint clean break,
+  focused/full validation, TODOLIST and iteration logs complete in commits
+  `19a5bfec`, `c6e3ace4`, and `12bb92ce`; not pushed.
+
+- `CTX-C5a final wire cache prefix implementation` — **RELEASED
+  2026-08-11T18:05+08:00** by `Codex`; provider final-wire snapshot, agent
+  observer clean break, focused/full gates, TODOLIST and iteration logs complete.
+
+- `CTX-C5e automatic deferred tool activation planning` — **RELEASED
+  2026-08-11T17:10+08:00** by `Codex`; technical plan, TODOLIST and iteration
+  logs complete; no production-code changes.
+
+- `CTX-C5 plan formatting follow-up` — **RELEASED 2026-08-11T16:30+08:00**
+  by `Codex`; trailing whitespace removed in commit `1f91c0c7`.
+
+- `CTX-C5 lightweight context convergence plan and clean-break policy` —
+  **RELEASED 2026-08-11T16:25+08:00** by `Codex`; technical plan, research
+  index, TODOLIST and iteration logs complete; no production-code changes.
+
+- `CTX-C4 deferred tool discovery, same-turn mount, and recall verification` —
+  **RELEASED 2026-08-11T10:20+08:00** by `Codex`; implementation and final
+  verification complete in commits `66fb1ed4`, `8b79fcac`, `2747462d`,
+  `646b50c0`, and `07bc4ee0`; not pushed.
+
 - None. `merge feat/gmh41-budget-closure + fix/small-fixes-batch` — owner
   `QoderCN` — **RELEASED 2026-08-11T09:39+08:00**; merges `8c1f5b39` (GMH
   batch) + `c05ce32a` (small-fixes) on `agent-diva-pro`, marker cleanup
@@ -37,6 +119,84 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-12T12:55:00+08:00`: Released code-review residual scope. Runtime
+  commits `b4c10047`, `bb92204d`, `bdef0f87`; approval `e3f6660d`; context/GUI
+  `d3dc56ed`; docs/TODOLIST `93e07f75`. `just fmt-check`, `just check`, focused
+  Rust libs, GUI `npm test` (455/455) and `npm run build` passed. Final `just ci`
+  also passed, including workspace tests, feature gates and BML clean-break gate.
+  M3 real desktop smoke remains open in TODOLIST.
+
+- `2026-08-12T11:20:00+08:00`: Merged `feat/m3-hitl-closure` into `agent-diva-pro`
+  as `131d2dc5` (clean ort; S1–S5 three-mode HITL). TODOLIST backlog from review
+  committed `586147cc`; post-merge TODOLIST bookkeeping follows. Sandbox lib
+  tests 127/127. Not pushed. Residual: dual-channel stream, human M3 smoke,
+  Track A doc/UX gaps still open in TODOLIST.
+
+- `2026-08-12T10:45:00+08:00`: Released line-review cache+HITL. Review log at
+  `docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/`. Critical:
+  M3 HITL S1–S5 lives only on `feat/m3-hitl-closure` (not merged into
+  `agent-diva-pro`); HEAD Guardian still merges OnRequest|UnlessTrusted and
+  ShellTool has no mode-driven Guardian. Track A C1–C5 is on HEAD.
+
+- `2026-08-12T01:10:30+08:00`: Released G2D automated E2E coverage. Added
+  `agent-diva-manager/tests/autodream_laputa_e2e.rs` with 6 Manager HTTP vertical
+  scenarios and the four iteration log documents; TODOLIST records the automated
+  gate and a pre-existing Windows stale-lock timing flake. Commit `b4d2a84b`;
+  `just ci` passed; no push. G2D+ real desktop acceptance remains pending.
+
+- `2026-08-12T01:00:00+08:00`: Claimed independent Manager HTTP automated E2E
+  coverage for the G2D+ preparation batch. Scope is limited to the new integration
+  suite, TODOLIST bookkeeping, and iteration logs; no production code or existing
+  test files are to be changed unless a test exposes a focused defect.
+
+- `2026-08-12T01:00:00+08:00`: Released C1c Skills Reload wiring. Added
+  workspace-scoped Runtime Control, lazy all-Session skills invalidation,
+  Manager upload/delete notifications, Applied-only `memory_distill` reload,
+  upload no-op detection, focused tests, `just ci`, and CLI help smoke. Commits
+  `cdfb8e23` and `9639df5c`; no push. LOCK remains intentionally uncommitted.
+
+- `2026-08-11T20:45:00+08:00`: Claimed C1c Skills Reload wiring; superseded by
+  the release note above after implementation, validation, and focused commits.
+
+- `2026-08-11T20:34:00+08:00`: Released after C1c Workspace Memory Epoch
+  implementation. Typed Provider authority/projection revisions, workspace-scoped
+  Runtime Control refresh, apply/recovery/replay/rollback notification wiring,
+  focused tests, `just ci`, and CLI help smoke passed. Commits `bc989338` and
+  `824ff890`; no push. Skills reload remains a separate TODO.
+
+- `2026-08-11T19:03:17+08:00`: Released after CTX-C5c/C5e/C5d tools lifecycle
+  convergence. Canonical tool results, automatic deferred activation, three-region
+  bounded context recovery, full gates, CLI help smoke, and deletion-proof passed.
+  Commits: `6f1331f0`, `3ce9eba2`, `e25a97fd`, `0ffa01fb`, `54715677`, `ce1dc08b`;
+  no push.
+
+- `2026-08-11T18:30:00+08:00`: Released after CTX-C5b implementation. The
+  workspace now has one bounded `canonical_checkpoint_v1`, one unified
+  checkpoint compactor entry, tool-group-aware boundaries, and reactive
+  turn-local pending updates. `just ci`, CLI help smoke, and the production
+  deletion proof passed. C5c-C5e remain separate follow-up scope; no push.
+
+- `2026-08-11T18:05:00+08:00`: Released after C5a closure. Final provider-wire
+  cache snapshots and CORE-only tool prefix hashes are live; heuristic hit/miss
+  state is deleted. Commits: `73dff1bc`, `a8747e86`, `1673b2d8`. Full
+  `just fmt-check`, `just check`, `just test`, `just ci`, affected strict Clippy,
+  and CLI help smoke passed. C5b is next; no push performed.
+
+- `2026-08-11T17:10:00+08:00`: Released after adding C5e automatic deferred
+  tool activation. The scheduled clean break retains `tool_search`, removes
+  model-visible `mount_tool` and persistent discovered state, bounds the
+  task-local active set, and preserves all authorization/approval gates.
+
+- `2026-08-11T16:25:00+08:00`: Released after revising C5 into lightweight
+  context convergence with a strict clean-break/no-compatibility policy and
+  C5a-C5d slices. Documentation diff check passed; implementation remains
+  pending and must use separate focused locks/commits.
+
+- `2026-08-11T10:20:05+08:00`: Released after CTX-C4 implementation,
+  focused and full workspace tests, `just ci`, strict affected Clippy, and
+  CLI `--help` smoke all passed. No push performed. C4 iteration logs are in
+  `docs/logs/2026-08-context-management-enhancement/v0.0.9-c4-deferred-tool-discovery-recall/`.
 
 - `2026-08-11T09:39:00+08:00`: Released after merging both parked batches
   into `agent-diva-pro` (QoderCN, user-approved). `feat/gmh41-budget-closure`
