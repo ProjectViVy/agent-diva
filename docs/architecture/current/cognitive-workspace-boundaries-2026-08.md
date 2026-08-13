@@ -23,7 +23,8 @@
   概念上仍称 STM / LTM；权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，
   禁止核心文件叫 `STM.MD` / `MEMORY.MD`。发言即写 Pulse；空闲 10 分钟写胶囊。
   子代理不进。正文不装配。CORE 一个查询；管理工具 DEFER。
-  `ACTMEM.MD` 不是 Persona 七文件；七份人格同一目录、一个 Diva 一套。
+  `ACTMEM.MD` 不是 Persona 七文件；七份人格同一目录、**整机一份伴侣**（P22）。
+  BML 跟这套家走。
 - Laputa 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、`REDLINE.MD`、`USER.MD`、
   `DREAM.MD`、`DARK.MD`、`WORLD.MD`。正文以 Markdown 为依据。`IDENTITY.MD` 含当前
   身体/形态。`DARK.MD` 为 FEAR/SHADOW 两展位，不单开 BODY/FEAR/SHADOW 文件。
@@ -41,7 +42,7 @@
 [`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
 （待评审，不是 Gate）。仍不得由实现者自行决定：Pulse schema、并发合并、
 Layer 1 算法、SOP/Skill 文件关系、Persona revision 目录和 API、删除切片。
-BML 是否搬出工作区 `.laputa/` 必须先有用户书面修订 S1。
+BML 搬家已冻（S1 修订：跟人格走）。`governance.db` 仍留工作区。
 
 ## 实施门禁
 

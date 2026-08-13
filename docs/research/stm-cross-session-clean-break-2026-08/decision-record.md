@@ -2,7 +2,7 @@
 
 - 状态：`Approved Boundary / Research Hold / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼；同日 **S9** 冻结 MEMRULES（不进 Laputa；按 GA 分层进上下文）
+- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼；同日 **S9** 冻结 MEMRULES（不进 Laputa；按 GA 分层进上下文）；同日 **S1** 修订 BML 跟人格走（整机一份家）
 - 性质：产品与领域边界已拍板；分层装配和自动化算法待专项调研
 
 ## 问题判断
@@ -28,10 +28,15 @@
 
 ### S1：长期 Memory 只有 BML 一个权威
 
-- `.laputa/memory.sqlite3` 的 typed BML records 是普通长期记忆的唯一生产权威。
+- typed SQLite + FTS5 的 BML records 是普通长期记忆的唯一生产权威。文件名仍是
+  `memory.sqlite3`。
+- **2026-08-14 修订（D0-B）：BML 跟人格走，整机共用一套。** 与七份人格同一套
+  agent-diva 家（P22），不按 git 工作副本另开 LTM。今日代码里的工作区
+  `.laputa/memory.sqlite3` 是旧落点，产品上删除；绝对父目录由 D2 与 D1 人格目录对齐。
 - 长期事实、经验、关系性事实、历史素材及其检索、软删除、版本和来源均归 BML。
 - Memory CRUD 不走审批，遵循已经冻结的 `MEMORY-APPROVAL-CLEAN-BREAK` 决策。
 - 不再保留一份文件型、section 型或 Prompt 全量注入型长期记忆。
+- 工具审批账本 `governance.db` **不**随本条搬家。
 
 ### S2：非兼容删除 `memory_md` 长期记忆链路
 

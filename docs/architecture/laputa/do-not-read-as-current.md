@@ -17,5 +17,8 @@
 | 根目录旧 `USER.md`（retire 源）= 新 `USER.MD` | 文件名撞车 | 不是同一文件 |
 | MEMRULES 是 Laputa 认知文件 / Persona 左栏只读 | `.laputa/cognitive/MEMRULES.MD`、GUI `memrules`+`world` 组 | **S9/P21**：手册在 `{config_dir}/memory/`；Memory 设置可编；不进人格 |
 | MEMRULES 整本常驻 Prompt，或永远不给写记忆的模型看 | 旧 `context_plane_invariants` 一刀切 | 日常禁全文；写记忆时注入（对标 GA L0） |
+| 一台机器多个 Diva profile / 多套人格约会 | 旧「一份 profile 一套」字面 | **P22**：整机一份伴侣 |
+| BML 按 git 仓库各开一套 | 工作区 `.laputa/memory.sqlite3` | **S1 修订**：跟人格走 |
+| `memory_distill` 新建 Skill 静默直写 | `typed_provider` 现行 | **D7**：一律 Evolution 人审 |
 
 决策摘要若与 6 月 `docs/decisions/laputa-memory-governance-history-2026-06.md` 冲突，以 8 月决策和本目录 `architecture.md` 为准。

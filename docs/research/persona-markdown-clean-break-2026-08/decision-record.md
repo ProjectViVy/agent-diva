@@ -2,7 +2,7 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道；同日 `WORLD.MD` 改走工具、不做动态加载；同日 **P21** MEMRULES 不是人格文件
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道；同日 `WORLD.MD` 改走工具、不做动态加载；同日 **P21** MEMRULES 不是人格文件；同日 **P22** 整机一份伴侣、不按 profile 再开一套人格
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
@@ -66,9 +66,10 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 - 禁止小写或大小写混用文件名（`identity.md`、`User.md`、`dark.md` 均非法）。
 - 一个对象对应一个文件。不得把多个旧文件合并映射到同一对象。
 - 不得复用 `.laputa/sections/` JSON 目录。
-- **七份权威在同一目录。** 一个 Diva（一份 profile / 一套治理）只有这一套人格文件，
-  不按 git 项目再复制一套。目录绝对路径仍可由 D1 写死为 deletion-proof 契约，
-  但不得再拆成「WORLD 另放一个子目录」或「每个 workspace 一套人格」。
+- **七份权威在同一目录。** 不按 git 项目再复制一套。不得再拆成「WORLD 另放一个子目录」。
+- **整机一份（P22）。** 不是「每个 profile 再开一套 Diva」。目录绝对路径仍由 D1 写死，
+  但必须落在整机 agent-diva 家里（与 ACTMEM / MEMRULES / BML 同一套家），不得做成
+  per-workspace，也不得提供「再建一个伴侣」的产品入口。
 - `WORLD.MD` 与其它六份同目录、同套治理。
 
 ### P14：每份权威都有字数上限；DREAM 的 Frozen Core 为 10 字
@@ -254,6 +255,20 @@ Laputa 车道，也不得把它塞进 Frozen Core。
 - Persona 左栏只保留七份。禁止继续把 `memrules` 和 `world` 绑成「认知治理」只读组。
 - 人若要看或改手册，去 Memory 设置/规则窗口，见 **S9**。
 - 不得用 P18「加第八种」把 MEMRULES 加进种类表。它根本不是人格种类。
+
+### P22：整机一份伴侣
+
+用户原话要义：整机 agent-diva **共用一份人格**。哲学是——与其跟多个 agent 卿卿我我，
+不如考虑如何更好对待你当前这个伙伴。这是故意的、有点别扭但成立的小设计；
+和后续 AGENT-VIVY 那种大型 agent 协作系统是另一条哲学，不要用「多人格 /
+多 profile 约会」去补。
+
+冻结：
+
+1. 一台机器、一个用户目录下的 agent-diva，**只有一套**七文件。
+2. 禁止产品化「第二个 Diva / 另一套 IDENTITY」。v1 不提供多伴侣切换。
+3. 这套家同时住人格、BML（S1 修订）、ACTMEM、MEMRULES。绝对路径 D1 写死。
+4. 不要为了以后 Vivy 协作预留第二套人格目录。协作若来，是另一套系统，不是再谈一次恋爱。
 
 ### P2：Persona 页面是人格文档工作区，不是安全审批中心
 
@@ -516,6 +531,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    ACTMEM 整份走工具。
 9. P19/D6：AutoDream 可诞生 Evolution 提案，提炼结果为 SOP/Skill 文件；不可 apply。
 10. P21：MEMRULES 不是人格文件，不进七文件、不进 Persona 左栏；手册政策见 S9。
+11. P22：整机一份伴侣；不按 profile / git 项目再开一套人格。
 
 ## 被取代的依据
 

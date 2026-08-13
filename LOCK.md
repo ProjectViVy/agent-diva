@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-d0-domain-authority-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d0-domain-authority/`; `docs/research/README.md`
+- Scope: `docs/research/cognitive-d0-domain-authority-2026-08/`; `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`; `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/architecture/`; `LAPUTA.md`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d0-domain-authority/`
 - Owner: `Grok`
-- Session/Task: `Draft D0 domain-authority ADR after coupling research`
+- Session/Task: `Freeze D0 A/B/C: one-machine companion, BML follows, distill reviewed`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-14T21:00:00+08:00`
-- Last Heartbeat: `2026-08-14T22:10:00+08:00`
+- Started At: `2026-08-14T22:40:00+08:00`
+- Last Heartbeat: `2026-08-14T23:05:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Freeze D0 A/B/C` — **RELEASED 2026-08-14T23:05:00+08:00**
+  by `Grok`; P22 + S1 revision + D7. No production code.
 
 - `Draft D0 domain-authority ADR` — **RELEASED 2026-08-14T22:10:00+08:00**
   by `Grok`; D0 design draft + architect review fixes. No production code.
@@ -160,6 +163,10 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-14T23:05:00+08:00`: Released after freezing D0 A/B/C as P22 / S1
+  revision / D7. One-machine companion; BML follows persona; distill always
+  Evolution review. Docs only.
 
 - `2026-08-14T22:10:00+08:00`: Released after D0 design draft. Open questions
   A/B/C in domain-authority.md §11. Docs only.

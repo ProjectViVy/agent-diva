@@ -1,6 +1,6 @@
 # D0 总体认知领域与权威图
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Design Draft / A-B-C Frozen / Remainder Awaiting Review`
 - 日期：2026-08-14
 - 性质：跨域架构合同。**不是** Architecture Gate，**不改**生产代码。
 - 正文：[domain-authority.md](./domain-authority.md)
@@ -19,5 +19,5 @@
 ## 读法
 
 1. 先读 `domain-authority.md` §1 调研结论和 §2 领域卡。
-2. 再读 §5 禁止依赖、§11 待确认。
-3. 已冻产品以 P/S/D 原文为准。本包与之打架先改本包；**待确认**条不得当已冻。
+2. 再读 §5 禁止依赖、§11 已拍的 A/B/C。
+3. 已冻产品以 P/S/D 原文为准。A/B/C 已拍（P22 / S1 修订 / D7）。其余 D0 仍待整体点头。

@@ -1,6 +1,6 @@
 # D0 — 总体认知领域与权威图
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Design Draft / A-B-C Frozen / Remainder Awaiting Review`
 - 日期：2026-08-14
 - 性质：跨域 ADR。把已冻产品收成一张可检查的权威图，让 D1/D2/D3 不能各自发明第二权威。
 - **不是** Architecture Gate，**不授权**改生产认知主链，**不切**保护分支。
@@ -12,7 +12,8 @@
 - Evolution D1–D6
 - [Laputa 汇总](../../architecture/laputa/architecture.md)
 
-**本包里带「待确认」的不是已冻产品**，是调研后补上的跨域缺口。未拍板前，D1/D2 不得按它们写 deletion-proof。
+**A / B / C 已拍（2026-08-14）。** 整机一份伴侣（P22）；BML 跟人格走（S1 修订）；
+`memory_distill` 一律 Evolution 人审（D7）。其余 D0 正文仍待整体点头，不是 Architecture Gate。
 
 ---
 
@@ -64,20 +65,18 @@ Persona JSON + memory_md + BML 人格 kind + AutoDream 候选
 
 ### 2.0 Scope 轴（三层）
 
-| 轴 | 含义 | 已冻谁在这 | 未冻 / 待确认 |
-| --- | --- | --- | --- |
-| **Session** | 一次聊天 | SessionCheckpoint、`canonical_checkpoint_v1`、transcript | — |
-| **Diva / profile** | 一个 Diva 一套 | 七份人格（P13：不按 git 项目复制） | **BML、`governance.db` 跟不跟人格走**（见下） |
-| **`{config_dir}`** | 今日实现是机器用户目录 `~/.agent-diva`，**不是** per-profile | ACTMEM、MEMRULES（S8/S9：跨项目一份，不进项目 `.laputa/`） | 两个 Diva profile 是否共用这一份（待确认 A） |
+| 轴 | 含义 | 住在这 |
+| --- | --- | --- |
+| **Session** | 一次聊天 | SessionCheckpoint、`canonical_checkpoint_v1`、transcript |
+| **整机一份家** | 一台机器上的 agent-diva 只有一个伴侣 | 七份人格、BML `memory.sqlite3`、ACTMEM、MEMRULES。绝对路径 D1/D2 写死，须同一父家 |
+| **工作区（不跟家走）** | 某个 git checkout 的运行时安全 | `governance.db`（危险工具）。**不**因 P22/S1 搬家 |
 
-**已冻、不得类推改写：**
+**已冻哲学（P22 / D0-A）：** 与其跟多个 agent 卿卿我我，不如更好对待当前这个伙伴。
+禁止第二套人格 / 多 profile 约会。这和 AGENT-VIVY 式大型协作是另一条路，不要预留。
 
-- BML 权威字面量仍是 **`.laputa/memory.sqlite3`**（S1）。今日实现是 **workspace** `.laputa/`。
-- 工具审批账本今日在工作区 `.laputa/governance.db`。权威归 Chat Approval，**不是**人格资产。
+**已冻（D0-B / S1 修订）：** BML 跟人格走，整机共用一套 LTM。工作区 `.laputa/memory.sqlite3` 是旧落点。
 
-**待确认 B（新产品，不是 P13 的推论）：** 同一 Diva 换 git 仓库时，BML 是跟人格走（一套 LTM），还是留在各仓库 `.laputa/`（项目事实各一套）。两边都说得通。未拍之前 D2 **不得**把 BML 搬出 S1 路径。`governance.db` 跟不跟搬是另一件事，不要和 BML 绑死。
-
-Skill 落点相对哪一层：**轴必须在本包锁死，格由 D3 选**。今日是 `workspace/skills/`。D3 必须显式选 per-git / per-Diva / 与 ACTMEM 同全局，禁止默契跟 workspace。
+Skill 落点：**轴跟这份家**（能力属于这个伴侣，不是属于某个 git 仓库）。文件形态仍 D3。今日 `workspace/skills/` 是旧实现。
 
 P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Persona，D1 设计存放与校验。D2/D3 禁止另建平行「权威花名册」。MEMRULES / ACTMEM / BML / Skill 都不是第八种人格。
 
@@ -86,7 +85,7 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | 项 | 合同 |
 | --- | --- |
 | 权威 | 同目录七份 Markdown：`IDENTITY.MD`（含身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD` |
-| Scope | 一个 Diva 一套。禁止 per-git-workspace 复制。WORLD 不得另放子目录 |
+| Scope | 整机一份家（P22）。禁止 per-git、禁止第二套伴侣。WORLD 不得另放子目录 |
 | 不是 | Memory、ACTMEM、MEMRULES、Skill、审批、JSON section |
 | 写入 | 见 §3。用户直存；Agent 改 IDENTITY/RELATIONSHIP/REDLINE/WORLD/USER 偏好 **必须 P5**（读 WORLD 走工具，写 WORLD 不是工具豁免）；DREAM/DARK/USER 观察走 P16 直写；AutoDream 只按 P19 提案、不可 apply |
 | 建家 | D1 可建人格目录。**不得**预创建 BML / ACTMEM / MEMRULES / 空壳 WORLD |
@@ -98,8 +97,8 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 
 | 项 | 合同 |
 | --- | --- |
-| 权威 | typed SQLite + FTS5，路径字面量 **`.laputa/memory.sqlite3`**（S1）。普通长期记忆**唯一**生产权威 |
-| Scope | 今日 = 工作区 `.laputa/`。是否改成与人格同一 Diva 家 = **待确认 B**。未拍板前保持 S1 |
+| 权威 | typed SQLite + FTS5，文件名 `memory.sqlite3`。普通长期记忆**唯一**生产权威 |
+| Scope | **跟人格走**（D0-B）。与七文件同一套整机家。工作区 `.laputa/memory.sqlite3` 删除为产品落点 |
 | 不是 | 人格正文、ACTMEM、SessionCheckpoint 的产品名、Skill |
 | 写入 | CRUD 直写。不建 Proposal，不进 Evolution，不进 Approval，不进 Governance Ledger |
 | 历史 | record revision + 软删 / 墓碑。误操作靠精确目标、历史、撤销 |
@@ -113,7 +112,7 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | 项 | 合同 |
 | --- | --- |
 | 权威 | `{config_dir}/actmem/ACTMEM.MD` 一份 Markdown |
-| Scope | 全局一份，跨项目。不进 Diva `.laputa/`，不进 sqlite，不是七文件 |
+| Scope | 整机一份家，与人格/BML 同套。不进某个 git 的 `.laputa/`，不进 sqlite，不是七文件 |
 | 不是 | BML、transcript、`canonical_checkpoint_v1`、SessionCheckpoint |
 | 写入 | 系统写 Pulse / 空闲胶囊；聊天 Agent 与 AutoDream **直写整理**；用户 Memory 页直改。都不审批 |
 | 历史 | 胶囊另存。具体 schema D2。v1 不自动晋升 BML / Skill |
@@ -138,7 +137,7 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | 项 | 合同 |
 | --- | --- |
 | 权威 | `{config_dir}/memory/MEMRULES.MD`；缺则内置 R1–R7 |
-| Scope | 与 ACTMEM 一样按 `{config_dir}` 全局。不进 Laputa，不进 sqlite |
+| Scope | 整机一份家，与人格/BML/ACTMEM 同套。不进 Laputa，不进 sqlite |
 | 不是 | 人格种类（禁止用 P18 加第八种）、WORLD 姊妹文件、操作避坑 L1 `[RULES]` |
 | 写入 | v1 **只给人**在 Memory 设置改。Agent / AutoDream / Skill 不得 patch |
 | 投影 | 日常不进全文；常驻最多几行指针；**写记忆时**才注全文（AutoDream 整理 ACTMEM、BML 直写、将来蒸馏）。自动写 Pulse / 胶囊不为此塞全文 |
@@ -148,10 +147,10 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | 项 | 合同 |
 | --- | --- |
 | 权威（落地后） | `skills/<name>/SKILL.md` + `SkillsLoader`。SOP 与 Skill 的文件关系 **D3** 定，但提炼结果就是这类文件（D6） |
-| Scope | 落点 D3 定。不得变成第二套人格或第二套 LTM |
+| Scope | **跟这份家**（伴侣的能力，不是仓库的能力）。文件形态 D3。今日 `workspace/skills/` 旧 |
 | 不是 | Persona 沉淀、BML、旧 Governance Inbox、`SopCreate→Identity` |
 | 写入 | AutoDream **只诞生提案**，不可 apply、不可静默直写 Skill（D6）。Settings Skills 是安装投影，不是第二权威 |
-| `memory_distill` | **待确认 C（新规则，D6 没点名这条工具）。** 建议：新建也进 Evolution 人审，取消「新建静默、覆盖才审」。S9 只负责「若这次是在写 Skill 提案，灌 MEMRULES 全文」。未拍之前 D3 不得默认保留静默直写 |
+| `memory_distill` | **已冻 D7 / D0-C：一律 Evolution 人审。** 取消新建静默。不是 Chat Approval。S9 只负责灌手册全文 |
 | 投影 | 现 C1 Skills 段保留。D3 设计时用密度尺子：巩固是为了减负，不是把 SOP 全文塞进稳定前缀 |
 
 AutoDream 运行器、报告、Notebook **不是** LTM / 人格 / ACTMEM，**不进** Prompt。去留 D3/D4。
@@ -160,7 +159,7 @@ AutoDream 运行器、报告、Notebook **不是** LTM / 人格 / ACTMEM，**不
 
 | 项 | 合同 |
 | --- | --- |
-| 权威 | 危险工具运行时授权。账本 `governance.db` **只服务这一域**。位置今日在工作区 `.laputa/`；是否随人格搬家 = 与待确认 B **分开拍**，不要绑死 |
+| 权威 | 危险工具运行时授权。账本 `governance.db` **只服务这一域**。位置留在工作区，**不**跟人格家走 |
 | 不是 | Memory CRUD、Persona 审查、STM 维护、Evolution 人审、首次引导 |
 | 删除面 | Approval `domain=memory`、`MemoryApply`、Persona 右栏通用治理、把 Evolution inbox 当 Memory/Persona 入口 |
 | `governance.sqlite3` | **DELETE**（Memory 提案映射双账本） |
@@ -178,7 +177,7 @@ D1/D2/D3 不得各自发明 AutoDream 权限。
 | 用户 Persona 页 | 直存（P16 直写例外见下） | 直存 | — | — | — | — | — |
 | 用户 Memory 页 | — | — | 直写 CRUD | 直改 | 直改 | — | — |
 | 用户 Evolution 页 | — | — | — | — | — | 接受/拒绝提案 | — |
-| 聊天 Agent | 审查集 → P5；DREAM/DARK/USER 观察 → P16 | **读走工具；写走 P5**（用户直存除外） | 直写 CRUD | 日常维护直写 | 禁 | 禁静默直写（distill 见待确认 C） | 危险工具走 Approval |
+| 聊天 Agent | 审查集 → P5；DREAM/DARK/USER 观察 → P16 | **读走工具；写走 P5**（用户直存除外） | 直写 CRUD | 日常维护直写 | 禁 | 一律 Evolution 人审（D7） | 危险工具走 Approval |
 | AutoDream | **只按 P19 提案**，不可直写、不可 apply | 只提案新 claim；不覆盖 `confirmed+source=user` | **禁**（禁 MemoryPatch） | **必须整理直写** | 禁 | **只诞生提案**，不可 apply | 不走 |
 | 系统（发言/空闲） | — | — | — | Pulse / 胶囊 | — | — | — |
 | 首次引导 | 五份原子直写 | 同左 | — | — | — | — | — |
@@ -230,7 +229,7 @@ P20 三条车道闭集。不得为手册或 ACTMEM 另开第四条 Laputa 车道
 13. WORLD / ACTMEM **不得**重回 Frozen Core 或动态加载。
 14. 子代理 **不得**读或写人格 / ACTMEM / BML。本阶段不设计装配。
 15. Evolution Inbox **不得**列出或 apply 人格 / Memory 提案。
-16. AutoDream **不得**静默覆盖 Skill。`memory_distill` 见待确认 C；未确认前不得把「新建静默」写成产品。
+16. AutoDream 与 `memory_distill` **都不得**静默写 Skill。蒸馏一律 Evolution 人审（D7），不是 Approval Center。
 17. 任何 D 包 **不得**以双读、启动导入、fallback 绕过本图。
 18. 清某一权威 **不得**级联删除另一权威。
 
@@ -246,7 +245,7 @@ P20 三条车道闭集。不得为手册或 ACTMEM 另开第四条 Laputa 车道
 | 4 | `governance.db` vs `governance.sqlite3` | 前者 KEEP 仅危险工具；后者 DELETE |
 | 5 | FC vs Typed L1 vs `LaputaMemoryProvider` | FC = MD 投影；L1 = 仅 BML 索引；文件五段 JSON DELETE |
 | 6 | WORLD MD vs WorldGovernance vs `project()` | 权威 = `WORLD.MD`。`project()` 不作默认装配。队列去留 D1 |
-| 7 | Skill 树 vs distill vs Evolution vs Settings | 权威 = `SKILL.md`。AutoDream 必须人审（D6）。`memory_distill` 一律人审 = 待确认 C。形态与 scope 格 D3 选 |
+| 7 | Skill 树 vs distill vs Evolution vs Settings | 权威 = `SKILL.md`。写入一律 Evolution 人审（D6+D7）。scope 跟整机家；形态 D3 |
 | 8 | Approval memory 域 vs Evolution inbox vs Persona 右栏 | 对 Persona/Memory 全部 DELETE。三套状态机分账 |
 
 已被 8/14 决策改判、不再 DECIDE 的：MEMRULES（S9/P21）、ACTMEM 物理与车道（S8）、WORLD 工具车道（P20）、AutoDream 进化路线（D6）。
@@ -302,9 +301,9 @@ Persona 不跑 AutoDream。Evolution 不审人格。Memory 不打开 Approval。
 
 ## 9. 交给 D1–D4
 
-- **D1** 按 §2.1 换 Markdown 载体、审查状态机、引导、历史。不得把 MEMRULES 放回左栏，不得接 `project()` 当默认上下文，不得把人格做成 per-workspace。建目录不得预建 BML/ACTMEM/MEMRULES。
-- **D2** 按 §2.2–2.5 落 BML CRUD、ACTMEM 文件与工具、SessionCheckpoint 改名、MEMRULES 搬家与写入时刻注入。不得把 ACTMEM 塞进 C1 正文，不得把 BML 做成第二套人格。BML 搬家前必须先有待确认 B 的书面修订（含 SessionCheckpoint 的 session 身份仍按 session 隔离）。
-- **D3** 按 D6 + §2.6 设计提案面和 SOP/Skill 文件。必须先选 Skill 的 scope 格。不抄 GA 进化。不把报告做成 LTM。
+- **D1** 按 §2.1 + P22 把七文件落到**整机一份家**。不得 per-workspace，不得做多伴侣入口，不得把 MEMRULES 放回左栏，不得接 `project()` 当默认上下文。建家目录不得预建空壳 WORLD；BML/ACTMEM/MEMRULES 文件由各域首次真实写入创建。
+- **D2** 把 `memory.sqlite3` 放进同一套家（S1 修订）。SessionCheckpoint 行仍按 session 隔离（同一库、不同 session_id）。不得把 ACTMEM 塞进 C1 正文，不得把 BML 做成第二套人格。
+- **D3** 按 D6 + D7 + §2.6 设计提案面和 SOP/Skill 文件。Skill 跟这份家。蒸馏一律人审。不抄 GA 进化。不把报告做成 LTM。
 - **D4** 把 §5 变成扫描族和切片。用户叫切再切备份。
 
 密度尺子（GA 对照笔记）：常驻只留存在性 + 人格永冻；巩固为减负。D0 不另开原则文档，D1–D3 对照即可。
@@ -325,20 +324,12 @@ Persona 不跑 AutoDream。Evolution 不审人格。Memory 不打开 Approval。
 
 ---
 
-## 11. 待你拍的缺口（调研后才看见）
+## 11. A / B / C 已拍（2026-08-14）
 
-这三问不是实施细节。不拍，D1/D2 会各写一套家。
+| 问 | 决定 | 落点 |
+| --- | --- | --- |
+| A | 整机 agent-diva **共用一份人格**。哲学：与其跟多个 agent 卿卿我我，不如更好对待当前伙伴。不是 Vivy 式多 agent 协作 | **P22** |
+| B | BML **跟人格走**，共用一套。`governance.db` 不绑 | **S1 修订** |
+| C | `memory_distill` **一律入审** = Evolution 人审，不是 Approval Center | **D7** |
 
-### A. `{config_dir}` 是机器一份，还是每个 Diva 一份？
-
-今日 `~/.agent-diva`。S8/S9 写的是跨**项目**一份。两个 Diva profile 会不会共用同一份 ACTMEM / MEMRULES？
-
-### B. BML 跟人格走，还是留在各仓库 `.laputa/`？
-
-P13 只冻了人格不 per-git。S1 字面量仍是工作区 `.laputa/memory.sqlite3`。同一人格换仓库时，LTM 连续还是按项目分开？`governance.db` 分开拍，不要绑在 B 上。
-
-### C. 聊天 `memory_distill` 新建 Skill 还能否静默直写？
-
-D6 只管 AutoDream。建议一律进 Evolution 人审。若你要留「新建静默」，也写进本包。
-
-WORLD 写权已改回 P16：**读工具，写 P5**。这条不再问。
+WORLD 写权仍是 P16：读工具，写 P5。

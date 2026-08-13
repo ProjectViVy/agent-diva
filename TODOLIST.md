@@ -29,7 +29,9 @@
 - Persona 权威为 `IDENTITY.MD`（含当前身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` /
   `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK
   不进首次引导；DARK 为 FEAR/SHADOW 双展位。v1 种类闭集；架构可加、用户不可加。
-  历史永久保留。
+  历史永久保留。**P22：整机一份伴侣**，不按 profile / git 再开一套。
+- BML `memory.sqlite3` **跟人格走**（S1 修订），与七文件同一套家。工作区
+  `.laputa/memory.sqlite3` 是旧落点。`memory_distill` 一律 Evolution 人审（D7）。
 - Evolution 管理人审后的能力文件。Diva 特色（**D6**）：AutoDream 整理 ACTMEM，
   **诞生进化提案**，提炼结果为 **SOP/Skill 文件**；不可 apply。人格提案走 P5。
   禁止 BML/`MemoryPatch`。旧混域 Inbox 仍删。不再以 GA 为进化参考。
@@ -114,10 +116,10 @@
 ### Architecture Gate：全部 Research 通过用户评审后才能开始
 
 - [ ] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0`
-  **设计稿已交（2026-08-14），待用户评审：**
+  **设计稿已交；A/B/C 已拍（2026-08-14）。** 正文：
   [`docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。
-  待确认：A `{config_dir}` 是否 per-Diva；B BML 是否跟人格走（S1 暂保持 workspace
-  `.laputa/`）；C `memory_distill` 是否一律人审。通过本条 ≠ 改生产代码。
+  P22 整机一份伴侣；S1 BML 跟人格；D7 蒸馏一律人审。D0 其余待整体点头。
+  通过本条 ≠ 改生产代码。
 
 - [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0` `blocked:D0`
   研究通过后设计 Markdown 权威、revision/Diff、直接保存、专属内容审查、Frozen Core、

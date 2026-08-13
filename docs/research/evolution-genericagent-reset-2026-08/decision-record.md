@@ -2,7 +2,7 @@
 
 - 状态：`Product Path Frozen / Design Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` **D6** Diva 特色路线：AutoDream 整理并诞生进化提案，提炼结果为 SOP/Skill 文件；不再以 GA 为进化参考
+- 修订：`2026-08-14` **D6** Diva 特色路线：AutoDream 整理并诞生进化提案，提炼结果为 SOP/Skill 文件；不再以 GA 为进化参考；同日 **D7** 聊天蒸馏一律 Evolution 人审
 - 性质：产品边界决策；不是实施规格
 
 ## 背景判断
@@ -82,6 +82,15 @@ Governance Ledger、Recall 反馈、审计与回滚集中在同一产品表面�
 6. SOP 与 Skill 是一份文件、两份文件还是 Skill 包里的写法，由 D3 设计；**不得**再把「没有 GA 式 Skill 系统」理解成「AutoDream 不能产能力文件」。
 
 这是产品主叙事，不是调研建议。
+
+### D7：聊天蒸馏一律进 Evolution 人审
+
+用户确认（D0-C）：`memory_distill` **一律入审**。不是 Chat Approval Center，不是
+Governance Ledger。和 AutoDream 诞生的能力提案走同一条 Evolution 人审。
+
+- 取消「新建 Skill 静默直写、覆盖才审」。
+- S9 只负责写这条提案时灌 MEMRULES 全文。
+- 本条不改 SOP/Skill 文件形态（仍 D3）。
 
 ## GenericAgent 当前核查事实
 

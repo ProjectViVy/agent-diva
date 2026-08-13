@@ -235,8 +235,8 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 
 **进展（2026-08-14）：** 设计稿已交
 [`../cognitive-d0-domain-authority-2026-08/domain-authority.md`](../cognitive-d0-domain-authority-2026-08/domain-authority.md)。
-状态：`Design Draft / Awaiting User Review`。含 MEMRULES。三问待确认（`{config_dir}`
-是否 per-Diva、BML 是否跟人格走、`memory_distill` 是否一律人审）。不改生产代码。
+状态：`Design Draft / A-B-C Frozen`。P22 整机一份伴侣；S1 BML 跟人格；D7 蒸馏一律人审。
+不改生产代码。
 
 #### D1 — Persona、WORLD、首次初始化与历史架构
 

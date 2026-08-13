@@ -14,13 +14,13 @@
 
 Laputa 是 Diva 的**人格与认知治理面**：人能打开的 Markdown 权威、内容审查、完整历史、Frozen Core 投影。它不是数据库，不是 Agent 循环，不是调度器，不是 BML，不是 ACTMEM，不是 Skill。
 
-一个 Diva（一份 profile / 一套治理）**只有一套**人格文件。七份权威放在**同一个目录**。不按 git 项目再复制一套。
+整机 agent-diva **只有一套**人格（P22）：七份权威同一目录。不按 git 项目复制，也不按 profile 再开一套伴侣。哲学：更好对待当前这个伙伴，而不是跟多个 agent 卿卿我我。
 
 和它分开、但经常被叫错名字的东西：
 
 | 名字 | 是什么 | 不是 Laputa 七文件 |
 | --- | --- | --- |
-| **BML** | 普通长期记忆（LTM）唯一权威，`.laputa/memory.sqlite3` | 是 |
+| **BML** | 普通长期记忆（LTM）唯一权威；`memory.sqlite3` 跟人格同一套家 | 是 |
 | **ACTMEM.MD** | 跨会话活动记忆文件（STM 概念的落地文件名） | 是 |
 | **Session transcript** | 某个聊天的原文 | 是 |
 | **SessionCheckpoint / working_memory** | 会话级草稿，结束可清 | 是 |
@@ -137,7 +137,7 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 
 ## 7. BML
 
-`.laputa/memory.sqlite3` typed SQLite + FTS5 是普通长期记忆唯一生产权威。  
+typed SQLite + FTS5 是普通长期记忆唯一生产权威。文件名 `memory.sqlite3`，**跟人格走**（整机一份家）。工作区 `.laputa/memory.sqlite3` 是旧落点。  
 `memory_md` / `MemoryMd` / `MEMORY.md` 长期记忆链路 **clean-break 删除**，不自动导入。  
 Memory CRUD 不走审批。STM/ACTMEM 清理不得删 BML；反之亦然。
 
@@ -175,7 +175,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
 - D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
-- D0 设计稿已交（待评审）：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。待确认：`{config_dir}` 是否 per-Diva、BML 是否跟人格走、`memory_distill` 是否一律人审。
+- D0 设计稿：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。**A/B/C 已拍**（P22 整机一份伴侣、BML 跟人格、蒸馏一律人审）。其余待整体点头。
 
 ---
 

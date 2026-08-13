@@ -18,7 +18,7 @@
 | 领域 | 当前依据 | 状态 |
 | --- | --- | --- |
 | 总体编排 | [`cognitive-workspace-reset-epic-2026-08`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) | Research Gate 分域通过；D0 设计稿待评审 |
-| **D0 权威图** | [`cognitive-d0-domain-authority-2026-08`](../research/cognitive-d0-domain-authority-2026-08/domain-authority.md) | 设计稿；不是 Architecture Gate |
+| **D0 权威图** | [`cognitive-d0-domain-authority-2026-08`](../research/cognitive-d0-domain-authority-2026-08/domain-authority.md) | 设计稿；A/B/C 已拍；不是 Architecture Gate |
 | 当前实现盘点 | [`cognitive-r0-current-state-2026-08`](../research/cognitive-r0-current-state-2026-08/README.md) | 事实地图；不是目标架构 |
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |
