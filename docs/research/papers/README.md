@@ -13,6 +13,7 @@
 | 2210.03629 | ReAct (Yao et al., 2022) | `2210_03629.{md,pdf}` | T2 相关架构 - Reasoning + Acting 交错范式 |
 | 2303.11366 | Reflexion (Shinn et al., NeurIPS 2023) | `2303_11366.{md,pdf}` | T2 相关架构 - 言语强化学习，self-improve 思路 |
 | 2212.08073 | Constitutional AI (Bai et al., Anthropic 2022) | `2212_08073.{md,pdf}` | T2 相关架构 - 原则驱动的 AI 行为约束 |
+| 2604.17091 | GenericAgent (Liang/Han et al., A3 Lab 2026) | `genericagent.md` | R1c 直接相关 - 自我进化叙事；对照源码见 R1 `ga-autonomy-origin.md` |
 
 ## 解析说明
 
@@ -27,3 +28,4 @@
 2. **对话系统框架**: Proactive Dialogue Systems 论文
 3. **自我改进机制**: Self-Improvement Survey 和 Reflexion 论文
 4. **代理架构**: ReAct 和 Constitutional AI 论文
+5. **GenericAgent 自我进化**: `genericagent.md`（arXiv:2604.17091）；以本地 GA 源码为准，论文更满

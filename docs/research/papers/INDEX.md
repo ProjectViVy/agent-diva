@@ -15,6 +15,7 @@
 | 2210.03629 | ReAct (Yao et al., 2022) | `2210_03629.{md,pdf}` |
 | 2303.11366 | **Reflexion** (Shinn et al., NeurIPS 2023) | `2303_11366.{md,pdf}` |
 | 2212.08073 | Constitutional AI (Bai et al., Anthropic 2022) | `2212_08073.{md,pdf}` |
+| 2604.17091 | **GenericAgent** (Liang/Han et al., 2026) | `genericagent.md` |
 
 ## 解析踩到的坑(下次避坑)
 

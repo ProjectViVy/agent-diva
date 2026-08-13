@@ -124,6 +124,7 @@ L4 是 scheduler 每 12h 压缩 `temp/model_responses`，不是 Skill 晋升。
 正式技术报告：
 
 - Liang, Han, et al. **GenericAgent: A Token-Efficient Self-Evolving LLM Agent via Contextual Information Density Maximization (V1.0)**
+- **本地副本：** [`../papers/genericagent.md`](../papers/genericagent.md)（2026-08-14 用户放入 `docs/research/papers/`）
 - arXiv：**[2604.17091](https://arxiv.org/abs/2604.17091)**（2026-04-18）
 - PDF：https://arxiv.org/pdf/2604.17091
 - HTML：https://arxiv.org/html/2604.17091v1
