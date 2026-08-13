@@ -176,7 +176,8 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - 子代理如何装配上下文（明确本阶段不做）。
 - D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
 - D0 设计稿：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。**A/B/C 已拍**（P22 整机一份伴侣、BML 跟人格、蒸馏一律人审）。其余待整体点头。
-- D1 设计稿：[`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。待评审。
+- D1：**已批准** [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
+- D2 设计稿：[`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。待评审。
 
 ---
 

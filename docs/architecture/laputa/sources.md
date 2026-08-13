@@ -8,7 +8,8 @@
 | --- | --- |
 | 总编排与门禁 | [`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](../../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) |
 | D0 权威图（设计稿） | [`docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md) |
-| D1 Persona（设计稿） | [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md) |
+| D1 Persona（**已批准**） | [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md) |
+| D2 Memory（设计稿） | [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md) |
 | Persona / WORLD / 审查 / 历史 / P14 字数 / P20 车道 | [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](../../research/persona-markdown-clean-break-2026-08/decision-record.md) |
 | STM / BML / ACTMEM / S7–S9 MEMRULES | [`docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`](../../research/stm-cross-session-clean-break-2026-08/decision-record.md) |
 | ACTMEM 分层方案（未全部批准） | [`docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md`](../../research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md) |

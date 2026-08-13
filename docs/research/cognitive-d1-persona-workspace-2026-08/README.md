@@ -1,6 +1,6 @@
 # D1 Persona / WORLD / 首次初始化 / 历史
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Approved / Implementation Pending`
 - 日期：2026-08-14
 - 正文：[persona-architecture.md](./persona-architecture.md)
 - 上游：P1–P22、D0、R3 三份完成物

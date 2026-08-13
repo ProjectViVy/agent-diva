@@ -121,15 +121,15 @@
   P22 整机一份伴侣；S1 BML 跟人格；D7 蒸馏一律人审。D0 其余待整体点头。
   通过本条 ≠ 改生产代码。
 
-- [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0`
-  **设计稿已交（2026-08-14），待用户评审：**
+- [x] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
   [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
-  `{config_dir}/persona/`；一文件一条 pending；WORLD 同引擎。通过 ≠ 改生产代码。
+  仍不改生产代码。
 
-- [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0` `blocked:D0`
-  研究通过后设计 BML CRUD、STM 权威/自动化、SessionCheckpoint 分离、Layer 1 装配、
-  并发失败恢复、历史和 Memory/STM GUI。含 **S9**：MEMRULES 搬出 Laputa、Memory
-  设置编辑面、写入时刻注入手册、常驻指针、R1–R7 与生产策略对齐。
+- [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0`
+  **设计稿已交（2026-08-15），待用户评审：**
+  [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
+  通过 ≠ 改生产代码。
 
 - [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
   按 **D6**：AutoDream 诞生进化提案，提炼结果为 SOP/Skill 文件。设计审查面、

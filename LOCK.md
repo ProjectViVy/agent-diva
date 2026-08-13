@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-d1-persona-workspace-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/research/README.md`; `docs/logs/2026-08-cognitive-d1-persona/`
+- Scope: `docs/research/cognitive-d1-persona-workspace-2026-08/`; `docs/research/cognitive-d2-memory-stm-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/research/README.md`; `docs/logs/2026-08-cognitive-d1-persona/`; `docs/logs/2026-08-cognitive-d2-memory/`
 - Owner: `Grok`
-- Session/Task: `Draft D1 Persona/WORLD/init/history architecture`
+- Session/Task: `Approve D1; draft D2 Memory/ACTMEM/checkpoint architecture`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-14T23:20:00+08:00`
-- Last Heartbeat: `2026-08-15T00:10:00+08:00`
+- Started At: `2026-08-15T00:20:00+08:00`
+- Last Heartbeat: `2026-08-15T01:15:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Approve D1 and draft D2` — **RELEASED 2026-08-15T01:15:00+08:00**
+  by `Grok`; D1 approved; D2 draft + review fixes. No production code.
 
 - `Draft D1 Persona architecture` — **RELEASED 2026-08-15T00:10:00+08:00**
   by `Grok`; D1 design draft + review fixes. No production code.
@@ -166,6 +169,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T01:15:00+08:00`: Released after D1 user approval and D2 design
+  draft. D2 awaits review. Docs only.
 
 - `2026-08-15T00:10:00+08:00`: Released after D1 Persona design draft. Path
   `{config_dir}/persona/`. Awaiting user review. Docs only.

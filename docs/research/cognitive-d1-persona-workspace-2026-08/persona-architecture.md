@@ -1,9 +1,10 @@
 # D1 — Persona、WORLD、首次初始化与历史
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Approved / Implementation Pending`
 - 日期：2026-08-14
 - 性质：D1 架构合同。把 P1–P22 和 D0 收成可实施的目录、revision、引导、审查与 API。
 - **不是** Architecture Gate，**不授权**改生产代码。
+- 用户批准：`2026-08-15`（对话）。
 
 不得重开：P1–P22、S8/S9、D0-A/B/C、P20 三条车道。  
 依据：R3 `revision-diff-options.md`、`markdown-workspace-technical-evaluation.md`、

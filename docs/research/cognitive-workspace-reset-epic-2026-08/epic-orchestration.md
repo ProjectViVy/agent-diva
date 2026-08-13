@@ -245,13 +245,17 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 
 **进展（2026-08-14）：** 设计稿已交
 [`../cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
-状态：`Design Draft / Awaiting User Review`。目录 `{config_dir}/persona/`；一文件一条
-pending；WORLD 与六份同引擎。不改生产代码。
+状态：`Approved / Implementation Pending`（用户 2026-08-15 对话批准）。目录
+`{config_dir}/persona/`。仍不改生产代码。
 
 #### D2 — Memory、BML、STM 与上下文装配架构
 
 设计 BML CRUD、STM 权威和自动维护、SessionCheckpoint 分离、Layer 1 装配、并发/失败恢复、
 历史、GUI Memory/STM 信息架构及跨会话一致性。
+
+**进展（2026-08-15）：** 设计稿已交
+[`../cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
+状态：`Design Draft / Awaiting User Review`。不改生产代码。
 
 #### D3 — Evolution、SOP 与 Skill 架构
 
