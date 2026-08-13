@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-r4-clean-break-safety-2026-08/`, `docs/research/README.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/architecture/README.md`, `docs/research/cognitive-r0-current-state-2026-08/README.md`, `docs/research/cognitive-r2-stm-context-2026-08/README.md`, `docs/research/cognitive-r3-persona-workspace-2026-08/README.md`, `docs/logs/2026-08-cognitive-r4-clean-break-safety/`, `docs/logs/README.md`, `TODOLIST.md` (research-only R4 entries)
+- Scope: `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`, `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`, `docs/architecture/current/runtime-approval-boundary-2026-08.md`, `docs/architecture/README.md`, `TODOLIST.md`, `docs/research/cognitive-r0-current-state-2026-08/dependency-and-data-inventory.md`, `docs/research/cognitive-r3-persona-workspace-2026-08/README.md`, `docs/logs/2026-08-persona-markdown-decision/`
 - Owner: `Grok`
-- Session/Task: `COGNITIVE-R4-CLEAN-BREAK-SAFETY research package`
+- Session/Task: `Persona authority Markdown roster decision revision`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-13T20:25:00+08:00`
-- Last Heartbeat: `2026-08-13T20:55:00+08:00`
+- Started At: `2026-08-13T21:20:00+08:00`
+- Last Heartbeat: `2026-08-13T21:45:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Persona authority Markdown roster decision revision` — **RELEASED 2026-08-13T21:45:00+08:00**
+  by `Grok`; decision record P1/P13–P16 + current-boundary sync. No production code.
 
 - `COGNITIVE-R4-CLEAN-BREAK-SAFETY research package` — **RELEASED 2026-08-13T20:55:00+08:00**
   by `Grok`; documentation-only R4 research package delivered under
@@ -139,6 +142,13 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-13T21:45:00+08:00`: Released after writing authority roster into
+  the Persona decision record and syncing current product-facing entries.
+  No production source, config, or build changes.
+
+- `2026-08-13T21:20:00+08:00`: Claimed Persona authority Markdown roster
+  revision (REDLINE/USER/DREAM, uppercase names, Frozen Core 10-char DREAM).
 
 - `2026-08-13T20:55:00+08:00`: Released after COGNITIVE-R4-CLEAN-BREAK-SAFETY
   documentation-only research package. Deliverables under

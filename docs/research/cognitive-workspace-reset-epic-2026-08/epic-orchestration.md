@@ -12,7 +12,7 @@
 
 | 工作区 | 唯一职责 | 不再承担 |
 | --- | --- | --- |
-| Persona | 四份核心人格 Markdown、WORLD、内容变更审查与完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑 |
+| Persona | `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`、内容审查与完整历史 | 普通 Memory、STM、Skill、通用安全审批、JSON 编辑、AutoDream 运行 |
 | Memory | BML 长期记忆管理，以及独立的跨会话 STM 入口 | Persona、Evolution、治理提案、文件型长期记忆 |
 | Evolution | Skill 的形成、审查、管理与复用；SOP 关系由研究决定 | Persona 沉淀、Memory 提案、旧 AutoDream 梦境流水线 |
 | Chat Approval Center | 危险工具执行等真正需要人类授权的运行时审批 | Memory CRUD、Persona 首次初始化、STM 日常维护、Evolution 页面治理投影 |
@@ -51,8 +51,9 @@
 3. **STM 是跨会话、自动管理、有界的活动上下文。** 它不是长期 Memory，也不是现有
    session-scoped `working_memory` checkpoint；用户入口只属于 Memory 工作区，日常维护
    和用户修正不走审批。
-4. **Persona 不等于 Memory。** Identity、Relationship、Commitment、Preferences 四份人格
-   与 WORLD 都采用 Markdown 正文；GUI 不再显示或要求用户编辑人格 JSON。
+4. **Persona 不等于 Memory。** 权威文件为 `IDENTITY.MD`、`RELATIONSHIP.MD`、
+   `REDLINE.MD`、`USER.MD`、`DREAM.MD`、`WORLD.MD`；正文均为 Markdown。GUI 不再
+   显示或要求用户编辑人格 JSON。不再使用 Commitment / Preferences 作为权威名。
 5. **Persona 工作区只有一个中央区域。** 当前文档使用 Markdown 源码/人类可读预览；
    待审变更使用只读 before/after Diff 并明确接受/拒绝；历史只读，载入只覆盖本地草稿，
    显式保存才产生新版本。永久右栏删除。文档型变更可以复用同一套 Diff 交互基础设施，
@@ -60,10 +61,11 @@
 6. **Persona 内容审查不是安全审批。** 用户自由编辑直接保存；Agent/系统提出的人格修改在
    Persona 中做专用内容审查，不进入聊天 Approval Center，不复用通用 Governance，也不
    拆成 approve/apply 两步。
-7. **首次初始化只围绕 Laputa 核心文件。** 仅当四份 Persona 与 WORLD 五份权威全部不存在
-   时出现；一次原子直写五份文件及首批历史，不创建 Proposal/Approval/Governance。全存在
-   后永久不再出现，部分存在、空或损坏进入修复状态。引导语义分别覆盖 Agent 是谁、用户
-   与 Agent 的关系、初见承诺、用户对未来努力方向的偏好，以及用户当前工作/旅行环境。
+7. **首次初始化只围绕五份用户侧权威。** 仅当 `IDENTITY.MD`、`RELATIONSHIP.MD`、
+   `REDLINE.MD`、`USER.MD`、`WORLD.MD` 全部不存在时出现；一次原子直写这五份及首批
+   历史，不创建 Proposal/Approval/Governance，也不创建 `DREAM.MD`。全存在后永久不再
+   出现；部分存在、空或损坏进入修复。`DREAM.MD` 缺席不影响三态。引导覆盖 Agent 是谁、
+   关系、红线、用户自述偏好、当前环境。
 8. **Persona/WORLD 保存完整心路历程。** 每次成功的真实变化都追加不可变完整快照与文本
    Diff；不自动裁剪，也不把全部历史注入 Prompt。
 9. **Evolution 只管理 Skill 演进。** SOP 是特殊 Skill、Skill 前置产物还是独立可复用资产，

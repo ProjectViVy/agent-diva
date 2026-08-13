@@ -20,7 +20,7 @@
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |
 | Clean-break 安全 | [`cognitive-r4-clean-break-safety-2026-08`](../research/cognitive-r4-clean-break-safety-2026-08/README.md) | R4 影响与协议；不是删除切片 |
-| Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | Approved Direction；Implementation Pending |
+| Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | Approved Direction（IDENTITY/RELATIONSHIP/REDLINE/USER/DREAM/WORLD）；Implementation Pending |
 | Memory / STM | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | Boundary Approved；存储与装配 Research Hold |
 | Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | Research Hold |
 | BML | [`bml-layer-extraction-2026-08`](../research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md) | 存储权威已冻结；抽层仍按研究结论实施 |

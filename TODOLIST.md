@@ -18,9 +18,10 @@
 
 - Memory CRUD 与 STM 维护不走审批；BML 是普通长期 Memory 唯一权威；完整删除
   `MemoryMd` / `memory_md` 链路且不自动导入旧数据。
-- Persona 是四份核心 Markdown + WORLD，不等于 Memory；用户直接保存，Agent 建议只走
-  Persona 专属 before/after 内容审查；首次初始化 absence-only 原子直写五份权威；所有
-  Persona/WORLD 历史永久保留。
+- Persona 权威为 `IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` / `USER.MD` /
+  `DREAM.MD` / `WORLD.MD`，不等于 Memory；用户直接保存；Agent 对 IDENTITY/
+  RELATIONSHIP/REDLINE/WORLD 与 USER 偏好走专属内容审查；DREAM 与 USER 观察允许
+  Agent 直写。首次初始化 absence-only 原子直写五份用户侧权威（不含 DREAM）；历史永久保留。
 - Evolution 只管理 Skill；旧 AutoDream Evolution 不再修补；SOP/Skill 最终关系由最新
   GenericAgent 研究决定。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。

@@ -17,7 +17,7 @@ Chat Approval Center 负责需要人类确认的危险运行时动作，例如 s
 | STM 自动更新与用户修正 | 直接更新 STM 权威；不创建 Proposal/Approval/Governance |
 | Persona 用户直接保存 | 直接保存 Markdown，追加历史和审计 |
 | Persona Agent 变更审查 | Persona 工作区内的专用内容审查；不映射为通用治理状态机 |
-| 五份 Persona/WORLD 首次初始化 | 一次原子直写；不经过 submit/approve/apply |
+| 五份用户侧权威首次初始化（不含 `DREAM.MD`） | 一次原子直写；不经过 submit/approve/apply |
 | Evolution 页面管理 | 以未来研究确认的 Skill 领域模型为准；不复用旧 Memory 治理链路 |
 
 ## 运行时约束

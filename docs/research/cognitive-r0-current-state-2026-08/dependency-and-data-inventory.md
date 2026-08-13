@@ -124,7 +124,8 @@ BML 写 API 边界（`just bml-boundary-check`）：治理模块不得直接调 
 - HTTP `GET/POST /api/laputa/section/:name[/write]` 的 JSON body 合同
 - 测试：`frozen_core.rs`、`cognitive/sections.rs`、`context_plane_invariants.rs`、`propose_section_write.rs`、`create_user_edit_proposal.rs`、`apply.rs`、agent `context.rs` Frozen Core 测试、`agent_loop.rs:2901` first-run、`SectionEditor.spec.ts`、`SectionGroupList.test.ts`
 
-概念保留：Identity / Relationship / Commitment / Preferences 四个对象 + WORLD。
+产品现行权威名见 Persona 决策 P1（`IDENTITY.MD` / `RELATIONSHIP.MD` / `REDLINE.MD` /
+`USER.MD` / `DREAM.MD` / `WORLD.MD`）。下表代码符号仍是旧实现名，不是产品名。
 
 ### 4.3 必须随旧 Evolution/治理链清零（对 Persona/Memory）
 
@@ -206,7 +207,7 @@ Persona JSON / Frozen Core：§4.2 列表。
 | --- | --- | --- | --- |
 | BML `memory.sqlite3` + `/api/bml` list/get | KEEP | 已冻结 LTM 权威 | — |
 | `memory_add` 直接 put | KEEP | Memory 不审批 | — |
-| Frozen Core 四概念 + WORLD 概念 | KEEP | 产品边界 | R3 换载体 |
+| Frozen Core + WORLD + DREAM 概念 | KEEP | 产品现行名为 IDENTITY/RELATIONSHIP/REDLINE/USER/DREAM/WORLD | D1 换载体 |
 | SkillsLoader + `skills/*/SKILL.md` | KEEP | Skill runtime | D3 接线 |
 | Chat Approval Center + M3 | KEEP | 运行时安全 | — |
 | C1–C5 / `canonical_checkpoint_v1` | KEEP | 会话上下文 ≠ STM | R2 核对装配 |

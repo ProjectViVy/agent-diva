@@ -86,7 +86,9 @@ workspace/profile 级、由 Agent 自动维护、可被人类查看和修正的�
 
 ### S6：STM 管理入口归 Memory 页面
 
-Persona 页面只管理四份核心人格和其内容审查/历史，不显示 STM 或 `memory_md`。
+Persona 页面只管理 Laputa 权威 Markdown（`IDENTITY.MD` / `RELATIONSHIP.MD` /
+`REDLINE.MD` / `USER.MD` / `DREAM.MD` / `WORLD.MD`）及其内容审查/历史，不显示
+STM 或 `memory_md`。
 
 Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 
