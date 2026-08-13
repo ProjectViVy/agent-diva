@@ -65,6 +65,11 @@
   结论：无独立进化引擎；定时器再丢任务 + 模型自愿改 `memory/`；无代码门。
   用户确认前仍不做 D3。
 
+- [ ] **CONTEXT-DENSITY-PRINCIPLE：把「有限窗口决策信息密度」收成设计原则** `sev-P1`
+  笔记：[`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md)。
+  Diva 有装配/预算/安全，常驻层偏肥、缺逐步活动锚、巩固没有为下一轮减负。
+  不推翻已冻 WORLD/ACTMEM 工具车道。D0/C 系后续设计时对照，现在不施工。
+
 - [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
   若跑：用桌面 `keys.txt`（不入库、不进 git）。R1c 机制说清优先。测量
   Action-Verified 遵守率、未验证写入率、L1 行数违规与 patch/overwrite 比。

@@ -29,6 +29,7 @@ Diva 当前 Evolution 是 **AutoDream → Laputa Proposal → Governance** 的�
 ## 阅读顺序
 
 0. [ga-autonomy-origin.md](./ga-autonomy-origin.md) — **自主进化从哪来（R1c 因果页）**
+0b. [ga-context-density-vs-diva.md](./ga-context-density-vs-diva.md) — GA 真正创举是密度；对照 Diva C1–C5
 1. [genericagent-upstream-baseline.md](./genericagent-upstream-baseline.md) — 上游可复现与演进史  
 2. [evolution-trigger-and-lifecycle.md](./evolution-trigger-and-lifecycle.md) — 触发与生命周期  
 3. [action-verified-evidence-model.md](./action-verified-evidence-model.md) — Action-Verified  
