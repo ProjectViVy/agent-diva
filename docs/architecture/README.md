@@ -15,10 +15,11 @@
 
 | 领域 | 当前依据 | 状态 |
 | --- | --- | --- |
-| 总体编排 | [`cognitive-workspace-reset-epic-2026-08`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) | R0/R1/R2/R3 研究包已交付，待 Research Gate；禁止提前定稿目标架构 |
+| 总体编排 | [`cognitive-workspace-reset-epic-2026-08`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) | R0–R4 研究包已交付，待 Research Gate；禁止提前定稿目标架构 |
 | 当前实现盘点 | [`cognitive-r0-current-state-2026-08`](../research/cognitive-r0-current-state-2026-08/README.md) | 事实地图；不是目标架构 |
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |
+| Clean-break 安全 | [`cognitive-r4-clean-break-safety-2026-08`](../research/cognitive-r4-clean-break-safety-2026-08/README.md) | R4 影响与协议；不是删除切片 |
 | Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | Approved Direction；Implementation Pending |
 | Memory / STM | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | Boundary Approved；存储与装配 Research Hold |
 | Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | Research Hold |

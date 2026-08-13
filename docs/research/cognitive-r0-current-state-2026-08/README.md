@@ -68,6 +68,6 @@
 | STM 存储 / 并发 / 装配 / 失败矩阵 | **R2 已交付** [`../cognitive-r2-stm-context-2026-08/README.md`](../cognitive-r2-stm-context-2026-08/README.md) |
 | Persona Markdown revision / Diff / 编辑器选型 | **R3 已交付** [`../cognitive-r3-persona-workspace-2026-08/README.md`](../cognitive-r3-persona-workspace-2026-08/README.md) |
 | WORLD 投影是否进入 Prompt、WorldGovernance 写入者 | **R3 已交付**（`project()` 无生产调用者；Consolidation 是非 user 写入者） |
-| 用户 profile 数据抽样与删除影响 | R4 |
-| AutoDream 报告 / Notebook 是否独立于 Evolution | R4 / D3 |
+| 用户 profile 数据抽样与删除影响 | **R4 已交付协议**（本机未抽样；见影响报告手顺） |
+| AutoDream 报告 / Notebook 是否独立于 Evolution | R4 登记 DECIDE；定稿交 D3 |
 | BML `MemoryRecordKind::{Identity,…}` 与 Persona 权威关系 | D0 |

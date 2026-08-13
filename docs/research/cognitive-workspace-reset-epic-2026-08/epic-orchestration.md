@@ -1,7 +1,7 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Epic Defined / R0+R1+R2+R3 Packages Complete / Research Gate Pending / Architecture Design Blocked`
+- 状态：`Epic Defined / R0–R4 Packages Complete / Research Gate Pending / Architecture Design Blocked`
 - 记录日期：2026-08-13
 - 当前授权：仅冻结产品边界、编排研究与后续设计；**不授权目标架构定稿或代码实施**
 
@@ -198,6 +198,12 @@ R4 以 R0–R3 的事实为输入，不设计兼容层。
 
 完成物：`clean-break-impact-report.md`、`protection-branch-protocol.md`、
 `deletion-proof-catalog.md`。
+
+**进展（2026-08-13）：** 研究包已落盘
+[`../cognitive-r4-clean-break-safety-2026-08/README.md`](../cognitive-r4-clean-break-safety-2026-08/README.md)。
+三份完成物齐全。未抽样生产 profile；未创建保护分支；当前 R3 tip 不是删除前基线。
+禁止导入/fallback。现成 `laputa-clean-break-check` 不够本 EPIC。状态：
+`Research package complete / Gate pending user review`。
 
 ### Research Gate：何时允许开始设计
 

@@ -90,7 +90,7 @@ Agent 提议时机、待审队列策略、保护性分支、生产代码修改�
 | Agent 提议时机与待审队列 | D1 |
 | `WorldStore::project` 是否进 Prompt、插入点 | D1（C1 顺序约束见 R2） |
 | WorldGovernance / MEMRULES 是否留在 Persona 面 | D1 / D0 |
-| 用户机器真实 `.laputa/sections` / changelog 体积与备份 | R4 |
+| 用户机器真实 `.laputa/sections` / changelog 体积与备份 | **R4 已交付**手顺；本机未抽样 |
 | BML `Identity` 等 kind 与 Persona 双权威 | D0 |
-| 保护性分支基线与删除切片 | R4 / D4 |
+| 保护性分支基线与删除切片 | **R4 协议已交付**；SHA/切片交 D4 |
 | 真机三态 / Diff / 初始化桌面 smoke | Architecture Gate 后的验收 |

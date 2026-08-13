@@ -8,7 +8,7 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Epic Defined / R0+R1+R2+R3 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  当前状态：`Epic Defined / R0–R4 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -65,10 +65,11 @@
   section + Proposal 仍是权威；`content_version` 只展示；changelog ≠ 文档历史；
   WORLD `project()` 无生产 Prompt 调用者。未选目录 / Diff 引擎 / CM6 扩展。
 
-- [ ] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0` `blocked:R0-R3`
-  以 R0–R3 为输入，明确旧 Persona JSON、`memory_md`、AutoDream/Evolution 与 Governance
-  数据的删除影响、保护性分支协议、一次性人工备份说明、恢复演练和零残留证明；禁止借机
-  设计导入、迁移、双读写或 runtime fallback。
+- [x] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0`
+  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  [`docs/research/cognitive-r4-clean-break-safety-2026-08/README.md`](docs/research/cognitive-r4-clean-break-safety-2026-08/README.md)。
+  三份完成物：删除影响、保护分支协议、零残留证明目录。未抽样生产 profile；
+  未创建保护分支；当前 tip 不是删除前基线。禁止导入/fallback。
 
 ### Architecture Gate：全部 Research 通过用户评审后才能开始
 
