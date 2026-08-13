@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`, `docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`, `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`, `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`, `docs/architecture/current/runtime-approval-boundary-2026-08.md`, `docs/architecture/README.md`, `TODOLIST.md`, `docs/research/cognitive-r0-current-state-2026-08/dependency-and-data-inventory.md`, `docs/research/cognitive-r3-persona-workspace-2026-08/README.md`, `docs/logs/2026-08-persona-markdown-decision/`
+- Scope: `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`; `docs/architecture/laputa/`; `LAPUTA.md`; `TODOLIST.md`; `docs/research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md`; `docs/logs/2026-08-memrules-decision/`
 - Owner: `Grok`
-- Session/Task: `Clarify AutoDream Laputa allow/deny matrix`
+- Session/Task: `Freeze S9/P21 MEMRULES out of Laputa; GA-style write-time inject`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-13T21:20:00+08:00`
-- Last Heartbeat: `2026-08-14T10:20:00+08:00`
+- Started At: `2026-08-14T20:10:00+08:00`
+- Last Heartbeat: `2026-08-14T20:25:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Freeze S9/P21 MEMRULES` — **RELEASED 2026-08-14T20:25:00+08:00**
+  by `Grok`; MEMRULES out of Laputa, GA-style write-time inject. No production code.
 
 - `Clarify AutoDream Laputa allow/deny matrix` — **RELEASED 2026-08-14T10:35:00+08:00**
   by `Grok`; P19 allow/deny matrix. No production code.
@@ -154,6 +157,10 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-14T20:25:00+08:00`: Released after freezing S9/P21 MEMRULES. Not a
+  persona file; `{config_dir}/memory/MEMRULES.MD`; Memory settings editable;
+  context like GA L0. Docs only. No production code.
 
 - `2026-08-14T10:35:00+08:00`: Released after correcting P19: AutoDream is a
   Laputa proposal generator with an allow/deny matrix, not a total ban.

@@ -33,6 +33,10 @@
 - Evolution 管理人审后的能力文件。Diva 特色（**D6**）：AutoDream 整理 ACTMEM，
   **诞生进化提案**，提炼结果为 **SOP/Skill 文件**；不可 apply。人格提案走 P5。
   禁止 BML/`MemoryPatch`。旧混域 Inbox 仍删。不再以 GA 为进化参考。
+- **MEMRULES**（S9/P21）是写记忆手册，不是人格。路径 `{config_dir}/memory/MEMRULES.MD`。
+  不进 Laputa / Frozen Core / Persona 左栏。Memory 设置可编；v1 只给人改。
+  日常不进全文；常驻最多几行指针；写记忆（AutoDream / BML / 蒸馏）才注入全文。
+  不要和操作避坑 `[RULES]` 并成一份。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
 - 全部重构采用 clean break；无任何迁移。保护分支等文档收完后切备份，不作为 fallback。
 
@@ -119,7 +123,8 @@
 
 - [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0` `blocked:D0`
   研究通过后设计 BML CRUD、STM 权威/自动化、SessionCheckpoint 分离、Layer 1 装配、
-  并发失败恢复、历史和 Memory/STM GUI。
+  并发失败恢复、历史和 Memory/STM GUI。含 **S9**：MEMRULES 搬出 Laputa、Memory
+  设置编辑面、写入时刻注入手册、常驻指针、R1–R7 与生产策略对齐。
 
 - [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
   按 **D6**：AutoDream 诞生进化提案，提炼结果为 SOP/Skill 文件。设计审查面、
@@ -147,12 +152,13 @@
   来源于 OpenHarness 调研；保留为未来扩展点，当前延期。
 
 - [ ] **WORLD-MEMRULES-GATE：WorldGovernance submit 阶段 MemRules R6 拦截** `sev-P2`
-  在 `WorldGovernance::submit` 加载 MemRules，违反 R6 时返回稳定 protected 原因；
-  必须保持 WORLD/人格权威与普通 Memory CRUD 的新边界，不得借此恢复 Memory 审批。
+  归属 **S9**（手册不进 Laputa，R6 仍约束 WORLD 写入）。在 submit 加载 MemRules，
+  违反 R6 时返回稳定 protected 原因。不得借此恢复 Memory 审批，也不得把手册搬回
+  Persona。等 D2，现在不施工。
 
 - [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
   复核 `DEFAULT_MEM_RULES_TEXT` 与 `PolicyRestriction`、autonomy level 的语义；必要时
-  调整措辞或新增规则。
+  调整措辞。产品位置已冻 S9；本条只剩条文措辞。等 D2。
 
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。

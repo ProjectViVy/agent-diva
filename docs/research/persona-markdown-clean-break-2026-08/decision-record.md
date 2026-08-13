@@ -2,7 +2,7 @@
 
 - 状态：`Approved Direction / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道；同日 `WORLD.MD` 改走工具、不做动态加载
+- 修订：`2026-08-13` 权威文件名单；同日补记 `IDENTITY` 含身体、`DARK.MD` 双展位；`2026-08-14` 订正 AutoDream 必须整理 STM，人格整理只走提案；同日写入 P14 默认字数；同日 P13 七份同目录一套、P20 三条装配车道；同日 `WORLD.MD` 改走工具、不做动态加载；同日 **P21** MEMRULES 不是人格文件
 - 性质：产品与架构边界决策；不是完整实施计划
 
 本版取代同文件此前把人格写成 Identity / Relationship / **Commitment** /
@@ -243,6 +243,17 @@ User 写「ta 需求说不清」；Shadow 写「我会把含糊听成已决定�
 2026-08-14 用户改定：`WORLD.MD` **不做动态加载**，与 BML 一样走工具。仍参加首次引导、仍是同目录权威，只是不自动装配进 Prompt。禁止再接线 `WorldStore::project()` 当默认上下文。
 
 完整历史永不整包注入。`ACTMEM.MD` 不是这七份之一；**整份走工具**，第一版一个读工具，不自动装配。
+
+`MEMRULES.MD` 也不是这七份之一，**不占用这三条车道**。它的上下文政策见 **S9**
+（日常不进全文；常驻最多几行指针；写记忆时才注入手册）。不得为了手册再开第四条
+Laputa 车道，也不得把它塞进 Frozen Core。
+
+### P21：MEMRULES 不是人格文件
+
+- **不是** Laputa 权威，**不是** WORLD 的姊妹认知文件。
+- Persona 左栏只保留七份。禁止继续把 `memrules` 和 `world` 绑成「认知治理」只读组。
+- 人若要看或改手册，去 Memory 设置/规则窗口，见 **S9**。
+- 不得用 P18「加第八种」把 MEMRULES 加进种类表。它根本不是人格种类。
 
 ### P2：Persona 页面是人格文档工作区，不是安全审批中心
 
@@ -504,6 +515,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 8. P20：进上下文只有永冻 / 动态加载 / 工具三条车道；`WORLD.MD` 走工具，不动态加载。
    ACTMEM 整份走工具。
 9. P19/D6：AutoDream 可诞生 Evolution 提案，提炼结果为 SOP/Skill 文件；不可 apply。
+10. P21：MEMRULES 不是人格文件，不进七文件、不进 Persona 左栏；手册政策见 S9。
 
 ## 被取代的依据
 

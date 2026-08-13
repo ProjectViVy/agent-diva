@@ -26,6 +26,7 @@ Laputa 是 Diva 的**人格与认知治理面**：人能打开的 Markdown 权�
 | **SessionCheckpoint / working_memory** | 会话级草稿，结束可清 | 是 |
 | **CanonicalCheckpoint** | 本会话 compact 摘要 | 是 |
 | **Skill / Evolution** | 可复用能力 | 是 |
+| **MEMRULES.MD** | 记忆写入手册（S9），不是人格 | 是 |
 | **Mask** | 临时外在覆层；摘下后本体仍在 | 是 |
 
 概念上仍可说 **STM / LTM**（短时活动 vs 长期事实）。核心文件禁止叫 `STM.MD`、`MEMORY.MD`、`STMEM.MD`。
@@ -65,6 +66,9 @@ v1 种类闭集。架构按登记表可加第八种，用户不能自加。禁�
 | **永冻装配（Frozen Core）** | 会话开始截取投影，本会话不变 | Identity 200、Relationship 120、Redline 200、User 160、Dream 10、Dark 60 |
 | **动态加载** | 不冻，可刷新的有界投影 | **空。** WORLD / ACTMEM 都不塞回来 |
 | **工具增删改查** | 默认不进 Prompt | **WORLD 全文**、**整份 ACTMEM**、超出 FC 的正文、完整历史、BML、报告 |
+
+`MEMRULES.MD` 不是这七份，不占这三条车道。日常不进全文；常驻最多几行「写记忆先读手册」
+指针；**写记忆时才注入全文**（S9）。不得为手册另开第四条 Laputa 车道。
 
 完整历史永不整包注入。禁止把 WORLD 再接回 `WorldStore::project()` 当默认上下文。
 
@@ -121,6 +125,16 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 
 ---
 
+## 6.5 MEMRULES（记忆写入手册）
+
+- 文件：`{config_dir}/memory/MEMRULES.MD`。缺则用内置 R1–R7。
+- **不是** Laputa / 人格 / WORLD 姊妹文件。Persona 左栏不挂它（P21）。
+- 人在 Memory 设置窗口改；v1 只给人改，Agent 不改手册。
+- 上下文对齐 GA L0：日常不进全文；常驻几行指针；AutoDream 整理 / BML 直写 / 蒸馏时才塞全文。系统自动写 Pulse / 胶囊不为此塞全文。
+- 不要和 GA L1 `[RULES]`（操作避坑）并成一份。
+
+---
+
 ## 7. BML
 
 `.laputa/memory.sqlite3` typed SQLite + FTS5 是普通长期记忆唯一生产权威。  
@@ -155,6 +169,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 
 - Research Gate：**分域。** R0/R2/R3/R4 过。R1 不再跟 GA 做进化；D6 已冻 Diva 路线。D3 设计这条路线，不抄 GA。保护分支：**用户叫切再切**。
 - （ACTMEM 车道已冻：全部工具；第一版一个读工具。）
+- （MEMRULES 已冻 S9/P21：不进 Laputa；GA 式按需注入。）
 - 七份人格目录的绝对路径字符串（同一目录原则已冻）。
 - Evolution：SOP 与 Skill 的关系。
 - STM→BML 晋升（明确第一版不做）。
@@ -168,7 +183,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 | 工作区 | 只做什么 |
 | --- | --- |
 | Persona | 七份权威、内容审查、历史 |
-| Memory | BML 列表 + ACTMEM/STM 入口 |
+| Memory | BML 列表 + ACTMEM/STM 入口 + MEMRULES 设置 |
 | Evolution | Skill |
 | Chat Approval Center | 危险工具授权 |
 

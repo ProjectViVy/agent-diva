@@ -24,7 +24,7 @@
 | Clean-break 安全 | [`cognitive-r4-clean-break-safety-2026-08`](../research/cognitive-r4-clean-break-safety-2026-08/README.md) | R4 影响与协议；不是删除切片 |
 | **Laputa 汇总** | [`laputa/architecture.md`](./laputa/architecture.md) | 2026-08-14 产品架构汇总；实施未授权 |
 | Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | 决策原文；七份权威、P20 车道、WORLD 走工具 |
-| Memory / STM / ACTMEM | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | 决策原文；`ACTMEM.MD` 全局一份；Pulse/Work 车道未归类 |
+| Memory / STM / ACTMEM / MEMRULES | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | 决策原文；`ACTMEM.MD` 全局一份走工具；**S9** 手册不进 Laputa |
 | Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | Research Hold |
 | BML | [`bml-layer-extraction-2026-08`](../research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md) | 存储权威已冻结；抽层仍按研究结论实施 |
 | Context C1–C5 | [`context-management-enhancement-2026-08`](../research/context-management-enhancement-2026-08/README.md) | 当前运行时施工与验证依据 |

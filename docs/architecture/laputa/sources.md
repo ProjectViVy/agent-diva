@@ -8,7 +8,7 @@
 | --- | --- |
 | 总编排与门禁 | [`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](../../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) |
 | Persona / WORLD / 审查 / 历史 / P14 字数 / P20 车道 | [`docs/research/persona-markdown-clean-break-2026-08/decision-record.md`](../../research/persona-markdown-clean-break-2026-08/decision-record.md) |
-| STM / BML / ACTMEM / S7–S8 | [`docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`](../../research/stm-cross-session-clean-break-2026-08/decision-record.md) |
+| STM / BML / ACTMEM / S7–S9 MEMRULES | [`docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`](../../research/stm-cross-session-clean-break-2026-08/decision-record.md) |
 | ACTMEM 分层方案（未全部批准） | [`docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md`](../../research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md) |
 | Evolution / AutoDream 边界 | [`docs/research/evolution-genericagent-reset-2026-08/decision-record.md`](../../research/evolution-genericagent-reset-2026-08/decision-record.md) |
 

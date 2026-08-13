@@ -2,7 +2,7 @@
 
 - 状态：`Approved Boundary / Research Hold / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼
+- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼；同日 **S9** 冻结 MEMRULES（不进 Laputa；按 GA 分层进上下文）
 - 性质：产品与领域边界已拍板；分层装配和自动化算法待专项调研
 
 ## 问题判断
@@ -93,7 +93,7 @@ workspace/profile 级、由 Agent 自动维护、可被人类查看和修正的�
 
 Persona 页面只管理 Laputa 权威 Markdown（`IDENTITY.MD` / `RELATIONSHIP.MD` /
 `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`）及其内容审查/历史，
-不显示 STM 或 `memory_md`。
+不显示 STM、`memory_md` 或 **MEMRULES**（手册见 **S9**，挂 Memory 设置）。
 
 Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 
@@ -142,6 +142,39 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
   发现后才挂上，不得进 CORE、不得撑稳定前缀。具体管理工具名单 D2 再列，不得先做成
   BML 那种一串常驻 CRUD。
 - 系统自动写（发言 Pulse、空闲胶囊、AutoDream）不经过聊天工具。用户 Memory 页仍直改。
+
+### S9：MEMRULES 是记忆写入手册，不是人格文件
+
+用户确认（2026-08-14）：参考 GenericAgent 的分层规则，**不把 MEMRULES 放进 Laputa**。
+它不属于七份人格权威。对照 GA：`memory/memory_management_sop.md`（L0 手册）≠
+`global_mem_insight.txt` 的 `[RULES]`（操作避坑）≠ Frozen Core。
+
+冻结：
+
+1. **不是 Laputa。** 不进七文件花名册（P18），不进 Frozen Core，不进 Persona 左栏，
+   不与 `WORLD.MD` 绑成「认知治理」一对。现实现把 `.laputa/cognitive/MEMRULES.MD`
+   挂在 PersonaMemoryView 只读栏，是旧摆法，产品上删除。人格侧见 **P21**。
+2. **物理路径：** `{config_dir}/memory/MEMRULES.MD`。与 `{config_dir}/actmem/ACTMEM.MD`
+   分开，也不进某个项目的 `.laputa/`，不进 `memory.sqlite3`。缺文件时用内置默认
+   （现 `DEFAULT_MEM_RULES_TEXT` R1–R7 当种子）。
+3. **可编辑，挂 Memory 设置。** 人在 Memory 工作区的设置/规则窗口改，直接保存，
+   不走 Proposal、不走 Approval、不走 Evolution。v1 **只给人改**；Agent / AutoDream /
+   Skill **不得** patch 手册。
+4. **上下文跟 GA，不跟「永远禁注入」也不跟「整本常驻」：**
+   - **日常聊天：不注入全文。** 继续禁止把手册塞进 stable prefix / Frozen Core。
+   - **常驻：最多几行指针**（「写记忆前先读 MEMRULES」）。这是装配片段，不是第四条
+     Laputa 车道，也不把手册变成人格文件。
+   - **真正写记忆时才注入全文。** 对标 GA `start_long_term_update` 注入 L0。
+     写入时刻包括：AutoDream 整理 ACTMEM、BML 直写、以后若有蒸馏。系统自动写 Pulse /
+     空闲胶囊 **不**为此塞全文（那是机械落盘，不是模型判别写什么）。
+5. **不要和 L1 `[RULES]` 并成一份。** GA 的 `[RULES]` 是学到的操作避坑，跟索引走。
+   MEMRULES 只当写记忆宪法（R1–R7：证据、主张分级、矛盾、用户权威、范围、WORLD 门、
+   禁止整包注入）。操作避坑若以后要做，另挂 ACTMEM / BML 索引，不写进本文件。
+6. **WORLD 相关条文（R6/R7）跟 WORLD 工具车道走**，不因此把 MEMRULES 搬回 Laputa。
+   默认条文措辞由 D2 对齐生产策略；本条不改 R1–R7 语义。
+
+代码里的 `load_or_default` / `context_plane_invariants` 禁全文注入，与第 4 条日常禁
+全文一致；缺的是「写入时刻注入」和「搬出 Laputa」。本条不授权改生产代码。
 
 ## 分层与装配 Research Hold
 

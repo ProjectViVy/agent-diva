@@ -15,5 +15,7 @@
 | SessionCheckpoint / `working_memory` = STM | Wave 2 实现 | 不是；寿命不同 |
 | 人格变更走 Governance / Approval Center | 旧 GUI | P5 内容审查；P16 直写例外 |
 | 根目录旧 `USER.md`（retire 源）= 新 `USER.MD` | 文件名撞车 | 不是同一文件 |
+| MEMRULES 是 Laputa 认知文件 / Persona 左栏只读 | `.laputa/cognitive/MEMRULES.MD`、GUI `memrules`+`world` 组 | **S9/P21**：手册在 `{config_dir}/memory/`；Memory 设置可编；不进人格 |
+| MEMRULES 整本常驻 Prompt，或永远不给写记忆的模型看 | 旧 `context_plane_invariants` 一刀切 | 日常禁全文；写记忆时注入（对标 GA L0） |
 
 决策摘要若与 6 月 `docs/decisions/laputa-memory-governance-history-2026-06.md` 冲突，以 8 月决策和本目录 `architecture.md` 为准。

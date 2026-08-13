@@ -13,7 +13,7 @@ Laputa 是人格与认知治理面：一个 Diva **一套** Markdown 权威，**
 
 进上下文只有三条车道：Frozen Core 永冻投影、动态加载（目前空）、工具。`WORLD.MD` 走工具，不动态装配。
 
-BML 是长期记忆。跨会话活动记忆的核心文件叫 `ACTMEM.MD`，不叫 `STM.MD` / `MEMORY.MD`。STM/LTM 只是概念。
+BML 是长期记忆。跨会话活动记忆的核心文件叫 `ACTMEM.MD`，不叫 `STM.MD` / `MEMORY.MD`。STM/LTM 只是概念。`MEMRULES.MD` 是写记忆的手册，**不是**人格文件，不进 Laputa。
 
 AutoDream 整理 ACTMEM，人格只按允许表提案。Evolution 只管 Skill。子代理不进这套生态。
 
