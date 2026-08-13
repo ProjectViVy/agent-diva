@@ -28,6 +28,7 @@ Diva 当前 Evolution 是 **AutoDream → Laputa Proposal → Governance** 的�
 
 ## 阅读顺序
 
+0. [ga-autonomy-origin.md](./ga-autonomy-origin.md) — **自主进化从哪来（R1c 因果页）**
 1. [genericagent-upstream-baseline.md](./genericagent-upstream-baseline.md) — 上游可复现与演进史  
 2. [evolution-trigger-and-lifecycle.md](./evolution-trigger-and-lifecycle.md) — 触发与生命周期  
 3. [action-verified-evidence-model.md](./action-verified-evidence-model.md) — Action-Verified  
@@ -73,8 +74,8 @@ Diva 当前 Evolution 是 **AutoDream → Laputa Proposal → Governance** 的�
 - [x] SOP/Skill 建议未发明晋升状态机  
 - [x] Diva gap 三分类有证据  
 - [x] R0 依赖透明（切片 + 全量包 [`../cognitive-r0-current-state-2026-08/`](../cognitive-r0-current-state-2026-08/README.md)）  
-- [ ] 用户 Research Gate 评审（2026-08-14：**挂起**。提示词纪律要；建议方向对；
-  **自主进化从哪来未清**，清之前不做下一步。见 EPIC `research-gate-verdict-2026-08-14.md`）  
+- [ ] 用户 Research Gate 评审（2026-08-14：**挂起**。R1c 因果页已写
+  [`ga-autonomy-origin.md`](./ga-autonomy-origin.md)，等用户看过再过 R1）  
 
 ## 明确不做
 

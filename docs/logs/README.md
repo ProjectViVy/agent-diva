@@ -12,6 +12,7 @@
 - `2026-08-cognitive-r3-persona-workspace/`
 - `2026-08-cognitive-r4-clean-break-safety/`
 - `2026-08-persona-markdown-decision/`
+- `2026-08-cognitive-r1c-ga-autonomy/`
 - `2026-08-research-gate/`
 - `2026-08-laputa-architecture-pack/`
 - `2026-08-autodream-independent-test/`

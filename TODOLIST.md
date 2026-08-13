@@ -59,9 +59,11 @@
   实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
   实现晋升状态机与 D3 架构定稿。
 
-- [ ] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
-  Research Gate 挂起项（2026-08-14）。谁触发、写到哪、有没有代码门。提示词纪律保留。
-  未清之前不做 D3、不落地 GA 进化。材料在 R1 `evolution-trigger-and-lifecycle.md`。
+- [x] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
+  **因果页已交付（2026-08-14）**，等用户看过再过 R1 Gate：
+  [`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md)。
+  结论：无独立进化引擎；定时器再丢任务 + 模型自愿改 `memory/`；无代码门。
+  用户确认前仍不做 D3。
 
 - [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
   若跑：用桌面 `keys.txt`（不入库、不进 git）。R1c 机制说清优先。测量
