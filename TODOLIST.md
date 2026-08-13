@@ -121,9 +121,10 @@
   P22 整机一份伴侣；S1 BML 跟人格；D7 蒸馏一律人审。D0 其余待整体点头。
   通过本条 ≠ 改生产代码。
 
-- [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0` `blocked:D0`
-  研究通过后设计 Markdown 权威、revision/Diff、直接保存、专属内容审查、Frozen Core、
-  原子初始化、incomplete repair、永久历史及 Manager/Tauri/GUI 契约。
+- [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0`
+  **设计稿已交（2026-08-14），待用户评审：**
+  [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
+  `{config_dir}/persona/`；一文件一条 pending；WORLD 同引擎。通过 ≠ 改生产代码。
 
 - [ ] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0` `blocked:D0`
   研究通过后设计 BML CRUD、STM 权威/自动化、SessionCheckpoint 分离、Layer 1 装配、

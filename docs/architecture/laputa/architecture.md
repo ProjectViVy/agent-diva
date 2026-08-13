@@ -170,12 +170,13 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - Research Gate：**分域。** R0/R2/R3/R4 过。R1 不再跟 GA 做进化；D6 已冻 Diva 路线。D3 设计这条路线，不抄 GA。保护分支：**用户叫切再切**。
 - （ACTMEM 车道已冻：全部工具；第一版一个读工具。）
 - （MEMRULES 已冻 S9/P21：不进 Laputa；GA 式按需注入。）
-- 七份人格目录的绝对路径字符串（同一目录原则已冻）。
+- 七份人格目录：D1 设计稿写死 `{config_dir}/persona/`（待用户评 D1）。
 - Evolution：SOP 与 Skill 的关系。
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
 - D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
 - D0 设计稿：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。**A/B/C 已拍**（P22 整机一份伴侣、BML 跟人格、蒸馏一律人审）。其余待整体点头。
+- D1 设计稿：[`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。待评审。
 
 ---
 

@@ -502,12 +502,12 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
 ## 当前不决定
 
 - Agent/系统在什么时机提出需审查的人格变更，以及变更摘要如何生成；
-- 同一文档允许同时存在多少个待审请求及其排队策略；
-- 最终 Laputa authority 目录路径；
 - （字数默认已于 2026-08-14 写入 P14；若要改数另开修订，不得取消上限）
-- CodeMirror 6 的具体扩展集合与主题细节；
-- Markdown 模板是否提供默认章节；
+- Markdown 模板是否提供默认章节正文；
 - DREAM 欲望值的量表与算法。
+
+D1 已选（见 `docs/research/cognitive-d1-persona-workspace-2026-08/`）：目录
+`{config_dir}/persona/`；一文件一条 pending；CM6 最小官方扩展。仍待用户评 D1 稿。
 
 这些问题不得被实现者自行扩展为兼容层、自动合并器、`COMMITMENT`/`PREFERENCES` 文件、
 用户可编辑的种类表，或第二套人格系统。v1 不得在未修订本记录的情况下加第八种权威。

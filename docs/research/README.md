@@ -12,6 +12,7 @@
 0. [Laputa 现行架构汇总](../architecture/laputa/architecture.md)（产品形状；不是本目录研究包）
 1. [Cognitive Workspace Reset EPIC](./cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
 1b. [D0 总体权威图（设计稿）](./cognitive-d0-domain-authority-2026-08/README.md)
+1c. [D1 Persona / 引导 / 历史（设计稿）](./cognitive-d1-persona-workspace-2026-08/README.md)
 2. [R0 当前系统盘点](./cognitive-r0-current-state-2026-08/README.md)
 3. [R1 GenericAgent Evolution 研究包](./cognitive-r1-genericagent-evolution-2026-08/README.md)
 4. [R2 STM 与上下文分层研究包](./cognitive-r2-stm-context-2026-08/README.md)
@@ -30,6 +31,7 @@
 | --- | --- |
 | `cognitive-workspace-reset-epic-2026-08/` | Research Gate 分域通过；可开 D0–D3 设计 |
 | `cognitive-d0-domain-authority-2026-08/` | **D0 设计稿**；A/B/C 已拍（P22/S1/D7）；其余待点头 |
+| `cognitive-d1-persona-workspace-2026-08/` | **D1 设计稿**；待用户评审 |
 | `cognitive-r0-current-state-2026-08/` | **R0 完成物齐全**；待用户 Research Gate |
 | `cognitive-r1-genericagent-evolution-2026-08/` | **R1 完成物齐全**；待用户 Research Gate；含 R0 Evolution 切片 |
 | `cognitive-r2-stm-context-2026-08/` | **R2 完成物齐全**；待用户 Research Gate；不定物理权威 |

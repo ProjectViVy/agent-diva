@@ -243,6 +243,11 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 设计 Markdown 权威、revision/Diff、直接保存、专用 change request、Frozen Core、首次原子
 初始化、incomplete repair、永久历史，以及对应 Manager/Tauri/GUI 契约。
 
+**进展（2026-08-14）：** 设计稿已交
+[`../cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
+状态：`Design Draft / Awaiting User Review`。目录 `{config_dir}/persona/`；一文件一条
+pending；WORLD 与六份同引擎。不改生产代码。
+
 #### D2 — Memory、BML、STM 与上下文装配架构
 
 设计 BML CRUD、STM 权威和自动维护、SessionCheckpoint 分离、Layer 1 装配、并发/失败恢复、
