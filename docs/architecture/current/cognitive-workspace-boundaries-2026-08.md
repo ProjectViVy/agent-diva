@@ -1,6 +1,6 @@
 # Cognitive Workspace 当前架构边界
 
-- 状态：`Product Boundaries Frozen / Research Pending / Target Architecture Blocked`
+- 状态：`Product Boundaries Frozen / D0 Draft Awaiting Review / Production Blocked`
 - 日期：2026-08-14
 - 权威来源：[Cognitive Workspace Reset EPIC](../../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
 - Laputa 汇总：[../laputa/architecture.md](../laputa/architecture.md)
@@ -37,9 +37,11 @@
 
 ## 当前禁止的推断
 
-以下内容尚未完成研究，不得由实现者自行决定：STM 物理存储、schema、scope、并发合并、
-自动更新时机、预算和淘汰、Layer 1 装配、Evolution 的 SOP/Skill 状态机、Persona revision
-store 的具体目录和 API、clean-break 删除切片及迁移/备份流程。
+跨域权威图见 D0 设计稿
+[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
+（待评审，不是 Gate）。仍不得由实现者自行决定：Pulse schema、并发合并、
+Layer 1 算法、SOP/Skill 文件关系、Persona revision 目录和 API、删除切片。
+BML 是否搬出工作区 `.laputa/` 必须先有用户书面修订 S1。
 
 ## 实施门禁
 

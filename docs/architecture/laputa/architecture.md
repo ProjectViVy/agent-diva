@@ -175,6 +175,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
 - D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
+- D0 设计稿已交（待评审）：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。待确认：`{config_dir}` 是否 per-Diva、BML 是否跟人格走、`memory_distill` 是否一律人审。
 
 ---
 

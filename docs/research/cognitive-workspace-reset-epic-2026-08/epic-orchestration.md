@@ -233,6 +233,11 @@ R4 以 R0–R3 的事实为输入，不设计兼容层。
 定义 Persona/WORLD、BML、STM、SessionCheckpoint、Evolution/Skill、Approval 的单一权威、
 scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖，并以 ADR 冻结跨域不变量。
 
+**进展（2026-08-14）：** 设计稿已交
+[`../cognitive-d0-domain-authority-2026-08/domain-authority.md`](../cognitive-d0-domain-authority-2026-08/domain-authority.md)。
+状态：`Design Draft / Awaiting User Review`。含 MEMRULES。三问待确认（`{config_dir}`
+是否 per-Diva、BML 是否跟人格走、`memory_distill` 是否一律人审）。不改生产代码。
+
 #### D1 — Persona、WORLD、首次初始化与历史架构
 
 设计 Markdown 权威、revision/Diff、直接保存、专用 change request、Frozen Core、首次原子

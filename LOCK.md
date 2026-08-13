@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/research/persona-markdown-clean-break-2026-08/decision-record.md`; `docs/architecture/laputa/`; `LAPUTA.md`; `TODOLIST.md`; `docs/research/cognitive-workspace-reset-epic-2026-08/research-gate-verdict-2026-08-14.md`; `docs/logs/2026-08-memrules-decision/`
+- Scope: `docs/research/cognitive-d0-domain-authority-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d0-domain-authority/`; `docs/research/README.md`
 - Owner: `Grok`
-- Session/Task: `Freeze S9/P21 MEMRULES out of Laputa; GA-style write-time inject`
+- Session/Task: `Draft D0 domain-authority ADR after coupling research`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-14T20:10:00+08:00`
-- Last Heartbeat: `2026-08-14T20:25:00+08:00`
+- Started At: `2026-08-14T21:00:00+08:00`
+- Last Heartbeat: `2026-08-14T22:10:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Draft D0 domain-authority ADR` — **RELEASED 2026-08-14T22:10:00+08:00**
+  by `Grok`; D0 design draft + architect review fixes. No production code.
 
 - `Freeze S9/P21 MEMRULES` — **RELEASED 2026-08-14T20:25:00+08:00**
   by `Grok`; MEMRULES out of Laputa, GA-style write-time inject. No production code.
@@ -157,6 +160,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-14T22:10:00+08:00`: Released after D0 design draft. Open questions
+  A/B/C in domain-authority.md §11. Docs only.
 
 - `2026-08-14T20:25:00+08:00`: Released after freezing S9/P21 MEMRULES. Not a
   persona file; `{config_dir}/memory/MEMRULES.MD`; Memory settings editable;

@@ -20,6 +20,7 @@
 - `2026-08-stm-cross-session-decision/`
 - `2026-08-evolution-reset-decision/`
 - `2026-08-memrules-decision/`
+- `2026-08-cognitive-d0-domain-authority/`
 - `2026-08-governance-persona-recovery/`
 - `2026-08-code-review-residuals/`
 

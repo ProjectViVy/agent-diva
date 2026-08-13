@@ -113,9 +113,11 @@
 
 ### Architecture Gate：全部 Research 通过用户评审后才能开始
 
-- [ ] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0` `blocked:R0-R4`
-  为 Persona/WORLD、BML、STM、SessionCheckpoint、Evolution/Skill、Approval 形成单一权威
-  和跨域不变量 ADR；当前只登记设计任务，不写目标方案。
+- [ ] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0`
+  **设计稿已交（2026-08-14），待用户评审：**
+  [`docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。
+  待确认：A `{config_dir}` 是否 per-Diva；B BML 是否跟人格走（S1 暂保持 workspace
+  `.laputa/`）；C `memory_distill` 是否一律人审。通过本条 ≠ 改生产代码。
 
 - [ ] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0` `blocked:D0`
   研究通过后设计 Markdown 权威、revision/Diff、直接保存、专属内容审查、Frozen Core、
