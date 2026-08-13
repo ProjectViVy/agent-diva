@@ -8,6 +8,7 @@
 - `2026-08-cognitive-workspace-reset-epic/`
 - `2026-08-cognitive-r0-current-state/`
 - `2026-08-cognitive-r1-genericagent-evolution/`
+- `2026-08-cognitive-r2-stm-context/`
 - `2026-08-persona-markdown-decision/`
 - `2026-08-stm-cross-session-decision/`
 - `2026-08-evolution-reset-decision/`

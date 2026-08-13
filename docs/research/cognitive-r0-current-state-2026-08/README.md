@@ -65,7 +65,7 @@
 
 | 缺口 | 交给 |
 | --- | --- |
-| STM 存储 / 并发 / 装配 / 失败矩阵 | R2 |
+| STM 存储 / 并发 / 装配 / 失败矩阵 | **R2 已交付** [`../cognitive-r2-stm-context-2026-08/README.md`](../cognitive-r2-stm-context-2026-08/README.md) |
 | Persona Markdown revision / Diff / 编辑器选型 | R3 |
 | WORLD 投影是否进入 Prompt、WorldGovernance 写入者 | R3 |
 | 用户 profile 数据抽样与删除影响 | R4 |

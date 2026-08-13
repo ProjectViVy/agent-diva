@@ -1,7 +1,7 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Epic Defined / R0+R1 Packages Complete / Research Gate Pending / Architecture Design Blocked`
+- 状态：`Epic Defined / R0+R1+R2 Packages Complete / Research Gate Pending / Architecture Design Blocked`
 - 记录日期：2026-08-13
 - 当前授权：仅冻结产品边界、编排研究与后续设计；**不授权目标架构定稿或代码实施**
 
@@ -158,6 +158,12 @@ GenericAgent 分层研究          文档工作区研究    数据安全研究
 
 完成物：`stm-options-and-experiments.md`、`context-assembly-constraints.md`、
 `stm-failure-and-concurrency-matrix.md`。
+
+**进展（2026-08-13）：** 研究包已落盘
+[`../cognitive-r2-stm-context-2026-08/README.md`](../cognitive-r2-stm-context-2026-08/README.md)。
+三份完成物齐全。产品 STM 在代码中不存在；现成三条链路（CanonicalCheckpoint、
+SessionCheckpoint/`WorkingMemory`、BmlStartupIndex）已拆名。Research Hold 只给选项，
+未选物理权威或装配位置。状态：`Research package complete / Gate pending user review`。
 
 #### R3 — Persona 文档权威、历史与工作区技术研究
 

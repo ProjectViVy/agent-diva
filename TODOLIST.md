@@ -8,7 +8,7 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Epic Defined / R0+R1 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  当前状态：`Epic Defined / R0+R1+R2 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -52,10 +52,11 @@
   在具备隔离密钥与 temp 记忆沙箱时，测量 Action-Verified 遵守率、未验证写入率、
   L1 行数违规与 patch/overwrite 比；补强 `evolution-behavior-experiments.md` P1/P2。
 
-- [ ] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
-  R0 输入已交付。联合盘点 C1–C5、BML、session lifecycle、canonical checkpoint、
-  Plan/background task、Skill/SOP、Frozen Core、WORLD、Garden 与 GenericAgent；研究
-  STM 存储、scope、并发、自动触发、失败恢复、预算历史、晋升证据和 Layer 1 装配。
+- [x] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
+  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  [`docs/research/cognitive-r2-stm-context-2026-08/README.md`](docs/research/cognitive-r2-stm-context-2026-08/README.md)。
+  三份完成物：装配约束、Hold 选项与静态实验、失败/并发矩阵。产品 STM 不存在；
+  CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。未选物理权威。
 
 - [ ] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
   R0 输入已交付。盘点 Frozen Core、WORLD、首次初始化、旧 JSON Proposal 与 Prompt

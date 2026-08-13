@@ -23,8 +23,9 @@
 ## 与 STM 的关系
 
 当前 session `working_memory`、session transcript、canonical checkpoint 和未来跨会话 STM
-必须保持不同生命周期。C1–C5 的实现是 R2 STM 调研输入，不证明 STM 已经实现，也不授权
-把现有 checkpoint 直接改名为 STM。
+必须保持不同生命周期。C1–C5 的实现是 R2 输入；R2 研究包见
+[`../../research/cognitive-r2-stm-context-2026-08/README.md`](../../research/cognitive-r2-stm-context-2026-08/README.md)。
+不证明 STM 已经实现，也不授权把现有 checkpoint 直接改名为 STM。
 
 ## 证据
 
