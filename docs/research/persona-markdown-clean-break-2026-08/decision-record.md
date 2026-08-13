@@ -105,12 +105,28 @@ Laputa 文档权威是下列 **七个** 全大写 Markdown 文件，一个对象
 显式编辑才能改当前头。
 
 `DREAM.MD` 是 Agent **自己的心愿**，不是用户下的任务，也不是旧 AutoDream 流水线
-的一部分。AutoDream、Evolution、Skill 晋升都不得读写 `DREAM.MD`。例子：希望用户
-康复；希望自己有一副身体。欲望值以后再加，本轮不设计量表。
+的一部分。例子：希望用户康复；希望自己有一副身体。欲望值以后再加，本轮不设计量表。
 
 `IDENTITY.MD` **包含当前身体/形态**，不再单开 `BODY.MD`。身体是自我描述的一层：
 松本可以是方盒子、不是机器人；「希」可以是仿人类女性的人形。Identity = 现在的形态；
 Dream = 还没有的身体。禁止把「我想要血肉身」写进 Identity。
+
+### P19：AutoDream 不得写七份权威；写人格链路未通过
+
+- AutoDream **不得读作人格编辑器，也不得写** `IDENTITY.MD` / `RELATIONSHIP.MD` /
+  `REDLINE.MD` / `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`。
+- 今天代码里 AutoDream 默认**读取** Identity JSON + `memory_md` 当输入；候选闸只拒
+  `SopCreate`，**不拒** `IdentityPatch` / `RelationshipUpdate` / `CommitmentSet` /
+  `LearningNote`（后者打到 Preferences）。`emit_outputs` 可按 `proposal_type` 建
+  提案。确定性反射默认是 `MemoryPatch`。这条「梦境改人格」链路**产品未通过**，
+  不得当成合法写入，也不得在修补后保留。
+- 人格写入只允许：用户在 Persona 工作区直存；P16 允许的 Agent 直写
+  （DREAM / DARK / USER 观察）；以及 P5 审查范围内的 Agent 变更。聊天工具
+  `laputa_propose_section_write` 属旧治理提案链，列入删除，不得继续当「Agent
+  改人格」的产品路径。
+- AutoDream 自身的可靠性问题另开诊断（完整日志 + 大型测试），**不**借诊断恢复
+  写人格或写 Evolution 主链。见 Evolution 决策 D5 与 TODOLIST
+  `AUTODREAM-DIAGNOSTIC-LOGGING`。
 
 ### P17：`DARK.MD` 是一个馆、两个展位
 
@@ -426,6 +442,7 @@ Markdown 正文不能退化成 JSON object 或 patch。文本 Diff 展示组件�
    `DARK.MD` 两个展位。
 4. v0.0.1–v0.0.5 iteration log 保留为决策演进证据，不回写那些日志正文。
 5. P18：v1 锁死七种；架构按种类登记表实现，便于以后产品加种；用户不能自由加权威。
+6. P19：AutoDream 写人格未通过；七份权威禁止梦境写入；诊断另轨。
 
 ## 被取代的依据
 

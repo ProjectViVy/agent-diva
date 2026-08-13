@@ -72,7 +72,8 @@
    Diff；不自动裁剪，也不把全部历史注入 Prompt。
 9. **Evolution 只管理 Skill 演进。** SOP 是特殊 Skill、Skill 前置产物还是独立可复用资产，
    必须以更新后的 GenericAgent 实际设计和验证结果为依据；在研究完成前不实现任何晋升
-   状态机。旧 AutoDream → SOP/Skill 链路不再修补。
+   状态机。旧 AutoDream → SOP/Skill 链路不再修补。**AutoDream 写人格未通过**；
+   诊断日志与测试另轨，不得恢复该写入。
 10. **本轮采用 clean break。** 被删除的旧链路不做文件、数据库、API 或 GUI 兼容；开始
     破坏性代码删除前，必须从验证过的准确提交建立保护性分支。保护分支只用于追溯与恢复，
     不能成为运行时 fallback。
