@@ -116,3 +116,39 @@ L4 是 scheduler 每 12h 压缩 `temp/model_responses`，不是 Skill 晋升。
 | 「下次一句话调用」靠模型再读 SOP/脚本 | 推断（符合文件布局，未活体证明） |
 
 未跑活体。R1 Gate 是否因本页而过，仍等用户看完这句话。
+
+---
+
+## 7. 论文怎么说（对照源码）
+
+正式技术报告：
+
+- Liang, Han, et al. **GenericAgent: A Token-Efficient Self-Evolving LLM Agent via Contextual Information Density Maximization (V1.0)**
+- arXiv：**[2604.17091](https://arxiv.org/abs/2604.17091)**（2026-04-18）
+- PDF：https://arxiv.org/pdf/2604.17091
+- HTML：https://arxiv.org/html/2604.17091v1
+- 复现仓（论文侧）：https://github.com/JinyiHan99/GA-Technical-Report
+- 产品仓：https://github.com/lsdefine/GenericAgent
+
+论文把自我进化写成四件套之一：**把已验证轨迹压成可复用 SOP 和可执行代码**（§2.1.3、§2.3.3）。关键句子：
+
+- 任务结束后，轨迹被压成长期表示写进共享记忆（§2.2）。
+- 长期巩固是 **triggered commit**：先进入校验阶段，再小步写入 L2/L3（§2.3.2）。
+- L3 只通过 **explicit consolidation** 生成，在子目标成功或从错误恢复等里程碑触发（§2.3.3）。
+- 质量门是 **No Execution, No Memory**（论文当设计不变量写）。
+- Reflect Mode：外部脚本轮询条件，命中就当普通任务丢进同一 loop（§3.2）。Watchdog / Scheduled Task 只是脚本不同。
+- Autonomous Exploration（§3.3）：默认约 **6 分钟**触发；还有 skill tree、用量计数、课程规划打分公式。论文自己承认权重自适应「尚未积累足够长期数据」。
+
+和本地 `ee5a474` 的差（**以源码为准设计 Diva，论文当叙事**）：
+
+| 论文 | `ee5a474` 源码 |
+| --- | --- |
+| 任务后压缩进长期记忆 | **无**任务结束自动结算 |
+| 记忆系统触发巩固 | `start_long_term_update` 由**模型可选调用**，函数本身不写盘 |
+| No Execution, No Memory 当不变量 | 只在 L0 文本，**无写入 API 门** |
+| 默认自主探索 ~6 分钟 + skill tree | `autonomous.py` **1800s 假离开**；全仓无 `skill_tree` 实现 |
+| 进化由记忆系统触发、非用户 | 外环必须 `--reflect`；内环靠模型自愿 `file_patch` |
+
+论文复现仓 README 写 “Reflection compresses verified trajectories… triggered by the memory system, not the user.” 这是**论文口径**。本地产品仓实现更瘦：没有单独的记忆系统守护进程去触发巩固。
+
+对 Diva：可借鉴的是论文原则（密度、分层按需、只巩固已验证路径、工具要少）。不要把论文 §3.3 的 skill tree / 课程公式当成当前 GA 代码里已有的东西来抄。
