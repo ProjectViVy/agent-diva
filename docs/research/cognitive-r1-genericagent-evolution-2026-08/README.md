@@ -4,7 +4,7 @@
 - 记录日期：2026-08-13
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET` → **R1**
 - 性质：研究事实与建议；**不授权**目标架构定稿或代码实施
-- 依赖：R0 全量完成物尚缺；本包内含 **R0 Evolution 切片** 作为最小依赖
+- 依赖：全量 R0 见 [`../cognitive-r0-current-state-2026-08/README.md`](../cognitive-r0-current-state-2026-08/README.md)；本包仍含 **R0 Evolution 切片**
 
 ## 一句话结论
 
@@ -72,7 +72,7 @@ Diva 当前 Evolution 是 **AutoDream → Laputa Proposal → Governance** 的�
 - [x] L0–L4 与 SOP/Skill 产物模型写清  
 - [x] SOP/Skill 建议未发明晋升状态机  
 - [x] Diva gap 三分类有证据  
-- [x] R0 依赖透明（切片 + 全量缺口）  
+- [x] R0 依赖透明（切片 + 全量包 [`../cognitive-r0-current-state-2026-08/`](../cognitive-r0-current-state-2026-08/README.md)）  
 - [ ] 用户 Research Gate 评审（待）  
 
 ## 明确不做

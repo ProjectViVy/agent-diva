@@ -8,7 +8,7 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Epic Defined / Research Pending / Architecture Design Blocked`。总 EPIC 统一编排
+  当前状态：`Epic Defined / R0+R1 Packages Complete / Research Gate Pending / Architecture Design Blocked`。总 EPIC 统一编排
   Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
   只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
   总编排与门禁：
@@ -33,14 +33,13 @@
 
 ### Research Gate：现在允许执行
 
-- [ ] **COGNITIVE-R0-CURRENT-STATE：当前系统、数据与耦合全景盘点** `sev-P0`
-  追踪 Persona、WORLD、BML、`memory_md`、SessionCheckpoint、AutoDream、Evolution、
-  Proposal/Governance/Approval 的真实读写、事件、Prompt、GUI 与持久化链路；输出当前状态图、
-  数据/依赖矩阵、保留/改名/删除/待决策清单。把 Persona `[object Object]`、Evolution
-  加载失败和 `approval request not found` 固化为旧架构失败基线，不先沿旧模型打补丁。
-  注：R1 已交付 **R0 Evolution 切片**
-  （`docs/research/cognitive-r1-genericagent-evolution-2026-08/r0-evolution-slice.md`），
-  全量 R0 仍缺。
+- [x] **COGNITIVE-R0-CURRENT-STATE：当前系统、数据与耦合全景盘点** `sev-P0`
+  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  [`docs/research/cognitive-r0-current-state-2026-08/README.md`](docs/research/cognitive-r0-current-state-2026-08/README.md)。
+  三份完成物：当前状态图、依赖/数据清单（KEEP/RENAME/DELETE/DECIDE）、旧架构失败基线。
+  核心事实：混域 Proposal 链、Persona JSON↔BML 双权威、`memory_md` 仍活、
+  `governance.db`/`governance.sqlite3` 双账本、事件四轨。不沿旧模型打补丁。
+  R1 Evolution 切片仍有效，由全量 R0 引用。
 
 - [x] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0`
   **研究包已交付（2026-08-13）**，待用户 Research Gate：
@@ -53,15 +52,15 @@
   在具备隔离密钥与 temp 记忆沙箱时，测量 Action-Verified 遵守率、未验证写入率、
   L1 行数违规与 patch/overwrite 比；补强 `evolution-behavior-experiments.md` P1/P2。
 
-- [ ] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0` `blocked:R0`
-  联合盘点 C1–C5、BML、session lifecycle、canonical checkpoint、Plan/background task、
-  Skill/SOP、Frozen Core、WORLD、Garden 与 GenericAgent；研究 STM 存储、scope、并发、
-  自动触发、失败恢复、预算历史、晋升证据和 Layer 1 装配，输出方案实验与失败矩阵。
+- [ ] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
+  R0 输入已交付。联合盘点 C1–C5、BML、session lifecycle、canonical checkpoint、
+  Plan/background task、Skill/SOP、Frozen Core、WORLD、Garden 与 GenericAgent；研究
+  STM 存储、scope、并发、自动触发、失败恢复、预算历史、晋升证据和 Layer 1 装配。
 
-- [ ] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0` `blocked:R0`
-  盘点 Frozen Core、WORLD、首次初始化、旧 JSON Proposal 与 Prompt 投影；评估 Markdown
-  revision、完整快照、文本 Diff、CAS/stale、永久历史、编辑/预览/Diff/草稿恢复和安全
-  渲染能力。只形成事实与技术选项，不提前选择目标架构。
+- [ ] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
+  R0 输入已交付。盘点 Frozen Core、WORLD、首次初始化、旧 JSON Proposal 与 Prompt
+  投影；评估 Markdown revision、完整快照、文本 Diff、CAS/stale、永久历史、编辑/
+  预览/Diff/草稿恢复和安全渲染能力。只形成事实与技术选项，不提前选择目标架构。
 
 - [ ] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0` `blocked:R0-R3`
   以 R0–R3 为输入，明确旧 Persona JSON、`memory_md`、AutoDream/Evolution 与 Governance

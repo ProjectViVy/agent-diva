@@ -1,7 +1,7 @@
 # Laputa 认知工作区 Clean-Break 总 EPIC 编排
 
 - EPIC：`LAPUTA-COGNITIVE-WORKSPACE-RESET`
-- 状态：`Epic Defined / Research Pending / Architecture Design Blocked`
+- 状态：`Epic Defined / R0+R1 Packages Complete / Research Gate Pending / Architecture Design Blocked`
 - 记录日期：2026-08-13
 - 当前授权：仅冻结产品边界、编排研究与后续设计；**不授权目标架构定稿或代码实施**
 
@@ -119,6 +119,11 @@ GenericAgent 分层研究          文档工作区研究    数据安全研究
 完成物：`current-state-map.md`、`dependency-and-data-inventory.md`、
 `legacy-failure-baseline.md`。
 
+**进展（2026-08-13）：** 研究包已落盘
+[`../cognitive-r0-current-state-2026-08/README.md`](../cognitive-r0-current-state-2026-08/README.md)。
+三份完成物齐全；引用 R1 Evolution 切片，不重复 Evolution 细表。状态：
+`Research package complete / Gate pending user review`。
+
 #### R1 — 最新 GenericAgent Evolution 模型研究
 
 - 研究前先确认 `.workspace/GenericAgent` 的远端、工作区状态和本地未提交内容；安全同步主分支，
@@ -136,7 +141,9 @@ GenericAgent 分层研究          文档工作区研究    数据安全研究
 **进展（2026-08-13）：** 研究包已落盘  
 [`../cognitive-r1-genericagent-evolution-2026-08/README.md`](../cognitive-r1-genericagent-evolution-2026-08/README.md)。  
 本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；P0 静态实验完成；P1 活体因无密钥阻断。  
-含 R0 Evolution 切片（全量 R0 仍缺）。状态：`Research package complete / Gate pending user review`。
+含 R0 Evolution 切片。全量 R0 见
+[`../cognitive-r0-current-state-2026-08/README.md`](../cognitive-r0-current-state-2026-08/README.md)。
+状态：`Research package complete / Gate pending user review`。
 
 #### R2 — STM 与上下文分层研究
 

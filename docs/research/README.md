@@ -9,18 +9,20 @@
 ## 最新架构研究链
 
 1. [Cognitive Workspace Reset EPIC](./cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)
-2. [R1 GenericAgent Evolution 研究包](./cognitive-r1-genericagent-evolution-2026-08/README.md)
-3. [Persona Markdown Clean Break](./persona-markdown-clean-break-2026-08/decision-record.md)
-4. [STM 跨会话 Clean Break](./stm-cross-session-clean-break-2026-08/decision-record.md)
-5. [Evolution / GenericAgent Reset](./evolution-genericagent-reset-2026-08/decision-record.md)
-6. [BML Layer Extraction](./bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
-7. [Context C1–C5](./context-management-enhancement-2026-08/README.md)
+2. [R0 当前系统盘点](./cognitive-r0-current-state-2026-08/README.md)
+3. [R1 GenericAgent Evolution 研究包](./cognitive-r1-genericagent-evolution-2026-08/README.md)
+4. [Persona Markdown Clean Break](./persona-markdown-clean-break-2026-08/decision-record.md)
+5. [STM 跨会话 Clean Break](./stm-cross-session-clean-break-2026-08/decision-record.md)
+6. [Evolution / GenericAgent Reset](./evolution-genericagent-reset-2026-08/decision-record.md)
+7. [BML Layer Extraction](./bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
+8. [Context C1–C5](./context-management-enhancement-2026-08/README.md)
 
 ## 当前研究包
 
 | 包 | 状态 |
 | --- | --- |
 | `cognitive-workspace-reset-epic-2026-08/` | R0–R4 研究编排，目标架构暂未授权 |
+| `cognitive-r0-current-state-2026-08/` | **R0 完成物齐全**；待用户 Research Gate |
 | `cognitive-r1-genericagent-evolution-2026-08/` | **R1 完成物齐全**；待用户 Research Gate；含 R0 Evolution 切片 |
 | `persona-markdown-clean-break-2026-08/` | Persona/WORLD 边界已批准，实施待研究/设计门禁 |
 | `stm-cross-session-clean-break-2026-08/` | 边界已批准，存储与装配 Research Hold |

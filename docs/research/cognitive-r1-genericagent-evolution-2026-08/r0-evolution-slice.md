@@ -3,7 +3,7 @@
 - 状态：`Research Draft / Source-backed`
 - 日期：2026-08-13
 - 范围：**仅 Evolution 表面**（AutoDream、Skill 触点、Proposal、Governance、GUI）
-- **完整 R0 缺失声明：** Persona 全量、BML CRUD 全景、STM/checkpoint、memory_md 删除影响、全仓 bus 不在此文
+- **完整 R0：** [`../cognitive-r0-current-state-2026-08/README.md`](../cognitive-r0-current-state-2026-08/README.md)（2026-08-13 已交付；本文仍只覆盖 Evolution 表面）
 
 产品约束：`evolution-genericagent-reset-2026-08/decision-record.md` D1–D4；EPIC Evolution = Skill 演进。
 
