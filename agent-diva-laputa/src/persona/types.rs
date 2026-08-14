@@ -265,6 +265,8 @@ pub enum PersonaError {
     KindForbidden(String),
     #[error("WORLD request would overwrite protected user content")]
     WorldProtectedClaim,
+    #[error("WORLD request violates the R6 bounded, reviewable claim entry gate")]
+    WorldEntryGate,
     #[error("Persona request not found: {0}")]
     RequestNotFound(String),
     #[error("invalid Persona content for {kind}: {reason}")]
@@ -290,6 +292,7 @@ impl PersonaError {
             Self::CapExceeded { .. } => "persona_cap_exceeded",
             Self::KindForbidden(_) => "persona_kind_forbidden",
             Self::WorldProtectedClaim => "persona_world_protected_claim",
+            Self::WorldEntryGate => "persona_world_entry_gate",
             Self::RequestNotFound(_) => "persona_request_not_found",
             Self::InvalidContent { .. } => "persona_invalid_content",
             Self::Io { .. } => "persona_storage_error",

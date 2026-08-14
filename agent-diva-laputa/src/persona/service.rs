@@ -638,6 +638,9 @@ impl PersonaService {
         if kind == PersonaKind::World && !world_user_content_preserved(current, proposed) {
             return Err(PersonaError::WorldProtectedClaim);
         }
+        if kind == PersonaKind::World && !world_entry_gate_allows(actor, current, proposed) {
+            return Err(PersonaError::WorldEntryGate);
+        }
         Ok(())
     }
 
@@ -800,6 +803,89 @@ fn block_is_user_protected(block: &str) -> bool {
         && block.lines().any(|line| line.trim() == "- source: user")
 }
 
+fn world_entry_gate_allows(actor: PersonaRequestActor, current: &str, proposed: &str) -> bool {
+    let (current_prose, current_claims) = split_world_content(current);
+    let (proposed_prose, proposed_claims) = split_world_content(proposed);
+    if proposed_prose
+        .iter()
+        .any(|segment| !current_prose.contains(segment))
+    {
+        return false;
+    }
+    if proposed_claims
+        .values()
+        .any(|block| !valid_world_claim(block))
+    {
+        return false;
+    }
+    if actor == PersonaRequestActor::Autodream {
+        return current_claims.iter().all(|(identity, block)| {
+            proposed_claims
+                .get(identity)
+                .is_some_and(|next| next == block)
+        });
+    }
+    true
+}
+
+fn split_world_content(content: &str) -> (Vec<String>, BTreeMap<String, String>) {
+    let mut prose = Vec::new();
+    let mut claims = BTreeMap::new();
+    let mut segment = String::new();
+    for line in normalize_markdown(content).lines() {
+        if line.starts_with("## [") && !segment.is_empty() {
+            store_world_segment(&mut prose, &mut claims, &segment);
+            segment.clear();
+        }
+        if !segment.is_empty() {
+            segment.push('\n');
+        }
+        segment.push_str(line);
+    }
+    if !segment.is_empty() {
+        store_world_segment(&mut prose, &mut claims, &segment);
+    }
+    (prose, claims)
+}
+
+fn store_world_segment(
+    prose: &mut Vec<String>,
+    claims: &mut BTreeMap<String, String>,
+    segment: &str,
+) {
+    let normalized = segment.trim().to_string();
+    if let Some(identity) = world_claim_identity(&normalized) {
+        claims.insert(identity, normalized);
+    } else if !normalized.is_empty() {
+        prose.push(normalized);
+    }
+}
+
+fn world_claim_identity(block: &str) -> Option<String> {
+    let heading = block.lines().next()?.strip_prefix("## [")?;
+    let (domain, title) = heading.split_once("] ")?;
+    let domain = domain.trim();
+    let title = title.trim();
+    if domain.is_empty() || title.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "{}:{}",
+        domain.to_ascii_lowercase(),
+        title.to_ascii_lowercase()
+    ))
+}
+
+fn valid_world_claim(block: &str) -> bool {
+    world_claim_identity(block).is_some()
+        && block
+            .lines()
+            .any(|line| line.trim().starts_with("- status: "))
+        && block
+            .lines()
+            .any(|line| line.trim().starts_with("- source: "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -914,5 +1000,44 @@ mod tests {
             ),
             Err(PersonaError::WorldProtectedClaim)
         ));
+    }
+
+    #[test]
+    fn world_r6_rejects_unstructured_agent_additions() {
+        let (_temp, service) = initialized();
+        let current = service.get_document(PersonaKind::World).unwrap();
+        let proposed = format!("{}\n\nA vague new world belief", current.content);
+        assert!(matches!(
+            service.create_request(
+                PersonaKind::World,
+                current.revision,
+                &current.content_hash,
+                &proposed,
+                PersonaRequestActor::Agent,
+                "test",
+            ),
+            Err(PersonaError::WorldEntryGate)
+        ));
+    }
+
+    #[test]
+    fn world_r6_accepts_bounded_reviewable_agent_claim() {
+        let (_temp, service) = initialized();
+        let current = service.get_document(PersonaKind::World).unwrap();
+        let proposed = format!(
+            "{}\n\n## [project] Local repository\n- status: observed\n- source: agent\n- action: preserve unrelated changes",
+            current.content
+        );
+        let request = service
+            .create_request(
+                PersonaKind::World,
+                current.revision,
+                &current.content_hash,
+                &proposed,
+                PersonaRequestActor::Agent,
+                "test",
+            )
+            .unwrap();
+        assert_eq!(request.state, PersonaRequestState::Pending);
     }
 }

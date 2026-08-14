@@ -222,6 +222,7 @@ pub(crate) fn persona_error_response(error: PersonaError) -> ApiError {
         PersonaError::RequestNotFound(_) => StatusCode::NOT_FOUND,
         PersonaError::CapExceeded { .. }
         | PersonaError::KindForbidden(_)
+        | PersonaError::WorldEntryGate
         | PersonaError::InvalidContent { .. } => StatusCode::UNPROCESSABLE_ENTITY,
         PersonaError::Io { .. } | PersonaError::Json(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };
