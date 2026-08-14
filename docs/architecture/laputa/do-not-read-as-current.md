@@ -21,5 +21,6 @@
 | BML 按 git 仓库各开一套 | 工作区 `.laputa/memory.sqlite3` | **S1 修订**：跟人格走 |
 | `memory_distill` 新建 Skill 静默直写 | `typed_provider` 现行 | **D7**：一律 Evolution 人审 |
 | 空闲 10 分钟才第一次归纳 STM | 旧 S8 | **S8 修订**：每轮立刻 Recap；10 分钟只折叠 |
+| Research Gate 部分通过 / R1 挂起 / 不得开工 | 旧 `architecture.md` 门禁段 | D0–D4 已批准；R1 关 GA 进化；未领 S1 才不得改生产 |
 
 决策摘要若与 6 月 `docs/decisions/laputa-memory-governance-history-2026-06.md` 冲突，以 8 月决策和本目录 `architecture.md` 为准。

@@ -1,12 +1,12 @@
 # Laputa 现行架构
 
 - 状态：`Approved Product Architecture / Implementation Pending`
-- 汇总日期：2026-08-14
-- 性质：把 2026-08-12 至 08-14 已冻产品决策收成一份可读架构。**不是**当前 Rust 实现说明书，也**不是** Research Gate 已过、可以开工的许可证。
+- 汇总日期：2026-08-15
+- 性质：把已冻产品决策收成一份可读架构。**不是**当前 Rust 实现说明书。
 - 决策原文：[sources.md](./sources.md)
 - 旧说法黑名单：[do-not-read-as-current.md](./do-not-read-as-current.md)
 
-实施门禁：Research Gate **部分通过**（R0/R2/R3/R4 过，R1 挂起）。不得按本文改生产认知主链。D3 / GA 进化落地停到 R1 自主进化说清。本文冻结的是**产品形状**。
+实施门禁：Research Gate 已过（R1 关掉 GA 进化跟踪，进化走 D6）。D0–D4 已批准。保护分支已切（本地 `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`）。**未领 S1 前仍不得改生产认知主链。** 本文冻结的是产品形状；代码仍是旧实现。
 
 ---
 
@@ -162,26 +162,24 @@ SOP 与 Skill 的文件形态由 D3 设计。
 
 今天仓库里仍然大量存在：`.laputa/sections/*.json`、`Commitment`/`Preferences` 符号、`MemoryPatch`、AutoDream 读 Identity JSON、WORLD `project()` 未当生产装配（与「WORLD 走工具」碰巧一致）、产品 STM/ACTMEM 对象为零。
 
-这些是 **R0 事实**，不是许可继续做旧模型。实施必须等 Research Gate + 保护分支 + clean break，不得双轨兼容。
+这些是 **R0 事实**，不是许可继续做旧模型。实施按 D4 切片，不得双轨兼容。
 
 ---
 
 ## 10. 仍开放（不要假装已冻）
 
-- Research Gate：**分域。** R0/R2/R3/R4 过。R1 不再跟 GA 做进化；D6 已冻 Diva 路线。D3 设计这条路线，不抄 GA。保护分支：**用户叫切再切**。
-- （ACTMEM 车道已冻：全部工具；第一版一个读工具。）
-- （MEMRULES 已冻 S9/P21：不进 Laputa；GA 式按需注入。）
-- 七份人格目录：D1 设计稿写死 `{config_dir}/persona/`（待用户评 D1）。
-- Evolution：SOP 与 Skill 的关系。
+- Research Gate 已过。R1 不再跟 GA 做进化；D6 已冻。
+- （ACTMEM：工具车道；Pulse / 每轮 Recap；10 分钟只折叠胶囊。）
+- （MEMRULES 已冻 S9/P21。）
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
-- D0–D4 实现设计、删除切片。保护分支：文档收完后切备份，不追旧 SHA。
-- D0 设计稿：[`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。**A/B/C 已拍**（P22 整机一份伴侣、BML 跟人格、蒸馏一律人审）。其余待整体点头。
-- D1：**已批准** [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
-- D2：**已批准** [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
-- D3：**已批准** [`../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
-- D4：**已批准** [`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
-  保护分支已切：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`（本地，未 push）。
+- D0–D4 **已批准**。保护分支已切。下一步是领 **S1**（仍须另说）。
+- D0 [`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
+- D1 [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)
+- D2 [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)
+- D3 [`../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)
+- D4 [`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)
+  保护分支：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`（本地，未 push）。
 
 ---
 

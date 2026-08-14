@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `TODOLIST.md`
+- Scope: `docs/architecture/laputa/`; `docs/architecture/README.md`
 - Owner: `Grok`
-- Session/Task: `Schedule GUI work in TODOLIST against D4 slices`
+- Session/Task: `Correct stale R1-hold gate wording in Laputa architecture pack`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T06:00:00+08:00`
-- Last Heartbeat: `2026-08-15T06:05:00+08:00`
+- Started At: `2026-08-15T06:20:00+08:00`
+- Last Heartbeat: `2026-08-15T06:25:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Correct Laputa architecture gate wording` — **RELEASED 2026-08-15T06:25:00+08:00**
+  by `Grok`; R1-hold wording corrected. Docs only. No S1.
 
 - `Schedule GUI in TODOLIST` — **RELEASED 2026-08-15T06:05:00+08:00**
   by `Grok`; UI-S2/S3/S4 scheduled. Docs only.
@@ -190,6 +193,8 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T06:25:00+08:00`: Corrected stale R1-hold gate in laputa architecture pack.
 
 - `2026-08-15T06:05:00+08:00`: GUI scheduled in TODOLIST as UI-S2/S3/S4.
 

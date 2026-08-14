@@ -17,8 +17,8 @@
 
 | 领域 | 当前依据 | 状态 |
 | --- | --- | --- |
-| 总体编排 | [`cognitive-workspace-reset-epic-2026-08`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) | Research Gate 分域通过；D0 设计稿待评审 |
-| **D0 权威图** | [`cognitive-d0-domain-authority-2026-08`](../research/cognitive-d0-domain-authority-2026-08/domain-authority.md) | 设计稿；A/B/C 已拍；不是 Architecture Gate |
+| 总体编排 | [`cognitive-workspace-reset-epic-2026-08`](../research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md) | D0–D4 已批准；保护分支已切；未领 S1 |
+| **D0 权威图** | [`cognitive-d0-domain-authority-2026-08`](../research/cognitive-d0-domain-authority-2026-08/domain-authority.md) | 已由后续批准生效 |
 | **D1 Persona** | [`cognitive-d1-persona-workspace-2026-08`](../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md) | **已批准**；实施未授权 |
 | **D2 Memory** | [`cognitive-d2-memory-stm-2026-08`](../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md) | **已批准**；实施未授权 |
 | **D3 Evolution** | [`cognitive-d3-evolution-skill-2026-08`](../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md) | **已批准**；实施未授权 |
@@ -27,10 +27,10 @@
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |
 | Clean-break 安全 | [`cognitive-r4-clean-break-safety-2026-08`](../research/cognitive-r4-clean-break-safety-2026-08/README.md) | R4 影响与协议；不是删除切片 |
-| **Laputa 汇总** | [`laputa/architecture.md`](./laputa/architecture.md) | 2026-08-14 产品架构汇总；实施未授权 |
+| **Laputa 汇总** | [`laputa/architecture.md`](./laputa/architecture.md) | 产品形状已冻；未领 S1 前不改生产 |
 | Persona / WORLD | [`persona-markdown-clean-break-2026-08`](../research/persona-markdown-clean-break-2026-08/decision-record.md) | 决策原文；七份权威、P20 车道、WORLD 走工具 |
 | Memory / STM / ACTMEM / MEMRULES | [`stm-cross-session-clean-break-2026-08`](../research/stm-cross-session-clean-break-2026-08/decision-record.md) | 决策原文；`ACTMEM.MD` 全局一份走工具；**S9** 手册不进 Laputa |
-| Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | Research Hold |
+| Evolution / Skill | [`evolution-genericagent-reset-2026-08`](../research/evolution-genericagent-reset-2026-08/decision-record.md) | D6/D7 已冻；D3 已批准 |
 | BML | [`bml-layer-extraction-2026-08`](../research/bml-layer-extraction-2026-08/bml-layer-extraction-research.md) | 存储权威已冻结；抽层仍按研究结论实施 |
 | Context C1–C5 | [`context-management-enhancement-2026-08`](../research/context-management-enhancement-2026-08/README.md) | 当前运行时施工与验证依据 |
 
