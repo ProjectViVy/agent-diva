@@ -40,7 +40,11 @@ async fn typed_state(root: &Path, engine: Option<Arc<dyn ReflectionEngine>>) -> 
         MemoryAuthorityMode::Typed,
     )
     .unwrap();
-    state.autodream = state.autodream.clone().with_reflection_engine(engine);
+    state.autodream = state
+        .autodream
+        .clone()
+        .with_reflection_engine(engine)
+        .with_skill_reflection_engine(None);
     state
 }
 

@@ -271,37 +271,6 @@ impl AgentState {
         Ok(())
     }
 
-    pub async fn get_skills(&self) -> Result<serde_json::Value, String> {
-        let url = format!("{}/skills", self.api_base_url());
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
-        if !response.status().is_success() {
-            return Err(format!("Server error: {}", response.status()));
-        }
-
-        let value = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| format!("Invalid JSON: {}", e))?;
-
-        if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-            return Err(value
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error")
-                .to_string());
-        }
-
-        Ok(value
-            .get("skills")
-            .cloned()
-            .unwrap_or(serde_json::Value::Array(vec![])))
-    }
-
     pub async fn get_mcps(&self) -> Result<serde_json::Value, String> {
         let url = format!("{}/mcps", self.api_base_url());
         let response = self

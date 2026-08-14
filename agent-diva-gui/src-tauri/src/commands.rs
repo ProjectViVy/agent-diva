@@ -116,11 +116,17 @@ pub struct GenerateSessionTitlePayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillDto {
+    pub slug: String,
     pub name: String,
     pub description: String,
     pub source: String,
+    pub enabled: bool,
+    pub always: bool,
     pub available: bool,
     pub active: bool,
+    pub content_hash: String,
+    pub updated_at: String,
+    pub can_hard_delete: bool,
     pub path: String,
     pub can_delete: bool,
 }
@@ -3746,9 +3752,189 @@ pub async fn test_provider_model(
 }
 
 #[tauri::command]
-pub async fn get_skills(state: State<'_, AgentState>) -> Result<Vec<SkillDto>, String> {
-    let value = state.get_skills().await?;
-    serde_json::from_value(value).map_err(|e| format!("Invalid skills payload: {}", e))
+pub async fn get_skills(state: State<'_, AgentState>) -> Result<Vec<SkillDto>, serde_json::Value> {
+    let url = format!("{}/skills", state.api_base_url());
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    serde_json::from_value(
+        response
+            .get("skills")
+            .cloned()
+            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
+    )
+    .map_err(|error| laputa_string_error(format!("Invalid skills payload: {error}")))
+}
+
+#[tauri::command]
+pub async fn get_skill(
+    slug: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    response
+        .get("skill")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Skill response missing skill".into()))
+}
+
+#[tauri::command]
+pub async fn update_skill(
+    slug: String,
+    markdown: String,
+    base_hash: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let payload = serde_json::json!({ "markdown": markdown, "base_hash": base_hash });
+    let response = memory_request(&state, reqwest::Method::PUT, &url, Some(&payload)).await?;
+    response
+        .get("outcome")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Skill response missing outcome".into()))
+}
+
+#[tauri::command]
+pub async fn disable_skill(
+    slug: String,
+    base_hash: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}/disable",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let payload = serde_json::json!({ "base_hash": base_hash });
+    let response = memory_request(&state, reqwest::Method::POST, &url, Some(&payload)).await?;
+    response
+        .get("outcome")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Skill response missing outcome".into()))
+}
+
+#[tauri::command]
+pub async fn list_skill_history(
+    slug: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}/history",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(response
+        .get("history")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+}
+
+#[tauri::command]
+pub async fn get_skill_history_revision(
+    slug: String,
+    revision: u64,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}/history/{revision}",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    response
+        .get("document")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Skill response missing history document".into()))
+}
+
+#[tauri::command]
+pub async fn list_skill_requests(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/evolution/requests", state.api_base_url());
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(response
+        .get("requests")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+}
+
+#[tauri::command]
+pub async fn create_skill_request(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/evolution/requests", state.api_base_url());
+    let response = memory_request(&state, reqwest::Method::POST, &url, Some(&payload)).await?;
+    response
+        .get("request")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Evolution response missing request".into()))
+}
+
+#[tauri::command]
+pub async fn get_skill_request(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/evolution/requests/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    response
+        .get("request")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Evolution response missing request".into()))
+}
+
+async fn decide_skill_request(
+    id: &str,
+    action: &str,
+    state: &State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/evolution/requests/{}/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim()),
+        action
+    );
+    let response = memory_request(
+        state,
+        reqwest::Method::POST,
+        &url,
+        Some(&serde_json::json!({})),
+    )
+    .await?;
+    response
+        .get("request")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Evolution response missing request".into()))
+}
+
+#[tauri::command]
+pub async fn accept_skill_request(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    decide_skill_request(&id, "accept", &state).await
+}
+
+#[tauri::command]
+pub async fn reject_skill_request(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    decide_skill_request(&id, "reject", &state).await
 }
 
 #[tauri::command]
@@ -4005,12 +4191,12 @@ pub async fn upload_skill(
     file_name: String,
     bytes: Vec<u8>,
     state: State<'_, AgentState>,
-) -> Result<SkillDto, String> {
+) -> Result<SkillDto, serde_json::Value> {
     let url = format!("{}/skills", state.api_base_url());
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name)
         .mime_str("application/zip")
-        .map_err(|e| format!("Failed to build upload part: {}", e))?;
+        .map_err(|e| laputa_transport_error(format!("Failed to build upload part: {e}")))?;
     let form = reqwest::multipart::Form::new().part("file", part);
     let response = state
         .client
@@ -4018,18 +4204,22 @@ pub async fn upload_skill(
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("Failed to upload skill: {}", e))?;
+        .map_err(|e| laputa_transport_error(format!("Failed to upload skill: {e}")))?;
 
+    let status = response.status();
     let value: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| format!("Invalid upload response: {}", e))?;
-    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-        return Err(value
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error")
-            .to_string());
+        .map_err(|e| laputa_transport_error(format!("Invalid upload response: {e}")))?;
+    if !status.is_success() || value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+        let error = value.get("error").unwrap_or(&value);
+        return Err(serde_json::json!({
+            "status": "error",
+            "http_status": status.as_u16(),
+            "code": error.get("code").and_then(serde_json::Value::as_str).unwrap_or("skill_error"),
+            "message": error.get("message").and_then(serde_json::Value::as_str).unwrap_or("unknown Skill API error"),
+            "body": value,
+        }));
     }
     serde_json::from_value(
         value
@@ -4037,7 +4227,7 @@ pub async fn upload_skill(
             .cloned()
             .unwrap_or(serde_json::Value::Null),
     )
-    .map_err(|e| format!("Invalid uploaded skill payload: {}", e))
+    .map_err(|e| laputa_string_error(format!("Invalid uploaded skill payload: {e}")))
 }
 
 #[tauri::command]
@@ -4098,26 +4288,18 @@ pub async fn upload_file(
 }
 
 #[tauri::command]
-pub async fn delete_skill(name: String, state: State<'_, AgentState>) -> Result<(), String> {
-    let name = urlencoding::encode(&name);
-    let url = format!("{}/skills/{}", state.api_base_url(), name);
-    let response = state
-        .client
-        .delete(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to delete skill: {}", e))?;
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Invalid delete skill response: {}", e))?;
-    if value.get("status").and_then(|v| v.as_str()) != Some("ok") {
-        return Err(value
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error")
-            .to_string());
-    }
+pub async fn delete_skill(
+    slug: String,
+    base_hash: String,
+    state: State<'_, AgentState>,
+) -> Result<(), serde_json::Value> {
+    let url = format!(
+        "{}/skills/{}",
+        state.api_base_url(),
+        urlencoding::encode(slug.trim())
+    );
+    let payload = serde_json::json!({ "base_hash": base_hash });
+    memory_request(&state, reqwest::Method::DELETE, &url, Some(&payload)).await?;
     Ok(())
 }
 

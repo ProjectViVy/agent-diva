@@ -11,6 +11,7 @@ pub mod memory;
 pub mod persona;
 pub mod planning;
 mod provider_companion;
+pub mod skills;
 pub mod todo;
 pub mod token_stats;
 
@@ -29,6 +30,13 @@ pub use approvals::approval_routes;
 pub use ask_user::ask_user_routes;
 pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
+pub use skills::{
+    accept_skill_request_handler, create_skill_request_handler, delete_skill_handler,
+    disable_skill_handler, get_skill_handler, get_skill_history_revision_handler,
+    get_skill_request_handler, get_skills_handler, list_skill_history_handler,
+    list_skill_requests_handler, reject_skill_request_handler, update_skill_handler,
+    upload_skill_handler,
+};
 
 pub use autodream::{
     cancel_autodream_run_handler, get_autodream_live_text_handler, get_autodream_run_handler,
@@ -73,8 +81,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use crate::state::{
     ApiRequest, AppState, ChannelUpdate, ConfigResponse, ConfigUpdate, FileUploadRequest,
     GenerateSessionTitleRequest, ManagerCommand, McpRefreshRequest, RunCronJobRequest,
-    SetCronJobEnabledRequest, SetMcpEnabledRequest, SkillUploadRequest, StopChatRequest,
-    ToolsConfigResponse, ToolsConfigUpdate,
+    SetCronJobEnabledRequest, SetMcpEnabledRequest, StopChatRequest, ToolsConfigResponse,
+    ToolsConfigUpdate,
 };
 
 #[derive(serde::Deserialize)]
@@ -787,19 +795,6 @@ pub async fn get_tools_handler(State(state): State<AppState>) -> Json<ToolsConfi
     }
 }
 
-pub async fn get_skills_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let (tx, rx) = oneshot::channel();
-    if let Err(e) = state.api_tx.send(ManagerCommand::GetSkills(tx)).await {
-        tracing::error!("Failed to send GetSkills request: {}", e);
-        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-    }
-    match rx.await {
-        Ok(Ok(skills)) => Json(serde_json::json!({ "status": "ok", "skills": skills })),
-        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
-        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
-    }
-}
-
 pub async fn get_mcps_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state.api_tx.send(ManagerCommand::GetMcps(tx)).await {
@@ -912,57 +907,6 @@ pub async fn refresh_mcp_status_handler(
     }
 }
 
-pub async fn upload_skill_handler(
-    State(state): State<AppState>,
-    mut multipart: Multipart,
-) -> Json<serde_json::Value> {
-    let mut file_name: Option<String> = None;
-    let mut bytes: Option<Vec<u8>> = None;
-
-    loop {
-        let field = match multipart.next_field().await {
-            Ok(Some(field)) => field,
-            Ok(None) => break,
-            Err(e) => {
-                return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-            }
-        };
-        if field.name() != Some("file") {
-            continue;
-        }
-        file_name = field.file_name().map(ToString::to_string);
-        match field.bytes().await {
-            Ok(body) => bytes = Some(body.to_vec()),
-            Err(e) => {
-                return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-            }
-        }
-    }
-
-    let Some(file_name) = file_name else {
-        return Json(serde_json::json!({ "status": "error", "message": "missing file upload" }));
-    };
-    let Some(bytes) = bytes else {
-        return Json(serde_json::json!({ "status": "error", "message": "missing file body" }));
-    };
-
-    let (tx, rx) = oneshot::channel();
-    let request = SkillUploadRequest { file_name, bytes };
-    if let Err(e) = state
-        .api_tx
-        .send(ManagerCommand::UploadSkill(request, tx))
-        .await
-    {
-        tracing::error!("Failed to send UploadSkill request: {}", e);
-        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-    }
-    match rx.await {
-        Ok(Ok(skill)) => Json(serde_json::json!({ "status": "ok", "skill": skill })),
-        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
-        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
-    }
-}
-
 pub async fn upload_file_handler(
     State(state): State<AppState>,
     mut multipart: Multipart,
@@ -1037,26 +981,6 @@ pub async fn upload_file_handler(
     }
     match rx.await {
         Ok(Ok(attachment)) => Json(serde_json::json!({ "status": "ok", "attachment": attachment })),
-        Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
-        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
-    }
-}
-
-pub async fn delete_skill_handler(
-    State(state): State<AppState>,
-    Path(name): Path<String>,
-) -> Json<serde_json::Value> {
-    let (tx, rx) = oneshot::channel();
-    if let Err(e) = state
-        .api_tx
-        .send(ManagerCommand::DeleteSkill(name, tx))
-        .await
-    {
-        tracing::error!("Failed to send DeleteSkill request: {}", e);
-        return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
-    }
-    match rx.await {
-        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
     }

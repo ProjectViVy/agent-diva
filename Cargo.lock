@@ -309,6 +309,7 @@ dependencies = [
  "mime_guess",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sqlx",
  "tempfile",
  "tokio",

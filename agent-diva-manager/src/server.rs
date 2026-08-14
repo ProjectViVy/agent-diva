@@ -9,13 +9,14 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    accept_persona_request_handler, add_provider_model_handler, apply_laputa_proposal_handler,
-    cancel_autodream_run_handler, chat_handler, create_cron_job_handler,
-    create_laputa_proposal_handler, create_mcp_handler, create_memory_record_handler,
-    create_persona_request_handler, create_provider_handler, decide_laputa_proposal_handler,
-    delete_actmem_capsule_handler, delete_cron_job_handler, delete_mcp_handler,
-    delete_memory_record_handler, delete_provider_handler, delete_provider_model_handler,
-    delete_session_handler, delete_skill_handler, edit_laputa_proposal_handler, events_handler,
+    accept_persona_request_handler, accept_skill_request_handler, add_provider_model_handler,
+    apply_laputa_proposal_handler, cancel_autodream_run_handler, chat_handler,
+    create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
+    create_memory_record_handler, create_persona_request_handler, create_provider_handler,
+    create_skill_request_handler, decide_laputa_proposal_handler, delete_actmem_capsule_handler,
+    delete_cron_job_handler, delete_mcp_handler, delete_memory_record_handler,
+    delete_provider_handler, delete_provider_model_handler, delete_session_handler,
+    delete_skill_handler, disable_skill_handler, edit_laputa_proposal_handler, events_handler,
     generate_session_title_handler, get_actmem_capsule_handler, get_actmem_handler,
     get_audit_events_handler, get_audit_log_handler, get_autodream_live_text_handler,
     get_autodream_run_handler, get_bml_memory_handler, get_channels_handler, get_config_handler,
@@ -25,22 +26,24 @@ use crate::handlers::{
     get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
     get_provider_handler, get_provider_models_handler, get_providers_handler,
     get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
+    get_skill_handler, get_skill_history_revision_handler, get_skill_request_handler,
     get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
     initialize_persona_handler, list_actmem_capsules_handler, list_autodream_run_events_handler,
     list_autodream_runs_handler, list_bml_memories_handler, list_cron_jobs_handler,
     list_laputa_changelog_handler, list_laputa_proposals_handler, list_memory_records_handler,
     list_persona_history_handler, list_persona_requests_handler, list_recall_feedback_handler,
-    logs_routes, poll_laputa_events_handler, put_actmem_handler, put_memrules_handler,
-    refresh_mcp_status_handler, reject_persona_request_handler, remove_bml_memory_handler,
-    repair_persona_handler, reset_session_handler, resolve_provider_handler,
-    rollback_laputa_changelog_handler, run_cron_job_handler, save_persona_document_handler,
-    set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
-    stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
-    transition_laputa_proposal_handler, trigger_autodream_run_handler, update_channel_handler,
-    update_config_handler, update_cron_job_handler, update_mcp_handler,
+    list_skill_history_handler, list_skill_requests_handler, logs_routes,
+    poll_laputa_events_handler, put_actmem_handler, put_memrules_handler,
+    refresh_mcp_status_handler, reject_persona_request_handler, reject_skill_request_handler,
+    remove_bml_memory_handler, repair_persona_handler, reset_session_handler,
+    resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
+    save_persona_document_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler,
+    stop_chat_handler, stop_cron_job_handler, stream_laputa_events_handler, todo_routes,
+    token_stats_routes, transition_laputa_proposal_handler, trigger_autodream_run_handler,
+    update_channel_handler, update_config_handler, update_cron_job_handler, update_mcp_handler,
     update_memory_record_handler, update_provider_handler, update_self_evolution_config_handler,
-    update_session_title_handler, update_tools_handler, upload_file_handler, upload_skill_handler,
-    write_laputa_section_handler,
+    update_session_title_handler, update_skill_handler, update_tools_handler, upload_file_handler,
+    upload_skill_handler, write_laputa_section_handler,
 };
 use crate::state::AppState;
 
@@ -307,7 +310,34 @@ fn runtime_routes() -> Router<AppState> {
             "/api/skills",
             get(get_skills_handler).post(upload_skill_handler),
         )
-        .route("/api/skills/:name", delete(delete_skill_handler))
+        .route(
+            "/api/skills/:slug",
+            get(get_skill_handler)
+                .put(update_skill_handler)
+                .delete(delete_skill_handler),
+        )
+        .route("/api/skills/:slug/disable", post(disable_skill_handler))
+        .route("/api/skills/:slug/history", get(list_skill_history_handler))
+        .route(
+            "/api/skills/:slug/history/:revision",
+            get(get_skill_history_revision_handler),
+        )
+        .route(
+            "/api/evolution/requests",
+            get(list_skill_requests_handler).post(create_skill_request_handler),
+        )
+        .route(
+            "/api/evolution/requests/:id",
+            get(get_skill_request_handler),
+        )
+        .route(
+            "/api/evolution/requests/:id/accept",
+            post(accept_skill_request_handler),
+        )
+        .route(
+            "/api/evolution/requests/:id/reject",
+            post(reject_skill_request_handler),
+        )
         .route(
             "/api/files/upload",
             post(upload_file_handler).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
@@ -421,7 +451,7 @@ mod tests {
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
     use chrono::{DateTime, Utc};
-    use std::sync::Arc;
+    use std::{io::Write, sync::Arc};
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
@@ -455,6 +485,34 @@ mod tests {
             state: ProposalState::PendingReview,
             source_run_id: Some("run-1".to_string()),
         }
+    }
+
+    async fn json_response(
+        app: axum::Router,
+        request: Request<Body>,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = app.oneshot(request).await.unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value = serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+        (status, value)
+    }
+
+    fn skill_zip(slug: &str) -> Vec<u8> {
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            writer
+                .start_file("SKILL.md", zip::write::FileOptions::default())
+                .unwrap();
+            writer
+                .write_all(
+                    format!("---\nname: {slug}\ndescription: uploaded\n---\nbody\n").as_bytes(),
+                )
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        cursor.into_inner()
     }
 
     #[tokio::test]
@@ -497,6 +555,158 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn skill_evolution_http_routes_enforce_zip_cas_history_and_review() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let app = build_router(state.clone());
+
+        let zip = skill_zip("zip-skill");
+        let boundary = "skill-upload-boundary";
+        let mut multipart = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"zip-skill.zip\"\r\nContent-Type: application/zip\r\n\r\n"
+        )
+        .into_bytes();
+        multipart.extend_from_slice(&zip);
+        multipart.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        let (status, uploaded) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/skills")
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(multipart))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(uploaded["skill"]["slug"], "zip-skill");
+
+        let (status, duplicate) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("PUT")
+                .uri("/api/skills/zip-skill")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"markdown":"---\nname: zip-skill\ndescription: changed\n---\nbody\n","base_hash":"wrong"}"#,
+                ))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(duplicate["error"]["code"], "skill_hash_conflict");
+
+        let markdown =
+            "---\nname: reviewed-skill\ndescription: reviewed\nalways: true\n---\nreviewed body\n";
+        let request_body = serde_json::json!({
+            "slug": "reviewed-skill",
+            "title": "Reviewed Skill",
+            "proposed_markdown": markdown,
+            "evidence": [],
+            "attestation": "I authored and reviewed this Skill",
+            "base_hash": "0",
+            "reason": "user-authored reusable routine"
+        });
+        let (status, created) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/evolution/requests")
+                .header("content-type", "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let request_id = created["request"]["id"].as_str().unwrap();
+
+        let (status, conflict) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/evolution/requests")
+                .header("content-type", "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(conflict["error"]["code"], "skill_request_exists");
+
+        let (status, accepted) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/evolution/requests/{request_id}/accept"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(accepted["request"]["status"], "accepted");
+
+        let (status, detail) = json_response(
+            app.clone(),
+            Request::builder()
+                .uri("/api/skills/reviewed-skill")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(detail["skill"]["source"], "home");
+        let hash = detail["skill"]["content_hash"].as_str().unwrap();
+
+        let (status, history) = json_response(
+            app.clone(),
+            Request::builder()
+                .uri("/api/skills/reviewed-skill/history")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(history["history"].as_array().unwrap().len(), 1);
+
+        let (status, disabled) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/skills/reviewed-skill/disable")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "base_hash": hash }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(disabled["outcome"]["document"]["enabled"], false);
+        let disabled_hash = disabled["outcome"]["document"]["content_hash"]
+            .as_str()
+            .unwrap();
+
+        let (status, _) = json_response(
+            app,
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/skills/reviewed-skill")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "base_hash": disabled_hash }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
     }
 
     #[tokio::test]
@@ -963,7 +1173,8 @@ mod tests {
             .clone()
             .with_reflection_engine(Some(Arc::new(
                 DeterministicReflectionEngine::evidence_echo(),
-            )));
+            )))
+            .with_skill_reflection_engine(None);
         let app = build_router(state.clone());
 
         let response = app
@@ -1046,7 +1257,8 @@ mod tests {
             .clone()
             .with_reflection_engine(Some(Arc::new(
                 DeterministicReflectionEngine::evidence_echo(),
-            )));
+            )))
+            .with_skill_reflection_engine(None);
         let app = build_router(state.clone());
 
         let triggered = app
