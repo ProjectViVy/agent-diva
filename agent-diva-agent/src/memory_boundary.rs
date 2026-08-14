@@ -468,6 +468,10 @@ impl LegacyCrudMemoryProvider {
                 content: line.to_string(),
                 trust: "legacy".to_string(),
                 provenance: Some("legacy_markdown".to_string()),
+                evidence_refs: Vec::new(),
+                revision: 0,
+                created_at: String::new(),
+                updated_at: String::new(),
             })
             .collect()
     }

@@ -235,7 +235,7 @@ impl AgentLoop {
             event,
         );
 
-        let (raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
+        let (mut raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
             Ok(arguments) => {
                 let result = policy
                     .execute(
@@ -266,6 +266,19 @@ impl AgentLoop {
                 )
             }
         };
+
+        if !is_error && tool_call.name == "tool_search" && activates_memory_write(&raw_result) {
+            match self.memory_provider.memory_rules().await {
+                Ok(rules) => {
+                    raw_result.push_str("\n\n<memory-write-rules source=\"");
+                    raw_result.push_str(&rules.source);
+                    raw_result.push_str("\">\n");
+                    raw_result.push_str(&rules.content);
+                    raw_result.push_str("\n</memory-write-rules>");
+                }
+                Err(error) => warn!(%error, "failed to attach MEMRULES to tool activation"),
+            }
+        }
 
         if !is_error
             && tool_call.name == "memory_distill"
@@ -428,6 +441,20 @@ impl AgentLoop {
     }
 }
 
+fn activates_memory_write(result: &str) -> bool {
+    [
+        "memory_add",
+        "memory_update",
+        "memory_remove",
+        "actmem_edit_work",
+        "actmem_complete",
+        "actmem_drop",
+        "session_checkpoint",
+    ]
+    .iter()
+    .any(|name| result.contains(name))
+}
+
 fn memory_distill_created_skill(raw_result: &str) -> bool {
     serde_json::from_str::<Value>(raw_result)
         .ok()
@@ -449,6 +476,16 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
         Arc,
     };
+
+    #[test]
+    fn write_activation_detection_requires_a_memory_mutator() {
+        assert!(activates_memory_write("activated: memory_add"));
+        assert!(activates_memory_write("activated: actmem_complete"));
+        assert!(!activates_memory_write("activated: memory_list"));
+        assert!(!activates_memory_write(
+            "activated: memory_search, memory_get, actmem"
+        ));
+    }
 
     struct CountingExec {
         calls: Arc<AtomicUsize>,

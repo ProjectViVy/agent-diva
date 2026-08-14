@@ -1,9 +1,9 @@
-//! `update_working_checkpoint` tool: session-scoped volatile working memory.
+//! `session_checkpoint` tool: session-scoped volatile checkpoint.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use agent_diva_core::memory::{CheckpointWriteRequest, MemoryProvider};
+use agent_diva_core::memory::{MemoryProvider, SessionCheckpointWriteRequest};
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -11,15 +11,15 @@ use serde_json::{json, Value};
 /// Session working checkpoint tool (volatile, non-authoritative).
 ///
 /// The checkpoint is session-scoped: it is injected into live-turn context as
-/// working memory and cleared on session end. It never becomes long-term
+/// a session checkpoint and cleared on session end. It never becomes long-term
 /// authority; promote durable knowledge with `memory_distill`.
-pub struct UpdateWorkingCheckpointTool {
+pub struct SessionCheckpointTool {
     provider: Option<Arc<dyn MemoryProvider>>,
     workspace: Option<PathBuf>,
     session_id: Option<String>,
 }
 
-impl UpdateWorkingCheckpointTool {
+impl SessionCheckpointTool {
     /// Create a tool that reports the provider as unavailable.
     pub fn new() -> Self {
         Self {
@@ -45,7 +45,7 @@ impl UpdateWorkingCheckpointTool {
     }
 }
 
-impl Default for UpdateWorkingCheckpointTool {
+impl Default for SessionCheckpointTool {
     fn default() -> Self {
         Self::new()
     }
@@ -63,13 +63,13 @@ struct CheckpointArgs {
 }
 
 #[async_trait]
-impl Tool for UpdateWorkingCheckpointTool {
+impl Tool for SessionCheckpointTool {
     fn name(&self) -> &str {
-        "update_working_checkpoint"
+        "session_checkpoint"
     }
 
     fn description(&self) -> &str {
-        "Record the current task's working state (key facts, related skills, in-flight progress) in the session's volatile working memory. The checkpoint is visible in every turn of this session and is cleared when the session ends; it is not long-term authority. Use memory_distill to promote durable knowledge."
+        "Record the current task state in this session's volatile checkpoint. It is visible only in this session and is physically cleared on reset, delete, or explicit session end; it is not long-term Memory."
     }
 
     fn parameters(&self) -> Value {
@@ -111,7 +111,7 @@ impl Tool for UpdateWorkingCheckpointTool {
             return Ok(json!({"status": "failed", "reason": "no active session"}).to_string());
         };
         let outcome = provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: workspace,
                 session_id,
                 key_info: args.key_info,
@@ -183,24 +183,22 @@ mod tests {
 
     #[tokio::test]
     async fn without_provider_reports_failed() {
-        let tool = UpdateWorkingCheckpointTool::new();
+        let tool = SessionCheckpointTool::new();
         let result = tool.execute(valid_args()).await.unwrap();
         assert!(result.contains("\"status\":\"failed\""));
     }
 
     #[tokio::test]
     async fn without_session_reports_failed() {
-        let tool = UpdateWorkingCheckpointTool::with_provider(
-            Arc::new(DummyProvider),
-            PathBuf::from("/tmp/ws"),
-        );
+        let tool =
+            SessionCheckpointTool::with_provider(Arc::new(DummyProvider), PathBuf::from("/tmp/ws"));
         let result = tool.execute(valid_args()).await.unwrap();
         assert!(result.contains("no active session"));
     }
 
     #[tokio::test]
     async fn invalid_args_is_error() {
-        let tool = UpdateWorkingCheckpointTool::new();
+        let tool = SessionCheckpointTool::new();
         assert!(tool.execute(json!(42)).await.is_err());
     }
 }

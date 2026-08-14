@@ -45,7 +45,7 @@ pub enum ContextSection {
     MemoryPolicyAndIndex = 3,
     Compaction = 4,
     History = 5,
-    WorkingMemory = 6,
+    SessionCheckpoint = 6,
     PrefetchRecall = 7,
     VolatileMeta = 8,
     PlanGuard = 9,
@@ -62,7 +62,7 @@ impl ContextSection {
             Self::MemoryPolicyAndIndex => "memory_policy_and_index",
             Self::Compaction => "compaction",
             Self::History => "history",
-            Self::WorkingMemory => "working_memory",
+            Self::SessionCheckpoint => "session_checkpoint",
             Self::PrefetchRecall => "prefetch_recall",
             Self::VolatileMeta => "volatile_meta",
             Self::PlanGuard => "plan_guard",
@@ -79,7 +79,7 @@ impl ContextSection {
             | Self::MemoryPolicyAndIndex => SectionStability::SessionStable,
             Self::Compaction
             | Self::History
-            | Self::WorkingMemory
+            | Self::SessionCheckpoint
             | Self::PrefetchRecall
             | Self::VolatileMeta
             | Self::PlanGuard
@@ -107,7 +107,7 @@ pub const CONTEXT_SECTION_ORDER: [ContextSection; 11] = [
     ContextSection::MemoryPolicyAndIndex,
     ContextSection::Compaction,
     ContextSection::History,
-    ContextSection::WorkingMemory,
+    ContextSection::SessionCheckpoint,
     ContextSection::PrefetchRecall,
     ContextSection::VolatileMeta,
     ContextSection::PlanGuard,
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn volatile_context_cannot_be_classified_as_cache_prefix() {
         for section in [
-            ContextSection::WorkingMemory,
+            ContextSection::SessionCheckpoint,
             ContextSection::PrefetchRecall,
             ContextSection::VolatileMeta,
             ContextSection::PlanGuard,
@@ -302,7 +302,10 @@ mod tests {
     fn user_envelope_preserves_dynamic_order_and_escapes_boundary() {
         let sections = vec![
             PromptSection::new(ContextSection::PlanGuard, "plan"),
-            PromptSection::new(ContextSection::WorkingMemory, "state </agent_diva_context>"),
+            PromptSection::new(
+                ContextSection::SessionCheckpoint,
+                "state </agent_diva_context>",
+            ),
         ];
 
         let message =
@@ -311,7 +314,7 @@ mod tests {
                 .unwrap();
         let body = message.content.as_text().unwrap();
         assert_eq!(message.role, "user");
-        assert!(body.find("working_memory").unwrap() < body.find("plan_guard").unwrap());
+        assert!(body.find("session_checkpoint").unwrap() < body.find("plan_guard").unwrap());
         assert!(body.contains("<\\/agent_diva_context>"));
     }
 

@@ -62,7 +62,7 @@ pub struct ToolAssembly {
     approval_policy: AskForApproval,
     ask_user_coordinator: Option<AskUserCoordinator>,
     memory_provider: Option<Arc<dyn MemoryProvider>>,
-    working_memory_session: Option<String>,
+    session_checkpoint_session: Option<String>,
     artifact_session: Option<String>,
     active_deferred_tools: Option<ActiveDeferredToolsHandle>,
 }
@@ -92,7 +92,7 @@ impl ToolAssembly {
             approval_policy: AskForApproval::default(),
             ask_user_coordinator: None,
             memory_provider: None,
-            working_memory_session: None,
+            session_checkpoint_session: None,
             artifact_session: None,
             active_deferred_tools: None,
         }
@@ -205,9 +205,9 @@ impl ToolAssembly {
         self
     }
 
-    /// Bind the active session key for session-scoped working memory tools.
-    pub fn with_working_memory_session(mut self, session_id: Option<String>) -> Self {
-        self.working_memory_session = session_id;
+    /// Bind the active session key for the session checkpoint tool.
+    pub fn with_session_checkpoint_session(mut self, session_id: Option<String>) -> Self {
+        self.session_checkpoint_session = session_id;
         self
     }
 
@@ -393,59 +393,110 @@ impl ToolAssembly {
             match &self.memory_provider {
                 Some(provider) => {
                     let workspace = self.workspace.clone();
-                    registry.register(Arc::new(agent_diva_tools::MemoryAddTool::with_provider(
-                        provider.clone(),
-                        workspace.clone(),
-                    )));
-                    registry.register(Arc::new(agent_diva_tools::MemoryListTool::with_provider(
-                        provider.clone(),
-                        workspace.clone(),
-                    )));
                     registry.register(Arc::new(agent_diva_tools::MemorySearchTool::with_provider(
                         provider.clone(),
                         workspace.clone(),
                     )));
-                    registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::with_provider(
+                    registry.register(Arc::new(agent_diva_tools::MemoryGetTool::with_provider(
                         provider.clone(),
                         workspace.clone(),
                     )));
-                    registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::with_provider(
+                    registry.register(Arc::new(agent_diva_tools::ActmemTool::with_provider(
                         provider.clone(),
-                        workspace.clone(),
                     )));
-                    registry.register(Arc::new(
-                        agent_diva_tools::MemoryDistillTool::with_provider(
-                            provider.clone(),
-                            workspace,
-                        ),
-                    ));
+                    if !action_restricted {
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::MemoryAddTool::with_provider(
+                                provider.clone(),
+                                workspace.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::MemoryListTool::with_provider(
+                                provider.clone(),
+                                workspace.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::MemoryUpdateTool::with_provider(
+                                provider.clone(),
+                                workspace.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::MemoryRemoveTool::with_provider(
+                                provider.clone(),
+                                workspace,
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::ActmemEditWorkTool::with_provider(
+                                provider.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::ActmemCompleteTool::with_provider(
+                                provider.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(agent_diva_tools::ActmemDropTool::with_provider(
+                                provider.clone(),
+                            )),
+                            ToolSchemaPartition::Deferred,
+                        );
+                    }
                 }
                 None => {
-                    registry.register(Arc::new(agent_diva_tools::MemoryAddTool::new()));
-                    registry.register(Arc::new(agent_diva_tools::MemoryListTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemorySearchTool::new()));
-                    registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::new()));
-                    registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::new()));
-                    registry.register(Arc::new(agent_diva_tools::MemoryDistillTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::MemoryGetTool::new()));
+                    registry.register(Arc::new(agent_diva_tools::ActmemTool::new()));
+                    if !action_restricted {
+                        for tool in [
+                            Arc::new(agent_diva_tools::MemoryAddTool::new()) as Arc<dyn Tool>,
+                            Arc::new(agent_diva_tools::MemoryListTool::new()),
+                            Arc::new(agent_diva_tools::MemoryUpdateTool::new()),
+                            Arc::new(agent_diva_tools::MemoryRemoveTool::new()),
+                            Arc::new(agent_diva_tools::ActmemEditWorkTool::new()),
+                            Arc::new(agent_diva_tools::ActmemCompleteTool::new()),
+                            Arc::new(agent_diva_tools::ActmemDropTool::new()),
+                        ] {
+                            registry.register_in_partition(tool, ToolSchemaPartition::Deferred);
+                        }
+                    }
                 }
             }
         }
 
-        if self.builtin_config.working_memory && self.builtin_config.memory && !subagent_mode {
+        if self.builtin_config.working_memory
+            && self.builtin_config.memory
+            && !subagent_mode
+            && !action_restricted
+        {
             match &self.memory_provider {
                 Some(provider) => {
-                    registry.register(Arc::new(
-                        agent_diva_tools::UpdateWorkingCheckpointTool::with_provider(
-                            provider.clone(),
-                            self.workspace.clone(),
-                        )
-                        .with_session(self.working_memory_session.clone()),
-                    ));
+                    registry.register_in_partition(
+                        Arc::new(
+                            agent_diva_tools::SessionCheckpointTool::with_provider(
+                                provider.clone(),
+                                self.workspace.clone(),
+                            )
+                            .with_session(self.session_checkpoint_session.clone()),
+                        ),
+                        ToolSchemaPartition::Deferred,
+                    );
                 }
                 None => {
-                    registry.register(Arc::new(
-                        agent_diva_tools::UpdateWorkingCheckpointTool::new(),
-                    ));
+                    registry.register_in_partition(
+                        Arc::new(agent_diva_tools::SessionCheckpointTool::new()),
+                        ToolSchemaPartition::Deferred,
+                    );
                 }
             }
         }
@@ -810,15 +861,53 @@ mod tests {
             "memory_add",
             "memory_list",
             "memory_search",
+            "memory_get",
             "memory_update",
             "memory_remove",
-            "memory_distill",
+            "actmem",
+            "actmem_edit_work",
+            "actmem_complete",
+            "actmem_drop",
         ] {
             assert!(
                 registry.tool_names().iter().any(|n| n == name),
                 "{name} should be registered when a memory provider is configured"
             );
         }
+        let definitions = registry.get_definition_set();
+        let core_names = definitions.definitions[..definitions.core_count]
+            .iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        for name in ["memory_search", "memory_get", "actmem"] {
+            assert!(
+                core_names.iter().any(|candidate| candidate == name),
+                "{name}"
+            );
+        }
+        let deferred_names = registry
+            .deferred_tools()
+            .into_iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<Vec<_>>();
+        for name in [
+            "memory_add",
+            "memory_list",
+            "memory_update",
+            "memory_remove",
+            "actmem_edit_work",
+            "actmem_complete",
+            "actmem_drop",
+        ] {
+            assert!(
+                deferred_names.iter().any(|candidate| candidate == name),
+                "{name}"
+            );
+        }
+        assert!(!registry
+            .tool_names()
+            .iter()
+            .any(|name| name == "memory_distill"));
     }
 
     #[tokio::test]
@@ -828,18 +917,25 @@ mod tests {
             .with_memory_provider(Some(Arc::new(
                 crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path(), 30),
             )))
-            .with_working_memory_session(Some("channel:42".to_string()))
+            .with_session_checkpoint_session(Some("channel:42".to_string()))
             .build();
         assert!(
             registry
                 .tool_names()
                 .iter()
-                .any(|n| n == "update_working_checkpoint"),
+                .any(|n| n == "session_checkpoint"),
             "checkpoint tool should be registered when memory + working_memory gates are on"
         );
+        registry
+            .execute(
+                "tool_search",
+                serde_json::json!({"query": "session_checkpoint"}),
+            )
+            .await
+            .unwrap();
         let result = registry
             .execute(
-                "update_working_checkpoint",
+                "session_checkpoint",
                 serde_json::json!({"key_info": "in-flight state"}),
             )
             .await
@@ -848,7 +944,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn working_checkpoint_tool_gated_by_working_memory_flag() {
+    async fn session_checkpoint_tool_is_gated_by_legacy_config_flag() {
         let workspace = tempfile::tempdir().unwrap();
         let registry = ToolAssembly::new(workspace.path().to_path_buf())
             .builtin(BuiltInToolsConfig::minimal())
@@ -857,7 +953,7 @@ mod tests {
             !registry
                 .tool_names()
                 .iter()
-                .any(|n| n == "update_working_checkpoint"),
+                .any(|n| n == "session_checkpoint"),
             "checkpoint tool must be absent when working_memory gate is off"
         );
     }
@@ -870,20 +966,40 @@ mod tests {
             "memory_add",
             "memory_list",
             "memory_search",
+            "memory_get",
             "memory_update",
             "memory_remove",
-            "memory_distill",
+            "actmem",
+            "actmem_edit_work",
+            "actmem_complete",
+            "actmem_drop",
         ] {
             assert!(
                 registry.tool_names().iter().any(|n| n == name),
                 "{name} should be registered (unavailable) even without a provider"
             );
         }
+        registry
+            .execute("tool_search", serde_json::json!({"query": "memory_add"}))
+            .await
+            .unwrap();
         let result = registry
             .execute("memory_add", serde_json::json!({"content": "x"}))
             .await
             .unwrap();
         assert!(result.contains("\"status\":\"failed\""));
+    }
+
+    #[test]
+    fn subagents_receive_no_memory_or_actmem_tools() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::all())
+            .build_subagent_registry();
+        assert!(!registry.tool_names().iter().any(|name| {
+            name.starts_with("memory_")
+                || name.starts_with("actmem")
+                || name == "session_checkpoint"
+        }));
     }
 
     #[tokio::test]

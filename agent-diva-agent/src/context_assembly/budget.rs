@@ -35,7 +35,7 @@ pub enum BudgetLayer {
     ToolSchemasCore,
     ToolSchemasDeferred,
     L1Index,
-    WorkingMemory,
+    SessionCheckpoint,
     PrefetchRecall,
     CompactionSummaries,
     History,
@@ -50,7 +50,7 @@ impl BudgetLayer {
             Self::ToolSchemasCore => "tool_schemas_core",
             Self::ToolSchemasDeferred => "tool_schemas_deferred",
             Self::L1Index => "l1_index",
-            Self::WorkingMemory => "working_memory",
+            Self::SessionCheckpoint => "session_checkpoint",
             Self::PrefetchRecall => "prefetch_recall",
             Self::CompactionSummaries => "compaction_summaries",
             Self::History => "history",
@@ -134,7 +134,7 @@ impl ContextBudgetPlan {
         layers.insert(BudgetLayer::ToolSchemasCore, layer(0.12, 0.15));
         layers.insert(BudgetLayer::ToolSchemasDeferred, layer(0.03, 0.05));
         layers.insert(BudgetLayer::L1Index, layer(0.04, 0.06));
-        layers.insert(BudgetLayer::WorkingMemory, layer(0.03, 0.04));
+        layers.insert(BudgetLayer::SessionCheckpoint, layer(0.03, 0.04));
         layers.insert(BudgetLayer::PrefetchRecall, layer(0.03, 0.04));
         layers.insert(BudgetLayer::CompactionSummaries, layer(0.08, 0.10));
         layers.insert(BudgetLayer::History, layer(0.55, 0.80));
@@ -372,7 +372,9 @@ pub fn estimate_messages(messages: &[Message]) -> usize {
 
 fn fragment_for_section(index: usize, section: &PromptSection) -> ContextFragment {
     let (layer, priority, eviction) = match section.section {
-        ContextSection::WorkingMemory => (BudgetLayer::WorkingMemory, 240, EvictionPolicy::Never),
+        ContextSection::SessionCheckpoint => {
+            (BudgetLayer::SessionCheckpoint, 240, EvictionPolicy::Never)
+        }
         ContextSection::PrefetchRecall => (BudgetLayer::PrefetchRecall, 40, EvictionPolicy::Drop),
         ContextSection::Compaction => (
             BudgetLayer::CompactionSummaries,
@@ -446,18 +448,18 @@ mod tests {
     }
 
     #[test]
-    fn recall_is_dropped_before_required_working_memory() {
+    fn recall_is_dropped_before_required_session_checkpoint() {
         let plan = ContextBudgetPlan::from_config(&BudgetConfig {
             max_tokens: 100,
             ..BudgetConfig::default()
         });
         let sections = vec![
-            PromptSection::new(ContextSection::WorkingMemory, "constraint"),
+            PromptSection::new(ContextSection::SessionCheckpoint, "constraint"),
             PromptSection::new(ContextSection::PrefetchRecall, "x".repeat(30)),
         ];
         let (selected, report) = select_dynamic_sections(&sections, 0, &plan);
         assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].section, ContextSection::WorkingMemory);
+        assert_eq!(selected[0].section, ContextSection::SessionCheckpoint);
         assert_eq!(report.dropped[0].layer, BudgetLayer::PrefetchRecall);
     }
 
@@ -518,7 +520,7 @@ mod tests {
     fn report_layer_totals_equal_the_total_estimate() {
         let plan = ContextBudgetPlan::from_config(&BudgetConfig::default());
         let sections = vec![PromptSection::new(
-            ContextSection::WorkingMemory,
+            ContextSection::SessionCheckpoint,
             "active constraint",
         )];
         let (_, report) = select_dynamic_sections(&sections, 17, &plan);
@@ -555,7 +557,7 @@ mod tests {
         let plan = ContextBudgetPlan::from_config(&BudgetConfig::default());
         let sections = vec![
             PromptSection::new(ContextSection::Compaction, "checkpoint body"),
-            PromptSection::new(ContextSection::WorkingMemory, "active state"),
+            PromptSection::new(ContextSection::SessionCheckpoint, "active state"),
         ];
         let (_, report) = select_dynamic_sections(&sections, 0, &plan);
         assert!(report

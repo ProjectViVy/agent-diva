@@ -39,6 +39,7 @@ pub(crate) struct FinalizationContext {
     pub message_content: String,
     pub turn_messages_start: usize,
     pub system_turn: bool,
+    pub actmem_interactive: bool,
     pub model: String,
     pub trace_id: String,
 }
@@ -128,6 +129,7 @@ impl AgentLoop {
             message_content,
             turn_messages_start,
             system_turn,
+            actmem_interactive,
             model,
             trace_id,
         } = context;
@@ -159,6 +161,24 @@ impl AgentLoop {
         let _ = self
             .bus
             .publish_event(message.channel.clone(), message.chat_id.clone(), event);
+
+        // The user-visible response is already emitted. ACTMEM failure is
+        // therefore observable only as structured diagnostics and never
+        // withdraws or delays the reply.
+        if actmem_interactive {
+            if let Err(error) = self
+                .memory_provider
+                .record_assistant_recap(&session_key, &finalization.content)
+                .await
+            {
+                warn!(
+                    session_id = %session_key,
+                    error = %error,
+                    "failed to append ACTMEM Recap"
+                );
+            }
+            self.schedule_actmem_idle_fold(&session_key).await;
+        }
 
         {
             let session = self.sessions.get_or_create(&session_key);

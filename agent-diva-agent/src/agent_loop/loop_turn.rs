@@ -347,6 +347,21 @@ impl AgentLoop {
                 event_tx,
             )
             .await?;
+        let actmem_interactive = super::is_interactive_actmem_turn(&msg);
+        if actmem_interactive {
+            self.mark_actmem_session_active(&session_key).await;
+            if let Err(error) = self
+                .memory_provider
+                .record_user_pulse(&session_key, &msg.content)
+                .await
+            {
+                warn!(
+                    session_id = %session_key,
+                    error = %error,
+                    "failed to append ACTMEM Pulse"
+                );
+            }
+        }
         let message_content = runtime_context.message_content;
         let current_turn_message = runtime_context.current_turn_message;
         let mut turn_messages_start = runtime_context.turn_messages_start;
@@ -676,6 +691,7 @@ impl AgentLoop {
                 message_content,
                 turn_messages_start,
                 system_turn: is_cron_trigger || execution_start,
+                actmem_interactive,
                 model: turn_snapshot.model,
                 trace_id: turn_snapshot.trace_id,
             },

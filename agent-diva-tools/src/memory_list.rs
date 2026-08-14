@@ -45,7 +45,7 @@ impl Tool for MemoryListTool {
     }
 
     fn description(&self) -> &str {
-        "List the applied memory authority. Returns visible entries with trust and provenance. Use before memory_update or memory_remove to discover the target record ids."
+        "List visible long-term BML records with current revisions. Use before memory_update or memory_remove."
     }
 
     fn parameters(&self) -> Value {

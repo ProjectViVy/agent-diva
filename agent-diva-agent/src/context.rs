@@ -1104,11 +1104,11 @@ mod tests {
     }
 
     #[test]
-    fn c1a_t2_working_memory_change_does_not_change_stable_prefix() {
+    fn c1a_t2_session_checkpoint_change_does_not_change_stable_prefix() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
         let stable = builder.build_system_prompt_for_session(None, "session-t2");
-        let first = PromptSection::new(ContextSection::WorkingMemory, "checkpoint one");
-        let second = PromptSection::new(ContextSection::WorkingMemory, "checkpoint two");
+        let first = PromptSection::new(ContextSection::SessionCheckpoint, "checkpoint one");
+        let second = PromptSection::new(ContextSection::SessionCheckpoint, "checkpoint two");
 
         assert_eq!(
             stable,

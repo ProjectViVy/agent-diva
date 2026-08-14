@@ -7,9 +7,7 @@ use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::error_context::ErrorContext;
-use agent_diva_core::memory::{
-    MemoryProvider, RecallOutcomeRequest, RecallTurnOutcome, SessionEndRequest,
-};
+use agent_diva_core::memory::{MemoryProvider, RecallOutcomeRequest, RecallTurnOutcome};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
 use agent_diva_core::security::{ActionTracker, RejectionCircuitBreaker, SecurityConfig};
@@ -27,6 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -144,6 +143,10 @@ pub struct AgentLoop {
     /// Turn-local reactive checkpoint updates; committed only after finalize.
     pub(crate) pending_checkpoint_updates:
         HashMap<String, crate::compaction::PendingCheckpointUpdate>,
+    /// Monotonic per-session activity generations used to invalidate idle folds.
+    actmem_activity_generations: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
+    /// One cancellable ACTMEM idle-fold timer per live session.
+    actmem_idle_handles: HashMap<String, JoinHandle<()>>,
 }
 
 pub struct AgentLoopToolSet {
@@ -283,7 +286,7 @@ fn build_agent_tools(
         )
         .with_plan_phase(turn_options.plan_phase)
         .with_execution_session(turn_options.execution_session_id)
-        .with_working_memory_session(turn_options.session_key.clone())
+        .with_session_checkpoint_session(turn_options.session_key.clone())
         .with_artifact_session(turn_options.session_key);
 
     if let Some(state) = turn_options.active_deferred_tools {
@@ -311,6 +314,18 @@ async fn gc_tool_artifacts(workspace: &Path) {
     if let Ok(Err(error)) = tokio::task::spawn_blocking(move || store.gc(&context)).await {
         tracing::warn!(error_code = error.code(), "tool artifact startup GC failed");
     }
+}
+
+fn is_interactive_actmem_turn(message: &InboundMessage) -> bool {
+    let sender = message.sender_id.to_ascii_lowercase();
+    let channel = message.channel.to_ascii_lowercase();
+    sender != "cron"
+        && sender != "system"
+        && sender != "subagent"
+        && channel != "cron"
+        && channel != "system"
+        && !message.metadata.contains_key("cron_job_id")
+        && !message.metadata.contains_key("subagent_id")
 }
 
 impl AgentLoop {
@@ -531,6 +546,8 @@ impl AgentLoop {
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
+            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            actmem_idle_handles: HashMap::new(),
         })
     }
 
@@ -712,6 +729,8 @@ impl AgentLoop {
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
+            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            actmem_idle_handles: HashMap::new(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -810,6 +829,8 @@ impl AgentLoop {
             cache_observer: crate::context_assembly::CacheObserveState::default(),
             active_deferred_tools: HashMap::new(),
             pending_checkpoint_updates: HashMap::new(),
+            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            actmem_idle_handles: HashMap::new(),
         })
     }
 
@@ -872,35 +893,10 @@ impl AgentLoop {
 
         info!("Agent loop stopped");
 
-        // Clear per-session working memory checkpoints before shutdown.
-        for session in self.sessions.list_sessions() {
-            if let Err(error) = self
-                .memory_provider
-                .on_session_end(SessionEndRequest {
-                    workspace_root: self.workspace.clone(),
-                    session_id: Some(session.key),
-                })
-                .await
-            {
-                warn!("Session-end checkpoint cleanup failed: {}", error);
-            }
-        }
-
-        // Trigger session-end rhythm work with idempotency.
-        match self
-            .memory_provider
-            .on_session_end(SessionEndRequest {
-                workspace_root: self.workspace.clone(),
-                session_id: Some("agent-loop-shutdown".to_string()),
-            })
-            .await
-        {
-            Ok(response) => {
-                debug!("Session-end hook completed: {:?}", response.status);
-            }
-            Err(e) => {
-                warn!("Session-end hook failed: {}", e);
-            }
+        // Daemon shutdown is not a logical session end. Preserve durable
+        // checkpoints and only cancel process-local idle timers.
+        for (_, handle) in self.actmem_idle_handles.drain() {
+            handle.abort();
         }
 
         self.context.clear_session_caches();
@@ -941,6 +937,8 @@ impl AgentLoop {
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
         let trace_id = Uuid::new_v4().to_string();
         let corrected = signals_memory_correction(&msg.content);
+        let terminal_session_key = msg.session_key();
+        let interactive_turn = is_interactive_actmem_turn(&msg);
         let workspace_root = self.workspace.clone();
         let feedback_request_id = trace_id.clone();
         use tracing::Instrument;
@@ -977,9 +975,62 @@ impl AgentLoop {
                     corrected,
                 )
                 .await;
+                if interactive_turn {
+                    self.schedule_actmem_idle_fold(&terminal_session_key).await;
+                }
                 Err(error_message.into())
             }
         }
+    }
+
+    /// Cancel an existing idle fold and mark the named session active.
+    pub(crate) async fn mark_actmem_session_active(&mut self, session_key: &str) {
+        if let Some(handle) = self.actmem_idle_handles.remove(session_key) {
+            handle.abort();
+        }
+        let mut generations = self.actmem_activity_generations.lock().await;
+        let generation = generations.entry(session_key.to_string()).or_default();
+        *generation = generation.saturating_add(1);
+    }
+
+    /// Schedule a fold that may run only if no newer activity generation exists.
+    pub(crate) async fn schedule_actmem_idle_fold(&mut self, session_key: &str) {
+        self.mark_actmem_session_active(session_key).await;
+        let expected_generation = self
+            .actmem_activity_generations
+            .lock()
+            .await
+            .get(session_key)
+            .copied()
+            .unwrap_or_default();
+        let generations = self.actmem_activity_generations.clone();
+        let memory_provider = self.memory_provider.clone();
+        let owned_session_key = session_key.to_string();
+        let task_session_key = owned_session_key.clone();
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(10 * 60)).await;
+            let current_generation = generations.lock().await.get(&task_session_key).copied();
+            if current_generation != Some(expected_generation) {
+                return;
+            }
+            if let Err(error) = memory_provider.fold_actmem_session(&task_session_key).await {
+                tracing::warn!(
+                    session_id = %task_session_key,
+                    error = %error,
+                    "ACTMEM idle fold failed"
+                );
+            }
+        });
+        self.actmem_idle_handles.insert(owned_session_key, handle);
+    }
+
+    /// Cancel the timer and invalidate its generation without scheduling a fold.
+    pub(crate) async fn cancel_actmem_session(&mut self, session_key: &str) {
+        self.mark_actmem_session_active(session_key).await;
+        self.actmem_activity_generations
+            .lock()
+            .await
+            .remove(session_key);
     }
 
     async fn commit_recall_outcome(
@@ -1166,6 +1217,79 @@ mod tests {
     struct DeferredActivationProvider {
         calls: Mutex<usize>,
         tool_sets: Mutex<Vec<Vec<String>>>,
+    }
+
+    #[derive(Default)]
+    struct MemoryActivationProvider {
+        calls: Mutex<usize>,
+        captured_messages: Mutex<Vec<Vec<Message>>>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for MemoryActivationProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            self.captured_messages.lock().unwrap().push(messages);
+            let index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+            let response = if index == 0 {
+                LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "memory-discovery".into(),
+                        call_type: "function".into(),
+                        name: "tool_search".into(),
+                        arguments: HashMap::from([(
+                            "query".into(),
+                            serde_json::Value::String("memory_add".into()),
+                        )]),
+                    }],
+                    finish_reason: "tool_calls".into(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            } else {
+                LLMResponse {
+                    content: Some("done".into()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".into(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                }
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".into()
+        }
     }
 
     #[async_trait]
@@ -2011,6 +2135,9 @@ mod tests {
         session_end_called: AtomicBool,
         prefetch_count: AtomicUsize,
         sync_count: AtomicUsize,
+        pulse_count: AtomicUsize,
+        recap_count: AtomicUsize,
+        fold_count: AtomicUsize,
         prefetch_failure_reason: Option<String>,
         sync_failure_reason: Option<String>,
     }
@@ -2024,6 +2151,9 @@ mod tests {
                 session_end_called: AtomicBool::new(false),
                 prefetch_count: AtomicUsize::new(0),
                 sync_count: AtomicUsize::new(0),
+                pulse_count: AtomicUsize::new(0),
+                recap_count: AtomicUsize::new(0),
+                fold_count: AtomicUsize::new(0),
                 prefetch_failure_reason: None,
                 sync_failure_reason: None,
             }
@@ -2114,6 +2244,64 @@ mod tests {
                 status: SessionEndStatus::Triggered,
             })
         }
+
+        async fn record_user_pulse(
+            &self,
+            _session_id: &str,
+            _content: &str,
+        ) -> agent_diva_core::Result<()> {
+            self.pulse_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn record_assistant_recap(
+            &self,
+            _session_id: &str,
+            _content: &str,
+        ) -> agent_diva_core::Result<()> {
+            self.recap_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn fold_actmem_session(&self, _session_id: &str) -> agent_diva_core::Result<()> {
+            self.fold_count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn memory_rules(
+            &self,
+        ) -> agent_diva_core::Result<agent_diva_core::memory::MemoryRulesResponse> {
+            Ok(agent_diva_core::memory::MemoryRulesResponse {
+                content: "# MEMRULES\nR4: direct revision-checked writes".into(),
+                source: "default".into(),
+            })
+        }
+    }
+
+    async fn build_tracking_agent(
+        root: &std::path::Path,
+        memory_provider: Arc<TrackingMemoryProvider>,
+    ) -> AgentLoop {
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                root.join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        AgentLoop::with_tools_and_memory_provider(
+            MessageBus::new(),
+            Arc::new(CapturingStreamProvider::default()),
+            root.to_path_buf(),
+            None,
+            Some(1),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider),
+        )
+        .await
+        .unwrap()
     }
 
     #[tokio::test]
@@ -2149,6 +2337,107 @@ mod tests {
         // Agent, context, inner component, test handle, and the six memory
         // tools in the assembled registry all hold references.
         assert!(Arc::strong_count(&memory_provider) >= 4);
+    }
+
+    #[tokio::test]
+    async fn interactive_turn_records_pulse_recap_and_folds_after_ten_idle_minutes() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let mut agent = build_tracking_agent(temp_dir.path(), memory_provider.clone()).await;
+        tokio::time::pause();
+
+        let response = agent
+            .process_direct("remember this", "ignored", "gui", "actmem-chat")
+            .await
+            .unwrap();
+        assert_eq!(response, "done");
+        assert_eq!(memory_provider.pulse_count.load(Ordering::SeqCst), 1);
+        assert_eq!(memory_provider.recap_count.load(Ordering::SeqCst), 1);
+
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(599)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 0);
+        tokio::time::advance(Duration::from_secs(2)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn newer_activity_invalidates_the_previous_idle_generation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let mut agent = build_tracking_agent(temp_dir.path(), memory_provider.clone()).await;
+        tokio::time::pause();
+
+        agent
+            .process_direct("first", "ignored", "gui", "same-chat")
+            .await
+            .unwrap();
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(599)).await;
+        agent
+            .process_direct("second", "ignored", "gui", "same-chat")
+            .await
+            .unwrap();
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(2)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 0);
+        tokio::time::advance(Duration::from_secs(599)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn cron_and_subagent_turns_do_not_write_actmem() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let mut agent = build_tracking_agent(temp_dir.path(), memory_provider.clone()).await;
+
+        agent
+            .process_inbound_message(
+                InboundMessage::new("gui", "cron", "cron-chat", "scheduled"),
+                None,
+            )
+            .await
+            .unwrap();
+        agent
+            .process_inbound_message(
+                InboundMessage::new("gui", "subagent", "sub-chat", "worker report"),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(memory_provider.pulse_count.load(Ordering::SeqCst), 0);
+        assert_eq!(memory_provider.recap_count.load(Ordering::SeqCst), 0);
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn reset_clears_checkpoint_and_cancels_idle_fold_without_backfill() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let mut agent = build_tracking_agent(temp_dir.path(), memory_provider.clone()).await;
+        tokio::time::pause();
+        let session_key = "gui:reset-chat".to_string();
+
+        agent
+            .process_direct("hello", "ignored", "gui", "reset-chat")
+            .await
+            .unwrap();
+        tokio::task::yield_now().await;
+        agent
+            .handle_runtime_control_command(RuntimeControlCommand::ResetSession {
+                session_key: session_key.clone(),
+            })
+            .await;
+        tokio::time::advance(Duration::from_secs(601)).await;
+        tokio::task::yield_now().await;
+
+        assert!(memory_provider.session_end_called.load(Ordering::SeqCst));
+        assert_eq!(memory_provider.fold_count.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
@@ -2642,7 +2931,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_memory_provider_session_end_called_at_shutdown() {
+    async fn explicit_session_end_calls_provider_cleanup() {
         let provider = TrackingMemoryProvider::new();
 
         let response = provider
@@ -3048,5 +3337,48 @@ mod tests {
         .await
         .unwrap();
         assert!(restored.active_deferred_tools.is_empty());
+    }
+
+    #[tokio::test]
+    async fn memory_write_activation_injects_full_memrules_before_the_next_model_call() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(MemoryActivationProvider::default());
+        let memory_provider = Arc::new(TrackingMemoryProvider::new());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            bus,
+            provider.clone(),
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(3),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider),
+        )
+        .await
+        .unwrap();
+
+        let result = agent
+            .process_direct("remember this", "ignored", "gui", "rules-chat")
+            .await
+            .unwrap();
+        assert_eq!(result, "done");
+        let calls = provider.captured_messages.lock().unwrap();
+        assert!(calls.len() >= 2);
+        let second_call = calls[1]
+            .iter()
+            .map(|message| message.content.to_text_lossy())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(second_call.contains("<memory-write-rules source=\"default\">"));
+        assert!(second_call.contains("R4: direct revision-checked writes"));
     }
 }

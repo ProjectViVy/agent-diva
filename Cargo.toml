@@ -26,7 +26,7 @@ rust-version = "1.80.0"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "io-util"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "macros", "sync", "time", "test-util", "fs", "process", "io-util"] }
 futures = "0.3"
 async-trait = "0.1"
 tokio-util = "0.7"

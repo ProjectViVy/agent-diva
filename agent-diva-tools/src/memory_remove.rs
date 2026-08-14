@@ -1,4 +1,4 @@
-//! `memory_remove` tool: high-risk memory removal via review.
+//! `memory_remove` tool: direct revision-checked BML soft deletion.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-/// Remove tool that creates a deprecation proposal.
+/// Direct compare-and-swap soft deletion tool.
 pub struct MemoryRemoveTool {
     provider: Option<Arc<dyn MemoryProvider>>,
     workspace: Option<PathBuf>,
@@ -45,11 +45,11 @@ impl Tool for MemoryRemoveTool {
     }
 
     fn description(&self) -> &str {
-        "Remove an applied memory record (forget). This creates a reviewable deprecation proposal; the record is tombstoned after approval so it stops appearing in prompts. Report the proposal id to the user."
+        "Directly soft-delete one long-term Memory record using its current base_revision. The tombstone hides it immediately; a stale revision is rejected."
     }
 
     fn parameters(&self) -> Value {
-        json!({"type": "object", "properties": {"record_id": {"type": "string", "description": "Target record id from memory_list or memory_search"}, "reason": {"type": "string", "description": "Why the record should be forgotten"}}, "required": ["record_id", "reason"]})
+        json!({"type":"object","properties":{"record_id":{"type":"string"},"reason":{"type":"string"},"base_revision":{"type":"integer","minimum":1}},"required":["record_id","reason","base_revision"]})
     }
 
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
@@ -86,7 +86,7 @@ mod tests {
     fn valid_args() -> serde_json::Value {
         // Tool-agnostic: unknown keys are ignored by serde, so a probe value
         // parses for every tool while still exercising the parse path.
-        serde_json::json!({"content": "probe", "record_id": "r1", "query": "q", "skill_name": "s", "reason": "probe"})
+        serde_json::json!({"record_id": "r1", "reason": "probe", "base_revision": 1})
     }
 
     #[tokio::test]

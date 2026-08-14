@@ -45,7 +45,7 @@ impl Tool for MemoryAddTool {
     }
 
     fn description(&self) -> &str {
-        "Store a fact or preference the user explicitly asked you to remember. Low-risk writes are applied to the durable authority immediately; the result reports applied, proposal_created (awaiting review), or failed. Use memory_list or memory_search before writing when you are unsure whether the content already exists."
+        "Directly store a user-confirmed fact or preference in long-term BML. Evidence references are advisory. Use memory_search before writing when unsure whether it already exists."
     }
 
     fn parameters(&self) -> Value {

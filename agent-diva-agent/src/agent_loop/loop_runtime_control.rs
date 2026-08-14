@@ -2,7 +2,7 @@ use super::AgentLoop;
 use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
-use agent_diva_core::memory::SystemPromptRefreshRequest;
+use agent_diva_core::memory::{SessionEndRequest, SystemPromptRefreshRequest};
 use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
@@ -94,6 +94,21 @@ impl AgentLoop {
                 self.cancelled_sessions.insert(session_key);
             }
             RuntimeControlCommand::ResetSession { session_key } => {
+                self.cancel_actmem_session(&session_key).await;
+                if let Err(error) = self
+                    .memory_provider
+                    .on_session_end(SessionEndRequest {
+                        workspace_root: self.workspace.clone(),
+                        session_id: Some(session_key.clone()),
+                    })
+                    .await
+                {
+                    warn!(
+                        session_id = %session_key,
+                        error = %error,
+                        "session checkpoint cleanup failed during reset"
+                    );
+                }
                 agent_diva_laputa::release_frozen_core_session(&self.persona_root, &session_key);
                 self.context.reset_session_cache(&session_key);
                 self.clear_active_deferred_tools(&session_key);
@@ -126,6 +141,21 @@ impl AgentLoop {
                     .delete(&session_key)
                     .map_err(|e| e.to_string());
                 if result.is_ok() {
+                    self.cancel_actmem_session(&session_key).await;
+                    if let Err(error) = self
+                        .memory_provider
+                        .on_session_end(SessionEndRequest {
+                            workspace_root: self.workspace.clone(),
+                            session_id: Some(session_key.clone()),
+                        })
+                        .await
+                    {
+                        warn!(
+                            session_id = %session_key,
+                            error = %error,
+                            "session checkpoint cleanup failed during delete"
+                        );
+                    }
                     let store =
                         agent_diva_core::tool_artifact::ToolArtifactStore::new(&self.workspace);
                     let artifact_context =

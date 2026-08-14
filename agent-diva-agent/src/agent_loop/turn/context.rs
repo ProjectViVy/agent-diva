@@ -419,7 +419,7 @@ impl AgentLoop {
         let mut dynamic_sections = Vec::new();
         match self
             .memory_provider
-            .working_memory_block(agent_diva_core::memory::WorkingMemoryRequest {
+            .session_checkpoint_block(agent_diva_core::memory::SessionCheckpointRequest {
                 workspace_root: self.workspace.clone(),
                 session_id: session_key.to_string(),
             })
@@ -430,7 +430,8 @@ impl AgentLoop {
                     .prompt_block
                     .filter(|value| !value.trim().is_empty())
                 {
-                    dynamic_sections.push(PromptSection::new(ContextSection::WorkingMemory, block));
+                    dynamic_sections
+                        .push(PromptSection::new(ContextSection::SessionCheckpoint, block));
                 }
             }
             Err(error) => {
@@ -597,10 +598,10 @@ mod tests {
     }
 
     #[test]
-    fn working_memory_is_a_post_history_user_context_block() {
+    fn session_checkpoint_is_a_post_history_user_context_block() {
         let sections = vec![PromptSection::new(
-            ContextSection::WorkingMemory,
-            "## Working Memory\nin-flight state",
+            ContextSection::SessionCheckpoint,
+            "## Session Checkpoint\nin-flight state",
         )];
         let context = PreparedTurnContext::prepare(
             vec![Message::system("system"), Message::assistant("history")],
@@ -614,7 +615,7 @@ mod tests {
         assert!(context.messages[2]
             .content
             .as_text()
-            .is_some_and(|text| text.contains("Working Memory")));
+            .is_some_and(|text| text.contains("Session Checkpoint")));
         assert_eq!(context.messages[3].content.as_text(), Some("current"));
     }
 
@@ -644,7 +645,7 @@ mod tests {
 
     #[test]
     fn empty_dynamic_sections_do_not_create_an_envelope() {
-        let sections = vec![PromptSection::new(ContextSection::WorkingMemory, "   ")];
+        let sections = vec![PromptSection::new(ContextSection::SessionCheckpoint, "   ")];
         let context = PreparedTurnContext::prepare(
             vec![Message::system("system")],
             &sections,
@@ -673,10 +674,13 @@ mod wave3_tests {
     }
 
     #[test]
-    fn typed_prefetch_follows_working_memory_inside_one_envelope() {
+    fn typed_prefetch_follows_session_checkpoint_inside_one_envelope() {
         let sections = vec![
             PromptSection::new(ContextSection::PrefetchRecall, "## Recalled Memory\nplan"),
-            PromptSection::new(ContextSection::WorkingMemory, "## Working Memory\nstate"),
+            PromptSection::new(
+                ContextSection::SessionCheckpoint,
+                "## Session Checkpoint\nstate",
+            ),
         ];
         let context = PreparedTurnContext::prepare(
             vec![Message::system("system")],
@@ -687,13 +691,14 @@ mod wave3_tests {
         .unwrap();
         let envelope = context.messages[1].content.as_text().unwrap();
         assert!(
-            envelope.find("Working Memory").unwrap() < envelope.find("Recalled Memory").unwrap()
+            envelope.find("Session Checkpoint").unwrap()
+                < envelope.find("Recalled Memory").unwrap()
         );
         assert_eq!(context.messages[2].content.as_text(), Some("current"));
     }
 
     #[test]
-    fn no_injection_when_both_prefetch_and_working_memory_are_absent() {
+    fn no_injection_when_both_prefetch_and_session_checkpoint_are_absent() {
         let context = PreparedTurnContext::prepare(
             vec![Message::system("system")],
             &[],

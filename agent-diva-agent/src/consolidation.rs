@@ -2,8 +2,8 @@
 
 use crate::compaction::quality::QualityGate;
 use agent_diva_core::memory::{
-    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryProvider, MemoryRemoveRequest,
-    MemoryUpdateRequest, SyncTurnRequest, SyncTurnStatus,
+    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryGetRequest, MemoryProvider,
+    MemoryRemoveRequest, MemoryUpdateRequest, SyncTurnRequest, SyncTurnStatus,
 };
 use agent_diva_core::session::Session;
 use agent_diva_laputa::{LaputaPaths, WorldClaimPayload, WorldGovernance, WorldProposalState};
@@ -399,23 +399,28 @@ pub async fn consolidate_with_gate(
                             .await
                     }
                     "update" => {
+                        let base_revision = current_revision(memory_provider, &crud_ctx, id).await;
                         memory_provider
                             .memory_update(
                                 &crud_ctx,
                                 MemoryUpdateRequest {
                                     record_id: id.to_string(),
                                     content: content.to_string(),
+                                    base_revision,
+                                    evidence_refs: Vec::new(),
                                 },
                             )
                             .await
                     }
                     "remove" => {
+                        let base_revision = current_revision(memory_provider, &crud_ctx, id).await;
                         memory_provider
                             .memory_remove(
                                 &crud_ctx,
                                 MemoryRemoveRequest {
                                     record_id: id.to_string(),
                                     reason: reason.to_string(),
+                                    base_revision,
                                 },
                             )
                             .await
@@ -485,6 +490,27 @@ pub async fn consolidate_with_gate(
     debug!("last_consolidated advanced to {}", consolidate_end);
 
     Ok(())
+}
+
+async fn current_revision(
+    memory_provider: &dyn MemoryProvider,
+    context: &MemoryCrudContext,
+    record_id: &str,
+) -> i64 {
+    match memory_provider
+        .memory_get(
+            context,
+            MemoryGetRequest {
+                record_id: record_id.to_string(),
+            },
+        )
+        .await
+    {
+        Ok(MemoryCrudOutcome::Listed { entries }) => {
+            entries.first().map_or(0, |entry| entry.revision)
+        }
+        _ => 0,
+    }
 }
 
 #[cfg(test)]
