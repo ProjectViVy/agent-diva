@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `TODOLIST.md`; `docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`; `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`; `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`
+- Scope: `TODOLIST.md`
 - Owner: `Grok`
-- Session/Task: `Unify Recap semantics; refresh TODOLIST`
+- Session/Task: `Schedule GUI work in TODOLIST against D4 slices`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T05:35:00+08:00`
-- Last Heartbeat: `2026-08-15T05:50:00+08:00`
+- Started At: `2026-08-15T06:00:00+08:00`
+- Last Heartbeat: `2026-08-15T06:05:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Schedule GUI in TODOLIST` — **RELEASED 2026-08-15T06:05:00+08:00**
+  by `Grok`; UI-S2/S3/S4 scheduled. Docs only.
 
 - `Unify Recap + TODOLIST` — **RELEASED 2026-08-15T05:50:00+08:00**
   by `Grok`; Recap semantics unified; TODOLIST refreshed. Docs only.
@@ -187,6 +190,8 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T06:05:00+08:00`: GUI scheduled in TODOLIST as UI-S2/S3/S4.
 
 - `2026-08-15T05:50:00+08:00`: Recap wording unified; TODOLIST caught up.
 

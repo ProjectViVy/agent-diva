@@ -149,7 +149,25 @@
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
   I0 已切。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
-  先领须另说。每片独立验证、独立 Conventional Commit。S3 必须含每轮 Recap（不是只写 Pulse + 10 分钟胶囊）。
+  先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
+  S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
+
+### GUI 排期（跟切片走，不是另开一条无限期 UI 债）
+
+S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、混域 Inbox）。下面三片缺 GUI 不得标完成。
+
+- [ ] **UI-S2-PERSONA：Persona 文档工作区** `sev-P0` `blocked:I1-S2`
+  左栏只七份；中央三态（当前文档 / 待审 / 历史）；最小 CM6 + Markdown 预览；
+  五文件引导与 incomplete 修复。删 JSON 门、永久右栏、MEMRULES/`memory_md` 左栏。
+  依据 D1。须 GUI vitest + 桌面 smoke。
+
+- [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `blocked:I1-S3`
+  BML 列表/详情直改（无审批）；ACTMEM 入口展示 Pulse / Recap / Work / 胶囊；
+  MEMRULES 设置可编。依据 D2 + S8 Recap。须 GUI vitest + 桌面 smoke。
+
+- [ ] **UI-S4-EVOLUTION-SKILL：Evolution Skill 工作区** `sev-P0` `blocked:I1-S4`
+  Skill 列表（搜索/启用/编辑/历史）；待审只接受/拒绝；无 Memory/人格混箱。
+  依据 D3。须 GUI vitest + 桌面 smoke。
 
 - [ ] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1` `blocked:I1-S3`
   助手最终回复结束立刻写 `## Recap`；Pulse 仍只收用户短原话；10 分钟只折叠。
