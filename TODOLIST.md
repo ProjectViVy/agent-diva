@@ -8,10 +8,10 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S3 implemented, desktop visual acceptance pending / S4 eligible`。
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S4 implemented, desktop visual acceptance pending`。
   进化走 D6。保护分支已切（本地
   `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
-  **S2–S3 已领取并实现；未领取 S4 范围，不得改对应生产认知主链。**
+  **S2–S4 已领取并实现；真实桌面验收仍未完成。**
   编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
   架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
 
@@ -149,7 +149,7 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切，S1 已完成；S2 Persona 与 S3 Memory/ACTMEM/Recap 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  I0 已切，S1 已完成；S2 Persona、S3 Memory/ACTMEM/Recap 与 S4 Evolution/Skill 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
 
@@ -180,9 +180,17 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   胶囊查看/单次确认删除、MEMRULES 默认/文件切换，并确认 Approval Center 零新增。
   当前执行环境可完成编译与自动化测试，但没有原生 WebView 控制器代替人工交互。
 
-- [ ] **UI-S4-EVOLUTION-SKILL：Evolution Skill 工作区** `sev-P0` `blocked:I1-S4`
+- [ ] **UI-S4-EVOLUTION-SKILL：Evolution Skill 工作区** `sev-P0` `acceptance:desktop-smoke`
   Skill 列表（搜索/启用/编辑/历史）；待审只接受/拒绝；无 Memory/人格混箱。
-  依据 D3。须 GUI vitest + 桌面 smoke。
+  依据 D3。实现已落地：GUI 446 tests、生产构建、Tauri cargo check 通过；
+  Skill/CAS/历史/待审状态与异步详情防串位有自动化覆盖。当前环境的浏览器控制器
+  无可用 backend，仍须完成真实桌面 smoke 后勾选。
+
+- [ ] **EVOLUTION-S4-DESKTOP-SMOKE：真实桌面 Skill Evolution 验收** `sev-P1`
+  启动 Tauri + Manager，验证 Skill 编辑/CAS 冲突保稿、停用、历史、硬删与内置回显，
+  Settings ZIP/Marketplace 只新装，用户请求、AutoDream/distill 待审与接受，接受后新
+  Session 可发现，以及 Evolution 无 Memory/Persona 混箱。自动化证据见
+  `docs/logs/2026-08-cognitive-s4-skill-evolution/v0.5.0-skill-evolution/verification.md`。
 
 - [x] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1`
   助手最终回复结束立刻写 `## Recap`；Pulse 仍只收用户短原话；10 分钟只折叠。
