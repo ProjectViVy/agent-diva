@@ -78,6 +78,7 @@ pub async fn remove_bml_memory_handler(
             MemoryRemoveRequest {
                 record_id: id,
                 reason: reason.to_string(),
+                base_revision: 0,
             },
         )
         .await

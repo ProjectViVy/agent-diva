@@ -11,7 +11,7 @@ use agent_diva_core::evolution::{
     EvolutionProposal, MemoryCandidate, RiskLevel,
 };
 use agent_diva_core::experience::ExperienceJournal;
-use agent_diva_laputa::LaputaService;
+use agent_diva_laputa::{actmem::ActmemPatch, LaputaService, MemoryHome};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -166,6 +166,7 @@ pub struct AutoDreamWorker {
     config: AutoDreamWorkerConfig,
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
     proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
+    memory_home: Option<MemoryHome>,
 }
 
 impl AutoDreamWorker {
@@ -176,6 +177,7 @@ impl AutoDreamWorker {
             config: AutoDreamWorkerConfig::default(),
             reflection_engine: None,
             proposal_governance: None,
+            memory_home: None,
         }
     }
 
@@ -197,11 +199,19 @@ impl AutoDreamWorker {
         self
     }
 
+    pub fn with_memory_home(mut self, memory_home: Option<MemoryHome>) -> Self {
+        self.memory_home = memory_home;
+        self
+    }
+
     pub fn restricted_profile(&self) -> &AutoDreamRestrictedProfile {
         &self.config.profile
     }
 
     pub async fn execute(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+        if self.memory_home.is_some() {
+            return self.execute_actmem_work(run_id).await;
+        }
         let started = Instant::now();
         let mut stages = AutoDreamReflectionStage::all()
             .into_iter()
@@ -290,6 +300,156 @@ impl AutoDreamWorker {
         }
 
         self.finish_success(run_id, stages, diagnostics)
+    }
+
+    /// S3 production path: organize the shared ACTMEM Work register directly.
+    /// It never creates a MemoryPatch, writes BML, or registers governance.
+    async fn execute_actmem_work(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
+        let mut stages = AutoDreamReflectionStage::all()
+            .into_iter()
+            .map(|stage| AutoDreamReflectionStageRecord {
+                stage,
+                status: AutoDreamWorkerStageStatus::Pending,
+                started_at: None,
+                completed_at: None,
+                diagnostic: None,
+            })
+            .collect::<Vec<_>>();
+        self.start_attempt(run_id)?;
+        let mut diagnostics = Vec::new();
+
+        stages[0].status = AutoDreamWorkerStageStatus::Running;
+        stages[0].started_at = Some(Utc::now());
+        self.config
+            .profile
+            .validate_request(AutoDreamRestrictedAction::ReadSessions)?;
+        self.config
+            .profile
+            .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)?;
+        stages[0].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[0].completed_at = Some(Utc::now());
+
+        self.transition_phase(run_id, AutoDreamOrchestrationPhase::Gathering)?;
+        stages[1].status = AutoDreamWorkerStageStatus::Running;
+        stages[1].started_at = Some(Utc::now());
+        let mut input_config = crate::AutoDreamInputCollectorConfig::default();
+        // Legacy Laputa Memory files are not an S3 production input.
+        input_config.laputa_sections.clear();
+        let collected =
+            crate::AutoDreamInputCollector::new(self.storage.clone(), self.laputa.clone())
+                .with_config(input_config)
+                .collect(run_id);
+        let collected = match collected {
+            Ok(collected) => collected,
+            Err(error) => {
+                let message = error.to_string();
+                stages[1].status = AutoDreamWorkerStageStatus::Failed;
+                stages[1].completed_at = Some(Utc::now());
+                stages[1].diagnostic = Some(message.clone());
+                diagnostics.push(message);
+                return self.finish_failure(
+                    run_id,
+                    AutoDreamWorkerOutcome::Failure,
+                    stages,
+                    diagnostics,
+                );
+            }
+        };
+        let mut run = self.read_run(run_id)?;
+        run.input_summary = Some(collected.summary.clone());
+        run.summary = Some(format!(
+            "collected {} inputs for ACTMEM Work organization",
+            collected.summary.total_items
+        ));
+        self.write_run(&run)?;
+        stages[1].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[1].completed_at = Some(Utc::now());
+
+        self.transition_phase(run_id, AutoDreamOrchestrationPhase::Reflecting)?;
+        stages[2].status = AutoDreamWorkerStageStatus::Running;
+        stages[2].started_at = Some(Utc::now());
+        if let Err(error) = self.organize_actmem_work(run_id, &collected).await {
+            let message = error.to_string();
+            stages[2].status = AutoDreamWorkerStageStatus::Failed;
+            stages[2].completed_at = Some(Utc::now());
+            stages[2].diagnostic = Some(message.clone());
+            diagnostics.push(message);
+            return self.finish_failure(
+                run_id,
+                AutoDreamWorkerOutcome::Failure,
+                stages,
+                diagnostics,
+            );
+        }
+        stages[2].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[2].completed_at = Some(Utc::now());
+
+        // The legacy Propose stage remains in persisted run telemetry only as
+        // an explicit successful no-op until the S5 symbol cleanup.
+        self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
+        stages[3].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[3].started_at = Some(Utc::now());
+        stages[3].completed_at = stages[3].started_at;
+        self.append_event(
+            run_id,
+            "actmem_work_organized",
+            "ACTMEM Work organized directly; zero memory proposals emitted",
+        )?;
+        self.finish_success(run_id, stages, diagnostics)
+    }
+
+    async fn organize_actmem_work(
+        &self,
+        run_id: &str,
+        collected: &AutoDreamCollectedInputs,
+    ) -> Result<()> {
+        let home = self
+            .memory_home
+            .as_ref()
+            .ok_or_else(|| AutoDreamError::InvalidState("MemoryHome is unavailable".to_string()))?;
+        let rules = home
+            .read_memrules()
+            .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
+        let mut snapshot = home
+            .actmem()
+            .read()
+            .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
+
+        for attempt in 0..=1 {
+            let work = render_organized_work(&snapshot, collected, &rules);
+            match home
+                .actmem()
+                .put(ActmemPatch {
+                    work: Some(work),
+                    base_revision: snapshot.revision,
+                    ..Default::default()
+                })
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(agent_diva_laputa::ActmemError::RevisionConflict { .. }) if attempt == 0 => {
+                    let current = home
+                        .actmem()
+                        .read()
+                        .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
+                    ensure_pulse_recap_only_conflict(&snapshot, &current)?;
+                    snapshot = current;
+                    self.append_event(
+                        run_id,
+                        "actmem_work_retry",
+                        "retrying once after Pulse/Recap-only ACTMEM conflict",
+                    )?;
+                }
+                Err(error) => {
+                    return Err(AutoDreamError::InvalidState(format!(
+                        "ACTMEM Work commit failed: {error}"
+                    )))
+                }
+            }
+        }
+        Err(AutoDreamError::InvalidState(
+            "ACTMEM Work commit retry exhausted".to_string(),
+        ))
     }
 
     fn start_attempt(&self, run_id: &str) -> Result<()> {
@@ -810,6 +970,105 @@ fn worker_failure_code(
     }
 }
 
+fn render_organized_work(
+    actmem: &agent_diva_laputa::ActmemDocument,
+    collected: &AutoDreamCollectedInputs,
+    rules: &agent_diva_laputa::MemRulesDocument,
+) -> String {
+    let mut sections = std::collections::BTreeMap::<String, String>::new();
+    let mut current = None::<String>;
+    let mut body = Vec::new();
+    for line in actmem.work.lines() {
+        if let Some(name) = line.strip_prefix("### ") {
+            if let Some(previous) = current.replace(name.trim().to_string()) {
+                sections.insert(previous, body.join("\n").trim().to_string());
+                body.clear();
+            }
+        } else if current.is_some() {
+            body.push(line);
+        }
+    }
+    if let Some(previous) = current {
+        sections.insert(previous, body.join("\n").trim().to_string());
+    }
+
+    if sections.get("Goal").map_or(true, |value| value.is_empty()) {
+        if let Some(pulse) = latest_visible_ring_line(&actmem.pulse) {
+            sections.insert(
+                "Goal".to_string(),
+                format!("- {}", truncate_chars(pulse, 200)),
+            );
+        }
+    }
+    if sections.get("Next").map_or(true, |value| value.is_empty()) {
+        if let Some(recap) = latest_visible_ring_line(&actmem.recap) {
+            sections.insert(
+                "Next".to_string(),
+                format!("- {}", truncate_chars(recap, 200)),
+            );
+        }
+    }
+
+    let pointers = sections.entry("Pointers".to_string()).or_default();
+    let rules_pointer = format!(
+        "- MEMRULES:{:?} ({} chars)",
+        rules.source,
+        rules.content.chars().count()
+    );
+    append_unique_line(pointers, &rules_pointer);
+    for item in collected.items.iter().take(3) {
+        append_unique_line(pointers, &format!("- evidence:{}", item.evidence.id));
+    }
+
+    agent_diva_laputa::actmem::WORK_SECTIONS
+        .iter()
+        .map(|name| {
+            let content = sections.get(*name).map(String::as_str).unwrap_or_default();
+            if content.is_empty() {
+                format!("### {name}")
+            } else {
+                format!("### {name}\n{content}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn ensure_pulse_recap_only_conflict(
+    previous: &agent_diva_laputa::ActmemDocument,
+    current: &agent_diva_laputa::ActmemDocument,
+) -> Result<()> {
+    if current.work == previous.work {
+        Ok(())
+    } else {
+        Err(AutoDreamError::InvalidState(
+            "ACTMEM Work changed during AutoDream organization".to_string(),
+        ))
+    }
+}
+
+fn latest_visible_ring_line(value: &str) -> Option<&str> {
+    value
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with("<!-- session:"))
+}
+
+fn truncate_chars(value: &str, cap: usize) -> String {
+    value.chars().take(cap).collect()
+}
+
+fn append_unique_line(section: &mut String, line: &str) {
+    if section.lines().any(|existing| existing.trim() == line) {
+        return;
+    }
+    if !section.is_empty() {
+        section.push('\n');
+    }
+    section.push_str(line);
+}
+
 fn render_failure_summary(outcome: &AutoDreamWorkerOutcome) -> String {
     match outcome {
         AutoDreamWorkerOutcome::Success => "AutoDream restricted reflection completed".to_string(),
@@ -840,6 +1099,7 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
 
 #[cfg(test)]
 mod wave4_tests {
+    use super::ensure_pulse_recap_only_conflict;
     use crate::{
         content_digest, BoundedReflectionInput, CandidateGate, CandidateRejectionCode,
         ReflectionEvidence,
@@ -1095,5 +1355,18 @@ mod wave4_tests {
             "after supersedes, same-content candidate must be acceptable again"
         );
         assert!(gated.rejected.is_empty());
+    }
+
+    #[test]
+    fn autodream_retries_only_pulse_recap_conflicts() {
+        let previous = agent_diva_laputa::ActmemDocument::empty();
+        let mut pulse_changed = previous.clone();
+        pulse_changed.revision = 1;
+        pulse_changed.pulse = "- new pulse".into();
+        assert!(ensure_pulse_recap_only_conflict(&previous, &pulse_changed).is_ok());
+
+        let mut work_changed = pulse_changed;
+        work_changed.work = "### Goal\n- concurrent edit\n\n### Open\n\n### Next\n\n### Constraints\n\n### Pointers".into();
+        assert!(ensure_pulse_recap_only_conflict(&previous, &work_changed).is_err());
     }
 }

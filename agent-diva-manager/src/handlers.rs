@@ -7,6 +7,7 @@ pub mod command_approvals;
 pub mod health;
 pub mod laputa;
 pub mod logs;
+pub mod memory;
 pub mod persona;
 pub mod planning;
 mod provider_companion;
@@ -15,6 +16,12 @@ pub mod token_stats;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
 pub use logs::{logs_routes, query_logs_handler};
+pub use memory::{
+    create_memory_record_handler, delete_actmem_capsule_handler, delete_memory_record_handler,
+    get_actmem_capsule_handler, get_actmem_handler, get_memory_record_handler,
+    get_memrules_handler, list_actmem_capsules_handler, list_memory_records_handler,
+    put_actmem_handler, put_memrules_handler, update_memory_record_handler,
+};
 pub use todo::{create_todo_handler, query_todos_handler, todo_routes, update_todo_handler};
 pub use token_stats::token_stats_routes;
 

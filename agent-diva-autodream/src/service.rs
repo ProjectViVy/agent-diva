@@ -12,6 +12,7 @@ use agent_diva_core::evolution::{
     AutoDreamRunRecord, AutoDreamRunState,
 };
 use agent_diva_core::reports::ReportNarrativeGenerator;
+use agent_diva_laputa::MemoryHome;
 use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -91,6 +92,7 @@ pub struct AutoDreamService {
     narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
     proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
+    memory_home: Option<MemoryHome>,
     llm_curation: LlmCurationConfig,
 }
 
@@ -121,6 +123,7 @@ impl AutoDreamService {
             narrative_generator: None,
             reflection_engine: None,
             proposal_governance: None,
+            memory_home: None,
             llm_curation: LlmCurationConfig::default(),
         }
     }
@@ -151,6 +154,12 @@ impl AutoDreamService {
         governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     ) -> Self {
         self.proposal_governance = governance;
+        self
+    }
+
+    /// Attach the machine-wide Memory/ACTMEM authority used by S3 runs.
+    pub fn with_memory_home(mut self, memory_home: MemoryHome) -> Self {
+        self.memory_home = Some(memory_home);
         self
     }
 
@@ -368,7 +377,8 @@ impl AutoDreamService {
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
         )
         .with_reflection_engine(self.reflection_engine.clone())
-        .with_proposal_governance(self.proposal_governance.clone());
+        .with_proposal_governance(self.proposal_governance.clone())
+        .with_memory_home(self.memory_home.clone());
         worker.execute(run_id).await.inspect_err(|_| {
             Self::metrics().record_failure();
         })
@@ -829,6 +839,8 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
 mod tests {
     use std::fs;
 
+    use agent_diva_core::session::SessionManager;
+    use agent_diva_laputa::MemoryHome;
     use chrono::Utc;
 
     use super::*;
@@ -863,5 +875,54 @@ mod tests {
             Err(AutoDreamError::Io { source, .. })
                 if source.kind() == std::io::ErrorKind::InvalidData
         ));
+    }
+
+    #[tokio::test]
+    async fn s3_worker_organizes_work_without_memory_patch_or_bml_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let memory_home = MemoryHome::new(dir.path().join("machine-home"));
+        memory_home
+            .actmem()
+            .append_pulse("gui:chat", "Ship the ACTMEM workspace")
+            .await
+            .unwrap();
+        memory_home
+            .actmem()
+            .append_recap("gui:chat", "The kernel and routes are ready")
+            .await
+            .unwrap();
+        let mut sessions = SessionManager::new(dir.path());
+        let session = sessions.get_or_create("gui:chat");
+        session.add_message("user", "Keep the implementation evidence bounded");
+        let session = session.clone();
+        sessions.save(&session).unwrap();
+
+        let service = AutoDreamService::open(dir.path())
+            .unwrap()
+            .with_memory_home(memory_home.clone());
+        let run = service
+            .trigger_manual_run(ManualRunTriggerRequest::default())
+            .unwrap()
+            .run;
+        let report = service.execute_reflection_worker(&run.id).await.unwrap();
+
+        assert_eq!(report.outcome, crate::AutoDreamWorkerOutcome::Success);
+        assert!(report.proposal_ids.is_empty());
+        let document = memory_home.actmem().read().unwrap();
+        assert!(document.work.contains("### Goal"));
+        assert!(document.work.contains("### Open"));
+        assert!(document.work.contains("### Next"));
+        assert!(document.work.contains("### Constraints"));
+        assert!(document.work.contains("### Pointers"));
+        assert!(document.work.contains("MEMRULES:Default"));
+        assert!(!memory_home.database_path().exists());
+        assert!(service
+            .storage
+            .paths()
+            .workspace_root()
+            .join(".laputa/proposals")
+            .read_dir()
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(true));
     }
 }

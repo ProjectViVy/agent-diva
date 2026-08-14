@@ -138,12 +138,32 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
 
     let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
     let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
+    let memory_home = agent_diva_laputa::MemoryHome::with_l1_budget(
+        loader.config_dir(),
+        config.memory.l1_index_lines,
+    );
+    let persisted_sessions = agent_diva_core::session::SessionManager::new(&workspace)
+        .list_sessions()
+        .into_iter()
+        .map(|session| session.key)
+        .collect::<Vec<_>>();
+    let active_session_ids = persisted_sessions
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if let Err(error) = memory_home.run_startup_gc(&active_session_ids).await {
+        tracing::warn!(%error, "session checkpoint startup GC unavailable");
+    }
+    if let Err(error) = memory_home.warmup().await {
+        tracing::warn!(%error, "BML startup index unavailable; ACTMEM remains available");
+    }
     let agent = build_agent_loop(
         &config,
         bus.clone(),
         dynamic_provider.clone(),
         workspace.clone(),
         loader.config_dir().to_path_buf(),
+        memory_home.clone(),
         runtime_control_rx,
         Arc::clone(&cron_service),
         Arc::clone(&file_manager),
@@ -172,6 +192,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         command_approvals,
         ask_user,
         governance,
+        memory_home,
     })
 }
 

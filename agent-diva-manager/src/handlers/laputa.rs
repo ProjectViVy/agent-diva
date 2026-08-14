@@ -681,6 +681,7 @@ fn legacy_apply_journal_path(workspace_root: &FsPath, idempotency_key: &str) -> 
         .join(format!("{digest:016x}.json"))
 }
 
+#[allow(dead_code)] // Legacy proposal recovery is retained until the S5 symbol-removal slice.
 pub(crate) async fn recover_memory_approvals(state: &AppState) -> Result<usize, String> {
     let mut recovered = reconcile_memory_proposal_governance(state).await?;
     let journal_dir = state
@@ -793,6 +794,7 @@ pub(crate) async fn recover_memory_approvals(state: &AppState) -> Result<usize, 
     Ok(recovered)
 }
 
+#[allow(dead_code)]
 async fn reconcile_memory_proposal_governance(state: &AppState) -> Result<usize, String> {
     let proposals = state
         .laputa
@@ -828,6 +830,7 @@ async fn reconcile_memory_proposal_governance(state: &AppState) -> Result<usize,
     Ok(recovered)
 }
 
+#[allow(dead_code)]
 async fn recover_missing_proposal_governance(
     state: &AppState,
     proposal: &EvolutionProposal,
@@ -859,6 +862,7 @@ async fn recover_missing_proposal_governance(
     Ok(0)
 }
 
+#[allow(dead_code)]
 fn is_reviewable_state(state: &ProposalState) -> bool {
     matches!(
         state,

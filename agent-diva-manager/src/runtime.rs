@@ -359,6 +359,7 @@ struct GatewayBootstrap {
     command_approvals: CommandApprovalCoordinator,
     ask_user: agent_diva_core::ask_user::AskUserCoordinator,
     governance: agent_diva_core::governance::ApprovalCoordinator,
+    memory_home: agent_diva_laputa::MemoryHome,
 }
 
 struct ChannelBootstrap {
@@ -1009,6 +1010,7 @@ async fn build_agent_loop(
     dynamic_provider: Arc<DynamicProvider>,
     workspace: PathBuf,
     config_dir: PathBuf,
+    memory_home: agent_diva_laputa::MemoryHome,
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
@@ -1036,15 +1038,9 @@ async fn build_agent_loop(
         budget: config.tools.budget.clone().into(),
     };
 
-    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> = Some(
-        agent_diva_agent::memory_boundary::memory_provider_for_mode_with_governance(
-            &workspace,
-            config.memory.authority_mode,
-            config.memory.l1_index_lines,
-            governance,
-        )
-        .await,
-    );
+    let _ = governance;
+    let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
+        Some(Arc::new(memory_home));
 
     AgentLoop::with_tools_and_memory_provider(
         bus,

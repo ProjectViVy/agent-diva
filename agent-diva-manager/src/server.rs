@@ -11,32 +11,36 @@ use tower_http::trace::TraceLayer;
 use crate::handlers::{
     accept_persona_request_handler, add_provider_model_handler, apply_laputa_proposal_handler,
     cancel_autodream_run_handler, chat_handler, create_cron_job_handler,
-    create_laputa_proposal_handler, create_mcp_handler, create_persona_request_handler,
-    create_provider_handler, decide_laputa_proposal_handler, delete_cron_job_handler,
-    delete_mcp_handler, delete_provider_handler, delete_provider_model_handler,
+    create_laputa_proposal_handler, create_mcp_handler, create_memory_record_handler,
+    create_persona_request_handler, create_provider_handler, decide_laputa_proposal_handler,
+    delete_actmem_capsule_handler, delete_cron_job_handler, delete_mcp_handler,
+    delete_memory_record_handler, delete_provider_handler, delete_provider_model_handler,
     delete_session_handler, delete_skill_handler, edit_laputa_proposal_handler, events_handler,
-    generate_session_title_handler, get_audit_events_handler, get_audit_log_handler,
-    get_autodream_live_text_handler, get_autodream_run_handler, get_bml_memory_handler,
-    get_channels_handler, get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
-    get_laputa_cognitive_handler, get_laputa_persona_workspace_handler,
-    get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
-    get_mcps_handler, get_persona_document_handler, get_persona_history_revision_handler,
-    get_persona_status_handler, get_provider_handler, get_provider_models_handler,
-    get_providers_handler, get_self_evolution_config_handler, get_session_history_handler,
-    get_sessions_handler, get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
-    initialize_persona_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
-    list_bml_memories_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
-    list_laputa_proposals_handler, list_persona_history_handler, list_persona_requests_handler,
-    list_recall_feedback_handler, logs_routes, poll_laputa_events_handler,
+    generate_session_title_handler, get_actmem_capsule_handler, get_actmem_handler,
+    get_audit_events_handler, get_audit_log_handler, get_autodream_live_text_handler,
+    get_autodream_run_handler, get_bml_memory_handler, get_channels_handler, get_config_handler,
+    get_cron_job_handler, get_laputa_changelog_handler, get_laputa_cognitive_handler,
+    get_laputa_persona_workspace_handler, get_laputa_proposal_handler, get_laputa_section_handler,
+    get_laputa_snapshot_handler, get_mcps_handler, get_memory_record_handler, get_memrules_handler,
+    get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
+    get_provider_handler, get_provider_models_handler, get_providers_handler,
+    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
+    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
+    initialize_persona_handler, list_actmem_capsules_handler, list_autodream_run_events_handler,
+    list_autodream_runs_handler, list_bml_memories_handler, list_cron_jobs_handler,
+    list_laputa_changelog_handler, list_laputa_proposals_handler, list_memory_records_handler,
+    list_persona_history_handler, list_persona_requests_handler, list_recall_feedback_handler,
+    logs_routes, poll_laputa_events_handler, put_actmem_handler, put_memrules_handler,
     refresh_mcp_status_handler, reject_persona_request_handler, remove_bml_memory_handler,
     repair_persona_handler, reset_session_handler, resolve_provider_handler,
     rollback_laputa_changelog_handler, run_cron_job_handler, save_persona_document_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
     transition_laputa_proposal_handler, trigger_autodream_run_handler, update_channel_handler,
-    update_config_handler, update_cron_job_handler, update_mcp_handler, update_provider_handler,
-    update_self_evolution_config_handler, update_session_title_handler, update_tools_handler,
-    upload_file_handler, upload_skill_handler, write_laputa_section_handler,
+    update_config_handler, update_cron_job_handler, update_mcp_handler,
+    update_memory_record_handler, update_provider_handler, update_self_evolution_config_handler,
+    update_session_title_handler, update_tools_handler, upload_file_handler, upload_skill_handler,
+    write_laputa_section_handler,
 };
 use crate::state::AppState;
 
@@ -100,6 +104,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(autodream_routes())
         .merge(laputa_routes())
         .merge(persona_routes())
+        .merge(memory_routes())
         .merge(bml_routes())
         .merge(audit_routes())
         .merge(token_stats_routes())
@@ -138,6 +143,36 @@ pub(crate) fn bml_routes() -> Router<AppState> {
         .route(
             "/api/bml/memories/:id/remove",
             post(remove_bml_memory_handler),
+        )
+}
+
+pub(crate) fn memory_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/memory/records",
+            get(list_memory_records_handler).post(create_memory_record_handler),
+        )
+        .route(
+            "/api/memory/records/:id",
+            get(get_memory_record_handler)
+                .patch(update_memory_record_handler)
+                .delete(delete_memory_record_handler),
+        )
+        .route(
+            "/api/memory/actmem",
+            get(get_actmem_handler).put(put_actmem_handler),
+        )
+        .route(
+            "/api/memory/actmem/capsules",
+            get(list_actmem_capsules_handler),
+        )
+        .route(
+            "/api/memory/actmem/capsules/:name",
+            get(get_actmem_capsule_handler).delete(delete_actmem_capsule_handler),
+        )
+        .route(
+            "/api/memory/memrules",
+            get(get_memrules_handler).put(put_memrules_handler),
         )
 }
 
@@ -913,7 +948,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn autodream_manual_run_executes_worker_and_publishes_proposal() {
+    async fn autodream_manual_run_organizes_actmem_without_proposals() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let mut sessions = agent_diva_core::session::SessionManager::new(temp.path());
@@ -967,19 +1002,23 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
-        assert_eq!(terminal.run.proposal_ids.len(), 1);
+        assert!(terminal.run.proposal_ids.is_empty());
         assert_eq!(
             state
                 .laputa
                 .list_proposals(agent_diva_laputa::ProposalFilter::default())
                 .unwrap()
                 .len(),
-            1
+            0
         );
+        let document = state.memory_home.actmem().read().unwrap();
+        assert!(document.work.contains("### Goal"));
+        assert!(document.work.contains("### Pointers"));
+        assert!(document.work.contains("MEMRULES:Default"));
     }
 
     #[tokio::test]
-    async fn vertical_autodream_typed_memory_recall_feedback_and_rollback_closes() {
+    async fn vertical_autodream_keeps_bml_and_governance_untouched_in_s3() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let journal = agent_diva_core::experience::ExperienceJournal::open(temp.path());
@@ -1044,141 +1083,15 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
-        let proposal_id = terminal.run.proposal_ids.first().unwrap();
-        let proposal = state.laputa.get_proposal(proposal_id).unwrap();
-        assert_eq!(proposal.source_run_id.as_deref(), Some(run_id));
-
-        let now = Utc::now();
-        let pending = state
-            .memory_governance
-            .submit(&proposal, None, now)
-            .await
-            .unwrap();
-        let authorized = state
-            .memory_governance
-            .decide(
-                &proposal,
-                pending.request_version,
-                MemoryGovernanceDecision {
-                    decision: Decision::Allow,
-                    grant: ApprovalGrant::Once,
-                    actor: GovernanceSubject {
-                        kind: GovernanceSubjectKind::User,
-                        id: "e7-reviewer".into(),
-                    },
-                    idempotency_key: "e7-decision",
-                    decided_at: now,
-                },
-            )
-            .await
-            .unwrap();
-        state
+        assert!(terminal.run.proposal_ids.is_empty());
+        assert!(state
             .laputa
-            .transition_proposal(proposal_id, ProposalState::Approved, now)
-            .unwrap();
-        let applied = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/laputa/proposals/{proposal_id}/apply"))
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        serde_json::json!({
-                            "governance_request_id": authorized.request_id,
-                            "expected_version": authorized.request_version,
-                            "idempotency_key": "e7-apply"
-                        })
-                        .to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let applied_status = applied.status();
-        let applied: serde_json::Value =
-            serde_json::from_slice(&to_bytes(applied.into_body(), usize::MAX).await.unwrap())
-                .unwrap();
-        assert_eq!(applied_status, StatusCode::OK, "{applied}");
-        let changelog_id = applied["changelog"]["id"].as_str().unwrap();
-
-        let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(temp.path());
-        let store = agent_diva_laputa::TypedMemoryStore::open_existing_canonical(temp.path())
-            .await
-            .unwrap();
-        let recall = agent_diva_laputa::LaputaRecallService::new(store);
-        let recall_request = agent_diva_core::memory::RecallRequest {
-            query: "command action succeeded".into(),
-            scope: agent_diva_core::memory::MemoryScope {
-                tenant_id: "local".into(),
-                workspace_id,
-                session_id: None,
-            },
-            correlation: agent_diva_core::governance::AuditCorrelation {
-                request_id: "e7-recall".into(),
-                turn_id: "e7-turn".into(),
-                session_id: "gui:e7".into(),
-                trace_id: Some("trace-e7".into()),
-            },
-            now: Utc::now(),
-            token_budget: 4_000,
-            max_candidates: 8,
-            policy: agent_diva_core::memory::RecallPolicy::default_prompt(),
-        };
-        let recalled = recall.recall_shadow(&recall_request).await.unwrap();
-        assert_eq!(
-            recalled.outcome.status,
-            agent_diva_core::memory::RecallStatus::Ready
-        );
-        assert_eq!(recalled.outcome.selected_records.len(), 1);
-        let selected = &recalled.outcome.selected_records[0];
-        agent_diva_laputa::RecallFeedbackStore::new(
-            agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap(),
-        )
-        .commit_pending(
-            vec![agent_diva_laputa::PendingRecallFeedback {
-                request_id: "e7-recall".into(),
-                selected: vec![(
-                    selected.id.clone(),
-                    selected.provenance.content_digest.clone(),
-                )],
-                injected: true,
-                selected_at: now,
-            }],
-            agent_diva_laputa::RecallTaskOutcome::Succeeded,
-            false,
-            Utc::now(),
-        )
-        .unwrap();
-
-        let rolled_back = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/laputa/changelog/{changelog_id}/rollback"))
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"reason":"e7 automated recovery"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let rollback_status = rolled_back.status();
-        let rollback_body = serde_json::from_slice::<serde_json::Value>(
-            &to_bytes(rolled_back.into_body(), usize::MAX).await.unwrap(),
-        )
-        .unwrap();
-        assert_eq!(rollback_status, StatusCode::OK, "{rollback_body}");
-        let after_rollback = recall.recall_shadow(&recall_request).await.unwrap();
-        assert!(after_rollback.outcome.selected_records.is_empty());
-        assert_eq!(
-            agent_diva_laputa::RecallFeedbackStore::new(
-                agent_diva_laputa::LaputaStorage::open(temp.path()).unwrap()
-            )
-            .recent(10)
+            .list_proposals(agent_diva_laputa::ProposalFilter::default())
             .unwrap()
-            .len(),
-            1
-        );
+            .is_empty());
+        assert!(!state.memory_home.database_path().exists());
+        let document = state.memory_home.actmem().read().unwrap();
+        assert!(document.work.contains("evidence:"));
     }
 
     #[tokio::test]

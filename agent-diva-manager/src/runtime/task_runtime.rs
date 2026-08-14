@@ -60,6 +60,7 @@ async fn start_runtime_tasks_inner(
         command_approvals,
         ask_user,
         governance,
+        memory_home,
     } = bootstrap;
     let ChannelBootstrap {
         channel_manager,
@@ -133,6 +134,7 @@ async fn start_runtime_tasks_inner(
         bus.clone(),
         workspace,
         config_dir,
+        memory_home,
         command_approvals,
         ask_user,
         config.memory.authority_mode,
@@ -141,15 +143,6 @@ async fn start_runtime_tasks_inner(
         runtime_control_tx_for_state,
     )
     .expect("manager AppState storage services initialize");
-    let recovered_memory = crate::handlers::laputa::recover_memory_approvals(&app_state)
-        .await
-        .expect("Memory approval recovery must complete before serving requests");
-    if recovered_memory > 0 {
-        tracing::warn!(
-            recovered_memory,
-            "recovered incomplete Memory approvals at startup"
-        );
-    }
     app_state.health.mark_cron_ready();
     let (server_shutdown_tx, server_handle) = match server_runtime {
         ServerRuntime::BoundPort => spawn_server_runtime(port, app_state),

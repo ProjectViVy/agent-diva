@@ -1,5 +1,5 @@
 use agent_diva_agent::AgentEvent;
-use agent_diva_autodream::{AutoDreamProposalGovernance, AutoDreamService};
+use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, SelfEvolutionConfig, WebFetchConfig,
@@ -7,7 +7,7 @@ use agent_diva_core::config::schema::{
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_core::governance::ApprovalCoordinator;
-use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator, PersonaService};
+use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator, MemoryHome, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
@@ -69,6 +69,8 @@ pub struct AppState {
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
     pub persona: PersonaService,
+    /// Machine-wide BML, ACTMEM, and MEMRULES authority.
+    pub memory_home: MemoryHome,
     pub memory_governance: MemoryGovernanceCoordinator,
     pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
@@ -85,27 +87,6 @@ pub struct AppState {
     /// Internal AgentLoop control channel for workspace-scoped authority
     /// projection refreshes. It is absent in isolated handler fixtures.
     pub runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
-}
-
-#[derive(Clone)]
-struct AutoDreamGovernanceRegistrar {
-    coordinator: MemoryGovernanceCoordinator,
-}
-
-#[async_trait::async_trait]
-impl AutoDreamProposalGovernance for AutoDreamGovernanceRegistrar {
-    async fn register_proposals(
-        &self,
-        proposals: &[agent_diva_core::evolution::EvolutionProposal],
-    ) -> Result<(), String> {
-        for proposal in proposals {
-            self.coordinator
-                .submit(proposal, None, chrono::Utc::now())
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-        Ok(())
-    }
 }
 
 impl AppState {
@@ -173,6 +154,7 @@ impl AppState {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -198,6 +180,7 @@ impl AppState {
             Some(planning_service),
             None,
             None,
+            None,
         )
     }
 
@@ -209,6 +192,7 @@ impl AppState {
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
         config_dir: impl Into<PathBuf>,
+        memory_home: MemoryHome,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
@@ -227,6 +211,7 @@ impl AppState {
             Some(planning_service),
             Some(runtime_control_tx),
             Some(config_dir.into()),
+            Some(memory_home),
         )
     }
 
@@ -242,6 +227,7 @@ impl AppState {
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         config_dir: Option<PathBuf>,
+        memory_home: Option<MemoryHome>,
     ) -> anyhow::Result<Self> {
         let config_dir = config_dir.unwrap_or_else(|| workspace_root.clone());
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
@@ -250,6 +236,7 @@ impl AppState {
             || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
         let laputa = LaputaService::open(workspace_root.clone())?;
         let persona = PersonaService::open(config_dir.clone())?;
+        let memory_home = memory_home.unwrap_or_else(|| MemoryHome::new(config_dir.clone()));
         let workspace_id =
             agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
         let memory_governance = match governance.as_ref() {
@@ -271,9 +258,7 @@ impl AppState {
                     AutoDreamService::open(workspace_root.clone())?
                 }
             }
-            .with_proposal_governance(Some(Arc::new(AutoDreamGovernanceRegistrar {
-                coordinator: memory_governance.clone(),
-            })));
+            .with_memory_home(memory_home.clone());
         let state = Self {
             api_tx,
             bus,
@@ -283,6 +268,7 @@ impl AppState {
             autodream,
             laputa,
             persona,
+            memory_home,
             memory_governance,
             memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),
