@@ -21,8 +21,8 @@ use agent_diva_core::{
     memory::{MemoryProvider, StartupStatus, SystemPromptRequest},
 };
 use agent_diva_laputa::{
-    ClaimStatus, FrozenCoreSnapshot, LaputaMemoryProvider, LaputaService, ProposalFilter,
-    WorldClaim, WorldStore,
+    ClaimStatus, FrozenCoreSnapshot, LaputaMemoryProvider, LaputaService, PersonaInitialization,
+    PersonaKind, PersonaService, ProposalFilter, WorldClaim, WorldStore,
 };
 use chrono::{DateTime, Utc};
 use std::{fs, path::Path};
@@ -39,6 +39,20 @@ fn seed_applied_authority(workspace: &Path) {
     let sections = workspace.join(".laputa").join("sections");
     fs::create_dir_all(&sections).unwrap();
     fs::write(sections.join("identity.json"), r#"{"applied":"authority"}"#).unwrap();
+}
+
+fn seed_persona(workspace: &Path, identity: &str, world: &str) -> PersonaService {
+    let service = PersonaService::open(workspace).unwrap();
+    service
+        .initialize(PersonaInitialization {
+            identity: identity.to_string(),
+            relationship: "Relationship".to_string(),
+            redline: "Redline".to_string(),
+            user: "Preferences".to_string(),
+            world: world.to_string(),
+        })
+        .unwrap();
+    service
 }
 
 /// Render the startup prompt block; degraded providers produce no block at
@@ -78,7 +92,7 @@ fn memrules_never_reach_the_prompt() {
     assert!(markdown.contains("Applied Laputa Authority"), "sanity");
     assert!(!markdown.contains("R1-MARKER-NEVER-INJECTED"));
 
-    let service = LaputaService::open(workspace).unwrap();
+    let service = seed_persona(workspace, "Persona identity", "Persona world");
     let frozen = FrozenCoreSnapshot::capture(&service).unwrap();
     assert!(!frozen.render(0).contains("R1-MARKER-NEVER-INJECTED"));
 }
@@ -98,7 +112,11 @@ fn full_world_never_reaches_the_prompt() {
     assert!(markdown.contains("Applied Laputa Authority"), "sanity");
     assert!(!markdown.contains("WORLD-MARKER-WHOLESALE-INJECTION"));
 
-    let service = LaputaService::open(workspace).unwrap();
+    let service = seed_persona(
+        workspace,
+        "Persona identity",
+        "WORLD-MARKER-WHOLESALE-INJECTION",
+    );
     let frozen = FrozenCoreSnapshot::capture(&service).unwrap();
     assert!(!frozen
         .render(0)
@@ -124,7 +142,7 @@ fn reports_are_never_injected_by_default() {
     assert!(markdown.contains("Applied Laputa Authority"), "sanity");
     assert!(!markdown.contains("REPORT-MARKER-DEFAULT-INJECTION"));
 
-    let service = LaputaService::open(workspace).unwrap();
+    let service = seed_persona(workspace, "Persona identity", "Persona world");
     let frozen = FrozenCoreSnapshot::capture(&service).unwrap();
     assert!(!frozen.render(0).contains("REPORT-MARKER-DEFAULT-INJECTION"));
 }
@@ -133,16 +151,18 @@ fn reports_are_never_injected_by_default() {
 fn frozen_core_stays_immutable_within_a_session() {
     let temp = tempfile::tempdir().unwrap();
     let workspace = temp.path();
-    let identity = workspace
-        .join(".laputa")
-        .join("sections")
-        .join("identity.json");
-    write_file(&identity, r#"{"name":"SESSION-START-MARKER"}"#);
-    let service = LaputaService::open(workspace).unwrap();
+    let service = seed_persona(workspace, "SESSION-START-MARKER", "Persona world");
 
     let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-    // A governance write lands mid-session; the frozen view must not move.
-    write_file(&identity, r#"{"name":"MID-SESSION-REWRITE"}"#);
+    let identity = service.get_document(PersonaKind::Identity).unwrap();
+    service
+        .save_user_document(
+            PersonaKind::Identity,
+            "MID-SESSION-REWRITE",
+            identity.revision,
+            "test rewrite",
+        )
+        .unwrap();
 
     let rendered = snapshot.render(0);
     assert!(rendered.contains("SESSION-START-MARKER"));
@@ -241,10 +261,9 @@ fn retired_section_and_proposal_data_never_surface() {
     // Snapshot enumerates only live sections.
     let snapshot = service.read_snapshot(None).unwrap();
     assert!(!snapshot.sections.contains_key("history_md"));
-    assert!(snapshot
-        .sections
-        .values()
-        .all(|section| section.content.to_string() != "\"RETIRED-SECTION-MARKER\""));
+    assert!(snapshot.sections.values().all(
+        |section| section.content != serde_json::Value::String("RETIRED-SECTION-MARKER".into())
+    ));
 
     // Retired names fail closed on lookup.
     assert!("history_md".parse::<LaputaSectionName>().is_err());
