@@ -1420,6 +1420,16 @@ mod tests {
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(1);
         let bus = MessageBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
+        agent_diva_laputa::PersonaService::open(temp_dir.path())
+            .unwrap()
+            .initialize(agent_diva_laputa::PersonaInitialization {
+                identity: "Diva".into(),
+                relationship: "Test partner".into(),
+                redline: "No unsafe actions".into(),
+                user: "Concise output".into(),
+                world: "Local handler test".into(),
+            })
+            .unwrap();
         let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
 
         tokio::spawn(async move {
