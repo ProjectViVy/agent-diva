@@ -10,37 +10,23 @@ use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{info, warn};
 
 impl AgentLoop {
-    /// Mark the cached skill section for every Session in this workspace.
+    /// Mark the cached machine Skill section for every Session.
     /// Callers use this after an already-committed skill mutation; the next
     /// prompt assembly performs the actual disk read.
-    pub(crate) fn mark_workspace_skills_for_reload(&self, change_id: &str) -> usize {
+    pub(crate) fn mark_machine_skills_for_reload(&self, change_id: &str) -> usize {
         let invalidated = self.context.invalidate_skills_for_all_sessions();
         tracing::info!(
             change_id,
             invalidated_sessions = invalidated,
-            "workspace skills marked for lazy reload"
+            "machine skills marked for lazy reload"
         );
         invalidated
     }
 
     pub(super) async fn handle_runtime_control_command(&mut self, cmd: RuntimeControlCommand) {
         match cmd {
-            RuntimeControlCommand::ReloadWorkspaceSkills {
-                workspace_id,
-                change_id,
-            } => {
-                let expected_workspace_id =
-                    agent_diva_core::workspace_identity::canonical_workspace_id(&self.workspace);
-                if workspace_id != expected_workspace_id {
-                    tracing::warn!(
-                        expected_workspace_id,
-                        received_workspace_id = %workspace_id,
-                        change_id = %change_id,
-                        "ignored skills reload for another workspace"
-                    );
-                    return;
-                }
-                self.mark_workspace_skills_for_reload(&change_id);
+            RuntimeControlCommand::ReloadMachineSkills { change_id } => {
+                self.mark_machine_skills_for_reload(&change_id);
             }
             RuntimeControlCommand::RefreshMemoryAuthority {
                 workspace_id,

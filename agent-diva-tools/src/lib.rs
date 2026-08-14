@@ -26,6 +26,7 @@ pub mod read_tool_result;
 pub mod registry;
 pub mod sanitize;
 pub mod shell;
+pub mod skill;
 pub mod spawn;
 pub mod tool_discovery;
 pub mod update_plan;
@@ -53,6 +54,7 @@ pub use persona::{PersonaReadTool, PersonaRequestTool, PersonaUpdateTool, WorldR
 pub use read_tool_result::ReadToolResultTool;
 pub use sanitize::sanitize_for_json;
 pub use shell::ExecTool;
+pub use skill::SkillReadTool;
 pub use spawn::SpawnTool;
 pub use tool_discovery::ToolSearchTool;
 pub use update_plan::UpdatePlanTool;

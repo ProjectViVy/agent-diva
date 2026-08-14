@@ -8,6 +8,7 @@ use crate::mask::MaskFile;
 use crate::mask::MaskPromptComposer;
 use crate::memory_boundary::default_memory_provider;
 use crate::skills::SkillsLoader;
+use agent_diva_core::evolution::machine_skill_epoch;
 use agent_diva_core::memory::{
     MemoryProvider, StartupInjectionShape, StartupStatus, SystemPromptBlock, SystemPromptRequest,
     SystemPromptResponse,
@@ -43,6 +44,7 @@ struct SessionStableCache {
     rendered: String,
     mask: Option<MaskFile>,
     memory_revision: u64,
+    skill_epoch: u64,
     prefix_version: u64,
     pending_invalidations: BTreeMap<ContextSection, CacheBreakReason>,
 }
@@ -60,7 +62,10 @@ pub struct ContextBuilder {
 impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
-        let skills_loader = SkillsLoader::new(&workspace, None);
+        let skills_loader = SkillsLoader::new(
+            agent_diva_core::config::ConfigLoader::new().config_dir(),
+            None,
+        );
         let memory_provider = default_memory_provider(&workspace);
         Self {
             persona_root: workspace.clone(),
@@ -75,6 +80,25 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
+        let memory_provider = default_memory_provider(&workspace);
+        Self {
+            persona_root: workspace.clone(),
+            workspace,
+            skills_loader,
+            memory_provider,
+            default_session_key: next_builder_session_key(),
+            stable_cache: Mutex::new(StableContextCache::default()),
+        }
+    }
+
+    /// Bind Skill discovery to the machine config root while retaining the
+    /// workspace for AGENTS.md and other workspace-owned context.
+    pub fn with_skill_home(
+        workspace: PathBuf,
+        config_dir: PathBuf,
+        builtin_skills_dir: Option<PathBuf>,
+    ) -> Self {
+        let skills_loader = SkillsLoader::new(config_dir, builtin_skills_dir);
         let memory_provider = default_memory_provider(&workspace);
         Self {
             persona_root: workspace.clone(),
@@ -156,6 +180,7 @@ impl ContextBuilder {
                     rendered: rendered.clone(),
                     mask: mask.cloned(),
                     memory_revision: self.memory_provider.system_prompt_revision(&memory_request),
+                    skill_epoch: machine_skill_epoch(),
                     prefix_version: 1,
                     pending_invalidations: BTreeMap::new(),
                 });
@@ -179,6 +204,13 @@ impl ContextBuilder {
                         CacheBreakReason::L1HotRefresh,
                     );
                 }
+                let skill_epoch = machine_skill_epoch();
+                if cache.skill_epoch != skill_epoch {
+                    cache.pending_invalidations.insert(
+                        ContextSection::AgentRulesAndSkills,
+                        CacheBreakReason::AgentRulesReload,
+                    );
+                }
 
                 if !cache.pending_invalidations.is_empty() {
                     for section in cache.sections.values_mut() {
@@ -196,6 +228,7 @@ impl ContextBuilder {
                     cache.mask = mask.cloned();
                     cache.memory_revision =
                         self.memory_provider.system_prompt_revision(&memory_request);
+                    cache.skill_epoch = skill_epoch;
                     cache.prefix_version = cache.prefix_version.saturating_add(1);
                     let sections = cache.sections.values().cloned().collect::<Vec<_>>();
                     cache.rendered = render_stable_sections(&sections);
@@ -391,12 +424,9 @@ Your workspace is at: {workspace_path}
 
         // Skills - progressive loading
         // 1) Always-loaded skills (full content)
-        let always_skills = self.skills_loader.get_always_skills();
-        if !always_skills.is_empty() {
-            let always_content = self.skills_loader.load_skills_for_context(&always_skills);
-            if !always_content.is_empty() {
-                self.append_section(&mut rules_and_skills, "Active Skills", &always_content);
-            }
+        let always_content = self.skills_loader.build_always_context();
+        if !always_content.is_empty() {
+            self.append_section(&mut rules_and_skills, "Active Skills", &always_content);
         }
 
         // 2) Available skills summary
@@ -405,10 +435,8 @@ Your workspace is at: {workspace_path}
             self.append_section(
                 &mut rules_and_skills,
                 "Skills",
-                "The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.\n",
+                "The following enabled skills extend your capabilities. Use skill_read(slug) to read a non-resident Skill; disk paths are intentionally not exposed.\n",
             );
-            rules_and_skills
-                .push_str("Skills with available=\"false\" need dependencies installed first.\n\n");
             rules_and_skills.push_str(&skills_summary);
         }
 
@@ -988,7 +1016,7 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         let service = seed_persona(workspace.path(), "vivy", "redline");
 
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
         let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("Frozen Core — identity"));
         assert!(prompt.contains("vivy"));
@@ -1019,7 +1047,7 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         seed_persona(workspace.path(), "identity", "red_line: true");
 
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
         let prompt = builder.build_system_prompt(None);
         let frozen_pos = prompt.find("Frozen Core — redline").unwrap();
         let policy_pos = prompt.find("## Memory Management Policy").unwrap();
@@ -1165,7 +1193,7 @@ mod tests {
     fn c1c_agent_rules_and_skills_require_explicit_reload() {
         let workspace = TempDir::new().unwrap();
         fs::write(workspace.path().join("AGENTS.md"), "# Rules v1").unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
 
         let first = builder.stable_prefix_snapshot_for_session(None, "rules-session");
         fs::write(workspace.path().join("AGENTS.md"), "# Rules v2").unwrap();
@@ -1222,7 +1250,7 @@ mod tests {
     #[test]
     fn c1c_workspace_skill_reload_invalidates_all_sessions_lazily() {
         let workspace = TempDir::new().unwrap();
-        let builder = ContextBuilder::new(workspace.path().to_path_buf());
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
         let first_a = builder.stable_prefix_snapshot_for_session(None, "session-a");
         let first_b = builder.stable_prefix_snapshot_for_session(None, "session-b");
 
@@ -1389,7 +1417,7 @@ mod tests {
         fs::create_dir_all(skills_dir.join("always-skill")).unwrap();
         fs::write(
             skills_dir.join("always-skill").join("SKILL.md"),
-            "---\nname: always-skill\ndescription: Always loaded\nmetadata: '{\"nanobot\":{\"always\":true}}'\n---\n\n# Always skill body\n",
+            "---\nname: always-skill\ndescription: Always loaded\nalways: true\n---\n\n# Always skill body\n",
         )
         .unwrap();
 

@@ -160,16 +160,12 @@ impl Manager {
         let Some(tx) = &self.runtime_control_tx else {
             return;
         };
-        if let Err(error) = tx.send(runtime_skills_reload_command(
-            &self.workspace,
-            operation,
-            skill_name,
-        )) {
+        if let Err(error) = tx.send(runtime_skills_reload_command(operation, skill_name)) {
             error!(
                 operation,
                 skill_name,
                 %error,
-                "failed to send workspace skills reload"
+                "failed to send machine skills reload"
             );
         }
     }
@@ -400,13 +396,8 @@ impl Manager {
     }
 }
 
-fn runtime_skills_reload_command(
-    workspace: &std::path::Path,
-    operation: &str,
-    skill_name: &str,
-) -> RuntimeControlCommand {
-    RuntimeControlCommand::ReloadWorkspaceSkills {
-        workspace_id: agent_diva_core::workspace_identity::canonical_workspace_id(workspace),
+fn runtime_skills_reload_command(operation: &str, skill_name: &str) -> RuntimeControlCommand {
+    RuntimeControlCommand::ReloadMachineSkills {
         change_id: format!("skills:{operation}:{skill_name}"),
     }
 }
@@ -707,20 +698,11 @@ mod tests {
     }
 
     #[test]
-    fn runtime_skills_reload_command_is_workspace_scoped() {
-        let workspace = tempfile::tempdir().unwrap();
-        let command = runtime_skills_reload_command(workspace.path(), "upload", "research");
-        let RuntimeControlCommand::ReloadWorkspaceSkills {
-            workspace_id,
-            change_id,
-        } = command
-        else {
+    fn runtime_skills_reload_command_is_machine_scoped() {
+        let command = runtime_skills_reload_command("upload", "research");
+        let RuntimeControlCommand::ReloadMachineSkills { change_id } = command else {
             panic!("expected skills reload command");
         };
-        assert_eq!(
-            workspace_id,
-            agent_diva_core::workspace_identity::canonical_workspace_id(workspace.path())
-        );
         assert_eq!(change_id, "skills:upload:research");
     }
 }

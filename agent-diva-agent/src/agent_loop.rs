@@ -482,7 +482,10 @@ impl AgentLoop {
             global_timeout_secs: runtime_security.global_tool_timeout_secs,
             ..ToolConfig::default()
         };
-        let context = ContextBuilder::with_skills(workspace.clone(), None);
+        let config_dir = agent_diva_core::config::ConfigLoader::new()
+            .config_dir()
+            .to_path_buf();
+        let context = ContextBuilder::with_skill_home(workspace.clone(), config_dir, None);
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::with_timeout(runtime_security.global_tool_timeout_secs);
         let memory_provider = default_memory_provider(&workspace);
@@ -654,8 +657,9 @@ impl AgentLoop {
             .config_dir
             .clone()
             .unwrap_or_else(|| workspace.clone());
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None)
-            .with_persona_root(persona_root.clone());
+        let mut context =
+            ContextBuilder::with_skill_home(workspace.clone(), persona_root.clone(), None)
+                .with_persona_root(persona_root.clone());
         let sessions = SessionManager::new(workspace.clone());
         let token_ledger_data_root = workspace.join(".agent-diva");
 
@@ -770,8 +774,9 @@ impl AgentLoop {
             .config_dir
             .clone()
             .unwrap_or_else(|| workspace.clone());
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None)
-            .with_persona_root(persona_root.clone());
+        let mut context =
+            ContextBuilder::with_skill_home(workspace.clone(), persona_root.clone(), None)
+                .with_persona_root(persona_root.clone());
         let sessions = SessionManager::new(workspace.clone());
         let memory_provider = default_memory_provider(&workspace);
         let token_ledger_data_root = workspace.join(".agent-diva");

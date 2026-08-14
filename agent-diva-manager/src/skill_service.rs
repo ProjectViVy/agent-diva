@@ -65,7 +65,7 @@ impl SkillService {
                     .description
                     .unwrap_or_else(|| skill.name.clone());
                 let source = match skill.source {
-                    SkillSource::Workspace => "workspace",
+                    SkillSource::Home => "home",
                     SkillSource::Builtin => "builtin",
                 };
                 SkillDto {
@@ -74,8 +74,8 @@ impl SkillService {
                     source: source.to_string(),
                     available: available_names.contains(&skill.name),
                     active: active_names.contains(&skill.name),
-                    path: skill.path.display().to_string(),
-                    can_delete: matches!(skill.source, SkillSource::Workspace),
+                    path: String::new(),
+                    can_delete: matches!(skill.source, SkillSource::Home),
                 }
             })
             .collect::<Vec<_>>();

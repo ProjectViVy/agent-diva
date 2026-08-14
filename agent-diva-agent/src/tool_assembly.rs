@@ -21,8 +21,8 @@ use agent_diva_tools::{
     load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
     EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
     ListDirTool, PersonaReadTool, PersonaRequestTool, PersonaUpdateTool, ReadAttachmentTool,
-    ReadFileTool, ReadToolResultTool, SpawnTool, ToolSearchTool, UpdatePlanTool, WebFetchTool,
-    WebSearchTool, WorldReadTool, WriteFileTool,
+    ReadFileTool, ReadToolResultTool, SkillReadTool, SpawnTool, ToolSearchTool, UpdatePlanTool,
+    WebFetchTool, WebSearchTool, WorldReadTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -277,6 +277,7 @@ impl ToolAssembly {
 
         if !subagent_mode {
             if let Some(config_dir) = self.persona_root.clone() {
+                registry.register(Arc::new(SkillReadTool::with_config_dir(config_dir.clone())));
                 registry.register(Arc::new(WorldReadTool::with_config_dir(config_dir.clone())));
                 if self.plan_phase.is_none() {
                     registry.register_in_partition(
@@ -289,10 +290,19 @@ impl ToolAssembly {
                             ToolSchemaPartition::Deferred,
                         );
                         registry.register_in_partition(
-                            Arc::new(PersonaUpdateTool::with_config_dir(config_dir)),
+                            Arc::new(PersonaUpdateTool::with_config_dir(config_dir.clone())),
                             ToolSchemaPartition::Deferred,
                         );
                     }
+                }
+                if self.builtin_config.memory && !action_restricted && self.plan_phase.is_none() {
+                    registry.register_in_partition(
+                        Arc::new(agent_diva_tools::MemoryDistillTool::with_config_dir(
+                            config_dir,
+                            self.session_checkpoint_session.clone(),
+                        )),
+                        ToolSchemaPartition::Deferred,
+                    );
                 }
             }
         }
@@ -908,6 +918,33 @@ mod tests {
             .tool_names()
             .iter()
             .any(|name| name == "memory_distill"));
+    }
+
+    #[test]
+    fn skill_read_is_core_and_distill_is_deferred_only_for_main_agent() {
+        let config = tempfile::tempdir().unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        let registry = ToolAssembly::new(workspace.path().to_path_buf())
+            .with_persona_root(Some(config.path().to_path_buf()))
+            .with_session_checkpoint_session(Some("session-1".into()))
+            .build();
+        let definitions = registry.get_definition_set();
+        let core_names = definitions.definitions[..definitions.core_count]
+            .iter()
+            .filter_map(|definition| definition["function"]["name"].as_str())
+            .collect::<Vec<_>>();
+        assert!(core_names.contains(&"skill_read"));
+        assert!(!core_names.contains(&"memory_distill"));
+        assert!(registry
+            .deferred_tools()
+            .iter()
+            .any(|tool| tool.name() == "memory_distill"));
+
+        let subagent = ToolAssembly::new(workspace.path().to_path_buf())
+            .with_persona_root(Some(config.path().to_path_buf()))
+            .build_subagent_registry();
+        assert!(!subagent.has("skill_read"));
+        assert!(!subagent.has("memory_distill"));
     }
 
     #[tokio::test]
