@@ -160,6 +160,61 @@ pub struct TypedMemoryStore {
 }
 
 impl TypedMemoryStore {
+    /// Open or initialize a store at an explicit machine-home database path.
+    pub async fn open_database(
+        path: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let path = path.as_ref().to_path_buf();
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|source| {
+                TypedMemoryStoreError::Io {
+                    path: parent.to_path_buf(),
+                    source,
+                }
+            })?;
+        }
+        Self::open_path(path, workspace_id.into()).await
+    }
+
+    /// Open an existing store at an explicit path without creating it.
+    pub async fn open_existing_database(
+        path: impl AsRef<Path>,
+        workspace_id: impl Into<String>,
+    ) -> Result<Self, TypedMemoryStoreError> {
+        let path = path.as_ref().to_path_buf();
+        if !path.is_file() {
+            return Err(TypedMemoryStoreError::InvalidBackup);
+        }
+        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
+            .journal_mode(SqliteJournalMode::Wal)
+            .foreign_keys(true)
+            .busy_timeout(BUSY_TIMEOUT);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(4)
+            .connect_with(options)
+            .await?;
+        let store = Self {
+            pool,
+            path,
+            workspace_id: workspace_id.into(),
+            write_lock: Arc::new(tokio::sync::Mutex::new(())),
+        };
+        let metadata = store.metadata().await?;
+        if metadata.schema_version != SCHEMA_VERSION {
+            return Err(TypedMemoryStoreError::UnsupportedSchema {
+                actual: metadata.schema_version,
+            });
+        }
+        if metadata.workspace_id != store.workspace_id {
+            return Err(TypedMemoryStoreError::DatabaseWorkspaceMismatch {
+                expected: store.workspace_id.clone(),
+                actual: metadata.workspace_id,
+            });
+        }
+        Ok(store)
+    }
+
     /// Open the canonical store identity, upgrading the one recognized legacy
     /// path identity through a verified, content-preserving SQLite backup.
     pub async fn open_canonical(
@@ -848,6 +903,26 @@ impl TypedMemoryStore {
             expected_store_revision,
             expected_record_revision,
             None,
+            None,
+        )
+        .await
+    }
+
+    /// Atomically write a tombstone only if the target record still has the
+    /// revision observed by the caller.
+    pub async fn put_tombstone(
+        &self,
+        record: MemoryRecord,
+        expected_store_revision: i64,
+        target_record_id: &str,
+        expected_target_revision: i64,
+    ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
+        self.put_inner(
+            record,
+            expected_store_revision,
+            None,
+            None,
+            Some((target_record_id, expected_target_revision)),
         )
         .await
     }
@@ -868,6 +943,7 @@ impl TypedMemoryStore {
             expected_store_revision,
             expected_record_revision,
             Some(governed),
+            None,
         )
         .await
     }
@@ -928,6 +1004,7 @@ impl TypedMemoryStore {
         expected_store_revision: i64,
         expected_record_revision: Option<i64>,
         governed: Option<GovernedMemoryApply<'_>>,
+        target_revision_guard: Option<(&str, i64)>,
     ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
         let _write_guard = self.write_lock.lock().await;
         record.validate_at(Utc::now(), chrono::Duration::minutes(5))?;
@@ -976,6 +1053,21 @@ impl TypedMemoryStore {
                 expected: expected_store_revision,
                 actual: actual_store,
             });
+        }
+        if let Some((target_record_id, expected_target_revision)) = target_revision_guard {
+            let actual_target: Option<i64> = sqlx::query_scalar(
+                "SELECT record_revision FROM memory_records WHERE memory_id = ?",
+            )
+            .bind(target_record_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if actual_target != Some(expected_target_revision) {
+                return Err(TypedMemoryStoreError::RecordRevisionConflict {
+                    record_id: target_record_id.to_string(),
+                    expected: Some(expected_target_revision),
+                    actual: actual_target,
+                });
+            }
         }
         let reserved = sqlx::query(
             "UPDATE schema_meta SET store_revision = store_revision + 1
@@ -1377,8 +1469,8 @@ mod wave5_tests {
     use super::*;
     use crate::typed_provider::TypedLaputaMemoryProvider;
     use agent_diva_core::memory::{
-        CheckpointWriteRequest, MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome,
-        MemoryProvider,
+        MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryProvider,
+        SessionCheckpointWriteRequest,
     };
     use agent_diva_core::workspace_identity::canonical_workspace_id;
 
@@ -1402,7 +1494,7 @@ mod wave5_tests {
         content: &str,
     ) {
         provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: session_id.into(),
                 key_info: format!("{session_id}-info"),

@@ -8,17 +8,17 @@ use agent_diva_core::evolution::{
 };
 use agent_diva_core::governance::{ApprovalCoordinator, AuditCorrelation};
 use agent_diva_core::memory::{
-    memory_content_digest, render_checkpoint_block, render_l1_index_block, CheckpointWriteRequest,
+    memory_content_digest, render_l1_index_block, render_session_checkpoint_block,
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
     MemoryListRequest, MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord,
     MemoryRecordKind, MemoryRemoveRequest, MemoryScope, MemorySearchRequest, MemorySensitivity,
     MemoryTrust, MemoryUpdateRequest, PrefetchRequest, PrefetchResponse, PrefetchStatus,
     RecallOutcomeRequest, RecallPolicy, RecallRequest, RecallTurnOutcome,
-    SectionWriteProposalRequest, SessionEndRequest, SessionEndResponse, SessionEndStatus,
+    SectionWriteProposalRequest, SessionCheckpointRequest, SessionCheckpointResponse,
+    SessionCheckpointWriteRequest, SessionEndRequest, SessionEndResponse, SessionEndStatus,
     StartupInjectionShape, SyncTurnRequest, SyncTurnResponse, SystemPromptBlock,
     SystemPromptRefreshRequest, SystemPromptRefreshResponse, SystemPromptRequest,
-    SystemPromptResponse, WorkingMemoryRequest, WorkingMemoryResponse, DEFAULT_L1_INDEX_LINES,
-    MAX_CONFIDENCE_BPS,
+    SystemPromptResponse, DEFAULT_L1_INDEX_LINES, MAX_CONFIDENCE_BPS,
 };
 use chrono::{Duration, Utc};
 
@@ -212,27 +212,30 @@ impl TypedLaputaMemoryProvider {
                 tracing::info!(
                     cleared_rows,
                     active_sessions = active_session_ids.len(),
-                    "Startup GC removed stale session-scoped working memory (Wave 5)"
+                    "Startup GC removed stale session checkpoints (Wave 5)"
                 );
             }
             Err(error) => {
                 tracing::warn!(
                     gc_error = %error,
-                    "Startup working memory GC failed (non-fatal)"
+                    "Startup session checkpoint GC failed (non-fatal)"
                 );
             }
         }
     }
 
-    async fn checkpoint_record(&self, request: &CheckpointWriteRequest) -> MemoryRecord {
+    async fn checkpoint_record(&self, request: &SessionCheckpointWriteRequest) -> MemoryRecord {
         let now = Utc::now();
         let id = self.checkpoint_id(&request.session_id);
-        let content =
-            render_checkpoint_block(&request.key_info, &request.related_sops, &request.content);
+        let content = render_session_checkpoint_block(
+            &request.key_info,
+            &request.related_sops,
+            &request.content,
+        );
         let content_digest = memory_content_digest(content.as_bytes());
         MemoryRecord {
             id: id.clone(),
-            kind: MemoryRecordKind::WorkingMemory,
+            kind: MemoryRecordKind::SessionCheckpoint,
             content,
             provenance: MemoryProvenance {
                 source: MemoryProvenanceSource::LaputaAppliedSection,
@@ -360,7 +363,7 @@ fn visible_record(record: &MemoryRecord) -> bool {
         && record.scope.session_id.is_none()
 }
 
-fn entry_from(record: MemoryRecord) -> MemoryEntry {
+fn entry_from(record: MemoryRecord, revision: i64) -> MemoryEntry {
     let trust = serde_json::to_value(&record.trust)
         .ok()
         .and_then(|value| value.as_str().map(str::to_string))
@@ -373,6 +376,10 @@ fn entry_from(record: MemoryRecord) -> MemoryEntry {
         content: record.content,
         trust,
         provenance,
+        evidence_refs: record.evidence_refs,
+        revision,
+        created_at: record.created_at.to_rfc3339(),
+        updated_at: record.effective_at.to_rfc3339(),
     }
 }
 
@@ -548,7 +555,7 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             tracing::info!("memory_add: evidence_advisory set (no evidence_refs provided)");
         }
         Ok(MemoryCrudOutcome::Applied {
-            entry: Some(entry_from(stored.record)),
+            entry: Some(entry_from(stored.record, stored.revision)),
             evidence_advisory,
         })
     }
@@ -568,10 +575,9 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                     .unwrap_or_default();
                 let entries = records
                     .into_iter()
-                    .map(|stored| stored.record)
-                    .filter(visible_record)
-                    .filter(|record| !superseded.contains(&record.id))
-                    .map(entry_from)
+                    .filter(|stored| visible_record(&stored.record))
+                    .filter(|stored| !superseded.contains(&stored.record.id))
+                    .map(|stored| entry_from(stored.record, stored.revision))
                     .collect();
                 Ok(MemoryCrudOutcome::Listed { entries })
             }
@@ -610,10 +616,10 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             Ok(hits) => {
                 let entries = hits
                     .into_iter()
-                    .map(|hit| hit.stored.record)
-                    .filter(visible_record)
-                    .filter(|record| !superseded.contains(&record.id))
-                    .map(entry_from)
+                    .map(|hit| hit.stored)
+                    .filter(|stored| visible_record(&stored.record))
+                    .filter(|stored| !superseded.contains(&stored.record.id))
+                    .map(|stored| entry_from(stored.record, stored.revision))
                     .collect();
                 Ok(MemoryCrudOutcome::Listed { entries })
             }
@@ -838,9 +844,9 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         })
     }
 
-    async fn checkpoint_write(
+    async fn session_checkpoint_write(
         &self,
-        request: CheckpointWriteRequest,
+        request: SessionCheckpointWriteRequest,
     ) -> agent_diva_core::Result<MemoryCrudOutcome> {
         if request.session_id.trim().is_empty()
             || (request.key_info.trim().is_empty() && request.content.trim().is_empty())
@@ -881,7 +887,7 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
                     }),
                 });
                 Ok(MemoryCrudOutcome::Applied {
-                    entry: Some(entry_from(stored.record)),
+                    entry: Some(entry_from(stored.record, stored.revision)),
                     evidence_advisory: None,
                 })
             }
@@ -891,22 +897,22 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
         }
     }
 
-    async fn working_memory_block(
+    async fn session_checkpoint_block(
         &self,
-        request: WorkingMemoryRequest,
-    ) -> agent_diva_core::Result<WorkingMemoryResponse> {
+        request: SessionCheckpointRequest,
+    ) -> agent_diva_core::Result<SessionCheckpointResponse> {
         if request.session_id.trim().is_empty() {
-            return Ok(WorkingMemoryResponse::default());
+            return Ok(SessionCheckpointResponse::default());
         }
         let id = self.checkpoint_id(&request.session_id);
         let records = match self.crud_store.list(MAX_MEMORY_RECORDS as u32).await {
             Ok(records) => records,
             Err(error) => {
                 tracing::warn!(
-                    working_memory_error = %error,
-                    "Working memory block read failed (non-fatal)"
+                    session_checkpoint_error = %error,
+                    "Session checkpoint block read failed (non-fatal)"
                 );
-                return Ok(WorkingMemoryResponse::default());
+                return Ok(SessionCheckpointResponse::default());
             }
         };
         let superseded = records
@@ -915,18 +921,18 @@ impl MemoryProvider for TypedLaputaMemoryProvider {
             .flat_map(|stored| stored.record.supersedes.iter())
             .any(|target| target == &id);
         if superseded {
-            return Ok(WorkingMemoryResponse::default());
+            return Ok(SessionCheckpointResponse::default());
         }
         match records.into_iter().find(|stored| stored.record.id == id) {
             Some(stored)
                 if stored.record.tombstone.is_none()
                     && stored.record.scope.session_id.as_deref() == Some(&request.session_id) =>
             {
-                Ok(WorkingMemoryResponse {
+                Ok(SessionCheckpointResponse {
                     prompt_block: Some(stored.record.content),
                 })
             }
-            _ => Ok(WorkingMemoryResponse::default()),
+            _ => Ok(SessionCheckpointResponse::default()),
         }
     }
 
@@ -1148,6 +1154,8 @@ mod tests {
                 MemoryUpdateRequest {
                     record_id: "rec-1".into(),
                     content: "new content".into(),
+                    base_revision: 1,
+                    evidence_refs: Vec::new(),
                 },
             )
             .await
@@ -1174,6 +1182,7 @@ mod tests {
                 MemoryRemoveRequest {
                     record_id: "rec-9".into(),
                     reason: "user asked to forget".into(),
+                    base_revision: 1,
                 },
             )
             .await
@@ -1240,7 +1249,7 @@ mod tests {
 mod wave2_tests {
     use super::*;
     use agent_diva_core::memory::{
-        CheckpointWriteRequest, SessionEndRequest, WorkingMemoryRequest,
+        SessionCheckpointRequest, SessionCheckpointWriteRequest, SessionEndRequest,
     };
     use agent_diva_core::workspace_identity::canonical_workspace_id;
 
@@ -1335,7 +1344,7 @@ mod wave2_tests {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
         let outcome = provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:42".into(),
                 key_info: "migrating service B".into(),
@@ -1347,20 +1356,20 @@ mod wave2_tests {
         assert!(matches!(outcome, MemoryCrudOutcome::Applied { .. }));
 
         let block = provider
-            .working_memory_block(WorkingMemoryRequest {
+            .session_checkpoint_block(SessionCheckpointRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:42".into(),
             })
             .await
             .unwrap();
         let prompt_block = block.prompt_block.expect("checkpoint block expected");
-        assert!(prompt_block.starts_with("## Working Memory"));
+        assert!(prompt_block.starts_with("## Session Checkpoint"));
         assert!(prompt_block.contains("migrating service B"));
         assert!(prompt_block.contains("- rust-deploy"));
         assert!(prompt_block.contains("port 8080 confirmed"));
 
         let other = provider
-            .working_memory_block(WorkingMemoryRequest {
+            .session_checkpoint_block(SessionCheckpointRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:other".into(),
             })
@@ -1384,7 +1393,7 @@ mod wave2_tests {
     async fn checkpoint_overwrite_replaces_content() {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
-        let request = |content: &str| CheckpointWriteRequest {
+        let request = |content: &str| SessionCheckpointWriteRequest {
             workspace_root: temp.path().to_path_buf(),
             session_id: "channel:7".into(),
             key_info: content.into(),
@@ -1392,15 +1401,15 @@ mod wave2_tests {
             content: String::new(),
         };
         provider
-            .checkpoint_write(request("phase one"))
+            .session_checkpoint_write(request("phase one"))
             .await
             .unwrap();
         provider
-            .checkpoint_write(request("phase two"))
+            .session_checkpoint_write(request("phase two"))
             .await
             .unwrap();
         let block = provider
-            .working_memory_block(WorkingMemoryRequest {
+            .session_checkpoint_block(SessionCheckpointRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:7".into(),
             })
@@ -1416,7 +1425,7 @@ mod wave2_tests {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
         provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:9".into(),
                 key_info: "in-flight state".into(),
@@ -1434,7 +1443,7 @@ mod wave2_tests {
             .unwrap();
         eprintln!("SESSION_END_STATUS={:?}", ended.status);
         let block = provider
-            .working_memory_block(WorkingMemoryRequest {
+            .session_checkpoint_block(SessionCheckpointRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:9".into(),
             })
@@ -1448,7 +1457,7 @@ mod wave2_tests {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
         let outcome = provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "".into(),
                 key_info: String::new(),
@@ -1872,6 +1881,7 @@ mod wave3_tests {
                 MemoryRemoveRequest {
                     record_id: record_id.clone(),
                     reason: "retracted".into(),
+                    base_revision: 1,
                 },
             )
             .await
@@ -1966,7 +1976,7 @@ mod wave3_tests {
         let temp = tempfile::tempdir().unwrap();
         let provider = open_provider(&temp).await;
         provider
-            .checkpoint_write(agent_diva_core::memory::CheckpointWriteRequest {
+            .session_checkpoint_write(agent_diva_core::memory::SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "channel:wave3-session".into(),
                 key_info: "migrating kestrel cache".into(),

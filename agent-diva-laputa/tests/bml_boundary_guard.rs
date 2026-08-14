@@ -26,6 +26,8 @@ const FILE_ALLOWLIST: &[&str] = &[
     "agent-diva-laputa/src/typed_provider.rs",
     // Record adaptation layer owned by BML.
     "agent-diva-laputa/src/memory_records.rs",
+    // Machine-wide authority facade owned by BML.
+    "agent-diva-laputa/src/bml/memory_home.rs",
     // Migration tooling (allowed write path per the BML boundary contract).
     "agent-diva-laputa/src/migration.rs",
 ];

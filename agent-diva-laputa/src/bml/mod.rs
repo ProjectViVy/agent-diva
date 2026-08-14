@@ -23,6 +23,10 @@
 //!   adapters that depend on governance types (EvolutionProposal /
 //!   LaputaSection) would then be split between the two crates.
 
+pub mod memory_home;
+
+pub use memory_home::{MemRulesDocument, MemRulesSource, MemoryHome, MemoryHomeError};
+
 pub use crate::memory_records::{
     adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
     compare_normalized_records, MemoryAdapterContext, MemoryAdapterOutput, MemoryMigrationManifest,

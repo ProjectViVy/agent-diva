@@ -6,12 +6,18 @@
 //! by Laputa's adapter layer and keeps long-memory ownership outside prompt
 //! assembly and loop execution code.
 
+use crate::memory::actmem::{
+    ActmemEditWorkRequest, ActmemItemRequest, ActmemMutationResponse, ActmemReadRequest,
+    ActmemReadResponse, MemoryRulesResponse,
+};
 use crate::memory::crud::{
-    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest,
+    MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryGetRequest,
     MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
     SectionWriteProposalRequest,
 };
-use crate::memory::working::{CheckpointWriteRequest, WorkingMemoryRequest, WorkingMemoryResponse};
+use crate::memory::working::{
+    SessionCheckpointRequest, SessionCheckpointResponse, SessionCheckpointWriteRequest,
+};
 use std::path::PathBuf;
 
 /// Deterministic status for startup wakeup injection.
@@ -488,6 +494,15 @@ pub trait MemoryProvider: Send + Sync {
         Ok(MemoryCrudOutcome::unsupported("memory_list"))
     }
 
+    /// Retrieve one visible long-term record by stable id.
+    async fn memory_get(
+        &self,
+        _context: &MemoryCrudContext,
+        _request: MemoryGetRequest,
+    ) -> crate::Result<MemoryCrudOutcome> {
+        Ok(MemoryCrudOutcome::unsupported("memory_get"))
+    }
+
     /// Search applied memory.
     async fn memory_search(
         &self,
@@ -497,7 +512,7 @@ pub trait MemoryProvider: Send + Sync {
         Ok(MemoryCrudOutcome::unsupported("memory_search"))
     }
 
-    /// High-risk update; must create a reviewable proposal, not apply directly.
+    /// Compare-and-swap update applied directly to BML.
     async fn memory_update(
         &self,
         _context: &MemoryCrudContext,
@@ -506,13 +521,62 @@ pub trait MemoryProvider: Send + Sync {
         Ok(MemoryCrudOutcome::unsupported("memory_update"))
     }
 
-    /// High-risk removal; must create a reviewable deprecation proposal.
+    /// Compare-and-swap soft deletion applied directly to BML.
     async fn memory_remove(
         &self,
         _context: &MemoryCrudContext,
         _request: MemoryRemoveRequest,
     ) -> crate::Result<MemoryCrudOutcome> {
         Ok(MemoryCrudOutcome::unsupported("memory_remove"))
+    }
+
+    /// Read a bounded ACTMEM projection.
+    async fn actmem_read(&self, _request: ActmemReadRequest) -> crate::Result<ActmemReadResponse> {
+        Err(crate::Error::Internal("actmem unavailable".into()))
+    }
+
+    /// Replace one registered ACTMEM Work subsection with CAS.
+    async fn actmem_edit_work(
+        &self,
+        _request: ActmemEditWorkRequest,
+    ) -> crate::Result<ActmemMutationResponse> {
+        Err(crate::Error::Internal("actmem unavailable".into()))
+    }
+
+    /// Complete one Open item with CAS.
+    async fn actmem_complete(
+        &self,
+        _request: ActmemItemRequest,
+    ) -> crate::Result<ActmemMutationResponse> {
+        Err(crate::Error::Internal("actmem unavailable".into()))
+    }
+
+    /// Drop one ACTMEM item with CAS.
+    async fn actmem_drop(
+        &self,
+        _request: ActmemItemRequest,
+    ) -> crate::Result<ActmemMutationResponse> {
+        Err(crate::Error::Internal("actmem unavailable".into()))
+    }
+
+    /// Return the complete Memory writing handbook for write-time injection.
+    async fn memory_rules(&self) -> crate::Result<MemoryRulesResponse> {
+        Err(crate::Error::Internal("memory rules unavailable".into()))
+    }
+
+    /// Record one safe interactive user utterance in ACTMEM Pulse.
+    async fn record_user_pulse(&self, _session_id: &str, _content: &str) -> crate::Result<()> {
+        Ok(())
+    }
+
+    /// Record one completed assistant response in ACTMEM Recap.
+    async fn record_assistant_recap(&self, _session_id: &str, _content: &str) -> crate::Result<()> {
+        Ok(())
+    }
+
+    /// Fold the named idle session's Pulse and Recap into bounded capsules.
+    async fn fold_actmem_session(&self, _session_id: &str) -> crate::Result<()> {
+        Ok(())
     }
 
     /// Proactive experience distillation into a skill artifact.
@@ -536,17 +600,17 @@ pub trait MemoryProvider: Send + Sync {
         Ok(MemoryCrudOutcome::unsupported("propose_section_write"))
     }
 
-    /// Render the current session's working memory block for live-turn
+    /// Render the current session's checkpoint block for live-turn
     /// assembly.
     ///
     /// Working memory is volatile and session-scoped; providers without a
-    /// working memory surface return an empty block so the turn proceeds
+    /// session checkpoint surface return an empty block so the turn proceeds
     /// without recall context.
-    async fn working_memory_block(
+    async fn session_checkpoint_block(
         &self,
-        _request: WorkingMemoryRequest,
-    ) -> crate::Result<WorkingMemoryResponse> {
-        Ok(WorkingMemoryResponse::default())
+        _request: SessionCheckpointRequest,
+    ) -> crate::Result<SessionCheckpointResponse> {
+        Ok(SessionCheckpointResponse::default())
     }
 
     /// Write the session working checkpoint.
@@ -554,11 +618,11 @@ pub trait MemoryProvider: Send + Sync {
     /// The checkpoint is volatile, not authoritative, and is cleared on
     /// session end; implementations apply it immediately rather than creating
     /// a governed proposal.
-    async fn checkpoint_write(
+    async fn session_checkpoint_write(
         &self,
-        _request: CheckpointWriteRequest,
+        _request: SessionCheckpointWriteRequest,
     ) -> crate::Result<MemoryCrudOutcome> {
-        Ok(MemoryCrudOutcome::unsupported("checkpoint_write"))
+        Ok(MemoryCrudOutcome::unsupported("session_checkpoint_write"))
     }
 
     /// Trigger shutdown/session-end rhythm work if needed.

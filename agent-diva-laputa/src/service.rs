@@ -170,7 +170,7 @@ impl LaputaService {
     /// typed authority store, suitable for AutoDream's candidate dedup gate.
     ///
     /// Records are filtered to exclude:
-    /// - non-`AppliedAuthority` trust levels (working memory, observed, etc.)
+    /// - non-`AppliedAuthority` trust levels (session checkpoints, observed, etc.)
     /// - tombstoned records
     /// - session-scoped records (working checkpoints)
     /// - records targeted by a supersedes tombstone
@@ -1162,10 +1162,10 @@ mod wave4_tests {
     use agent_diva_core::evolution::memory_candidate_content_digest;
     use agent_diva_core::governance::AuditCorrelation;
     use agent_diva_core::memory::{
-        memory_content_digest, CheckpointWriteRequest, MemoryAddRequest, MemoryCrudContext,
-        MemoryCrudOutcome, MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord,
-        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust,
-        MAX_CONFIDENCE_BPS,
+        memory_content_digest, MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome,
+        MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord, MemoryRecordKind,
+        MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust,
+        SessionCheckpointWriteRequest, MAX_CONFIDENCE_BPS,
     };
     use agent_diva_core::workspace_identity::canonical_workspace_id;
     use chrono::Utc;
@@ -1263,9 +1263,9 @@ mod wave4_tests {
             other => panic!("expected Applied, got {other:?}"),
         };
 
-        // (b) Session-scoped checkpoint (WorkingMemory trust) → excluded.
+        // (b) Session-scoped checkpoint trust → excluded.
         provider
-            .checkpoint_write(CheckpointWriteRequest {
+            .session_checkpoint_write(SessionCheckpointWriteRequest {
                 workspace_root: temp.path().to_path_buf(),
                 session_id: "session-1".into(),
                 key_info: "wave4-session".into(),
@@ -1310,7 +1310,7 @@ mod wave4_tests {
             !digests
                 .iter()
                 .any(|d| *d == memory_candidate_content_digest("session checkpoint content")),
-            "session-scoped WorkingMemory content must not be listed"
+            "session-scoped checkpoint content must not be listed"
         );
         assert_eq!(
             digests.len(),

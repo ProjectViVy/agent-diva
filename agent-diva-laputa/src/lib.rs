@@ -6,6 +6,7 @@
 //! The BML logical layer (memory storage) lives at [`bml`]; see its module
 //! docs for the layer boundary and write-API rules.
 
+pub mod actmem;
 pub mod atomic;
 pub mod bml;
 pub mod cognitive;
@@ -28,10 +29,16 @@ pub mod suppression;
 pub mod typed_provider;
 pub mod typed_store;
 
+pub use actmem::{
+    recap_from_final_response, ActmemDocument, ActmemError, ActmemPatch, ActmemStore,
+    CapsuleDocument, CapsuleSummary, ACTMEM_CAPSULE_CAP_CHARS, ACTMEM_READ_CAP_CHARS,
+    ACTMEM_RING_CAP_CHARS, ACTMEM_WORK_CAP_CHARS,
+};
 pub use atomic::{atomic_write, atomic_write_json};
 pub use bml::{
     adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
-    compare_normalized_records, GovernedMemoryApply, MemoryAdapterContext, MemoryAdapterOutput,
+    compare_normalized_records, GovernedMemoryApply, MemRulesDocument, MemRulesSource,
+    MemoryAdapterContext, MemoryAdapterOutput, MemoryHome, MemoryHomeError,
     MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
     MemoryRecordMigration, MemoryRollbackManifest, MemorySearchHit, MemoryStoreIntegrity,
     MemoryStoreMetadata, StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,

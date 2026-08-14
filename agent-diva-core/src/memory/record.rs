@@ -26,7 +26,8 @@ pub enum MemoryRecordKind {
     Monthly,
     Journal,
     Learning,
-    WorkingMemory,
+    #[serde(rename = "session_checkpoint", alias = "working_memory")]
+    SessionCheckpoint,
     #[serde(other)]
     Unknown,
 }

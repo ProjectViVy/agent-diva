@@ -1,6 +1,6 @@
-//! Session-scoped working memory contract (Wave 2).
+//! Session-scoped checkpoint contract.
 //!
-//! Working memory is volatile, session-scoped, and never authoritative: it is
+//! A session checkpoint is volatile, session-scoped, and never authoritative: it is
 //! written through the checkpoint tool, injected into live-turn context, and
 //! cleared on session end. Long-term promotion happens explicitly through
 //! `memory_distill` (see the G1 evidence extension).
@@ -17,18 +17,18 @@ You manage memory in layers:
 2. No volatile state: session progress belongs in the working checkpoint, not in long-term memory.
 3. Minimal pointer principle: startup injection carries only a compact index; retrieve full entries on demand with memory_search or memory_list.";
 
-/// Input for rendering the current session's working memory block.
+/// Input for rendering the current session's checkpoint block.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct WorkingMemoryRequest {
+pub struct SessionCheckpointRequest {
     /// Workspace root for the active agent session.
     pub workspace_root: PathBuf,
     /// Session-scoped key (for example `channel:chat_id`).
     pub session_id: String,
 }
 
-/// Result of rendering the working memory block for live-turn assembly.
+/// Result of rendering the checkpoint block for live-turn assembly.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct WorkingMemoryResponse {
+pub struct SessionCheckpointResponse {
     /// Markdown block to inject after the system prompt, when non-empty.
     pub prompt_block: Option<String>,
 }
@@ -38,7 +38,7 @@ pub struct WorkingMemoryResponse {
 /// The checkpoint is volatile: it is stored session-scoped, injected into turn
 /// context, and cleared on session end. It never becomes long-term authority.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct CheckpointWriteRequest {
+pub struct SessionCheckpointWriteRequest {
     /// Workspace root for the active agent session.
     pub workspace_root: PathBuf,
     /// Session-scoped key (for example `channel:chat_id`).
@@ -51,9 +51,13 @@ pub struct CheckpointWriteRequest {
     pub content: String,
 }
 
-/// Render a checkpoint into the structured working memory markdown block.
-pub fn render_checkpoint_block(key_info: &str, related_sops: &[String], content: &str) -> String {
-    let mut block = String::from("## Working Memory\n");
+/// Render a checkpoint into the structured session checkpoint Markdown block.
+pub fn render_session_checkpoint_block(
+    key_info: &str,
+    related_sops: &[String],
+    content: &str,
+) -> String {
+    let mut block = String::from("## Session Checkpoint\n");
     if !key_info.trim().is_empty() {
         block.push_str(&format!("Key info:\n{}\n", key_info.trim()));
     }
@@ -76,14 +80,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_working_response_has_no_block() {
-        let response = WorkingMemoryResponse::default();
+    fn default_checkpoint_response_has_no_block() {
+        let response = SessionCheckpointResponse::default();
         assert_eq!(response.prompt_block, None);
     }
 
     #[test]
     fn checkpoint_request_roundtrip_serde() {
-        let request = CheckpointWriteRequest {
+        let request = SessionCheckpointWriteRequest {
             workspace_root: PathBuf::from("/ws"),
             session_id: "channel:123".to_string(),
             key_info: "migrating service B".to_string(),
@@ -91,18 +95,18 @@ mod tests {
             content: "port 8080 confirmed".to_string(),
         };
         let json = serde_json::to_string(&request).unwrap();
-        let back: CheckpointWriteRequest = serde_json::from_str(&json).unwrap();
+        let back: SessionCheckpointWriteRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back, request);
     }
 
     #[test]
     fn render_checkpoint_block_contains_all_sections() {
-        let block = render_checkpoint_block(
+        let block = render_session_checkpoint_block(
             "migrating service B",
             &["rust-deploy".to_string()],
             "port 8080 confirmed",
         );
-        assert!(block.starts_with("## Working Memory"));
+        assert!(block.starts_with("## Session Checkpoint"));
         assert!(block.contains("Key info:"));
         assert!(block.contains("migrating service B"));
         assert!(block.contains("Related SOPs:"));
@@ -112,7 +116,7 @@ mod tests {
 
     #[test]
     fn render_checkpoint_block_omits_empty_sections() {
-        let block = render_checkpoint_block("", &[], "");
-        assert_eq!(block, "## Working Memory\n");
+        let block = render_session_checkpoint_block("", &[], "");
+        assert_eq!(block, "## Session Checkpoint\n");
     }
 }

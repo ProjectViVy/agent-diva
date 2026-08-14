@@ -2,6 +2,7 @@
 //!
 //! Handles loading and updating of `MEMORY.md` and `HISTORY.md`.
 
+pub mod actmem;
 pub mod crud;
 pub mod manager;
 pub mod provider;
@@ -10,10 +11,14 @@ pub mod record;
 pub mod storage;
 pub mod working;
 
+pub use actmem::{
+    ActmemEditWorkRequest, ActmemItemRequest, ActmemMutationResponse, ActmemReadRequest,
+    ActmemReadResponse, ActmemReadTarget, MemoryRulesResponse,
+};
 pub use crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
-    MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
-    SectionWriteProposalRequest,
+    MemoryGetRequest, MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest,
+    MemoryUpdateRequest, SectionWriteProposalRequest,
 };
 pub use manager::MemoryManager;
 pub use provider::{
@@ -39,6 +44,6 @@ pub use record::{
 };
 pub use storage::{DailyNote, Memory};
 pub use working::{
-    render_checkpoint_block, CheckpointWriteRequest, WorkingMemoryRequest, WorkingMemoryResponse,
-    L0_MEMORY_POLICY,
+    render_session_checkpoint_block, SessionCheckpointRequest, SessionCheckpointResponse,
+    SessionCheckpointWriteRequest, L0_MEMORY_POLICY,
 };

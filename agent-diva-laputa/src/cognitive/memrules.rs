@@ -17,8 +17,7 @@ use crate::{LaputaError, Result};
 /// - R1 maps "raw material/evidence" to typed MemoryRecord evidence_refs
 ///   chains (the legacy memory engine was removed by GMH-24); evidence-less
 ///   writes stay advisory (Wave 6 evidence_advisory).
-/// - R4 aligns with the tiered write policy (low-risk immediate,
-///   high-risk approval).
+/// - R4 reflects direct BML writes; evidence remains advisory.
 /// - R6/R7 reserve the WORLD entry gate and no-wholesale-injection rules.
 pub const DEFAULT_MEM_RULES_TEXT: &str = "---
 version: 1
@@ -40,8 +39,8 @@ New contradictory evidence does not silently overwrite prior
 understanding; conflicts surface for review.
 
 ## R4 — User authority
-User-confirmed information outranks agent inference. Low-risk memory
-writes apply immediately; high-risk writes require explicit approval.
+User-confirmed information outranks agent inference. Memory writes apply
+directly to BML with revision checks; evidence remains advisory.
 
 ## R5 — Scope constraint
 Scope, time, confidence, provenance, and visibility constrain how a

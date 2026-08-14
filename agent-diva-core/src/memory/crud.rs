@@ -1,7 +1,6 @@
 //! Agent-facing memory CRUD contract.
 //!
-//! Wave 1 tool surface: six operations (add / list / search / update /
-//! remove / distill) expressed as default methods on [`MemoryProvider`].
+//! Agent and management surface for direct BML record operations.
 //! Implementations that do not support an operation report `Failed` with an
 //! explicit reason instead of silently succeeding.
 
@@ -26,6 +25,13 @@ pub struct MemoryListRequest {
     pub limit: Option<u32>,
 }
 
+/// Input for retrieving one visible long-term record by id.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MemoryGetRequest {
+    /// Stable record id in the authority.
+    pub record_id: String,
+}
+
 /// Input for searching applied memory.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemorySearchRequest {
@@ -35,22 +41,29 @@ pub struct MemorySearchRequest {
     pub limit: Option<u32>,
 }
 
-/// Input for a high-risk update that must go through review.
+/// Input for a compare-and-swap update applied directly to BML.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryUpdateRequest {
     /// Target record id in the applied authority.
     pub record_id: String,
     /// Replacement content.
     pub content: String,
+    /// Record revision observed by the caller.
+    pub base_revision: i64,
+    /// Optional evidence references backing the replacement.
+    #[serde(default)]
+    pub evidence_refs: Vec<EvidenceRef>,
 }
 
-/// Input for a high-risk removal that must go through review.
+/// Input for a compare-and-swap soft deletion applied directly to BML.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryRemoveRequest {
     /// Target record id in the applied authority.
     pub record_id: String,
     /// Human-readable reason for the removal.
     pub reason: String,
+    /// Record revision observed by the caller.
+    pub base_revision: i64,
 }
 
 /// Input for proactive experience distillation.
@@ -91,6 +104,15 @@ pub struct MemoryEntry {
     pub trust: String,
     /// Provenance source label, when available.
     pub provenance: Option<String>,
+    /// Evidence references stored with the record.
+    #[serde(default)]
+    pub evidence_refs: Vec<EvidenceRef>,
+    /// Monotonic record revision used for update/delete CAS.
+    pub revision: i64,
+    /// RFC 3339 creation timestamp.
+    pub created_at: String,
+    /// RFC 3339 last-effective timestamp.
+    pub updated_at: String,
 }
 
 /// Deterministic outcome of a memory CRUD operation.
@@ -159,6 +181,10 @@ mod tests {
                 content: "favorite color is blue".to_string(),
                 trust: "applied_authority".to_string(),
                 provenance: Some("memory_add".to_string()),
+                evidence_refs: Vec::new(),
+                revision: 1,
+                created_at: "2026-08-15T00:00:00Z".to_string(),
+                updated_at: "2026-08-15T00:00:00Z".to_string(),
             }),
             evidence_advisory: None,
         };
