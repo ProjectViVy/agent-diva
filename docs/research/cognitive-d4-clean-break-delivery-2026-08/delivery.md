@@ -3,8 +3,9 @@
 - 状态：`Approved / Implementation Pending`
 - 日期：2026-08-15
 - 性质：把已批准 D1–D3 收成可实施的切片、删除证明、发布与验收。通过本包 + 你叫切，才是 Architecture Gate。
-- **不改**生产代码。**不建**保护分支（你说切再切）。
+- **不改**生产代码。保护分支已按「切」建好（见 §4）。
 - 用户批准：`2026-08-15`（对话「点头」）。同日 STM Recap 修订不改本包切片顺序。
+- 保护分支已建（2026-08-15「切」）：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc5d89769876542262c77d693dfadb7822`。本地 only，未 push。不是 runtime fallback。
 
 不得重开：P/S/D6/D7、D1–D3 合同、无迁移（没了就没了）。
 
@@ -32,7 +33,7 @@ D0 图已由后续批准实际生效（P22 / S1 / D7 / D1–D3）。不再单独
 
 | 片 | 名 | 做什么 | 依赖 | 验证 |
 | --- | --- | --- | --- | --- |
-| **P0** | 保护分支 | 见 §4。只记录、不在本包执行 | 你说切 | `git branch` 存在 |
+| **P0** | 保护分支 | 见 §4 | 已切 | `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc` |
 | **S1** | 停种子 | 删 `null` JSON / `# WORLD` 预种子。**不**切换 P10 三态、不接引导 API | P0 | `open` 不再写 `sections/*.json` null、不再写 `# WORLD\n` |
 | **S2** | Persona 家 | `{config_dir}/persona/` + `/api/persona` + FC 读 MD + GUI + `persona_request` 工具。该域生产读写只打新家 | S1 | D1 验收；无 `[object Object]` |
 | **S3** | Memory 家 | 家目录 BML/ACTMEM/MEMRULES + `/api/memory`。生产 `open` / GUI / 工具只打新家 | S1 | D2 验收；不碰 ledger |
@@ -131,15 +132,15 @@ Tauri 命令与 HTTP 同名镜像。GUI 不直读磁盘。
 
 ## 4. 保护分支
 
-只在你说 **切** 时建。建议名：
+**已切（2026-08-15）。**
 
-`protect/cognitive-pre-clean-break-<YYYYMMDD>`
+- 名：`protect/cognitive-pre-clean-break-20260815`
+- SHA：`2aab18cc5d89769876542262c77d693dfadb7822`（`docs: sync D0 lifecycle with per-turn Recap`）
+- 本地 only，**未 push**
+- 只读考古，不是 runtime fallback，不长期双轨
+- 本回合未跑 `just check`（切的是设计收口 tip，无新生产代码）。已知失败若有，沿用切前记录
 
-- 从当时 `agent-diva-pro` 已验证 tip 建分支。不追旧乱 SHA。
-- 只读考古，不是 runtime fallback，不长期双轨。
-- 验证：该 tip 能 `just check`（或记录已知失败）；记下 SHA 进本包修订。
-
-本包批准 **不等于** 已切。
+仍不是 S1 开工令。
 
 ---
 
@@ -198,7 +199,7 @@ B 层：同片改掉锁旧合同的测试（R4 §3 表），不得留着挡 clea
 
 1. 切片顺序能独立回滚，S2/S3/S4 不互相抢旧读。
 2. 删除矩阵可机器扫；误报面写清。
-3. 保护分支有名字和触发语（切），没有提前建。
+3. 保护分支已建：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`。
 4. 发布说明包含「无迁移」。
 5. 真机八条可勾。
 6. 没重开 D1–D3 产品。

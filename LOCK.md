@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-d4-clean-break-delivery-2026-08/`; `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/research/cognitive-d2-memory-stm-2026-08/`; `docs/architecture/laputa/`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d4-delivery/`; `docs/logs/2026-08-actmem-recap/`
+- Scope: `docs/research/cognitive-d4-clean-break-delivery-2026-08/`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d4-delivery/`
 - Owner: `Grok`
-- Session/Task: `Approve D4; freeze per-turn ACTMEM recap`
+- Session/Task: `Create protect/cognitive-pre-clean-break branch (user 切)`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T04:35:00+08:00`
-- Last Heartbeat: `2026-08-15T05:00:00+08:00`
+- Started At: `2026-08-15T05:10:00+08:00`
+- Last Heartbeat: `2026-08-15T05:20:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Create protection branch` — **RELEASED 2026-08-15T05:20:00+08:00**
+  by `Grok`; protect/cognitive-pre-clean-break-20260815 @ 2aab18cc. Not pushed.
 
 - `Approve D4 and freeze recap` — **RELEASED 2026-08-15T05:00:00+08:00**
   by `Grok`; D4 approved; S8 per-turn recap. No production code. No backup branch.
@@ -181,6 +184,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T05:20:00+08:00`: Protection branch created locally at 2aab18cc.
+  Not pushed. S1 not started.
 
 - `2026-08-15T05:00:00+08:00`: Released after D4 approval and S8 Recap revision.
   Next: user says 切 then S1. Docs only.

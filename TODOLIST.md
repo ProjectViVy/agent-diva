@@ -140,14 +140,18 @@
 - [x] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0`
   **用户批准（2026-08-15）。** 稿：
   [`docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
-  先说切再领 S1。批准 ≠ 已切、≠ 已改生产。
+  **已切** `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`（本地，未 push）。
+  领 S1 另说。批准 ≠ 已改生产。
 
 ### Implementation Gate：架构批准后再展开
 
-- [ ] **COGNITIVE-I0-PROTECTION-BASELINE：备份分支** `sev-P0`
-  **用户叫切再切。** 不追旧 SHA。现在不建。无迁移。不是 runtime fallback。
+- [x] **COGNITIVE-I0-PROTECTION-BASELINE：备份分支** `sev-P0`
+  **已切（2026-08-15）。** 本地 `protect/cognitive-pre-clean-break-20260815` =
+  `2aab18cc5d89769876542262c77d693dfadb7822`。不追旧 SHA。未 push。无迁移。
+  不是 runtime fallback。
 
-- [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0` `blocked:I0`
+- [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
+  I0 已切。按 D4 P0–S6 切片；先领须另说。每片独立验证、独立 Conventional Commit。
   具体文件、顺序和提交数量等待 D4 决定；要求每片独立验证、独立 Conventional Commit，
   最终执行旧符号/路由/数据/GUI/Prompt 零残留证明、全仓 gate、真实桌面 smoke 和恢复演练。
 

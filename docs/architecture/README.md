@@ -22,7 +22,7 @@
 | **D1 Persona** | [`cognitive-d1-persona-workspace-2026-08`](../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md) | **已批准**；实施未授权 |
 | **D2 Memory** | [`cognitive-d2-memory-stm-2026-08`](../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md) | **已批准**；实施未授权 |
 | **D3 Evolution** | [`cognitive-d3-evolution-skill-2026-08`](../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md) | **已批准**；实施未授权 |
-| **D4 交付** | [`cognitive-d4-clean-break-delivery-2026-08`](../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md) | **已批准**；说切再切 |
+| **D4 交付** | [`cognitive-d4-clean-break-delivery-2026-08`](../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md) | **已批准**；保护分支已切（本地） |
 | 当前实现盘点 | [`cognitive-r0-current-state-2026-08`](../research/cognitive-r0-current-state-2026-08/README.md) | 事实地图；不是目标架构 |
 | STM / 上下文分层 | [`cognitive-r2-stm-context-2026-08`](../research/cognitive-r2-stm-context-2026-08/README.md) | R2 选项与约束；不是目标架构 |
 | Persona 工作区技术 | [`cognitive-r3-persona-workspace-2026-08`](../research/cognitive-r3-persona-workspace-2026-08/README.md) | R3 事实与选项；不是目标架构 |

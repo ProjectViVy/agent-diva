@@ -37,7 +37,7 @@
 | `cognitive-d1-persona-workspace-2026-08/` | **D1 已批准**；实施未授权 |
 | `cognitive-d2-memory-stm-2026-08/` | **D2 已批准**；实施未授权 |
 | `cognitive-d3-evolution-skill-2026-08/` | **D3 已批准**；实施未授权 |
-| `cognitive-d4-clean-break-delivery-2026-08/` | **D4 已批准**；保护分支等切；实施未授权 |
+| `cognitive-d4-clean-break-delivery-2026-08/` | **D4 已批准**；保护分支已切；实施未授权 |
 | `cognitive-r0-current-state-2026-08/` | **R0 完成物齐全**；待用户 Research Gate |
 | `cognitive-r1-genericagent-evolution-2026-08/` | **R1 完成物齐全**；待用户 Research Gate；含 R0 Evolution 切片 |
 | `cognitive-r2-stm-context-2026-08/` | **R2 完成物齐全**；待用户 Research Gate；不定物理权威 |

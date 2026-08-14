@@ -275,8 +275,8 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 
 **进展（2026-08-15）：** 设计稿已交
 [`../cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
-状态：`Approved / Implementation Pending`（用户 2026-08-15「点头」）。
-不切分支、不改生产，直到你说切。
+状态：`Approved / Implementation Pending`（用户 2026-08-15「点头」；同日「切」）。
+保护分支：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`。未改生产。
 
 ### Architecture Gate：何时允许开始实施
 

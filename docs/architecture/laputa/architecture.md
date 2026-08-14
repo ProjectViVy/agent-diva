@@ -180,7 +180,8 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - D1：**已批准** [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
 - D2：**已批准** [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
 - D3：**已批准** [`../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
-- D4：**已批准** [`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。保护分支你说切再切。
+- D4：**已批准** [`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
+  保护分支已切：`protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`（本地，未 push）。
 
 ---
 
