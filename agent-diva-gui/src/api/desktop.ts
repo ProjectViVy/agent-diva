@@ -544,6 +544,100 @@ export interface SelfEvolutionConfig {
 
 export type LaputaEventKind = 'proposals' | 'changelog' | 'errors';
 
+export type PersonaKind = 'identity' | 'relationship' | 'redline' | 'user' | 'world' | 'dream' | 'dark';
+export type PersonaStatus = 'uninitialized' | 'ready' | 'incomplete';
+
+export interface PersonaFileState {
+  kind: PersonaKind;
+  file_name: string;
+  exists: boolean;
+  valid: boolean;
+  reason?: string | null;
+  revision: number;
+  updated_at?: string | null;
+  pending_count: number;
+}
+
+export interface PersonaStatusView {
+  status: PersonaStatus;
+  files: Record<PersonaKind, PersonaFileState>;
+}
+
+export interface PersonaDocument {
+  kind: PersonaKind;
+  file_name: string;
+  exists: boolean;
+  valid: boolean;
+  content: string;
+  revision: number;
+  content_hash: string;
+  updated_at?: string | null;
+  pending_count: number;
+}
+
+export type PersonaRequestState = 'pending' | 'accepted' | 'rejected' | 'stale';
+
+export interface PersonaChangeRequest {
+  id: string;
+  kind: PersonaKind;
+  base_revision: number;
+  base_hash: string;
+  proposed_markdown: string;
+  actor: 'agent' | 'autodream';
+  reason: string;
+  created_at: string;
+  state: PersonaRequestState;
+  decided_at?: string | null;
+}
+
+export interface PersonaHistoryEntry {
+  revision: number;
+  content_hash: string;
+  snapshot: string;
+  diff: string;
+  actor: string;
+  source: string;
+  reason: string;
+  base_revision: number;
+  created_at: string;
+}
+
+export interface PersonaHistoryRevision extends PersonaHistoryEntry {
+  content: string;
+  unified_diff: string;
+}
+
+export interface PersonaInitializationPayload {
+  identity: string;
+  relationship: string;
+  redline: string;
+  user: string;
+  world: string;
+}
+
+export const getPersonaStatus = () => invoke<PersonaStatusView>('persona_get_status');
+export const initializePersona = (payload: PersonaInitializationPayload) =>
+  invoke<PersonaStatusView>('persona_initialize', { payload });
+export const repairPersona = (documents: Partial<Record<PersonaKind, string>>) =>
+  invoke<PersonaStatusView>('persona_repair', { payload: { documents } });
+export const getPersonaDocument = (kind: PersonaKind) =>
+  invoke<PersonaDocument>('persona_get_document', { kind });
+export const savePersonaDocument = (kind: PersonaKind, content: string, baseRevision: number, reason: string) =>
+  invoke<{ document: PersonaDocument; changed: boolean }>('persona_save_document', {
+    kind,
+    payload: { content, base_revision: baseRevision, reason },
+  });
+export const listPersonaHistory = (kind: PersonaKind) =>
+  invoke<PersonaHistoryEntry[]>('persona_list_history', { kind });
+export const getPersonaHistoryRevision = (kind: PersonaKind, revision: number) =>
+  invoke<PersonaHistoryRevision>('persona_get_history_revision', { kind, revision });
+export const listPersonaRequests = (kind?: PersonaKind) =>
+  invoke<PersonaChangeRequest[]>('persona_list_requests', { kind: kind ?? null });
+export const acceptPersonaRequest = (id: string) =>
+  invoke<PersonaChangeRequest>('persona_accept_request', { id });
+export const rejectPersonaRequest = (id: string) =>
+  invoke<PersonaChangeRequest>('persona_reject_request', { id });
+
 export interface LaputaEvent {
   id?: string;
   kind?: string;

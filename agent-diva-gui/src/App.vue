@@ -6,6 +6,7 @@ import type { AskUserQuestionView, CompactionStatus } from './components/ChatVie
 import NormalMode from "./components/NormalMode.vue";
 import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
+import PersonaSetupGate from "./components/PersonaSetupGate.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
@@ -2491,6 +2492,7 @@ onUnmounted(() => {
       :tools-config="toolsConfig"
       @done="handleWelcomeDone"
     />
+    <PersonaSetupGate v-if="!showWelcomeWizard" />
     <NormalMode
       ref="normalModeRef"
       :messages="messages"

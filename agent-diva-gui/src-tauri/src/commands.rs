@@ -502,6 +502,128 @@ pub async fn laputa_get_snapshot(
 }
 
 #[tauri::command]
+pub async fn persona_get_status(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/persona/status", state.api_base_url());
+    get_laputa_payload(&state, &url, "status").await
+}
+
+#[tauri::command]
+pub async fn persona_initialize(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/persona/initialize", state.api_base_url());
+    post_laputa_payload(&state, &url, &payload, "status").await
+}
+
+#[tauri::command]
+pub async fn persona_repair(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/persona/repair", state.api_base_url());
+    post_laputa_payload(&state, &url, &payload, "status").await
+}
+
+#[tauri::command]
+pub async fn persona_get_document(
+    kind: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/docs/{}",
+        state.api_base_url(),
+        urlencoding::encode(kind.trim())
+    );
+    get_laputa_payload(&state, &url, "document").await
+}
+
+#[tauri::command]
+pub async fn persona_save_document(
+    kind: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/docs/{}",
+        state.api_base_url(),
+        urlencoding::encode(kind.trim())
+    );
+    let response = put_laputa_full_response(&state, &url, &payload).await?;
+    response
+        .get("outcome")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Persona response missing outcome".into()))
+}
+
+#[tauri::command]
+pub async fn persona_list_history(
+    kind: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/docs/{}/history",
+        state.api_base_url(),
+        urlencoding::encode(kind.trim())
+    );
+    get_laputa_payload(&state, &url, "history").await
+}
+
+#[tauri::command]
+pub async fn persona_get_history_revision(
+    kind: String,
+    revision: u64,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/docs/{}/history/{revision}",
+        state.api_base_url(),
+        urlencoding::encode(kind.trim())
+    );
+    get_laputa_payload(&state, &url, "revision").await
+}
+
+#[tauri::command]
+pub async fn persona_list_requests(
+    kind: Option<String>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut url = format!("{}/persona/requests", state.api_base_url());
+    if let Some(kind) = non_empty_query_value(kind) {
+        url.push_str(&format!("?kind={}", urlencoding::encode(&kind)));
+    }
+    get_laputa_payload(&state, &url, "requests").await
+}
+
+#[tauri::command]
+pub async fn persona_accept_request(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/requests/{}/accept",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    post_laputa_payload(&state, &url, &serde_json::json!({}), "request").await
+}
+
+#[tauri::command]
+pub async fn persona_reject_request(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/persona/requests/{}/reject",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    post_laputa_payload(&state, &url, &serde_json::json!({}), "request").await
+}
+
+#[tauri::command]
 pub async fn laputa_get_persona_workspace(
     #[allow(non_snake_case)] sessionKey: Option<String>,
     state: State<'_, AgentState>,

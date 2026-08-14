@@ -7,93 +7,83 @@ import en from '../locales/en';
 
 vi.mock('../api/desktop', async () => ({
   ...await vi.importActual<typeof desktop>('../api/desktop'),
-  getLaputaPersonaWorkspace: vi.fn(),
-  writeLaputaSection: vi.fn(),
-  isTauriRuntime: vi.fn(() => true),
+  getPersonaDocument: vi.fn(), listPersonaRequests: vi.fn(), listPersonaHistory: vi.fn(),
+  getPersonaHistoryRevision: vi.fn(), savePersonaDocument: vi.fn(),
+  acceptPersonaRequest: vi.fn(), rejectPersonaRequest: vi.fn(), isTauriRuntime: vi.fn(() => true),
 }));
 vi.mock('../utils/appDialog', () => ({ appConfirm: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('../utils/appToast', () => ({ showAppToast: vi.fn() }));
+vi.mock('./persona-memory/PersonaMarkdownEditor.vue', () => ({
+  default: { props: ['modelValue'], emits: ['update:modelValue'], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
+}));
 
-const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } });
-const section = (name: desktop.LaputaSectionName, value: string): desktop.LaputaSection => ({
-  name, status: 'owned', content: { value }, metadata: {}, last_modified: '2026-08-09T08:00:00Z', version: '1',
+const document = (kind: desktop.PersonaKind, content = `# ${kind}`): desktop.PersonaDocument => ({
+  kind, file_name: `${kind.toUpperCase()}.MD`, exists: true, valid: true, content,
+  revision: 1, content_hash: 'sha256:one', updated_at: '2026-08-14T00:00:00Z', pending_count: 0,
 });
-const projection: desktop.PersonaWorkspaceProjection = {
-  snapshot: {
-    schema_version: '1',
-    sections: { identity: section('identity', 'Diva'), relationship: section('relationship', 'partner') },
-    changed_sections: [], server_time: '2026-08-09T08:00:00Z',
-  },
-  authority_versions: { identity: 'authority-v2', relationship: 'relationship-v1' },
-  session: { session_key: 'desktop:test', captured_at: '2026-08-09T08:00:00Z', section_versions: { identity: 'authority-v1' } },
-  proposals: [], changelog: [], cognitive: { memrules: 'rules', world: 'world' },
-};
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } });
 
-describe('PersonaMemoryView lifecycle workspace', () => {
+describe('PersonaMemoryView Markdown workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue(projection);
+    vi.mocked(desktop.getPersonaDocument).mockImplementation(async (kind) => document(kind));
+    vi.mocked(desktop.listPersonaRequests).mockResolvedValue([]);
+    vi.mocked(desktop.listPersonaHistory).mockResolvedValue([]);
   });
 
-  it('loads the aggregate projection for the active session', async () => {
-    const wrapper = mount(PersonaMemoryView, { props: { sessionKey: 'desktop:test' }, global: { plugins: [i18n] } });
-    await flushPromises();
-    expect(desktop.getLaputaPersonaWorkspace).toHaveBeenCalledWith('desktop:test');
-    expect(wrapper.text()).toContain(en.laputa.workspace.nextSessionEffective);
-    expect(wrapper.find('textarea').element.value).toContain('Diva');
-  });
-
-  it('shows cognitive governance files as read-only', async () => {
+  it('loads the seven-file authority and switches documents', async () => {
     const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
     await flushPromises();
-    const world = wrapper.findAll('.section-item').find((item) => item.text().includes('World'))!;
-    await world.trigger('click');
-    expect(wrapper.find('.cognitive-panel').text()).toContain('world');
-    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.findAll('nav button')).toHaveLength(7);
+    expect(wrapper.find('textarea').element.value).toBe('# identity');
+    await wrapper.findAll('nav button')[4].trigger('click');
+    await flushPromises();
+    expect(desktop.getPersonaDocument).toHaveBeenLastCalledWith('world');
+    expect(wrapper.find('textarea').element.value).toBe('# world');
   });
 
-  it('renders a real pending proposal in the lifecycle rail', async () => {
-    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ...projection,
-      proposals: [{
-        id: 'proposal-1', target_section: 'identity', state: 'pending_review', updated_at: '2026-08-09T09:00:00Z',
-        governance: { request_id: 'request-1', request_version: 1 },
-      }],
+  it('saves current Markdown with its CAS revision', async () => {
+    vi.mocked(desktop.savePersonaDocument).mockResolvedValue({ document: document('identity', '# changed'), changed: true });
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
+    await flushPromises();
+    await wrapper.find('textarea').setValue('# changed');
+    await wrapper.find('.actions .save').trigger('click');
+    await flushPromises();
+    expect(desktop.savePersonaDocument).toHaveBeenCalledWith('identity', '# changed', 1, 'GUI direct save');
+  });
+
+  it('renders pending Persona requests and accepts through the dedicated API', async () => {
+    vi.mocked(desktop.listPersonaRequests).mockResolvedValue([{
+      id: 'request-1', kind: 'identity', base_revision: 1, base_hash: 'sha256:one',
+      proposed_markdown: '# proposed', actor: 'agent', reason: 'observed change',
+      created_at: '2026-08-14T00:00:00Z', state: 'pending', decided_at: null,
+    }]);
+    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
+    await flushPromises();
+    await wrapper.findAll('.tabs button')[1].trigger('click');
+    expect(wrapper.find('.request-card').text()).toContain('observed change');
+    await wrapper.find('.accept').trigger('click');
+    await flushPromises();
+    expect(desktop.acceptPersonaRequest).toHaveBeenCalledWith('request-1');
+  });
+
+  it('loads immutable history diff and restores it into the editor', async () => {
+    vi.mocked(desktop.listPersonaHistory).mockResolvedValue([{
+      revision: 1, content_hash: 'sha256:one', snapshot: '1.md', diff: '1.diff', actor: 'user',
+      source: 'user_direct', reason: 'initial', base_revision: 0, created_at: '2026-08-14T00:00:00Z',
+    }]);
+    vi.mocked(desktop.getPersonaHistoryRevision).mockResolvedValue({
+      revision: 1, content_hash: 'sha256:one', snapshot: '1.md', diff: '1.diff', actor: 'user',
+      source: 'user_direct', reason: 'initial', base_revision: 0, created_at: '2026-08-14T00:00:00Z',
+      content: '# old', unified_diff: '-before\n+old',
     });
     const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
     await flushPromises();
-    expect(wrapper.find('.lifecycle-rail').text()).toContain('pending_review');
-    expect(wrapper.find('.proposal-pending-note').text()).toContain('not active yet');
-  });
-
-  it('renders null authority as an editable empty JSON object', async () => {
-    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ...projection,
-      snapshot: {
-        ...projection.snapshot,
-        sections: {
-          ...projection.snapshot.sections,
-          identity: { ...section('identity', ''), status: 'tbd', content: null },
-        },
-      },
-    });
-    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
+    await wrapper.findAll('.tabs button')[2].trigger('click');
+    await wrapper.find('.history-pane aside button').trigger('click');
     await flushPromises();
-    expect(wrapper.find('textarea').element.value).toBe('{}');
-  });
-
-  it('shows a structured error message and preserves the last successful workspace', async () => {
-    (desktop.getLaputaPersonaWorkspace as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(projection)
-      .mockRejectedValueOnce({ message: 'governance ledger unavailable', status: 503 });
-    const wrapper = mount(PersonaMemoryView, { global: { plugins: [i18n] } });
-    await flushPromises();
-
-    await wrapper.find('.workspace-header button').trigger('click');
-    await flushPromises();
-
-    expect(wrapper.find('.workspace-error').text()).toContain('governance ledger unavailable');
-    expect(wrapper.find('.workspace-error').text()).not.toContain('[object Object]');
-    expect(wrapper.find('textarea').element.value).toContain('Diva');
+    expect(wrapper.find('.revision').text()).toContain('-before');
+    await wrapper.find('.revision header button').trigger('click');
+    expect(wrapper.find('textarea').element.value).toBe('# old');
   });
 });
