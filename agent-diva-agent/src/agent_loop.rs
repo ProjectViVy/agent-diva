@@ -2917,7 +2917,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn first_run_onboarding_injected_when_frozen_core_empty() {
+    async fn first_run_onboarding_is_not_prompt_driven_when_persona_is_empty() {
         let bus = MessageBus::new();
         let provider = Arc::new(PromptCaptureProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2937,10 +2937,7 @@ mod tests {
             .unwrap()
             .clone()
             .expect("system prompt captured");
-        assert!(
-            prompt.contains("First-Run Onboarding"),
-            "empty Frozen Core must inject the onboarding block"
-        );
+        assert!(!prompt.contains("First-Run Onboarding"));
         assert!(*provider.ask_user_in_tools.lock().unwrap());
     }
 
@@ -2951,9 +2948,16 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let sections_dir = workspace.join(".laputa").join("sections");
-        std::fs::create_dir_all(&sections_dir).unwrap();
-        std::fs::write(sections_dir.join("identity.json"), "{\"name\":\"diva\"}").unwrap();
+        agent_diva_laputa::PersonaService::open(&workspace)
+            .unwrap()
+            .initialize(agent_diva_laputa::PersonaInitialization {
+                identity: "diva".into(),
+                relationship: "partner".into(),
+                redline: "ask first".into(),
+                user: "concise".into(),
+                world: "local".into(),
+            })
+            .unwrap();
 
         let mut agent = AgentLoop::new(bus, provider.clone(), workspace, None, Some(3))
             .await

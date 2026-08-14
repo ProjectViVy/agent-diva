@@ -842,6 +842,7 @@ mod tests {
         SystemPromptRequest, SystemPromptResponse,
     };
     use agent_diva_core::session::{SessionManager, SessionSearchQuery};
+    use agent_diva_laputa::{PersonaInitialization, PersonaKind, PersonaService};
     use std::fs;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::sync::{Arc, RwLock};
@@ -960,6 +961,20 @@ mod tests {
             .unwrap()
     }
 
+    fn seed_persona(workspace: &Path, identity: &str, redline: &str) -> PersonaService {
+        let service = PersonaService::open(workspace).unwrap();
+        service
+            .initialize(PersonaInitialization {
+                identity: identity.to_string(),
+                relationship: "relationship".to_string(),
+                redline: redline.to_string(),
+                user: "preference".to_string(),
+                world: "world".to_string(),
+            })
+            .unwrap();
+        service
+    }
+
     #[test]
     fn test_build_system_prompt() {
         let builder = ContextBuilder::new(PathBuf::from("/tmp/test"));
@@ -971,9 +986,7 @@ mod tests {
     #[test]
     fn frozen_core_is_captured_once_and_frozen_for_the_session() {
         let workspace = TempDir::new().unwrap();
-        let sections = workspace.path().join(".laputa").join("sections");
-        fs::create_dir_all(&sections).unwrap();
-        fs::write(sections.join("identity.json"), r#"{"name":"vivy"}"#).unwrap();
+        let service = seed_persona(workspace.path(), "vivy", "redline");
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
@@ -982,7 +995,15 @@ mod tests {
 
         // A governance write lands mid-session; this session's assembly
         // must keep using the session-start snapshot.
-        fs::write(sections.join("identity.json"), r#"{"name":"rewritten"}"#).unwrap();
+        let identity = service.get_document(PersonaKind::Identity).unwrap();
+        service
+            .save_user_document(
+                PersonaKind::Identity,
+                "rewritten",
+                identity.revision,
+                "test rewrite",
+            )
+            .unwrap();
         let frozen_prompt = builder.build_system_prompt(None);
         assert!(frozen_prompt.contains("vivy"));
         assert!(!frozen_prompt.contains("rewritten"));
@@ -996,13 +1017,11 @@ mod tests {
     #[test]
     fn frozen_core_precedes_later_context_layers() {
         let workspace = TempDir::new().unwrap();
-        let sections = workspace.path().join(".laputa").join("sections");
-        fs::create_dir_all(&sections).unwrap();
-        fs::write(sections.join("commitment.json"), r#"{"red_line":true}"#).unwrap();
+        seed_persona(workspace.path(), "identity", "red_line: true");
 
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let prompt = builder.build_system_prompt(None);
-        let frozen_pos = prompt.find("Frozen Core — commitment").unwrap();
+        let frozen_pos = prompt.find("Frozen Core — redline").unwrap();
         let policy_pos = prompt.find("## Memory Management Policy").unwrap();
         assert!(frozen_pos < policy_pos, "Frozen Core precedes later layers");
     }
@@ -1313,13 +1332,19 @@ mod tests {
     #[test]
     fn c1c_session_reset_recaptures_every_stable_section() {
         let workspace = TempDir::new().unwrap();
-        let frozen_dir = workspace.path().join(".laputa").join("sections");
-        fs::create_dir_all(&frozen_dir).unwrap();
-        fs::write(frozen_dir.join("identity.json"), r#"{"name":"first"}"#).unwrap();
+        let service = seed_persona(workspace.path(), "first", "redline");
         let builder = ContextBuilder::new(workspace.path().to_path_buf());
         let first = builder.stable_prefix_snapshot_for_session(None, "reset-session");
 
-        fs::write(frozen_dir.join("identity.json"), r#"{"name":"second"}"#).unwrap();
+        let identity = service.get_document(PersonaKind::Identity).unwrap();
+        service
+            .save_user_document(
+                PersonaKind::Identity,
+                "second",
+                identity.revision,
+                "test reset",
+            )
+            .unwrap();
         agent_diva_laputa::release_frozen_core_session(workspace.path(), "reset-session");
         builder.reset_session_cache("reset-session");
         let reset = builder.stable_prefix_snapshot_for_session(None, "reset-session");
