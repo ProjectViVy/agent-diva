@@ -2,7 +2,8 @@
 
 ## 已通过
 
-- `cargo test -p agent-diva-core evolution::skill_home`：Skill Home 内核定向测试通过。
+- `cargo test -p agent-diva-core evolution::skill_home`：6 项 Skill Home 内核定向测试
+  通过，包含 ZIP 全包预检、已有空目录拒绝和失败不残留目标目录。
 - `cargo test -p agent-diva-agent`：398 项通过。
 - `cargo test -p agent-diva-tools`：124 项通过。
 - `cargo test -p agent-diva-autodream service::tests --lib`：4 项通过，覆盖多请求、
@@ -19,8 +20,8 @@
 
 - `just fmt-check`：通过。
 - `just check`：通过（全 workspace Clippy，warnings denied）。
-- `just test`：通过；仅出现既有测试辅助代码 dead-code 与依赖 future-incompatibility
-  警告，不影响退出码。
+- `just test`：最终加固后复验通过（退出码 0，约 126 秒）；仅出现既有测试辅助代码
+  dead-code 与依赖 future-incompatibility 警告，不影响退出码。
 
 ## 未完成的真实桌面验证
 
