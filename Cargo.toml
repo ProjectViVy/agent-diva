@@ -75,6 +75,9 @@ encoding_rs = "0.8"
 # Utilities
 uuid = { version = "1.6", features = ["v4", "serde"] }
 sha2 = "0.10"
+similar = "2.7"
+unicode-normalization = "0.1"
+unicode-segmentation = "1.12"
 regex = "1.10"
 lazy_static = "1.4"
 once_cell = "1.19"

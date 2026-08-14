@@ -19,6 +19,7 @@ pub mod memory_provider;
 pub mod memory_records;
 pub mod metrics;
 pub mod migration;
+pub mod persona;
 pub mod persona_retire;
 pub mod proposals;
 pub mod recall;
@@ -62,6 +63,12 @@ pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
 pub use migration::{
     LaputaMigration, LaputaMigrationBackup, LaputaMigrationOptions, LaputaMigrationOutcome,
     LaputaMigrationSource, LaputaMigrationSourceKind, LaputaMigrationTestFailure,
+};
+pub use persona::{
+    PersonaChangeRequest, PersonaDocument, PersonaError, PersonaFileState, PersonaHistoryEntry,
+    PersonaHistoryRevision, PersonaInitialization, PersonaKind, PersonaRepair, PersonaRequestActor,
+    PersonaRequestState, PersonaService, PersonaStatus, PersonaStatusView, PersonaWriteOutcome,
+    PersonaWriteSource,
 };
 pub use persona_retire::{
     archive_sources as archive_persona_sources,
