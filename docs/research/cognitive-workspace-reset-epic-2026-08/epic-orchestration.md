@@ -265,12 +265,17 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 
 **进展（2026-08-15）：** 设计稿已交
 [`../cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
-状态：`Design Draft / Awaiting User Review`。假设 A：一个 Skill 对象。不改生产代码。
+状态：`Approved / Implementation Pending`（用户 2026-08-15「正确，批准，继续」）。
+仍不改生产代码。
 
 #### D4 — Clean-break 接口、删除、发布与验收设计
 
 整合 D1–D3，产出 API/事件/错误模型、实施依赖图、精确删除矩阵、保护性分支方案、提交切片、
 发布提示、恢复演练、自动测试和真实桌面验收矩阵。只有 D4 通过评审，才可进入实施。
+
+**进展（2026-08-15）：** 设计稿已交
+[`../cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
+状态：`Design Draft / Awaiting User Review`。不切分支、不改生产。
 
 ### Architecture Gate：何时允许开始实施
 

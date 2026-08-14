@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-d3-evolution-skill-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/research/README.md`; `docs/logs/2026-08-cognitive-d3-evolution/`
+- Scope: `docs/research/cognitive-d3-evolution-skill-2026-08/`; `docs/research/cognitive-d4-clean-break-delivery-2026-08/`; `docs/research/cognitive-workspace-reset-epic-2026-08/`; `docs/architecture/`; `TODOLIST.md`; `docs/research/README.md`; `docs/logs/2026-08-cognitive-d3-evolution/`; `docs/logs/2026-08-cognitive-d4-delivery/`
 - Owner: `Grok`
-- Session/Task: `Draft D3 Evolution/SOP/Skill architecture`
+- Session/Task: `Approve D3; draft D4 clean-break delivery`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T01:40:00+08:00`
-- Last Heartbeat: `2026-08-15T03:00:00+08:00`
+- Started At: `2026-08-15T03:15:00+08:00`
+- Last Heartbeat: `2026-08-15T04:20:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Approve D3 and draft D4` — **RELEASED 2026-08-15T04:20:00+08:00**
+  by `Grok`; D3 approved; D4 draft + review fixes. No production code. No backup branch.
 
 - `Draft D3 Evolution/Skill` — **RELEASED 2026-08-15T03:00:00+08:00**
   by `Grok`; D3 design draft + review fixes. No production code.
@@ -175,6 +178,9 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T04:20:00+08:00`: Released after D3 approval and D4 delivery draft.
+  Backup only when user says 切. Docs only.
 
 - `2026-08-15T03:00:00+08:00`: Released after D3 Evolution/Skill design draft.
   Awaiting user review. Docs only.

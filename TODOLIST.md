@@ -131,14 +131,15 @@
   [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
   仍不改生产代码。
 
-- [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0`
-  **设计稿已交（2026-08-15），待用户评审：**
+- [x] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
   [`docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
-  用户只见 Skill；人审后落 `SKILL.md`。通过 ≠ 改生产代码。
+  仍不改生产代码。
 
-- [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0` `blocked:D1-D3`
-  汇总窄 API/事件/错误、实施依赖、删除矩阵、保护分支、提交切片、发布/恢复、自动测试和
-  真机验收。D4 用户批准后才允许领取生产代码范围。
+- [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0`
+  **设计稿已交（2026-08-15），待用户评审：**
+  [`docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
+  批准后先说切再领 S1。通过本条 ≠ 已切、≠ 已改生产。
 
 ### Implementation Gate：架构批准后再展开
 

@@ -1,9 +1,10 @@
 # D3 — Evolution、SOP 与 Skill
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Approved / Implementation Pending`
 - 日期：2026-08-15
 - 性质：D3 架构合同。按 **D6** 把能力进化收成可管理的 Skill 文件 + 专用人审。
 - **不是** Architecture Gate，**不授权**改生产代码。
+- 用户批准：`2026-08-15`（对话「正确，批准，继续」）。
 
 不得重开：D6/D7、P5/P19、S8/S9、已批准 D1/D2、P22 整机一份家。  
 **不再以 GA 为进化参考。** 密度尺子可对照；进化叙事走 AutoDream → 提案 → Skill 文件。
@@ -57,7 +58,7 @@ R1 假设 A（证据最支持）。D6「提炼结果即 SOP/Skill 文件」落�
 
 索引与冲突键按 **目录 slug**，不用 frontmatter `name`。
 
-今日 `{config_dir}/workspace/skills/` 与 `memory_distill` 直写是旧落点，runtime **不读**。D4 一次性：复制到 `{config_dir}/skills/`（跳过 `requests`）或明文丢弃。禁止双读。Settings zip：v1 改写入家目录并走同一写核，或删除上传；不是「另一套副本」。
+今日 `{config_dir}/workspace/skills/` 与 `memory_distill` 直写是旧落点，runtime **不读**。D4：**不复制**，用户盘外自拷或重写。Settings zip：改写入家目录并走同一写核，或删除上传。
 
 `SkillsLoader` companion 根改为 `{config_dir}/skills/`。内置根仍是打包 `skills/`。  
 Skill 文件变更：本机 **全部 session** 的 Skills 缓存失效，不按 `workspace_id`。
