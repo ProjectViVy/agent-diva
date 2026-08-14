@@ -460,14 +460,6 @@ const isSectionActive = (section: SidebarSection) => {
 const navSectionLabel = (section: string) =>
   t('nav.' + (section === 'persona-memory' ? 'personaMemory' : section));
 
-const handleMemoryOpenApproval = (proposalId: string) => {
-  openEvolutionDeepLink({
-    tab: 'inbox',
-    proposalId,
-    requestKey: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  });
-};
-
 const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
   evolutionDeepLink.value = {
     ...payload,
@@ -1081,7 +1073,7 @@ defineExpose({
         </div>
         <!-- Memory (BML 仓库) 视图 -->
         <div v-else-if="activeMenu === 'memory'" class="h-full">
-          <MemoryView @open-approval="handleMemoryOpenApproval" />
+          <MemoryView />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">

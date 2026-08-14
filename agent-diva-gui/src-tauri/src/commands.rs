@@ -943,6 +943,167 @@ pub async fn bml_remove_memory(
 }
 
 #[tauri::command]
+pub async fn memory_list_records(
+    limit: Option<u32>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut url = format!("{}/memory/records", state.api_base_url());
+    if let Some(limit) = limit {
+        url.push_str(&format!("?limit={limit}"));
+    }
+    let value = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(value.get("records").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_create_record(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/memory/records", state.api_base_url());
+    let value = memory_request(&state, reqwest::Method::POST, &url, Some(&payload)).await?;
+    Ok(value.get("record").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_get_record(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/memory/records/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let value = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(value.get("record").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_update_record(
+    id: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/memory/records/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    let value = memory_request(&state, reqwest::Method::PATCH, &url, Some(&payload)).await?;
+    Ok(value.get("record").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_delete_record(
+    id: String,
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/memory/records/{}",
+        state.api_base_url(),
+        urlencoding::encode(id.trim())
+    );
+    memory_request(&state, reqwest::Method::DELETE, &url, Some(&payload)).await
+}
+
+#[tauri::command]
+pub async fn memory_get_actmem(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    memory_request(
+        &state,
+        reqwest::Method::GET,
+        &format!("{}/memory/actmem", state.api_base_url()),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn memory_put_actmem(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    memory_request(
+        &state,
+        reqwest::Method::PUT,
+        &format!("{}/memory/actmem", state.api_base_url()),
+        Some(&payload),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn memory_list_capsules(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let value = memory_request(
+        &state,
+        reqwest::Method::GET,
+        &format!("{}/memory/actmem/capsules", state.api_base_url()),
+        None,
+    )
+    .await?;
+    Ok(value.get("capsules").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_get_capsule(
+    name: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/memory/actmem/capsules/{}",
+        state.api_base_url(),
+        urlencoding::encode(name.trim())
+    );
+    let value = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(value.get("capsule").cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn memory_delete_capsule(
+    name: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!(
+        "{}/memory/actmem/capsules/{}",
+        state.api_base_url(),
+        urlencoding::encode(name.trim())
+    );
+    memory_request(&state, reqwest::Method::DELETE, &url, None).await
+}
+
+#[tauri::command]
+pub async fn memory_get_memrules(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    memory_request(
+        &state,
+        reqwest::Method::GET,
+        &format!("{}/memory/memrules", state.api_base_url()),
+        None,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn memory_put_memrules(
+    payload: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    memory_request(
+        &state,
+        reqwest::Method::PUT,
+        &format!("{}/memory/memrules", state.api_base_url()),
+        Some(&payload),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn trigger_autodream(
     payload: Option<AutoDreamTriggerPayload>,
     state: State<'_, AgentState>,
@@ -1245,6 +1406,38 @@ async fn post_laputa_full_response<T: Serialize + ?Sized>(
         .await
         .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
     parse_laputa_response(response, "").await
+}
+
+async fn memory_request(
+    state: &State<'_, AgentState>,
+    method: reqwest::Method,
+    url: &str,
+    payload: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut request = state.client.request(method, url);
+    if let Some(payload) = payload {
+        request = request.json(payload);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|error| laputa_transport_error(format!("Failed to call Memory API: {error}")))?;
+    let status = response.status();
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| laputa_transport_error(format!("Invalid Memory API response: {error}")))?;
+    if status.is_success() {
+        return Ok(value);
+    }
+    let error = value.get("error").unwrap_or(&value);
+    Err(serde_json::json!({
+        "status": "error",
+        "http_status": status.as_u16(),
+        "code": error.get("code").and_then(serde_json::Value::as_str).unwrap_or("memory_error"),
+        "message": error.get("message").and_then(serde_json::Value::as_str).unwrap_or("unknown Memory API error"),
+        "body": value,
+    }))
 }
 
 async fn parse_laputa_response(

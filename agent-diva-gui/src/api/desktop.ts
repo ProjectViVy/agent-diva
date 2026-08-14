@@ -863,6 +863,90 @@ export const bmlGetMemory = (id: string) =>
 export const bmlRemoveMemory = (id: string, reason: string) =>
   invoke<BmlRemoveMemoryResult>('bml_remove_memory', { id, reason });
 
+export interface MemoryRecord {
+  id: string;
+  content: string;
+  trust: string;
+  provenance?: string | null;
+  evidence_refs: EvidenceRef[];
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActmemDocument {
+  revision: number;
+  updated_at: string;
+  pulse: string;
+  recap: string;
+  work: string;
+  markdown: string;
+}
+
+export interface ActmemCapsuleSummary {
+  name: string;
+  session_key: string;
+  created_at: string;
+  chars: number;
+}
+
+export interface ActmemCapsule {
+  name: string;
+  session_key: string;
+  created_at: string;
+  markdown: string;
+}
+
+export interface MemoryRulesDocument {
+  content: string;
+  source: 'default' | 'file';
+}
+
+export const listMemoryRecords = (limit = 100) =>
+  invoke<MemoryRecord[]>('memory_list_records', { limit });
+
+export const createMemoryRecord = (content: string) =>
+  invoke<MemoryRecord>('memory_create_record', { payload: { content } });
+
+export const getMemoryRecord = (id: string) =>
+  invoke<MemoryRecord>('memory_get_record', { id });
+
+export const updateMemoryRecord = (id: string, content: string, baseRevision: number) =>
+  invoke<MemoryRecord>('memory_update_record', {
+    id,
+    payload: { content, base_revision: baseRevision },
+  });
+
+export const deleteMemoryRecord = (id: string, reason: string, baseRevision: number) =>
+  invoke<{ record: MemoryRecord; deleted: boolean }>('memory_delete_record', {
+    id,
+    payload: { reason, base_revision: baseRevision },
+  });
+
+export const getActmem = () => invoke<ActmemDocument>('memory_get_actmem');
+
+export const putActmem = (payload: {
+  pulse?: string;
+  recap?: string;
+  work?: string;
+  base_revision: number;
+}) => invoke<ActmemDocument>('memory_put_actmem', { payload });
+
+export const listActmemCapsules = () =>
+  invoke<ActmemCapsuleSummary[]>('memory_list_capsules');
+
+export const getActmemCapsule = (name: string) =>
+  invoke<ActmemCapsule>('memory_get_capsule', { name });
+
+export const deleteActmemCapsule = (name: string) =>
+  invoke<{ deleted: boolean }>('memory_delete_capsule', { name });
+
+export const getMemoryRules = () =>
+  invoke<MemoryRulesDocument>('memory_get_memrules');
+
+export const putMemoryRules = (content: string) =>
+  invoke<MemoryRulesDocument>('memory_put_memrules', { payload: { content } });
+
 export const triggerAutoDream = (trigger = 'manual') =>
   invoke<AutoDreamRunRecord>("trigger_autodream", {
     payload: { trigger },
