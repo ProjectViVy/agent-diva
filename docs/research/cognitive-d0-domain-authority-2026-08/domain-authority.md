@@ -13,7 +13,8 @@
 - [Laputa 汇总](../../architecture/laputa/architecture.md)
 
 **A / B / C 已拍（2026-08-14）。** 整机一份伴侣（P22）；BML 跟人格走（S1 修订）；
-`memory_distill` 一律 Evolution 人审（D7）。其余 D0 正文仍待整体点头，不是 Architecture Gate。
+`memory_distill` 一律 Evolution 人审（D7）。  
+**2026-08-15：** §3 Evolution 用户行补「直存已有 Skill」（D3 评审）。其余 D0 仍不是 Architecture Gate。
 
 ---
 
@@ -176,7 +177,7 @@ D1/D2/D3 不得各自发明 AutoDream 权限。
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 用户 Persona 页 | 直存（P16 直写例外见下） | 直存 | — | — | — | — | — |
 | 用户 Memory 页 | — | — | 直写 CRUD | 直改 | 直改 | — | — |
-| 用户 Evolution 页 | — | — | — | — | — | 接受/拒绝提案 | — |
+| 用户 Evolution 页 | — | — | — | — | — | 直存**已有** Skill；接受/拒绝提案 | — |
 | 聊天 Agent | 审查集 → P5；DREAM/DARK/USER 观察 → P16 | **读走工具；写走 P5**（用户直存除外） | 直写 CRUD | 日常维护直写 | 禁 | 一律 Evolution 人审（D7） | 危险工具走 Approval |
 | AutoDream | **只按 P19 提案**，不可直写、不可 apply | 只提案新 claim；不覆盖 `confirmed+source=user` | **禁**（禁 MemoryPatch） | **必须整理直写** | 禁 | **只诞生提案**，不可 apply | 不走 |
 | 系统（发言/空闲） | — | — | — | Pulse / 胶囊 | — | — | — |

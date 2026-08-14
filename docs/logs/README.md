@@ -23,6 +23,7 @@
 - `2026-08-cognitive-d0-domain-authority/`
 - `2026-08-cognitive-d1-persona/`
 - `2026-08-cognitive-d2-memory/`
+- `2026-08-cognitive-d3-evolution/`
 - `2026-08-governance-persona-recovery/`
 - `2026-08-code-review-residuals/`
 

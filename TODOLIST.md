@@ -131,9 +131,10 @@
   [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
   仍不改生产代码。
 
-- [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0` `blocked:D0`
-  按 **D6**：AutoDream 诞生进化提案，提炼结果为 SOP/Skill 文件。设计审查面、
-  文件形态、与 Skill runtime 接线。不抄 GA。人格走 P5，Memory 不进 Evolution。
+- [ ] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0`
+  **设计稿已交（2026-08-15），待用户评审：**
+  [`docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
+  用户只见 Skill；人审后落 `SKILL.md`。通过 ≠ 改生产代码。
 
 - [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0` `blocked:D1-D3`
   汇总窄 API/事件/错误、实施依赖、删除矩阵、保护分支、提交切片、发布/恢复、自动测试和

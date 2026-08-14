@@ -263,6 +263,10 @@ scope、生命周期、写入者、历史、Prompt/Context 投影和禁止依赖
 基于 R1 证据设计 Evolution 的唯一领域模型、触发、验证、可管理性、SOP/Skill 关系、
 接受/拒绝或发布语义、Skill runtime 接线和 Evolution GUI；人格与普通 Memory 明确排除。
 
+**进展（2026-08-15）：** 设计稿已交
+[`../cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
+状态：`Design Draft / Awaiting User Review`。假设 A：一个 Skill 对象。不改生产代码。
+
 #### D4 — Clean-break 接口、删除、发布与验收设计
 
 整合 D1–D3，产出 API/事件/错误模型、实施依赖图、精确删除矩阵、保护性分支方案、提交切片、
