@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/architecture/laputa/`; `docs/architecture/README.md`
-- Owner: `Grok`
-- Session/Task: `Correct stale R1-hold gate wording in Laputa architecture pack`
+- Scope: `agent-diva-laputa/src/cognitive/`; `agent-diva-laputa/src/layout.rs`; `agent-diva-laputa/src/frozen_core.rs`; `agent-diva-laputa/src/service.rs`; `agent-diva-laputa/tests/`; `agent-diva-manager/src/handlers/laputa.rs`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-workspace-reset-implementation/`
+- Owner: `Codex`
+- Session/Task: `I1-S1 stop legacy cognitive seed writes (complete)`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T06:20:00+08:00`
-- Last Heartbeat: `2026-08-15T06:25:00+08:00`
+- Started At: `2026-08-14T00:00:00+08:00`
+- Last Heartbeat: `2026-08-14T00:30:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -193,6 +193,11 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-14T00:30:00+08:00`: Released I1-S1 after stopping Frozen Core
+  `null` section seeds and `WORLD.MD` pre-seeding. Laputa/Manager tests,
+  `just fmt-check`, `just check`, and full `just test` passed. Code commit
+  `559faa8d`; S2/S3/S4 remain separately gated.
 
 - `2026-08-15T06:25:00+08:00`: Corrected stale R1-hold gate in laputa architecture pack.
 

@@ -8,10 +8,10 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`D0–D4 Approved / Protect branch cut / S1 not started`。
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S4 eligible`。
   进化走 D6。保护分支已切（本地
   `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
-  **未领 S1，不得改生产认知主链。**
+  **未领取具体 S2/S3/S4 范围，不得改对应生产认知主链。**
   编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
   架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
 
@@ -148,7 +148,7 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  I0 已切，S1 已完成（停止 `sections/*.json` null 与 `# WORLD` 预写）。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
 
