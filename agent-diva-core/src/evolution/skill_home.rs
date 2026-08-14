@@ -391,7 +391,9 @@ impl SkillHome {
         reject_secrets(markdown)?;
         let normalized = normalize_skill_markdown(markdown, None)?;
         let directory = self.inner.root.join(slug);
-        fs::create_dir_all(&directory).map_err(|source| io_error(&directory, source))?;
+        if directory.exists() {
+            return Err(SkillHomeError::AlreadyExists(slug.to_string()));
+        }
         for (relative, bytes) in files {
             validate_package_relative_path(relative)?;
             if relative == Path::new(SKILL_FILE)
@@ -406,11 +408,20 @@ impl SkillHome {
             if let Ok(text) = std::str::from_utf8(bytes) {
                 reject_secrets(text)?;
             }
+        }
+        fs::create_dir_all(&directory).map_err(|source| io_error(&directory, source))?;
+        for (relative, bytes) in files {
             let target = directory.join(relative);
             if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|source| io_error(parent, source))?;
+                if let Err(source) = fs::create_dir_all(parent) {
+                    let _ = fs::remove_dir_all(&directory);
+                    return Err(io_error(parent, source));
+                }
             }
-            atomic_write(&target, bytes)?;
+            if let Err(error) = atomic_write(&target, bytes) {
+                let _ = fs::remove_dir_all(&directory);
+                return Err(error);
+            }
         }
         if let Err(error) = self.write_head_and_history(slug, &normalized) {
             let _ = fs::remove_dir_all(&directory);
@@ -1193,6 +1204,17 @@ mod tests {
                 &[(PathBuf::from("history/99.md"), b"fake".to_vec())]
             ),
             Err(SkillHomeError::InvalidPackagePath(_))
+        ));
+        assert!(!home.root().join("new").exists());
+
+        fs::create_dir_all(home.root().join("reserved-home")).unwrap();
+        assert!(matches!(
+            home.install_new(
+                "reserved-home",
+                &markdown("Reserved", None, None, "reserved"),
+                &[]
+            ),
+            Err(SkillHomeError::AlreadyExists(_))
         ));
     }
 }
