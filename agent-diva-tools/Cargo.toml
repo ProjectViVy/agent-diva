@@ -12,6 +12,7 @@ readme = "README.md"
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
 agent-diva-files = { path = "../agent-diva-files", version = "0.5.0" }
+agent-diva-laputa = { path = "../agent-diva-laputa", version = "0.5.0" }
 agent-diva-tooling = { workspace = true }
 agent-diva-sandbox = { path = "../agent-diva-sandbox", version = "0.5.0" }
 

@@ -7,6 +7,7 @@ pub mod command_approvals;
 pub mod health;
 pub mod laputa;
 pub mod logs;
+pub mod persona;
 pub mod planning;
 mod provider_companion;
 pub mod todo;
@@ -34,6 +35,12 @@ pub use laputa::{
     get_laputa_snapshot_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
     list_recall_feedback_handler, poll_laputa_events_handler, rollback_laputa_changelog_handler,
     stream_laputa_events_handler, transition_laputa_proposal_handler, write_laputa_section_handler,
+};
+pub use persona::{
+    accept_persona_request_handler, create_persona_request_handler, get_persona_document_handler,
+    get_persona_history_revision_handler, get_persona_status_handler, initialize_persona_handler,
+    list_persona_history_handler, list_persona_requests_handler, reject_persona_request_handler,
+    repair_persona_handler, save_persona_document_handler,
 };
 
 pub use provider_companion::{
@@ -150,6 +157,37 @@ pub async fn chat_handler(
             )
             .boxed();
         return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
+    }
+
+    match state.persona.status() {
+        Ok(status) if status.status == agent_diva_laputa::PersonaStatus::Ready => {}
+        Ok(status) => {
+            let data = serde_json::json!({
+                "code": match status.status {
+                    agent_diva_laputa::PersonaStatus::Uninitialized => "persona_uninitialized",
+                    agent_diva_laputa::PersonaStatus::Incomplete => "persona_incomplete",
+                    agent_diva_laputa::PersonaStatus::Ready => unreachable!(),
+                },
+                "message": "Persona setup must be completed before chat",
+                "persona_status": status.status,
+            });
+            let stream = futures::stream::once(async move {
+                Ok(Event::default().event("error").data(data.to_string()))
+            })
+            .boxed();
+            return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
+        }
+        Err(error) => {
+            let data = serde_json::json!({
+                "code": error.code(),
+                "message": error.to_string(),
+            });
+            let stream = futures::stream::once(async move {
+                Ok(Event::default().event("error").data(data.to_string()))
+            })
+            .boxed();
+            return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
+        }
     }
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();

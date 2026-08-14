@@ -100,6 +100,7 @@ async fn build_local_cli_agent(
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let ask_user = AskUserCoordinator::default();
     let tool_config = ToolConfig {
+        config_dir: Some(runtime.config_dir().to_path_buf()),
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         planning,

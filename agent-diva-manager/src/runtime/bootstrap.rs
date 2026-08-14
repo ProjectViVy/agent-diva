@@ -143,6 +143,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         bus.clone(),
         dynamic_provider.clone(),
         workspace.clone(),
+        loader.config_dir().to_path_buf(),
         runtime_control_rx,
         Arc::clone(&cron_service),
         Arc::clone(&file_manager),

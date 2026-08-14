@@ -37,7 +37,7 @@ fn input(primary: EvidenceRef) -> BoundedReflectionInput {
 fn candidate(evidence: EvidenceRef, content: &str) -> MemoryCandidate {
     MemoryCandidate {
         candidate_id: format!("candidate-{}", content_digest(content)),
-        proposal_type: ProposalType::LearningNote,
+        proposal_type: ProposalType::MemoryPatch,
         content: content.to_string(),
         evidence_refs: vec![evidence],
         confidence: 80,
@@ -67,7 +67,7 @@ fn gate_accepts_supported_non_placeholder_candidate() {
 
     assert_eq!(result.accepted.len(), 1);
     assert!(result.rejected.is_empty());
-    assert_eq!(result.accepted[0].proposal_type, ProposalType::LearningNote);
+    assert_eq!(result.accepted[0].proposal_type, ProposalType::MemoryPatch);
 }
 
 #[test]

@@ -122,7 +122,7 @@ async fn current_default_reflection_emits_memory_patch_not_persona_or_stm() {
 }
 
 #[test]
-fn current_gate_accepts_identity_patch_and_only_rejects_sop_create_as_unsupported() {
+fn persona_targeting_legacy_proposals_are_disconnected_from_autodream() {
     let primary = evidence("primary", EvidenceSource::ExperienceJournal);
     let identity = candidate(
         ProposalType::IdentityPatch,
@@ -143,14 +143,14 @@ fn current_gate_accepts_identity_patch_and_only_rejects_sop_create_as_unsupporte
         &[],
     );
 
-    assert_eq!(result.accepted.len(), 1);
-    assert_eq!(
-        result.accepted[0].proposal_type,
-        ProposalType::IdentityPatch
-    );
-    assert_eq!(result.rejected.len(), 1);
+    assert!(result.accepted.is_empty());
+    assert_eq!(result.rejected.len(), 2);
     assert_eq!(
         result.rejected[0].code,
+        agent_diva_autodream::CandidateRejectionCode::UnsupportedType
+    );
+    assert_eq!(
+        result.rejected[1].code,
         agent_diva_autodream::CandidateRejectionCode::UnsupportedType
     );
 }

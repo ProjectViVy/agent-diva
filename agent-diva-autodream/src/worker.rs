@@ -872,7 +872,7 @@ mod wave4_tests {
     fn make_candidate(evidence: EvidenceRef, content: &str) -> MemoryCandidate {
         MemoryCandidate {
             candidate_id: format!("candidate-{}", content_digest(content)),
-            proposal_type: ProposalType::LearningNote,
+            proposal_type: ProposalType::MemoryPatch,
             content: content.to_string(),
             evidence_refs: vec![evidence],
             confidence: 85,

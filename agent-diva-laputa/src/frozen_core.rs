@@ -1,12 +1,6 @@
-//! Frozen Core session snapshot (LAPUTA-COGNITIVE-SYNC S3).
-//!
-//! The four Frozen Core sections (01 identity, 02 relationship,
-//! 03 commitment, 04 preferences) are captured once at session start and
-//! stay frozen for the whole session. Governance writes may still land on
-//! the sections while the session runs, but they only take effect for the
-//! next session (the next capture), aligned with garden ADR-0002 §2.A.
+//! Session-frozen projection of the config-rooted Persona Markdown authority.
 
-use agent_diva_core::evolution::LaputaSectionName;
+use crate::persona::{extract_markdown_section, PersonaError, PersonaKind, PersonaService};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -15,58 +9,50 @@ use std::{
     path::Path,
     sync::{OnceLock, RwLock},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{LaputaService, Result};
-
-/// Sections forming the Frozen Core, in canonical order.
-pub const FROZEN_CORE_SECTIONS: [LaputaSectionName; 4] = [
-    LaputaSectionName::Identity,
-    LaputaSectionName::Relationship,
-    LaputaSectionName::Commitment,
-    LaputaSectionName::Preferences,
-];
-
-/// Default projection budget for rendering the snapshot into a prompt.
+pub const FROZEN_CORE_SECTIONS: [PersonaKind; 6] = PersonaKind::FROZEN;
 pub const DEFAULT_FROZEN_CORE_BUDGET: usize = 4000;
 
-/// Immutable session-start snapshot of the Frozen Core sections.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrozenCoreSnapshot {
     pub captured_at: DateTime<Utc>,
-    /// Section content serialized as compact JSON in canonical Frozen Core
-    /// order; empty string means the section file did not exist at capture.
-    pub sections: Vec<(LaputaSectionName, String)>,
-    /// Stable content digests for comparing captured and current authority.
-    pub section_versions: Vec<(LaputaSectionName, String)>,
+    pub sections: Vec<(PersonaKind, String)>,
+    pub section_versions: Vec<(PersonaKind, String)>,
 }
 
-/// Read-only runtime projection of one session's Frozen Core capture.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrozenCoreSessionProjection {
     pub session_key: String,
     pub captured_at: DateTime<Utc>,
-    pub section_versions: Vec<(LaputaSectionName, String)>,
+    pub section_versions: Vec<(PersonaKind, String)>,
 }
 
 static SESSION_SNAPSHOTS: OnceLock<RwLock<HashMap<(String, String), FrozenCoreSnapshot>>> =
     OnceLock::new();
 
 impl FrozenCoreSnapshot {
-    /// Capture the four Frozen Core sections from the live service.
-    /// Later section writes do not affect the returned snapshot.
-    pub fn capture(service: &LaputaService) -> Result<Self> {
+    pub fn capture(service: &PersonaService) -> Result<Self, PersonaError> {
+        service.status().and_then(|status| match status.status {
+            crate::PersonaStatus::Ready => Ok(()),
+            crate::PersonaStatus::Uninitialized => Err(PersonaError::Uninitialized),
+            crate::PersonaStatus::Incomplete => Err(PersonaError::Incomplete),
+        })?;
         let mut sections = Vec::new();
         let mut section_versions = Vec::new();
-        for name in FROZEN_CORE_SECTIONS.iter().cloned() {
-            let section = service.read_section(name.clone())?;
-            let rendered = if section.content.is_null() {
-                String::new()
+        for kind in FROZEN_CORE_SECTIONS {
+            let document = service.get_document(kind)?;
+            let source = if kind == PersonaKind::User {
+                extract_markdown_section(&document.content, "Preferences")
+                    .unwrap_or(&document.content)
             } else {
-                serde_json::to_string(&section.content)?
+                &document.content
             };
-            let version = content_version(&rendered);
-            sections.push((name.clone(), rendered));
-            section_versions.push((name, version));
+            let content = truncate_visible(source, kind.frozen_limit().unwrap_or_default());
+            if !content.is_empty() {
+                section_versions.push((kind, document.content_hash));
+                sections.push((kind, content));
+            }
         }
         Ok(Self {
             captured_at: Utc::now(),
@@ -75,19 +61,17 @@ impl FrozenCoreSnapshot {
         })
     }
 
-    pub fn content_of(&self, name: &LaputaSectionName) -> Option<&str> {
+    pub fn content_of(&self, kind: PersonaKind) -> Option<&str> {
         self.sections
             .iter()
-            .find(|(section, _)| section == name)
+            .find(|(candidate, _)| *candidate == kind)
             .map(|(_, content)| content.as_str())
     }
 
     pub fn is_empty(&self) -> bool {
-        self.sections.iter().all(|(_, content)| content.is_empty())
+        self.sections.is_empty()
     }
 
-    /// Bounded projection for prompt assembly. Empty sections are skipped;
-    /// the budget is honored across all four sections in canonical order.
     pub fn render(&self, max_chars: usize) -> String {
         let budget = if max_chars == 0 {
             DEFAULT_FROZEN_CORE_BUDGET
@@ -96,11 +80,8 @@ impl FrozenCoreSnapshot {
         };
         let mut out = String::new();
         let mut used = 0usize;
-        for (name, content) in &self.sections {
-            if content.is_empty() {
-                continue;
-            }
-            let header = format!("## Frozen Core — {}\n", name.as_str());
+        for (kind, content) in &self.sections {
+            let header = format!("## Frozen Core — {}\n", kind.as_str());
             let cost = header.chars().count() + content.chars().count() + 1;
             if used + cost > budget {
                 break;
@@ -114,34 +95,24 @@ impl FrozenCoreSnapshot {
     }
 }
 
-/// Capture once per workspace/session pair and retain a bounded, process-local
-/// observability projection for the desktop control plane.
-pub fn capture_for_session(workspace: &Path, session_key: &str) -> FrozenCoreSnapshot {
-    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
-    let key = (workspace_id, session_key.to_string());
+pub fn capture_for_session(config_dir: &Path, session_key: &str) -> FrozenCoreSnapshot {
+    let key = (root_key(config_dir), session_key.to_string());
     let registry = SESSION_SNAPSHOTS.get_or_init(|| RwLock::new(HashMap::new()));
     if let Ok(guard) = registry.read() {
         if let Some(snapshot) = guard.get(&key) {
             return snapshot.clone();
         }
     }
-
-    let snapshot = LaputaService::open(workspace)
+    let snapshot = PersonaService::open(config_dir)
         .and_then(|service| FrozenCoreSnapshot::capture(&service))
-        .unwrap_or_else(|_| FrozenCoreSnapshot {
-            captured_at: Utc::now(),
-            sections: FROZEN_CORE_SECTIONS
-                .iter()
-                .cloned()
-                .map(|name| (name, String::new()))
-                .collect(),
-            section_versions: FROZEN_CORE_SECTIONS
-                .iter()
-                .cloned()
-                .map(|name| (name, content_version("")))
-                .collect(),
+        .unwrap_or_else(|error| {
+            tracing::error!(error = %error, "failed to capture Persona Frozen Core");
+            FrozenCoreSnapshot {
+                captured_at: Utc::now(),
+                sections: Vec::new(),
+                section_versions: Vec::new(),
+            }
         });
-
     if let Ok(mut guard) = registry.write() {
         if guard.len() >= 128 {
             if let Some(oldest) = guard
@@ -157,16 +128,18 @@ pub fn capture_for_session(workspace: &Path, session_key: &str) -> FrozenCoreSna
     snapshot
 }
 
-/// Return the captured projection for a session that has built context.
 pub fn session_projection(
-    workspace: &Path,
+    config_dir: &Path,
     session_key: &str,
 ) -> Option<FrozenCoreSessionProjection> {
-    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
     SESSION_SNAPSHOTS
         .get()
         .and_then(|registry| registry.read().ok())
-        .and_then(|guard| guard.get(&(workspace_id, session_key.to_string())).cloned())
+        .and_then(|guard| {
+            guard
+                .get(&(root_key(config_dir), session_key.to_string()))
+                .cloned()
+        })
         .map(|snapshot| FrozenCoreSessionProjection {
             session_key: session_key.to_string(),
             captured_at: snapshot.captured_at,
@@ -174,135 +147,91 @@ pub fn session_projection(
         })
 }
 
-/// Forget a reset/deleted session so the next prompt captures fresh authority.
-pub fn release_session_projection(workspace: &Path, session_key: &str) {
-    let workspace_id = agent_diva_core::workspace_identity::canonical_workspace_id(workspace);
+pub fn release_session_projection(config_dir: &Path, session_key: &str) {
     if let Some(registry) = SESSION_SNAPSHOTS.get() {
         if let Ok(mut guard) = registry.write() {
-            guard.remove(&(workspace_id, session_key.to_string()));
+            guard.remove(&(root_key(config_dir), session_key.to_string()));
         }
     }
 }
 
-/// Stable digest used as the authority revision shown by the persona UI.
 pub fn content_version(content: &str) -> String {
     let digest = Sha256::digest(content.as_bytes());
     format!("sha256:{digest:x}")
 }
 
+fn root_key(root: &Path) -> String {
+    root.to_string_lossy().to_lowercase()
+}
+
+fn truncate_visible(content: &str, limit: usize) -> String {
+    let mut visible = 0usize;
+    let mut output = String::new();
+    for grapheme in UnicodeSegmentation::graphemes(content, true) {
+        if !grapheme.chars().all(char::is_whitespace) {
+            if visible == limit {
+                break;
+            }
+            visible += 1;
+        }
+        output.push_str(grapheme);
+    }
+    output.trim().to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LaputaStorage;
+    use crate::PersonaInitialization;
 
-    fn open_service(temp: &tempfile::TempDir) -> LaputaService {
-        LaputaStorage::open(temp.path()).unwrap();
-        LaputaService::open(temp.path()).unwrap()
-    }
-
-    fn write_identity_section(temp: &tempfile::TempDir, body: &str) {
-        let path = temp
-            .path()
-            .join(".laputa")
-            .join("sections")
-            .join("identity.json");
-        std::fs::write(path, body).unwrap();
+    fn initialized() -> (tempfile::TempDir, PersonaService) {
+        let temp = tempfile::tempdir().unwrap();
+        let service = PersonaService::open(temp.path()).unwrap();
+        service
+            .initialize(PersonaInitialization {
+                identity: format!("# Identity\n{}", "I".repeat(240)),
+                relationship: "# Relationship\nPartner".into(),
+                redline: "# Redline\nAsk first".into(),
+                user: "Concise".into(),
+                world: "# World\nNever inject me".into(),
+            })
+            .unwrap();
+        (temp, service)
     }
 
     #[test]
-    fn capture_freezes_sections_for_the_session() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = open_service(&temp);
-        write_identity_section(&temp, r#"{"name":"vivy"}"#);
-
+    fn capture_uses_markdown_caps_and_excludes_world() {
+        let (_temp, service) = initialized();
         let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-        assert!(snapshot
-            .content_of(&LaputaSectionName::Identity)
-            .unwrap()
-            .contains("vivy"));
-
-        // A governance write lands mid-session; the snapshot must not move.
-        write_identity_section(&temp, r#"{"name":"rewritten"}"#);
-        assert!(snapshot
-            .content_of(&LaputaSectionName::Identity)
-            .unwrap()
-            .contains("vivy"));
-
-        // The next session's capture sees the applied write.
-        let next = FrozenCoreSnapshot::capture(&service).unwrap();
-        assert!(next
-            .content_of(&LaputaSectionName::Identity)
-            .unwrap()
-            .contains("rewritten"));
-    }
-
-    #[test]
-    fn session_projection_tracks_effective_authority_until_release() {
-        let temp = tempfile::tempdir().unwrap();
-        open_service(&temp);
-        write_identity_section(&temp, r#"{"name":"first"}"#);
-
-        let first = capture_for_session(temp.path(), "desktop:test");
-        let first_version = first.section_versions[0].1.clone();
-        write_identity_section(&temp, r#"{"name":"second"}"#);
-
-        let still_first = capture_for_session(temp.path(), "desktop:test");
-        assert_eq!(still_first.section_versions[0].1, first_version);
+        assert!(snapshot.content_of(PersonaKind::World).is_none());
         assert_eq!(
-            session_projection(temp.path(), "desktop:test")
-                .unwrap()
-                .section_versions[0]
-                .1,
-            first_version
+            crate::persona::visible_len(snapshot.content_of(PersonaKind::Identity).unwrap()),
+            200
         );
+        assert_eq!(snapshot.content_of(PersonaKind::User), Some("Concise"));
+    }
 
+    #[test]
+    fn session_projection_is_frozen_until_release() {
+        let (temp, service) = initialized();
+        let first = capture_for_session(temp.path(), "desktop:test");
+        let current = service.get_document(PersonaKind::Identity).unwrap();
+        service
+            .save_user_document(
+                PersonaKind::Identity,
+                "# Identity\nRewritten",
+                current.revision,
+                "edit",
+            )
+            .unwrap();
+        assert_eq!(
+            capture_for_session(temp.path(), "desktop:test").sections,
+            first.sections
+        );
         release_session_projection(temp.path(), "desktop:test");
-        let next = capture_for_session(temp.path(), "desktop:test");
-        assert_ne!(next.section_versions[0].1, first_version);
-    }
-
-    #[test]
-    fn missing_sections_yield_empty_snapshot_after_open() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = LaputaService::open(temp.path()).unwrap();
-
-        let sections_dir = temp.path().join(".laputa").join("sections");
-        for name in [
-            LaputaSectionName::Identity,
-            LaputaSectionName::Relationship,
-            LaputaSectionName::Commitment,
-            LaputaSectionName::Preferences,
-        ] {
-            assert!(
-                !sections_dir
-                    .join(format!("{}.json", name.as_str()))
-                    .exists(),
-                "{name:?} must not be seeded on first open"
-            );
-        }
-
-        let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-        assert!(snapshot.is_empty());
-        assert_eq!(snapshot.render(0), "");
-    }
-
-    #[test]
-    fn render_honors_budget_and_canonical_order() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = open_service(&temp);
-        let sections = temp.path().join(".laputa").join("sections");
-        std::fs::write(sections.join("identity.json"), r#"{"a":1}"#).unwrap();
-        std::fs::write(sections.join("preferences.json"), r#"{"b":2}"#).unwrap();
-
-        let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-        let full = snapshot.render(0);
-        let identity_pos = full.find("identity").unwrap();
-        let preferences_pos = full.find("preferences").unwrap();
-        assert!(identity_pos < preferences_pos, "canonical order");
-
-        // A tiny budget must not include the second section.
-        let tight = snapshot.render(full.chars().count() - 1);
-        assert!(tight.contains("identity"));
-        assert!(!tight.contains("preferences"));
+        assert_ne!(
+            capture_for_session(temp.path(), "desktop:test").sections,
+            first.sections
+        );
     }
 }

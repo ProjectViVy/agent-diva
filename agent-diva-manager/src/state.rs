@@ -7,7 +7,7 @@ use agent_diva_core::config::schema::{
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_core::governance::ApprovalCoordinator;
-use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator};
+use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
@@ -64,9 +64,11 @@ pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
     pub workspace_root: PathBuf,
+    pub config_dir: PathBuf,
     pub audit_root: PathBuf,
     pub autodream: AutoDreamService,
     pub laputa: LaputaService,
+    pub persona: PersonaService,
     pub memory_governance: MemoryGovernanceCoordinator,
     pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
@@ -170,6 +172,7 @@ impl AppState {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -194,6 +197,7 @@ impl AppState {
             Some(governance),
             Some(planning_service),
             None,
+            None,
         )
     }
 
@@ -204,6 +208,7 @@ impl AppState {
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
         workspace_root: impl Into<PathBuf>,
+        config_dir: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         memory_authority_mode: MemoryAuthorityMode,
@@ -221,6 +226,7 @@ impl AppState {
             Some(governance),
             Some(planning_service),
             Some(runtime_control_tx),
+            Some(config_dir.into()),
         )
     }
 
@@ -235,12 +241,15 @@ impl AppState {
         governance: Option<ApprovalCoordinator>,
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+        config_dir: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
+        let config_dir = config_dir.unwrap_or_else(|| workspace_root.clone());
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
         let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
             || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
         let laputa = LaputaService::open(workspace_root.clone())?;
+        let persona = PersonaService::open(config_dir.clone())?;
         let workspace_id =
             agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
         let memory_governance = match governance.as_ref() {
@@ -269,9 +278,11 @@ impl AppState {
             api_tx,
             bus,
             workspace_root,
+            config_dir,
             audit_root,
             autodream,
             laputa,
+            persona,
             memory_governance,
             memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),

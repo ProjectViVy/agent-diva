@@ -52,6 +52,8 @@ mod turn;
 /// Configuration for tool setup
 #[derive(Clone)]
 pub struct ToolConfig {
+    /// Machine-wide Agent Diva config root for Persona and later cognitive authorities.
+    pub config_dir: Option<PathBuf>,
     /// Built-in tool toggles.
     pub builtin: BuiltInToolsConfig,
     /// Network tool runtime config
@@ -85,6 +87,7 @@ pub struct ToolConfig {
 impl Default for ToolConfig {
     fn default() -> Self {
         Self {
+            config_dir: None,
             builtin: BuiltInToolsConfig::default(),
             network: NetworkToolConfig::default(),
             planning: None,
@@ -108,6 +111,7 @@ pub struct AgentLoop {
     provider: Arc<dyn LLMProvider>,
     #[allow(dead_code)]
     workspace: PathBuf,
+    persona_root: PathBuf,
     #[allow(dead_code)]
     model: String,
     max_iterations: usize,
@@ -258,6 +262,7 @@ fn build_agent_tools(
 ) -> ToolRegistry {
     let mut assembly = ToolAssembly::new(workspace)
         .builtin(tool_config.builtin.clone())
+        .with_persona_root(tool_config.config_dir.clone())
         .with_network_config(tool_config.network.clone())
         .with_planning_config(tool_config.planning.clone())
         .with_exec_timeout(tool_config.exec_timeout)
@@ -498,6 +503,7 @@ impl AgentLoop {
         Ok(Self {
             bus,
             provider,
+            persona_root: workspace.clone(),
             workspace,
             model,
             max_iterations: max_iterations.unwrap_or(20),
@@ -627,7 +633,12 @@ impl AgentLoop {
             global_timeout_secs: runtime_security.global_tool_timeout_secs,
             ..tool_config
         };
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
+        let persona_root = tool_config
+            .config_dir
+            .clone()
+            .unwrap_or_else(|| workspace.clone());
+        let mut context = ContextBuilder::with_skills(workspace.clone(), None)
+            .with_persona_root(persona_root.clone());
         let sessions = SessionManager::new(workspace.clone());
         let token_ledger_data_root = workspace.join(".agent-diva");
 
@@ -674,6 +685,7 @@ impl AgentLoop {
             bus,
             provider,
             workspace,
+            persona_root,
             model,
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
@@ -734,7 +746,13 @@ impl AgentLoop {
         gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
-        let mut context = ContextBuilder::with_skills(workspace.clone(), None);
+        let persona_root = toolset
+            .config
+            .config_dir
+            .clone()
+            .unwrap_or_else(|| workspace.clone());
+        let mut context = ContextBuilder::with_skills(workspace.clone(), None)
+            .with_persona_root(persona_root.clone());
         let sessions = SessionManager::new(workspace.clone());
         let memory_provider = default_memory_provider(&workspace);
         let token_ledger_data_root = workspace.join(".agent-diva");
@@ -764,6 +782,7 @@ impl AgentLoop {
         Ok(Self {
             bus,
             provider,
+            persona_root,
             workspace,
             model,
             max_iterations: max_iterations.unwrap_or(20),

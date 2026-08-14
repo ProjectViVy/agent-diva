@@ -1322,6 +1322,7 @@ async fn run_tui(
     let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
 
     let tool_config = ToolConfig {
+        config_dir: Some(runtime.config_dir().to_path_buf()),
         builtin: build_builtin_tools_config(&config),
         network: build_network_tool_config(&config),
         planning,

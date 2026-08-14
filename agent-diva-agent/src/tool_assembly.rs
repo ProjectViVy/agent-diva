@@ -20,8 +20,9 @@ use agent_diva_tooling::{
 use agent_diva_tools::{
     load_mcp_tools_sync, AskUserTool, BackgroundTaskContext, CronTool, EditFileTool,
     EnqueueBackgroundTaskTool, ExecTool, ExecutionTodoShowTool, ExecutionTodoWriteTool,
-    ListDirTool, ReadAttachmentTool, ReadFileTool, ReadToolResultTool, SpawnTool, ToolSearchTool,
-    UpdatePlanTool, WebFetchTool, WebSearchTool, WriteFileTool,
+    ListDirTool, PersonaReadTool, PersonaRequestTool, PersonaUpdateTool, ReadAttachmentTool,
+    ReadFileTool, ReadToolResultTool, SpawnTool, ToolSearchTool, UpdatePlanTool, WebFetchTool,
+    WebSearchTool, WorldReadTool, WriteFileTool,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -40,6 +41,7 @@ pub trait SubagentSpawner: Send + Sync {
 
 pub struct ToolAssembly {
     workspace: PathBuf,
+    persona_root: Option<PathBuf>,
     builtin_config: BuiltInToolsConfig,
     network_config: NetworkToolConfig,
     exec_timeout: u64,
@@ -69,6 +71,7 @@ impl ToolAssembly {
     pub fn new(workspace: PathBuf) -> Self {
         Self {
             workspace,
+            persona_root: None,
             builtin_config: BuiltInToolsConfig::default(),
             network_config: NetworkToolConfig::default(),
             exec_timeout: 60,
@@ -102,6 +105,12 @@ impl ToolAssembly {
 
     pub fn with_network_config(mut self, config: NetworkToolConfig) -> Self {
         self.network_config = config;
+        self
+    }
+
+    /// Bind Persona tools to the machine-wide config root, never the workspace.
+    pub fn with_persona_root(mut self, config_dir: Option<PathBuf>) -> Self {
+        self.persona_root = config_dir;
         self
     }
 
@@ -266,6 +275,28 @@ impl ToolAssembly {
             registry.register(Arc::new(ToolSearchTool::new(activation)));
         }
 
+        if !subagent_mode {
+            if let Some(config_dir) = self.persona_root.clone() {
+                registry.register(Arc::new(WorldReadTool::with_config_dir(config_dir.clone())));
+                if self.plan_phase.is_none() {
+                    registry.register_in_partition(
+                        Arc::new(PersonaReadTool::with_config_dir(config_dir.clone())),
+                        ToolSchemaPartition::Deferred,
+                    );
+                    if !action_restricted {
+                        registry.register_in_partition(
+                            Arc::new(PersonaRequestTool::with_config_dir(config_dir.clone())),
+                            ToolSchemaPartition::Deferred,
+                        );
+                        registry.register_in_partition(
+                            Arc::new(PersonaUpdateTool::with_config_dir(config_dir)),
+                            ToolSchemaPartition::Deferred,
+                        );
+                    }
+                }
+            }
+        }
+
         if let Some(session_id) = self.artifact_session.as_deref() {
             registry.register(Arc::new(ReadToolResultTool::new(
                 Arc::new(ToolArtifactStore::new(&self.workspace)),
@@ -383,12 +414,6 @@ impl ToolAssembly {
                         workspace.clone(),
                     )));
                     registry.register(Arc::new(
-                        agent_diva_tools::LaputaProposeSectionWriteTool::with_provider(
-                            provider.clone(),
-                            workspace.clone(),
-                        ),
-                    ));
-                    registry.register(Arc::new(
                         agent_diva_tools::MemoryDistillTool::with_provider(
                             provider.clone(),
                             workspace,
@@ -401,9 +426,6 @@ impl ToolAssembly {
                     registry.register(Arc::new(agent_diva_tools::MemorySearchTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryUpdateTool::new()));
                     registry.register(Arc::new(agent_diva_tools::MemoryRemoveTool::new()));
-                    registry.register(Arc::new(
-                        agent_diva_tools::LaputaProposeSectionWriteTool::new(),
-                    ));
                     registry.register(Arc::new(agent_diva_tools::MemoryDistillTool::new()));
                 }
             }
@@ -602,6 +624,46 @@ mod tests {
         assert!(!registry.has("exec"));
         assert!(!registry.has("web_search"));
         assert!(!registry.has("web_fetch"));
+    }
+
+    #[test]
+    fn persona_tools_keep_world_core_and_writes_deferred() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::minimal())
+            .with_persona_root(Some(PathBuf::from("/tmp/config")))
+            .build();
+
+        let core_names = registry
+            .get_definitions()
+            .into_iter()
+            .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        assert!(core_names.contains(&"world_read".to_string()));
+        assert!(!core_names.contains(&"persona_read".to_string()));
+
+        let deferred_names = registry
+            .deferred_tools()
+            .into_iter()
+            .map(|tool| tool.name().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            deferred_names,
+            vec!["persona_read", "persona_request", "persona_update"]
+        );
+        assert!(!registry.has("laputa_propose_section_write"));
+    }
+
+    #[test]
+    fn subagents_do_not_receive_persona_authority_tools() {
+        let registry = ToolAssembly::new(PathBuf::from("/tmp/test"))
+            .builtin(BuiltInToolsConfig::minimal())
+            .with_persona_root(Some(PathBuf::from("/tmp/config")))
+            .build_subagent_registry();
+
+        assert!(!registry.has("world_read"));
+        assert!(!registry.has("persona_read"));
+        assert!(!registry.has("persona_request"));
+        assert!(!registry.has("persona_update"));
     }
 
     #[test]

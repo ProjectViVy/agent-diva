@@ -442,6 +442,7 @@ version = "0.5.0"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
+ "agent-diva-laputa",
  "agent-diva-sandbox",
  "agent-diva-tooling",
  "anyhow",

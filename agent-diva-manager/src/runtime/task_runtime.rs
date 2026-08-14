@@ -65,6 +65,7 @@ async fn start_runtime_tasks_inner(
         channel_manager,
         inbound_bridge_handle,
     } = channel_bootstrap;
+    let config_dir = loader.config_dir().to_path_buf();
 
     if let Err(error) = agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace) {
         tracing::error!(
@@ -131,6 +132,7 @@ async fn start_runtime_tasks_inner(
         api_tx,
         bus.clone(),
         workspace,
+        config_dir,
         command_approvals,
         ask_user,
         config.memory.authority_mode,

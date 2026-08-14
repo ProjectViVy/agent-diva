@@ -94,7 +94,7 @@ impl AgentLoop {
                 self.cancelled_sessions.insert(session_key);
             }
             RuntimeControlCommand::ResetSession { session_key } => {
-                agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
+                agent_diva_laputa::release_frozen_core_session(&self.persona_root, &session_key);
                 self.context.reset_session_cache(&session_key);
                 self.clear_active_deferred_tools(&session_key);
                 if let Some(planning) = self.tool_config.planning.as_ref() {
@@ -145,7 +145,10 @@ impl AgentLoop {
                         ),
                         Err(error) => warn!(%error, "Tool artifact deletion task failed"),
                     }
-                    agent_diva_laputa::release_frozen_core_session(&self.workspace, &session_key);
+                    agent_diva_laputa::release_frozen_core_session(
+                        &self.persona_root,
+                        &session_key,
+                    );
                     self.context.end_session_cache(&session_key);
                     self.cache_observer.clear_session(&session_key);
                     self.clear_active_deferred_tools(&session_key);

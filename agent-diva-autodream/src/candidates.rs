@@ -127,7 +127,14 @@ impl CandidateGate {
         if content.is_empty() || content.len() > MAX_CONTENT_BYTES {
             return Some(CandidateRejectionCode::EmptyContent);
         }
-        if candidate.proposal_type == agent_diva_core::evolution::ProposalType::SopCreate {
+        if matches!(
+            candidate.proposal_type,
+            agent_diva_core::evolution::ProposalType::LearningNote
+                | agent_diva_core::evolution::ProposalType::IdentityPatch
+                | agent_diva_core::evolution::ProposalType::RelationshipUpdate
+                | agent_diva_core::evolution::ProposalType::CommitmentSet
+                | agent_diva_core::evolution::ProposalType::SopCreate
+        ) {
             return Some(CandidateRejectionCode::UnsupportedType);
         }
         if candidate.proposal_type == agent_diva_core::evolution::ProposalType::Deprecation

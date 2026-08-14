@@ -9,8 +9,9 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
-    add_provider_model_handler, apply_laputa_proposal_handler, cancel_autodream_run_handler,
-    chat_handler, create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
+    accept_persona_request_handler, add_provider_model_handler, apply_laputa_proposal_handler,
+    cancel_autodream_run_handler, chat_handler, create_cron_job_handler,
+    create_laputa_proposal_handler, create_mcp_handler, create_persona_request_handler,
     create_provider_handler, decide_laputa_proposal_handler, delete_cron_job_handler,
     delete_mcp_handler, delete_provider_handler, delete_provider_model_handler,
     delete_session_handler, delete_skill_handler, edit_laputa_proposal_handler, events_handler,
@@ -19,14 +20,17 @@ use crate::handlers::{
     get_channels_handler, get_config_handler, get_cron_job_handler, get_laputa_changelog_handler,
     get_laputa_cognitive_handler, get_laputa_persona_workspace_handler,
     get_laputa_proposal_handler, get_laputa_section_handler, get_laputa_snapshot_handler,
-    get_mcps_handler, get_provider_handler, get_provider_models_handler, get_providers_handler,
-    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
-    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
-    list_autodream_run_events_handler, list_autodream_runs_handler, list_bml_memories_handler,
-    list_cron_jobs_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
+    get_mcps_handler, get_persona_document_handler, get_persona_history_revision_handler,
+    get_persona_status_handler, get_provider_handler, get_provider_models_handler,
+    get_providers_handler, get_self_evolution_config_handler, get_session_history_handler,
+    get_sessions_handler, get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
+    initialize_persona_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
+    list_bml_memories_handler, list_cron_jobs_handler, list_laputa_changelog_handler,
+    list_laputa_proposals_handler, list_persona_history_handler, list_persona_requests_handler,
     list_recall_feedback_handler, logs_routes, poll_laputa_events_handler,
-    refresh_mcp_status_handler, remove_bml_memory_handler, reset_session_handler,
-    resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
+    refresh_mcp_status_handler, reject_persona_request_handler, remove_bml_memory_handler,
+    repair_persona_handler, reset_session_handler, resolve_provider_handler,
+    rollback_laputa_changelog_handler, run_cron_job_handler, save_persona_document_handler,
     set_cron_job_enabled_handler, set_mcp_enabled_handler, stop_chat_handler,
     stop_cron_job_handler, stream_laputa_events_handler, todo_routes, token_stats_routes,
     transition_laputa_proposal_handler, trigger_autodream_run_handler, update_channel_handler,
@@ -95,6 +99,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(planning_routes())
         .merge(autodream_routes())
         .merge(laputa_routes())
+        .merge(persona_routes())
         .merge(bml_routes())
         .merge(audit_routes())
         .merge(token_stats_routes())
@@ -192,6 +197,37 @@ fn laputa_routes() -> Router<AppState> {
         .route(
             "/api/laputa/events/:kind/poll",
             get(poll_laputa_events_handler),
+        )
+}
+
+fn persona_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/persona/status", get(get_persona_status_handler))
+        .route("/api/persona/initialize", post(initialize_persona_handler))
+        .route("/api/persona/repair", post(repair_persona_handler))
+        .route(
+            "/api/persona/docs/:kind",
+            get(get_persona_document_handler).put(save_persona_document_handler),
+        )
+        .route(
+            "/api/persona/docs/:kind/history",
+            get(list_persona_history_handler),
+        )
+        .route(
+            "/api/persona/docs/:kind/history/:revision",
+            get(get_persona_history_revision_handler),
+        )
+        .route(
+            "/api/persona/requests",
+            get(list_persona_requests_handler).post(create_persona_request_handler),
+        )
+        .route(
+            "/api/persona/requests/:id/accept",
+            post(accept_persona_request_handler),
+        )
+        .route(
+            "/api/persona/requests/:id/reject",
+            post(reject_persona_request_handler),
         )
 }
 
@@ -426,6 +462,89 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn persona_api_initializes_reads_and_enforces_cas() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let app = build_router(state);
+
+        let status = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/persona/status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(status.status(), StatusCode::OK);
+        let status_body = to_bytes(status.into_body(), usize::MAX).await.unwrap();
+        assert!(String::from_utf8_lossy(&status_body).contains("uninitialized"));
+
+        let initialize = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/persona/initialize")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "identity": "Identity",
+                            "relationship": "Relationship",
+                            "redline": "Redline",
+                            "user": "Concise answers",
+                            "world": "WORLD remains user-owned"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(initialize.status(), StatusCode::OK);
+
+        let document = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/persona/docs/identity")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(document.status(), StatusCode::OK);
+        let document_body = to_bytes(document.into_body(), usize::MAX).await.unwrap();
+        let document_json: serde_json::Value = serde_json::from_slice(&document_body).unwrap();
+        assert_eq!(document_json["document"]["revision"], 1);
+
+        let conflict = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/persona/docs/identity")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "content": "Changed",
+                            "base_revision": 0,
+                            "reason": "stale client"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
+        let conflict_body = to_bytes(conflict.into_body(), usize::MAX).await.unwrap();
+        assert!(String::from_utf8_lossy(&conflict_body).contains("persona_revision_conflict"));
     }
 
     #[tokio::test]

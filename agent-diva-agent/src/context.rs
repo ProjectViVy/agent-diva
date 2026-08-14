@@ -33,18 +33,6 @@ static CONTEXT_BUILDER_ID: AtomicU64 = AtomicU64::new(1);
 /// (e.g. AGENTS.md).
 const WORKSPACE_MD_MAX_CHARS: usize = 4000;
 
-/// First-run onboarding guidance, injected only while the Frozen Core carries
-/// no persona content. Zero context cost in the steady state.
-const FIRST_RUN_ONBOARDING_BLOCK: &str = "\n\n## First-Run Onboarding\n\
-This workspace has no Frozen Core persona yet; this is the first conversation.\n\
-Use the ask_user tool to collect the user's identity preferences:\n\
-1. Preferred name / how to address them (open-ended)\n\
-2. Collaboration style (choices + allow_other)\n\
-3. Boundaries: ask-first vs never-do (choices + allow_other)\n\
-4. Communication preferences (open-ended)\n\
-Then use laputa_propose_section_write to turn each confirmed answer into a\n\
-governed proposal. If the user declines, skip onboarding without repeating.";
-
 #[derive(Default)]
 struct StableContextCache {
     sessions: HashMap<String, SessionStableCache>,
@@ -62,6 +50,7 @@ struct SessionStableCache {
 /// Builds the context for LLM requests
 pub struct ContextBuilder {
     workspace: PathBuf,
+    persona_root: PathBuf,
     skills_loader: SkillsLoader,
     memory_provider: Arc<dyn MemoryProvider>,
     default_session_key: String,
@@ -74,6 +63,7 @@ impl ContextBuilder {
         let skills_loader = SkillsLoader::new(&workspace, None);
         let memory_provider = default_memory_provider(&workspace);
         Self {
+            persona_root: workspace.clone(),
             workspace,
             skills_loader,
             memory_provider,
@@ -87,12 +77,19 @@ impl ContextBuilder {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
         let memory_provider = default_memory_provider(&workspace);
         Self {
+            persona_root: workspace.clone(),
             workspace,
             skills_loader,
             memory_provider,
             default_session_key: next_builder_session_key(),
             stable_cache: Mutex::new(StableContextCache::default()),
         }
+    }
+
+    /// Point Persona/Frozen Core reads at the machine-wide config root.
+    pub fn with_persona_root(mut self, persona_root: PathBuf) -> Self {
+        self.persona_root = persona_root;
+        self
     }
 
     /// Override the memory provider boundary used for prompt assembly.
@@ -380,18 +377,11 @@ Your workspace is at: {workspace_path}
         // Frozen Core projection: captured once per session (first assembly)
         // and frozen afterwards; sits under the mask overlay, above all other
         // context layers.
-        let frozen_core = capture_frozen_core_for_session(&self.workspace, session_key);
+        let frozen_core = capture_frozen_core_for_session(&self.persona_root, session_key);
         let frozen_projection = frozen_core.render(DEFAULT_FROZEN_CORE_BUDGET);
         if !frozen_projection.is_empty() {
             frozen.push_str(&frozen_projection);
         }
-        if frozen_core.is_empty() {
-            if !frozen.is_empty() {
-                frozen.push_str("\n\n");
-            }
-            frozen.push_str(FIRST_RUN_ONBOARDING_BLOCK.trim());
-        }
-
         PromptSection::new(ContextSection::FrozenCore, frozen)
     }
 

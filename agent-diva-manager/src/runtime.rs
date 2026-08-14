@@ -1008,6 +1008,7 @@ async fn build_agent_loop(
     bus: MessageBus,
     dynamic_provider: Arc<DynamicProvider>,
     workspace: PathBuf,
+    config_dir: PathBuf,
     runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
@@ -1019,6 +1020,7 @@ async fn build_agent_loop(
     let agent_provider: Arc<dyn LLMProvider> = dynamic_provider;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let tool_config = ToolConfig {
+        config_dir: Some(config_dir),
         builtin: build_builtin_tools_config(config),
         network: build_network_tool_config(config),
         planning,
