@@ -33,7 +33,8 @@ pub use outputs::{
 };
 pub use reflection::{
     BoundedReflectionInput, DeterministicReflectionEngine, ReflectionEngine, ReflectionError,
-    ReflectionEvidence, ReflectionOutput,
+    ReflectionEvidence, ReflectionOutput, SkillReflectionCandidate, SkillReflectionEngine,
+    SkillReflectionIndex, SkillReflectionInput, SkillReflectionOutput,
 };
 pub use reports::{
     AutoDreamReportWriter, RhythmReportContent, RhythmReportPeriod, RhythmReportWriteRequest,

@@ -6,6 +6,7 @@ use agent_diva_core::config::schema::{
     WebSearchConfig, WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
+use agent_diva_core::evolution::SkillHome;
 use agent_diva_core::governance::ApprovalCoordinator;
 use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator, MemoryHome, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
@@ -71,6 +72,8 @@ pub struct AppState {
     pub persona: PersonaService,
     /// Machine-wide BML, ACTMEM, and MEMRULES authority.
     pub memory_home: MemoryHome,
+    /// Machine-wide Skill and SkillProposal authority.
+    pub skill_home: SkillHome,
     pub memory_governance: MemoryGovernanceCoordinator,
     pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
@@ -237,6 +240,11 @@ impl AppState {
         let laputa = LaputaService::open(workspace_root.clone())?;
         let persona = PersonaService::open(config_dir.clone())?;
         let memory_home = memory_home.unwrap_or_else(|| MemoryHome::new(config_dir.clone()));
+        let skill_home = SkillHome::new(
+            &config_dir,
+            agent_diva_agent::skills::SkillsLoader::default_builtin_skills_dir(),
+        );
+        skill_home.reconcile_pending_heads()?;
         let workspace_id =
             agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
         let memory_governance = match governance.as_ref() {
@@ -258,7 +266,8 @@ impl AppState {
                     AutoDreamService::open(workspace_root.clone())?
                 }
             }
-            .with_memory_home(memory_home.clone());
+            .with_memory_home(memory_home.clone())
+            .with_skill_home(skill_home.clone());
         let state = Self {
             api_tx,
             bus,
@@ -269,6 +278,7 @@ impl AppState {
             laputa,
             persona,
             memory_home,
+            skill_home,
             memory_governance,
             memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),

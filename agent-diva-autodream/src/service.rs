@@ -9,7 +9,7 @@ use std::{
 use agent_diva_core::config::LlmCurationConfig;
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamOrchestrationRecord,
-    AutoDreamRunRecord, AutoDreamRunState,
+    AutoDreamRunRecord, AutoDreamRunState, SkillHome,
 };
 use agent_diva_core::reports::ReportNarrativeGenerator;
 use agent_diva_laputa::MemoryHome;
@@ -23,7 +23,7 @@ use crate::{
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
     AutoDreamMonthlyReportGenerator, AutoDreamProposalGovernance, AutoDreamRhythmReportGenerator,
     AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker,
-    ReflectionEngine, Result,
+    ReflectionEngine, Result, SkillReflectionEngine,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -91,8 +91,10 @@ pub struct AutoDreamService {
     stale_lock_after: Duration,
     narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
+    skill_reflection_engine: Option<Arc<dyn SkillReflectionEngine>>,
     proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     memory_home: Option<MemoryHome>,
+    skill_home: Option<SkillHome>,
     llm_curation: LlmCurationConfig,
 }
 
@@ -122,8 +124,10 @@ impl AutoDreamService {
             stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
             narrative_generator: None,
             reflection_engine: None,
+            skill_reflection_engine: None,
             proposal_governance: None,
             memory_home: None,
+            skill_home: None,
             llm_curation: LlmCurationConfig::default(),
         }
     }
@@ -149,6 +153,14 @@ impl AutoDreamService {
         self
     }
 
+    pub fn with_skill_reflection_engine(
+        mut self,
+        engine: Option<Arc<dyn SkillReflectionEngine>>,
+    ) -> Self {
+        self.skill_reflection_engine = engine;
+        self
+    }
+
     pub fn with_proposal_governance(
         mut self,
         governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
@@ -160,6 +172,11 @@ impl AutoDreamService {
     /// Attach the machine-wide Memory/ACTMEM authority used by S3 runs.
     pub fn with_memory_home(mut self, memory_home: MemoryHome) -> Self {
         self.memory_home = Some(memory_home);
+        self
+    }
+
+    pub fn with_skill_home(mut self, skill_home: SkillHome) -> Self {
+        self.skill_home = Some(skill_home);
         self
     }
 
@@ -377,8 +394,10 @@ impl AutoDreamService {
                 .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
         )
         .with_reflection_engine(self.reflection_engine.clone())
+        .with_skill_reflection_engine(self.skill_reflection_engine.clone())
         .with_proposal_governance(self.proposal_governance.clone())
-        .with_memory_home(self.memory_home.clone());
+        .with_memory_home(self.memory_home.clone())
+        .with_skill_home(self.skill_home.clone());
         worker.execute(run_id).await.inspect_err(|_| {
             Self::metrics().record_failure();
         })
@@ -837,13 +856,38 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{fs, sync::Arc};
 
-    use agent_diva_core::session::SessionManager;
+    use agent_diva_core::{
+        evolution::{
+            CreateSkillProposal, SkillEvidence, SkillHome, SkillProposalSource, SkillProposalStatus,
+        },
+        session::SessionManager,
+    };
     use agent_diva_laputa::MemoryHome;
     use chrono::Utc;
 
     use super::*;
+
+    struct StaticSkillReflection {
+        output: std::result::Result<crate::SkillReflectionOutput, crate::ReflectionError>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::SkillReflectionEngine for StaticSkillReflection {
+        async fn reflect_skills(
+            &self,
+            input: crate::SkillReflectionInput,
+        ) -> std::result::Result<crate::SkillReflectionOutput, crate::ReflectionError> {
+            assert!(input.organized_work.contains("### Goal"));
+            assert!(!input.memrules.is_empty());
+            self.output.clone()
+        }
+    }
+
+    fn skill_markdown(slug: &str) -> String {
+        format!("---\nname: {slug}\ndescription: generated skill\nalways: true\n---\nsteps\n")
+    }
 
     #[test]
     fn run_event_reader_skips_invalid_json_but_propagates_line_read_errors() {
@@ -924,5 +968,133 @@ mod tests {
             .read_dir()
             .map(|mut entries| entries.next().is_none())
             .unwrap_or(true));
+    }
+
+    #[tokio::test]
+    async fn skill_reflection_runs_after_work_and_only_creates_review_requests() {
+        let dir = tempfile::tempdir().unwrap();
+        let machine_home = dir.path().join("machine-home");
+        let builtin = dir.path().join("builtin");
+        let memory_home = MemoryHome::new(&machine_home);
+        memory_home
+            .actmem()
+            .append_pulse("gui:chat", "Extract a reusable review routine")
+            .await
+            .unwrap();
+        let mut sessions = SessionManager::new(dir.path());
+        let session = sessions.get_or_create("gui:chat");
+        session.add_message("user", "Verified bounded skill evidence");
+        let session = session.clone();
+        sessions.save(&session).unwrap();
+
+        let skill_home = SkillHome::new(&machine_home, &builtin);
+        skill_home
+            .create_request(CreateSkillProposal {
+                slug: "existing-review".into(),
+                title: "Existing".into(),
+                proposed_markdown: skill_markdown("existing-review"),
+                evidence: vec![SkillEvidence {
+                    session_key: Some("gui:chat".into()),
+                    actmem_pointer: None,
+                    autodream_run_id: None,
+                    tool: None,
+                    artifact: None,
+                }],
+                attestation: None,
+                base_hash: "0".into(),
+                source: SkillProposalSource::Distill,
+                reason: "already pending".into(),
+            })
+            .unwrap();
+        let engine = StaticSkillReflection {
+            output: Ok(crate::SkillReflectionOutput {
+                schema_version: 1,
+                candidates: vec![
+                    crate::SkillReflectionCandidate {
+                        slug: "existing-review".into(),
+                        title: "Duplicate".into(),
+                        description: "duplicate".into(),
+                        proposed_markdown: skill_markdown("existing-review"),
+                        reason: "duplicate pending".into(),
+                    },
+                    crate::SkillReflectionCandidate {
+                        slug: "new-review".into(),
+                        title: "New".into(),
+                        description: "new".into(),
+                        proposed_markdown: skill_markdown("new-review"),
+                        reason: "bounded evidence".into(),
+                    },
+                ],
+                diagnostic_codes: Vec::new(),
+            }),
+        };
+        let service = AutoDreamService::open(dir.path())
+            .unwrap()
+            .with_memory_home(memory_home.clone())
+            .with_skill_home(skill_home.clone())
+            .with_skill_reflection_engine(Some(Arc::new(engine)));
+        let run = service
+            .trigger_manual_run(ManualRunTriggerRequest::default())
+            .unwrap()
+            .run;
+        let report = service.execute_reflection_worker(&run.id).await.unwrap();
+
+        assert_eq!(report.outcome, crate::AutoDreamWorkerOutcome::Success);
+        assert_eq!(report.proposal_ids.len(), 1);
+        let requests = skill_home.list_requests().unwrap();
+        assert_eq!(requests.len(), 2);
+        let generated = requests
+            .iter()
+            .find(|request| request.slug == "new-review")
+            .unwrap();
+        assert_eq!(generated.status, SkillProposalStatus::Pending);
+        assert_eq!(generated.source, SkillProposalSource::Autodream);
+        assert!(generated.evidence[0].autodream_run_id.is_some());
+        assert!(skill_home.read("new-review").is_err());
+        assert!(!memory_home.database_path().exists());
+    }
+
+    #[tokio::test]
+    async fn skill_reflection_failure_keeps_organized_work_and_creates_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let machine_home = dir.path().join("machine-home");
+        let memory_home = MemoryHome::new(&machine_home);
+        memory_home
+            .actmem()
+            .append_pulse("gui:chat", "Organize before provider failure")
+            .await
+            .unwrap();
+        let mut sessions = SessionManager::new(dir.path());
+        let session = sessions.get_or_create("gui:chat");
+        session.add_message("user", "Bounded evidence");
+        let session = session.clone();
+        sessions.save(&session).unwrap();
+        let skill_home = SkillHome::new(&machine_home, dir.path().join("builtin"));
+        let service = AutoDreamService::open(dir.path())
+            .unwrap()
+            .with_memory_home(memory_home.clone())
+            .with_skill_home(skill_home.clone())
+            .with_skill_reflection_engine(Some(Arc::new(StaticSkillReflection {
+                output: Err(crate::ReflectionError::InvalidSchema),
+            })));
+        let run = service
+            .trigger_manual_run(ManualRunTriggerRequest::default())
+            .unwrap()
+            .run;
+        let report = service.execute_reflection_worker(&run.id).await.unwrap();
+
+        assert_eq!(report.outcome, crate::AutoDreamWorkerOutcome::Success);
+        assert!(report.proposal_ids.is_empty());
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|item| item.contains("skill_reflection_degraded")));
+        assert!(memory_home
+            .actmem()
+            .read()
+            .unwrap()
+            .work
+            .contains("### Goal"));
+        assert!(skill_home.list_requests().unwrap().is_empty());
     }
 }

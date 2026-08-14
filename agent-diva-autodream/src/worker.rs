@@ -8,7 +8,8 @@ use std::{
 
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
-    EvolutionProposal, MemoryCandidate, RiskLevel,
+    CreateSkillProposal, EvolutionProposal, MemoryCandidate, RiskLevel, SkillEvidence, SkillHome,
+    SkillHomeError, SkillProposalSource,
 };
 use agent_diva_core::experience::ExperienceJournal;
 use agent_diva_laputa::{actmem::ActmemPatch, LaputaService, MemoryHome};
@@ -21,7 +22,7 @@ use crate::{
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamEvent, AutoDreamLockRecord,
     AutoDreamOutputEmitter, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
     AutoDreamStorage, BoundedReflectionInput, CandidateGate, ReflectionEngine, ReflectionEvidence,
-    Result,
+    Result, SkillReflectionEngine, SkillReflectionIndex, SkillReflectionInput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +168,8 @@ pub struct AutoDreamWorker {
     reflection_engine: Option<Arc<dyn ReflectionEngine>>,
     proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     memory_home: Option<MemoryHome>,
+    skill_home: Option<SkillHome>,
+    skill_reflection_engine: Option<Arc<dyn SkillReflectionEngine>>,
 }
 
 impl AutoDreamWorker {
@@ -178,6 +181,8 @@ impl AutoDreamWorker {
             reflection_engine: None,
             proposal_governance: None,
             memory_home: None,
+            skill_home: None,
+            skill_reflection_engine: None,
         }
     }
 
@@ -201,6 +206,19 @@ impl AutoDreamWorker {
 
     pub fn with_memory_home(mut self, memory_home: Option<MemoryHome>) -> Self {
         self.memory_home = memory_home;
+        self
+    }
+
+    pub fn with_skill_home(mut self, skill_home: Option<SkillHome>) -> Self {
+        self.skill_home = skill_home;
+        self
+    }
+
+    pub fn with_skill_reflection_engine(
+        mut self,
+        engine: Option<Arc<dyn SkillReflectionEngine>>,
+    ) -> Self {
+        self.skill_reflection_engine = engine;
         self
     }
 
@@ -384,18 +402,150 @@ impl AutoDreamWorker {
         stages[2].status = AutoDreamWorkerStageStatus::Succeeded;
         stages[2].completed_at = Some(Utc::now());
 
-        // The legacy Propose stage remains in persisted run telemetry only as
-        // an explicit successful no-op until the S5 symbol cleanup.
         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
-        stages[3].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[3].status = AutoDreamWorkerStageStatus::Running;
         stages[3].started_at = Some(Utc::now());
-        stages[3].completed_at = stages[3].started_at;
+        let proposal_ids = match self.reflect_skill_requests(run_id, &collected).await {
+            Ok(ids) => ids,
+            Err(error) => {
+                let diagnostic = format!("skill_reflection_degraded: {error}");
+                diagnostics.push(diagnostic.clone());
+                stages[3].diagnostic = Some(diagnostic.clone());
+                self.append_event(run_id, "skill_reflection_degraded", &diagnostic)?;
+                Vec::new()
+            }
+        };
+        let mut run = self.read_run(run_id)?;
+        run.proposal_ids = proposal_ids.clone();
+        self.write_run(&run)?;
+        stages[3].status = AutoDreamWorkerStageStatus::Succeeded;
+        stages[3].completed_at = Some(Utc::now());
         self.append_event(
             run_id,
             "actmem_work_organized",
-            "ACTMEM Work organized directly; zero memory proposals emitted",
+            &format!(
+                "ACTMEM Work organized; {} Skill review request(s) emitted and zero memory proposals",
+                proposal_ids.len()
+            ),
         )?;
         self.finish_success(run_id, stages, diagnostics)
+    }
+
+    async fn reflect_skill_requests(
+        &self,
+        run_id: &str,
+        collected: &AutoDreamCollectedInputs,
+    ) -> Result<Vec<String>> {
+        let engine = self.skill_reflection_engine.as_ref().ok_or_else(|| {
+            AutoDreamError::InvalidState("skill reflection provider unavailable".into())
+        })?;
+        let memory_home = self
+            .memory_home
+            .as_ref()
+            .ok_or_else(|| AutoDreamError::InvalidState("MemoryHome is unavailable".into()))?;
+        let skill_home = self
+            .skill_home
+            .as_ref()
+            .ok_or_else(|| AutoDreamError::InvalidState("SkillHome is unavailable".into()))?;
+        let actmem = memory_home
+            .actmem()
+            .read()
+            .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
+        let memrules = memory_home
+            .read_memrules()
+            .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
+        let skills = skill_home
+            .list()
+            .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?
+            .into_iter()
+            .map(|skill| SkillReflectionIndex {
+                slug: skill.slug,
+                content_hash: skill.content_hash,
+            })
+            .collect::<Vec<_>>();
+        let evidence = collected
+            .items
+            .iter()
+            .take(16)
+            .map(|item| {
+                let redacted = agent_diva_core::security::redact_pii(
+                    &item.excerpt,
+                    &agent_diva_core::security::PiiConfig::default(),
+                )
+                .redacted;
+                let mut evidence = item.evidence.clone();
+                evidence.excerpt = None;
+                ReflectionEvidence {
+                    evidence,
+                    summary: truncate_chars(&redacted, 500),
+                }
+            })
+            .collect();
+        let output = engine
+            .reflect_skills(SkillReflectionInput {
+                schema_version: 1,
+                run_id: run_id.to_string(),
+                organized_work: truncate_chars(&actmem.work, 4_000),
+                pulse: truncate_chars(&actmem.pulse, 1_000),
+                recap: truncate_chars(&actmem.recap, 1_000),
+                evidence,
+                memrules: memrules.content,
+                skills,
+                max_candidates: 8,
+            })
+            .await
+            .map_err(|error| {
+                AutoDreamError::InvalidState(format!("skill reflection failed: {error}"))
+            })?;
+        if output.schema_version != 1 || output.candidates.len() > 8 {
+            return Err(AutoDreamError::InvalidState(
+                "skill reflection returned invalid schema".into(),
+            ));
+        }
+        for code in output.diagnostic_codes {
+            self.append_event(run_id, "skill_reflection_diagnostic", &code)?;
+        }
+
+        let mut ids = Vec::new();
+        for candidate in output.candidates {
+            let base_hash = skill_home
+                .read(&candidate.slug)
+                .map(|document| document.summary.content_hash)
+                .unwrap_or_else(|_| "0".into());
+            let result = skill_home.create_request(CreateSkillProposal {
+                slug: candidate.slug.clone(),
+                title: candidate.title,
+                proposed_markdown: candidate.proposed_markdown,
+                evidence: vec![SkillEvidence {
+                    session_key: None,
+                    actmem_pointer: Some("ACTMEM.MD#Work".into()),
+                    autodream_run_id: Some(run_id.to_string()),
+                    tool: None,
+                    artifact: collected
+                        .items
+                        .first()
+                        .map(|item| item.evidence.uri.clone()),
+                }],
+                attestation: None,
+                base_hash,
+                source: SkillProposalSource::Autodream,
+                reason: candidate.reason,
+            });
+            match result {
+                Ok(request) => ids.push(request.id),
+                Err(SkillHomeError::RequestExists(_)) => self.append_event(
+                    run_id,
+                    "skill_request_skipped",
+                    &format!("pending request already exists for {}", candidate.slug),
+                )?,
+                Err(error) => self.append_event(
+                    run_id,
+                    "skill_candidate_rejected",
+                    &format!("{}: {}", error.code(), candidate.slug),
+                )?,
+            }
+        }
+        Ok(ids)
     }
 
     async fn organize_actmem_work(

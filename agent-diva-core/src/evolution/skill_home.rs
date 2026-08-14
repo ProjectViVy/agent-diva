@@ -1,13 +1,13 @@
 //! Machine-wide Skill authority and review-request lifecycle.
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs::{self, File, OpenOptions},
     io::Write,
     path::{Component, Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, OnceLock, Weak,
     },
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -29,6 +29,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Machine-wide monotonic generation used by every Session skill cache.
 static MACHINE_SKILL_EPOCH: AtomicU64 = AtomicU64::new(1);
+static SKILL_WRITE_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Weak<Mutex<()>>>>> = OnceLock::new();
 
 /// Current process-wide Skill generation.
 pub fn machine_skill_epoch() -> u64 {
@@ -161,7 +162,7 @@ pub struct CreateSkillProposal {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SkillWriteOutcome {
     pub document: SkillDocument,
     pub changed: bool,
@@ -226,7 +227,7 @@ pub struct SkillHome {
 struct SkillHomeInner {
     root: PathBuf,
     builtin_root: PathBuf,
-    write_lock: Mutex<()>,
+    write_lock: Arc<Mutex<()>>,
 }
 
 #[derive(Debug)]
@@ -241,11 +242,12 @@ struct ParsedSkill {
 impl SkillHome {
     /// Create the machine-wide authority at `{config_dir}/skills`.
     pub fn new(config_dir: impl AsRef<Path>, builtin_root: impl Into<PathBuf>) -> Self {
+        let root = config_dir.as_ref().join("skills");
         Self {
             inner: Arc::new(SkillHomeInner {
-                root: config_dir.as_ref().join("skills"),
+                write_lock: shared_write_lock(&root),
+                root,
                 builtin_root: builtin_root.into(),
-                write_lock: Mutex::new(()),
             }),
         }
     }
@@ -700,6 +702,17 @@ impl SkillHome {
         }
         Ok(())
     }
+}
+
+fn shared_write_lock(root: &Path) -> Arc<Mutex<()>> {
+    let registry = SKILL_WRITE_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut registry = registry.lock();
+    if let Some(lock) = registry.get(root).and_then(Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(Mutex::new(()));
+    registry.insert(root.to_path_buf(), Arc::downgrade(&lock));
+    lock
 }
 
 pub fn validate_skill_slug(slug: &str) -> Result<(), SkillHomeError> {
