@@ -105,6 +105,10 @@ updated: 2026-08-15T00:00:00Z
 
 - [2026-08-15T00:00:00Z] gui:abc: 短用户原话
 
+## Recap
+
+- [2026-08-15T00:00:01Z] gui:abc: 一句完成态（本轮做完了什么）
+
 ## Work
 
 ### Goal
@@ -114,8 +118,9 @@ updated: 2026-08-15T00:00:00Z
 ### Pointers
 ```
 
-- **Pulse**：环形近讯。只收**短用户原话**（原文可进，助手全文/整段对话不进）。单条上限 280 字（超出截到 280，机械）。整节超 1600 从最老条删。计数与 P14 相同（trim 后一字一计）。
-- **Work**：活动集。Goal / Open / Next / Constraints / Pointers。v1 不单开「来源 / 自动化状态 / Skill 引用」节；Skill 引用可写在 Pointers。整节超 1600 → 写核 **拒绝** `actmem_cap_exceeded`，由整理者删完成/失效项后再写。**禁止**装配层静默截断。
+- **Pulse**：环形近讯。只收**短用户原话**。单条上限 280 字。整节超 1600 从最老条删。
+- **Recap**（S8 2026-08-15）：环形完成态。助手**本轮最终回复结束后立刻**写一条。单条 ≤200 字；整节超 1600 从最老条删。不是助手全文，不另开一轮大模型。优先本轮已有短收束；没有则从可见回复机械抽。
+- **Work**：活动集。Goal / Open / Next / Constraints / Pointers。整节超 1600 → 写核拒绝 `actmem_cap_exceeded`。**禁止**装配层静默截断。
 - Pointers 只许最小指针（BML id、WORLD claim、session key、artifact、外链），不许贴 BML 正文。
 - v1 **无** ACTMEM 版本历史 / 撤销。误操作靠用户再改回去或从最近胶囊手修（显式砍 S5 的「历史/撤销」选项，留下可再编辑）。
 
@@ -132,39 +137,37 @@ updated: 2026-08-15T00:00:00Z
 
 头文件 front matter `revision` 单调 +1。所有写者走**同一写核**：
 
-1. 读当前；文件不存在 = `rev=0` 空 Pulse/Work。`GET` / `actmem` 读缺失头返回这份空视图，**不**创建文件。
+1. 读当前；文件不存在 = `rev=0` 空 Pulse/Recap/Work。
 2. 请求带 `base_revision`。
 3. `base != 当前` 时：
-   - **Pulse 追加**（系统发言）：重读最新头，只把新条接到最新 Pulse，Work 原样保留，**自动重试一次**。仍失败则打日志、丢掉这一条近讯，不覆盖 Work。
-   - **Work 整理**（Agent / AutoDream / DEFER）：若盘上相对 base **只变了 Pulse**，重读后把本次 Work 写到最新头上（保留新 Pulse），**自动重试一次**。Work 本身冲突 → 拒绝，调用方重读。
-   - **用户 PUT**：不自动重试，409 `actmem_revision_conflict`。
+   - **Pulse / Recap 追加**（系统）：重读最新头，只追加对应节，其它节原样，**自动重试一次**。仍失败打日志，丢掉这一条，不覆盖 Work。
+   - **Work 整理**：若盘上相对 base **只变了 Pulse 和/或 Recap**，重读后把本次 Work 写到最新头上（保留新近讯），**自动重试一次**。Work 本身冲突 → 拒绝。
+   - **用户 PUT**：不自动重试，409。
 4. 规范化后写 staging，再 `atomic_write`。失败不涨号。
 5. no-op 不涨号。
 
 跨进程仍是 TOCTOU：不宣称「CAS 等于串行化」。重试一次是为了保住「发言即写」和「必须能整理」同时成立，不是跨进程锁。
 
-第一次真实 Pulse 或用户/整理写入才创建 `ACTMEM.MD`。
+第一次真实 Pulse/Recap 或用户/整理写入才创建 `ACTMEM.MD`。
 
 ---
 
 ## 4. 谁写 ACTMEM、何时写
 
-| 写者 | Pulse | Work | 胶囊 | 过手册？ |
-| --- | --- | --- | --- | --- |
-| 系统：用户发言 | **是**（该条短原话） | 否 | 否 | 否 |
-| 系统：该会话空闲 10 分钟 | 否 | 否 | **是**（≤800） | 否 |
-| 聊天 Agent 日常维护 | 否 | 经 DEFER 工具 | 否 | **是**（改 Work 算写记忆） |
-| AutoDream | 否 | **必须整理直写** | 可折叠 | **是** |
-| 用户 Memory 页 | 可改（GUI，非工具） | 可改 | 可看/可删 | 否 |
-| 子代理 | 禁 | 禁 | 禁 | — |
-| cron / heartbeat | 禁 | 禁 | 禁 | — |
+| 写者 | Pulse | Recap | Work | 胶囊 | 过手册？ |
+| --- | --- | --- | --- | --- | --- |
+| 系统：用户发言 | **是** | 否 | 否 | 否 | 否 |
+| 系统：本轮助手最终回复结束 | 否 | **是**（立刻） | 否 | 否 | 否 |
+| 系统：空闲 10 分钟 | 否 | 否 | 否 | **折叠**该 session 的 Pulse+Recap | 否 |
+| 聊天 Agent 日常维护 | 否 | 否 | DEFER | 否 | **是** |
+| AutoDream | 否 | 否 | **必须整理** | 可再折 Work | **是** |
+| 用户 Memory 页 | 可改 | 可改 | 可改 | 可看/可删 | 否 |
+| 子代理 / cron | 禁 | 禁 | 禁 | 禁 | — |
 
-空闲计时：该 `session_key` 最后一条**用户**消息起 10 分钟无新用户消息。只对交互 session。session 已结束则取消该定时器；**不**补写胶囊。`api:cron:*` 不写胶囊、不写 Pulse。
+空闲 10 分钟：该 session 最后一条**用户或助手**活动后无新活动。只对交互 session。到期后把该 session 标在 Pulse/Recap 里的条折进胶囊（≤800），并从头文件删掉这些条。session 已结束则取消定时器、**不**补折。`api:cron:*` 不写。
 
-CLI cron 若与交互共享 `cli:direct`：仍**禁止** cron **turn** 写 ACTMEM（R2 V8）。cron turn **可以只读** `actmem`。
-
-系统 Pulse 失败：见 §3.3 重试一次。仍失败打日志，不回滚用户消息。  
-系统胶囊：从该会话 Pulse + 当时 Work 抽 ≤800 字；超了截到 800。AutoDream「折叠」= 把已收敛的 Work 写成胶囊并缩短头里 Work，不是第二套历史。v1 胶囊不自动 GC。
+系统 Pulse/Recap 失败：§3.3 重试一次。不回滚用户可见回复。  
+工具不得写 Pulse/Recap。
 
 `safe_session`：与 session 文件相同的安全化规则，并在胶囊 front matter 保留原始 `session_key`。
 
@@ -178,7 +181,7 @@ v1 **无** STM→BML 自动晋升。`memory_add` 不得从 ACTMEM 整理器隐�
 
 **CORE（日常常驻，仅一个）：**
 
-- `actmem`：只读。可问 Pulse / Work / 某胶囊 / 胶囊目录。返回有界预览（建议单次 ≤1200 字），大结果进 artifact。
+- `actmem`：只读。可问 Pulse / Recap / Work / 某胶囊 / 目录。单次 ≤1200 字。
 
 **DEFER（`tool_search` 才挂上）：**
 
@@ -188,7 +191,7 @@ v1 **无** STM→BML 自动晋升。`memory_add` 不得从 ACTMEM 整理器隐�
 - `actmem_list_capsules`：目录。
 - `actmem_read_capsule`：读一颗胶囊。
 
-禁止：常驻一串 BML 式 CRUD；禁止 `actmem_write_pulse`（**工具**不得写 Pulse；系统与用户 GUI 可以）。  
+禁止：常驻一串 BML 式 CRUD；禁止工具写 Pulse/Recap。  
 `actmem_list_capsules` / `actmem_read_capsule` 只留 DEFER；CORE `actmem` 已能按参数读目录/胶囊时，不要再双挂两套更宽接口。  
 BML 工具：`memory_add` / `memory_update` / `memory_remove` / `memory_search` / `memory_list` / `memory_get` 保持直写语义，**移出「要审批」文案**。哪些进 CORE、哪些 DEFER：v1 检索类可 CORE（`memory_search`、`memory_get`），变更类 DEFER（add/update/remove），避免再撑前缀。`memory_list` DEFER。
 
@@ -247,7 +250,7 @@ CanonicalCheckpoint：保持 C1–C5。Compact 成败都不改 ACTMEM。
 Persona 不出现。Memory 页：
 
 1. **BML** 列表 / 详情 / 直改 / 软删。无「提交审批」。kind 筛选不含 SessionCheckpoint 冒充 STM，不含人格 kind。
-2. 右上角 **ACTMEM 入口**（S6）：进独立工作区，展示 Pulse、Work 五节、胶囊目录、预算占用、最近写入时间。用户改 Pulse/Work 直存（带 rev）。完成 Open、删条、看胶囊。无 Approval。
+2. 右上角 **ACTMEM 入口**（S6）：Pulse、**Recap**、Work、胶囊。用户可直改。无 Approval。
 3. **MEMRULES 设置**：编辑手册，直存。只给人。
 
 窄屏：BML / ACTMEM / 设置 用标签切，不塞进 Persona。
@@ -270,7 +273,7 @@ Persona 不出现。Memory 页：
 
 错误码：`memory_revision_conflict`、`actmem_revision_conflict`、`actmem_cap_exceeded`、`memory_kind_forbidden`、`bml_unavailable`。
 
-系统 Pulse / 胶囊 **不走** HTTP，走 AgentLoop / idle 定时器。
+系统 Pulse / Recap / 折叠胶囊 **不走** HTTP，走 AgentLoop / idle 定时器。
 
 ---
 
@@ -303,7 +306,7 @@ BML sqlite：第一次真实 CRUD 才 `open` 创建文件。空库不是人格/A
 
 1. BML 路径在 `{config_dir}/memory/memory.sqlite3`，CRUD 不审批。
 2. 新 session / 另一 channel 能通过 `actmem` 读到同一份头。
-3. 发言后 Pulse 有短原话；10 分钟空闲后有胶囊；正文不进稳定前缀。
+3. 发言后 Pulse 有短原话；本轮助手结束后 Recap 立刻有一条；10 分钟只折叠进胶囊。正文不进稳定前缀。
 4. SessionCheckpoint 改名；reset/delete/end 清它，不清 ACTMEM。
 5. 人格 kind 与 ACTMEM 都不进 L1。
 6. 没规定 Skill 文件形态、Persona 目录、删除切片。

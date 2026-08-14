@@ -2,7 +2,7 @@
 
 - 状态：`Approved Boundary / Research Hold / Implementation Pending`
 - 记录日期：2026-08-13
-- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼；同日 **S9** 冻结 MEMRULES（不进 Laputa；按 GA 分层进上下文）；同日 **S1** 修订 BML 跟人格走（整机一份家）
+- 修订：`2026-08-14` 明确 AutoDream 必须批处理整理 STM（直写，不走提案）；同日冻结注入文件名 `ACTMEM.MD`，STM/LTM 仅作概念称呼；同日 **S9** 冻结 MEMRULES（不进 Laputa；按 GA 分层进上下文）；同日 **S1** 修订 BML 跟人格走（整机一份家）；`2026-08-15` **S8** 修订：每轮助手回复立刻写 Recap，10 分钟只做折叠胶囊
 - 性质：产品与领域边界已拍板；分层装配和自动化算法待专项调研
 
 ## 问题判断
@@ -130,13 +130,15 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 - 旧 Garden `MEMORY.MD` / `05 MEMORY.MD` 全舍弃，不继承文件名。
 - 本条冻文件名与称呼。落点与时效见 **S8**。
 
-### S8：`ACTMEM.MD` 是全局一份文件；发言即写；空闲 10 分钟写胶囊
+### S8：`ACTMEM.MD` 是全局一份文件；发言写 Pulse；每轮写 Recap
 
-- **就是一个 Markdown 文件**，不是库、不是 BML 表。路径建议 `{config_dir}/actmem/ACTMEM.MD`，不进项目 `.laputa/`，不进 `memory.sqlite3`。
-- **所有项目共用这一份**（跨 workspace / 跨项目全局）。胶囊分文件时可在文件名里带 workspace，以免 session 撞名。
-- **用户一发言就写 Pulse 节。** 空闲 **10 分钟** 写该会话胶囊。
-- Pulse：**原文可进，全文不进**（短用户原话保留；整段对话和助手全文不进 Pulse）。
-- 字数顶：Pulse 1600、Work 1600、单胶囊 800。
+- **就是一个 Markdown 文件**，不是库、不是 BML 表。路径 `{config_dir}/actmem/ACTMEM.MD`，不进项目 `.laputa/`，不进 `memory.sqlite3`。
+- **所有项目共用这一份**。胶囊分文件时可在文件名里带 session，以免撞名。
+- **用户一发言就写 Pulse**（短用户原话；原文可进，全文不进）。
+- **助手本轮最终回复一结束就写 Recap**（一句完成态，学 Grok 每轮 recap）。**不等** 10 分钟才第一次归纳。
+- Recap **不是**助手全文，也不是再开一轮大模型。优先用本轮已有短收束；没有则从可见回复机械抽 ≤200 字。
+- 空闲 **10 分钟** 仍写该会话**胶囊**：把该 session 已积的 Pulse+Recap **折进去并从头文件删掉这些旧条**。10 分钟是折叠，不是「这才开始汇总」。
+- 字数顶：Pulse 1600、Recap 1600、Work 1600、单条 Recap 200、单胶囊 800。
 - **子代理不进** ACTMEM，也不进其它 Laputa 人格/记忆生态。子代理上下文由主 Agent 装配（面具仍进）。本阶段不设计。
 - **第一版不做 STM→BML 自动晋升**；晋升以后另议。
 - **整份 ACTMEM（Pulse、Work、胶囊）走工具车道。** 不进 Frozen Core，不动态装配进
@@ -146,7 +148,7 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 - **管理工具要做，必须 DEFER。** 整理、改 Work、删条、折叠胶囊等经 `tool_search`
   发现后才挂上，不得进 CORE、不得撑稳定前缀。具体管理工具名单 D2 再列，不得先做成
   BML 那种一串常驻 CRUD。
-- 系统自动写（发言 Pulse、空闲胶囊、AutoDream）不经过聊天工具。用户 Memory 页仍直改。
+- 系统自动写（发言 Pulse、每轮 Recap、空闲折叠胶囊、AutoDream）不经过聊天工具。用户 Memory 页仍直改。
 
 ### S9：MEMRULES 是记忆写入手册，不是人格文件
 

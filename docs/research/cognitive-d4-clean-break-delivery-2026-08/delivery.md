@@ -1,9 +1,10 @@
 # D4 — Clean-break 接口、删除、切片与验收
 
-- 状态：`Design Draft / Awaiting User Review`
+- 状态：`Approved / Implementation Pending`
 - 日期：2026-08-15
 - 性质：把已批准 D1–D3 收成可实施的切片、删除证明、发布与验收。通过本包 + 你叫切，才是 Architecture Gate。
 - **不改**生产代码。**不建**保护分支（你说切再切）。
+- 用户批准：`2026-08-15`（对话「点头」）。同日 STM Recap 修订不改本包切片顺序。
 
 不得重开：P/S/D6/D7、D1–D3 合同、无迁移（没了就没了）。
 
@@ -177,7 +178,7 @@ B 层：同片改掉锁旧合同的测试（R4 §3 表），不得留着挡 clea
 1. 新 profile：五文件全缺 → 引导 → 一次完成 → 第一次聊天 Frozen Core 是 Markdown。
 2. 中央编辑器是 MD，不可能 `[object Object]`。
 3. Memory 增删改查、ACTMEM 入口、MEMRULES 设置，都不开 Approval。
-4. 发言后 `actmem` 能读到 Pulse；另一 session 也能读同一份。
+4. 发言后 `actmem` 能读到 Pulse；本轮助手结束后立刻有 Recap；另一 session 也能读同一份。
 5. Evolution 只有 Skill + 待审；接受后 `{config_dir}/skills/<slug>/SKILL.md` 出现；distill 无人接受不落盘。
 6. 危险工具 Approval 仍走得通。
 7. 旧工作区副本：不出现自动导入条；Persona 不读 JSON section。

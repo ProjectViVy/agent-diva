@@ -25,6 +25,7 @@
 - `2026-08-cognitive-d2-memory/`
 - `2026-08-cognitive-d3-evolution/`
 - `2026-08-cognitive-d4-delivery/`
+- `2026-08-actmem-recap/`
 - `2026-08-governance-persona-recovery/`
 - `2026-08-code-review-residuals/`
 

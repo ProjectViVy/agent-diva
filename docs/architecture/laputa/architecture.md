@@ -114,9 +114,10 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 - 文件名：`ACTMEM.MD`（activity memory）。
 - 就是**一个** Markdown 文件，不是库。
 - 全局一份：`{config_dir}/actmem/ACTMEM.MD`，不进某个项目的 `.laputa/`，不进 BML sqlite。
-- 建议正文两节：`## Pulse`（近讯）+ `## Work`（活动集）。胶囊另存，不进这份注入正文。
-- 用户一发言就写 Pulse。空闲 **10 分钟** 写该会话胶囊。
-- Pulse：原文可进，全文不进。预算 Pulse 1600 / Work 1600 / 单胶囊 800。
+- 正文三节：`## Pulse`（用户短原话）+ `## Recap`（每轮完成态）+ `## Work`（活动集）。胶囊另存。
+- 用户一发言写 Pulse。助手本轮一结束立刻写 Recap（学 Grok recap，不等 10 分钟）。
+- 空闲 10 分钟把该 session 的 Pulse+Recap **折进胶囊并从头删掉**，不是这时才第一次归纳。
+- 预算 Pulse 1600 / Recap 1600 / Work 1600 / 单条 Recap 200 / 单胶囊 800。
 - 第一版不做 STM→BML 自动晋升。
 - **不自动装配正文。** CORE 只有一个查询工具；管理工具 DEFER。
 - 旧 Garden `MEMORY.MD` 全舍弃。
@@ -130,7 +131,7 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 - 文件：`{config_dir}/memory/MEMRULES.MD`。缺则用内置 R1–R7。
 - **不是** Laputa / 人格 / WORLD 姊妹文件。Persona 左栏不挂它（P21）。
 - 人在 Memory 设置窗口改；v1 只给人改，Agent 不改手册。
-- 上下文对齐 GA L0：日常不进全文；常驻几行指针；AutoDream 整理 / BML 直写 / 蒸馏时才塞全文。系统自动写 Pulse / 胶囊不为此塞全文。
+- 上下文对齐 GA L0：日常不进全文；常驻几行指针；写记忆时才塞全文。系统自动写 Pulse / Recap / 折叠胶囊不为此塞全文。
 - 不要和 GA L1 `[RULES]`（操作避坑）并成一份。
 
 ---
@@ -179,7 +180,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - D1：**已批准** [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
 - D2：**已批准** [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
 - D3：**已批准** [`../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](../../research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
-- D4 设计稿：[`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。待评审。保护分支你说切再切。
+- D4：**已批准** [`../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](../../research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。保护分支你说切再切。
 
 ---
 

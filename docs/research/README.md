@@ -15,7 +15,7 @@
 1c. [D1 Persona / 引导 / 历史（已批准）](./cognitive-d1-persona-workspace-2026-08/README.md)
 1d. [D2 Memory / ACTMEM（已批准）](./cognitive-d2-memory-stm-2026-08/README.md)
 1e. [D3 Evolution / Skill（已批准）](./cognitive-d3-evolution-skill-2026-08/README.md)
-1f. [D4 交付 / 删除切片（设计稿）](./cognitive-d4-clean-break-delivery-2026-08/README.md)
+1f. [D4 交付 / 删除切片（已批准）](./cognitive-d4-clean-break-delivery-2026-08/README.md)
 2. [R0 当前系统盘点](./cognitive-r0-current-state-2026-08/README.md)
 3. [R1 GenericAgent Evolution 研究包](./cognitive-r1-genericagent-evolution-2026-08/README.md)
 4. [R2 STM 与上下文分层研究包](./cognitive-r2-stm-context-2026-08/README.md)
@@ -37,7 +37,7 @@
 | `cognitive-d1-persona-workspace-2026-08/` | **D1 已批准**；实施未授权 |
 | `cognitive-d2-memory-stm-2026-08/` | **D2 已批准**；实施未授权 |
 | `cognitive-d3-evolution-skill-2026-08/` | **D3 已批准**；实施未授权 |
-| `cognitive-d4-clean-break-delivery-2026-08/` | **D4 设计稿**；待用户评审 |
+| `cognitive-d4-clean-break-delivery-2026-08/` | **D4 已批准**；保护分支等切；实施未授权 |
 | `cognitive-r0-current-state-2026-08/` | **R0 完成物齐全**；待用户 Research Gate |
 | `cognitive-r1-genericagent-evolution-2026-08/` | **R1 完成物齐全**；待用户 Research Gate；含 R0 Evolution 切片 |
 | `cognitive-r2-stm-context-2026-08/` | **R2 完成物齐全**；待用户 Research Gate；不定物理权威 |

@@ -23,7 +23,8 @@
 - Memory CRUD 与 STM 维护不走审批；BML 是普通长期 Memory 唯一权威；完整删除
   `MemoryMd` / `memory_md` 链路且不自动导入旧数据。概念上可称 STM/LTM；注入
   权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，禁止核心文件 `STM.MD` /
-  `MEMORY.MD`。发言即写 Pulse；空闲 10 分钟写胶囊。子代理不进。第一版不自动晋升
+  `MEMORY.MD`。发言即写 Pulse；每轮助手回复立刻写 Recap；空闲 10 分钟只折叠胶囊。
+  子代理不进。第一版不自动晋升
   BML。正文不装配。CORE 只有一个查询工具；管理工具必须 DEFER。
 
 - Persona 权威为 `IDENTITY.MD`（含当前身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` /
@@ -136,10 +137,10 @@
   [`docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
   仍不改生产代码。
 
-- [ ] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0`
-  **设计稿已交（2026-08-15），待用户评审：**
+- [x] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
   [`docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
-  批准后先说切再领 S1。通过本条 ≠ 已切、≠ 已改生产。
+  先说切再领 S1。批准 ≠ 已切、≠ 已改生产。
 
 ### Implementation Gate：架构批准后再展开
 
