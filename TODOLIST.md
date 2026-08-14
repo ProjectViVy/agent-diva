@@ -8,15 +8,12 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`Research Gate Split-domain / D6 Frozen`。可按域开设计。进化走
-  AutoDream 整理→进化提案→SOP/Skill 文件，**不再跟 GA**。备份用户叫切再切。总 EPIC 统一编排
-  Persona/WORLD、Memory/BML、跨会话 STM、Evolution/Skill 与聊天 Approval Center；目前
-  只授权 R0–R4 调研，**研究评审完成前不得定稿新架构，架构评审完成前不得修改生产代码**。
-  总编排与门禁：
-  [`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
-  现行产品架构汇总（2026-08-14）：
-  [`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
-  根目录 `LAPUTA.md` 只做入口；6 月 14-section 旧稿已废。
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 not started`。
+  进化走 D6。保护分支已切（本地
+  `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
+  **未领 S1，不得改生产认知主链。**
+  编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
+  架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
 
 **已冻结产品边界（不是待重新决策项）：**
 
@@ -41,17 +38,18 @@
   日常不进全文；常驻最多几行指针；写记忆（AutoDream / BML / 蒸馏）才注入全文。
   不要和操作避坑 `[RULES]` 并成一份。
 - Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
-- 全部重构采用 clean break；无任何迁移。保护分支等文档收完后切备份，不作为 fallback。
+- 全部重构采用 clean break；无任何迁移。保护分支已切，不作为 fallback。
+- **ACTMEM Recap（S8 修订）：** Pulse = 用户短原话；Recap = 本轮助手最终回复结束立刻写的一句完成态（≤200 字，不另开大模型）；10 分钟空闲只把该 session 的 Pulse+Recap **折进胶囊并从头删掉**。不是「等 10 分钟才第一次归纳」。实施落在 D4 **S3**。
 
 决策依据：
 [Evolution](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)、
 [Persona](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)、
 [STM/Memory](docs/research/stm-cross-session-clean-break-2026-08/decision-record.md)。
 
-### Research Gate：现在允许执行
+### Research Gate：用户已过（2026-08-14）；下面条目保留为完成物指针
 
 - [x] **COGNITIVE-R0-CURRENT-STATE：当前系统、数据与耦合全景盘点** `sev-P0`
-  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
   [`docs/research/cognitive-r0-current-state-2026-08/README.md`](docs/research/cognitive-r0-current-state-2026-08/README.md)。
   三份完成物：当前状态图、依赖/数据清单（KEEP/RENAME/DELETE/DECIDE）、旧架构失败基线。
   核心事实：混域 Proposal 链、Persona JSON↔BML 双权威、`memory_md` 仍活、
@@ -59,14 +57,14 @@
   R1 Evolution 切片仍有效，由全量 R0 引用。
 
 - [x] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0`
-  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
   [`docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md)。
   本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；触发/Action-Verified/L0–L4/SOP-Skill/
   实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
   实现晋升状态机。进化设计改走 D6，不再跟 GA。
 
 - [x] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
-  **因果页已交付（2026-08-14）**，等用户看过再过 R1 Gate：
+  **因果页已交付（2026-08-14）**；用户已读并走 D6：
   [`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md)。
   结论：无独立进化引擎。用户已读论文并决策：进化走 D6，不再跟 GA。
 
@@ -80,25 +78,25 @@
   Action-Verified 遵守率、未验证写入率、L1 行数违规与 patch/overwrite 比。
 
 - [x] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
-  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
   [`docs/research/cognitive-r2-stm-context-2026-08/README.md`](docs/research/cognitive-r2-stm-context-2026-08/README.md)。
   三份完成物：装配约束、Hold 选项与静态实验、失败/并发矩阵。产品 STM 不存在；
-  CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。未选物理权威。
-  2026-08-14 另有用户评审用分层提案（未批准、不施工）：
+  CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。
+  物理权威后来冻为 `ACTMEM.MD`（S8）。分层旧提案部分作废（Recap 已冻）。
   [`docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md`](docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md)。
 
 - [x] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
-  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
   [`docs/research/cognitive-r3-persona-workspace-2026-08/README.md`](docs/research/cognitive-r3-persona-workspace-2026-08/README.md)。
   三份完成物：权威盘点、revision/Diff/CAS 选项、Markdown 工作区技术评估。JSON
   section + Proposal 仍是权威；`content_version` 只展示；changelog ≠ 文档历史；
   WORLD `project()` 无生产 Prompt 调用者。未选目录 / Diff 引擎 / CM6 扩展。
 
 - [x] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0`
-  **研究包已交付（2026-08-13）**，待用户 Research Gate：
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
   [`docs/research/cognitive-r4-clean-break-safety-2026-08/README.md`](docs/research/cognitive-r4-clean-break-safety-2026-08/README.md)。
-  三份完成物：删除影响、保护分支协议、零残留证明目录。未抽样生产 profile；
-  未创建保护分支；当前 tip 不是删除前基线。禁止导入/fallback。
+  三份完成物：删除影响、保护分支协议、零残留证明目录。未抽样生产 profile。
+  保护分支已切（见 I0）。禁止导入/fallback。
 
 ### 独立诊断（不复活旧主链）
 
@@ -116,11 +114,10 @@
 
 ### Architecture Gate：全部 Research 通过用户评审后才能开始
 
-- [ ] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0`
-  **设计稿已交；A/B/C 已拍（2026-08-14）。** 正文：
+- [x] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0`
+  **已由后续批准生效**（A/B/C + D1–D4）。正文：
   [`docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。
-  P22 整机一份伴侣；S1 BML 跟人格；D7 蒸馏一律人审。D0 其余待整体点头。
-  通过本条 ≠ 改生产代码。
+  通过 ≠ 改生产代码。
 
 - [x] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0`
   **用户批准（2026-08-15）。** 稿：
@@ -151,9 +148,12 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切。按 D4 P0–S6 切片；先领须另说。每片独立验证、独立 Conventional Commit。
-  具体文件、顺序和提交数量等待 D4 决定；要求每片独立验证、独立 Conventional Commit，
-  最终执行旧符号/路由/数据/GUI/Prompt 零残留证明、全仓 gate、真实桌面 smoke 和恢复演练。
+  I0 已切。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  先领须另说。每片独立验证、独立 Conventional Commit。S3 必须含每轮 Recap（不是只写 Pulse + 10 分钟胶囊）。
+
+- [ ] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1` `blocked:I1-S3`
+  助手最终回复结束立刻写 `## Recap`；Pulse 仍只收用户短原话；10 分钟只折叠。
+  依据 S8 修订 / D2。不得另开一轮大模型写 Recap。
 
 ## 产品与架构
 
@@ -163,14 +163,12 @@
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
   来源于 OpenHarness 调研；保留为未来扩展点，当前延期。
 
-- [ ] **WORLD-MEMRULES-GATE：WorldGovernance submit 阶段 MemRules R6 拦截** `sev-P2`
-  归属 **S9**（手册不进 Laputa，R6 仍约束 WORLD 写入）。在 submit 加载 MemRules，
-  违反 R6 时返回稳定 protected 原因。不得借此恢复 Memory 审批，也不得把手册搬回
-  Persona。等 D2，现在不施工。
+- [ ] **WORLD-MEMRULES-GATE：WORLD 写核 R6 拦截** `sev-P2`
+  D1 已删 WorldGovernance 队列。R6 进 WORLD **写核**（用户直存 / 接受 P5）。
+  不得恢复 Memory 审批。实施随 D4 **S2**。
 
 - [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
-  复核 `DEFAULT_MEM_RULES_TEXT` 与 `PolicyRestriction`、autonomy level 的语义；必要时
-  调整措辞。产品位置已冻 S9；本条只剩条文措辞。等 D2。
+  D2 已定：改掉 R4「high-risk 要审批」。实施随 D4 **S3** 改 `DEFAULT_MEM_RULES_TEXT`。
 
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。

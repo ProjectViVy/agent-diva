@@ -20,5 +20,6 @@
 | 一台机器多个 Diva profile / 多套人格约会 | 旧「一份 profile 一套」字面 | **P22**：整机一份伴侣 |
 | BML 按 git 仓库各开一套 | 工作区 `.laputa/memory.sqlite3` | **S1 修订**：跟人格走 |
 | `memory_distill` 新建 Skill 静默直写 | `typed_provider` 现行 | **D7**：一律 Evolution 人审 |
+| 空闲 10 分钟才第一次归纳 STM | 旧 S8 | **S8 修订**：每轮立刻 Recap；10 分钟只折叠 |
 
 决策摘要若与 6 月 `docs/decisions/laputa-memory-governance-history-2026-06.md` 冲突，以 8 月决策和本目录 `architecture.md` 为准。

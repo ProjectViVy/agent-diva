@@ -141,10 +141,10 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
 - 字数顶：Pulse 1600、Recap 1600、Work 1600、单条 Recap 200、单胶囊 800。
 - **子代理不进** ACTMEM，也不进其它 Laputa 人格/记忆生态。子代理上下文由主 Agent 装配（面具仍进）。本阶段不设计。
 - **第一版不做 STM→BML 自动晋升**；晋升以后另议。
-- **整份 ACTMEM（Pulse、Work、胶囊）走工具车道。** 不进 Frozen Core，不动态装配进
+- **整份 ACTMEM（Pulse、Recap、Work、胶囊）走工具车道。** 不进 Frozen Core，不动态装配进
   Prompt。自动装配会把事情搞复杂，先用工具试。
 - **日常只常驻一个查询工具。** 走现成 C4/C5e：**CORE** 里只有 `actmem`（读 Pulse /
-  Work / 胶囊 / 目录，有界）。这是工具 schema 常驻，**不是**把 ACTMEM 正文装配进 Prompt。
+  Recap / Work / 胶囊 / 目录，有界）。这是工具 schema 常驻，**不是**把 ACTMEM 正文装配进 Prompt。
 - **管理工具要做，必须 DEFER。** 整理、改 Work、删条、折叠胶囊等经 `tool_search`
   发现后才挂上，不得进 CORE、不得撑稳定前缀。具体管理工具名单 D2 再列，不得先做成
   BML 那种一串常驻 CRUD。
@@ -173,7 +173,7 @@ Memory 页面右上角增加一个专用、可识别状态的入口，例如：
      Laputa 车道，也不把手册变成人格文件。
    - **真正写记忆时才注入全文。** 对标 GA `start_long_term_update` 注入 L0。
      写入时刻包括：AutoDream 整理 ACTMEM、BML 直写、以后若有蒸馏。系统自动写 Pulse /
-     空闲胶囊 **不**为此塞全文（那是机械落盘，不是模型判别写什么）。
+     Recap / 折叠胶囊 **不**为此塞全文（那是机械落盘，不是模型判别写什么）。
 5. **不要和 L1 `[RULES]` 并成一份。** GA 的 `[RULES]` 是学到的操作避坑，跟索引走。
    MEMRULES 只当写记忆宪法（R1–R7：证据、主张分级、矛盾、用户权威、范围、WORLD 门、
    禁止整包注入）。操作避坑若以后要做，另挂 ACTMEM / BML 索引，不写进本文件。

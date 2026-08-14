@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/research/cognitive-d4-clean-break-delivery-2026-08/`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-d4-delivery/`
+- Scope: `TODOLIST.md`; `docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`; `docs/research/stm-cross-session-clean-break-2026-08/decision-record.md`; `docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`; `docs/architecture/current/cognitive-workspace-boundaries-2026-08.md`
 - Owner: `Grok`
-- Session/Task: `Create protect/cognitive-pre-clean-break branch (user 切)`
+- Session/Task: `Unify Recap semantics; refresh TODOLIST`
 - Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-15T05:10:00+08:00`
-- Last Heartbeat: `2026-08-15T05:20:00+08:00`
+- Started At: `2026-08-15T05:35:00+08:00`
+- Last Heartbeat: `2026-08-15T05:50:00+08:00`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Unify Recap + TODOLIST` — **RELEASED 2026-08-15T05:50:00+08:00**
+  by `Grok`; Recap semantics unified; TODOLIST refreshed. Docs only.
 
 - `Create protection branch` — **RELEASED 2026-08-15T05:20:00+08:00**
   by `Grok`; protect/cognitive-pre-clean-break-20260815 @ 2aab18cc. Not pushed.
@@ -184,6 +187,8 @@ Use this file to declare the current writer scope before mutating the workspace.
   `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
 
 ## Handoff Notes
+
+- `2026-08-15T05:50:00+08:00`: Recap wording unified; TODOLIST caught up.
 
 - `2026-08-15T05:20:00+08:00`: Protection branch created locally at 2aab18cc.
   Not pushed. S1 not started.

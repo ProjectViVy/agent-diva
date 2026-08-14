@@ -21,7 +21,8 @@
 - STM 是 workspace/profile 级、自动维护、有界、跨 session 的活动工作集；它不是长期
   Memory、transcript、canonical checkpoint 或旧 `working_memory` checkpoint。
   概念上仍称 STM / LTM；权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，
-  禁止核心文件叫 `STM.MD` / `MEMORY.MD`。发言即写 Pulse；空闲 10 分钟写胶囊。
+  禁止核心文件叫 `STM.MD` / `MEMORY.MD`。发言即写 Pulse；本轮助手结束立刻写 Recap；
+  空闲 10 分钟只折叠胶囊。
   子代理不进。正文不装配。CORE 一个查询；管理工具 DEFER。
   `ACTMEM.MD` 不是 Persona 七文件；七份人格同一目录、**整机一份伴侣**（P22）。
   BML 跟这套家走。
@@ -40,9 +41,8 @@
 
 跨域权威图见 D0 设计稿
 [`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
-（待评审，不是 Gate）。仍不得由实现者自行决定：Pulse schema、并发合并、
-Layer 1 算法、SOP/Skill 文件关系、Persona revision 目录和 API、删除切片。
-BML 搬家已冻（S1 修订：跟人格走）。`governance.db` 仍留工作区。
+（D0–D4 已批准）。实施按 D4 切片；未领 S1 不得改生产。
+BML 搬家已冻。`governance.db` 仍留工作区。
 
 ## 实施门禁
 

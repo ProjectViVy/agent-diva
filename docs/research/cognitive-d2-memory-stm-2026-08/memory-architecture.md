@@ -22,7 +22,7 @@ R2 当时 Hold 的物理权威：产品已选 **独立 Markdown `ACTMEM.MD`**（
 | D1 已定 | `{config_dir}/persona/`、PersonaChangeRequest、WORLD P5 |
 | D3 | SOP/Skill 文件形态、Evolution GUI、`memory_distill` 提案箱长相 |
 | D4 | 删除切片顺序、保护分支 SHA |
-| 仍不做 | STM→BML 自动晋升；子代理进 ACTMEM；Pulse/Work **自动装配**进 Prompt |
+| 仍不做 | STM→BML 自动晋升；子代理进 ACTMEM；Pulse/Recap/Work **自动装配**进 Prompt |
 
 禁止：`memory_md` 双读、Memory 走审批、ACTMEM 进 BML/L1、把 `WorkingMemory` 当 STM、cron 偷写交互活动集、预建空 `ACTMEM.MD` / 空 `memory.sqlite3` 当「已初始化」。
 
@@ -187,7 +187,7 @@ v1 **无** STM→BML 自动晋升。`memory_add` 不得从 ACTMEM 整理器隐�
 
 - `actmem_edit_work`：改 Goal/Open/Next/Constraints/Pointers 之一；带 `base_revision`。
 - `actmem_complete`：把 Open 项标完成并移出（收敛）。
-- `actmem_drop`：删一条 Pulse 或 Work 项。
+- `actmem_drop`：删一条 Pulse、Recap 或 Work 项。
 - `actmem_list_capsules`：目录。
 - `actmem_read_capsule`：读一颗胶囊。
 
@@ -265,7 +265,7 @@ Persona 不出现。Memory 页：
 | --- | --- | --- |
 | GET/POST/PATCH/DELETE | `/api/memory/records[/:id]` | BML CRUD，直写 |
 | GET | `/api/memory/actmem` | 头 + rev |
-| PUT | `/api/memory/actmem` | `{pulse?, work?, base_revision}` 用户直存 |
+| PUT | `/api/memory/actmem` | `{pulse?, recap?, work?, base_revision}` 用户直存 |
 | GET | `/api/memory/actmem/capsules` | 目录 |
 | GET | `/api/memory/actmem/capsules/:name` | 一颗 |
 | DELETE | `/api/memory/actmem/capsules/:name` | 用户删胶囊 |

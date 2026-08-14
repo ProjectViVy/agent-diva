@@ -115,7 +115,7 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | 权威 | `{config_dir}/actmem/ACTMEM.MD` 一份 Markdown |
 | Scope | 整机一份家，与人格/BML 同套。不进某个 git 的 `.laputa/`，不进 sqlite，不是七文件 |
 | 不是 | BML、transcript、`canonical_checkpoint_v1`、SessionCheckpoint |
-| 写入 | 系统写 Pulse / 空闲胶囊；聊天 Agent 与 AutoDream **直写整理**；用户 Memory 页直改。都不审批 |
+| 写入 | 系统写 Pulse（发言）+ Recap（本轮助手结束立刻）+ 空闲折叠胶囊；聊天 Agent 与 AutoDream **直写整理 Work**；用户 Memory 页直改。都不审批 |
 | 历史 | 胶囊另存。具体 schema D2。v1 不自动晋升 BML / Skill |
 | 投影 | **整份走工具**。CORE 只常驻查询 `actmem`。管理工具 DEFER。不进 FC，不动态装配 |
 
@@ -141,7 +141,7 @@ P18 种类登记表：**全仓只有一张人格种类表**，所有权在 Perso
 | Scope | 整机一份家，与人格/BML/ACTMEM 同套。不进 Laputa，不进 sqlite |
 | 不是 | 人格种类（禁止用 P18 加第八种）、WORLD 姊妹文件、操作避坑 L1 `[RULES]` |
 | 写入 | v1 **只给人**在 Memory 设置改。Agent / AutoDream / Skill 不得 patch |
-| 投影 | 日常不进全文；常驻最多几行指针；**写记忆时**才注全文（AutoDream 整理 ACTMEM、BML 直写、将来蒸馏）。自动写 Pulse / 胶囊不为此塞全文 |
+| 投影 | 日常不进全文；常驻最多几行指针；**写记忆时**才注全文。自动写 Pulse / Recap / 折叠胶囊不为此塞全文 |
 
 ### 2.6 Evolution / Skill
 
@@ -180,7 +180,7 @@ D1/D2/D3 不得各自发明 AutoDream 权限。
 | 用户 Evolution 页 | — | — | — | — | — | 直存**已有** Skill；接受/拒绝提案 | — |
 | 聊天 Agent | 审查集 → P5；DREAM/DARK/USER 观察 → P16 | **读走工具；写走 P5**（用户直存除外） | 直写 CRUD | 日常维护直写 | 禁 | 一律 Evolution 人审（D7） | 危险工具走 Approval |
 | AutoDream | **只按 P19 提案**，不可直写、不可 apply | 只提案新 claim；不覆盖 `confirmed+source=user` | **禁**（禁 MemoryPatch） | **必须整理直写** | 禁 | **只诞生提案**，不可 apply | 不走 |
-| 系统（发言/空闲） | — | — | — | Pulse / 胶囊 | — | — | — |
+| 系统（发言 / 本轮结束 / 空闲） | — | — | — | Pulse / Recap / 折叠胶囊 | — | — | — |
 | 首次引导 | 五份原子直写 | 同左 | — | — | — | — | — |
 
 P19 禁写：REDLINE、DREAM、USER 偏好、BML、`memory_md`、种类表、自己 apply。
