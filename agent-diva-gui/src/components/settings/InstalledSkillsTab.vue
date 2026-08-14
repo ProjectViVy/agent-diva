@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCcw, Trash2, Upload, ShieldCheck, CircleOff, Search } from '@lucide/vue';
+import { RefreshCcw, Upload, ShieldCheck, CircleOff, Search } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
-import { deleteSkill, getSkills, isTauriRuntime, uploadSkill, type SkillDto } from '../../api/desktop';
+import { getSkills, isTauriRuntime, uploadSkill, type SkillDto } from '../../api/desktop';
 
 const { t } = useI18n();
 
 const skills = ref<SkillDto[]>([]);
 const loading = ref(false);
 const uploading = ref(false);
-const deletingName = ref('');
 const error = ref('');
 const searchQuery = ref('');
 const previewMode = computed(() => !isTauriRuntime());
@@ -67,22 +66,6 @@ async function onUploadChange(event: Event) {
   } finally {
     uploading.value = false;
     input.value = '';
-  }
-}
-
-async function removeSkill(name: string) {
-  if (previewMode.value) {
-    return;
-  }
-  deletingName.value = name;
-  error.value = '';
-  try {
-    await deleteSkill(name);
-    await refreshSkills();
-  } catch (err) {
-    error.value = String(err);
-  } finally {
-    deletingName.value = '';
   }
 }
 
@@ -149,6 +132,7 @@ defineExpose({ refreshSkills });
     <!-- Hint Box -->
     <div class="skills-hint-box">
       <p>{{ t('general.skillsZipHint') }}</p>
+      <p class="mt-2">编辑、停用、历史与硬删除请前往 Evolution；此处仅负责新 Skill 安装。</p>
       <p v-if="previewMode" class="mt-2 skills-hint-box warning">{{ t('general.skillsPreviewOnly') }}</p>
     </div>
 
@@ -188,18 +172,9 @@ defineExpose({ refreshSkills });
               </span>
             </div>
             <p class="skills-item-desc">{{ skill.description }}</p>
-            <p class="skills-item-path">{{ skill.path }}</p>
           </div>
 
-          <button
-            class="skills-btn"
-            :disabled="!skill.can_delete || deletingName === skill.name || previewMode"
-            @click="removeSkill(skill.name)"
-          >
-            <Trash2 v-if="skill.can_delete" :size="14" />
-            <ShieldCheck v-else :size="14" />
-            {{ skill.can_delete ? t('general.deleteSkill') : t('general.builtinSkillLocked') }}
-          </button>
+          <span class="skills-btn pointer-events-none"><ShieldCheck :size="14" />Evolution 管理</span>
         </div>
         <div v-if="!skill.available" class="mt-3 flex items-center gap-2 text-xs" style="color: var(--warning);">
           <CircleOff :size="14" />

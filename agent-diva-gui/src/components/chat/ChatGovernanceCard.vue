@@ -31,7 +31,7 @@ const runCard = computed(() =>
 );
 
 const proposalCard = computed(() =>
-  props.card.kind === 'evolution_proposal' ? props.card : null,
+  props.card.kind === 'skill_request' ? props.card : null,
 );
 
 const runTone = computed(() => {
@@ -42,21 +42,20 @@ const runTone = computed(() => {
 });
 
 const riskTone = computed(() => {
-  const risk = proposalCard.value?.risk_level;
-  if (risk === 'critical' || risk === 'high') return 'danger';
-  if (risk === 'medium') return 'warning';
+  if (proposalCard.value?.state === 'stale' || proposalCard.value?.state === 'rejected') return 'danger';
+  if (proposalCard.value?.state === 'pending') return 'warning';
   return 'success';
 });
 
 const primaryLink = computed<ChatGovernanceDeepLink>(() => {
   if (runCard.value) {
     return runCard.value.proposal_ids?.length
-      ? { tab: 'inbox', sourceRunId: runCard.value.id }
-      : { tab: 'runs', sourceRunId: runCard.value.id };
+      ? { tab: 'requests', proposalId: runCard.value.proposal_ids[0], sourceRunId: runCard.value.id }
+      : { tab: 'requests', sourceRunId: runCard.value.id };
   }
 
   return {
-    tab: 'inbox',
+    tab: 'requests',
     proposalId: proposalCard.value?.id ?? null,
     sourceRunId: proposalCard.value?.source_run_id ?? null,
   };
@@ -90,7 +89,7 @@ function openEvolution() {
           {{
             isRunCard
               ? t(`chatGovernance.runState.${runCard?.state || 'running'}`)
-              : `${proposalCard?.state} · ${proposalCard?.risk_level}`
+              : `${proposalCard?.state} · ${proposalCard?.source}`
           }}
         </span>
       </div>
@@ -115,11 +114,11 @@ function openEvolution() {
       <dl class="chat-governance-card__meta">
         <div>
           <dt>{{ t('chatGovernance.type') }}</dt>
-          <dd>{{ proposalCard.proposal_type }}</dd>
+          <dd>{{ proposalCard.source }}</dd>
         </div>
         <div>
           <dt>{{ t('chatGovernance.target') }}</dt>
-          <dd>{{ proposalCard.target_section }}</dd>
+          <dd>{{ proposalCard.slug }}</dd>
         </div>
         <div>
           <dt>{{ t('chatGovernance.evidence') }}</dt>

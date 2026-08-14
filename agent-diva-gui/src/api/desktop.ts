@@ -9,13 +9,77 @@ export interface GatewayProcessStatus {
 }
 
 export interface SkillDto {
+  slug: string;
   name: string;
   description: string;
-  source: 'builtin' | 'workspace';
+  source: 'builtin' | 'home';
+  enabled: boolean;
+  always: boolean;
   available: boolean;
   active: boolean;
+  content_hash: string;
+  updated_at: string;
+  can_hard_delete: boolean;
   path: string;
   can_delete: boolean;
+}
+
+export interface SkillDocument extends Omit<SkillDto, 'name' | 'active' | 'path' | 'can_delete'> {
+  markdown: string;
+}
+
+export interface SkillWriteOutcome {
+  document: SkillDocument;
+  changed: boolean;
+}
+
+export interface SkillHistoryEntry {
+  revision: number;
+  content_hash: string;
+  updated_at: string;
+}
+
+export interface SkillHistoryDocument {
+  slug: string;
+  revision: number;
+  content_hash: string;
+  markdown: string;
+}
+
+export interface SkillEvidence {
+  session_key?: string | null;
+  actmem_pointer?: string | null;
+  autodream_run_id?: string | null;
+  tool?: string | null;
+  artifact?: string | null;
+}
+
+export type SkillRequestStatus = 'pending' | 'accepted' | 'rejected' | 'stale';
+export type SkillRequestSource = 'autodream' | 'distill' | 'user_request';
+
+export interface SkillRequest {
+  id: string;
+  slug: string;
+  title: string;
+  proposed_markdown: string;
+  evidence: SkillEvidence[];
+  attestation?: string | null;
+  base_hash: string;
+  source: SkillRequestSource;
+  reason: string;
+  status: SkillRequestStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSkillRequestPayload {
+  slug: string;
+  title: string;
+  proposed_markdown: string;
+  evidence?: SkillEvidence[];
+  attestation?: string | null;
+  base_hash: string;
+  reason: string;
 }
 
 export interface FileAttachmentDto {
@@ -198,6 +262,36 @@ export const checkHealth = () => invoke<boolean>("check_health");
 
 export const getSkills = () => invoke<SkillDto[]>("get_skills");
 
+export const getSkill = (slug: string) =>
+  invoke<SkillDocument>('get_skill', { slug });
+
+export const updateSkill = (slug: string, markdown: string, baseHash: string) =>
+  invoke<SkillWriteOutcome>('update_skill', { slug, markdown, baseHash });
+
+export const disableSkill = (slug: string, baseHash: string) =>
+  invoke<SkillWriteOutcome>('disable_skill', { slug, baseHash });
+
+export const listSkillHistory = (slug: string) =>
+  invoke<SkillHistoryEntry[]>('list_skill_history', { slug });
+
+export const getSkillHistoryRevision = (slug: string, revision: number) =>
+  invoke<SkillHistoryDocument>('get_skill_history_revision', { slug, revision });
+
+export const listSkillRequests = () =>
+  invoke<SkillRequest[]>('list_skill_requests');
+
+export const createSkillRequest = (payload: CreateSkillRequestPayload) =>
+  invoke<SkillRequest>('create_skill_request', { payload });
+
+export const getSkillRequest = (id: string) =>
+  invoke<SkillRequest>('get_skill_request', { id });
+
+export const acceptSkillRequest = (id: string) =>
+  invoke<SkillRequest>('accept_skill_request', { id });
+
+export const rejectSkillRequest = (id: string) =>
+  invoke<SkillRequest>('reject_skill_request', { id });
+
 export const getMcps = () => invoke<McpServerDto[]>("get_mcps");
 
 export const createMcp = (payload: McpServerPayload) =>
@@ -221,8 +315,8 @@ export const uploadSkill = (fileName: string, bytes: number[]) =>
 export const uploadFile = (fileName: string, bytes: number[], channel: string, messageId?: string) =>
   invoke<FileAttachmentDto>("upload_file", { fileName, bytes, channel, messageId });
 
-export const deleteSkill = (name: string) =>
-  invoke<void>("delete_skill", { name });
+export const deleteSkill = (slug: string, baseHash: string) =>
+  invoke<void>("delete_skill", { slug, baseHash });
 
 // ============================================================
 // Laputa / Evolution Governance API

@@ -22,8 +22,8 @@ import {
 } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
 import ChatView, { type AskUserQuestionView, type CompactionStatus } from './ChatView.vue';
-import { listLaputaProposals, pollLaputaEvents } from '../api/desktop';
-import type { FileAttachmentDto, LaputaEvent, ProposalState } from '../api/desktop';
+import { listSkillRequests } from '../api/desktop';
+import type { FileAttachmentDto } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
@@ -489,43 +489,15 @@ const updateEvolutionBadge = (payload: {
   evolutionBadge.value = payload;
 };
 
-const isAttentionState = (state: ProposalState) =>
-  state === 'needs_attention' || state === 'run_failed';
-
-const countEvents = (events: LaputaEvent[]) => events.length;
-
 const refreshEvolutionBadge = async () => {
   try {
-    const [proposals, proposalEvents, changelogEvents, errorEvents] = await Promise.all([
-      listLaputaProposals(),
-      pollLaputaEvents('proposals'),
-      pollLaputaEvents('changelog'),
-      pollLaputaEvents('errors'),
-    ]);
-    const dangerCount =
-      proposals.filter((proposal) => isAttentionState(proposal.state)).length +
-      countEvents(errorEvents);
-    const pendingCount = proposals.filter((proposal) => proposal.state === 'pending_review').length;
-    const infoCount = countEvents(proposalEvents) + countEvents(changelogEvents);
-    const total = dangerCount + pendingCount + infoCount;
-
-    if (dangerCount > 0) {
+    const requests = await listSkillRequests();
+    const pendingCount = requests.filter((request) => request.status === 'pending').length;
+    if (pendingCount > 0) {
       updateEvolutionBadge({
-        total,
-        tone: 'danger',
-        tooltip: t('evolution.badge.danger', { count: dangerCount }),
-      });
-    } else if (pendingCount > 0) {
-      updateEvolutionBadge({
-        total,
+        total: pendingCount,
         tone: 'warning',
         tooltip: t('evolution.badge.warning', { count: pendingCount }),
-      });
-    } else if (infoCount > 0) {
-      updateEvolutionBadge({
-        total,
-        tone: 'accent',
-        tooltip: t('evolution.badge.accent', { count: infoCount }),
       });
     } else {
       updateEvolutionBadge({
@@ -602,9 +574,6 @@ defineExpose({
   },
   openConsole() {
     navigateTo('console');
-  },
-  openEvolutionProposal(proposalId: string) {
-    openEvolutionDeepLink({ tab: 'inbox', proposalId });
   },
 });
 </script>
@@ -1015,9 +984,7 @@ defineExpose({
           <div class="h-full min-h-0 flex flex-col subview-container">
             <div class="flex-1 min-h-0 overflow-hidden">
               <div class="h-full min-h-0 w-full overflow-y-auto p-6">
-                <NotebookView
-                  @open-evolution-proposal="(proposalId) => openEvolutionDeepLink({ tab: 'inbox', proposalId })"
-                />
+                <NotebookView />
               </div>
             </div>
           </div>

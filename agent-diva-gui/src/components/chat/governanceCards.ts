@@ -1,13 +1,7 @@
-import type {
-  AutoDreamRunState,
-  LaputaSectionName,
-  ProposalState,
-  ProposalType,
-  RiskLevel,
-} from '../../api/desktop';
+import type { AutoDreamRunState, SkillRequestSource, SkillRequestStatus } from '../../api/desktop';
 
 export interface ChatGovernanceDeepLink {
-  tab: 'inbox' | 'runs' | 'audit' | 'policy';
+  tab: 'skills' | 'requests' | 'inbox' | 'runs' | 'audit' | 'policy';
   proposalId?: string | null;
   sourceRunId?: string | null;
   requestKey?: string | null;
@@ -26,17 +20,16 @@ export interface ChatAutoDreamRunCard {
   updated_at?: string | null;
 }
 
-export interface ChatEvolutionProposalCard {
-  kind: 'evolution_proposal';
+export interface ChatSkillRequestCard {
+  kind: 'skill_request';
   id: string;
-  proposal_type: ProposalType | string;
-  state: ProposalState | string;
-  risk_level: RiskLevel | string;
-  target_section: LaputaSectionName | string;
+  slug: string;
+  state: SkillRequestStatus;
+  source: SkillRequestSource;
   summary?: string | null;
   evidence_count?: number | null;
   source_run_id?: string | null;
   error?: string | null;
 }
 
-export type ChatGovernanceCard = ChatAutoDreamRunCard | ChatEvolutionProposalCard;
+export type ChatGovernanceCard = ChatAutoDreamRunCard | ChatSkillRequestCard;

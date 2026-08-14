@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import NormalMode from './NormalMode.vue';
-import { listLaputaProposals } from '../api/desktop';
+import { listSkillRequests } from '../api/desktop';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -36,14 +36,13 @@ vi.mock('@lucide/vue', () => ({
 }));
 
 vi.mock('../api/desktop', () => ({
-  listLaputaProposals: vi.fn(() =>
+  listSkillRequests: vi.fn(() =>
     Promise.resolve([
-      { id: 'proposal-1', state: 'pending_review' },
-      { id: 'proposal-2', state: 'pending_review' },
-      { id: 'proposal-3', state: 'pending_review' },
+      { id: 'request-1', status: 'pending' },
+      { id: 'request-2', status: 'pending' },
+      { id: 'request-3', status: 'pending' },
     ])
   ),
-  pollLaputaEvents: vi.fn(() => Promise.resolve([])),
   isTauriRuntime: () => false,
 }));
 
@@ -239,13 +238,13 @@ describe('NormalMode pet focus layout', () => {
   it('refreshes the Evolution badge after Persona Memory creates a proposal', async () => {
     const wrapper = mountNormalMode();
     await flushPromises();
-    const callsAfterMount = vi.mocked(listLaputaProposals).mock.calls.length;
+    const callsAfterMount = vi.mocked(listSkillRequests).mock.calls.length;
 
     await clickNav(wrapper, 'nav.persona');
     await wrapper.find('.persona-proposal-stub').trigger('click');
     await flushPromises();
 
-    expect(listLaputaProposals).toHaveBeenCalledTimes(callsAfterMount + 1);
+    expect(listSkillRequests).toHaveBeenCalledTimes(callsAfterMount + 1);
   });
 
   it('includes Evolution in the pet overlay navigation', async () => {

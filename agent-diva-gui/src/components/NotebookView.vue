@@ -9,9 +9,6 @@ import {
   Calendar,
   FileText,
   RefreshCw,
-  ShieldCheck,
-  Brain,
-  StickyNote,
   Loader2,
   AlertCircle,
   Inbox,
@@ -22,9 +19,6 @@ import {
 import { showAppToast } from '../utils/appToast';
 
 const { t } = useI18n();
-const emit = defineEmits<{
-  (event: 'open-evolution-proposal', proposalId: string): void;
-}>();
 
 // --- Types ---
 type ReportPeriod = 'daily' | 'weekly' | 'monthly';
@@ -51,23 +45,6 @@ function generationModeLabel(mode?: string | null): string | null {
   if (mode === 'llm_curated') return 'LLM 归纳';
   if (mode === 'deterministic_fallback') return '确定性降级';
   return null;
-}
-
-type NotebookProposalAction = 'sop' | 'skill' | 'memory';
-type ProposalType =
-  | 'memory_patch'
-  | 'learning_note'
-  | 'identity_patch'
-  | 'relationship_update'
-  | 'sop_create';
-type ProposalState = 'pending_review' | 'needs_attention';
-type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
-
-interface EvidenceRef {
-  id: string;
-  source: 'report' | string;
-  uri: string;
-  excerpt?: string | null;
 }
 
 interface SessionSearchHit {
@@ -98,23 +75,6 @@ interface SessionSearchResponse {
   byte_limit_reached: boolean;
 }
 
-interface NotebookProposalPreview {
-  action: NotebookProposalAction;
-  proposalType: ProposalType;
-  targetSection: string;
-  extractedSummary: string;
-  evidenceRefs: EvidenceRef[];
-  riskLevel: RiskLevel;
-  reviewStatus: ProposalState;
-  proposedPatch: string;
-  needsAttentionReason?: string | null;
-}
-
-interface EvolutionProposal {
-  id: string;
-  state: string;
-}
-
 // --- Markdown renderer ---
 const md = new MarkdownIt({
   html: false,
@@ -137,12 +97,7 @@ const reports = ref<NotebookReport[]>([]);
 const selectedId = ref<string | null>(null);
 const loading = ref(false);
 const error = ref('');
-const actionBusy = ref(false);
 const generationBusy = ref(false);
-const previewBusy = ref(false);
-const proposalPreview = ref<NotebookProposalPreview | null>(null);
-const proposalPreviewAction = ref<NotebookProposalAction | null>(null);
-const createdProposalId = ref<string | null>(null);
 const sessionQuery = ref('');
 const sessionSearchBusy = ref(false);
 const sessionSearchError = ref('');
@@ -186,12 +141,6 @@ const periodTabs: { key: ReportPeriod; labelKey: string }[] = [
   { key: 'weekly', labelKey: 'notebook.periodWeekly' },
   { key: 'monthly', labelKey: 'notebook.periodMonthly' },
 ];
-
-const proposalActionLabels: Record<NotebookProposalAction, string> = {
-  sop: 'notebook.createSopProposal',
-  skill: 'notebook.createSkillProposal',
-  memory: 'notebook.createMemoryProposal',
-};
 
 const selectedSessionHits = computed(() =>
   sessionHits.value.filter((hit) => selectedSessionHitKeys.value.includes(sessionHitKey(hit))),
@@ -308,80 +257,6 @@ async function searchSessionEvidence() {
 }
 
 // --- Bottom bar actions ---
-async function openProposalPreview(action: NotebookProposalAction) {
-  if (!selectedReport.value) return;
-  previewBusy.value = true;
-  proposalPreviewAction.value = action;
-  createdProposalId.value = null;
-  try {
-    if (isTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      proposalPreview.value = await invoke<NotebookProposalPreview>('preview_notebook_report_proposal', {
-        reportId: selectedReport.value.id,
-        action,
-        sessionHits: selectedSessionHits.value,
-      });
-    } else {
-      proposalPreview.value = buildBrowserPreview(action, selectedReport.value);
-    }
-  } catch (e: unknown) {
-    proposalPreview.value = null;
-    createdProposalId.value = null;
-    showAppToast(e instanceof Error ? e.message : String(e), 'error');
-  } finally {
-    previewBusy.value = false;
-  }
-}
-
-function closeProposalPreview() {
-  if (actionBusy.value) return;
-  proposalPreview.value = null;
-  proposalPreviewAction.value = null;
-}
-
-async function submitProposalPreview() {
-  if (!selectedReport.value || !proposalPreviewAction.value) return;
-  actionBusy.value = true;
-  try {
-    if (isTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const proposal = await invoke<EvolutionProposal>('create_notebook_report_proposal', {
-        reportId: selectedReport.value.id,
-        action: proposalPreviewAction.value,
-        sessionHits: selectedSessionHits.value,
-      });
-      createdProposalId.value = proposal.id;
-    } else {
-      createdProposalId.value = `preview-${proposalPreviewAction.value}`;
-    }
-    showAppToast(t('notebook.proposalSuccess'), 'success');
-  } catch (e: unknown) {
-    showAppToast(e instanceof Error ? e.message : String(e), 'error');
-  } finally {
-    actionBusy.value = false;
-  }
-}
-
-function openCreatedProposal() {
-  if (!createdProposalId.value) return;
-  emit('open-evolution-proposal', createdProposalId.value);
-}
-
-function buildBrowserPreview(action: NotebookProposalAction, report: NotebookReport): NotebookProposalPreview {
-  const isMemory = action === 'memory';
-  return {
-    action,
-    proposalType: isMemory ? 'memory_patch' : 'sop_create',
-    targetSection: isMemory ? 'memory_md' : 'identity',
-    extractedSummary: report.summary || truncate(report.content, 600),
-    evidenceRefs: [{ id: `evidence-${report.id}`, source: 'report', uri: report.sourcePath || report.id }],
-    riskLevel: isMemory ? 'high' : 'medium',
-    reviewStatus: 'pending_review',
-    proposedPatch: '',
-    needsAttentionReason: null,
-  };
-}
-
 // --- Truncation helper ---
 function truncate(text: string | undefined | null, max: number): string {
   if (!text) return '';
@@ -594,117 +469,13 @@ onUnmounted(() => {
     <div v-if="selectedReport" class="notebook-actions">
       <button
         class="notebook-regenerate-btn"
-        :disabled="generationBusy || actionBusy || previewBusy"
+        :disabled="generationBusy"
         @click="triggerReportGeneration"
       >
         <Loader2 v-if="generationBusy" :size="16" class="spin" />
         <RefreshCw v-else :size="16" />
         <span>{{ t('notebook.regenerate', { period: periodLabel }) }}</span>
       </button>
-      <button
-        class="notebook-action-btn"
-        :disabled="actionBusy || previewBusy"
-        @click="openProposalPreview('sop')"
-      >
-        <ShieldCheck :size="16" />
-        <span>{{ t('notebook.createSopProposal') }}</span>
-      </button>
-      <button
-        class="notebook-action-btn"
-        :disabled="actionBusy || previewBusy"
-        @click="openProposalPreview('skill')"
-      >
-        <Brain :size="16" />
-        <span>{{ t('notebook.createSkillProposal') }}</span>
-      </button>
-      <button
-        class="notebook-action-btn"
-        :disabled="actionBusy || previewBusy"
-        @click="openProposalPreview('memory')"
-      >
-        <StickyNote :size="16" />
-        <span>{{ t('notebook.createMemoryProposal') }}</span>
-      </button>
-      <div v-if="actionBusy || previewBusy" class="notebook-action-loading">
-        <Loader2 :size="16" class="spin" />
-      </div>
-    </div>
-
-    <div v-if="proposalPreview" class="notebook-preview-backdrop" @click.self="closeProposalPreview">
-      <section class="notebook-preview" role="dialog" aria-modal="true">
-        <header class="notebook-preview-header">
-          <div>
-            <span class="notebook-preview-kicker">{{ t('notebook.previewStatus') }}</span>
-            <h3>{{ t(proposalActionLabels[proposalPreview.action]) }}</h3>
-          </div>
-          <button class="notebook-preview-close" type="button" :disabled="actionBusy" @click="closeProposalPreview">
-            &times;
-          </button>
-        </header>
-
-        <div v-if="proposalPreview.needsAttentionReason" class="notebook-preview-attention">
-          <AlertCircle :size="16" />
-          <span>{{ proposalPreview.needsAttentionReason }}</span>
-        </div>
-
-        <dl class="notebook-preview-grid">
-          <div>
-            <dt>{{ t('notebook.previewTarget') }}</dt>
-            <dd>{{ proposalPreview.targetSection }}</dd>
-          </div>
-          <div>
-            <dt>{{ t('notebook.previewType') }}</dt>
-            <dd>{{ proposalPreview.proposalType }}</dd>
-          </div>
-          <div>
-            <dt>{{ t('notebook.previewRisk') }}</dt>
-            <dd>{{ proposalPreview.riskLevel }}</dd>
-          </div>
-          <div>
-            <dt>{{ t('notebook.previewReviewStatus') }}</dt>
-            <dd>{{ proposalPreview.reviewStatus }}</dd>
-          </div>
-        </dl>
-
-        <section class="notebook-preview-section">
-          <h4>{{ t('notebook.previewSummary') }}</h4>
-          <p>{{ proposalPreview.extractedSummary }}</p>
-        </section>
-
-        <section class="notebook-preview-section">
-          <h4>{{ t('notebook.previewEvidence') }}</h4>
-          <ul>
-            <li v-for="evidence in proposalPreview.evidenceRefs" :key="evidence.id">
-              <strong>{{ evidence.source }}</strong>
-              <span>{{ evidence.uri }}</span>
-            </li>
-          </ul>
-        </section>
-
-        <footer class="notebook-preview-actions">
-          <button class="notebook-preview-secondary" type="button" :disabled="actionBusy" @click="closeProposalPreview">
-            {{ t('notebook.cancelProposal') }}
-          </button>
-          <button
-            v-if="!createdProposalId"
-            class="notebook-preview-primary"
-            type="button"
-            :disabled="actionBusy"
-            @click="submitProposalPreview"
-          >
-            <Loader2 v-if="actionBusy" :size="14" class="spin" />
-            {{ t('notebook.submitProposal') }}
-          </button>
-          <button
-            v-else
-            class="notebook-preview-primary"
-            type="button"
-            @click="openCreatedProposal"
-          >
-            {{ t('notebook.openProposal') }}
-          </button>
-        </footer>
-      </section>
     </div>
   </div>
 </template>

@@ -510,11 +510,6 @@ async function cancelUnifiedApproval(approval: ApprovalView) {
 function editUnifiedApproval(approval: ApprovalView) {
   approvalCenterOpen.value = false;
   approvalDrawerAutoOpened.value = false;
-  if (approval.domain === 'memory') {
-    (normalModeRef.value as null | { openEvolutionProposal: (proposalId: string) => void })
-      ?.openEvolutionProposal(approval.resource.resource_id);
-    return;
-  }
   if (approval.resource.session_id) void loadSession(approval.resource.session_id);
   showAppToast(t('approvalCenter.editAtSource'));
 }

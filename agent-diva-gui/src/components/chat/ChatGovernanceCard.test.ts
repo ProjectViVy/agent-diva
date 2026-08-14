@@ -21,17 +21,16 @@ vi.mock('@lucide/vue', () => ({
 }));
 
 describe('ChatGovernanceCard', () => {
-  it('emits an inbox deep link for proposal cards', async () => {
+  it('emits a request deep link for Skill request cards', async () => {
     const wrapper = mount(ChatGovernanceCard, {
       props: {
         card: {
-          kind: 'evolution_proposal',
-          id: 'proposal-1',
-          proposal_type: 'memory_patch',
-          state: 'pending_review',
-          risk_level: 'medium',
-          target_section: 'memory_md',
-          summary: 'Review this memory update',
+          kind: 'skill_request',
+          id: 'request-1',
+          slug: 'review-skill',
+          source: 'autodream',
+          state: 'pending',
+          summary: 'Review this Skill update',
           evidence_count: 2,
           source_run_id: 'run-1',
         },
@@ -41,11 +40,11 @@ describe('ChatGovernanceCard', () => {
     await wrapper.find('button').trigger('click');
 
     expect(wrapper.emitted('open-evolution')?.[0]).toEqual([
-      { tab: 'inbox', proposalId: 'proposal-1', sourceRunId: 'run-1' },
+      { tab: 'requests', proposalId: 'request-1', sourceRunId: 'run-1' },
     ]);
   });
 
-  it('shows recoverable error and links failed run cards to Runs', async () => {
+  it('shows recoverable error and links failed run cards to Skill requests', async () => {
     const wrapper = mount(ChatGovernanceCard, {
       props: {
         card: {
@@ -63,7 +62,7 @@ describe('ChatGovernanceCard', () => {
 
     await wrapper.find('button').trigger('click');
     expect(wrapper.emitted('open-evolution')?.[0]).toEqual([
-      { tab: 'runs', sourceRunId: 'run-2' },
+      { tab: 'requests', sourceRunId: 'run-2' },
     ]);
   });
 });

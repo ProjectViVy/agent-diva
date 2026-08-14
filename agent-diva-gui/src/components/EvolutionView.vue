@@ -1,1837 +1,500 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { computed, onMounted, ref, watch } from 'vue';
+import { FilePlus2, History, RefreshCw, Save, Search, ShieldCheck, WandSparkles } from '@lucide/vue';
 import {
-  AlertTriangle,
-  ClipboardList,
-  FileClock,
-  GitBranch,
-  History,
-  RefreshCw,
-  ShieldCheck,
-} from '@lucide/vue';
-import {
-  applyLaputaProposal,
-  cancelAutoDreamRun,
-  decideLaputaProposal,
-  editLaputaProposal,
-  getLaputaSection,
-  getEvolutionHealth,
-  getAutoDreamLiveText,
-  getAutoDreamRunStatus,
-  getSelfEvolutionConfig,
-  listAutoDreamRunRecords,
-  listAutoDreamRunEvents,
-  listLaputaChangelog,
-  listLaputaProposals,
-  listRecallFeedback,
-  pollLaputaEvents,
-  rollbackLaputaChangelog,
-  transitionLaputaProposal,
-  triggerAutoDream,
+  acceptSkillRequest,
+  createSkillRequest,
+  deleteSkill,
+  disableSkill,
+  getSkill,
+  getSkillHistoryRevision,
+  getSkillRequest,
+  getSkills,
+  listSkillHistory,
+  listSkillRequests,
+  rejectSkillRequest,
+  updateSkill,
 } from '../api/desktop';
 import type {
-  ChangelogRecord,
-  AutoDreamRunRecord,
-  AutoDreamRunEvent,
-  EvolutionProposal,
-  EvolutionHealth,
-  LaputaEvent,
-  LaputaSection,
-  SelfEvolutionConfig,
-  RecallFeedbackEvent,
+  SkillDocument,
+  SkillDto,
+  SkillHistoryDocument,
+  SkillHistoryEntry,
+  SkillRequest,
 } from '../api/desktop';
-import ProposalDetail from './evolution/ProposalDetail.vue';
-import ProposalInbox from './evolution/ProposalInbox.vue';
+import PersonaMarkdownEditor from './persona-memory/PersonaMarkdownEditor.vue';
 import { appConfirm } from '../utils/appDialog';
-import { showAppToast } from '../utils/appToast';
 import { errorMessage } from '../utils/errorMessage';
+import { showAppToast } from '../utils/appToast';
 
-type EvolutionTab = 'inbox' | 'runs' | 'audit' | 'policy';
-type CountTone = 'none' | 'accent' | 'warning' | 'danger';
+type EvolutionTab = 'skills' | 'requests';
+type LegacyTab = EvolutionTab | 'inbox' | 'runs' | 'audit' | 'policy';
+type CountTone = 'none' | 'warning';
 
-const props = withDefaults(
-  defineProps<{
-    initialTab?: EvolutionTab;
-    initialProposalId?: string | null;
-    initialSourceRunId?: string | null;
-    requestKey?: string | null;
-  }>(),
-  {
-    initialTab: 'inbox',
-    initialProposalId: null,
-    initialSourceRunId: null,
-    requestKey: null,
-  },
-);
-
-interface EvolutionCountPayload {
-  total: number;
-  tone: CountTone;
-  tooltip: string;
-}
+const props = withDefaults(defineProps<{
+  initialTab?: LegacyTab;
+  initialProposalId?: string | null;
+  initialSourceRunId?: string | null;
+  requestKey?: string | null;
+}>(), {
+  initialTab: 'requests',
+  initialProposalId: null,
+  initialSourceRunId: null,
+  requestKey: null,
+});
 
 const emit = defineEmits<{
-  (event: 'count-change', payload: EvolutionCountPayload): void;
+  (event: 'count-change', payload: { total: number; tone: CountTone; tooltip: string }): void;
   (event: 'open-settings', view: 'self-evolution'): void;
 }>();
 
-const { t } = useI18n();
+const activeTab = ref<EvolutionTab>(props.initialTab === 'skills' ? 'skills' : 'requests');
+const skills = ref<SkillDto[]>([]);
+const requests = ref<SkillRequest[]>([]);
+const skillsLoading = ref(false);
+const requestsLoading = ref(false);
+const skillsError = ref<string | null>(null);
+const requestsError = ref<string | null>(null);
+const search = ref('');
 
-const tabs = [
-  { key: 'inbox', labelKey: 'evolution.tabs.inbox', icon: ClipboardList },
-  { key: 'runs', labelKey: 'evolution.tabs.runs', icon: FileClock },
-  { key: 'audit', labelKey: 'evolution.tabs.audit', icon: History },
-  { key: 'policy', labelKey: 'evolution.tabs.policy', icon: ShieldCheck },
-] as const;
+const selectedSlug = ref<string | null>(null);
+const selectedSkill = ref<SkillDocument | null>(null);
+const skillDetailLoading = ref(false);
+const skillDetailError = ref<string | null>(null);
+let skillDetailToken = 0;
 
-const activeTab = ref<EvolutionTab>(props.initialTab);
-const proposals = ref<EvolutionProposal[]>([]);
-const proposalEvents = ref<LaputaEvent[]>([]);
-const changelogEvents = ref<LaputaEvent[]>([]);
-const errorEvents = ref<LaputaEvent[]>([]);
-const selectedProposalId = ref<string | null>(null);
-const selectedSection = ref<LaputaSection | null>(null);
-const selectedChangelog = ref<ChangelogRecord | null>(null);
-const detailLoading = ref(false);
-const loading = ref(false);
-const loadError = ref<string | null>(null);
-const auxiliaryError = ref<string | null>(null);
-const detailError = ref<string | null>(null);
+const selectedRequestId = ref<string | null>(props.initialProposalId ?? null);
+const selectedRequest = ref<SkillRequest | null>(null);
+const requestDetailLoading = ref(false);
+const requestDetailError = ref<string | null>(null);
+let requestDetailToken = 0;
+
+const editing = ref(false);
+const draft = ref('');
 const actionError = ref<string | null>(null);
-const busyAction = ref<string | null>(null);
-const evidenceOpen = ref(false);
-const activeSourceRunId = ref<string | null>(props.initialSourceRunId ?? null);
-const pendingDeepLinkProposalId = ref<string | null>(null);
-const readProposalIds = ref<string[]>([]);
-const deferredProposalIds = ref<string[]>([]);
-const auditRecords = ref<ChangelogRecord[]>([]);
-const auditLoading = ref(false);
-const auditError = ref<string | null>(null);
-const runs = ref<AutoDreamRunRecord[]>([]);
-const runsLoading = ref(false);
-const runsError = ref<string | null>(null);
-const runsLoaded = ref(false);
-const monitorRun = ref<AutoDreamRunRecord | null>(null);
-const monitorEvents = ref<AutoDreamRunEvent[]>([]);
-const monitorError = ref<string | null>(null);
-const monitorLoading = ref(false);
-const monitorRawText = ref('');
-let monitorTimer: ReturnType<typeof setInterval> | null = null;
-const recallFeedback = ref<RecallFeedbackEvent[]>([]);
-const evolutionHealth = ref<EvolutionHealth | null>(null);
-const workspaceError = ref<string | null>(null);
-const policyConfig = ref<SelfEvolutionConfig | null>(null);
-const policyLoading = ref(false);
-const policyError = ref<string | null>(null);
-const policyLoaded = ref(false);
+const busyKey = ref<string | null>(null);
+const historyOpen = ref(false);
+const historyLoading = ref(false);
+const historyEntries = ref<SkillHistoryEntry[]>([]);
+const historyPreview = ref<SkillHistoryDocument | null>(null);
 
-const REQUIRED_POLICY_COPY =
-  'Durable personality, memory, SOP, skill, and policy changes require review before they are applied.';
-const READ_MARKERS_KEY = 'agent-diva:evolution:proposal-read-markers';
-const DEFERRED_MARKERS_KEY = 'agent-diva:evolution:proposal-deferred-markers';
+const createOpen = ref(false);
+const createSlug = ref('');
+const createTitle = ref('');
+const createReason = ref('');
+const createAttestation = ref('');
+const createMarkdown = ref('---\nname: \ndescription: \nenabled: true\nalways: false\n---\n\n# Skill\n');
 
-const selectedProposal = computed(() =>
-  proposals.value.find((proposal) => proposal.id === selectedProposalId.value) ?? null,
-);
-
-const pendingProposals = computed(() =>
-  proposals.value.filter((proposal) => proposal.state === 'pending_review')
-);
-
-const visibleProposals = computed(() => {
-  if (!activeSourceRunId.value) return proposals.value;
-  return proposals.value.filter((proposal) => proposal.source_run_id === activeSourceRunId.value);
-});
-
-const attentionProposals = computed(() =>
-  proposals.value.filter(
-    (proposal) => proposal.state === 'needs_attention' || proposal.state === 'run_failed',
-  )
-);
-
-const missingEvidence = computed(() => (selectedProposal.value?.evidence_refs.length ?? 0) === 0);
-
-const rollbackEligible = computed(
-  () =>
-    Boolean(
-      selectedChangelog.value &&
-        isRollbackEligible(selectedChangelog.value) &&
-        !selectedChangelog.value.reverted &&
-        !selectedChangelog.value.stale,
-    ),
-);
-
-const rollbackReason = computed(() => {
-  if (!selectedProposal.value) return null;
-  if (!selectedChangelog.value) {
-    return t('evolution.actions.rollbackRequiresApplied');
-  }
-  if (selectedChangelog.value.reverted) {
-    return t('evolution.actions.rollbackAlreadyUsed');
-  }
-  if (selectedChangelog.value.stale) {
-    return t('evolution.actions.rollbackStale');
-  }
-  if (!isRollbackActionEligible(selectedChangelog.value)) {
-    return t('evolution.actions.rollbackActionUnsupported');
-  }
-  return null;
-});
-
-const policySummaryRows = computed(() => {
-  const config = policyConfig.value;
-  const requiredFor = Array.isArray(config?.require_confirmation_for)
-    ? config.require_confirmation_for
-    : [];
-  return [
-    {
-      label: t('evolution.policy.enabled'),
-      value: config ? String(config.enabled) : t('evolution.policy.unavailableValue'),
-    },
-    {
-      label: t('evolution.policy.frequency'),
-      value: config?.autodream_frequency ?? t('evolution.policy.unavailableValue'),
-    },
-    {
-      label: t('evolution.policy.sessionThreshold'),
-      value: config ? String(config.trigger_threshold_sessions) : t('evolution.policy.unavailableValue'),
-    },
-    {
-      label: t('evolution.policy.messageThreshold'),
-      value: config ? String(config.trigger_threshold_messages) : t('evolution.policy.unavailableValue'),
-    },
-    {
-      label: t('evolution.policy.reviewRequiredFor'),
-      value:
-        requiredFor.length > 0
-          ? requiredFor.join(', ')
-          : t('evolution.policy.reviewAllDurable'),
-    },
-  ];
-});
-
-const countPayload = computed<EvolutionCountPayload>(() => {
-  const dangerCount = attentionProposals.value.length + errorEvents.value.length;
-  const pendingCount = pendingProposals.value.length;
-  const infoCount = proposalEvents.value.length + changelogEvents.value.length;
-  const total = dangerCount + pendingCount + infoCount;
-
-  if (dangerCount > 0) {
-    return {
-      total,
-      tone: 'danger',
-      tooltip: t('evolution.badge.danger', { count: dangerCount }),
-    };
-  }
-  if (pendingCount > 0) {
-    return {
-      total,
-      tone: 'warning',
-      tooltip: t('evolution.badge.warning', { count: pendingCount }),
-    };
-  }
-  if (infoCount > 0) {
-    return {
-      total,
-      tone: 'accent',
-      tooltip: t('evolution.badge.accent', { count: infoCount }),
-    };
-  }
-  return {
-    total: 0,
-    tone: 'none',
-    tooltip: t('evolution.badge.empty'),
-  };
-});
-
-function emitCount() {
-  emit('count-change', countPayload.value);
-}
+const normalizedSearch = computed(() => search.value.trim().toLowerCase());
+const filteredSkills = computed(() => skills.value.filter((skill) => {
+  const query = normalizedSearch.value;
+  return !query || skill.slug.includes(query) || skill.description.toLowerCase().includes(query);
+}));
+const filteredRequests = computed(() => requests.value.filter((request) => {
+  const query = normalizedSearch.value;
+  return !query || request.slug.includes(query) || request.title.toLowerCase().includes(query);
+}));
+const pendingCount = computed(() => requests.value.filter((request) => request.status === 'pending').length);
+const createBaseHash = computed(() => skills.value.find((skill) => skill.slug === createSlug.value.trim())?.content_hash ?? '0');
 
 function normalizeError(error: unknown) {
-  return errorMessage(error, t('evolution.errorTitle'));
+  return errorMessage(error, 'Evolution 请求失败');
 }
 
-function idempotencyKey(action: string, proposal: EvolutionProposal) {
-  return `${action}:${proposal.id}:${proposal.governance?.request_version ?? 0}`;
-}
-
-async function decideProposal(proposal: EvolutionProposal, decision: 'allow' | 'deny') {
-  const governance = proposal.governance;
-  if (!governance) throw new Error('Governance request is unavailable; refresh and retry.');
-  const result = await decideLaputaProposal(proposal.id, {
-    decision,
-    grant: 'once',
-    expected_version: governance.request_version,
-    idempotency_key: idempotencyKey(`decision-${decision}`, proposal),
-  });
-  result.proposal.governance = result.governance;
-  return result.proposal;
-}
-
-function loadMarkerList(key: string) {
-  if (typeof window === 'undefined') return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistMarkerList(key: string, ids: string[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(Array.from(new Set(ids))));
-  } catch (error) {
-    showAppToast(normalizeError(error), 'error', 3000);
-  }
-}
-
-function addMarkers(current: string[], ids: string[]) {
-  return Array.from(new Set([...current, ...ids]));
-}
-
-function removeMarkers(current: string[], ids: string[]) {
-  const remove = new Set(ids);
-  return current.filter((id) => !remove.has(id));
-}
-
-function isRollbackActionEligible(record: ChangelogRecord) {
-  return record.action === 'apply';
-}
-
-function isRollbackEligible(record: ChangelogRecord) {
-  return isRollbackActionEligible(record) && !record.reverted && !record.stale;
-}
-
-function rollbackAvailabilityLabel(record: ChangelogRecord) {
-  if (isRollbackEligible(record)) {
-    return t('evolution.audit.rollbackAvailable');
-  }
-  if (record.reverted) {
-    return t('evolution.audit.rollbackAlreadyUsed');
-  }
-  if (record.stale) {
-    return t('evolution.audit.rollbackStale');
-  }
-  if (!isRollbackActionEligible(record)) {
-    return t('evolution.audit.rollbackActionUnsupported');
-  }
-  return t('evolution.audit.rollbackUnavailable');
-}
-
-function changelogSummary(record: ChangelogRecord) {
-  const trimmedDiff = record.diff.trim();
-  if (trimmedDiff.length > 0) {
-    return trimmedDiff.length > 120 ? `${trimmedDiff.slice(0, 117)}...` : trimmedDiff;
-  }
-  return `${record.action} ${record.target_section}`;
-}
-
-function formatDuration(run: AutoDreamRunRecord) {
-  if (!run.completed_at) {
-    return t('evolution.runs.durationUnavailable');
-  }
-  const started = Date.parse(run.started_at);
-  const completed = Date.parse(run.completed_at);
-  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) {
-    return t('evolution.runs.durationUnavailable');
-  }
-  const seconds = Math.round((completed - started) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}m ${remainingSeconds}s`;
-}
-
-function runInputSummary(run: AutoDreamRunRecord) {
-  if (!run.input_summary) {
-    return t('evolution.runs.inputsUnavailable');
-  }
-  return t('evolution.runs.inputSummary', {
-    count: run.input_summary.total_items,
-    bytes: run.input_summary.total_bytes,
+function emitCount() {
+  emit('count-change', {
+    total: pendingCount.value,
+    tone: pendingCount.value > 0 ? 'warning' : 'none',
+    tooltip: pendingCount.value > 0 ? `${pendingCount.value} 条 Skill 待审请求` : '没有 Skill 待审请求',
   });
 }
 
-function runOutputSummary(run: AutoDreamRunRecord) {
-  return run.summary || t('evolution.runs.outputsUnavailable');
-}
-
-function displayMonitorRawText(value: string) {
-  return value
-    .replace(/"excerpt"\s*:\s*"(?:\\.|[^"])*"/g, '"excerpt":"[redacted]"')
-    .replace(/"hash"\s*:\s*"(?:\\.|[^"])*"/g, '"hash":"[redacted]"')
-    .replace(/"uri"\s*:\s*"(?:\\.|[^"])*"/g, '"uri":"[redacted]"')
-    .replace(/"workspace_id"\s*:\s*"(?:\\.|[^"])*"/g, '"workspace_id":"[redacted]"');
-}
-
-async function loadAudit() {
-  auditLoading.value = true;
-  auditError.value = null;
+async function loadSkills() {
+  skillsLoading.value = true;
+  skillsError.value = null;
   try {
-    const page = await listLaputaChangelog(1, 25);
-    auditRecords.value = page.items;
-  } catch (error) {
-    auditError.value = normalizeError(error);
-  } finally {
-    auditLoading.value = false;
-  }
-}
-
-async function loadRuns() {
-  runsLoading.value = true;
-  runsError.value = null;
-  try {
-    runs.value = await listAutoDreamRunRecords();
-    runsLoaded.value = true;
-  } catch (error) {
-    runsError.value = normalizeError(error);
-  } finally {
-    runsLoading.value = false;
-  }
-}
-
-function formatRunTimestamp(value?: string | null) {
-  if (!value) return t('evolution.runs.inProgress');
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
-}
-
-async function loadWorkspaceStatus() {
-  workspaceError.value = null;
-  const [health, feedback] = await Promise.allSettled([
-    getEvolutionHealth(),
-    listRecallFeedback(50),
-  ]);
-  const failures: string[] = [];
-  if (health.status === 'fulfilled') {
-    evolutionHealth.value = health.value;
-  } else {
-    failures.push(normalizeError(health.reason));
-  }
-  if (feedback.status === 'fulfilled') {
-    recallFeedback.value = feedback.value;
-  } else {
-    failures.push(normalizeError(feedback.reason));
-  }
-  workspaceError.value = failures.length > 0 ? failures.join(' · ') : null;
-}
-
-async function handleTriggerRun() {
-  await withAction('trigger-run', async () => {
-    const run = await triggerAutoDream('manual');
-    runs.value = [run, ...runs.value.filter((item) => item.id !== run.id)];
-    runsLoaded.value = true;
-    activeTab.value = 'runs';
-    showAppToast(t('evolution.runs.triggerSuccess'), 'success');
-  });
-}
-
-async function handleCancelRun(run: AutoDreamRunRecord) {
-  await withAction(`cancel-run-${run.id}`, async () => {
-    const next = await cancelAutoDreamRun(run.id);
-    runs.value = runs.value.map((item) => (item.id === next.id ? next : item));
-    showAppToast(t('evolution.runs.cancelSuccess'), 'success');
-  });
-}
-
-function isActiveRun(run: AutoDreamRunRecord) {
-  return run.state === 'pending' || run.state === 'running';
-}
-
-function stopRunMonitor() {
-  if (monitorTimer) clearInterval(monitorTimer);
-  monitorTimer = null;
-}
-
-async function refreshRunMonitor() {
-  const run = monitorRun.value;
-  if (!run) return;
-  monitorLoading.value = true;
-  try {
-    const [nextRun, events, rawText] = await Promise.all([
-      getAutoDreamRunStatus(run.id),
-      listAutoDreamRunEvents(run.id),
-      getAutoDreamLiveText(run.id),
-    ]);
-    monitorRun.value = nextRun;
-    monitorEvents.value = events;
-    monitorRawText.value = rawText;
-    monitorError.value = null;
-    runs.value = runs.value.map((item) => (item.id === nextRun.id ? nextRun : item));
-    if (!isActiveRun(nextRun)) stopRunMonitor();
-  } catch (error) {
-    monitorError.value = normalizeError(error);
-  } finally {
-    monitorLoading.value = false;
-  }
-}
-
-function openRunMonitor(run: AutoDreamRunRecord) {
-  stopRunMonitor();
-  monitorRun.value = run;
-  monitorEvents.value = [];
-  monitorRawText.value = '';
-  monitorError.value = null;
-  void refreshRunMonitor();
-  if (isActiveRun(run)) monitorTimer = setInterval(() => void refreshRunMonitor(), 1000);
-}
-
-function closeRunMonitor() {
-  stopRunMonitor();
-  monitorRun.value = null;
-}
-
-function openRunProposals(run: AutoDreamRunRecord) {
-  activeSourceRunId.value = run.id;
-  selectedProposalId.value = run.proposal_ids[0] ?? null;
-  activeTab.value = 'inbox';
-}
-
-async function loadPolicy() {
-  policyLoading.value = true;
-  policyError.value = null;
-  try {
-    policyConfig.value = await getSelfEvolutionConfig();
-    policyLoaded.value = true;
-  } catch (error) {
-    policyError.value = normalizeError(error);
-  } finally {
-    policyLoading.value = false;
-  }
-}
-
-async function ensureActiveTabLoaded(tab: EvolutionTab) {
-  if (tab === 'audit') {
-    await loadAudit();
-  } else if (tab === 'runs' && !runsLoaded.value) {
-    await loadRuns();
-  } else if (tab === 'policy' && !policyLoaded.value) {
-    await loadPolicy();
-  }
-}
-
-let detailRequestId = 0;
-
-async function loadDetail(id: string) {
-  const proposal = proposals.value.find((item) => item.id === id);
-  if (!proposal) return;
-
-  const requestId = ++detailRequestId;
-  detailLoading.value = true;
-  detailError.value = null;
-  actionError.value = null;
-  evidenceOpen.value = proposal.risk_level === 'high' || proposal.risk_level === 'critical';
-
-  try {
-    const [section, changelogPage] = await Promise.all([
-      getLaputaSection(proposal.target_section),
-      listLaputaChangelog(1, 5, proposal.id),
-    ]);
-    if (requestId !== detailRequestId) return;
-    selectedSection.value = section;
-    selectedChangelog.value = changelogPage.items[0] ?? null;
-  } catch (error) {
-    if (requestId !== detailRequestId) return;
-    detailError.value = normalizeError(error);
-    selectedSection.value = null;
-    selectedChangelog.value = null;
-  } finally {
-    if (requestId === detailRequestId) {
-      detailLoading.value = false;
+    const next = await getSkills();
+    skills.value = next;
+    if (selectedSlug.value && !next.some((skill) => skill.slug === selectedSlug.value)) {
+      selectedSlug.value = null;
+      selectedSkill.value = null;
     }
+  } catch (error) {
+    skillsError.value = normalizeError(error);
+  } finally {
+    skillsLoading.value = false;
+  }
+}
+
+async function loadRequests() {
+  requestsLoading.value = true;
+  requestsError.value = null;
+  try {
+    const next = await listSkillRequests();
+    requests.value = next;
+    emitCount();
+    if (selectedRequestId.value && !next.some((request) => request.id === selectedRequestId.value)) {
+      selectedRequestId.value = null;
+      selectedRequest.value = null;
+    }
+  } catch (error) {
+    requestsError.value = normalizeError(error);
+  } finally {
+    requestsLoading.value = false;
   }
 }
 
 async function refresh() {
-  loading.value = true;
-  loadError.value = null;
-  auxiliaryError.value = null;
+  await Promise.all([loadSkills(), loadRequests()]);
+}
 
+async function selectSkill(slug: string) {
+  selectedSlug.value = slug;
+  selectedSkill.value = null;
+  editing.value = false;
+  historyOpen.value = false;
+  historyPreview.value = null;
+  skillDetailError.value = null;
+  const token = ++skillDetailToken;
+  skillDetailLoading.value = true;
   try {
-    const proposalList = await listLaputaProposals();
-    proposals.value = proposalList;
-
-    const candidateList = activeSourceRunId.value
-      ? proposalList.filter((proposal) => proposal.source_run_id === activeSourceRunId.value)
-      : proposalList;
-
-    const deepLinkId = pendingDeepLinkProposalId.value ?? props.initialProposalId;
-
-    if (deepLinkId && candidateList.some((proposal) => proposal.id === deepLinkId)) {
-      selectedProposalId.value = deepLinkId;
-      pendingDeepLinkProposalId.value = null;
-    } else if (!selectedProposalId.value && candidateList.length > 0) {
-      selectedProposalId.value = candidateList[0].id;
-    } else if (
-      selectedProposalId.value &&
-      !candidateList.some((proposal) => proposal.id === selectedProposalId.value)
-    ) {
-      selectedProposalId.value = candidateList[0]?.id ?? null;
-    }
+    const detail = await getSkill(slug);
+    if (token !== skillDetailToken || selectedSlug.value !== slug) return;
+    selectedSkill.value = detail;
+    draft.value = detail.markdown;
   } catch (error) {
-    loadError.value = normalizeError(error);
-  } finally {
-    loading.value = false;
-    emitCount();
-  }
-
-  const eventResults = await Promise.allSettled([
-    pollLaputaEvents('proposals'),
-    pollLaputaEvents('changelog'),
-    pollLaputaEvents('errors'),
-  ]);
-  const eventTargets = [proposalEvents, changelogEvents, errorEvents] as const;
-  const eventFailures: string[] = [];
-  eventResults.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      eventTargets[index].value = result.value;
-    } else {
-      eventFailures.push(normalizeError(result.reason));
+    if (token === skillDetailToken && selectedSlug.value === slug) {
+      skillDetailError.value = normalizeError(error);
     }
-  });
-  auxiliaryError.value = eventFailures.length > 0 ? eventFailures.join(' · ') : null;
-  emitCount();
-
-  await Promise.all([loadWorkspaceStatus(), loadRuns()]);
-  if (activeTab.value !== 'inbox') {
-    await ensureActiveTabLoaded(activeTab.value);
+  } finally {
+    if (token === skillDetailToken) skillDetailLoading.value = false;
   }
 }
 
-function updateLocalProposal(next: EvolutionProposal) {
-  proposals.value = proposals.value.map((proposal) =>
-    proposal.id === next.id ? next : proposal,
-  );
-}
-
-function applyDeepLink() {
-  activeTab.value = props.initialTab;
-  activeSourceRunId.value = props.initialSourceRunId ?? null;
-  if (props.initialProposalId) {
-    pendingDeepLinkProposalId.value = props.initialProposalId;
+async function selectRequest(id: string) {
+  selectedRequestId.value = id;
+  selectedRequest.value = null;
+  requestDetailError.value = null;
+  const token = ++requestDetailToken;
+  requestDetailLoading.value = true;
+  try {
+    const detail = await getSkillRequest(id);
+    if (token !== requestDetailToken || selectedRequestId.value !== id) return;
+    selectedRequest.value = detail;
+  } catch (error) {
+    if (token === requestDetailToken && selectedRequestId.value === id) {
+      requestDetailError.value = normalizeError(error);
+    }
+  } finally {
+    if (token === requestDetailToken) requestDetailLoading.value = false;
   }
 }
 
-async function withAction(name: string, run: () => Promise<void>) {
-  busyAction.value = name;
+async function withAction(key: string, action: () => Promise<void>) {
+  busyKey.value = key;
   actionError.value = null;
   try {
-    await run();
+    await action();
   } catch (error) {
     actionError.value = normalizeError(error);
-    showAppToast(actionError.value, 'error', 3600);
+    showAppToast(actionError.value, 'error');
   } finally {
-    busyAction.value = null;
+    busyKey.value = null;
   }
 }
 
-async function transitionProposalIds(ids: string[], state: 'approved' | 'rejected' | 'deferred') {
-  if (ids.length === 0) return;
-  if (state === 'rejected') {
-    const targets = ids
-      .map((id) => proposals.value.find((proposal) => proposal.id === id))
-      .filter((proposal): proposal is EvolutionProposal => Boolean(proposal))
-      .map((proposal) => `${proposal.id} (${proposal.target_section})`)
-      .join(', ');
-    const confirmed = await appConfirm(t('evolution.confirm.batchReject', { count: ids.length, target: targets }), {
-      title: t('evolution.confirm.title'),
-    });
-    if (!confirmed) return;
-  }
-  await withAction(`batch-${state}`, async () => {
-    const results = await Promise.allSettled(
-      ids.map(async (id) => {
-        const proposal = proposals.value.find((item) => item.id === id);
-        if (!proposal) return null;
-        return state === 'deferred'
-          ? transitionLaputaProposal(id, { state })
-          : decideProposal(proposal, state === 'approved' ? 'allow' : 'deny');
-      }),
-    );
-    const updated = results
-      .filter((result): result is PromiseFulfilledResult<EvolutionProposal | null> => result.status === 'fulfilled')
-      .map((result) => result.value)
-      .filter((proposal): proposal is EvolutionProposal => Boolean(proposal));
-    updated.forEach(updateLocalProposal);
-    const failed = results.length - updated.length;
-    if (failed > 0) {
-      actionError.value = t('evolution.actions.batchPartialFailure', {
-        total: results.length,
-        success: updated.length,
-        failed,
-      });
-      showAppToast(actionError.value, 'error', 3600);
-    } else {
-      showAppToast(
-        t(
-          state === 'approved'
-            ? 'evolution.actions.approveOnlySuccess'
-            : state === 'rejected'
-              ? 'evolution.actions.rejectSuccess'
-              : 'evolution.actions.deferSuccess',
-        ),
-        'success',
-      );
-    }
-    if (selectedProposalId.value) {
-      await loadDetail(selectedProposalId.value);
-    }
-    await refresh();
-  });
-}
-
-function markRead(ids: string[]) {
-  readProposalIds.value = addMarkers(readProposalIds.value, ids);
-  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
-}
-
-function markUnread(ids: string[]) {
-  readProposalIds.value = removeMarkers(readProposalIds.value, ids);
-  persistMarkerList(READ_MARKERS_KEY, readProposalIds.value);
-}
-
-async function handleApproveOnly() {
-  if (!selectedProposal.value) return;
-  if (
-    missingEvidence.value &&
-    (selectedProposal.value.risk_level === 'high' || selectedProposal.value.risk_level === 'critical')
-  ) {
-    actionError.value = t('evolution.actions.highRiskMissingEvidence');
-    return;
-  }
-  await withAction('approve-only', async () => {
-    const next = await decideProposal(selectedProposal.value!, 'allow');
-    updateLocalProposal(next);
-    showAppToast(t('evolution.actions.approveOnlySuccess'), 'success');
-    await loadDetail(next.id);
-  });
-}
-
-async function handleApproveAndApply() {
-  if (!selectedProposal.value) return;
-  if (
-    missingEvidence.value &&
-    (selectedProposal.value.risk_level === 'high' || selectedProposal.value.risk_level === 'critical')
-  ) {
-    actionError.value = t('evolution.actions.highRiskMissingEvidence');
-    return;
-  }
-  const target = selectedProposal.value.target_section;
-  const confirmed = await appConfirm(t('evolution.confirm.apply', { target }), {
-    title: t('evolution.confirm.title'),
-  });
-  if (!confirmed) return;
-
-  await withAction('approve-apply', async () => {
-    if (selectedProposal.value!.state !== 'approved') {
-      const approved = await decideProposal(selectedProposal.value!, 'allow');
-      updateLocalProposal(approved);
-    }
-    const governance = selectedProposal.value!.governance;
-    if (!governance) throw new Error('Governance receipt is unavailable; refresh and retry.');
-    const result = await applyLaputaProposal(selectedProposal.value!.id, {
-      governance_request_id: governance.request_id,
-      expected_version: governance.request_version,
-      idempotency_key: idempotencyKey('apply', selectedProposal.value!),
-    });
-    updateLocalProposal(result.proposal);
-    selectedChangelog.value = result.changelog;
-    showAppToast(t('evolution.actions.approveApplySuccess'), 'success');
-    await loadDetail(result.proposal.id);
-    await refresh();
-  });
-}
-
-async function handleReject() {
-  if (!selectedProposal.value) return;
-  const target = selectedProposal.value.target_section;
-  const confirmed = await appConfirm(t('evolution.confirm.reject', { target }), {
-    title: t('evolution.confirm.title'),
-  });
-  if (!confirmed) return;
-
-  await withAction('reject', async () => {
-    const next = await decideProposal(selectedProposal.value!, 'deny');
-    updateLocalProposal(next);
-    showAppToast(t('evolution.actions.rejectSuccess'), 'success');
-    await loadDetail(next.id);
-  });
-}
-
-async function handleRollback() {
-  if (!selectedProposal.value || !selectedChangelog.value) return;
-  const target = selectedProposal.value.target_section;
-  const confirmed = await appConfirm(t('evolution.confirm.rollback', { target }), {
-    title: t('evolution.confirm.title'),
-  });
-  if (!confirmed) return;
-
-  await withAction('rollback', async () => {
-    await rollbackLaputaChangelog(selectedChangelog.value!.id, {
-      reason: `GUI rollback for ${target}`,
-      expected_current:
-        typeof selectedSection.value?.content === 'string'
-          ? selectedSection.value.content
-          : JSON.stringify(selectedSection.value?.content ?? null),
-    });
-    showAppToast(t('evolution.actions.rollbackSuccess'), 'success');
-    await refresh();
-    if (selectedProposal.value) {
-      await loadDetail(selectedProposal.value.id);
-    }
-  });
-}
-
-async function handleEdit(proposedPatch?: string) {
-  if (!selectedProposal.value) return;
-  if (proposedPatch === undefined) return;
-  await withAction('edit', async () => {
-    const next = await editLaputaProposal(selectedProposal.value!.id, {
-      proposed_patch: proposedPatch,
-      updated_at: selectedProposal.value!.updated_at,
-    });
-    updateLocalProposal(next);
-    showAppToast(t('evolution.actions.editRouted'), 'success');
-    await loadDetail(next.id);
-  });
-}
-
-async function handleDefer() {
-  if (!selectedProposal.value) return;
-  await transitionProposalIds([selectedProposal.value.id], 'deferred');
+function beginEdit() {
+  if (!selectedSkill.value) return;
+  draft.value = selectedSkill.value.markdown;
+  editing.value = true;
   actionError.value = null;
 }
 
-watch(selectedProposalId, async (id) => {
-  if (id) {
-    await loadDetail(id);
+async function saveSkill() {
+  const skill = selectedSkill.value;
+  if (!skill) return;
+  await withAction(`save:${skill.slug}`, async () => {
+    const outcome = await updateSkill(skill.slug, draft.value, skill.content_hash);
+    selectedSkill.value = outcome.document;
+    draft.value = outcome.document.markdown;
+    editing.value = false;
+    await loadSkills();
+    showAppToast(outcome.changed ? 'Skill 已保存' : '内容未变化', 'success');
+  });
+}
+
+async function disableSelectedSkill() {
+  const skill = selectedSkill.value;
+  if (!skill) return;
+  await withAction(`disable:${skill.slug}`, async () => {
+    const outcome = await disableSkill(skill.slug, skill.content_hash);
+    selectedSkill.value = outcome.document;
+    draft.value = outcome.document.markdown;
+    await loadSkills();
+    showAppToast('Skill 已停用', 'success');
+  });
+}
+
+async function deleteSelectedSkill() {
+  const skill = selectedSkill.value;
+  if (!skill?.can_hard_delete) return;
+  const confirmed = await appConfirm(`确认硬删除 Home Skill “${skill.slug}”？同名内置 Skill 将重新显示。`, {
+    title: '硬删除 Skill',
+  });
+  if (!confirmed) return;
+  await withAction(`delete:${skill.slug}`, async () => {
+    await deleteSkill(skill.slug, skill.content_hash);
+    selectedSlug.value = null;
+    selectedSkill.value = null;
+    await loadSkills();
+    showAppToast('Home Skill 已删除', 'success');
+  });
+}
+
+async function toggleHistory() {
+  const skill = selectedSkill.value;
+  if (!skill) return;
+  historyOpen.value = !historyOpen.value;
+  if (!historyOpen.value) return;
+  historyLoading.value = true;
+  try {
+    historyEntries.value = await listSkillHistory(skill.slug);
+  } catch (error) {
+    actionError.value = normalizeError(error);
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+async function previewHistory(revision: number) {
+  const slug = selectedSkill.value?.slug;
+  if (!slug) return;
+  const expectedSlug = slug;
+  try {
+    const next = await getSkillHistoryRevision(slug, revision);
+    if (selectedSkill.value?.slug === expectedSlug) historyPreview.value = next;
+  } catch (error) {
+    actionError.value = normalizeError(error);
+  }
+}
+
+async function decideRequest(action: 'accept' | 'reject') {
+  const request = selectedRequest.value;
+  if (!request || request.status !== 'pending') return;
+  if (action === 'reject') {
+    const confirmed = await appConfirm(`拒绝 “${request.title}”？`, { title: '拒绝 Skill 请求' });
+    if (!confirmed) return;
+  }
+  await withAction(`${action}:${request.id}`, async () => {
+    const next = action === 'accept'
+      ? await acceptSkillRequest(request.id)
+      : await rejectSkillRequest(request.id);
+    selectedRequest.value = next;
+    requests.value = requests.value.map((item) => item.id === next.id ? next : item);
+    emitCount();
+    if (action === 'accept') await loadSkills();
+    showAppToast(action === 'accept' ? '请求已接受' : '请求已拒绝', 'success');
+  });
+}
+
+async function submitRequest() {
+  const slug = createSlug.value.trim();
+  if (!slug || !createTitle.value.trim() || !createReason.value.trim()) {
+    actionError.value = 'slug、标题和原因不能为空';
+    return;
+  }
+  await withAction('create-request', async () => {
+    const request = await createSkillRequest({
+      slug,
+      title: createTitle.value.trim(),
+      proposed_markdown: createMarkdown.value,
+      evidence: [],
+      attestation: createAttestation.value.trim(),
+      base_hash: createBaseHash.value,
+      reason: createReason.value.trim(),
+    });
+    requests.value = [request, ...requests.value.filter((item) => item.id !== request.id)];
+    createOpen.value = false;
+    activeTab.value = 'requests';
+    emitCount();
+    await selectRequest(request.id);
+    showAppToast('Skill 待审请求已创建', 'success');
+  });
+}
+
+function closeMobileDetail() {
+  if (activeTab.value === 'skills') {
+    selectedSlug.value = null;
+    selectedSkill.value = null;
   } else {
-    selectedSection.value = null;
-    selectedChangelog.value = null;
+    selectedRequestId.value = null;
+    selectedRequest.value = null;
+  }
+}
+
+watch(() => props.requestKey, async () => {
+  activeTab.value = props.initialTab === 'skills' ? 'skills' : 'requests';
+  if (props.initialProposalId) {
+    await loadRequests();
+    if (requests.value.some((item) => item.id === props.initialProposalId)) {
+      await selectRequest(props.initialProposalId);
+    }
   }
 });
 
-watch(activeTab, async (tab) => {
-  await ensureActiveTabLoaded(tab);
+watch(createSlug, (slug) => {
+  createMarkdown.value = createMarkdown.value.replace(/^name:\s*.*$/m, `name: ${slug.trim()}`);
 });
-
-watch(
-  () => [props.initialTab, props.initialProposalId, props.initialSourceRunId, props.requestKey] as const,
-  async () => {
-    applyDeepLink();
-    await refresh();
-  }
-);
 
 onMounted(async () => {
-  readProposalIds.value = loadMarkerList(READ_MARKERS_KEY);
-  deferredProposalIds.value = loadMarkerList(DEFERRED_MARKERS_KEY);
-  applyDeepLink();
   await refresh();
+  if (props.initialProposalId && requests.value.some((item) => item.id === props.initialProposalId)) {
+    await selectRequest(props.initialProposalId);
+  }
 });
-
-onBeforeUnmount(stopRunMonitor);
 </script>
 
 <template>
-  <section class="evolution-view">
+  <section class="evolution-shell">
     <header class="evolution-header">
-      <div class="evolution-title-block">
-        <div class="evolution-title-icon">
-          <GitBranch :size="18" />
-        </div>
-        <div class="min-w-0">
-          <h1 class="evolution-title">{{ t('evolution.title') }}</h1>
-          <p class="evolution-subtitle">{{ t('evolution.subtitle') }}</p>
-        </div>
+      <div>
+        <p class="eyebrow">EVOLUTION</p>
+        <h1>Skill 进化</h1>
+        <p>机器级 Skill 权威与可审计的待审请求。</p>
       </div>
-      <button class="evolution-refresh" type="button" @click="refresh">
-        <RefreshCw :size="15" />
-        <span>{{ t('evolution.refresh') }}</span>
-      </button>
+      <div class="header-actions">
+        <button class="secondary" type="button" @click="emit('open-settings', 'self-evolution')">AutoDream 设置</button>
+        <button class="icon-button" type="button" aria-label="刷新" @click="refresh"><RefreshCw :size="17" /></button>
+      </div>
     </header>
 
-    <div class="evolution-stage-notice" data-testid="evolution-stage-notice" role="status">
-      <AlertTriangle :size="17" />
-      <div>
-        <strong>{{ t('evolution.stageNotice.title') }}</strong>
-        <p>{{ t('evolution.stageNotice.desc') }}</p>
-      </div>
-    </div>
+    <nav class="tabbar" aria-label="Evolution sections">
+      <button :class="{ active: activeTab === 'skills' }" @click="activeTab = 'skills'">
+        <WandSparkles :size="17" /> Skill <span>{{ skills.length }}</span>
+      </button>
+      <button :class="{ active: activeTab === 'requests' }" @click="activeTab = 'requests'">
+        <ShieldCheck :size="17" /> 待审 <span>{{ pendingCount }}</span>
+      </button>
+    </nav>
 
-    <section class="evolution-workspace-status" data-testid="evolution-workspace-status">
-      <div>
-        <span>{{ t('evolution.workspace.authority') }}</span>
-        <strong>{{ evolutionHealth?.memory.authority_mode ?? '-' }}</strong>
-      </div>
-      <div>
-        <span>{{ t('evolution.workspace.storeRevision') }}</span>
-        <strong>{{ evolutionHealth?.memory.store_revision ?? '-' }}</strong>
-      </div>
-      <div>
-        <span>{{ t('evolution.workspace.records') }}</span>
-        <strong>{{ evolutionHealth?.memory.record_count ?? '-' }}</strong>
-      </div>
-      <div>
-        <span>{{ t('evolution.workspace.feedback') }}</span>
-        <strong>{{ recallFeedback.length }}</strong>
-      </div>
-      <div
-        v-if="workspaceError || evolutionHealth?.memory.status === 'degraded'"
-        class="evolution-workspace-degraded"
-      >
-        <span>{{ t('evolution.workspace.degraded') }}</span>
-        <strong>{{ workspaceError || evolutionHealth?.memory.degraded_reason }}</strong>
-      </div>
-    </section>
-
-    <div class="evolution-tabs" role="tablist">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="evolution-tab"
-        :class="{ active: activeTab === tab.key }"
-        :data-testid="`evolution-tab-${tab.key}`"
-        type="button"
-        role="tab"
-        :aria-selected="activeTab === tab.key"
-        @click="activeTab = tab.key"
-      >
-        <component :is="tab.icon" :size="15" />
-        <span>{{ t(tab.labelKey) }}</span>
+    <div class="toolbar">
+      <label class="search-box"><Search :size="16" /><input v-model="search" placeholder="搜索 slug、描述或标题" /></label>
+      <button v-if="activeTab === 'requests'" class="primary" type="button" @click="createOpen = !createOpen">
+        <FilePlus2 :size="16" /> 新建请求
       </button>
     </div>
 
-    <div v-if="loadError || auxiliaryError" class="evolution-error" role="status">
-      <AlertTriangle :size="17" />
-      <div>
-        <strong>{{ t('evolution.errorTitle') }}</strong>
-        <p>{{ loadError || auxiliaryError }}</p>
+    <div v-if="createOpen" class="create-panel">
+      <div class="form-grid">
+        <label>Slug<input v-model="createSlug" placeholder="my-skill" /></label>
+        <label>标题<input v-model="createTitle" placeholder="可审阅的变更标题" /></label>
+        <label class="wide">原因<input v-model="createReason" placeholder="为什么需要这个 Skill" /></label>
+        <label class="wide">用户声明<input v-model="createAttestation" placeholder="没有 evidence 时必须填写非空声明" /></label>
       </div>
+      <div class="editor-frame create-editor"><PersonaMarkdownEditor v-model="createMarkdown" /></div>
+      <div class="panel-actions"><button class="secondary" @click="createOpen = false">取消</button><button class="primary" :disabled="busyKey === 'create-request'" @click="submitRequest">提交待审</button></div>
     </div>
 
-    <div v-if="activeTab === 'inbox'" class="evolution-panel">
-      <div v-if="activeSourceRunId" class="evolution-source-filter">
-        <span>{{ t('evolution.inbox.sourceRunFilter', { runId: activeSourceRunId }) }}</span>
-        <button type="button" @click="activeSourceRunId = null; refresh()">
-          {{ t('evolution.inbox.clearSourceRunFilter') }}
-        </button>
-      </div>
-      <div class="evolution-inbox-shell evolution-inbox-responsive" data-testid="evolution-inbox-shell">
-        <ProposalInbox
-          :proposals="visibleProposals"
-          :selected-proposal-id="selectedProposalId"
-          :loading="loading && proposals.length === 0"
-          :load-error="proposals.length === 0 ? loadError : null"
-          :read-ids="readProposalIds"
-          :deferred-ids="deferredProposalIds"
-          :busy-action="busyAction"
-          @select="selectedProposalId = $event"
-          @open="selectedProposalId = $event"
-          @approve="transitionProposalIds($event, 'approved')"
-          @reject="transitionProposalIds($event, 'rejected')"
-          @edit="selectedProposalId = $event; handleEdit()"
-          @defer="transitionProposalIds($event, 'deferred')"
-          @mark-read="markRead"
-          @mark-unread="markUnread"
-          @retry="refresh"
-        />
+    <p v-if="actionError" class="error-banner">{{ actionError }}</p>
 
-        <section class="evolution-detail-pane">
-          <div class="evolution-pane-header">
-            <div>
-              <h2>{{ t('evolution.detail.title') }}</h2>
-              <p>{{ t('evolution.detail.desc') }}</p>
-            </div>
-          </div>
-          <div v-if="detailLoading" class="evolution-detail-loading">{{ t('evolution.detail.loading') }}</div>
-          <div v-else class="evolution-detail-body">
-            <ProposalDetail
-              :proposal="selectedProposal"
-              :section="selectedSection"
-              :changelog="selectedChangelog"
-              :busy-action="busyAction"
-              :load-error="detailError"
-              :action-error="actionError"
-              :evidence-open="evidenceOpen"
-              :missing-evidence="missingEvidence"
-              :rollback-eligible="rollbackEligible"
-              :rollback-reason="rollbackReason"
-              @toggle-evidence="evidenceOpen = !evidenceOpen"
-              @approve-apply="handleApproveAndApply"
-              @approve-only="handleApproveOnly"
-              @edit="handleEdit"
-              @save-edit="handleEdit"
-              @reject="handleReject"
-              @defer="handleDefer"
-              @rollback="handleRollback"
-            />
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <div v-else-if="activeTab === 'runs'" class="evolution-panel">
-      <section class="evolution-data-panel" data-testid="evolution-runs-panel">
-        <div class="evolution-pane-header">
-          <div>
-            <h2>{{ t('evolution.runs.title') }}</h2>
-            <p>{{ t('evolution.runs.desc') }}</p>
-          </div>
-          <button
-            type="button"
-            class="evolution-refresh"
-            data-testid="trigger-autodream"
-            :disabled="busyAction !== null"
-            @click="handleTriggerRun"
-          >
-            {{ t('evolution.runs.trigger') }}
+    <div class="workspace" :class="{ 'has-detail': selectedSlug || selectedRequestId }">
+      <aside class="master-list">
+        <template v-if="activeTab === 'skills'">
+          <p v-if="skillsError" class="state error">加载失败：{{ skillsError }} <button @click="loadSkills">重试</button></p>
+          <p v-else-if="skillsLoading && skills.length === 0" class="state">正在加载 Skill…</p>
+          <p v-else-if="skills.length === 0" class="state">尚无可见 Skill。</p>
+          <p v-else-if="filteredSkills.length === 0" class="state">没有符合筛选条件的 Skill。</p>
+          <button v-for="skill in filteredSkills" :key="skill.slug" class="list-row" :class="{ selected: selectedSlug === skill.slug }" @click="selectSkill(skill.slug)">
+            <span class="row-title">{{ skill.slug }}</span><span class="source" :class="skill.source">{{ skill.source }}</span>
+            <span class="row-description">{{ skill.description }}</span>
+            <span class="row-meta"><span :class="{ muted: !skill.enabled }">{{ skill.enabled ? '启用' : '停用' }}</span><span v-if="skill.always">always</span></span>
           </button>
-        </div>
-
-        <div v-if="runsLoading" class="evolution-detail-loading">{{ t('evolution.runs.loading') }}</div>
-        <div v-else-if="runsError" class="evolution-empty-state">
-          <FileClock :size="24" />
-          <strong>{{ t('evolution.runs.unavailableTitle') }}</strong>
-          <span>{{ runsError }}</span>
-        </div>
-        <div v-else-if="runs.length === 0" class="evolution-empty-state">
-          <FileClock :size="24" />
-          <strong>{{ t('evolution.runs.emptyTitle') }}</strong>
-          <span>{{ t('evolution.runs.emptyDesc') }}</span>
-        </div>
-        <div v-else class="evolution-card-grid">
-          <article v-for="run in runs" :key="run.id" class="evolution-record-card">
-            <div class="evolution-record-card__header">
-              <strong>{{ run.trigger }}</strong>
-              <span>{{ run.state }}</span>
-            </div>
-            <dl class="evolution-record-grid">
-              <div>
-                <dt>{{ t('evolution.runs.phase') }}</dt>
-                <dd>{{ run.orchestration?.phase || run.state }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.attempt') }}</dt>
-                <dd>{{ run.orchestration?.attempt ?? 0 }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.startedAt') }}</dt>
-                <dd :title="run.started_at">{{ formatRunTimestamp(run.started_at) }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.completedAt') }}</dt>
-                <dd :title="run.completed_at || undefined">{{ formatRunTimestamp(run.completed_at) }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.duration') }}</dt>
-                <dd>{{ formatDuration(run) }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.proposalCount') }}</dt>
-                <dd>{{ Array.isArray(run.proposal_ids) ? run.proposal_ids.length : 0 }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.inputs') }}</dt>
-                <dd>{{ runInputSummary(run) }}</dd>
-              </div>
-              <div v-if="run.input_summary?.included_sources?.length">
-                <dt>{{ t('evolution.runs.inputSources') }}</dt>
-                <dd>
-                  {{
-                    run.input_summary.included_sources
-                      .map((source) => `${source.source}:${source.included_items}`)
-                      .join(', ')
-                  }}
-                </dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.outputs') }}</dt>
-                <dd>{{ runOutputSummary(run) }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.runs.errors') }}</dt>
-                <dd>{{ run.error || t('evolution.runs.noErrors') }}</dd>
-              </div>
-            </dl>
-            <div class="evolution-run-actions">
-              <button
-                type="button"
-                :data-testid="`monitor-autodream-${run.id}`"
-                @click="openRunMonitor(run)"
-              >
-                {{ t('evolution.runs.monitor') }}
-              </button>
-              <button
-                v-if="run.state === 'pending' || run.state === 'running'"
-                type="button"
-                :disabled="busyAction !== null"
-                :data-testid="`cancel-autodream-${run.id}`"
-                @click="handleCancelRun(run)"
-              >
-                {{ t('evolution.runs.cancel') }}
-              </button>
-              <button
-                v-if="run.proposal_ids.length > 0"
-                type="button"
-                :data-testid="`open-run-proposals-${run.id}`"
-                @click="openRunProposals(run)"
-              >
-                {{ t('evolution.runs.openProposals') }}
-              </button>
-            </div>
-          </article>
-        </div>
-        <div class="evolution-feedback-summary" data-testid="recall-feedback-summary">
-          <h3>{{ t('evolution.feedback.title') }}</h3>
-          <p>{{ t('evolution.feedback.desc', { count: recallFeedback.length }) }}</p>
-          <ul v-if="recallFeedback.length > 0">
-            <li v-for="event in recallFeedback.slice(0, 8)" :key="event.event_id">
-              <code>{{ event.record_id }}</code>
-              <span>{{ event.task_outcome }}</span>
-              <span v-if="event.corrected">{{ t('evolution.feedback.corrected') }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="monitorRun" class="evolution-monitor-backdrop" role="presentation" @click.self="closeRunMonitor">
-          <section class="evolution-monitor-dialog" role="dialog" aria-modal="true" :aria-label="t('evolution.runs.monitorTitle')">
-            <header>
-              <div>
-                <h3>{{ t('evolution.runs.monitorTitle') }}</h3>
-                <p><code>{{ monitorRun.id }}</code></p>
-              </div>
-              <button type="button" data-testid="close-autodream-monitor" @click="closeRunMonitor">
-                {{ t('evolution.runs.monitorClose') }}
-              </button>
-            </header>
-            <dl class="evolution-record-grid">
-              <div><dt>{{ t('evolution.runs.phase') }}</dt><dd>{{ monitorRun.orchestration?.phase || monitorRun.state }}</dd></div>
-              <div><dt>{{ t('evolution.runs.state') }}</dt><dd>{{ monitorRun.state }}</dd></div>
-              <div><dt>{{ t('evolution.runs.attempt') }}</dt><dd>{{ monitorRun.orchestration?.attempt ?? 0 }}</dd></div>
-              <div><dt>{{ t('evolution.runs.monitorRefresh') }}</dt><dd>{{ monitorLoading ? t('evolution.runs.monitoring') : t('evolution.runs.monitorReady') }}</dd></div>
-            </dl>
-            <p v-if="monitorError" class="evolution-monitor-error">{{ monitorError }}</p>
-            <section class="evolution-monitor-raw" data-testid="autodream-monitor-raw">
-              <h4>{{ t('evolution.runs.monitorRawTitle') }}</h4>
-              <pre v-if="monitorRawText">{{ displayMonitorRawText(monitorRawText) }}</pre>
-              <p v-else>{{ t('evolution.runs.monitorRawEmpty') }}</p>
-            </section>
-            <ol v-if="!monitorError" class="evolution-monitor-events" data-testid="autodream-monitor-events">
-              <li v-for="event in monitorEvents" :key="event.id">
-                <time :title="event.created_at">{{ formatRunTimestamp(event.created_at) }}</time>
-                <strong>{{ event.kind }}</strong>
-                <span>{{ event.message }}</span>
-              </li>
-              <li v-if="monitorEvents.length === 0">{{ t('evolution.runs.monitorEmpty') }}</li>
-            </ol>
-          </section>
-        </div>
-      </section>
-    </div>
-
-    <div v-else-if="activeTab === 'audit'" class="evolution-panel">
-      <section class="evolution-data-panel" data-testid="evolution-audit-panel">
-        <div class="evolution-pane-header">
-          <div>
-            <h2>{{ t('evolution.audit.title') }}</h2>
-            <p>{{ t('evolution.audit.desc') }}</p>
-          </div>
-        </div>
-
-        <div v-if="auditLoading" class="evolution-detail-loading">{{ t('evolution.audit.loading') }}</div>
-        <div v-else-if="auditError" class="evolution-error evolution-error-inline" role="status">
-          <AlertTriangle :size="17" />
-          <div>
-            <strong>{{ t('evolution.audit.errorTitle') }}</strong>
-            <p>{{ auditError }}</p>
-          </div>
-        </div>
-        <div v-else-if="auditRecords.length === 0" class="evolution-empty-state">
-          <History :size="24" />
-          <strong>{{ t('evolution.audit.emptyTitle') }}</strong>
-          <span>{{ t('evolution.audit.emptyDesc') }}</span>
-        </div>
-        <div v-else class="evolution-audit-list">
-          <article v-for="record in auditRecords" :key="record.id" class="evolution-audit-row">
-            <div class="evolution-audit-row__main">
-              <div class="evolution-audit-row__title">
-                <strong>{{ record.action }}</strong>
-                <span>{{ record.target_section }}</span>
-              </div>
-              <p>{{ changelogSummary(record) }}</p>
-            </div>
-            <dl class="evolution-audit-meta">
-              <div>
-                <dt>{{ t('evolution.audit.timestamp') }}</dt>
-                <dd>{{ record.created_at }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.audit.actor') }}</dt>
-                <dd>{{ record.applied_by }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.audit.sourceProposal') }}</dt>
-                <dd>{{ record.proposal_id || '-' }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('evolution.audit.rollbackAvailability') }}</dt>
-                <dd>{{ rollbackAvailabilityLabel(record) }}</dd>
-              </div>
-            </dl>
-          </article>
-        </div>
-      </section>
-    </div>
-
-    <div v-else-if="activeTab === 'policy'" class="evolution-panel">
-      <section class="evolution-data-panel" data-testid="evolution-policy-panel">
-        <div class="evolution-pane-header">
-          <div>
-            <h2>{{ t('evolution.policy.title') }}</h2>
-            <p>{{ t('evolution.policy.desc') }}</p>
-          </div>
-        </div>
-
-        <div v-if="policyLoading" class="evolution-detail-loading">{{ t('evolution.policy.loading') }}</div>
-        <div v-else class="evolution-policy-body">
-          <div class="evolution-policy-copy">
-            <ShieldCheck :size="20" />
-            <p>{{ REQUIRED_POLICY_COPY }}</p>
-          </div>
-
-          <div v-if="policyError" class="evolution-error evolution-error-inline" role="status">
-            <AlertTriangle :size="17" />
-            <div>
-              <strong>{{ t('evolution.policy.errorTitle') }}</strong>
-              <p>{{ policyError }}</p>
-            </div>
-          </div>
-
-          <dl class="evolution-policy-grid">
-            <div v-for="row in policySummaryRows" :key="row.label">
-              <dt>{{ row.label }}</dt>
-              <dd>{{ row.value }}</dd>
-            </div>
-          </dl>
-
-          <button class="evolution-settings-link" type="button" @click="emit('open-settings', 'self-evolution')">
-            {{ t('evolution.policy.settingsLink') }}
+        </template>
+        <template v-else>
+          <p v-if="requestsError" class="state error">加载失败：{{ requestsError }} <button @click="loadRequests">重试</button></p>
+          <p v-else-if="requestsLoading && requests.length === 0" class="state">正在加载待审请求…</p>
+          <p v-else-if="requests.length === 0" class="state">没有 Skill 请求。</p>
+          <p v-else-if="filteredRequests.length === 0" class="state">没有符合筛选条件的请求。</p>
+          <button v-for="request in filteredRequests" :key="request.id" class="list-row" :class="{ selected: selectedRequestId === request.id }" @click="selectRequest(request.id)">
+            <span class="row-title">{{ request.title }}</span><span class="status" :class="request.status">{{ request.status }}</span>
+            <span class="row-description">{{ request.slug }} · {{ request.source }}</span>
+            <span class="row-meta">{{ new Date(request.updated_at).toLocaleString() }}</span>
           </button>
-        </div>
-      </section>
+        </template>
+      </aside>
+
+      <main class="detail-pane">
+        <button class="mobile-back" type="button" @click="closeMobileDetail">← 返回列表</button>
+        <template v-if="activeTab === 'skills'">
+          <p v-if="!selectedSlug" class="detail-empty">选择一个 Skill 查看详情。</p>
+          <p v-else-if="skillDetailLoading" class="state">正在加载详情…</p>
+          <p v-else-if="skillDetailError" class="state error">{{ skillDetailError }} <button @click="selectSkill(selectedSlug)">重试</button></p>
+          <template v-else-if="selectedSkill">
+            <div class="detail-heading">
+              <div><p class="eyebrow">{{ selectedSkill.source }}</p><h2>{{ selectedSkill.slug }}</h2><p>{{ selectedSkill.description }}</p></div>
+              <div class="detail-actions">
+                <button v-if="!editing" class="secondary" @click="beginEdit">编辑</button>
+                <template v-else><button class="secondary" @click="editing = false; draft = selectedSkill.markdown">取消</button><button class="primary" :disabled="busyKey === `save:${selectedSkill.slug}`" @click="saveSkill"><Save :size="15" /> 保存</button></template>
+                <button class="secondary" :disabled="!selectedSkill.enabled || Boolean(busyKey)" @click="disableSelectedSkill">停用</button>
+                <button class="danger" :disabled="!selectedSkill.can_hard_delete || Boolean(busyKey)" @click="deleteSelectedSkill">硬删</button>
+              </div>
+            </div>
+            <div class="facts"><span>hash {{ selectedSkill.content_hash.slice(0, 12) }}</span><span>{{ selectedSkill.always ? 'always' : 'on demand' }}</span><span>{{ selectedSkill.enabled ? 'enabled' : 'disabled' }}</span></div>
+            <div class="editor-frame"><PersonaMarkdownEditor :key="editing ? 'edit' : 'read'" v-model="draft" :readonly="!editing" /></div>
+            <button class="history-toggle" @click="toggleHistory"><History :size="16" /> 历史快照</button>
+            <div v-if="historyOpen" class="history-panel">
+              <p v-if="historyLoading">正在加载历史…</p><p v-else-if="historyEntries.length === 0">暂无 Home 历史。</p>
+              <button v-for="entry in historyEntries" :key="entry.revision" @click="previewHistory(entry.revision)">#{{ entry.revision }} · {{ entry.content_hash.slice(0, 12) }} · {{ new Date(entry.updated_at).toLocaleString() }}</button>
+              <pre v-if="historyPreview">{{ historyPreview.markdown }}</pre>
+            </div>
+          </template>
+        </template>
+
+        <template v-else>
+          <p v-if="!selectedRequestId" class="detail-empty">选择一条请求进行审阅。</p>
+          <p v-else-if="requestDetailLoading" class="state">正在加载请求…</p>
+          <p v-else-if="requestDetailError" class="state error">{{ requestDetailError }} <button @click="selectRequest(selectedRequestId)">重试</button></p>
+          <template v-else-if="selectedRequest">
+            <div class="detail-heading">
+              <div><p class="eyebrow">{{ selectedRequest.source }}</p><h2>{{ selectedRequest.title }}</h2><p>{{ selectedRequest.slug }} · {{ selectedRequest.reason }}</p></div>
+              <div class="detail-actions"><button class="secondary" :disabled="selectedRequest.status !== 'pending' || Boolean(busyKey)" @click="decideRequest('reject')">拒绝</button><button class="primary" :disabled="selectedRequest.status !== 'pending' || Boolean(busyKey)" @click="decideRequest('accept')">接受</button></div>
+            </div>
+            <div class="facts"><span class="status" :class="selectedRequest.status">{{ selectedRequest.status }}</span><span>base {{ selectedRequest.base_hash.slice(0, 12) }}</span><span>{{ new Date(selectedRequest.created_at).toLocaleString() }}</span></div>
+            <div v-if="selectedRequest.status === 'stale'" class="stale-notice">请求已 stale，不能接受；请依据当前 Skill 头重新创建。</div>
+            <div class="editor-frame"><PersonaMarkdownEditor :key="selectedRequest.id" :model-value="selectedRequest.proposed_markdown" readonly /></div>
+            <section class="evidence-panel"><h3>Evidence / Attestation</h3><p v-if="selectedRequest.attestation"><strong>声明：</strong>{{ selectedRequest.attestation }}</p><p v-if="selectedRequest.evidence.length === 0">没有 evidence 项。</p><pre v-for="(item, index) in selectedRequest.evidence" :key="index">{{ JSON.stringify(item, null, 2) }}</pre></section>
+          </template>
+        </template>
+      </main>
     </div>
   </section>
 </template>
 
 <style scoped>
-.evolution-workspace-status {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.evolution-workspace-status > div,
-.evolution-feedback-summary {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: var(--bg-secondary);
-}
-
-.evolution-workspace-status span {
-  display: block;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.evolution-workspace-degraded strong {
-  color: var(--color-danger);
-}
-
-.evolution-run-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.evolution-monitor-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgb(0 0 0 / 55%);
-}
-
-.evolution-monitor-dialog {
-  width: min(720px, 100%);
-  max-height: min(760px, 90vh);
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
-}
-
-.evolution-monitor-dialog header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.evolution-monitor-dialog h3,
-.evolution-monitor-dialog p {
-  margin: 0;
-}
-
-.evolution-monitor-events {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.evolution-monitor-raw {
-  margin-top: 16px;
-}
-
-.evolution-monitor-raw h4,
-.evolution-monitor-raw p {
-  margin: 0 0 8px;
-}
-
-.evolution-monitor-raw pre {
-  max-height: 240px;
-  overflow: auto;
-  margin: 0;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.evolution-monitor-events li {
-  display: grid;
-  grid-template-columns: minmax(120px, auto) minmax(110px, auto) 1fr;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  font-size: 13px;
-}
-
-.evolution-monitor-error {
-  margin-top: 14px !important;
-  color: var(--color-danger);
-}
-
-.evolution-feedback-summary {
-  margin-top: 14px;
-}
-
-.evolution-feedback-summary ul {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.evolution-feedback-summary li {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.evolution-view {
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  flex-direction: column;
-  background: var(--panel);
-  color: var(--text);
-}
-
-.evolution-stage-notice {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin: 0 0 14px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--color-warning, #d99a35) 42%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--color-warning, #d99a35) 10%, transparent);
-  color: var(--color-text-secondary);
-}
-
-.evolution-stage-notice strong {
-  color: var(--color-text-primary);
-}
-
-.evolution-stage-notice p {
-  margin: 3px 0 0;
-}
-
-.evolution-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel-solid);
-  padding: 18px 22px;
-}
-
-.evolution-title-block {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 12px;
-}
-
-.evolution-title-icon {
-  display: grid;
-  height: 34px;
-  width: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  color: var(--text-muted);
-}
-
-.evolution-title {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.evolution-subtitle {
-  margin: 4px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.evolution-refresh,
-.evolution-tab {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.evolution-refresh {
-  padding: 0 12px;
-}
-
-.evolution-refresh:hover,
-.evolution-tab:hover {
-  border-color: var(--text-muted);
-  background: var(--panel);
-}
-
-.evolution-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel-solid);
-  padding: 10px 22px;
-}
-
-.evolution-tab {
-  padding: 0 11px;
-}
-
-.evolution-tab.active {
-  border-color: var(--accent);
-  background: var(--accent-bg-light);
-  color: var(--accent);
-}
-
-.evolution-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border-bottom: 1px solid var(--danger-bg);
-  background: var(--danger-bg);
-  padding: 12px 22px;
-  color: var(--danger);
-  font-size: 12px;
-}
-
-.evolution-error p {
-  margin: 2px 0 0;
-  overflow-wrap: anywhere;
-}
-
-.evolution-error-inline {
-  margin: 12px;
-  border: 1px solid var(--danger-bg);
-  border-radius: var(--radius-sm);
-}
-
-.evolution-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  padding: 18px;
-}
-
-.evolution-source-filter {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--accent-bg-light);
-  padding: 10px 12px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.evolution-source-filter span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.evolution-source-filter button {
-  min-height: 28px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  padding: 0 10px;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.evolution-inbox-shell {
-  display: grid;
-  flex: 1;
-  min-height: 480px;
-  min-width: 0;
-  grid-template-columns: minmax(320px, 0.85fr) minmax(520px, 1.4fr);
-  gap: 14px;
-}
-
-.evolution-list-pane,
-.evolution-detail-pane,
-.evolution-data-panel,
-.evolution-placeholder-panel {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-}
-
-.evolution-list-pane,
-.evolution-detail-pane,
-.evolution-data-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-}
-
-.evolution-pane-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  border-bottom: 1px solid var(--line);
-  padding: 14px;
-}
-
-.evolution-pane-header h2 {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.evolution-pane-header p {
-  margin: 4px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.evolution-count-pill {
-  display: inline-flex;
-  min-width: 28px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.evolution-skeleton-list,
-.evolution-proposal-list,
-.evolution-detail-body,
-.evolution-audit-list,
-.evolution-card-grid,
-.evolution-policy-body {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 10px;
-  overflow: auto;
-  padding: 12px;
-}
-
-.evolution-detail-loading {
-  padding: 18px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.evolution-skeleton-row {
-  height: 58px;
-  border-radius: 7px;
-  background: linear-gradient(90deg, var(--panel), var(--line), var(--panel));
-}
-
-.evolution-empty-state,
-.evolution-placeholder-panel {
-  display: flex;
-  min-height: 220px;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 20px;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.evolution-empty-state strong,
-.evolution-placeholder-panel strong {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.evolution-empty-state span,
-.evolution-placeholder-panel span {
-  max-width: 520px;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.evolution-proposal-row {
-  display: flex;
-  width: 100%;
-  min-height: 62px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  padding: 10px 12px;
-  text-align: left;
-}
-
-.evolution-proposal-row:hover,
-.evolution-proposal-row.active {
-  border-color: var(--accent-border);
-  background: var(--panel);
-}
-
-.evolution-proposal-main,
-.evolution-proposal-meta {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-}
-
-.evolution-proposal-main strong {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.evolution-proposal-meta {
-  flex: 0 0 auto;
-  align-items: flex-end;
-  color: var(--text-muted);
-}
-
-.evolution-record-card,
-.evolution-audit-row {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  padding: 14px;
-}
-
-.evolution-record-card__header,
-.evolution-audit-row__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.evolution-record-card__header span,
-.evolution-audit-row__title span {
-  border-radius: 999px;
-  background: var(--panel);
-  padding: 3px 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.evolution-record-grid,
-.evolution-audit-meta,
-.evolution-policy-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin: 12px 0 0;
-}
-
-.evolution-record-grid div,
-.evolution-audit-meta div,
-.evolution-policy-grid div {
-  min-width: 0;
-}
-
-.evolution-record-grid dt,
-.evolution-audit-meta dt,
-.evolution-policy-grid dt {
-  margin: 0 0 3px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.evolution-record-grid dd,
-.evolution-audit-meta dd,
-.evolution-policy-grid dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.evolution-audit-row__main p {
-  margin: 8px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.evolution-policy-copy {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--accent-bg-light);
-  padding: 12px;
-  color: var(--accent);
-}
-
-.evolution-policy-copy p {
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.evolution-settings-link {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-solid);
-  padding: 8px 11px;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.evolution-settings-link:hover {
-  border-color: var(--text-muted);
-  background: var(--panel);
-}
-
-@media (max-width: 1180px) {
-  .evolution-inbox-shell {
-    grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .evolution-panel {
-    padding: 12px;
-  }
-
-  .evolution-inbox-shell {
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .evolution-detail-pane {
-    min-height: 300px;
-  }
-}
+.evolution-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 24px; gap: 14px; color: var(--text); background: radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 34%); }
+.evolution-header, .toolbar, .detail-heading, .header-actions, .detail-actions, .panel-actions, .facts, .row-meta { display: flex; align-items: center; }
+.evolution-header, .toolbar, .detail-heading { justify-content: space-between; gap: 16px; }
+h1, h2, h3, p { margin: 0; } h1 { font-size: 25px; } h2 { font-size: 21px; } .evolution-header p, .detail-heading p { color: var(--text-muted); margin-top: 5px; }
+.eyebrow { color: var(--accent) !important; font: 700 11px/1 var(--font-mono, monospace); letter-spacing: .15em; text-transform: uppercase; }
+button, input { font: inherit; } button { cursor: pointer; } button:disabled { cursor: not-allowed; opacity: .48; }
+.icon-button, .secondary, .primary, .danger, .history-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-radius: 9px; min-height: 36px; padding: 0 13px; border: 1px solid var(--border); background: var(--panel-solid); color: var(--text); }
+.icon-button { width: 38px; padding: 0; } .primary { color: white; background: var(--accent); border-color: var(--accent); } .danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.header-actions, .detail-actions, .panel-actions, .facts, .row-meta { gap: 8px; flex-wrap: wrap; }
+.tabbar { display: flex; gap: 6px; padding: 5px; width: fit-content; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-solid); }
+.tabbar button { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 0; border-radius: 8px; color: var(--text-muted); background: transparent; }
+.tabbar button.active { color: var(--text); background: color-mix(in srgb, var(--accent) 13%, var(--panel-solid)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent); }
+.tabbar span { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, transparent); font-size: 11px; }
+.search-box { flex: 1; max-width: 480px; display: flex; align-items: center; gap: 8px; min-height: 39px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-solid); color: var(--text-muted); }
+.search-box input, .form-grid input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; }
+.workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--panel-solid) 92%, transparent); }
+.master-list { min-height: 0; overflow: auto; padding: 9px; border-right: 1px solid var(--border); }
+.list-row { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 5px 9px; padding: 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); text-align: left; }
+.list-row:hover, .list-row.selected { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 24%, transparent); }
+.row-title { min-width: 0; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.row-description { grid-column: 1 / -1; overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.row-meta { grid-column: 1 / -1; color: var(--text-muted); font-size: 11px; }
+.source, .status { width: fit-content; padding: 2px 7px; border-radius: 999px; font: 700 10px/1.5 var(--font-mono, monospace); text-transform: uppercase; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }.source.builtin { color: var(--text-muted); background: color-mix(in srgb, var(--text) 7%, transparent); }.status.stale, .status.rejected { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }.status.accepted { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.detail-pane { min-height: 0; overflow: auto; padding: 20px; }.detail-empty, .state { padding: 32px 16px; color: var(--text-muted); text-align: center; }.state.error, .error-banner { color: var(--danger); }.state button { border: 0; color: var(--accent); background: none; }
+.facts { margin: 13px 0; color: var(--text-muted); font: 11px var(--font-mono, monospace); }.facts > span { padding: 4px 8px; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); }.muted { color: var(--text-muted); text-decoration: line-through; }
+.editor-frame { height: min(54vh, 560px); min-height: 260px; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: color-mix(in srgb, var(--panel-solid) 88%, transparent); }.history-toggle { margin-top: 12px; }.history-panel, .evidence-panel, .create-panel { padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-solid); }.history-panel { margin-top: 8px; }.history-panel button { display: block; width: 100%; padding: 8px; border: 0; color: var(--text-muted); background: transparent; text-align: left; }.history-panel pre, .evidence-panel pre { overflow: auto; padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); white-space: pre-wrap; }.evidence-panel { margin-top: 12px; display: grid; gap: 9px; }.stale-notice, .error-banner { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--danger) 7%, transparent); }
+.create-panel { display: grid; gap: 12px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.form-grid label { display: grid; gap: 5px; color: var(--text-muted); font-size: 12px; }.form-grid label.wide { grid-column: 1 / -1; }.form-grid input { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; }.create-editor { height: 260px; }.panel-actions { justify-content: flex-end; }.mobile-back { display: none; }
+@media (max-width: 760px) { .evolution-shell { padding: 14px; }.evolution-header { align-items: flex-start; }.evolution-header > div:first-child p:last-child { display: none; }.workspace { display: block; }.detail-pane { display: none; height: 100%; }.workspace.has-detail .master-list { display: none; }.workspace.has-detail .detail-pane { display: block; }.mobile-back { display: inline-flex; margin-bottom: 12px; border: 0; color: var(--accent); background: none; }.detail-heading { align-items: flex-start; flex-direction: column; }.form-grid { grid-template-columns: 1fr; }.form-grid label.wide { grid-column: auto; } }
 </style>

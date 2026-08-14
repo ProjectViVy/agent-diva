@@ -20,11 +20,11 @@ import { activePlanTodos as filterActivePlanTodos } from './planning/planExecuti
 import {
   triggerAutoDream,
   getAutoDreamRunStatus,
-  getLaputaProposal,
+  getSkillRequest,
   uploadFile,
   FileAttachmentDto,
   type AutoDreamRunRecord,
-  type EvolutionProposal,
+  type SkillRequest,
   type UiCard,
 } from '../api/desktop';
 import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
@@ -469,16 +469,15 @@ const toRunCard = (run: AutoDreamRunRecord): ChatGovernanceCardModel => ({
   updated_at: run.completed_at ?? run.started_at,
 });
 
-const toProposalCard = (proposal: EvolutionProposal): ChatGovernanceCardModel => ({
-  kind: 'evolution_proposal',
-  id: proposal.id,
-  proposal_type: proposal.proposal_type,
-  state: proposal.state,
-  risk_level: proposal.risk_level,
-  target_section: proposal.target_section,
-  summary: proposal.proposed_patch.split('\n').find((line) => line.trim().length > 0) ?? proposal.proposed_patch,
-  evidence_count: Array.isArray(proposal.evidence_refs) ? proposal.evidence_refs.length : 0,
-  source_run_id: proposal.source_run_id,
+const toRequestCard = (request: SkillRequest): ChatGovernanceCardModel => ({
+  kind: 'skill_request',
+  id: request.id,
+  slug: request.slug,
+  state: request.status,
+  source: request.source,
+  summary: request.reason,
+  evidence_count: Array.isArray(request.evidence) ? request.evidence.length : 0,
+  source_run_id: request.evidence.find((item) => item.autodream_run_id)?.autodream_run_id,
 });
 
 const normalizeError = (error: unknown) => {
@@ -498,10 +497,10 @@ const appendProposalCards = async (run: AutoDreamRunRecord) => {
   const proposalIds = Array.isArray(run.proposal_ids) ? run.proposal_ids : [];
   if (proposalIds.length === 0) return;
   const existing = new Set(localGovernanceCards.value.map((card) => card.id));
-  const proposals = await Promise.allSettled(proposalIds.map((id) => getLaputaProposal(id)));
+  const proposals = await Promise.allSettled(proposalIds.map((id) => getSkillRequest(id)));
   const cards = proposals
-    .filter((result): result is PromiseFulfilledResult<EvolutionProposal> => result.status === 'fulfilled')
-    .map((result) => toProposalCard(result.value))
+    .filter((result): result is PromiseFulfilledResult<SkillRequest> => result.status === 'fulfilled')
+    .map((result) => toRequestCard(result.value))
     .filter((card) => !existing.has(card.id));
   if (cards.length > 0) {
     localGovernanceCards.value = [...localGovernanceCards.value, ...cards];
@@ -565,7 +564,7 @@ const handleAutoDreamTrigger = async () => {
     }
   } catch (error) {
     localGovernanceCards.value = localGovernanceCards.value.map((card) =>
-      card.id === pendingId
+      card.id === pendingId && card.kind === 'autodream_run'
         ? {
             ...card,
             state: 'unavailable',
