@@ -1,12 +1,12 @@
 # Laputa 现行架构
 
-- 状态：`Approved Product Architecture / Implementation Pending`
+- 状态：`Approved Product Architecture / S1–S2 Implemented`
 - 汇总日期：2026-08-15
 - 性质：把已冻产品决策收成一份可读架构。**不是**当前 Rust 实现说明书。
 - 决策原文：[sources.md](./sources.md)
 - 旧说法黑名单：[do-not-read-as-current.md](./do-not-read-as-current.md)
 
-实施门禁：Research Gate 已过（R1 关掉 GA 进化跟踪，进化走 D6）。D0–D4 已批准。保护分支已切（本地 `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`）。**未领 S1 前仍不得改生产认知主链。** 本文冻结的是产品形状；代码仍是旧实现。
+实施门禁：Research Gate 已过（R1 关掉 GA 进化跟踪，进化走 D6）。D0–D4 已批准。保护分支已切（本地 `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`）。S1、S2 已实现；S3/S4 尚未领取。本文仍是产品架构，实施证据见 `docs/logs/2026-08-cognitive-workspace-reset-implementation/`。
 
 ---
 
@@ -93,7 +93,7 @@ v1 种类闭集。架构按登记表可加第八种，用户不能自加。禁�
 P19 允许 AutoDream 提案：IDENTITY、RELATIONSHIP、USER 观察、DARK、WORLD 新 claim。  
 禁止：REDLINE、DREAM、USER 偏好、BML/`MemoryPatch`、`memory_md`、Skill、种类表、自己 apply。
 
-旧工具 `laputa_propose_section_write` 与 JSON `IdentityPatch` / `LearningNote` / `MemoryPatch` 合同删除。当前代码里这些东西还在，是**旧实现未通过**，不是产品。
+旧工具 `laputa_propose_section_write` 已从生产 ToolAssembly 下线；Persona 改用 `persona_request` / `persona_update`。旧文件与 JSON proposal 类型的物理删除归 S5；它们仍是死代码/旧域合同，不是产品入口。
 
 ---
 
@@ -160,7 +160,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 
 ## 9. 代码现状（避免把产品当成已落地）
 
-今天仓库里仍然大量存在：`.laputa/sections/*.json`、`Commitment`/`Preferences` 符号、`MemoryPatch`、AutoDream 读 Identity JSON、WORLD `project()` 未当生产装配（与「WORLD 走工具」碰巧一致）、产品 STM/ACTMEM 对象为零。
+S2 已落地 `{config_dir}/persona` 七文件权威、CAS/历史/请求、Markdown Frozen Core、WORLD 工具、Manager/Tauri API 与 GUI 工作区。仓库仍存在待 S3–S5 卸除的 `.laputa/sections/*.json`、`Commitment` 符号、旧 proposal/AutoDream 输入与旧 GUI 子组件；产品 STM/ACTMEM 对象仍为零。
 
 这些是 **R0 事实**，不是许可继续做旧模型。实施按 D4 切片，不得双轨兼容。
 
@@ -173,7 +173,7 @@ SOP 与 Skill 的文件形态由 D3 设计。
 - （MEMRULES 已冻 S9/P21。）
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
-- D0–D4 **已批准**。保护分支已切。下一步是领 **S1**（仍须另说）。
+- D0–D4 **已批准**。保护分支已切。S1/S2 已实现；下一生产切片是 **S3 Memory/ACTMEM/Recap**（仍须另说）。
 - D0 [`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
 - D1 [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)
 - D2 [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)

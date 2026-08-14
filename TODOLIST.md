@@ -8,10 +8,10 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S4 eligible`。
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2 implemented, desktop visual acceptance pending / S3–S4 eligible`。
   进化走 D6。保护分支已切（本地
   `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
-  **未领取具体 S2/S3/S4 范围，不得改对应生产认知主链。**
+  **S2 已领取并实现；未领取 S3/S4 范围，不得改对应生产认知主链。**
   编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
   架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
 
@@ -148,7 +148,7 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切，S1 已完成（停止 `sections/*.json` null 与 `# WORLD` 预写）。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  I0 已切，S1 已完成；S2 Persona 内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
 
@@ -156,10 +156,17 @@
 
 S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、混域 Inbox）。下面三片缺 GUI 不得标完成。
 
-- [ ] **UI-S2-PERSONA：Persona 文档工作区** `sev-P0` `blocked:I1-S2`
+- [ ] **UI-S2-PERSONA：Persona 文档工作区** `sev-P0` `acceptance:desktop-smoke`
   左栏只七份；中央三态（当前文档 / 待审 / 历史）；最小 CM6 + Markdown 预览；
   五文件引导与 incomplete 修复。删 JSON 门、永久右栏、MEMRULES/`memory_md` 左栏。
-  依据 D1。须 GUI vitest + 桌面 smoke。
+  依据 D1。实现已落在 `93f4b554`：GUI 466 tests、生产构建、Tauri cargo check、
+  本地 Vite HTTP smoke 通过；当前环境无浏览器控制执行器，仍需真实桌面视觉/交互 smoke 后勾选。
+
+- [ ] **PERSONA-S2-DESKTOP-SMOKE：真实桌面 Persona 验收** `sev-P1`
+  启动 Tauri + Manager，分别验证 uninitialized 五文件引导、incomplete 只修坏件、
+  七文件 CM6 编辑/预览、CAS 冲突刷新、pending 接受/拒绝、历史 Diff/重新保存；
+  同时确认未 ready 时 Chat 被独立 Persona 状态门挡住。自动化证据见
+  `docs/logs/2026-08-cognitive-workspace-reset-implementation/v0.0.2-s2-persona-home/verification.md`。
 
 - [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `blocked:I1-S3`
   BML 列表/详情直改（无审批）；ACTMEM 入口展示 Pulse / Recap / Work / 胶囊；
@@ -181,9 +188,10 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
   来源于 OpenHarness 调研；保留为未来扩展点，当前延期。
 
-- [ ] **WORLD-MEMRULES-GATE：WORLD 写核 R6 拦截** `sev-P2`
+- [x] **WORLD-MEMRULES-GATE：WORLD 写核 R6 拦截** `sev-P2`
   D1 已删 WorldGovernance 队列。R6 进 WORLD **写核**（用户直存 / 接受 P5）。
-  不得恢复 Memory 审批。实施随 D4 **S2**。
+  不得恢复 Memory 审批。已在 `352cd57f` 实现：提案新增/修改必须是带 status/source
+  的有界 claim，新增散文拒绝；AutoDream 不能改既有 claim；用户直存仍保持直存。
 
 - [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
   D2 已定：改掉 R4「high-risk 要审批」。实施随 D4 **S3** 改 `DEFAULT_MEM_RULES_TEXT`。

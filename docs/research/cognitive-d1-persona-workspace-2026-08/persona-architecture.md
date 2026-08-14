@@ -1,6 +1,9 @@
 # D1 — Persona、WORLD、首次初始化与历史
 
-- 状态：`Approved / Implementation Pending`
+> 实施状态（2026-08-14）：S2 已落地。生产代码提交为 `a05e1d8c`、`e8676eb8`、
+> `93f4b554`、`352cd57f`；真实桌面视觉验收仍列在 `TODOLIST.md`，旧域物理删除归 S5。
+
+- 状态：`Approved / S2 Implemented`
 - 日期：2026-08-14
 - 性质：D1 架构合同。把 P1–P22 和 D0 收成可实施的目录、revision、引导、审查与 API。
 - **不是** Architecture Gate，**不授权**改生产代码。
