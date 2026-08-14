@@ -1,12 +1,12 @@
 # Laputa 现行架构
 
-- 状态：`Approved Product Architecture / S1–S2 Implemented`
+- 状态：`Approved Product Architecture / S1–S3 Implemented`
 - 汇总日期：2026-08-15
 - 性质：把已冻产品决策收成一份可读架构。**不是**当前 Rust 实现说明书。
 - 决策原文：[sources.md](./sources.md)
 - 旧说法黑名单：[do-not-read-as-current.md](./do-not-read-as-current.md)
 
-实施门禁：Research Gate 已过（R1 关掉 GA 进化跟踪，进化走 D6）。D0–D4 已批准。保护分支已切（本地 `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`）。S1、S2 已实现；S3/S4 尚未领取。本文仍是产品架构，实施证据见 `docs/logs/2026-08-cognitive-workspace-reset-implementation/`。
+实施门禁：Research Gate 已过（R1 关掉 GA 进化跟踪，进化走 D6）。D0–D4 已批准。保护分支已切（本地 `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`）。S1–S3 已实现；S4 尚未领取。本文仍是产品架构，实施证据见 `docs/logs/2026-08-cognitive-workspace-reset-implementation/`。
 
 ---
 
@@ -23,7 +23,7 @@ Laputa 是 Diva 的**人格与认知治理面**：人能打开的 Markdown 权�
 | **BML** | 普通长期记忆（LTM）唯一权威；`memory.sqlite3` 跟人格同一套家 | 是 |
 | **ACTMEM.MD** | 跨会话活动记忆文件（STM 概念的落地文件名） | 是 |
 | **Session transcript** | 某个聊天的原文 | 是 |
-| **SessionCheckpoint / working_memory** | 会话级草稿，结束可清 | 是 |
+| **SessionCheckpoint / session_checkpoint** | 会话级草稿，结束物理清理；旧 `working_memory` 仅作反序列化清理别名 | 是 |
 | **CanonicalCheckpoint** | 本会话 compact 摘要 | 是 |
 | **Skill / Evolution** | 可复用能力 | 是 |
 | **MEMRULES.MD** | 记忆写入手册（S9），不是人格 | 是 |
@@ -139,6 +139,7 @@ Persona 工作区：左侧七份导航 + 一个中央区（当前文档 | 待审
 ## 7. BML
 
 typed SQLite + FTS5 是普通长期记忆唯一生产权威。文件名 `memory.sqlite3`，**跟人格走**（整机一份家）。工作区 `.laputa/memory.sqlite3` 是旧落点。  
+生产路径为 `{config_dir}/memory/memory.sqlite3`，首次真实写入才创建；缺库读取为空，不读取、复制或导入旧落点。生产记录只接受 LongTerm，更新与软删使用 record revision CAS。L1 只有 MEMRULES 指针与有界 LongTerm 存在性索引，正文经检索工具进入 TurnVolatile。
 `memory_md` / `MemoryMd` / `MEMORY.md` 长期记忆链路 **clean-break 删除**，不自动导入。  
 Memory CRUD 不走审批。STM/ACTMEM 清理不得删 BML；反之亦然。
 
@@ -154,13 +155,13 @@ Memory CRUD 不走审批。STM/ACTMEM 清理不得删 BML；反之亦然。
 人格提案仍走 P5，不进 Evolution。BML 不走提案。  
 SOP 与 Skill 的文件形态由 D3 设计。
 
-2026-08-14 独立测试：现有 crate 测的是旧 `MemoryPatch` 合同。新路线未接线。
+S3 已接入 AutoDream 的 ACTMEM Work 整理：输入 Work、受限 Pulse/Recap、证据与完整 MEMRULES；只允许 Pulse/Recap 并发变化自动重试一次，Work 冲突失败。S4 接入 Evolution/Skill 前不生成提案，且禁止 `MemoryPatch` 与 BML 写入。
 
 ---
 
 ## 9. 代码现状（避免把产品当成已落地）
 
-S2 已落地 `{config_dir}/persona` 七文件权威、CAS/历史/请求、Markdown Frozen Core、WORLD 工具、Manager/Tauri API 与 GUI 工作区。仓库仍存在待 S3–S5 卸除的 `.laputa/sections/*.json`、`Commitment` 符号、旧 proposal/AutoDream 输入与旧 GUI 子组件；产品 STM/ACTMEM 对象仍为零。
+S2 已落地 `{config_dir}/persona` 七文件权威、CAS/历史/请求、Markdown Frozen Core、WORLD 工具、Manager/Tauri API 与 GUI 工作区。S3 已落地整机 MemoryHome、BML 直写 CRUD、ACTMEM/胶囊、逐轮 Pulse/Recap、SessionCheckpoint 生命周期、AutoDream Work 整理、CORE/DEFER 工具、Manager/Tauri API 与 Memory GUI。仓库仍存在待 S4–S5 卸除的 `.laputa/sections/*.json`、`Commitment`、旧 proposal/MemoryPatch/`memory_distill` 物理符号及旧 GUI 子组件；它们不在 S3 产品入口。
 
 这些是 **R0 事实**，不是许可继续做旧模型。实施按 D4 切片，不得双轨兼容。
 
@@ -173,7 +174,7 @@ S2 已落地 `{config_dir}/persona` 七文件权威、CAS/历史/请求、Markdo
 - （MEMRULES 已冻 S9/P21。）
 - STM→BML 晋升（明确第一版不做）。
 - 子代理如何装配上下文（明确本阶段不做）。
-- D0–D4 **已批准**。保护分支已切。S1/S2 已实现；下一生产切片是 **S3 Memory/ACTMEM/Recap**（仍须另说）。
+- D0–D4 **已批准**。保护分支已切。S1–S3 已实现；下一生产切片是 **S4 Evolution/Skill**（仍须另说）。
 - D0 [`../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](../../research/cognitive-d0-domain-authority-2026-08/domain-authority.md)
 - D1 [`../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](../../research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)
 - D2 [`../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](../../research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)

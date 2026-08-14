@@ -8,10 +8,10 @@
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
-  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2 implemented, desktop visual acceptance pending / S3–S4 eligible`。
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S3 implemented, desktop visual acceptance pending / S4 eligible`。
   进化走 D6。保护分支已切（本地
   `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
-  **S2 已领取并实现；未领取 S3/S4 范围，不得改对应生产认知主链。**
+  **S2–S3 已领取并实现；未领取 S4 范围，不得改对应生产认知主链。**
   编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
   架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
 
@@ -105,7 +105,8 @@
   `cargo test -p agent-diva-autodream` 现有 56 绿 + 表征 3 条；
   `cargo test -p agent-diva-manager --test autodream_laputa_e2e` 6/6 绿。
   测到的是旧合同（生命周期 / MemoryPatch / 闸门 / 报告 / Manager 治理闭环）。
-  未测到：STM 整理（crate 零 STM 符号；产品 STM 未实现）；人格 Markdown 允许表。
+  S3 已接入 ACTMEM Work 整理、仅 Pulse/Recap 冲突重试、Work 冲突失败、零
+  MemoryPatch/BML 写入；人格 Markdown 允许表仍不在本条诊断范围。
   表征钉在 `agent-diva-autodream/tests/current_contract.rs`。
   仍缺阶段级结构化日志（run_id / phase / 输入摘要 / gate 拒绝 / proposal_id /
   失败码）。禁止借机写 REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/
@@ -148,7 +149,7 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切，S1 已完成；S2 Persona 内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  I0 已切，S1 已完成；S2 Persona 与 S3 Memory/ACTMEM/Recap 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
 
@@ -168,17 +169,25 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   同时确认未 ready 时 Chat 被独立 Persona 状态门挡住。自动化证据见
   `docs/logs/2026-08-cognitive-workspace-reset-implementation/v0.0.2-s2-persona-home/verification.md`。
 
-- [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `blocked:I1-S3`
+- [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `acceptance:desktop-smoke`
   BML 列表/详情直改（无审批）；ACTMEM 入口展示 Pulse / Recap / Work / 胶囊；
-  MEMRULES 设置可编。依据 D2 + S8 Recap。须 GUI vitest + 桌面 smoke。
+  MEMRULES 设置可编。依据 D2 + S8 Recap。实现已落地：GUI 467 tests、生产构建、
+  Tauri cargo check 通过；仍须真实桌面完成 BML CRUD、ACTMEM CAS、胶囊、MEMRULES
+  与零审批路径后勾选。自动化证据见 S3 `verification.md`。
+
+- [ ] **MEMORY-S3-DESKTOP-SMOKE：真实桌面 Memory 验收** `sev-P1`
+  启动 Tauri + Manager，完成 BML 新增/编辑/软删、ACTMEM 三节编辑与冲突保稿、
+  胶囊查看/单次确认删除、MEMRULES 默认/文件切换，并确认 Approval Center 零新增。
+  当前执行环境可完成编译与自动化测试，但没有原生 WebView 控制器代替人工交互。
 
 - [ ] **UI-S4-EVOLUTION-SKILL：Evolution Skill 工作区** `sev-P0` `blocked:I1-S4`
   Skill 列表（搜索/启用/编辑/历史）；待审只接受/拒绝；无 Memory/人格混箱。
   依据 D3。须 GUI vitest + 桌面 smoke。
 
-- [ ] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1` `blocked:I1-S3`
+- [x] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1`
   助手最终回复结束立刻写 `## Recap`；Pulse 仍只收用户短原话；10 分钟只折叠。
-  依据 S8 修订 / D2。不得另开一轮大模型写 Recap。
+  依据 S8 修订 / D2。已实现机械首个非代码结论段、≤200 字即时写入；暂停时间测试
+  覆盖 Pulse、Recap、10 分钟折叠、代次取消、cron/子代理排除及 reset 清理。
 
 ## 产品与架构
 
@@ -193,8 +202,9 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   不得恢复 Memory 审批。已在 `352cd57f` 实现：提案新增/修改必须是带 status/source
   的有界 claim，新增散文拒绝；AutoDream 不能改既有 claim；用户直存仍保持直存。
 
-- [ ] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
-  D2 已定：改掉 R4「high-risk 要审批」。实施随 D4 **S3** 改 `DEFAULT_MEM_RULES_TEXT`。
+- [x] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
+  D2 已定并随 S3 落地：R4 为 revision/CAS 直写，证据只作 advisory；缺文件使用
+  内置 R1–R7，只有用户首次保存才创建 `{config_dir}/memory/MEMRULES.MD`。
 
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
