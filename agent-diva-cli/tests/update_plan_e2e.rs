@@ -28,6 +28,16 @@ async fn update_plan_end_to_end_client_sse() {
     let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(1);
 
     let temp_dir = tempfile::tempdir().expect("create temp dir");
+    agent_diva_laputa::PersonaService::open(temp_dir.path())
+        .expect("open Persona")
+        .initialize(agent_diva_laputa::PersonaInitialization {
+            identity: "Diva".into(),
+            relationship: "Test partner".into(),
+            redline: "No unsafe actions".into(),
+            user: "Concise output".into(),
+            world: "Local E2E".into(),
+        })
+        .expect("initialize Persona");
     let state = AppState::new(api_tx, MessageBus::new(), temp_dir.path()).expect("build state");
 
     let expected_args = UpdatePlanArgs {
