@@ -262,38 +262,8 @@ mod tests {
     }
 
     #[test]
-    fn truly_unseeded_sections_yield_empty_snapshot() {
-        // Bypass LaputaStorage::open to assert the low-level capture
-        // contract: missing section files → empty string → empty snapshot.
-        // LaputaStorage::open is now expected to seed the four Frozen Core
-        // sections, so this test constructs the service via from_storage
-        // against a bare layout (no seeding pass).
+    fn missing_sections_yield_empty_snapshot_after_open() {
         let temp = tempfile::tempdir().unwrap();
-        let paths = crate::LaputaPaths::new(temp.path());
-        let laputa_dir = paths.laputa_dir().to_path_buf();
-        let sections_dir = laputa_dir.join("sections");
-        let cognitive_dir = paths.cognitive_dir();
-        for dir in [&laputa_dir, &sections_dir, &cognitive_dir] {
-            std::fs::create_dir_all(dir).unwrap();
-        }
-        // Manual state.json: LaputaService::from_storage reads it, and we
-        // bypassed LaputaStorage::open which would have seeded it.
-        std::fs::write(paths.state_json(), r#"{"schema_version":"1.0.0"}"#).unwrap();
-        let storage = LaputaStorage::from_paths_for_tests(paths);
-        let service = LaputaService::from_storage(storage);
-        let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-        assert!(snapshot.is_empty());
-        assert_eq!(snapshot.render(0), "");
-    }
-
-    #[test]
-    fn seeded_sections_exist_on_disk_but_carry_no_semantic_content() {
-        let temp = tempfile::tempdir().unwrap();
-        // LaputaStorage::open seeds the four Frozen Core files with
-        // JSON `null` — the files exist on disk, but the typed store
-        // deserializes them to Value::Null, so capture still yields an
-        // empty snapshot until a governance write lands real content.
-        let _storage = LaputaStorage::open(temp.path()).unwrap();
         let service = LaputaService::open(temp.path()).unwrap();
 
         let sections_dir = temp.path().join(".laputa").join("sections");
@@ -303,19 +273,16 @@ mod tests {
             LaputaSectionName::Commitment,
             LaputaSectionName::Preferences,
         ] {
-            let path = sections_dir.join(format!("{}.json", name.as_str()));
-            let raw = std::fs::read_to_string(&path).unwrap();
-            assert_eq!(
-                raw, "null",
-                "{name:?} should be seeded with JSON null on first open"
+            assert!(
+                !sections_dir
+                    .join(format!("{}.json", name.as_str()))
+                    .exists(),
+                "{name:?} must not be seeded on first open"
             );
         }
 
         let snapshot = FrozenCoreSnapshot::capture(&service).unwrap();
-        assert!(
-            snapshot.is_empty(),
-            "null-seeded sections must not pollute the prompt projection"
-        );
+        assert!(snapshot.is_empty());
         assert_eq!(snapshot.render(0), "");
     }
 

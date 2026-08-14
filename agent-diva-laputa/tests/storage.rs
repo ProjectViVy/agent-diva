@@ -24,10 +24,30 @@ fn open_creates_file_first_layout_idempotently() {
     assert!(paths.migrations_dir().is_dir());
     assert!(paths.locks_dir().is_dir());
     assert!(paths.legacy_dir().is_dir());
+    assert!(paths.memrules_file().is_file());
+    assert!(!paths.world_file().exists());
+    for section in [
+        LaputaSectionName::Identity,
+        LaputaSectionName::Relationship,
+        LaputaSectionName::Commitment,
+        LaputaSectionName::Preferences,
+    ] {
+        assert!(
+            !paths.section_file(section.clone()).exists(),
+            "{section:?} must not be seeded on first open"
+        );
+    }
     assert_eq!(
         paths.section_file(LaputaSectionName::MemoryMd),
         temp.path().join(".laputa/sections/memory_md.json")
     );
+
+    fs::write(paths.world_file(), "# WORLD\n\nuser content\n").unwrap();
+    fs::write(
+        paths.section_file(LaputaSectionName::Identity),
+        r#"{"name":"user"}"#,
+    )
+    .unwrap();
 
     let state_before = fs::read_to_string(paths.state_json()).unwrap();
     let reopened = LaputaStorage::open(temp.path()).unwrap();
@@ -35,6 +55,14 @@ fn open_creates_file_first_layout_idempotently() {
 
     assert_eq!(state_before, state_after);
     assert!(state_after.contains("\"schema_version\": \"1.0.0\""));
+    assert_eq!(
+        fs::read_to_string(reopened.paths().world_file()).unwrap(),
+        "# WORLD\n\nuser content\n"
+    );
+    assert_eq!(
+        fs::read_to_string(reopened.paths().section_file(LaputaSectionName::Identity)).unwrap(),
+        r#"{"name":"user"}"#
+    );
 }
 
 #[test]

@@ -2017,8 +2017,8 @@ mod recovery_tests {
             .unwrap();
         assert_eq!(world.0["status"], "ok");
         assert!(
-            !world.0["content"].as_str().unwrap().trim().is_empty(),
-            "seeded WORLD expected"
+            world.0["content"].as_str().unwrap().is_empty(),
+            "missing WORLD should be returned as an empty world"
         );
 
         assert!(

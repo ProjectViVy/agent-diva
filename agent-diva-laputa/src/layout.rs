@@ -158,21 +158,12 @@ impl LaputaStorage {
         }
 
         cognitive::initialize_dir(paths.cognitive_dir())?;
-        cognitive::sections::initialize_sections(&paths)?;
 
         Ok(Self { paths })
     }
 
     pub fn paths(&self) -> &LaputaPaths {
         &self.paths
-    }
-
-    /// Wrap a pre-built `LaputaPaths` without running any seed logic.
-    /// Reserved for tests that want to assert the low-level capture
-    /// contract on a bare layout; production code should use `open`.
-    #[cfg(test)]
-    pub(crate) fn from_paths_for_tests(paths: LaputaPaths) -> Self {
-        Self { paths }
     }
 }
 

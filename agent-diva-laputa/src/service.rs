@@ -1392,7 +1392,7 @@ mod wave4_tests {
     }
 
     #[test]
-    fn read_cognitive_file_returns_seeded_content() {
+    fn read_cognitive_file_returns_default_memrules_and_empty_world() {
         let temp = tempfile::tempdir().unwrap();
         let service = LaputaService::open(temp.path()).unwrap();
 
@@ -1404,7 +1404,10 @@ mod wave4_tests {
         let world = service
             .read_cognitive_file(CognitiveFileKind::World)
             .unwrap();
-        assert!(!world.trim().is_empty(), "seeded WORLD must not be empty");
+        assert!(
+            world.is_empty(),
+            "missing WORLD must read as an empty world"
+        );
     }
 
     #[tokio::test]
