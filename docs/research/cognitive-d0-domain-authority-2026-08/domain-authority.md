@@ -266,8 +266,11 @@ STM 决策文里「物理权威待选」、R3「MEMRULES 仍 DECIDE」以 8/14 �
   系统写 Pulse
   模型要查近事 → actmem 查询工具
 
+本轮助手最终回复结束
+  系统立刻写 Recap（一句完成态；不为此注入 MEMRULES）
+
 空闲 10 分钟
-  系统写该会话胶囊（不为此注入 MEMRULES）
+  把该 session 的 Pulse+Recap 折进胶囊并从头删掉（不是这时才第一次归纳）
 
 写长期记忆 / AutoDream 整理
   注入 MEMRULES 全文
