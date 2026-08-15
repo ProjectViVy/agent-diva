@@ -263,7 +263,6 @@ fn error_response(error: ApprovalServiceError) -> Response {
         ),
         ApprovalServiceError::Ledger(ApprovalLedgerError::Persistence(_))
         | ApprovalServiceError::Command(ApprovalResolveError::Persistence)
-        | ApprovalServiceError::Memory(_)
         | ApprovalServiceError::Plan(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             ApprovalReasonCode::ApprovalPersistenceFailed,
@@ -299,10 +298,6 @@ mod tests {
     use agent_diva_core::{
         bus::MessageBus,
         config::schema::MemoryAuthorityMode,
-        evolution::{
-            EvidenceRef, EvidenceSource, EvolutionProposal, LaputaSectionName, ProposalState,
-            ProposalType, RiskLevel,
-        },
         governance::{ApprovalCoordinator, GovernanceSubject, SqliteGovernanceLedger},
     };
     use agent_diva_sandbox::{
@@ -727,79 +722,5 @@ mod tests {
             .active_execution(&report.report.session_key)
             .await
             .is_some());
-    }
-
-    #[tokio::test]
-    async fn unified_memory_deny_updates_governance_and_domain_state() {
-        let temp = tempfile::tempdir().unwrap();
-        let state = state(temp.path()).await;
-        let now = chrono::Utc::now();
-        let proposal = state
-            .laputa
-            .create_proposal(EvolutionProposal {
-                id: "unified-memory".into(),
-                created_at: now,
-                updated_at: now,
-                created_by: "test".into(),
-                proposal_type: ProposalType::MemoryPatch,
-                target_section: LaputaSectionName::MemoryMd,
-                evidence_refs: vec![EvidenceRef {
-                    id: "evidence-1".into(),
-                    source: EvidenceSource::Session,
-                    uri: "session://unified".into(),
-                    excerpt: None,
-                    hash: Some("hash".into()),
-                    created_at: now,
-                }],
-                proposed_patch: r#"{"facts":[]}"#.into(),
-                risk_level: RiskLevel::Medium,
-                state: ProposalState::PendingReview,
-                source_run_id: None,
-            })
-            .unwrap();
-        let pending = state
-            .memory_governance
-            .submit(&proposal, None, now)
-            .await
-            .unwrap();
-        let service = ApprovalService::from_state(&state).unwrap();
-        let detail = service.detail(&pending.request_id).await.unwrap();
-        assert_eq!(
-            detail.presentation.as_ref().unwrap()["diff"],
-            proposal.proposed_patch
-        );
-        let result = service
-            .decide(
-                &pending.request_id,
-                &UnifiedDecisionBody {
-                    expected_version: pending.request_version,
-                    idempotency_key: "unified-memory-deny".into(),
-                    decision: agent_diva_core::governance::Decision::Deny,
-                    grant: agent_diva_core::governance::ApprovalGrant::Once,
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(result.status, ApprovalStatus::Denied);
-        assert_eq!(
-            service
-                .decide(
-                    &pending.request_id,
-                    &UnifiedDecisionBody {
-                        expected_version: pending.request_version,
-                        idempotency_key: "unified-memory-deny".into(),
-                        decision: agent_diva_core::governance::Decision::Deny,
-                        grant: agent_diva_core::governance::ApprovalGrant::Once,
-                    },
-                )
-                .await
-                .unwrap()
-                .status,
-            ApprovalStatus::Denied
-        );
-        assert_eq!(
-            state.laputa.get_proposal(&proposal.id).unwrap().state,
-            ProposalState::Rejected
-        );
     }
 }

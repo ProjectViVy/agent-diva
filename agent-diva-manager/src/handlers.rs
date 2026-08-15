@@ -43,14 +43,7 @@ pub use autodream::{
     list_autodream_run_events_handler, list_autodream_runs_handler, trigger_autodream_run_handler,
 };
 pub use bml::{get_bml_memory_handler, list_bml_memories_handler, remove_bml_memory_handler};
-pub use laputa::{
-    apply_laputa_proposal_handler, create_laputa_proposal_handler, decide_laputa_proposal_handler,
-    edit_laputa_proposal_handler, get_laputa_changelog_handler, get_laputa_cognitive_handler,
-    get_laputa_persona_workspace_handler, get_laputa_proposal_handler, get_laputa_section_handler,
-    get_laputa_snapshot_handler, list_laputa_changelog_handler, list_laputa_proposals_handler,
-    list_recall_feedback_handler, poll_laputa_events_handler, rollback_laputa_changelog_handler,
-    stream_laputa_events_handler, transition_laputa_proposal_handler, write_laputa_section_handler,
-};
+pub use laputa::list_recall_feedback_handler;
 pub use persona::{
     accept_persona_request_handler, create_persona_request_handler, get_persona_document_handler,
     get_persona_history_revision_handler, get_persona_status_handler, initialize_persona_handler,

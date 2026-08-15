@@ -5,7 +5,6 @@ use agent_diva_core::governance::{
     ApprovalReceipt, ApprovalState, ApprovalStatus, Capability, Decision, GovernanceSubject,
     GovernanceSubjectKind,
 };
-use agent_diva_laputa::{MemoryGovernanceDecision, MemoryGovernanceError};
 use agent_diva_sandbox::{ApprovalDecision, ApprovalResolveError};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -17,7 +16,6 @@ use crate::state::AppState;
 pub enum ApprovalDomain {
     Command,
     Plan,
-    Memory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,7 +117,6 @@ pub enum ApprovalServiceError {
     InvalidGrant,
     Ledger(ApprovalLedgerError),
     Command(ApprovalResolveError),
-    Memory(MemoryGovernanceError),
     Plan(String),
 }
 
@@ -131,7 +128,6 @@ impl std::fmt::Display for ApprovalServiceError {
             Self::InvalidGrant => formatter.write_str("approval grant is invalid for this domain"),
             Self::Ledger(error) => write!(formatter, "{error}"),
             Self::Command(error) => write!(formatter, "command approval failed: {error:?}"),
-            Self::Memory(error) => write!(formatter, "memory approval failed: {error}"),
             Self::Plan(error) => write!(formatter, "plan approval failed: {error}"),
         }
     }
@@ -140,12 +136,6 @@ impl std::fmt::Display for ApprovalServiceError {
 impl From<ApprovalLedgerError> for ApprovalServiceError {
     fn from(error: ApprovalLedgerError) -> Self {
         Self::Ledger(error)
-    }
-}
-
-impl From<MemoryGovernanceError> for ApprovalServiceError {
-    fn from(error: MemoryGovernanceError) -> Self {
-        Self::Memory(error)
     }
 }
 
@@ -309,39 +299,6 @@ impl ApprovalService {
             ApprovalDomain::Plan => {
                 decide_ledger(&self.governance, &current, body).await?;
             }
-            ApprovalDomain::Memory => {
-                let proposal = self
-                    .state
-                    .laputa
-                    .get_proposal(&current.request.resource.resource_id)
-                    .map_err(|_| ApprovalServiceError::PayloadUnavailable)?;
-                self.state
-                    .memory_governance
-                    .decide(
-                        &proposal,
-                        body.expected_version,
-                        MemoryGovernanceDecision {
-                            decision: body.decision.clone(),
-                            grant: body.grant.clone(),
-                            actor: local_user(),
-                            idempotency_key: &body.idempotency_key,
-                            decided_at: Utc::now(),
-                        },
-                    )
-                    .await
-                    .map_err(map_memory_error)?;
-                let desired = if body.decision == Decision::Allow {
-                    agent_diva_core::evolution::ProposalState::Approved
-                } else {
-                    agent_diva_core::evolution::ProposalState::Rejected
-                };
-                if proposal.state != desired {
-                    self.state
-                        .laputa
-                        .transition_proposal(&proposal.id, desired, Utc::now())
-                        .map_err(|_| ApprovalServiceError::PayloadUnavailable)?;
-                }
-            }
         }
         self.detail(request_id).await
     }
@@ -486,25 +443,6 @@ impl ApprovalService {
                         })
                     }))
             }
-            ApprovalDomain::Memory => {
-                let proposal = self
-                    .state
-                    .laputa
-                    .get_proposal(&state.request.resource.resource_id)
-                    .map_err(|_| ApprovalServiceError::PayloadUnavailable)?;
-                if agent_diva_laputa::proposal_digest(&proposal) != state.request.content_digest {
-                    return Err(ApprovalServiceError::PayloadUnavailable);
-                }
-                Ok(Some(serde_json::json!({
-                    "title": "Memory change",
-                    "proposal_id": proposal.id,
-                    "target_section": proposal.target_section,
-                    "proposal_type": proposal.proposal_type,
-                    "evidence_count": proposal.evidence_refs.len(),
-                    "summary": proposal.proposed_patch.chars().take(600).collect::<String>(),
-                    "diff": proposal.proposed_patch,
-                })))
-            }
         }
     }
 }
@@ -516,15 +454,6 @@ fn map_plan_error(error: anyhow::Error) -> ApprovalServiceError {
             ApprovalServiceError::PayloadUnavailable
         }
         Err(error) => ApprovalServiceError::Plan(error.to_string()),
-    }
-}
-
-fn map_memory_error(error: MemoryGovernanceError) -> ApprovalServiceError {
-    match error {
-        MemoryGovernanceError::Ledger(error) => ApprovalServiceError::Ledger(error),
-        MemoryGovernanceError::StaleProposal => ApprovalServiceError::PayloadUnavailable,
-        MemoryGovernanceError::InvalidGrant => ApprovalServiceError::InvalidGrant,
-        error => ApprovalServiceError::Memory(error),
     }
 }
 
@@ -583,7 +512,6 @@ fn domain_for_capability(capability: &Capability) -> Result<ApprovalDomain, Appr
     match capability {
         Capability::CommandExecute => Ok(ApprovalDomain::Command),
         Capability::PlanExecute => Ok(ApprovalDomain::Plan),
-        Capability::MemoryApply => Ok(ApprovalDomain::Memory),
         _ => Err(ApprovalServiceError::PayloadUnavailable),
     }
 }
@@ -612,11 +540,9 @@ fn reason_for_status(status: &ApprovalStatus) -> Option<ApprovalReasonCode> {
 fn actions(domain: ApprovalDomain, status: &ApprovalStatus) -> Vec<String> {
     match status {
         ApprovalStatus::Pending => match domain {
-            ApprovalDomain::Memory => vec!["allow", "deny", "cancel", "edit"],
             ApprovalDomain::Plan => vec!["allow", "deny", "cancel", "edit"],
             ApprovalDomain::Command => vec!["allow", "deny", "cancel"],
         },
-        ApprovalStatus::Allowed if domain == ApprovalDomain::Memory => vec!["apply"],
         _ => Vec::new(),
     }
     .into_iter()

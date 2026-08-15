@@ -10,19 +10,16 @@ use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
     accept_persona_request_handler, accept_skill_request_handler, add_provider_model_handler,
-    apply_laputa_proposal_handler, cancel_autodream_run_handler, chat_handler,
-    create_cron_job_handler, create_laputa_proposal_handler, create_mcp_handler,
+    cancel_autodream_run_handler, chat_handler, create_cron_job_handler, create_mcp_handler,
     create_memory_record_handler, create_persona_request_handler, create_provider_handler,
-    create_skill_request_handler, decide_laputa_proposal_handler, delete_actmem_capsule_handler,
-    delete_cron_job_handler, delete_mcp_handler, delete_memory_record_handler,
-    delete_provider_handler, delete_provider_model_handler, delete_session_handler,
-    delete_skill_handler, disable_skill_handler, edit_laputa_proposal_handler, events_handler,
-    generate_session_title_handler, get_actmem_capsule_handler, get_actmem_handler,
-    get_audit_events_handler, get_audit_log_handler, get_autodream_live_text_handler,
-    get_autodream_run_handler, get_bml_memory_handler, get_channels_handler, get_config_handler,
-    get_cron_job_handler, get_laputa_changelog_handler, get_laputa_cognitive_handler,
-    get_laputa_persona_workspace_handler, get_laputa_proposal_handler, get_laputa_section_handler,
-    get_laputa_snapshot_handler, get_mcps_handler, get_memory_record_handler, get_memrules_handler,
+    create_skill_request_handler, delete_actmem_capsule_handler, delete_cron_job_handler,
+    delete_mcp_handler, delete_memory_record_handler, delete_provider_handler,
+    delete_provider_model_handler, delete_session_handler, delete_skill_handler,
+    disable_skill_handler, events_handler, generate_session_title_handler,
+    get_actmem_capsule_handler, get_actmem_handler, get_audit_events_handler,
+    get_audit_log_handler, get_autodream_live_text_handler, get_autodream_run_handler,
+    get_bml_memory_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_mcps_handler, get_memory_record_handler, get_memrules_handler,
     get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
     get_provider_handler, get_provider_models_handler, get_providers_handler,
     get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
@@ -30,20 +27,17 @@ use crate::handlers::{
     get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
     initialize_persona_handler, list_actmem_capsules_handler, list_autodream_run_events_handler,
     list_autodream_runs_handler, list_bml_memories_handler, list_cron_jobs_handler,
-    list_laputa_changelog_handler, list_laputa_proposals_handler, list_memory_records_handler,
-    list_persona_history_handler, list_persona_requests_handler, list_recall_feedback_handler,
-    list_skill_history_handler, list_skill_requests_handler, logs_routes,
-    poll_laputa_events_handler, put_actmem_handler, put_memrules_handler,
-    refresh_mcp_status_handler, reject_persona_request_handler, reject_skill_request_handler,
-    remove_bml_memory_handler, repair_persona_handler, reset_session_handler,
-    resolve_provider_handler, rollback_laputa_changelog_handler, run_cron_job_handler,
+    list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
+    list_recall_feedback_handler, list_skill_history_handler, list_skill_requests_handler,
+    logs_routes, put_actmem_handler, put_memrules_handler, refresh_mcp_status_handler,
+    reject_persona_request_handler, reject_skill_request_handler, remove_bml_memory_handler,
+    repair_persona_handler, reset_session_handler, resolve_provider_handler, run_cron_job_handler,
     save_persona_document_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler,
-    stop_chat_handler, stop_cron_job_handler, stream_laputa_events_handler, todo_routes,
-    token_stats_routes, transition_laputa_proposal_handler, trigger_autodream_run_handler,
-    update_channel_handler, update_config_handler, update_cron_job_handler, update_mcp_handler,
-    update_memory_record_handler, update_provider_handler, update_self_evolution_config_handler,
-    update_session_title_handler, update_skill_handler, update_tools_handler, upload_file_handler,
-    upload_skill_handler, write_laputa_section_handler,
+    stop_chat_handler, stop_cron_job_handler, todo_routes, token_stats_routes,
+    trigger_autodream_run_handler, update_channel_handler, update_config_handler,
+    update_cron_job_handler, update_mcp_handler, update_memory_record_handler,
+    update_provider_handler, update_self_evolution_config_handler, update_session_title_handler,
+    update_skill_handler, update_tools_handler, upload_file_handler, upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -180,62 +174,10 @@ pub(crate) fn memory_routes() -> Router<AppState> {
 }
 
 fn laputa_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/laputa/proposals",
-            get(list_laputa_proposals_handler).post(create_laputa_proposal_handler),
-        )
-        .route(
-            "/api/laputa/proposals/:id",
-            get(get_laputa_proposal_handler).put(edit_laputa_proposal_handler),
-        )
-        .route(
-            "/api/laputa/proposals/:id/transition",
-            post(transition_laputa_proposal_handler),
-        )
-        .route(
-            "/api/laputa/proposals/:id/apply",
-            post(apply_laputa_proposal_handler),
-        )
-        .route(
-            "/api/laputa/proposals/:id/decision",
-            post(decide_laputa_proposal_handler),
-        )
-        .route("/api/laputa/snapshot", get(get_laputa_snapshot_handler))
-        .route(
-            "/api/laputa/persona-workspace",
-            get(get_laputa_persona_workspace_handler),
-        )
-        .route("/api/laputa/section/:name", get(get_laputa_section_handler))
-        .route(
-            "/api/laputa/section/:name/write",
-            post(write_laputa_section_handler),
-        )
-        .route(
-            "/api/laputa/cognitive/:kind",
-            get(get_laputa_cognitive_handler),
-        )
-        .route("/api/laputa/changelog", get(list_laputa_changelog_handler))
-        .route(
-            "/api/laputa/recall-feedback",
-            get(list_recall_feedback_handler),
-        )
-        .route(
-            "/api/laputa/changelog/:id",
-            get(get_laputa_changelog_handler),
-        )
-        .route(
-            "/api/laputa/changelog/:id/rollback",
-            post(rollback_laputa_changelog_handler),
-        )
-        .route(
-            "/api/laputa/events/:kind",
-            get(stream_laputa_events_handler),
-        )
-        .route(
-            "/api/laputa/events/:kind/poll",
-            get(poll_laputa_events_handler),
-        )
+    Router::new().route(
+        "/api/laputa/recall-feedback",
+        get(list_recall_feedback_handler),
+    )
 }
 
 fn persona_routes() -> Router<AppState> {
@@ -440,52 +382,15 @@ fn misc_routes() -> Router<AppState> {
 mod tests {
     use super::build_router;
     use agent_diva_autodream::DeterministicReflectionEngine;
-    use agent_diva_core::evolution::{
-        AutoDreamFailureCode, AutoDreamRunState, EvidenceRef, EvidenceSource, EvolutionProposal,
-        LaputaSectionName, ProposalState, ProposalType, RiskLevel,
-    };
-    use agent_diva_core::governance::{
-        ApprovalGrant, Decision, GovernanceSubject, GovernanceSubjectKind,
-    };
-    use agent_diva_laputa::MemoryGovernanceDecision;
+    use agent_diva_core::evolution::{AutoDreamFailureCode, AutoDreamRunState};
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
-    use chrono::{DateTime, Utc};
     use std::{io::Write, sync::Arc};
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
 
     const G0_RUNTIME_CONTRACT: &str = include_str!("../tests/fixtures/g0_runtime_contract.json");
-
-    fn ts(seconds: u32) -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339(&format!("2026-06-14T00:03:{seconds:02}Z"))
-            .unwrap()
-            .with_timezone(&Utc)
-    }
-
-    fn laputa_proposal(id: &str, patch: &str) -> EvolutionProposal {
-        EvolutionProposal {
-            id: id.to_string(),
-            created_at: ts(2),
-            updated_at: ts(2),
-            created_by: "autodream".to_string(),
-            proposal_type: ProposalType::MemoryPatch,
-            target_section: LaputaSectionName::MemoryMd,
-            evidence_refs: vec![EvidenceRef {
-                id: "ev-1".to_string(),
-                source: EvidenceSource::Session,
-                uri: "session://ev-1".to_string(),
-                excerpt: Some("bounded evidence".to_string()),
-                hash: Some("hash-ev-1".to_string()),
-                created_at: ts(1),
-            }],
-            proposed_patch: patch.to_string(),
-            risk_level: RiskLevel::Medium,
-            state: ProposalState::PendingReview,
-            source_run_id: Some("run-1".to_string()),
-        }
-    }
 
     async fn json_response(
         app: axum::Router,
@@ -819,7 +724,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn build_router_exposes_laputa_routes() {
+    async fn build_router_keeps_legacy_laputa_governance_routes_removed() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let state =
@@ -827,17 +732,27 @@ mod tests {
 
         let app = build_router(state.clone());
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/api/laputa/snapshot")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
+        for uri in [
+            "/api/laputa/snapshot",
+            "/api/laputa/persona-workspace",
+            "/api/laputa/section/memory_md",
+            "/api/laputa/section/memory_md/write",
+            "/api/laputa/cognitive/memrules",
+            "/api/laputa/proposals",
+            "/api/laputa/proposals/p1/apply",
+            "/api/laputa/proposals/p1/decision",
+            "/api/laputa/changelog",
+            "/api/laputa/changelog/c1/rollback",
+            "/api/laputa/events/proposals",
+            "/api/laputa/events/proposals/poll",
+        ] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        }
     }
 
     #[tokio::test]
@@ -860,244 +775,6 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(value["status"], "ok");
         assert_eq!(value["feedback"], serde_json::json!([]));
-    }
-
-    #[tokio::test]
-    async fn proposal_decision_retry_finishes_transition_after_decision_crash_window() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-        state
-            .laputa
-            .create_proposal(laputa_proposal(
-                "proposal-decision-recovery",
-                r#"{"facts":[]}"#,
-            ))
-            .unwrap();
-        let proposal = state
-            .laputa
-            .get_proposal("proposal-decision-recovery")
-            .unwrap();
-        let pending = state
-            .memory_governance
-            .submit(&proposal, None, Utc::now())
-            .await
-            .unwrap();
-        state
-            .memory_governance
-            .decide(
-                &proposal,
-                pending.request_version,
-                MemoryGovernanceDecision {
-                    decision: Decision::Allow,
-                    grant: ApprovalGrant::Once,
-                    actor: GovernanceSubject {
-                        kind: GovernanceSubjectKind::User,
-                        id: "reviewer".to_string(),
-                    },
-                    idempotency_key: "decision-before-crash",
-                    decided_at: Utc::now(),
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(
-            state
-                .laputa
-                .get_proposal("proposal-decision-recovery")
-                .unwrap()
-                .state,
-            ProposalState::PendingReview
-        );
-        let app = build_router(state.clone());
-        let request = || {
-            Request::builder()
-                .method("POST")
-                .uri("/api/laputa/proposals/proposal-decision-recovery/decision")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({
-                        "decision": "allow",
-                        "grant": "once",
-                        "expected_version": pending.request_version,
-                        "idempotency_key": "decision-before-crash"
-                    })
-                    .to_string(),
-                ))
-                .unwrap()
-        };
-
-        let recovered = app.clone().oneshot(request()).await.unwrap();
-        assert_eq!(recovered.status(), StatusCode::OK);
-        let replay = app.oneshot(request()).await.unwrap();
-        assert_eq!(replay.status(), StatusCode::OK);
-        assert_eq!(
-            state
-                .laputa
-                .get_proposal("proposal-decision-recovery")
-                .unwrap()
-                .state,
-            ProposalState::Approved
-        );
-    }
-
-    #[tokio::test]
-    async fn laputa_apply_preserves_typed_schema_incompatible_error_code() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        // Explicit Legacy: the file-first apply path performs the JSON schema
-        // validation this test guards; the typed branch has its own validation.
-        let state = AppState::new_with_runtime_memory(
-            api_tx,
-            agent_diva_core::bus::MessageBus::new(),
-            temp.path(),
-            agent_diva_sandbox::CommandApprovalCoordinator::default(),
-            agent_diva_core::ask_user::AskUserCoordinator::default(),
-            agent_diva_core::config::schema::MemoryAuthorityMode::Legacy,
-        )
-        .unwrap();
-        state
-            .laputa
-            .create_proposal(laputa_proposal("proposal-1", "not-json"))
-            .unwrap();
-        let proposal = state.laputa.get_proposal("proposal-1").unwrap();
-        let now = Utc::now();
-        let pending = state
-            .memory_governance
-            .submit(&proposal, None, now)
-            .await
-            .unwrap();
-        let authorized = state
-            .memory_governance
-            .decide(
-                &proposal,
-                pending.request_version,
-                MemoryGovernanceDecision {
-                    decision: Decision::Allow,
-                    grant: ApprovalGrant::Once,
-                    actor: GovernanceSubject {
-                        kind: GovernanceSubjectKind::User,
-                        id: "reviewer".to_string(),
-                    },
-                    idempotency_key: "test-decision",
-                    decided_at: now,
-                },
-            )
-            .await
-            .unwrap();
-        state
-            .laputa
-            .transition_proposal("proposal-1", ProposalState::Approved, now)
-            .unwrap();
-
-        let app = build_router(state);
-        let request_id = authorized.request_id;
-        let expected_version = authorized.request_version;
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/laputa/proposals/proposal-1/apply")
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        serde_json::json!({
-                            "governance_request_id": request_id,
-                            "expected_version": expected_version,
-                            "idempotency_key": "apply-test"
-                        })
-                        .to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(value["status"], "error");
-        assert_eq!(value["code"], "schema_incompatible");
-    }
-
-    #[tokio::test]
-    async fn laputa_apply_replays_consumed_result_without_duplicate_execution() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-        state
-            .laputa
-            .create_proposal(laputa_proposal("proposal-replay", r#"{"facts":[]}"#))
-            .unwrap();
-        let proposal = state.laputa.get_proposal("proposal-replay").unwrap();
-        let now = Utc::now();
-        let pending = state
-            .memory_governance
-            .submit(&proposal, None, now)
-            .await
-            .unwrap();
-        let authorized = state
-            .memory_governance
-            .decide(
-                &proposal,
-                pending.request_version,
-                MemoryGovernanceDecision {
-                    decision: Decision::Allow,
-                    grant: ApprovalGrant::Once,
-                    actor: GovernanceSubject {
-                        kind: GovernanceSubjectKind::User,
-                        id: "reviewer".to_string(),
-                    },
-                    idempotency_key: "decision-replay",
-                    decided_at: now,
-                },
-            )
-            .await
-            .unwrap();
-        state
-            .laputa
-            .transition_proposal("proposal-replay", ProposalState::Approved, now)
-            .unwrap();
-
-        let app = build_router(state.clone());
-        let body = serde_json::json!({
-            "governance_request_id": authorized.request_id,
-            "expected_version": authorized.request_version,
-            "idempotency_key": "apply-replay"
-        })
-        .to_string();
-        let request = || {
-            Request::builder()
-                .method("POST")
-                .uri("/api/laputa/proposals/proposal-replay/apply")
-                .header("content-type", "application/json")
-                .body(Body::from(body.clone()))
-                .unwrap()
-        };
-
-        let first = app.clone().oneshot(request()).await.unwrap();
-        assert_eq!(first.status(), StatusCode::OK);
-        let first: serde_json::Value =
-            serde_json::from_slice(&to_bytes(first.into_body(), usize::MAX).await.unwrap())
-                .unwrap();
-        let second = app.oneshot(request()).await.unwrap();
-        assert_eq!(second.status(), StatusCode::OK);
-        let second: serde_json::Value =
-            serde_json::from_slice(&to_bytes(second.into_body(), usize::MAX).await.unwrap())
-                .unwrap();
-
-        assert_eq!(first["changelog"]["id"], second["changelog"]["id"]);
-        assert_eq!(first["audit_event"]["id"], second["audit_event"]["id"]);
-        assert_eq!(first["governance"], second["governance"]);
-        assert_eq!(
-            state
-                .laputa
-                .list_changelog(agent_diva_laputa::ChangelogFilter::default())
-                .unwrap()
-                .total,
-            1
-        );
     }
 
     #[tokio::test]
@@ -1304,134 +981,5 @@ mod tests {
         assert!(!state.memory_home.database_path().exists());
         let document = state.memory_home.actmem().read().unwrap();
         assert!(document.work.contains("evidence:"));
-    }
-
-    #[tokio::test]
-    async fn write_laputa_section_creates_pending_proposal_without_applying() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-
-        let app = build_router(state.clone());
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/laputa/section/memory_md/write")
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"content":"{\"note\":\"hello\"}","summary":"GUI edit"}"#,
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(value["status"], "ok");
-        assert!(value["proposal_id"]
-            .as_str()
-            .unwrap()
-            .starts_with("user-edit-memory_md-"));
-        assert_eq!(value["proposal_type"], "memory_patch");
-        assert_eq!(value["risk_level"], "medium");
-        assert_eq!(value["state"], "pending_review");
-        assert!(value["changelog_id"].is_null());
-        assert!(value["applied_at"].is_null());
-
-        let section = state
-            .laputa
-            .read_section(LaputaSectionName::MemoryMd)
-            .unwrap();
-        assert_eq!(section.content, serde_json::Value::Null);
-        let proposal = state
-            .laputa
-            .get_proposal(value["proposal_id"].as_str().unwrap())
-            .unwrap();
-        assert_eq!(proposal.state, ProposalState::PendingReview);
-        assert_eq!(
-            proposal.evidence_refs[0].excerpt.as_deref(),
-            Some("GUI edit")
-        );
-    }
-
-    #[tokio::test]
-    async fn write_laputa_section_unknown() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-
-        let app = build_router(state);
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/laputa/section/not_a_section/write")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"content":"{}"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(value["status"], "error");
-        assert_eq!(value["code"], "unknown_section");
-    }
-
-    #[tokio::test]
-    async fn write_laputa_section_malformed_json() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-
-        let app = build_router(state);
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/laputa/section/memory_md/write")
-                    .header("content-type", "application/json")
-                    .body(Body::from("not-json"))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    }
-
-    #[tokio::test]
-    async fn write_laputa_section_schema_incompatible() {
-        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-
-        let app = build_router(state);
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/laputa/section/memory_md/write")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"content":"plain text"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(value["status"], "error");
-        assert_eq!(value["code"], "schema_incompatible");
     }
 }

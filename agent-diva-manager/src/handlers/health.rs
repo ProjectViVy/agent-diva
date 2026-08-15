@@ -22,10 +22,6 @@ pub struct MemoryHealth {
     pub authority_mode: MemoryAuthorityMode,
     pub status: &'static str,
     pub degraded_reason: Option<&'static str>,
-    pub store_revision: Option<i64>,
-    pub record_count: Option<i64>,
-    pub tombstone_count: Option<i64>,
-    pub governance_metrics: agent_diva_laputa::LaputaMetricsSnapshot,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,10 +47,7 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
     components.insert("workspace", component_from_bool(workspace_ready, true));
     components.insert(
         "memory",
-        component_from_bool(
-            memory.status == "ready",
-            state.memory_authority_mode != MemoryAuthorityMode::Legacy,
-        ),
+        component_from_bool(memory.status == "ready", true),
     );
 
     let all_critical_ready = components
@@ -80,49 +73,17 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
     )
 }
 
+/// Memory health probes the machine-wide MemoryHome introduced by the
+/// cognitive clean break. The retired workspace-rooted typed store and the
+/// proposal-governance metrics are no longer production dependencies.
 async fn memory_health(state: &AppState) -> MemoryHealth {
-    if state.memory_authority_mode == MemoryAuthorityMode::Legacy {
-        return MemoryHealth {
+    match state.memory_home.warmup().await {
+        Ok(()) => MemoryHealth {
             authority_mode: state.memory_authority_mode,
             status: "ready",
             degraded_reason: None,
-            store_revision: None,
-            record_count: None,
-            tombstone_count: None,
-            governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
-        };
-    }
-    let store = match agent_diva_laputa::TypedMemoryStore::open_existing(
-        &state.workspace_root,
-        agent_diva_core::workspace_identity::canonical_workspace_id(&state.workspace_root),
-    )
-    .await
-    {
-        Ok(store) => store,
-        Err(agent_diva_laputa::TypedMemoryStoreError::DatabaseWorkspaceMismatch { .. }) => {
-            return degraded_memory(state, "workspace_mismatch")
-        }
-        Err(agent_diva_laputa::TypedMemoryStoreError::FtsUnavailable) => {
-            return degraded_memory(state, "fts_unavailable")
-        }
-        Err(_) => return degraded_memory(state, "typed_store_unavailable"),
-    };
-    match store.integrity().await {
-        Ok(integrity)
-            if integrity.corrupt_record_ids.is_empty() && integrity.orphan_fts_rows == 0 =>
-        {
-            MemoryHealth {
-                authority_mode: state.memory_authority_mode,
-                status: "ready",
-                degraded_reason: None,
-                store_revision: Some(integrity.store_revision),
-                record_count: Some(integrity.record_count),
-                tombstone_count: Some(integrity.tombstone_count),
-                governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
-            }
-        }
-        Ok(_) => degraded_memory(state, "integrity_failed"),
-        Err(_) => degraded_memory(state, "integrity_unavailable"),
+        },
+        Err(_) => degraded_memory(state, "memory_home_unavailable"),
     }
 }
 
@@ -131,10 +92,6 @@ fn degraded_memory(state: &AppState, reason: &'static str) -> MemoryHealth {
         authority_mode: state.memory_authority_mode,
         status: "degraded",
         degraded_reason: Some(reason),
-        store_revision: None,
-        record_count: None,
-        tombstone_count: None,
-        governance_metrics: agent_diva_laputa::LaputaService::metrics_snapshot(),
     }
 }
 
@@ -173,15 +130,13 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().to_path_buf();
         std::mem::forget(temp);
-        // Explicit Legacy: no typed workspace store exists in this fixture, and
-        // memory health must stay ready for the all-ready test case.
         let state = AppState::new_with_runtime_memory(
             api_tx,
             MessageBus::new(),
             workspace,
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Legacy,
+            MemoryAuthorityMode::Typed,
         )
         .unwrap();
         if mark_cron_ready {
@@ -208,7 +163,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn shadow_health_reports_payload_free_store_failure() {
+    async fn memory_health_stays_ready_when_machine_home_database_is_absent() {
         let (api_tx, _api_rx) = mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
         let state = AppState::new_with_runtime_memory(
@@ -217,13 +172,12 @@ mod tests {
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Shadow,
+            MemoryAuthorityMode::Typed,
         )
         .unwrap();
         let health = memory_health(&state).await;
-        assert_eq!(health.status, "degraded");
-        assert_eq!(health.degraded_reason, Some("typed_store_unavailable"));
-        assert_eq!(health.store_revision, None);
+        assert_eq!(health.status, "ready");
+        assert_eq!(health.degraded_reason, None);
     }
 
     #[tokio::test]
@@ -261,14 +215,7 @@ mod tests {
         assert!(value["uptime_secs"].is_number());
         assert!(value["components"]["audit_sink"]["ready"].is_boolean());
         assert_eq!(value["components"]["cron"]["status"], "unknown");
-        assert!(
-            value["memory"]["governance_metrics"]["laputa_governance_decisions_total"].is_number()
-        );
-        assert!(value["memory"]["governance_metrics"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .all(|key| key.ends_with("_total") || key.ends_with("_max")));
+        assert!(value["memory"]["status"].is_string());
         assert!(value.get("database").is_none());
     }
 

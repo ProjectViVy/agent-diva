@@ -8,7 +8,7 @@ use agent_diva_core::config::schema::{
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_core::evolution::SkillHome;
 use agent_diva_core::governance::ApprovalCoordinator;
-use agent_diva_laputa::{LaputaService, MemoryGovernanceCoordinator, MemoryHome, PersonaService};
+use agent_diva_laputa::{LaputaService, MemoryHome, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,6 @@ pub struct AppState {
     pub memory_home: MemoryHome,
     /// Machine-wide Skill and SkillProposal authority.
     pub skill_home: SkillHome,
-    pub memory_governance: MemoryGovernanceCoordinator,
     pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
@@ -245,16 +244,6 @@ impl AppState {
             agent_diva_agent::skills::SkillsLoader::default_builtin_skills_dir(),
         );
         skill_home.reconcile_pending_heads()?;
-        let workspace_id =
-            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root);
-        let memory_governance = match governance.as_ref() {
-            Some(governance) => MemoryGovernanceCoordinator::governed(
-                &workspace_root,
-                workspace_id,
-                governance.clone(),
-            )?,
-            None => MemoryGovernanceCoordinator::open_lazy(&workspace_root, workspace_id)?,
-        };
         let autodream =
             match crate::runtime::open_autodream_with_report_curation(workspace_root.clone()) {
                 Ok(service) => service,
@@ -279,7 +268,6 @@ impl AppState {
             persona,
             memory_home,
             skill_home,
-            memory_governance,
             memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
