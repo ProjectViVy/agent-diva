@@ -28,11 +28,10 @@ import { errorMessage } from '../utils/errorMessage';
 import { showAppToast } from '../utils/appToast';
 
 type EvolutionTab = 'skills' | 'requests';
-type LegacyTab = EvolutionTab | 'inbox' | 'runs' | 'audit' | 'policy';
 type CountTone = 'none' | 'warning';
 
 const props = withDefaults(defineProps<{
-  initialTab?: LegacyTab;
+  initialTab?: EvolutionTab;
   initialProposalId?: string | null;
   initialSourceRunId?: string | null;
   requestKey?: string | null;

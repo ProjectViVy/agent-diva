@@ -319,222 +319,8 @@ export const deleteSkill = (slug: string, baseHash: string) =>
   invoke<void>("delete_skill", { slug, baseHash });
 
 // ============================================================
-// Laputa / Evolution Governance API
+// AutoDream / Evolution API
 // ============================================================
-
-export type EvidenceSource =
-  | 'session'
-  | 'report'
-  | 'auto_dream_run'
-  | 'laputa_section'
-  | 'user_input'
-  | 'file'
-  | 'context_compaction'
-  | 'experience_journal'
-  | 'recall_feedback';
-
-export interface EvidenceRef {
-  id: string;
-  source: EvidenceSource;
-  uri: string;
-  excerpt?: string | null;
-  hash?: string | null;
-  created_at: string;
-}
-
-export type ProposalType =
-  | 'memory_patch'
-  | 'journal_note'
-  | 'learning_note'
-  | 'identity_patch'
-  | 'relationship_update'
-  | 'commitment_set'
-  | 'history_patch'
-  | 'daily_patch'
-  | 'weekly_patch'
-  | 'monthly_patch'
-  | 'sop_create'
-  | 'deprecation';
-
-export type ProposalState =
-  | 'pending_review'
-  | 'approved'
-  | 'rejected'
-  | 'edited'
-  | 'deferred'
-  | 'applied'
-  | 'reverted'
-  | 'superseded'
-  | 'needs_attention'
-  | 'run_failed';
-
-export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
-
-export type LaputaSectionName =
-  | 'identity'
-  | 'relationship'
-  | 'commitment'
-  | 'preferences'
-  | 'memory_md'
-  | 'daily'
-  | 'weekly'
-  | 'monthly'
-  | 'changelog';
-
-export interface EvolutionProposal {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  created_by: string;
-  proposal_type: ProposalType;
-  target_section: LaputaSectionName;
-  evidence_refs: EvidenceRef[];
-  proposed_patch: string;
-  risk_level: RiskLevel;
-  state: ProposalState;
-  source_run_id?: string | null;
-  governance?: MemoryGovernanceView | null;
-}
-
-export interface MemoryGovernanceView {
-  proposal_id: string;
-  request_id: string;
-  request_version: number;
-  status: string;
-  policy: string;
-  receipt?: {
-    grant: 'once' | 'session' | 'rule';
-    expires_at?: string | null;
-  } | null;
-}
-
-export interface LaputaSection {
-  name: LaputaSectionName;
-  status: string;
-  content: unknown;
-  metadata: Record<string, unknown>;
-  last_modified: string;
-  version: string;
-}
-
-export interface LaputaSnapshot {
-  schema_version: string;
-  sections: Record<string, LaputaSection>;
-  changed_sections: string[];
-  updated_at?: string | null;
-  server_time: string;
-}
-
-export interface FrozenCoreSessionProjection {
-  session_key: string;
-  captured_at: string;
-  section_versions: Record<string, string>;
-}
-
-export interface PersonaWorkspaceProjection {
-  snapshot: LaputaSnapshot;
-  authority_versions: Record<string, string>;
-  session: FrozenCoreSessionProjection | null;
-  proposals: EvolutionProposal[];
-  changelog: ChangelogRecord[];
-  cognitive: {
-    memrules: string;
-    world: string;
-  };
-}
-
-export type ChangelogAction = 'apply' | 'revert' | 'rollback';
-
-export interface ChangelogRecord {
-  id: string;
-  action: ChangelogAction;
-  target_section: LaputaSectionName;
-  before: string;
-  after: string;
-  diff: string;
-  proposal_id?: string | null;
-  audit_event_id?: string | null;
-  reverted: boolean;
-  stale: boolean;
-  created_at: string;
-  applied_by: string;
-}
-
-export interface ChangelogPage {
-  items: ChangelogRecord[];
-  total: number;
-  page: number;
-  page_size: number;
-  has_more: boolean;
-}
-
-export interface RollbackOutcome {
-  changelog: ChangelogRecord;
-  audit_event: {
-    id: string;
-    kind: string;
-    actor: string;
-    proposal_id?: string | null;
-    target_section?: LaputaSectionName | null;
-    message: string;
-    created_at: string;
-  };
-}
-
-export interface ProposalApplyResult {
-  proposal: EvolutionProposal;
-  changelog: ChangelogRecord;
-  audit_event: {
-    id: string;
-    kind: string;
-    actor: string;
-    proposal_id?: string | null;
-    target_section?: LaputaSectionName | null;
-    message: string;
-    created_at: string;
-  };
-  rollback_request: {
-    changelog_id: string;
-    requested_by: string;
-    reason: string;
-    requested_at: string;
-  };
-}
-
-export interface ProposalEditPayload {
-  proposed_patch?: string | null;
-  evidence_refs?: EvidenceRef[] | null;
-  risk_level?: RiskLevel | null;
-  updated_at?: string | null;
-}
-
-export interface ProposalTransitionPayload {
-  state: ProposalState;
-  updated_at?: string | null;
-}
-
-export interface ApplyProposalPayload {
-  governance_request_id: string;
-  expected_version: number;
-  idempotency_key: string;
-}
-
-export interface GovernedProposalResult {
-  proposal: EvolutionProposal;
-  governance: MemoryGovernanceView;
-}
-
-export interface ProposalDecisionPayload {
-  decision: 'allow' | 'deny';
-  grant: 'once' | 'session' | 'rule';
-  expected_version: number;
-  idempotency_key: string;
-}
-
-export interface RollbackChangelogPayload {
-  reason: string;
-  expected_current?: string | null;
-}
 
 export type AutoDreamRunState = 'pending' | 'running' | 'cancelled' | 'completed' | 'failed';
 export type AutoDreamFailureCode =
@@ -614,19 +400,6 @@ export interface RecallFeedbackEvent {
   recorded_at: string;
 }
 
-export interface EvolutionHealth {
-  status: string;
-  version: string;
-  memory: {
-    authority_mode: 'legacy' | 'shadow' | 'typed';
-    status: string;
-    degraded_reason?: string | null;
-    store_revision?: number | null;
-    record_count?: number | null;
-    tombstone_count?: number | null;
-  };
-}
-
 export interface SelfEvolutionConfig {
   enabled: boolean;
   autodream_frequency: 'daily' | 'weekly' | 'manual';
@@ -635,8 +408,6 @@ export interface SelfEvolutionConfig {
   auto_merge_confidence: number;
   require_confirmation_for: string[];
 }
-
-export type LaputaEventKind = 'proposals' | 'changelog' | 'errors';
 
 export type PersonaKind = 'identity' | 'relationship' | 'redline' | 'user' | 'world' | 'dream' | 'dark';
 export type PersonaStatus = 'uninitialized' | 'ready' | 'incomplete';
@@ -732,111 +503,24 @@ export const acceptPersonaRequest = (id: string) =>
 export const rejectPersonaRequest = (id: string) =>
   invoke<PersonaChangeRequest>('persona_reject_request', { id });
 
-export interface LaputaEvent {
-  id?: string;
-  kind?: string;
-  payload?: unknown;
-  message?: string;
-  created_at?: string;
-  [key: string]: unknown;
+export type EvidenceSource =
+  | 'session'
+  | 'report'
+  | 'auto_dream_run'
+  | 'user_input'
+  | 'file'
+  | 'context_compaction'
+  | 'experience_journal'
+  | 'recall_feedback';
+
+export interface EvidenceRef {
+  id: string;
+  source: EvidenceSource;
+  uri: string;
+  excerpt?: string | null;
+  hash?: string | null;
+  created_at: string;
 }
-
-export const listLaputaProposals = (since?: string) =>
-  invoke<EvolutionProposal[]>("laputa_list_proposals", { since: since ?? null });
-
-export const getLaputaProposal = (id: string) =>
-  invoke<EvolutionProposal>("laputa_get_proposal", { id });
-
-export const editLaputaProposal = (id: string, payload: ProposalEditPayload) =>
-  invoke<EvolutionProposal>("laputa_edit_proposal", { id, payload });
-
-export const transitionLaputaProposal = (id: string, payload: ProposalTransitionPayload) =>
-  invoke<EvolutionProposal>("laputa_transition_proposal", { id, payload });
-
-export const decideLaputaProposal = (id: string, payload: ProposalDecisionPayload) =>
-  invoke<GovernedProposalResult>("laputa_decide_proposal", { id, payload });
-
-export const applyLaputaProposal = (id: string, payload: ApplyProposalPayload) =>
-  invoke<ProposalApplyResult>("laputa_apply_proposal", { id, payload });
-
-export interface WriteLaputaSectionResult {
-  proposal_id: string;
-  proposal_type: ProposalType;
-  risk_level: RiskLevel;
-  state: ProposalState;
-  changelog_id?: string | null;
-  applied_at?: string | null;
-  status?: string;
-}
-
-export const getLaputaSection = (name: LaputaSectionName) =>
-  invoke<LaputaSection>("laputa_get_section", { name });
-
-export type LaputaCognitiveKind = 'memrules' | 'world';
-
-export interface LaputaCognitiveFileResult {
-  status: string;
-  content: string;
-}
-
-export const getLaputaCognitiveFile = (kind: LaputaCognitiveKind) =>
-  invoke<LaputaCognitiveFileResult>('laputa_get_cognitive', { kind });
-
-export const getLaputaSnapshot = (since?: string) =>
-  invoke<LaputaSnapshot>("laputa_get_snapshot", { since: since ?? null });
-
-export const getLaputaPersonaWorkspace = (sessionKey?: string) =>
-  invoke<PersonaWorkspaceProjection>("laputa_get_persona_workspace", {
-    sessionKey: sessionKey ?? null,
-  });
-
-export const writeLaputaSection = (
-  name: LaputaSectionName,
-  content: string,
-  summary?: string,
-) =>
-  invoke<WriteLaputaSectionResult>("laputa_write_section", {
-    name,
-    content,
-    summary: summary ?? null,
-  });
-
-export const pollLaputaEvents = (kind: LaputaEventKind, since?: string) =>
-  invoke<LaputaEvent[]>("laputa_poll_events", { kind, since: since ?? null });
-
-export interface ListLaputaChangelogFilters {
-  section?: LaputaSectionName;
-  limit?: number;
-  page?: number;
-  proposalId?: string;
-}
-
-export const listLaputaChangelog = (
-  pageOrFilters?: number | ListLaputaChangelogFilters,
-  pageSize?: number,
-  proposalId?: string,
-) => {
-  if (typeof pageOrFilters === 'object') {
-    const { section, limit, page, proposalId: pid } = pageOrFilters;
-    return invoke<ChangelogPage>("laputa_list_changelog", {
-      target_section: section ?? null,
-      pageSize: limit ?? null,
-      page: page ?? null,
-      proposalId: pid ?? null,
-    });
-  }
-  return invoke<ChangelogPage>("laputa_list_changelog", {
-    page: pageOrFilters ?? null,
-    pageSize: pageSize ?? null,
-    proposalId: proposalId ?? null,
-  });
-};
-
-export const getLaputaChangelog = (id: string) =>
-  invoke<ChangelogRecord>("laputa_get_changelog", { id });
-
-export const rollbackLaputaChangelog = (id: string, payload: RollbackChangelogPayload) =>
-  invoke<RollbackOutcome>("laputa_rollback_changelog", { id, payload });
 
 export type BmlMemoryKind =
   | 'identity'
@@ -1063,9 +747,6 @@ export const listAutoDreamRunRecords = () =>
 
 export const listRecallFeedback = (limit = 50) =>
   invoke<RecallFeedbackEvent[]>("list_recall_feedback", { limit });
-
-export const getEvolutionHealth = () =>
-  invoke<EvolutionHealth>("get_evolution_health");
 
 export const getSelfEvolutionConfig = () =>
   invoke<SelfEvolutionConfig>("get_self_evolution_config");
