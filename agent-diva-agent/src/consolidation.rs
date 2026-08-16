@@ -117,10 +117,10 @@ fn is_world_shaped_content(content: &str) -> bool {
         let line = line.trim();
         if let Some(value) = line.strip_prefix("kind:") {
             kind_world = value.trim() == "world";
-        } else if line.starts_with("domain:") {
-            has_domain = !line["domain:".len()..].trim().is_empty();
-        } else if line.starts_with("title:") {
-            has_title = !line["title:".len()..].trim().is_empty();
+        } else if let Some(value) = line.strip_prefix("domain:") {
+            has_domain = !value.trim().is_empty();
+        } else if let Some(value) = line.strip_prefix("title:") {
+            has_title = !value.trim().is_empty();
         }
     }
     kind_world && has_domain && has_title
