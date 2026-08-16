@@ -9,7 +9,6 @@ use agent_diva_core::session::{
 use agent_diva_providers::{LLMProvider, LLMResponse, Message, ProviderResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -126,7 +125,8 @@ async fn trigger_kind_does_not_change_snapshot_boundary_or_order() {
 
 #[test]
 fn context_injects_one_checkpoint_between_stable_prefix_and_history() {
-    let builder = ContextBuilder::new(PathBuf::from("."));
+    let workspace = TempDir::new().unwrap();
+    let builder = ContextBuilder::new(workspace.path().to_path_buf());
     let checkpoint = CanonicalCheckpoint::new(
         "checkpoint-test",
         "2026-01-01T00:00:00Z",

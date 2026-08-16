@@ -60,13 +60,14 @@ pub struct ContextBuilder {
 }
 
 impl ContextBuilder {
-    /// Create a new context builder
+    /// Create a context builder bound entirely to `workspace`.
+    ///
+    /// Tests and local helpers should use this. Production runtime must call
+    /// [`Self::with_skill_home`] with the machine config root so Memory and
+    /// Skill discovery stay on `{config_dir}`.
     pub fn new(workspace: PathBuf) -> Self {
-        let config_dir = agent_diva_core::config::ConfigLoader::new()
-            .config_dir()
-            .to_path_buf();
-        let skills_loader = SkillsLoader::new(&config_dir, None);
-        let memory_provider = default_memory_provider(&config_dir);
+        let skills_loader = SkillsLoader::new(&workspace, None);
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             persona_root: workspace.clone(),
             workspace,
@@ -77,11 +78,12 @@ impl ContextBuilder {
         }
     }
 
-    /// Create a new context builder with skills
+    /// Create a context builder with optional builtin skills, still isolated
+    /// to the given workspace. Production Skill Home wiring uses
+    /// [`Self::with_skill_home`].
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_provider =
-            default_memory_provider(agent_diva_core::config::ConfigLoader::new().config_dir());
+        let memory_provider = default_memory_provider(&workspace);
         Self {
             persona_root: workspace.clone(),
             workspace,
@@ -1010,6 +1012,44 @@ mod tests {
         let prompt = builder.build_system_prompt(None);
         assert!(prompt.contains("agent-diva"));
         assert!(prompt.contains("/tmp/test"));
+    }
+
+    #[test]
+    fn helper_constructors_do_not_touch_machine_config_dir() {
+        let workspace = TempDir::new().unwrap();
+        let machine_memory = agent_diva_core::config::ConfigLoader::new()
+            .config_dir()
+            .join("memory");
+        let existed_before = machine_memory.exists();
+        let before = if existed_before {
+            fs::read_dir(&machine_memory)
+                .map(|entries| {
+                    entries
+                        .filter_map(|entry| entry.ok().map(|value| value.file_name()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        let _prompt = ContextBuilder::new(workspace.path().to_path_buf()).build_system_prompt(None);
+        let _skills_prompt =
+            ContextBuilder::with_skills(workspace.path().to_path_buf(), None).build_system_prompt(None);
+
+        if existed_before {
+            let after = fs::read_dir(&machine_memory)
+                .map(|entries| {
+                    entries
+                        .filter_map(|entry| entry.ok().map(|value| value.file_name()))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            assert_eq!(before, after);
+        } else {
+            assert!(!machine_memory.exists());
+        }
+        assert!(!workspace.path().join("memory/memory.sqlite3").exists());
     }
 
     #[test]
