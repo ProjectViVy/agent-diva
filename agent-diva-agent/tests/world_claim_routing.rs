@@ -164,7 +164,7 @@ impl MemoryProvider for NoopMemoryProvider {
 }
 
 #[tokio::test]
-async fn world_claim_shaped_items_apply_as_memory_without_legacy_ledger() {
+async fn world_claim_shaped_items_are_dropped_without_memory_or_legacy_ledger() {
     let workspace = tempfile::tempdir().unwrap();
     let mut session = sample_session(DEFAULT_MEMORY_WINDOW + 10);
     let provider: Arc<dyn LLMProvider> = Arc::new(WorldClaimProvider);
@@ -191,8 +191,8 @@ async fn world_claim_shaped_items_apply_as_memory_without_legacy_ledger() {
 
     assert_eq!(
         memory.add_calls.load(Ordering::SeqCst),
-        1,
-        "consolidation items apply through the memory provider, WORLD routing included"
+        0,
+        "WORLD-shaped consolidation items must not reach memory_add"
     );
 
     assert!(

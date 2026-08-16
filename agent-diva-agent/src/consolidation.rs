@@ -94,10 +94,38 @@ pub async fn consolidate(
     .await
 }
 
-/// Try to parse a WORLD claim from consolidation item content.
+/// Detect WORLD-shaped consolidation content.
 ///
-/// Returns `None` when the content does not carry a `kind: world` frontmatter
-/// marker or lacks the minimum `domain` / `title` fields required for a
+/// After the S5 removal of WorldGovernance, these items have no production
+/// home on the consolidation path. They must be dropped rather than written
+/// into BML (`memory_add`) or a persona document.
+fn is_world_shaped_content(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return false;
+    }
+    let after = &trimmed[3..];
+    let Some(end) = after.find("\n---") else {
+        return false;
+    };
+    let frontmatter = &after[..end];
+
+    let mut kind_world = false;
+    let mut has_domain = false;
+    let mut has_title = false;
+    for line in frontmatter.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("kind:") {
+            kind_world = value.trim() == "world";
+        } else if line.starts_with("domain:") {
+            has_domain = !line["domain:".len()..].trim().is_empty();
+        } else if line.starts_with("title:") {
+            has_title = !line["title:".len()..].trim().is_empty();
+        }
+    }
+    kind_world && has_domain && has_title
+}
+
 /// After each consolidation attempt, the quality gate validates the `memory_update`
 /// against the source messages. If quality is below threshold and retries remain,
 /// the consolidation is retried with a feedback prompt. After all retries are
@@ -294,6 +322,14 @@ pub async fn consolidate_with_gate(
                 let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
                 let reason = item.get("reason").and_then(|v| v.as_str()).unwrap_or("");
 
+                if is_world_shaped_content(content) {
+                    failed += 1;
+                    warn!(
+                        "Consolidation: dropping WORLD-shaped {action} item; persona WORLD is not a memory write"
+                    );
+                    continue;
+                }
+
                 let result = match action {
                     "add" => {
                         memory_provider
@@ -366,21 +402,27 @@ pub async fn consolidate_with_gate(
         } else {
             warn!("consolidation fallback: non-itemized (items is not an array)");
             let memory_update_text = items_value.as_str().unwrap_or("").to_string();
-            memory_provider
-                .sync_turn(SyncTurnRequest {
-                    workspace_root: workspace.to_path_buf(),
-                    memory_update_markdown: Some(memory_update_text),
-                    history_entry: None,
-                })
-                .await
-                .and_then(|response| match response.status {
-                    SyncTurnStatus::Persisted
-                    | SyncTurnStatus::ProposalCreated
-                    | SyncTurnStatus::Noop => Ok(response),
-                    SyncTurnStatus::Failed { reason } => {
-                        Err(agent_diva_core::Error::Internal(reason))
-                    }
-                })?;
+            if is_world_shaped_content(&memory_update_text) {
+                warn!(
+                    "Consolidation: dropping WORLD-shaped fallback text; persona WORLD is not a memory write"
+                );
+            } else {
+                memory_provider
+                    .sync_turn(SyncTurnRequest {
+                        workspace_root: workspace.to_path_buf(),
+                        memory_update_markdown: Some(memory_update_text),
+                        history_entry: None,
+                    })
+                    .await
+                    .and_then(|response| match response.status {
+                        SyncTurnStatus::Persisted
+                        | SyncTurnStatus::ProposalCreated
+                        | SyncTurnStatus::Noop => Ok(response),
+                        SyncTurnStatus::Failed { reason } => {
+                            Err(agent_diva_core::Error::Internal(reason))
+                        }
+                    })?;
+            }
         }
 
         info!("Consolidation complete (best score {:.2})", best_score);
@@ -437,6 +479,17 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
         Arc,
     };
+
+    #[test]
+    fn world_shaped_content_requires_kind_domain_and_title() {
+        assert!(is_world_shaped_content(
+            "---\nkind: world\ndomain: language\ntitle: Rust\n---\nbody"
+        ));
+        assert!(!is_world_shaped_content(
+            "---\nkind: world\ntitle: Rust\n---\nmissing domain"
+        ));
+        assert!(!is_world_shaped_content("plain memory fact about rust"));
+    }
 
     /// Memory provider whose `sync_turn` reports a created proposal.
     struct ProposalCreatingProvider {
