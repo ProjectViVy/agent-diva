@@ -1034,8 +1034,8 @@ mod tests {
         };
 
         let _prompt = ContextBuilder::new(workspace.path().to_path_buf()).build_system_prompt(None);
-        let _skills_prompt =
-            ContextBuilder::with_skills(workspace.path().to_path_buf(), None).build_system_prompt(None);
+        let _skills_prompt = ContextBuilder::with_skills(workspace.path().to_path_buf(), None)
+            .build_system_prompt(None);
 
         if existed_before {
             let after = fs::read_dir(&machine_memory)
