@@ -1,9 +1,8 @@
 //! Stable domain contracts shared by AutoDream, reports, memory, and UI.
 //!
-//! The mixed-domain proposal envelope (MemoryPatch / IdentityPatch /
-//! SopCreate / ...) was removed by the cognitive clean break: memory CRUD is
-//! direct on BML, persona changes flow through the persona workspace, and
-//! skill evolution flows through SkillHome requests.
+//! The mixed-domain proposal envelope was removed by the cognitive clean
+//! break: memory CRUD is direct on BML, persona changes flow through the
+//! persona workspace, and skill evolution flows through SkillHome requests.
 
 use std::{fmt, str::FromStr};
 

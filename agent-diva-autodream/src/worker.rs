@@ -205,7 +205,7 @@ impl AutoDreamWorker {
     }
 
     /// S3 production path: organize the shared ACTMEM Work register directly.
-    /// It never creates a MemoryPatch, writes BML, or registers governance.
+    /// It never emits governed memory proposals or writes BML directly.
     async fn execute_actmem_work(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
         let mut stages = AutoDreamReflectionStage::all()
             .into_iter()

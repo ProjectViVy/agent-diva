@@ -1,27 +1,23 @@
 //! BML (Basic Memory Layer) logical layer boundary.
 //!
 //! BML is the memory storage layer; its production entity is the
-//! profile-local typed SQLite + FTS5
-//! authority (`.laputa/memory.sqlite3`), the sole production Memory authority.
-//! See AGENTS.md "Memory is layered into three concepts" for the frozen
-//! BML / Laputa / Garden model (decision D3, 2026-08-08).
+//! machine-wide typed SQLite + FTS5 authority (`{config_dir}/memory/
+//! memory.sqlite3`) exposed through [`MemoryHome`], the sole production
+//! Memory authority. See AGENTS.md "Memory is layered into three concepts"
+//! for the frozen BML / Laputa / Garden model.
 //!
-//! This module is the single public face of the BML storage core inside
-//! `agent-diva-laputa`. Governance modules (service / proposals /
-//! governed_apply / cognitive / ...) must NOT call BML write APIs directly
-//! (`put` / `put_governed` / `import_records` / `rollback_governed` / gc /
-//! backup / restore). Writes are only legitimate through the governed apply
-//! seam, migration tooling, and management endpoints. `tests/bml_boundary_guard`
-//! enforces this boundary (run via `just bml-boundary-check`).
+//! The cognitive clean break removed the governed-apply pipeline: memory
+//! CRUD is direct and unapproved. Non-BML modules must NOT call the raw
+//! write APIs (`put` / `import_records` / gc / backup / restore);
+//! `tests/bml_boundary_guard` enforces this boundary (run via
+//! `just bml-boundary-check`).
 //!
 //! Notes:
-//! - `TypedMemoryStore::put_governed` remains an unregistered seam until the
-//!   GMH-24 write cutover; production governed apply goes through the file
-//!   `ProposalRepository` + `governance.sqlite3`.
-//! - If BML is later extracted into its own crate (`agent-diva-bml`), this
-//!   re-export surface is the candidate public API; the `memory_records`
-//!   adapters that depend on governance types (EvolutionProposal /
-//!   LaputaSection) would then be split between the two crates.
+//! - The retired governed store seam (`put_governed` / `rollback_governed`)
+//!   is storage-core internal and has no callers; its mechanical removal is
+//!   tracked as a focused storage cleanup.
+//! - The `memory_records` adapters remain the offline-migration import
+//!   vocabulary for legacy section/Markdown files.
 
 pub mod memory_home;
 

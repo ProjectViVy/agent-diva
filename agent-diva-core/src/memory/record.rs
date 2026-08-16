@@ -404,7 +404,7 @@ mod tests {
             content: "user preference".into(),
             provenance: MemoryProvenance {
                 source: MemoryProvenanceSource::LaputaAppliedSection,
-                source_id: "memory_md".into(),
+                source_id: "legacy-section".into(),
                 content_digest: memory_content_digest(b"user preference"),
                 captured_at: ts(1),
                 correlation: AuditCorrelation {
@@ -442,7 +442,7 @@ mod tests {
                 "content": "user preference",
                 "provenance": {
                     "source": "laputa_applied_section",
-                    "source_id": "memory_md",
+                    "source_id": "legacy-section",
                     "content_digest": {
                         "algorithm": "sha256",
                         "value": "ce28416a34d0dc6484157ed4ad20a404aca65dbe4696873a96ad957e0f955ca7"

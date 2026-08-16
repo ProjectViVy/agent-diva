@@ -720,7 +720,7 @@ mod tests {
                 content: content.into(),
                 provenance: MemoryProvenance {
                     source: MemoryProvenanceSource::LaputaAppliedSection,
-                    source_id: "memory_md".into(),
+                    source_id: "legacy-section".into(),
                     content_digest: memory_content_digest(content.as_bytes()),
                     captured_at: ts(1),
                     correlation: request().correlation,
