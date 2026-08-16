@@ -17,6 +17,8 @@
 | `fb1961e5` | 系统 Prompt 不再教「改/删记忆要审批」 |
 | `3e9631bc` | `ContextBuilder::new` / `with_skills` 隔离到传入 workspace |
 | `c011e680` | Approval / capability / CLI 去掉 memory 审批域；删除 `propose_section_write` |
+| `7793b0db` | rustfmt isolation 测试 |
+| `accbcd97` | `strip_prefix` 以满足 clippy `-D warnings` |
 
 ## 明确未做
 

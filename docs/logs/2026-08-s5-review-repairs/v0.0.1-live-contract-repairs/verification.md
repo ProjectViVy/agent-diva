@@ -13,6 +13,8 @@
 | P2-D | `cargo test -p agent-diva-cli --lib command_and_plan_decisions` | PASS |
 | P2-D | `cargo test -p agent-diva-cli --lib default_headless_cancels_high_risk_plan_pending` | PASS |
 | P2-D | GUI `npm test -- ApprovalCenter capabilities` | PASS（10 tests） |
-| 收尾 | `just fmt-check` / `just check` | 见同目录后续补记；本文件先记录分片证据 |
+| Clippy 跟随修复 | `just check` 初跑失败：`clippy::manual_strip` 于 `consolidation.rs` | 已修于 `accbcd97` |
+| 收尾格式 | `just fmt-check` | PASS |
+| 收尾 lint | `just check`（clippy -D warnings） | PASS |
 
-未跑桌面 smoke。未跑全量 `just test`（除非收尾补记）。
+未跑桌面 smoke。未跑全量 `just test`；分片测试覆盖 WORLD 丢弃、Prompt、构造器隔离、Approval/CLI/capability。
