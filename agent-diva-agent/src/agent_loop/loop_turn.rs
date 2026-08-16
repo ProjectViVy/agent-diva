@@ -3,7 +3,10 @@ use super::turn::iteration::{contains_internal_protocol, InternalProtocolGuard};
 use super::turn::{
     admission::AdmittedTurn,
     finalize::{FinalizationContext, FinalizationPreparation},
-    iteration::{IterationBudget, IterationOutcome},
+    iteration::{
+        classify_empty_followup, context_window_for_model, EmptyFollowupKind, EmptyFollowupSignals,
+        IterationBudget, IterationOutcome,
+    },
     prompt,
     tool_step::{ToolOrchestrationContext, ToolRunSummary},
 };
@@ -447,7 +450,7 @@ impl AgentLoop {
             } else {
                 self.tools.get_definition_set()
             };
-            let (stream, cache_ticket) = self
+            let started = self
                 .start_model_stream(
                     &mut messages,
                     &tool_defs,
@@ -462,8 +465,12 @@ impl AgentLoop {
                     event_tx,
                 )
                 .await?;
+            let cache_ticket = started.cache_ticket;
+            let assembly_total_estimated = started.assembly_total_estimated;
+            let assembly_total_max = started.assembly_total_max;
+            let requested_max_tokens = started.requested_max_tokens;
             let model_step = match self
-                .collect_model_stream(stream, &session_key, &msg, event_tx)
+                .collect_model_stream(started.stream, &session_key, &msg, event_tx)
                 .await
             {
                 Ok(Some(step)) => step,
@@ -499,6 +506,8 @@ impl AgentLoop {
 
             // Accumulate token usage for this turn
             let iter_usage = extract_token_usage(&response.usage);
+            let iter_prompt_tokens = iter_usage.prompt_tokens;
+            let iter_completion_tokens = iter_usage.completion_tokens;
             if let Err(e) = self.append_session_token_usage(
                 &session_key,
                 &model_to_use,
@@ -647,7 +656,53 @@ impl AgentLoop {
                     break;
                 }
                 // Treat blank content as missing so fallback synthesis can run.
-                final_content = response.content.filter(|s| !s.trim().is_empty());
+                let text = response.content.filter(|s| !s.trim().is_empty());
+                if let Some(kind) = classify_empty_followup(EmptyFollowupSignals {
+                    content: text.as_deref(),
+                    finish_reason: &response.finish_reason,
+                    prompt_tokens: iter_prompt_tokens,
+                    completion_tokens: iter_completion_tokens,
+                    context_window: context_window_for_model(&model_to_use),
+                    assembly_total_estimated,
+                    assembly_total_max,
+                    requested_max_tokens,
+                    has_tool_results: !tool_run_summaries.is_empty(),
+                    summary_only: summary_only_pass,
+                }) {
+                    info!(
+                        ?kind,
+                        finish_reason = %response.finish_reason,
+                        prompt_tokens = iter_prompt_tokens,
+                        completion_tokens = iter_completion_tokens,
+                        requested_max_tokens,
+                        assembly_total_estimated,
+                        assembly_total_max,
+                        "empty text after tools; classifying upstream follow-up"
+                    );
+                    if kind == EmptyFollowupKind::InputPressure {
+                        if let Err(error) = self
+                            .rebuild_after_context_pressure(
+                                &mut messages,
+                                &mut turn_messages_start,
+                                &dynamic_sections,
+                                &current_turn_message,
+                                &session_key,
+                                &msg,
+                                event_tx,
+                            )
+                            .await
+                        {
+                            warn!(
+                                error = %error,
+                                "input-pressure compact before summary follow-up failed"
+                            );
+                        }
+                    }
+                    if iteration_budget.request_summary_followup() {
+                        continue;
+                    }
+                }
+                final_content = text;
                 final_reasoning = response.reasoning_content;
                 // Honor thinking mode: Off clears reasoning, Auto/On pass through
                 if self.thinking_mode == ThinkingMode::Off {

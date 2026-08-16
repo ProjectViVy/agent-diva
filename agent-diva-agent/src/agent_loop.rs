@@ -2123,6 +2123,135 @@ mod tests {
         );
     }
 
+    #[derive(Default)]
+    struct EmptyAfterToolsProvider {
+        calls: Mutex<usize>,
+        tool_choices: Mutex<Vec<ToolChoiceMode>>,
+        max_tokens: Mutex<Vec<i32>>,
+        tool_counts: Mutex<Vec<usize>>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for EmptyAfterToolsProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            tools: Option<Vec<serde_json::Value>>,
+            tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            self.tool_choices.lock().unwrap().push(tool_choice);
+            self.max_tokens.lock().unwrap().push(max_tokens);
+            self.tool_counts
+                .lock()
+                .unwrap()
+                .push(tools.as_ref().map(Vec::len).unwrap_or(0));
+            let call_index = {
+                let mut calls = self.calls.lock().unwrap();
+                let index = *calls;
+                *calls += 1;
+                index
+            };
+            let response = match call_index {
+                0 => LLMResponse {
+                    content: None,
+                    tool_calls: vec![ToolCallRequest {
+                        id: "empty-after-tools-1".to_string(),
+                        call_type: "function".to_string(),
+                        name: "missing_test_tool".to_string(),
+                        arguments: HashMap::new(),
+                    }],
+                    finish_reason: "tool_calls".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+                1 => LLMResponse {
+                    content: None,
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::from([
+                        ("prompt_tokens".to_string(), 80),
+                        ("completion_tokens".to_string(), 12),
+                        ("total_tokens".to_string(), 92),
+                    ]),
+                    reasoning_content: None,
+                },
+                _ => LLMResponse {
+                    content: Some("recovered summary".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            };
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                response,
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "test-model".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_text_after_tools_retries_summary_only_from_upstream_stop() {
+        let bus = MessageBus::new();
+        let provider = Arc::new(EmptyAfterToolsProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(
+            bus,
+            provider.clone(),
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(5),
+        )
+        .await
+        .unwrap();
+
+        let response = agent
+            .process_direct(
+                "Run a tool then summarize",
+                "session-empty-summary",
+                "gui",
+                "chat-empty-summary",
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response, "recovered summary");
+        assert_eq!(*provider.calls.lock().unwrap(), 3);
+        assert_eq!(
+            provider.tool_choices.lock().unwrap().as_slice(),
+            [
+                ToolChoiceMode::Auto,
+                ToolChoiceMode::Auto,
+                ToolChoiceMode::Disabled
+            ]
+        );
+        assert_eq!(
+            provider.max_tokens.lock().unwrap().as_slice(),
+            [4096, 4096, 8192]
+        );
+        assert_eq!(provider.tool_counts.lock().unwrap()[2], 0);
+    }
+
     // ── memory provider lifecycle wiring tests (Task 6) ──────────────
 
     use agent_diva_core::memory::{

@@ -346,6 +346,14 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   告警。单条 `state()` / 授权路径仍 fail-closed。见
   `docs/logs/2026-08-governance-ledger-startup/v0.0.1-expire-idempotent-recovery/`。
 
+- [x] **EMPTY-POST-TOOL-SUMMARY** `sev-P1`
+  长任务工具成功后模型常返回空正文，用户只看到
+  「已完成 N 个工具调用……但模型未返回文字总结」。根因不是缺上下文上限表：
+  上限只服务压缩预算，成功调用的 `finish_reason` / `usage` 没被用来分类。
+  已修：空 follow-up 按输入压力 / 输出截断 / 空 stop 分类；压力走既有
+  reactive compact；一律最多一次 summary-only（禁工具，8192 输出预算）。
+  见 `docs/logs/2026-08-empty-tool-summary/v0.0.1-upstream-empty-followup/`。
+
 ## Archive Index
 
 - [`docs/archive/todolist/README.md`](docs/archive/todolist/README.md)
