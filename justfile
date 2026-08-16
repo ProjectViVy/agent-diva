@@ -51,6 +51,11 @@ memory-provider-check:
 laputa-clean-break-check:
     python scripts/ci/check_laputa_clean_break.py
 
+# Prove D4 §3.1 legacy cognitive surfaces stay deleted from production paths.
+cognitive-clean-break-check:
+    python scripts/ci/check_cognitive_clean_break.py --self-test
+    python scripts/ci/check_cognitive_clean_break.py
+
 # Prove governance modules never call BML write APIs directly (BML boundary).
 bml-boundary-check:
     cargo test -p agent-diva-laputa --test bml_boundary_guard
@@ -62,7 +67,7 @@ gui-automated-check:
     cargo check --manifest-path agent-diva-gui/src-tauri/Cargo.toml
 
 # Final automated E7 candidate gate. Manual desktop acceptance remains separate.
-e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check gui-automated-check
+e7-automated-release-gate: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check cognitive-clean-break-check bml-boundary-check gui-automated-check
     @echo "E7 automated release gate passed; G2D+ real-desktop acceptance remains deferred."
 
 # Run clippy check
@@ -106,7 +111,7 @@ feature-gate-check:
     python scripts/feature-gate-check.py
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check bml-boundary-check
+ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check cognitive-clean-break-check bml-boundary-check
     @echo "All checks passed!"
 
 # Install locally

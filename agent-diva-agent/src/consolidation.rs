@@ -96,9 +96,9 @@ pub async fn consolidate(
 
 /// Detect WORLD-shaped consolidation content.
 ///
-/// After the S5 removal of WorldGovernance, these items have no production
-/// home on the consolidation path. They must be dropped rather than written
-/// into BML (`memory_add`) or a persona document.
+/// After S5 retired the workspace WORLD ledger, these items have no
+/// production home on the consolidation path. They must be dropped rather
+/// than written into BML (`memory_add`) or a persona document.
 fn is_world_shaped_content(content: &str) -> bool {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
