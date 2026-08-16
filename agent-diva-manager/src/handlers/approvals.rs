@@ -297,7 +297,6 @@ mod tests {
     use super::*;
     use agent_diva_core::{
         bus::MessageBus,
-        config::schema::MemoryAuthorityMode,
         governance::{ApprovalCoordinator, GovernanceSubject, SqliteGovernanceLedger},
     };
     use agent_diva_sandbox::{
@@ -341,7 +340,6 @@ mod tests {
             root,
             command,
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Legacy,
             governance,
             planning,
         )

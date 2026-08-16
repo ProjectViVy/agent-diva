@@ -28,13 +28,12 @@ pub mod memory_home;
 pub use memory_home::{MemRulesDocument, MemRulesSource, MemoryHome, MemoryHomeError};
 
 pub use crate::memory_records::{
-    adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
-    compare_normalized_records, MemoryAdapterContext, MemoryAdapterOutput, MemoryMigrationManifest,
-    MemoryMigrationPlan, MemoryMigrationTestFailure, MemoryRecordMigration, MemoryRollbackManifest,
+    adapt_laputa_section, adapt_legacy_markdown, compare_normalized_records, MemoryAdapterContext,
+    MemoryAdapterOutput, MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
+    MemoryRecordMigration, MemoryRollbackManifest,
 };
 pub use crate::typed_store::{
-    GovernedMemoryApply, MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata,
-    StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,
-    WorkspaceIdentityMigrationManifest, WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES,
-    MAX_MEMORY_RECORDS,
+    MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata, StoredMemoryRecord,
+    TypedMemoryStore, TypedMemoryStoreError, WorkspaceIdentityMigrationManifest,
+    WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES, MAX_MEMORY_RECORDS,
 };

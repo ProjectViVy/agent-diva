@@ -34,7 +34,6 @@ pub fn truncate(s: &str, max_len: usize) -> String {
     }
 }
 
-const DEFAULT_MEMORY_MD: &str = "# Long-term Memory\n\nRecord durable facts here.\n";
 const DEFAULT_PROFILE_MD: &str = "# Profile\n\n- Name:\n- Preferences:\n";
 const DEFAULT_CODER_MASK_MD: &str = r#"---
 id: coder
@@ -61,14 +60,11 @@ You are a research-focused assistant. Gather information, compare options, and s
 pub fn sync_workspace_templates<P: AsRef<Path>>(workspace: P) -> std::io::Result<Vec<String>> {
     let workspace = workspace.as_ref();
     std::fs::create_dir_all(workspace)?;
-    std::fs::create_dir_all(workspace.join("memory"))?;
     std::fs::create_dir_all(workspace.join("skills"))?;
     std::fs::create_dir_all(workspace.join("masks"))?;
 
     let mut added = Vec::new();
-    let templates: [(&str, Option<&str>); 6] = [
-        ("memory/MEMORY.md", Some(DEFAULT_MEMORY_MD)),
-        ("memory/HISTORY.md", None),
+    let templates: [(&str, Option<&str>); 4] = [
         ("PROFILE.md", Some(DEFAULT_PROFILE_MD)),
         ("TASK.md", Some("# Tasks\n\n")),
         ("masks/coder.md", Some(DEFAULT_CODER_MASK_MD)),
@@ -113,8 +109,7 @@ mod tests {
     fn test_sync_workspace_templates_creates_missing_files() {
         let temp = tempfile::tempdir().unwrap();
         let added = sync_workspace_templates(temp.path()).unwrap();
-        assert!(added.contains(&"memory/MEMORY.md".to_string()));
-        assert!(temp.path().join("memory").join("HISTORY.md").exists());
+        assert!(!temp.path().join("memory").exists());
         assert!(temp.path().join("skills").exists());
         assert!(temp.path().join("masks").exists());
         assert!(temp.path().join("masks").join("coder.md").exists());

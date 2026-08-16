@@ -275,7 +275,7 @@ fn safe_default_allows<P>(request: &ApprovalRequest<P>, context: &PolicyContext)
             request.risk == RiskClass::Low
                 && matches!(
                     request.capability,
-                    Capability::Inspect | Capability::PlanMutate | Capability::MemoryPropose
+                    Capability::Inspect | Capability::PlanMutate
                 )
         }
         AutonomyLevel::L2 | AutonomyLevel::L3 | AutonomyLevel::L4 | AutonomyLevel::Unknown => false,
@@ -297,7 +297,6 @@ fn capability_matches_resource(capability: &Capability, resource: &ResourceKind)
         Capability::Spawn => resource == &ResourceKind::Agent,
         Capability::Schedule => resource == &ResourceKind::Schedule,
         Capability::PlanMutate | Capability::PlanExecute => resource == &ResourceKind::Plan,
-        Capability::MemoryPropose | Capability::MemoryApply => resource == &ResourceKind::Memory,
         Capability::PolicyManage => resource == &ResourceKind::Policy,
         Capability::Unknown => false,
     }
@@ -490,7 +489,6 @@ mod tests {
             (Capability::Spawn, ResourceKind::Agent),
             (Capability::Schedule, ResourceKind::Schedule),
             (Capability::PlanExecute, ResourceKind::Plan),
-            (Capability::MemoryApply, ResourceKind::Memory),
         ];
         for (capability, resource) in cases {
             let request = request(capability, resource, RiskClass::High);
@@ -513,8 +511,6 @@ mod tests {
             Capability::Schedule,
             Capability::PlanMutate,
             Capability::PlanExecute,
-            Capability::MemoryPropose,
-            Capability::MemoryApply,
             Capability::PolicyManage,
         ];
         let resources = [
@@ -526,7 +522,6 @@ mod tests {
             ResourceKind::Agent,
             ResourceKind::Schedule,
             ResourceKind::Plan,
-            ResourceKind::Memory,
             ResourceKind::Policy,
         ];
         for capability in capabilities {
@@ -632,11 +627,10 @@ mod tests {
     }
 
     #[test]
-    fn safe_defaults_only_allow_low_risk_inspect_plan_draft_and_memory_proposal() {
+    fn safe_defaults_allow_low_risk_inspect_and_plan_draft_only() {
         let allowed = [
             (Capability::Inspect, ResourceKind::Workspace),
             (Capability::PlanMutate, ResourceKind::Plan),
-            (Capability::MemoryPropose, ResourceKind::Memory),
         ];
         for (capability, resource) in allowed {
             let evaluation = evaluate_policy(
@@ -646,13 +640,13 @@ mod tests {
             assert_eq!(evaluation.decision, Decision::Allow);
             assert_eq!(evaluation.reason, PolicyReasonCode::SafeDefault);
         }
-        let memory_apply = request(
-            Capability::MemoryApply,
-            ResourceKind::Memory,
+        let network_access = request(
+            Capability::NetworkAccess,
+            ResourceKind::Network,
             RiskClass::Low,
         );
         assert_eq!(
-            evaluate_policy(&memory_apply, &context(AutonomyLevel::L1)).decision,
+            evaluate_policy(&network_access, &context(AutonomyLevel::L1)).decision,
             Decision::RequireHuman
         );
     }

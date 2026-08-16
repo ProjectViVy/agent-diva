@@ -21,24 +21,13 @@ const SCAN_ROOT: &str = "agent-diva-laputa/src";
 const FILE_ALLOWLIST: &[&str] = &[
     // Storage core itself (internal self-calls, e.g. backup during open).
     "agent-diva-laputa/src/typed_store.rs",
-    // Composition facade; the only governance-side component that legally
-    // calls BML write APIs (crud_store.put for CRUD and session GC).
-    "agent-diva-laputa/src/typed_provider.rs",
     // Record adaptation layer owned by BML.
     "agent-diva-laputa/src/memory_records.rs",
     // Machine-wide authority facade owned by BML.
     "agent-diva-laputa/src/bml/memory_home.rs",
-    // Migration tooling (allowed write path per the BML boundary contract).
-    "agent-diva-laputa/src/migration.rs",
 ];
 
-const SNIPPET_ALLOWLIST: &[(&str, &str)] = &[
-    // Test helper writing a supersedes tombstone into a TempDir-backed store.
-    (
-        "agent-diva-laputa/src/service.rs",
-        ".put(tombstone, metadata.store_revision, none)",
-    ),
-];
+const SNIPPET_ALLOWLIST: &[(&str, &str)] = &[];
 
 #[test]
 fn governance_modules_must_not_write_bml_directly() {

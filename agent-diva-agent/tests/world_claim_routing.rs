@@ -7,7 +7,6 @@ use agent_diva_core::memory::{
     SystemPromptResponse,
 };
 use agent_diva_core::session::{ChatMessage, Session};
-use agent_diva_laputa::LaputaPaths;
 use agent_diva_providers::{
     LLMProvider, LLMResponse, Message, ProviderEventStream, ProviderResult, ToolCallRequest,
     ToolChoiceMode,
@@ -165,7 +164,7 @@ impl MemoryProvider for NoopMemoryProvider {
 }
 
 #[tokio::test]
-async fn world_claim_routes_to_world_governance_ledger() {
+async fn world_claim_shaped_items_apply_as_memory_without_legacy_ledger() {
     let workspace = tempfile::tempdir().unwrap();
     let mut session = sample_session(DEFAULT_MEMORY_WINDOW + 10);
     let provider: Arc<dyn LLMProvider> = Arc::new(WorldClaimProvider);
@@ -192,20 +191,12 @@ async fn world_claim_routes_to_world_governance_ledger() {
 
     assert_eq!(
         memory.add_calls.load(Ordering::SeqCst),
-        0,
-        "WORLD claims must not reach memory_add"
+        1,
+        "consolidation items apply through the memory provider, WORLD routing included"
     );
 
-    let ledger_path = LaputaPaths::new(workspace.path())
-        .cognitive_dir()
-        .join("world-ledger.jsonl");
-    let ledger = std::fs::read_to_string(&ledger_path).unwrap();
     assert!(
-        ledger.contains("\"action\":\"submit\""),
-        "ledger should contain submit action: {ledger}"
-    );
-    assert!(
-        ledger.contains("\"actor\":\"consolidation\""),
-        "ledger should record consolidation as actor: {ledger}"
+        !workspace.path().join(".laputa/cognitive").exists(),
+        "the retired workspace WORLD governance ledger must stay uncreated"
     );
 }

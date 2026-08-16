@@ -37,8 +37,6 @@ pub enum Capability {
     Schedule,
     PlanMutate,
     PlanExecute,
-    MemoryPropose,
-    MemoryApply,
     PolicyManage,
     #[serde(other)]
     Unknown,
@@ -56,7 +54,6 @@ pub enum ResourceKind {
     Agent,
     Schedule,
     Plan,
-    Memory,
     Policy,
     #[serde(other)]
     Unknown,
@@ -424,7 +421,6 @@ mod tests {
         let cases = [
             (Capability::PlanExecute, ResourceKind::Plan),
             (Capability::CommandExecute, ResourceKind::Command),
-            (Capability::MemoryPropose, ResourceKind::Memory),
         ];
         for (capability, kind) in cases {
             assert_eq!(request(capability, kind).validate(), Ok(()));

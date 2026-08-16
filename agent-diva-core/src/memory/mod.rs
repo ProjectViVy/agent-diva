@@ -4,11 +4,9 @@
 
 pub mod actmem;
 pub mod crud;
-pub mod manager;
 pub mod provider;
 pub mod recall;
 pub mod record;
-pub mod storage;
 pub mod working;
 
 pub use actmem::{
@@ -20,7 +18,6 @@ pub use crud::{
     MemoryGetRequest, MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest,
     MemoryUpdateRequest, SectionWriteProposalRequest,
 };
-pub use manager::MemoryManager;
 pub use provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,
     RecallTurnOutcome, SessionEndRequest, SessionEndResponse, SessionEndStatus,
@@ -42,7 +39,6 @@ pub use record::{
     MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust, DEFAULT_L1_INDEX_LINES,
     MAX_CONFIDENCE_BPS,
 };
-pub use storage::{DailyNote, Memory};
 pub use working::{
     render_session_checkpoint_block, SessionCheckpointRequest, SessionCheckpointResponse,
     SessionCheckpointWriteRequest, L0_MEMORY_POLICY,

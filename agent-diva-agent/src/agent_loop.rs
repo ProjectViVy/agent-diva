@@ -485,10 +485,10 @@ impl AgentLoop {
         let config_dir = agent_diva_core::config::ConfigLoader::new()
             .config_dir()
             .to_path_buf();
+        let memory_provider = default_memory_provider(&config_dir);
         let context = ContextBuilder::with_skill_home(workspace.clone(), config_dir, None);
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::with_timeout(runtime_security.global_tool_timeout_secs);
-        let memory_provider = default_memory_provider(&workspace);
         let token_ledger_data_root = workspace.join(".agent-diva");
 
         // Initialize file manager for attachment handling
@@ -607,7 +607,7 @@ impl AgentLoop {
 
     /// Create a new agent loop with tool configuration and a custom memory provider.
     ///
-    /// When `memory_provider` is `None`, a default `MemoryManager` is used.
+    /// When `memory_provider` is `None`, the machine-wide MemoryHome is used.
     #[allow(clippy::too_many_arguments)]
     pub async fn with_tools_and_memory_provider(
         bus: MessageBus,
@@ -665,7 +665,7 @@ impl AgentLoop {
 
         let custom_tools = Vec::<Arc<dyn Tool>>::new();
         let memory_provider =
-            memory_provider.unwrap_or_else(|| default_memory_provider(&workspace));
+            memory_provider.unwrap_or_else(|| default_memory_provider(&persona_root));
         let subagent_manager = Arc::new(
             SubagentManager::new(
                 provider.clone(),
@@ -778,7 +778,7 @@ impl AgentLoop {
             ContextBuilder::with_skill_home(workspace.clone(), persona_root.clone(), None)
                 .with_persona_root(persona_root.clone());
         let sessions = SessionManager::new(workspace.clone());
-        let memory_provider = default_memory_provider(&workspace);
+        let memory_provider = default_memory_provider(&persona_root);
         let token_ledger_data_root = workspace.join(".agent-diva");
         let subagent_manager = Arc::new(
             SubagentManager::new(

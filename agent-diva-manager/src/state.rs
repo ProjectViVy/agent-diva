@@ -2,13 +2,13 @@ use agent_diva_agent::AgentEvent;
 use agent_diva_autodream::AutoDreamService;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
 use agent_diva_core::config::schema::{
-    ChannelsConfig, MCPServerConfig, MemoryAuthorityMode, SelfEvolutionConfig, WebFetchConfig,
-    WebSearchConfig, WebToolsConfig,
+    ChannelsConfig, MCPServerConfig, SelfEvolutionConfig, WebFetchConfig, WebSearchConfig,
+    WebToolsConfig,
 };
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_core::evolution::SkillHome;
 use agent_diva_core::governance::ApprovalCoordinator;
-use agent_diva_laputa::{LaputaService, MemoryHome, PersonaService};
+use agent_diva_laputa::{MemoryHome, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use serde::{Deserialize, Serialize};
@@ -68,13 +68,11 @@ pub struct AppState {
     pub config_dir: PathBuf,
     pub audit_root: PathBuf,
     pub autodream: AutoDreamService,
-    pub laputa: LaputaService,
     pub persona: PersonaService,
     /// Machine-wide BML, ACTMEM, and MEMRULES authority.
     pub memory_home: MemoryHome,
     /// Machine-wide Skill and SkillProposal authority.
     pub skill_home: SkillHome,
-    pub memory_authority_mode: MemoryAuthorityMode,
     pub health: HealthSignals,
     /// Server start time, used for uptime calculation in the health endpoint.
     pub started_at: Instant,
@@ -127,14 +125,7 @@ impl AppState {
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
     ) -> anyhow::Result<Self> {
-        Self::new_with_runtime_memory(
-            api_tx,
-            bus,
-            workspace_root,
-            command_approvals,
-            ask_user,
-            MemoryAuthorityMode::Typed,
-        )
+        Self::new_with_runtime_memory(api_tx, bus, workspace_root, command_approvals, ask_user)
     }
 
     pub fn new_with_runtime_memory(
@@ -143,7 +134,6 @@ impl AppState {
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
-        memory_authority_mode: MemoryAuthorityMode,
     ) -> anyhow::Result<Self> {
         Self::new_with_runtime_governance_inner(
             api_tx,
@@ -151,7 +141,6 @@ impl AppState {
             workspace_root.into(),
             command_approvals,
             ask_user,
-            memory_authority_mode,
             None,
             None,
             None,
@@ -167,7 +156,6 @@ impl AppState {
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
-        memory_authority_mode: MemoryAuthorityMode,
         governance: ApprovalCoordinator,
         planning_service: Arc<crate::planning_service::PlanningService>,
     ) -> anyhow::Result<Self> {
@@ -177,7 +165,6 @@ impl AppState {
             workspace_root.into(),
             command_approvals,
             ask_user,
-            memory_authority_mode,
             Some(governance),
             Some(planning_service),
             None,
@@ -197,7 +184,6 @@ impl AppState {
         memory_home: MemoryHome,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
-        memory_authority_mode: MemoryAuthorityMode,
         governance: ApprovalCoordinator,
         planning_service: Arc<crate::planning_service::PlanningService>,
         runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
@@ -208,7 +194,6 @@ impl AppState {
             workspace_root.into(),
             command_approvals,
             ask_user,
-            memory_authority_mode,
             Some(governance),
             Some(planning_service),
             Some(runtime_control_tx),
@@ -224,7 +209,6 @@ impl AppState {
         workspace_root: PathBuf,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
-        memory_authority_mode: MemoryAuthorityMode,
         governance: Option<ApprovalCoordinator>,
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
@@ -236,7 +220,6 @@ impl AppState {
         std::fs::create_dir_all(&audit_root)?;
         let audit_sink_ready = agent_diva_core::audit_sink::get_sink().is_some()
             || agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root).is_ok();
-        let laputa = LaputaService::open(workspace_root.clone())?;
         let persona = PersonaService::open(config_dir.clone())?;
         let memory_home = memory_home.unwrap_or_else(|| MemoryHome::new(config_dir.clone()));
         let skill_home = SkillHome::new(
@@ -264,11 +247,9 @@ impl AppState {
             config_dir,
             audit_root,
             autodream,
-            laputa,
             persona,
             memory_home,
             skill_home,
-            memory_authority_mode,
             health: HealthSignals::new(audit_sink_ready),
             started_at: Instant::now(),
             command_approvals,

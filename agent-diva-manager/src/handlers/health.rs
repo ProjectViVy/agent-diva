@@ -6,7 +6,6 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 
 use crate::state::AppState;
-use agent_diva_core::config::schema::MemoryAuthorityMode;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthResponse {
@@ -19,7 +18,6 @@ pub struct HealthResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MemoryHealth {
-    pub authority_mode: MemoryAuthorityMode,
     pub status: &'static str,
     pub degraded_reason: Option<&'static str>,
 }
@@ -79,17 +77,15 @@ pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse 
 async fn memory_health(state: &AppState) -> MemoryHealth {
     match state.memory_home.warmup().await {
         Ok(()) => MemoryHealth {
-            authority_mode: state.memory_authority_mode,
             status: "ready",
             degraded_reason: None,
         },
-        Err(_) => degraded_memory(state, "memory_home_unavailable"),
+        Err(_) => degraded_memory("memory_home_unavailable"),
     }
 }
 
-fn degraded_memory(state: &AppState, reason: &'static str) -> MemoryHealth {
+fn degraded_memory(reason: &'static str) -> MemoryHealth {
     MemoryHealth {
-        authority_mode: state.memory_authority_mode,
         status: "degraded",
         degraded_reason: Some(reason),
     }
@@ -136,7 +132,6 @@ mod tests {
             workspace,
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Typed,
         )
         .unwrap();
         if mark_cron_ready {
@@ -172,7 +167,6 @@ mod tests {
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Typed,
         )
         .unwrap();
         let health = memory_health(&state).await;

@@ -7,7 +7,6 @@ use std::{path::Path, time::Duration};
 
 use agent_diva_core::{
     bus::MessageBus,
-    config::schema::MemoryAuthorityMode,
     evolution::AutoDreamRunState,
     experience::{ExperienceJournal, OutcomeKind},
     session::SessionManager,
@@ -33,7 +32,6 @@ async fn typed_state(root: &Path) -> AppState {
         root,
         CommandApprovalCoordinator::default(),
         agent_diva_core::ask_user::AskUserCoordinator::default(),
-        MemoryAuthorityMode::Typed,
     )
     .unwrap();
     // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.

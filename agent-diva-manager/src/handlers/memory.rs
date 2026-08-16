@@ -247,7 +247,7 @@ fn actmem_error_response(error: ActmemError) -> ApiError {
 mod tests {
     use super::*;
     use crate::server::memory_routes;
-    use agent_diva_core::{bus::MessageBus, config::schema::MemoryAuthorityMode};
+    use agent_diva_core::bus::MessageBus;
     use axum::{
         body::{to_bytes, Body},
         http::Request,
@@ -264,7 +264,6 @@ mod tests {
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            MemoryAuthorityMode::Typed,
         )
         .unwrap();
         (memory_routes().with_state(state.clone()), state)
@@ -335,11 +334,11 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         let (_, list) = request_json(app, "GET", "/api/memory/records", None).await;
         assert!(list["records"].as_array().unwrap().is_empty());
-        assert!(state
-            .laputa
-            .list_proposals(agent_diva_laputa::ProposalFilter::default())
-            .unwrap()
-            .is_empty());
+        assert!(
+            std::fs::read_dir(state.workspace_root.join(".laputa/proposals"))
+                .map(|entries| entries.count() == 0)
+                .unwrap_or(true)
+        );
     }
 
     #[tokio::test]

@@ -864,7 +864,7 @@ mod tests {
         let workspace = tempfile::tempdir().unwrap();
         let assembly =
             ToolAssembly::new(workspace.path().to_path_buf()).with_memory_provider(Some(Arc::new(
-                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path(), 30),
+                agent_diva_laputa::MemoryHome::new(workspace.path()),
             )));
         let registry = assembly.build();
         for name in [
@@ -951,9 +951,9 @@ mod tests {
     async fn working_checkpoint_tool_registers_with_session_binding() {
         let workspace = tempfile::tempdir().unwrap();
         let registry = ToolAssembly::new(workspace.path().to_path_buf())
-            .with_memory_provider(Some(Arc::new(
-                crate::memory_boundary::LegacyCrudMemoryProvider::new(workspace.path(), 30),
-            )))
+            .with_memory_provider(Some(Arc::new(agent_diva_laputa::MemoryHome::new(
+                workspace.path(),
+            ))))
             .with_session_checkpoint_session(Some("channel:42".to_string()))
             .build();
         assert!(

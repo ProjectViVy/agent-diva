@@ -311,9 +311,6 @@ pub struct Config {
 /// Memory authority configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MemoryConfig {
-    /// Runtime authority selection. Typed is the out-of-box default.
-    #[serde(default)]
-    pub authority_mode: MemoryAuthorityMode,
     /// L1 startup index budget: maximum index lines injected into the system
     /// prompt. Full entries are never injected; retrieval goes through
     /// `memory_search` / `memory_list` (B2/B10 minimal-pointer principle).
@@ -328,20 +325,9 @@ fn default_l1_index_lines() -> usize {
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
-            authority_mode: MemoryAuthorityMode::Typed,
             l1_index_lines: default_l1_index_lines(),
         }
     }
-}
-
-/// Explicit Memory authority state.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum MemoryAuthorityMode {
-    #[default]
-    Typed,
-    Shadow,
-    Legacy,
 }
 
 #[cfg(test)]
@@ -353,7 +339,6 @@ mod memory_authority_tests {
         let mut value = serde_json::to_value(Config::default()).unwrap();
         value.as_object_mut().unwrap().remove("memory");
         let config: Config = serde_json::from_value(value).unwrap();
-        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Typed);
     }
 
     #[test]
@@ -364,35 +349,20 @@ mod memory_authority_tests {
             .unwrap()
             .insert("memory".to_string(), serde_json::json!({}));
         let config: Config = serde_json::from_value(value).unwrap();
-        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Typed);
     }
 
     #[test]
-    fn explicit_legacy_authority_mode_is_honored() {
-        let mut value = serde_json::to_value(Config::default()).unwrap();
-        value.as_object_mut().unwrap().insert(
-            "memory".to_string(),
-            serde_json::json!({"authority_mode": "legacy"}),
-        );
-        let config: Config = serde_json::from_value(value).unwrap();
-        assert_eq!(config.memory.authority_mode, MemoryAuthorityMode::Legacy);
-    }
-
-    #[test]
-    fn authority_mode_is_strict() {
-        let shadow: MemoryConfig =
-            serde_json::from_value(serde_json::json!({"authority_mode": "shadow"})).unwrap();
-        assert_eq!(shadow.authority_mode, MemoryAuthorityMode::Shadow);
-        assert!(serde_json::from_value::<MemoryConfig>(
-            serde_json::json!({"authority_mode": "unknown"})
-        )
-        .is_err());
+    fn legacy_authority_mode_key_no_longer_selects_a_provider() {
+        // The key is unstructured noise after the clean break: parsing still
+        // succeeds and no authority-mode field exists to honor it.
+        let config: MemoryConfig =
+            serde_json::from_value(serde_json::json!({"authority_mode": "legacy"})).unwrap();
+        assert_eq!(config.l1_index_lines, 30);
     }
 
     #[test]
     fn l1_index_lines_defaults_to_30() {
-        let config: MemoryConfig =
-            serde_json::from_value(serde_json::json!({"authority_mode": "typed"})).unwrap();
+        let config: MemoryConfig = MemoryConfig::default();
         assert_eq!(config.l1_index_lines, 30);
         assert_eq!(MemoryConfig::default().l1_index_lines, 30);
     }

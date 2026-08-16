@@ -1,9 +1,8 @@
 use crate::app_state::AgentState;
 use crate::gateway_status::GatewayStatus;
 use crate::notebook::{
-    build_notebook_report_proposal, build_notebook_report_proposal_preview, load_notebook_reports,
-    search_notebook_session_evidence, NotebookPeriod, NotebookProposalAction,
-    NotebookProposalPreviewDto, NotebookReportDto, NotebookSessionSearchRequest,
+    load_notebook_reports, search_notebook_session_evidence, NotebookPeriod, NotebookReportDto,
+    NotebookSessionSearchRequest,
 };
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
@@ -13,7 +12,7 @@ use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::planning::{normalize_report_markdown, revision_hash, ExecutionContextPolicy};
-use agent_diva_core::session::{SessionSearchHit, SessionSearchResponse};
+use agent_diva_core::session::SessionSearchResponse;
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     build_llm_provider, CustomProviderUpsert, LlmProviderBuildOptions, Message, ProviderAccess,
@@ -206,46 +205,6 @@ pub struct McpServerPayload {
 #[serde(rename_all = "camelCase")]
 pub struct WipeSummary {
     pub removed_paths: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaputaApplyPayload {
-    pub governance_request_id: String,
-    pub expected_version: u64,
-    pub idempotency_key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaputaDecisionPayload {
-    pub decision: String,
-    pub grant: String,
-    pub expected_version: u64,
-    pub idempotency_key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaputaRollbackPayload {
-    pub reason: String,
-    pub expected_current: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaputaEditPayload {
-    pub proposed_patch: Option<String>,
-    pub evidence_refs: Option<serde_json::Value>,
-    pub risk_level: Option<String>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LaputaTransitionPayload {
-    pub state: String,
-    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -961,19 +920,6 @@ async fn get_laputa_payload(
     parse_laputa_response(response, field).await
 }
 
-async fn get_laputa_full_response(
-    state: &State<'_, AgentState>,
-    url: &str,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let response = state
-        .client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| laputa_transport_error(format!("Failed to fetch Laputa API: {e}")))?;
-    parse_laputa_response(response, "").await
-}
-
 async fn post_laputa_payload<T: Serialize + ?Sized>(
     state: &State<'_, AgentState>,
     url: &str,
@@ -998,34 +944,6 @@ async fn put_laputa_full_response<T: Serialize + ?Sized>(
     let response = state
         .client
         .put(url)
-        .json(payload)
-        .send()
-        .await
-        .map_err(|e| laputa_transport_error(format!("Failed to call Laputa API: {e}")))?;
-    parse_laputa_response(response, "").await
-}
-
-fn proposal_with_governance(
-    response: &serde_json::Value,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let mut proposal = response
-        .get("proposal")
-        .cloned()
-        .ok_or_else(|| laputa_string_error("Laputa response missing proposal".into()))?;
-    if let Some(governance) = response.get("governance") {
-        proposal["governance"] = governance.clone();
-    }
-    Ok(proposal)
-}
-
-async fn post_laputa_full_response<T: Serialize + ?Sized>(
-    state: &State<'_, AgentState>,
-    url: &str,
-    payload: &T,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let response = state
-        .client
-        .post(url)
         .json(payload)
         .send()
         .await

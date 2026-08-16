@@ -202,11 +202,6 @@ enum Commands {
         #[command(subcommand)]
         command: MaskCommands,
     },
-    /// Retire workspace persona files into Laputa governance (one-shot migration)
-    PersonaRetire {
-        #[command(subcommand)]
-        command: agent_diva_cli::commands::persona_retire::PersonaRetireCommands,
-    },
 }
 
 #[derive(Subcommand)]
@@ -771,12 +766,6 @@ async fn async_main() -> Result<()> {
                 info!("Processing mask command");
             }
             agent_diva_cli::commands::mask::run(command, &runtime).await?;
-        }
-        Commands::PersonaRetire { command } => {
-            if !structured_output {
-                info!("Processing persona-retire command");
-            }
-            agent_diva_cli::commands::persona_retire::run(command, &runtime).await?;
         }
     }
 

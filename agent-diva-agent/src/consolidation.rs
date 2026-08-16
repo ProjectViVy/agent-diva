@@ -6,7 +6,6 @@ use agent_diva_core::memory::{
     MemoryRemoveRequest, MemoryUpdateRequest, SyncTurnRequest, SyncTurnStatus,
 };
 use agent_diva_core::session::Session;
-use agent_diva_laputa::{LaputaPaths, WorldClaimPayload, WorldGovernance, WorldProposalState};
 use agent_diva_providers::{LLMProvider, Message};
 use agent_diva_tools::distill_guard;
 use std::path::Path;
@@ -99,59 +98,6 @@ pub async fn consolidate(
 ///
 /// Returns `None` when the content does not carry a `kind: world` frontmatter
 /// marker or lacks the minimum `domain` / `title` fields required for a
-/// structured WORLD claim.
-fn try_parse_world_claim(content: &str) -> Option<WorldClaimPayload> {
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return None;
-    }
-    let after = &trimmed[3..];
-    let end = after.find("\n---")?;
-    let frontmatter = &after[..end];
-
-    let mut kind_found = false;
-    let mut domain = None;
-    let mut title = None;
-    let mut source = None;
-    let mut text = None;
-
-    for line in frontmatter.lines() {
-        let line = line.trim();
-        if let Some(value) = line.strip_prefix("kind:") {
-            if value.trim() == "world" {
-                kind_found = true;
-            }
-        } else if let Some(value) = line.strip_prefix("domain:") {
-            domain = Some(value.trim().to_string());
-        } else if let Some(value) = line.strip_prefix("title:") {
-            title = Some(value.trim().to_string());
-        } else if let Some(value) = line.strip_prefix("source:") {
-            source = Some(value.trim().to_string());
-        } else if let Some(value) = line.strip_prefix("text:") {
-            text = Some(value.trim().to_string());
-        }
-    }
-
-    if !kind_found {
-        return None;
-    }
-
-    let body_start = trimmed[3 + end + 4..].trim_start();
-    let body = text.unwrap_or_else(|| body_start.to_string());
-
-    Some(WorldClaimPayload {
-        domain: domain?,
-        title: title?,
-        status: "active".to_string(),
-        confidence: "medium".to_string(),
-        scopes: vec![],
-        source: source.unwrap_or_else(|| "consolidation".to_string()),
-        text: body,
-    })
-}
-
-/// Consolidate old messages into long-term memory with a configurable quality gate.
-///
 /// After each consolidation attempt, the quality gate validates the `memory_update`
 /// against the source messages. If quality is below threshold and retries remain,
 /// the consolidation is retried with a feedback prompt. After all retries are
@@ -341,50 +287,12 @@ pub async fn consolidate_with_gate(
             let mut applied: u32 = 0;
             let mut proposed: u32 = 0;
             let mut failed: u32 = 0;
-            let mut world_governance =
-                WorldGovernance::open(LaputaPaths::new(workspace).cognitive_dir()).ok();
 
             for item in items_arr {
                 let action = item.get("action").and_then(|v| v.as_str()).unwrap_or("");
                 let content = item.get("content").and_then(|v| v.as_str()).unwrap_or("");
                 let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
                 let reason = item.get("reason").and_then(|v| v.as_str()).unwrap_or("");
-
-                if action == "add" {
-                    if let (Some(wg), Some(payload)) =
-                        (world_governance.as_mut(), try_parse_world_claim(content))
-                    {
-                        let claim_id = id.to_string();
-                        let claim_id = if claim_id.is_empty() {
-                            format!(
-                                "consolidation-{}-{}",
-                                payload.domain,
-                                payload.title.replace(' ', "-")
-                            )
-                        } else {
-                            claim_id
-                        };
-                        match wg.submit(&claim_id, "consolidation", payload, chrono::Utc::now()) {
-                            Ok(WorldProposalState::PendingReview) => {
-                                proposed += 1;
-                                debug!("Consolidation: WORLD claim {claim_id} queued for review");
-                            }
-                            Ok(WorldProposalState::Applied) => {
-                                applied += 1;
-                                debug!("Consolidation: WORLD claim {claim_id} applied");
-                            }
-                            Ok(other) => {
-                                failed += 1;
-                                warn!("Consolidation: WORLD claim {claim_id} → {other:?}");
-                            }
-                            Err(e) => {
-                                failed += 1;
-                                warn!("Consolidation: WORLD claim {claim_id} error: {e}");
-                            }
-                        }
-                        continue;
-                    }
-                }
 
                 let result = match action {
                     "add" => {

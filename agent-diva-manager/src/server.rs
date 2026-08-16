@@ -873,13 +873,10 @@ mod tests {
         .unwrap();
         assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
         assert!(terminal.run.proposal_ids.is_empty());
-        assert_eq!(
-            state
-                .laputa
-                .list_proposals(agent_diva_laputa::ProposalFilter::default())
-                .unwrap()
-                .len(),
-            0
+        assert!(
+            std::fs::read_dir(state.workspace_root.join(".laputa/proposals"))
+                .map(|entries| entries.count() == 0)
+                .unwrap_or(true)
         );
         let document = state.memory_home.actmem().read().unwrap();
         assert!(document.work.contains("### Goal"));
@@ -908,7 +905,6 @@ mod tests {
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
-            agent_diva_core::config::schema::MemoryAuthorityMode::Typed,
         )
         .unwrap();
         // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
@@ -950,11 +946,11 @@ mod tests {
         .unwrap();
         assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
         assert!(terminal.run.proposal_ids.is_empty());
-        assert!(state
-            .laputa
-            .list_proposals(agent_diva_laputa::ProposalFilter::default())
-            .unwrap()
-            .is_empty());
+        assert!(
+            std::fs::read_dir(state.workspace_root.join(".laputa/proposals"))
+                .map(|entries| entries.count() == 0)
+                .unwrap_or(true)
+        );
         assert!(!state.memory_home.database_path().exists());
         let document = state.memory_home.actmem().read().unwrap();
         assert!(document.work.contains("evidence:"));

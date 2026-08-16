@@ -62,11 +62,11 @@ pub struct ContextBuilder {
 impl ContextBuilder {
     /// Create a new context builder
     pub fn new(workspace: PathBuf) -> Self {
-        let skills_loader = SkillsLoader::new(
-            agent_diva_core::config::ConfigLoader::new().config_dir(),
-            None,
-        );
-        let memory_provider = default_memory_provider(&workspace);
+        let config_dir = agent_diva_core::config::ConfigLoader::new()
+            .config_dir()
+            .to_path_buf();
+        let skills_loader = SkillsLoader::new(&config_dir, None);
+        let memory_provider = default_memory_provider(&config_dir);
         Self {
             persona_root: workspace.clone(),
             workspace,
@@ -80,7 +80,8 @@ impl ContextBuilder {
     /// Create a new context builder with skills
     pub fn with_skills(workspace: PathBuf, builtin_skills_dir: Option<PathBuf>) -> Self {
         let skills_loader = SkillsLoader::new(&workspace, builtin_skills_dir);
-        let memory_provider = default_memory_provider(&workspace);
+        let memory_provider =
+            default_memory_provider(agent_diva_core::config::ConfigLoader::new().config_dir());
         Self {
             persona_root: workspace.clone(),
             workspace,
@@ -98,8 +99,8 @@ impl ContextBuilder {
         config_dir: PathBuf,
         builtin_skills_dir: Option<PathBuf>,
     ) -> Self {
-        let skills_loader = SkillsLoader::new(config_dir, builtin_skills_dir);
-        let memory_provider = default_memory_provider(&workspace);
+        let skills_loader = SkillsLoader::new(config_dir.clone(), builtin_skills_dir);
+        let memory_provider = default_memory_provider(&config_dir);
         Self {
             persona_root: workspace.clone(),
             workspace,

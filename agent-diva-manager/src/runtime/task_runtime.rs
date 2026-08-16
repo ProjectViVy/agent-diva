@@ -137,7 +137,6 @@ async fn start_runtime_tasks_inner(
         memory_home,
         command_approvals,
         ask_user,
-        config.memory.authority_mode,
         governance,
         planning_service,
         runtime_control_tx_for_state,

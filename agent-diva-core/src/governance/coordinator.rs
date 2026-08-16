@@ -287,7 +287,6 @@ mod tests {
         let cases = [
             ("plan", Capability::PlanExecute, ResourceKind::Plan),
             ("sandbox", Capability::CommandExecute, ResourceKind::Command),
-            ("memory", Capability::MemoryApply, ResourceKind::Memory),
         ];
         for (id, capability, kind) in cases {
             let (coordinator, _) = setup().await;
@@ -333,8 +332,8 @@ mod tests {
 
         let prohibited = request(
             "prohibited",
-            Capability::MemoryApply,
-            ResourceKind::Memory,
+            Capability::PlanExecute,
+            ResourceKind::Plan,
             RiskClass::Prohibited,
         );
         assert!(matches!(

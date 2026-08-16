@@ -1,10 +1,11 @@
 //! File-first authority storage boundary for Laputa.
 //!
-//! This crate owns the `.laputa/` storage layout and low-level persistence
-//! primitives used by later governance stories.
-//!
-//! The BML logical layer (memory storage) lives at [`bml`]; see its module
-//! docs for the layer boundary and write-API rules.
+//! The cognitive clean break (S5) removed the legacy section/proposal
+//! governance kernel. This crate now owns the surviving authorities:
+//! the BML logical layer (machine-wide memory home, ACTMEM, MEMRULES),
+//! the persona Markdown workspace, the persona Frozen Core snapshot, and
+//! the payload-free recall-feedback reader. See the `bml` module docs for
+//! the memory write-API boundary rules.
 
 pub mod actmem;
 pub mod atomic;
@@ -13,20 +14,10 @@ pub mod cognitive;
 pub mod error;
 pub mod feedback;
 pub mod frozen_core;
-pub mod governed_apply;
 pub mod layout;
 pub mod lock;
-pub mod memory_provider;
 pub mod memory_records;
-pub mod metrics;
-pub mod migration;
 pub mod persona;
-pub mod persona_retire;
-pub mod proposals;
-pub mod recall;
-pub mod service;
-pub mod suppression;
-pub mod typed_provider;
 pub mod typed_store;
 
 pub use actmem::{
@@ -36,19 +27,13 @@ pub use actmem::{
 };
 pub use atomic::{atomic_write, atomic_write_json};
 pub use bml::{
-    adapt_governed_proposal, adapt_laputa_section, adapt_legacy_markdown,
-    compare_normalized_records, GovernedMemoryApply, MemRulesDocument, MemRulesSource,
-    MemoryAdapterContext, MemoryAdapterOutput, MemoryHome, MemoryHomeError,
-    MemoryMigrationManifest, MemoryMigrationPlan, MemoryMigrationTestFailure,
-    MemoryRecordMigration, MemoryRollbackManifest, MemorySearchHit, MemoryStoreIntegrity,
-    MemoryStoreMetadata, StoredMemoryRecord, TypedMemoryStore, TypedMemoryStoreError,
-    WorkspaceIdentityMigrationManifest, WorkspaceIdentityMigrationState, MAX_MEMORY_CONTENT_BYTES,
-    MAX_MEMORY_RECORDS,
+    adapt_laputa_section, adapt_legacy_markdown, compare_normalized_records, MemRulesDocument,
+    MemRulesSource, MemoryAdapterContext, MemoryHome, MemoryHomeError, MemoryRecordMigration,
+    MemorySearchHit, MemoryStoreIntegrity, MemoryStoreMetadata, StoredMemoryRecord,
+    TypedMemoryStore, TypedMemoryStoreError, WorkspaceIdentityMigrationState,
+    MAX_MEMORY_CONTENT_BYTES, MAX_MEMORY_RECORDS,
 };
-pub use cognitive::{
-    ClaimStatus, MemRule, MemRules, WorldClaim, WorldClaimPayload, WorldError, WorldGovernance,
-    WorldGovernanceError, WorldProposalState, WorldStore, WorldUpsertProposal,
-};
+pub use cognitive::MemRules;
 pub use error::{LaputaError, Result};
 pub use feedback::{
     PendingRecallFeedback, RecallFeedbackEvent, RecallFeedbackStore, RecallTaskOutcome,
@@ -59,42 +44,12 @@ pub use frozen_core::{
     session_projection as frozen_core_session_projection, FrozenCoreSessionProjection,
     FrozenCoreSnapshot, DEFAULT_FROZEN_CORE_BUDGET, FROZEN_CORE_SECTIONS,
 };
-pub use governed_apply::{
-    proposal_digest, MemoryGovernanceCoordinator, MemoryGovernanceDecision, MemoryGovernanceError,
-    MemoryGovernanceView,
-};
 pub use layout::{LaputaPaths, LaputaStorage};
 pub use lock::{LaputaLock, LockOptions};
-pub use memory_provider::LaputaMemoryProvider;
-pub use metrics::{LaputaMetrics, LaputaMetricsSnapshot};
-pub use migration::{
-    LaputaMigration, LaputaMigrationBackup, LaputaMigrationOptions, LaputaMigrationOutcome,
-    LaputaMigrationSource, LaputaMigrationSourceKind, LaputaMigrationTestFailure,
-};
+pub use memory_records::{LaputaSection, SectionStatus};
 pub use persona::{
     PersonaChangeRequest, PersonaDocument, PersonaError, PersonaFileState, PersonaHistoryEntry,
     PersonaHistoryRevision, PersonaInitialization, PersonaKind, PersonaRepair, PersonaRequestActor,
     PersonaRequestState, PersonaService, PersonaStatus, PersonaStatusView, PersonaWriteOutcome,
     PersonaWriteSource,
 };
-pub use persona_retire::{
-    archive_sources as archive_persona_sources,
-    create_proposals as create_persona_retirement_proposals,
-    scan_workspace as scan_persona_workspace, PersonaArchiveOutcome, PersonaProposalSpec,
-    PersonaRetirementPlan, PersonaSource, PersonaSourceKind,
-};
-pub use proposals::{
-    ApplyFailurePoint, ApplyOptions, ApplyOutcome, ProposalEdit, ProposalFilter,
-    ProposalRepository, ProposalSummary,
-};
-pub use recall::{
-    LaputaRecallCandidateSource, LaputaRecallMetrics, LaputaRecallService, LaputaRecallShadow,
-    RecallReasonCount,
-};
-pub use service::{
-    ChangelogFilter, ChangelogPage, CognitiveFileKind, LaputaEvent, LaputaEventKind, LaputaSection,
-    LaputaService, LaputaSnapshot, MemoryListFilter, RollbackChangelogRequest, RollbackOutcome,
-    SectionStatus,
-};
-pub use suppression::{CandidateSuppression, CandidateSuppressionStore};
-pub use typed_provider::TypedLaputaMemoryProvider;

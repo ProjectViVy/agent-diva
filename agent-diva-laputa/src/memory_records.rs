@@ -7,90 +7,40 @@ use std::{
 };
 
 use agent_diva_core::{
-    evolution::{EvolutionProposal, LaputaSectionName},
+    evolution::LaputaSectionName,
     governance::{AuditCorrelation, ContentDigest},
     memory::{
         memory_content_digest, MemoryIntegrityFinding, MemoryIntegrityReport,
         MemoryIntegritySeverity, MemoryProvenance, MemoryProvenanceSource, MemoryRecord,
-        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust,
+        MemoryRecordKind, MemoryScope, MemorySensitivity, MemoryTrust,
     },
 };
 
 /// Normalize one governed proposal for typed authority apply.
-pub fn adapt_governed_proposal(
-    proposal: &EvolutionProposal,
-    context: &MemoryAdapterContext,
-) -> MemoryRecord {
-    let proposal_digest = memory_content_digest(proposal.proposed_patch.as_bytes());
-    let deprecation = (proposal.proposal_type
-        == agent_diva_core::evolution::ProposalType::Deprecation)
-        .then(|| parse_deprecation_patch(&proposal.proposed_patch))
-        .flatten();
-    let content = if deprecation.is_some() {
-        String::new()
-    } else {
-        proposal.proposed_patch.clone()
-    };
-    let digest = memory_content_digest(content.as_bytes());
-    MemoryRecord {
-        id: deterministic_record_id("proposal", &proposal.id, &digest),
-        kind: record_kind_for_section(&proposal.target_section),
-        content,
-        provenance: MemoryProvenance {
-            source: if proposal.source_run_id.is_some() {
-                MemoryProvenanceSource::AutoDream
-            } else {
-                MemoryProvenanceSource::LaputaAppliedSection
-            },
-            source_id: proposal
-                .source_run_id
-                .clone()
-                .unwrap_or_else(|| proposal.id.clone()),
-            content_digest: digest,
-            captured_at: context.captured_at,
-            correlation: context.correlation.clone(),
-        },
-        evidence_refs: proposal.evidence_refs.clone(),
-        confidence_bps: 10_000,
-        sensitivity: MemorySensitivity::Private,
-        trust: MemoryTrust::AppliedAuthority,
-        scope: scope(context),
-        created_at: proposal.created_at,
-        effective_at: context.captured_at,
-        expires_at: None,
-        supersedes: deprecation
-            .as_ref()
-            .map(|patch| vec![patch.target_record_id.clone()])
-            .unwrap_or_default(),
-        tombstone: deprecation.map(|patch| MemoryTombstone {
-            target_record_id: patch.target_record_id,
-            reason_digest: proposal_digest,
-            actor_id: proposal.created_by.clone(),
-            created_at: context.captured_at,
-        }),
-    }
-}
-
-#[derive(Deserialize)]
-struct DeprecationPatch {
-    schema_version: u32,
-    target_record_id: String,
-    reason: String,
-}
-
-fn parse_deprecation_patch(value: &str) -> Option<DeprecationPatch> {
-    serde_json::from_str::<DeprecationPatch>(value)
-        .ok()
-        .filter(|patch| {
-            patch.schema_version == 1
-                && !patch.target_record_id.trim().is_empty()
-                && !patch.reason.trim().is_empty()
-        })
-}
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{atomic_write_json, LaputaError, LaputaSection, Result, SectionStatus};
+use crate::{atomic_write_json, LaputaError, Result};
+
+/// Legacy `.laputa/sections/*.json` section projection.
+///
+/// Retired as production authority by the cognitive clean break; retained
+/// only as the import shape consumed by the offline migration tool.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SectionStatus {
+    Owned,
+    Tbd,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LaputaSection {
+    pub name: LaputaSectionName,
+    pub status: SectionStatus,
+    pub content: serde_json::Value,
+    pub metadata: serde_json::Value,
+    pub last_modified: Option<DateTime<Utc>>,
+    pub version: String,
+}
 
 const ARTIFACT_SCHEMA_VERSION: &str = "1.0.0";
 const ARTIFACT_OUTPUTS: [&str; 3] = ["records.json", "rollback.json", "manifest.json"];
