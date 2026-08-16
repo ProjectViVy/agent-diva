@@ -621,7 +621,9 @@ mod tests {
             .unwrap();
         assert_eq!(status.status(), StatusCode::OK);
         let status_body = to_bytes(status.into_body(), usize::MAX).await.unwrap();
-        assert!(String::from_utf8_lossy(&status_body).contains("uninitialized"));
+        let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
+        assert_eq!(status_json["status"], "ok");
+        assert_eq!(status_json["persona"]["status"], "uninitialized");
 
         let initialize = app
             .clone()
@@ -645,6 +647,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(initialize.status(), StatusCode::OK);
+        let initialize_body = to_bytes(initialize.into_body(), usize::MAX).await.unwrap();
+        let initialize_json: serde_json::Value = serde_json::from_slice(&initialize_body).unwrap();
+        assert_eq!(initialize_json["status"], "ok");
+        assert_eq!(initialize_json["persona"]["status"], "ready");
 
         let document = app
             .clone()

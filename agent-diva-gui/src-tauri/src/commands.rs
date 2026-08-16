@@ -459,7 +459,7 @@ pub async fn persona_get_status(
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!("{}/persona/status", state.api_base_url());
-    get_laputa_payload(&state, &url, "status").await
+    get_laputa_payload(&state, &url, "persona").await
 }
 
 #[tauri::command]
@@ -468,7 +468,7 @@ pub async fn persona_initialize(
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!("{}/persona/initialize", state.api_base_url());
-    post_laputa_payload(&state, &url, &payload, "status").await
+    post_laputa_payload(&state, &url, &payload, "persona").await
 }
 
 #[tauri::command]
@@ -477,7 +477,7 @@ pub async fn persona_repair(
     state: State<'_, AgentState>,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let url = format!("{}/persona/repair", state.api_base_url());
-    post_laputa_payload(&state, &url, &payload, "status").await
+    post_laputa_payload(&state, &url, &payload, "persona").await
 }
 
 #[tauri::command]
@@ -992,17 +992,30 @@ async fn parse_laputa_response(
         .json()
         .await
         .map_err(|e| laputa_transport_error(format!("Invalid Laputa API response: {e}")))?;
-    if !status.is_success() || value.get("status").and_then(|v| v.as_str()) != Some("ok") {
+    decode_laputa_payload(status.as_u16(), value, field)
+}
+
+fn decode_laputa_payload(
+    http_status: u16,
+    value: serde_json::Value,
+    field: &str,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let envelope_status = value.get("status").and_then(serde_json::Value::as_str);
+    let http_ok = (200..300).contains(&http_status);
+    if !http_ok || envelope_status == Some("error") {
+        let error = value.get("error").unwrap_or(&value);
         return Err(serde_json::json!({
             "status": "error",
-            "http_status": status.as_u16(),
-            "code": value
+            "http_status": http_status,
+            "code": error
                 .get("code")
-                .and_then(|v| v.as_str())
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| value.get("code").and_then(serde_json::Value::as_str))
                 .unwrap_or("laputa_error"),
-            "message": value
+            "message": error
                 .get("message")
-                .and_then(|v| v.as_str())
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| value.get("message").and_then(serde_json::Value::as_str))
                 .unwrap_or("unknown Laputa API error"),
             "body": value,
         }));
@@ -1010,7 +1023,19 @@ async fn parse_laputa_response(
     if field.is_empty() {
         return Ok(value);
     }
-    Ok(value.get(field).cloned().unwrap_or(serde_json::Value::Null))
+    if let Some(payload) = value.get(field).cloned() {
+        return Ok(payload);
+    }
+    // Older Manager builds returned `{ "status": PersonaStatusView }` without the
+    // `"ok"` envelope. Keep those first-run dialogs readable after a GUI-only rebuild.
+    if field == "persona" {
+        if let Some(status_value) = value.get("status") {
+            if status_value.is_object() {
+                return Ok(status_value.clone());
+            }
+        }
+    }
+    Ok(serde_json::Value::Null)
 }
 
 fn laputa_transport_error(message: String) -> serde_json::Value {
@@ -1019,6 +1044,51 @@ fn laputa_transport_error(message: String) -> serde_json::Value {
         "code": "transport_error",
         "message": message,
     })
+}
+
+#[cfg(test)]
+mod laputa_payload_tests {
+    use super::decode_laputa_payload;
+
+    #[test]
+    fn persona_ok_envelope_returns_status_view() {
+        let value = serde_json::json!({
+            "status": "ok",
+            "persona": { "status": "uninitialized", "files": {} }
+        });
+        let decoded = decode_laputa_payload(200, value, "persona").expect("ok envelope");
+        assert_eq!(decoded["status"], "uninitialized");
+    }
+
+    #[test]
+    fn persona_legacy_object_status_is_not_unknown_error() {
+        let value = serde_json::json!({
+            "status": { "status": "uninitialized", "files": { "identity": { "valid": false } } }
+        });
+        let decoded = decode_laputa_payload(200, value, "persona").expect("legacy envelope");
+        assert_eq!(decoded["status"], "uninitialized");
+        assert_eq!(decoded["files"]["identity"]["valid"], false);
+    }
+
+    #[test]
+    fn nested_error_message_is_surfaced() {
+        let value = serde_json::json!({
+            "error": { "code": "persona_invalid_content", "message": "identity exceeds 800 characters" }
+        });
+        let error = decode_laputa_payload(422, value, "persona").expect_err("http error");
+        assert_eq!(error["code"], "persona_invalid_content");
+        assert_eq!(error["message"], "identity exceeds 800 characters");
+    }
+
+    #[test]
+    fn document_ok_envelope_still_extracts_field() {
+        let value = serde_json::json!({
+            "status": "ok",
+            "document": { "kind": "identity", "revision": 1 }
+        });
+        let decoded = decode_laputa_payload(200, value, "document").expect("document");
+        assert_eq!(decoded["revision"], 1);
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone)]

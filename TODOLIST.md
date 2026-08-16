@@ -172,6 +172,9 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   七文件 CM6 编辑/预览、CAS 冲突刷新、pending 接受/拒绝、历史 Diff/重新保存；
   同时确认未 ready 时 Chat 被独立 Persona 状态门挡住。自动化证据见
   `docs/logs/2026-08-cognitive-workspace-reset-implementation/v0.0.2-s2-persona-home/verification.md`。
+  2026-08-17：首次「建立 Persona」打开即 `unknown Laputa API error` 已修（Manager
+  信封 `status: "ok"` + Tauri 解码旧 `{ status: PersonaStatusView }`）；仍须重启
+  桌面端后做视觉验收。
 
 - [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `acceptance:desktop-smoke`
   BML 列表/详情直改（无审批）；ACTMEM 入口展示 Pulse / Recap / Work / 胶囊；

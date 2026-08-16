@@ -55,7 +55,7 @@ pub async fn get_persona_status_handler(
     state
         .persona
         .status()
-        .map(|status| Json(json!({ "status": status })))
+        .map(|persona| Json(json!({ "status": "ok", "persona": persona })))
         .map_err(persona_error_response)
 }
 
@@ -72,7 +72,7 @@ pub async fn initialize_persona_handler(
             user: payload.user,
             world: payload.world,
         })
-        .map(|status| Json(json!({ "status": status })))
+        .map(|persona| Json(json!({ "status": "ok", "persona": persona })))
         .map_err(persona_error_response)
 }
 
@@ -85,7 +85,7 @@ pub async fn repair_persona_handler(
         .repair(PersonaRepair {
             documents: payload.documents,
         })
-        .map(|status| Json(json!({ "status": status })))
+        .map(|persona| Json(json!({ "status": "ok", "persona": persona })))
         .map_err(persona_error_response)
 }
 
@@ -97,7 +97,7 @@ pub async fn get_persona_document_handler(
     state
         .persona
         .get_document(kind)
-        .map(|document| Json(json!({ "document": document })))
+        .map(|document| Json(json!({ "status": "ok", "document": document })))
         .map_err(persona_error_response)
 }
 
@@ -115,7 +115,7 @@ pub async fn save_persona_document_handler(
             payload.base_revision,
             &payload.reason,
         )
-        .map(|outcome| Json(json!({ "outcome": outcome })))
+        .map(|outcome| Json(json!({ "status": "ok", "outcome": outcome })))
         .map_err(persona_error_response)
 }
 
@@ -138,7 +138,7 @@ pub async fn list_persona_history_handler(
     state
         .persona
         .list_history(kind)
-        .map(|history| Json(json!({ "history": history })))
+        .map(|history| Json(json!({ "status": "ok", "history": history })))
         .map_err(persona_error_response)
 }
 
@@ -150,7 +150,7 @@ pub async fn get_persona_history_revision_handler(
     state
         .persona
         .read_history(kind, revision)
-        .map(|revision| Json(json!({ "revision": revision })))
+        .map(|revision| Json(json!({ "status": "ok", "revision": revision })))
         .map_err(persona_error_response)
 }
 
@@ -162,7 +162,7 @@ pub async fn list_persona_requests_handler(
     state
         .persona
         .list_requests(kind)
-        .map(|requests| Json(json!({ "requests": requests })))
+        .map(|requests| Json(json!({ "status": "ok", "requests": requests })))
         .map_err(persona_error_response)
 }
 
@@ -181,7 +181,7 @@ pub async fn create_persona_request_handler(
             payload.actor,
             &payload.reason,
         )
-        .map(|request| Json(json!({ "request": request })))
+        .map(|request| Json(json!({ "status": "ok", "request": request })))
         .map_err(persona_error_response)
 }
 
@@ -192,7 +192,7 @@ pub async fn accept_persona_request_handler(
     state
         .persona
         .accept_request(&id)
-        .map(|request| Json(json!({ "request": request })))
+        .map(|request| Json(json!({ "status": "ok", "request": request })))
         .map_err(persona_error_response)
 }
 
@@ -203,7 +203,7 @@ pub async fn reject_persona_request_handler(
     state
         .persona
         .reject_request(&id)
-        .map(|request| Json(json!({ "request": request })))
+        .map(|request| Json(json!({ "status": "ok", "request": request })))
         .map_err(persona_error_response)
 }
 
