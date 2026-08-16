@@ -4,11 +4,10 @@ use agent_diva_autodream::{
     AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
 };
 use agent_diva_core::evolution::{
-    AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState, LaputaSectionName,
+    AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
 };
-use agent_diva_laputa::{atomic_write_json, LaputaStorage};
+use agent_diva_laputa::atomic_write_json;
 use chrono::NaiveDate;
-use serde_json::Value;
 
 #[test]
 fn manual_run_creation_persists_queued_record_and_lock() {
@@ -167,11 +166,6 @@ fn collect_inputs_persists_summary_into_run_record() {
     let temp = tempfile::tempdir().unwrap();
     let service = AutoDreamService::open(temp.path()).unwrap();
     seed_session(temp.path(), "chat:1", "session evidence");
-    seed_laputa(
-        temp.path(),
-        LaputaSectionName::MemoryMd,
-        "authority evidence",
-    );
 
     let status = service
         .trigger_manual_run(ManualRunTriggerRequest { trigger: None })
@@ -187,7 +181,7 @@ fn collect_inputs_persists_summary_into_run_record() {
     .unwrap();
     let record: AutoDreamRunRecord = serde_json::from_str(&raw).unwrap();
 
-    assert!(collected.summary.total_items >= 2);
+    assert!(collected.summary.total_items >= 1);
     assert!(record.input_summary.is_some());
     assert!(record
         .summary
@@ -340,12 +334,4 @@ fn seed_session_at(workspace: &std::path::Path, key: &str, content: &str, timest
         })
         .to_string();
     fs::write(path, content).unwrap();
-}
-
-fn seed_laputa(workspace: &std::path::Path, section: LaputaSectionName, content: &str) {
-    let path = LaputaStorage::open(workspace)
-        .unwrap()
-        .paths()
-        .section_file(section);
-    atomic_write_json(&path, &Value::String(content.to_string())).unwrap();
 }

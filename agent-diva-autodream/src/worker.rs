@@ -3,26 +3,22 @@ use std::{
     io::Write,
     path::Path,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use agent_diva_core::evolution::{
     AutoDreamFailureCode, AutoDreamOrchestrationPhase, AutoDreamRunRecord, AutoDreamRunState,
-    CreateSkillProposal, EvolutionProposal, MemoryCandidate, RiskLevel, SkillEvidence, SkillHome,
-    SkillHomeError, SkillProposalSource,
+    CreateSkillProposal, SkillEvidence, SkillHome, SkillHomeError, SkillProposalSource,
 };
-use agent_diva_core::experience::ExperienceJournal;
-use agent_diva_laputa::{actmem::ActmemPatch, LaputaService, MemoryHome};
+use agent_diva_laputa::{actmem::ActmemPatch, MemoryHome};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    atomic::atomic_write_json, AutoDreamArtifactSummary, AutoDreamCheckpoint,
-    AutoDreamCollectedInputs, AutoDreamError, AutoDreamEvent, AutoDreamLockRecord,
-    AutoDreamOutputEmitter, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
-    AutoDreamStorage, BoundedReflectionInput, CandidateGate, ReflectionEngine, ReflectionEvidence,
-    Result, SkillReflectionEngine, SkillReflectionIndex, SkillReflectionInput,
+    atomic::atomic_write_json, AutoDreamCheckpoint, AutoDreamCollectedInputs, AutoDreamError,
+    AutoDreamEvent, AutoDreamLockRecord, AutoDreamStorage, ReflectionEvidence, Result,
+    SkillReflectionEngine, SkillReflectionIndex, SkillReflectionInput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,14 +139,6 @@ pub struct AutoDreamWorkerConfig {
     pub profile: AutoDreamRestrictedProfile,
 }
 
-#[async_trait::async_trait]
-pub trait AutoDreamProposalGovernance: Send + Sync {
-    async fn register_proposals(
-        &self,
-        proposals: &[EvolutionProposal],
-    ) -> std::result::Result<(), String>;
-}
-
 impl Default for AutoDreamWorkerConfig {
     fn default() -> Self {
         Self {
@@ -163,23 +151,17 @@ impl Default for AutoDreamWorkerConfig {
 #[derive(Clone)]
 pub struct AutoDreamWorker {
     storage: AutoDreamStorage,
-    laputa: LaputaService,
     config: AutoDreamWorkerConfig,
-    reflection_engine: Option<Arc<dyn ReflectionEngine>>,
-    proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     memory_home: Option<MemoryHome>,
     skill_home: Option<SkillHome>,
     skill_reflection_engine: Option<Arc<dyn SkillReflectionEngine>>,
 }
 
 impl AutoDreamWorker {
-    pub fn new(storage: AutoDreamStorage, laputa: LaputaService) -> Self {
+    pub fn new(storage: AutoDreamStorage) -> Self {
         Self {
             storage,
-            laputa,
             config: AutoDreamWorkerConfig::default(),
-            reflection_engine: None,
-            proposal_governance: None,
             memory_home: None,
             skill_home: None,
             skill_reflection_engine: None,
@@ -188,19 +170,6 @@ impl AutoDreamWorker {
 
     pub fn with_config(mut self, config: AutoDreamWorkerConfig) -> Self {
         self.config = config;
-        self
-    }
-
-    pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
-        self.reflection_engine = engine;
-        self
-    }
-
-    pub fn with_proposal_governance(
-        mut self,
-        governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
-    ) -> Self {
-        self.proposal_governance = governance;
         self
     }
 
@@ -227,97 +196,12 @@ impl AutoDreamWorker {
     }
 
     pub async fn execute(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
-        if self.memory_home.is_some() {
-            return self.execute_actmem_work(run_id).await;
+        if self.memory_home.is_none() {
+            return Err(AutoDreamError::InvalidState(
+                "AutoDream requires the machine-wide MemoryHome authority".to_string(),
+            ));
         }
-        let started = Instant::now();
-        let mut stages = AutoDreamReflectionStage::all()
-            .into_iter()
-            .map(|stage| AutoDreamReflectionStageRecord {
-                stage,
-                status: AutoDreamWorkerStageStatus::Pending,
-                started_at: None,
-                completed_at: None,
-                diagnostic: None,
-            })
-            .collect::<Vec<_>>();
-        let existing = self.read_run(run_id)?;
-        if existing.state == AutoDreamRunState::Cancelled {
-            let message = "AutoDream worker observed cancellation".to_string();
-            stages[0].status = AutoDreamWorkerStageStatus::Cancelled;
-            stages[0].started_at = Some(Utc::now());
-            stages[0].completed_at = Some(Utc::now());
-            stages[0].diagnostic = Some(message.clone());
-            return Ok(AutoDreamWorkerReport {
-                run_id: run_id.to_string(),
-                outcome: AutoDreamWorkerOutcome::Cancelled,
-                stages,
-                diagnostics: vec![message],
-                proposal_ids: existing.proposal_ids,
-            });
-        }
-        self.start_attempt(run_id)?;
-        let mut diagnostics = Vec::new();
-        let mut collected = None;
-        let mut candidates = None;
-
-        for index in 0..stages.len() {
-            if let Some(report) =
-                self.check_interruption(run_id, started, &mut stages, index, &mut diagnostics)?
-            {
-                return Ok(report);
-            }
-
-            stages[index].status = AutoDreamWorkerStageStatus::Running;
-            stages[index].started_at = Some(Utc::now());
-
-            let stage_result = match stages[index].stage {
-                AutoDreamReflectionStage::Orient => {
-                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Gathering)?;
-                    self.orient()
-                }
-                AutoDreamReflectionStage::Gather => self.gather(run_id).map(|inputs| {
-                    collected = Some(inputs);
-                }),
-                AutoDreamReflectionStage::Consolidate => {
-                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Reflecting)?;
-                    let result = self.reflect(run_id, collected.as_ref()).await.map(|value| {
-                        candidates = Some(value);
-                    });
-                    if result.is_ok() {
-                        self.transition_phase(run_id, AutoDreamOrchestrationPhase::Validating)?;
-                    }
-                    result
-                }
-                AutoDreamReflectionStage::Propose => {
-                    self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
-                    self.propose(run_id, collected.as_ref(), candidates.as_ref())
-                        .await
-                }
-            };
-
-            match stage_result {
-                Ok(()) => {
-                    stages[index].status = AutoDreamWorkerStageStatus::Succeeded;
-                    stages[index].completed_at = Some(Utc::now());
-                }
-                Err(error) => {
-                    let message = error.to_string();
-                    stages[index].status = AutoDreamWorkerStageStatus::Failed;
-                    stages[index].completed_at = Some(Utc::now());
-                    stages[index].diagnostic = Some(message.clone());
-                    diagnostics.push(message);
-                    return self.finish_failure(
-                        run_id,
-                        AutoDreamWorkerOutcome::Failure,
-                        stages,
-                        diagnostics,
-                    );
-                }
-            }
-        }
-
-        self.finish_success(run_id, stages, diagnostics)
+        self.execute_actmem_work(run_id).await
     }
 
     /// S3 production path: organize the shared ACTMEM Work register directly.
@@ -350,13 +234,7 @@ impl AutoDreamWorker {
         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Gathering)?;
         stages[1].status = AutoDreamWorkerStageStatus::Running;
         stages[1].started_at = Some(Utc::now());
-        let mut input_config = crate::AutoDreamInputCollectorConfig::default();
-        // Legacy Laputa Memory files are not an S3 production input.
-        input_config.laputa_sections.clear();
-        let collected =
-            crate::AutoDreamInputCollector::new(self.storage.clone(), self.laputa.clone())
-                .with_config(input_config)
-                .collect(run_id);
+        let collected = crate::AutoDreamInputCollector::new(self.storage.clone()).collect(run_id);
         let collected = match collected {
             Ok(collected) => collected,
             Err(error) => {
@@ -631,299 +509,6 @@ impl AutoDreamWorker {
         self.write_run(&run)
     }
 
-    fn orient(&self) -> Result<()> {
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::ReadSessions)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::ReadLaputaApi)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::CreateLaputaProposalApi)?;
-        Ok(())
-    }
-
-    fn gather(&self, run_id: &str) -> Result<AutoDreamCollectedInputs> {
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::ReadSessions)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::ReadLaputaApi)?;
-        let collector =
-            crate::AutoDreamInputCollector::new(self.storage.clone(), self.laputa.clone());
-        let collected = collector.collect(run_id)?;
-        let mut run = self.read_run(run_id)?;
-        run.input_summary = Some(collected.summary.clone());
-        run.summary = Some(format!(
-            "collected {} inputs with {} omissions",
-            collected.summary.total_items,
-            collected.summary.omissions.len()
-        ));
-        self.write_run(&run)?;
-        Ok(collected)
-    }
-
-    async fn reflect(
-        &self,
-        run_id: &str,
-        collected: Option<&AutoDreamCollectedInputs>,
-    ) -> Result<Vec<MemoryCandidate>> {
-        let collected = collected.ok_or_else(|| {
-            AutoDreamError::InvalidState("cannot consolidate before gather stage".to_string())
-        })?;
-        if collected.items.is_empty() {
-            return Err(AutoDreamError::InvalidState(
-                "cannot consolidate empty reflection inputs".to_string(),
-            ));
-        }
-        let engine = self.reflection_engine.as_ref().ok_or_else(|| {
-            AutoDreamError::InvalidState("reflection provider unavailable".to_string())
-        })?;
-        let workspace_id =
-            ExperienceJournal::open(self.storage.paths().workspace_root()).workspace_id();
-        let input = BoundedReflectionInput {
-            schema_version: 1,
-            workspace_id,
-            run_id: run_id.to_string(),
-            evidence: collected
-                .items
-                .iter()
-                .map(|item| {
-                    let is_existing_memory = item.source == "laputa";
-                    let mut evidence = item.evidence.clone();
-                    let summary = if is_existing_memory {
-                        evidence.excerpt = None;
-                        format!(
-                            "existing_memory_digest:{}",
-                            crate::content_digest(&item.excerpt)
-                        )
-                    } else {
-                        let redacted = agent_diva_core::security::redact_pii(
-                            &item.excerpt,
-                            &agent_diva_core::security::PiiConfig::default(),
-                        )
-                        .redacted;
-                        evidence.excerpt = Some(redacted.clone());
-                        redacted
-                    };
-                    ReflectionEvidence { evidence, summary }
-                })
-                .collect(),
-            existing_memory_digests: {
-                let mut digests: std::collections::HashSet<String> = collected
-                    .items
-                    .iter()
-                    .filter(|item| item.source == "laputa")
-                    .map(|item| crate::content_digest(&item.excerpt))
-                    .collect();
-                match self.laputa.applied_authority_digests().await {
-                    Ok(typed) => {
-                        digests.extend(typed);
-                    }
-                    Err(error) => {
-                        tracing::warn!(
-                            error = %error,
-                            "AutoDream dedup: typed authority digest unavailable; \
-                             falling back to section-only dedup (G4 degraded)"
-                        );
-                    }
-                }
-                digests.into_iter().collect()
-            },
-            superseded_memory_digests: match self.laputa.superseded_authority_digests().await {
-                Ok(digests) => digests,
-                Err(error) => {
-                    tracing::warn!(
-                        error = %error,
-                        "AutoDream superseded dedup: typed superseded digest unavailable; \
-                         falling back to no superseded check (Wave 5 degraded)"
-                    );
-                    Vec::new()
-                }
-            },
-            max_candidates: 8,
-        };
-        let output = engine
-            .reflect(input.clone())
-            .await
-            .map_err(|error| AutoDreamError::InvalidState(format!("reflection failed: {error}")))?;
-        let local_existing_memory = collected
-            .items
-            .iter()
-            .filter(|item| item.source == "laputa")
-            .map(|item| item.excerpt.clone())
-            .collect::<Vec<_>>();
-        let suppressed = self
-            .laputa
-            .active_candidate_suppression_digests(Utc::now())?;
-        let gated = CandidateGate.evaluate(
-            &input,
-            output.candidates,
-            &local_existing_memory,
-            &suppressed,
-        );
-        if !gated.rejected.is_empty() {
-            let rejection_summary = serde_json::to_string(&gated.rejected)
-                .unwrap_or_else(|_| "candidate_gate_diagnostics_unavailable".to_string());
-            self.append_event(run_id, "candidates_rejected", &rejection_summary)?;
-        }
-        Ok(gated.accepted)
-    }
-
-    async fn propose(
-        &self,
-        run_id: &str,
-        collected: Option<&AutoDreamCollectedInputs>,
-        candidates: Option<&Vec<MemoryCandidate>>,
-    ) -> Result<()> {
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::CreateLaputaProposalApi)?;
-        let collected = collected.ok_or_else(|| {
-            AutoDreamError::InvalidState("cannot propose before gather stage".to_string())
-        })?;
-        let candidates = candidates.ok_or_else(|| {
-            AutoDreamError::InvalidState("cannot propose before reflection stage".to_string())
-        })?;
-        if candidates.is_empty() {
-            self.append_event(
-                run_id,
-                "no_candidates",
-                "reflection completed without eligible candidates",
-            )?;
-            return Ok(());
-        }
-        let run = self.read_run(run_id)?;
-        let evidence_refs = candidates
-            .iter()
-            .flat_map(|candidate| candidate.evidence_refs.clone())
-            .collect::<Vec<_>>();
-        let summary = AutoDreamArtifactSummary {
-            headline: format!(
-                "AutoDream restricted reflection generated {} review candidates",
-                candidates.len()
-            ),
-            details: vec![
-                format!("inputs: {}", collected.summary.total_items),
-                format!("omissions: {}", collected.summary.omissions.len()),
-                "proposal persisted through Laputa proposal API".to_string(),
-            ],
-        };
-        let drafts = candidates
-            .iter()
-            .map(|candidate| AutoDreamProposalCandidateDraft {
-                proposal_type: candidate.proposal_type.to_string(),
-                proposed_patch: candidate.content.clone(),
-                risk_level: risk_for_candidate(candidate),
-                evidence_refs: candidate.evidence_refs.clone(),
-                metadata: Some(candidate.clone()),
-            })
-            .collect();
-        let emitted = AutoDreamOutputEmitter::new(self.storage.clone(), self.laputa.clone())
-            .emit_outputs(AutoDreamOutputRequest {
-                run,
-                generated_at: Utc::now(),
-                confidence: candidates
-                    .iter()
-                    .map(|candidate| candidate.confidence)
-                    .max()
-                    .unwrap_or_default(),
-                evidence_refs,
-                output_summary: summary,
-                proposal_candidates: drafts,
-            })?;
-        if let Some(governance) = &self.proposal_governance {
-            governance
-                .register_proposals(&emitted.proposals)
-                .await
-                .map_err(|error| {
-                    AutoDreamError::InvalidState(format!(
-                        "proposal governance registration failed: {error}"
-                    ))
-                })?;
-        }
-        Ok(())
-    }
-
-    fn check_interruption(
-        &self,
-        run_id: &str,
-        started: Instant,
-        stages: &mut [AutoDreamReflectionStageRecord],
-        index: usize,
-        diagnostics: &mut Vec<String>,
-    ) -> Result<Option<AutoDreamWorkerReport>> {
-        if self
-            .config
-            .timeout
-            .map(|timeout| started.elapsed() >= timeout)
-            .unwrap_or(false)
-        {
-            let message = "AutoDream worker timed out before stage completion".to_string();
-            stages[index].status = AutoDreamWorkerStageStatus::TimedOut;
-            stages[index].started_at.get_or_insert_with(Utc::now);
-            stages[index].completed_at = Some(Utc::now());
-            stages[index].diagnostic = Some(message.clone());
-            diagnostics.push(message);
-            return self
-                .finish_failure(
-                    run_id,
-                    AutoDreamWorkerOutcome::Timeout,
-                    stages.to_vec(),
-                    diagnostics.clone(),
-                )
-                .map(Some);
-        }
-
-        let run = self.read_run(run_id)?;
-        if run
-            .orchestration
-            .as_ref()
-            .is_some_and(|state| Utc::now() >= state.deadline_at)
-        {
-            let message = "AutoDream worker deadline expired before stage completion".to_string();
-            stages[index].status = AutoDreamWorkerStageStatus::TimedOut;
-            stages[index].started_at.get_or_insert_with(Utc::now);
-            stages[index].completed_at = Some(Utc::now());
-            stages[index].diagnostic = Some(message.clone());
-            diagnostics.push(message);
-            return self
-                .finish_failure(
-                    run_id,
-                    AutoDreamWorkerOutcome::Timeout,
-                    stages.to_vec(),
-                    diagnostics.clone(),
-                )
-                .map(Some);
-        }
-        if run.state == AutoDreamRunState::Cancelled {
-            let message = "AutoDream worker observed cancellation".to_string();
-            stages[index].status = AutoDreamWorkerStageStatus::Cancelled;
-            stages[index].started_at.get_or_insert_with(Utc::now);
-            stages[index].completed_at = Some(Utc::now());
-            stages[index].diagnostic = Some(message.clone());
-            diagnostics.push(message);
-            return self
-                .finish_failure(
-                    run_id,
-                    AutoDreamWorkerOutcome::Cancelled,
-                    stages.to_vec(),
-                    diagnostics.clone(),
-                )
-                .map(Some);
-        }
-
-        Ok(None)
-    }
-
     fn finish_success(
         &self,
         run_id: &str,
@@ -1059,16 +644,6 @@ impl AutoDreamWorker {
         file.sync_all()
             .map_err(|source| AutoDreamError::io(&path, source))?;
         Ok(())
-    }
-}
-
-fn risk_for_candidate(candidate: &MemoryCandidate) -> RiskLevel {
-    if candidate.sensitivity == agent_diva_core::memory::MemorySensitivity::Restricted {
-        RiskLevel::High
-    } else if candidate.confidence < 75 {
-        RiskLevel::Medium
-    } else {
-        RiskLevel::Low
     }
 }
 
@@ -1245,278 +820,4 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: impl AsRef<Path>) -> Resul
     let path = path.as_ref();
     let content = fs::read_to_string(path).map_err(|source| AutoDreamError::io(path, source))?;
     Ok(serde_json::from_str(&content)?)
-}
-
-#[cfg(test)]
-mod wave4_tests {
-    use super::ensure_pulse_recap_only_conflict;
-    use crate::{
-        content_digest, BoundedReflectionInput, CandidateGate, CandidateRejectionCode,
-        ReflectionEvidence,
-    };
-    use agent_diva_core::evolution::{
-        memory_candidate_content_digest, CandidateValue, EvidenceRef, EvidenceSource,
-        MemoryCandidate, ProposalType,
-    };
-    use agent_diva_core::governance::AuditCorrelation;
-    use agent_diva_core::memory::{
-        memory_content_digest, MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome,
-        MemoryProvenance, MemoryProvenanceSource, MemoryProvider, MemoryRecord, MemoryRecordKind,
-        MemoryScope, MemorySensitivity, MemoryTombstone, MemoryTrust, MAX_CONFIDENCE_BPS,
-    };
-    use agent_diva_core::workspace_identity::canonical_workspace_id;
-    use agent_diva_laputa::{LaputaService, TypedMemoryStore};
-    use chrono::{TimeZone, Utc};
-
-    fn evidence_marker() -> EvidenceRef {
-        EvidenceRef {
-            id: "wave4-primary".into(),
-            source: EvidenceSource::ExperienceJournal,
-            uri: "evidence://wave4-primary".into(),
-            excerpt: Some("bounded verification".into()),
-            hash: Some("sha256:wave4".into()),
-            created_at: Utc.with_ymd_and_hms(2026, 8, 6, 0, 0, 0).unwrap(),
-        }
-    }
-
-    fn make_candidate(evidence: EvidenceRef, content: &str) -> MemoryCandidate {
-        MemoryCandidate {
-            candidate_id: format!("candidate-{}", content_digest(content)),
-            proposal_type: ProposalType::MemoryPatch,
-            content: content.to_string(),
-            evidence_refs: vec![evidence],
-            confidence: 85,
-            scope: MemoryScope {
-                tenant_id: "local".into(),
-                workspace_id: "workspace-wave4".into(),
-                session_id: None,
-            },
-            sensitivity: MemorySensitivity::Private,
-            expected_value: CandidateValue::Medium,
-            invalidation_conditions: vec!["user correction".into()],
-        }
-    }
-
-    fn make_input(existing_digests: Vec<String>, evidence: EvidenceRef) -> BoundedReflectionInput {
-        BoundedReflectionInput {
-            schema_version: 1,
-            workspace_id: "workspace-wave4".into(),
-            run_id: "run-wave4".into(),
-            evidence: vec![ReflectionEvidence {
-                evidence,
-                summary: "bounded verification".into(),
-            }],
-            existing_memory_digests: existing_digests,
-            superseded_memory_digests: Vec::new(),
-            max_candidates: 8,
-        }
-    }
-
-    async fn open_service_with_store(temp: &tempfile::TempDir) -> LaputaService {
-        TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
-        LaputaService::open(temp.path()).unwrap()
-    }
-
-    fn crud_context(temp: &tempfile::TempDir) -> MemoryCrudContext {
-        MemoryCrudContext {
-            workspace_root: temp.path().to_path_buf(),
-        }
-    }
-
-    #[tokio::test]
-    async fn candidate_duplicate_against_typed_authority_is_rejected() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = open_service_with_store(&temp).await;
-        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
-            temp.path(),
-            canonical_workspace_id(temp.path()),
-        )
-        .await
-        .unwrap();
-        let authority_content = "kestrel prefers high ground at dawn";
-        let outcome = provider
-            .memory_add(
-                &crud_context(&temp),
-                MemoryAddRequest {
-                    content: authority_content.into(),
-                    evidence_refs: vec![],
-                },
-            )
-            .await
-            .unwrap();
-        assert!(matches!(outcome, MemoryCrudOutcome::Applied { .. }));
-
-        let digests = service.applied_authority_digests().await.unwrap();
-        let expected_digest = memory_candidate_content_digest(authority_content);
-        assert!(digests.contains(&expected_digest), "got {digests:?}");
-
-        let evidence = evidence_marker();
-        let input = make_input(digests, evidence.clone());
-        let gated = CandidateGate.evaluate(
-            &input,
-            vec![make_candidate(evidence, authority_content)],
-            &[],
-            &[],
-        );
-        assert!(
-            gated.accepted.is_empty(),
-            "duplicate candidate must be rejected; accepted = {accepted:?}",
-            accepted = gated.accepted
-        );
-        assert_eq!(gated.rejected.len(), 1);
-        assert_eq!(gated.rejected[0].code, CandidateRejectionCode::Duplicate);
-    }
-
-    #[tokio::test]
-    async fn candidate_fresh_against_typed_authority_is_accepted() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = open_service_with_store(&temp).await;
-        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
-            temp.path(),
-            canonical_workspace_id(temp.path()),
-        )
-        .await
-        .unwrap();
-        provider
-            .memory_add(
-                &crud_context(&temp),
-                MemoryAddRequest {
-                    content: "kestrel prefers high ground at dawn".into(),
-                    evidence_refs: vec![],
-                },
-            )
-            .await
-            .unwrap();
-
-        let digests = service.applied_authority_digests().await.unwrap();
-        assert!(!digests.is_empty());
-
-        let evidence = evidence_marker();
-        let input = make_input(digests, evidence.clone());
-        let gated = CandidateGate.evaluate(
-            &input,
-            vec![make_candidate(
-                evidence,
-                "completely novel observation about owls",
-            )],
-            &[],
-            &[],
-        );
-        assert_eq!(gated.accepted.len(), 1, "fresh candidate must be accepted");
-        assert!(gated.rejected.is_empty());
-    }
-
-    #[tokio::test]
-    async fn superseded_authority_record_no_longer_blocks_duplicate_candidate() {
-        let temp = tempfile::tempdir().unwrap();
-        let service = open_service_with_store(&temp).await;
-        let provider = agent_diva_laputa::typed_provider::TypedLaputaMemoryProvider::open(
-            temp.path(),
-            canonical_workspace_id(temp.path()),
-        )
-        .await
-        .unwrap();
-        let authority_content = "the staging manifest lives at /tmp/staging-xyz";
-        let outcome = provider
-            .memory_add(
-                &crud_context(&temp),
-                MemoryAddRequest {
-                    content: authority_content.into(),
-                    evidence_refs: vec![],
-                },
-            )
-            .await
-            .unwrap();
-        let target_id = match outcome {
-            MemoryCrudOutcome::Applied { entry, .. } => entry.expect("entry").id,
-            other => panic!("expected Applied, got {other:?}"),
-        };
-        drop(provider);
-
-        // Sanity: before the tombstone, the digest is visible.
-        let before = service.applied_authority_digests().await.unwrap();
-        assert!(before.contains(&memory_candidate_content_digest(authority_content)));
-
-        // Write a supersedes tombstone directly via TypedMemoryStore (matching
-        // the laputa wave3/wave4 test pattern — the worker does not care how
-        // the tombstone arrived, only that the target digest is excluded).
-        let store = TypedMemoryStore::open_canonical(temp.path()).await.unwrap();
-        let now = Utc::now();
-        let metadata = store.metadata().await.unwrap();
-        let tombstone = MemoryRecord {
-            id: format!("tombstone-{}", now.timestamp_micros()),
-            kind: MemoryRecordKind::LongTerm,
-            content: String::new(),
-            provenance: MemoryProvenance {
-                source: MemoryProvenanceSource::AutoDream,
-                source_id: "wave4-test".into(),
-                content_digest: memory_content_digest(b""),
-                captured_at: now,
-                correlation: AuditCorrelation {
-                    request_id: format!("tombstone-{target_id}"),
-                    turn_id: "wave4".into(),
-                    session_id: "global".into(),
-                    trace_id: None,
-                },
-            },
-            evidence_refs: vec![],
-            confidence_bps: MAX_CONFIDENCE_BPS,
-            sensitivity: MemorySensitivity::Internal,
-            trust: MemoryTrust::AppliedAuthority,
-            scope: MemoryScope {
-                tenant_id: "local".into(),
-                workspace_id: canonical_workspace_id(temp.path()),
-                session_id: None,
-            },
-            created_at: now,
-            effective_at: now,
-            expires_at: None,
-            supersedes: vec![target_id.clone()],
-            tombstone: Some(MemoryTombstone {
-                target_record_id: target_id.clone(),
-                reason_digest: memory_content_digest(b"staging path retired"),
-                actor_id: "wave4-test".into(),
-                created_at: now,
-            }),
-        };
-        store
-            .put(tombstone, metadata.store_revision, None)
-            .await
-            .unwrap();
-        drop(store);
-
-        let after = service.applied_authority_digests().await.unwrap();
-        assert!(
-            !after.contains(&memory_candidate_content_digest(authority_content)),
-            "superseded target digest must disappear; got {after:?}"
-        );
-
-        let evidence = evidence_marker();
-        let input = make_input(after, evidence.clone());
-        let gated = CandidateGate.evaluate(
-            &input,
-            vec![make_candidate(evidence, authority_content)],
-            &[],
-            &[],
-        );
-        assert_eq!(
-            gated.accepted.len(),
-            1,
-            "after supersedes, same-content candidate must be acceptable again"
-        );
-        assert!(gated.rejected.is_empty());
-    }
-
-    #[test]
-    fn autodream_retries_only_pulse_recap_conflicts() {
-        let previous = agent_diva_laputa::ActmemDocument::empty();
-        let mut pulse_changed = previous.clone();
-        pulse_changed.revision = 1;
-        pulse_changed.pulse = "- new pulse".into();
-        assert!(ensure_pulse_recap_only_conflict(&previous, &pulse_changed).is_ok());
-
-        let mut work_changed = pulse_changed;
-        work_changed.work = "### Goal\n- concurrent edit\n\n### Open\n\n### Next\n\n### Constraints\n\n### Pointers".into();
-        assert!(ensure_pulse_recap_only_conflict(&previous, &work_changed).is_err());
-    }
 }

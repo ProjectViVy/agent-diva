@@ -4,7 +4,7 @@ use agent_diva_core::{
     governance::{ContentDigest, DigestAlgorithm},
 };
 use agent_diva_laputa::{
-    LaputaService, LaputaStorage, PendingRecallFeedback, RecallFeedbackStore, RecallTaskOutcome,
+    LaputaStorage, PendingRecallFeedback, RecallFeedbackStore, RecallTaskOutcome,
 };
 use chrono::Utc;
 
@@ -31,12 +31,9 @@ fn collector_prioritizes_payload_free_recall_feedback() {
             Utc::now(),
         )
         .unwrap();
-    let collected = AutoDreamInputCollector::new(
-        AutoDreamStorage::open(temp.path()).unwrap(),
-        LaputaService::open(temp.path()).unwrap(),
-    )
-    .collect("run-1")
-    .unwrap();
+    let collected = AutoDreamInputCollector::new(AutoDreamStorage::open(temp.path()).unwrap())
+        .collect("run-1")
+        .unwrap();
 
     let feedback = collected
         .items

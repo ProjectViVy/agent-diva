@@ -18,19 +18,18 @@ use crate::handlers::{
     disable_skill_handler, events_handler, generate_session_title_handler,
     get_actmem_capsule_handler, get_actmem_handler, get_audit_events_handler,
     get_audit_log_handler, get_autodream_live_text_handler, get_autodream_run_handler,
-    get_bml_memory_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
-    get_mcps_handler, get_memory_record_handler, get_memrules_handler,
-    get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
-    get_provider_handler, get_provider_models_handler, get_providers_handler,
-    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
-    get_skill_handler, get_skill_history_revision_handler, get_skill_request_handler,
-    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
-    initialize_persona_handler, list_actmem_capsules_handler, list_autodream_run_events_handler,
-    list_autodream_runs_handler, list_bml_memories_handler, list_cron_jobs_handler,
-    list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
-    list_recall_feedback_handler, list_skill_history_handler, list_skill_requests_handler,
-    logs_routes, put_actmem_handler, put_memrules_handler, refresh_mcp_status_handler,
-    reject_persona_request_handler, reject_skill_request_handler, remove_bml_memory_handler,
+    get_channels_handler, get_config_handler, get_cron_job_handler, get_mcps_handler,
+    get_memory_record_handler, get_memrules_handler, get_persona_document_handler,
+    get_persona_history_revision_handler, get_persona_status_handler, get_provider_handler,
+    get_provider_models_handler, get_providers_handler, get_self_evolution_config_handler,
+    get_session_history_handler, get_sessions_handler, get_skill_handler,
+    get_skill_history_revision_handler, get_skill_request_handler, get_skills_handler,
+    get_tools_handler, health_handler, heartbeat_handler, initialize_persona_handler,
+    list_actmem_capsules_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
+    list_cron_jobs_handler, list_memory_records_handler, list_persona_history_handler,
+    list_persona_requests_handler, list_recall_feedback_handler, list_skill_history_handler,
+    list_skill_requests_handler, logs_routes, put_actmem_handler, put_memrules_handler,
+    refresh_mcp_status_handler, reject_persona_request_handler, reject_skill_request_handler,
     repair_persona_handler, reset_session_handler, resolve_provider_handler, run_cron_job_handler,
     save_persona_document_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler,
     stop_chat_handler, stop_cron_job_handler, todo_routes, token_stats_routes,
@@ -102,7 +101,6 @@ pub fn build_router(state: AppState) -> Router {
         .merge(laputa_routes())
         .merge(persona_routes())
         .merge(memory_routes())
-        .merge(bml_routes())
         .merge(audit_routes())
         .merge(token_stats_routes())
         .merge(todo_routes())
@@ -130,16 +128,6 @@ fn autodream_routes() -> Router<AppState> {
         .route(
             "/api/autodream/runs/:id/cancel",
             post(cancel_autodream_run_handler),
-        )
-}
-
-pub(crate) fn bml_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/bml/memories", get(list_bml_memories_handler))
-        .route("/api/bml/memories/:id", get(get_bml_memory_handler))
-        .route(
-            "/api/bml/memories/:id/remove",
-            post(remove_bml_memory_handler),
         )
 }
 
@@ -381,11 +369,10 @@ fn misc_routes() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::build_router;
-    use agent_diva_autodream::DeterministicReflectionEngine;
     use agent_diva_core::evolution::{AutoDreamFailureCode, AutoDreamRunState};
     use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
-    use std::{io::Write, sync::Arc};
+    use std::io::Write;
     use tower::util::ServiceExt;
 
     use crate::state::{AppState, ManagerCommand};
@@ -845,13 +832,8 @@ mod tests {
         sessions.save(&saved).unwrap();
         let mut state =
             AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
-        state.autodream = state
-            .autodream
-            .clone()
-            .with_reflection_engine(Some(Arc::new(
-                DeterministicReflectionEngine::evidence_echo(),
-            )))
-            .with_skill_reflection_engine(None);
+        // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
+        state.autodream = state.autodream.clone().with_skill_reflection_engine(None);
         let app = build_router(state.clone());
 
         let response = app
@@ -929,13 +911,8 @@ mod tests {
             agent_diva_core::config::schema::MemoryAuthorityMode::Typed,
         )
         .unwrap();
-        state.autodream = state
-            .autodream
-            .clone()
-            .with_reflection_engine(Some(Arc::new(
-                DeterministicReflectionEngine::evidence_echo(),
-            )))
-            .with_skill_reflection_engine(None);
+        // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
+        state.autodream = state.autodream.clone().with_skill_reflection_engine(None);
         let app = build_router(state.clone());
 
         let triggered = app

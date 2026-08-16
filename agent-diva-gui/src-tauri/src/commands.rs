@@ -618,58 +618,6 @@ pub async fn persona_reject_request(
 }
 
 #[tauri::command]
-pub async fn bml_list_memories(
-    query: Option<String>,
-    kind: Option<String>,
-    limit: Option<u32>,
-    state: State<'_, AgentState>,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let mut url = format!("{}/bml/memories", state.api_base_url());
-    let mut params: Vec<String> = Vec::new();
-    if let Some(query) = non_empty_query_value(query) {
-        params.push(format!("query={}", urlencoding::encode(&query)));
-    }
-    if let Some(kind) = non_empty_query_value(kind) {
-        params.push(format!("kind={}", urlencoding::encode(&kind)));
-    }
-    if let Some(limit) = limit {
-        params.push(format!("limit={limit}"));
-    }
-    if !params.is_empty() {
-        url.push_str(&format!("?{}", params.join("&")));
-    }
-    get_laputa_payload(&state, &url, "memories").await
-}
-
-#[tauri::command]
-pub async fn bml_get_memory(
-    id: String,
-    state: State<'_, AgentState>,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let url = format!(
-        "{}/bml/memories/{}",
-        state.api_base_url(),
-        urlencoding::encode(id.trim())
-    );
-    get_laputa_payload(&state, &url, "memory").await
-}
-
-#[tauri::command]
-pub async fn bml_remove_memory(
-    id: String,
-    reason: String,
-    state: State<'_, AgentState>,
-) -> Result<serde_json::Value, serde_json::Value> {
-    let url = format!(
-        "{}/bml/memories/{}/remove",
-        state.api_base_url(),
-        urlencoding::encode(id.trim())
-    );
-    let payload = serde_json::json!({ "reason": reason });
-    post_laputa_full_response(&state, &url, &payload).await
-}
-
-#[tauri::command]
 pub async fn memory_list_records(
     limit: Option<u32>,
     state: State<'_, AgentState>,

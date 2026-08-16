@@ -7,12 +7,11 @@ use std::{
 use agent_diva_core::{
     evolution::{
         AutoDreamInputOmission, AutoDreamInputSourceSummary, AutoDreamInputSummary, EvidenceRef,
-        EvidenceSource, LaputaSectionName,
+        EvidenceSource,
     },
     experience::ExperienceJournal,
     session::{Session, SessionManager},
 };
-use agent_diva_laputa::LaputaService;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 
@@ -22,15 +21,12 @@ const DEFAULT_SESSION_LIMIT: usize = 3;
 const DEFAULT_EXPERIENCE_LIMIT: usize = 32;
 const DEFAULT_EXPERIENCE_BYTES: usize = 4096;
 const DEFAULT_SESSION_BYTES: usize = 4096;
-const DEFAULT_LAPUTA_SECTION_LIMIT: usize = 3;
-const DEFAULT_LAPUTA_SECTION_BYTES: usize = 2048;
 const DEFAULT_CAPSULE_LIMIT: usize = 2;
 const DEFAULT_CAPSULE_BYTES: usize = 2048;
 const DEFAULT_TOTAL_BYTES: usize = 8192;
 const SESSION_SOURCE: &str = "recent_sessions";
 const EXPERIENCE_SOURCE: &str = "experience_journal";
 const RECALL_FEEDBACK_SOURCE: &str = "recall_feedback";
-const LAPUTA_SOURCE: &str = "laputa";
 const CAPSULE_SOURCE: &str = "source_capsules";
 const COMPACTION_SECONDARY_EVIDENCE_MARKER: &str =
     "\n\n[Context compaction summary: secondary evidence only; not durable authority.]";
@@ -41,12 +37,9 @@ pub struct AutoDreamInputCollectorConfig {
     pub experience_bytes: usize,
     pub recent_session_limit: usize,
     pub recent_session_bytes: usize,
-    pub laputa_section_limit: usize,
-    pub laputa_section_bytes: usize,
     pub capsule_limit: usize,
     pub capsule_bytes: usize,
     pub total_bytes_budget: usize,
-    pub laputa_sections: Vec<LaputaSectionName>,
 }
 
 impl Default for AutoDreamInputCollectorConfig {
@@ -56,12 +49,9 @@ impl Default for AutoDreamInputCollectorConfig {
             experience_bytes: DEFAULT_EXPERIENCE_BYTES,
             recent_session_limit: DEFAULT_SESSION_LIMIT,
             recent_session_bytes: DEFAULT_SESSION_BYTES,
-            laputa_section_limit: DEFAULT_LAPUTA_SECTION_LIMIT,
-            laputa_section_bytes: DEFAULT_LAPUTA_SECTION_BYTES,
             capsule_limit: DEFAULT_CAPSULE_LIMIT,
             capsule_bytes: DEFAULT_CAPSULE_BYTES,
             total_bytes_budget: DEFAULT_TOTAL_BYTES,
-            laputa_sections: vec![LaputaSectionName::MemoryMd, LaputaSectionName::Identity],
         }
     }
 }
@@ -85,15 +75,13 @@ pub struct AutoDreamCollectedInputs {
 #[derive(Debug, Clone)]
 pub struct AutoDreamInputCollector {
     storage: AutoDreamStorage,
-    laputa: LaputaService,
     config: AutoDreamInputCollectorConfig,
 }
 
 impl AutoDreamInputCollector {
-    pub fn new(storage: AutoDreamStorage, laputa: LaputaService) -> Self {
+    pub fn new(storage: AutoDreamStorage) -> Self {
         Self {
             storage,
-            laputa,
             config: AutoDreamInputCollectorConfig::default(),
         }
     }
@@ -132,13 +120,6 @@ impl AutoDreamInputCollector {
         let session_items = self.collect_recent_sessions(&mut omissions)?;
         let (included, summary, truncated) =
             apply_budget(SESSION_SOURCE, session_items, &mut remaining_budget);
-        any_truncated |= truncated;
-        items.extend(included);
-        source_summaries.push(summary);
-
-        let laputa_items = self.collect_laputa_sections(&mut omissions)?;
-        let (included, summary, truncated) =
-            apply_budget(LAPUTA_SOURCE, laputa_items, &mut remaining_budget);
         any_truncated |= truncated;
         items.extend(included);
         source_summaries.push(summary);
@@ -300,58 +281,6 @@ impl AutoDreamInputCollector {
                 }
             }
         }
-        Ok(items)
-    }
-
-    fn collect_laputa_sections(
-        &self,
-        omissions: &mut Vec<AutoDreamInputOmission>,
-    ) -> Result<Vec<AutoDreamCollectedInput>> {
-        let sections = self
-            .config
-            .laputa_sections
-            .iter()
-            .take(self.config.laputa_section_limit);
-        let mut items = Vec::new();
-
-        for section in sections {
-            let section_data = self
-                .laputa
-                .read_section(section.clone())
-                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?;
-            if section_data.content.is_null() {
-                omissions.push(omission(
-                    LAPUTA_SOURCE,
-                    format!("section {} absent", section.as_str()),
-                ));
-                continue;
-            }
-
-            let raw = if section_data.content.is_string() {
-                section_data
-                    .content
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string()
-            } else {
-                serde_json::to_string_pretty(&section_data.content)?
-            };
-
-            let excerpt = truncate_text(&raw, self.config.laputa_section_bytes);
-            items.push(AutoDreamCollectedInput {
-                source: LAPUTA_SOURCE.to_string(),
-                uri: format!("laputa://section/{}", section.as_str()),
-                bytes: excerpt.len(),
-                truncated: excerpt.len() < raw.len(),
-                evidence: evidence_ref(
-                    EvidenceSource::LaputaSection,
-                    format!("laputa://section/{}", section.as_str()),
-                    Some(excerpt.clone()),
-                ),
-                excerpt,
-            });
-        }
-
         Ok(items)
     }
 
@@ -578,8 +507,6 @@ mod tests {
     use super::*;
     use agent_diva_core::experience::{ExperienceJournal, OutcomeKind};
     use agent_diva_core::session::SessionManager;
-    use agent_diva_laputa::LaputaService;
-    use serde_json::Value;
     use tempfile::tempdir;
 
     use crate::AutoDreamStorage;
@@ -589,28 +516,19 @@ mod tests {
         let temp = tempdir().unwrap();
         seed_session(temp.path(), "chat:1", "recent session one");
         seed_session(temp.path(), "chat:2", "recent session two");
-        seed_laputa(
-            temp.path(),
-            LaputaSectionName::MemoryMd,
-            "memory authority block",
-        );
         seed_capsule(temp.path(), "capsule-a.md", "capsule evidence");
 
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
         let collector =
-            AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap())
-                .with_config(AutoDreamInputCollectorConfig {
-                    experience_limit: 0,
-                    experience_bytes: 40,
-                    total_bytes_budget: 50,
-                    recent_session_limit: 2,
-                    recent_session_bytes: 40,
-                    laputa_section_limit: 1,
-                    laputa_section_bytes: 40,
-                    capsule_limit: 1,
-                    capsule_bytes: 40,
-                    laputa_sections: vec![LaputaSectionName::MemoryMd],
-                });
+            AutoDreamInputCollector::new(storage).with_config(AutoDreamInputCollectorConfig {
+                experience_limit: 0,
+                experience_bytes: 40,
+                total_bytes_budget: 50,
+                recent_session_limit: 2,
+                recent_session_bytes: 40,
+                capsule_limit: 1,
+                capsule_bytes: 40,
+            });
 
         let result = collector.collect("run-1").unwrap();
 
@@ -618,7 +536,6 @@ mod tests {
         assert!(result.summary.truncated);
         assert_eq!(result.summary.included_sources[0].source, EXPERIENCE_SOURCE);
         assert_eq!(result.summary.included_sources[1].source, SESSION_SOURCE);
-        assert_eq!(result.summary.included_sources[2].source, LAPUTA_SOURCE);
     }
 
     #[test]
@@ -635,12 +552,9 @@ mod tests {
         journal.append(&evidence).unwrap();
         seed_session(temp.path(), "chat:1", "session fallback");
 
-        let result = AutoDreamInputCollector::new(
-            AutoDreamStorage::open(temp.path()).unwrap(),
-            LaputaService::open(temp.path()).unwrap(),
-        )
-        .collect("run-1")
-        .unwrap();
+        let result = AutoDreamInputCollector::new(AutoDreamStorage::open(temp.path()).unwrap())
+            .collect("run-1")
+            .unwrap();
 
         let first = result.items.first().unwrap();
         assert_eq!(first.source, EXPERIENCE_SOURCE);
@@ -658,22 +572,24 @@ mod tests {
         let sessions_dir = temp.path().join("sessions");
         fs::create_dir_all(&sessions_dir).unwrap();
         fs::write(sessions_dir.join("bad.jsonl"), "{not json").unwrap();
-        seed_laputa(
-            temp.path(),
-            LaputaSectionName::MemoryMd,
-            "memory authority block",
-        );
+        let journal = agent_diva_core::experience::ExperienceJournal::open(temp.path());
+        journal
+            .append(&journal.tool_evidence(
+                "chat:1",
+                "trace-1",
+                "call-1",
+                "exec",
+                agent_diva_core::experience::OutcomeKind::Succeeded,
+            ))
+            .unwrap();
 
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
         let collector =
-            AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap())
-                .with_config(AutoDreamInputCollectorConfig {
-                    recent_session_limit: 1,
-                    laputa_section_limit: 2,
-                    capsule_limit: 1,
-                    laputa_sections: vec![LaputaSectionName::MemoryMd, LaputaSectionName::Identity],
-                    ..AutoDreamInputCollectorConfig::default()
-                });
+            AutoDreamInputCollector::new(storage).with_config(AutoDreamInputCollectorConfig {
+                recent_session_limit: 1,
+                capsule_limit: 1,
+                ..AutoDreamInputCollectorConfig::default()
+            });
 
         let result = collector.collect("run-1").unwrap();
 
@@ -686,11 +602,6 @@ mod tests {
             .summary
             .omissions
             .iter()
-            .any(|item| item.detail.contains("absent")));
-        assert!(result
-            .summary
-            .omissions
-            .iter()
             .any(|item| item.source == CAPSULE_SOURCE));
     }
 
@@ -698,46 +609,31 @@ mod tests {
     fn collector_never_writes_authority_paths() {
         let temp = tempdir().unwrap();
         seed_session(temp.path(), "chat:1", "recent session one");
-        seed_laputa(
-            temp.path(),
-            LaputaSectionName::MemoryMd,
-            "memory authority block",
-        );
-
-        let laputa_path = temp.path().join(".laputa/sections/memory_md.json");
-        let before = fs::read_to_string(&laputa_path).unwrap();
 
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
-        let collector =
-            AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap());
+        let collector = AutoDreamInputCollector::new(storage);
         let result = collector.collect("run-1").unwrap();
 
-        let after = fs::read_to_string(&laputa_path).unwrap();
-        assert_eq!(before, after);
         assert!(!temp.path().join("MEMORY.md").exists());
+        assert!(!temp.path().join(".laputa/sections/memory_md.json").exists());
+        assert!(std::fs::read_dir(temp.path().join(".laputa/proposals"))
+            .map(|entries| entries.count() == 0)
+            .unwrap_or(true));
         assert!(!result.items.is_empty());
     }
 
     #[test]
     fn collector_marks_compaction_capsules_as_secondary_evidence() {
         let temp = tempdir().unwrap();
-        seed_laputa(
-            temp.path(),
-            LaputaSectionName::MemoryMd,
-            "memory authority block",
-        );
         seed_capsule(temp.path(), "compact-001.md", "session-local compaction");
 
         let storage = AutoDreamStorage::open(temp.path()).unwrap();
         let collector =
-            AutoDreamInputCollector::new(storage, LaputaService::open(temp.path()).unwrap())
-                .with_config(AutoDreamInputCollectorConfig {
-                    recent_session_limit: 0,
-                    laputa_section_limit: 1,
-                    capsule_limit: 1,
-                    laputa_sections: vec![LaputaSectionName::MemoryMd],
-                    ..AutoDreamInputCollectorConfig::default()
-                });
+            AutoDreamInputCollector::new(storage).with_config(AutoDreamInputCollectorConfig {
+                recent_session_limit: 0,
+                capsule_limit: 1,
+                ..AutoDreamInputCollectorConfig::default()
+            });
 
         let result = collector.collect("run-1").unwrap();
         let compaction = result
@@ -762,15 +658,6 @@ mod tests {
         session.add_message("user", content);
         let cloned = session.clone();
         manager.save(&cloned).unwrap();
-    }
-
-    fn seed_laputa(workspace: &Path, section: LaputaSectionName, content: &str) {
-        let path = agent_diva_laputa::LaputaStorage::open(workspace)
-            .unwrap()
-            .paths()
-            .section_file(section);
-        let payload = Value::String(content.to_string());
-        agent_diva_laputa::atomic_write_json(&path, &payload).unwrap();
     }
 
     fn seed_capsule(workspace: &Path, name: &str, content: &str) {

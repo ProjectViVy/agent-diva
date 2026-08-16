@@ -2,7 +2,6 @@ pub mod approvals;
 pub mod ask_user;
 pub mod audit;
 pub mod autodream;
-pub mod bml;
 pub mod command_approvals;
 pub mod health;
 pub mod laputa;
@@ -42,7 +41,6 @@ pub use autodream::{
     cancel_autodream_run_handler, get_autodream_live_text_handler, get_autodream_run_handler,
     list_autodream_run_events_handler, list_autodream_runs_handler, trigger_autodream_run_handler,
 };
-pub use bml::{get_bml_memory_handler, list_bml_memories_handler, remove_bml_memory_handler};
 pub use laputa::list_recall_feedback_handler;
 pub use persona::{
     accept_persona_request_handler, create_persona_request_handler, get_persona_document_handler,

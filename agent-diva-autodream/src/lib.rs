@@ -1,23 +1,18 @@
 //! Manual AutoDream run lifecycle and file-first storage.
 
 mod atomic;
-mod candidates;
 mod curation;
 mod error;
 mod inputs;
 mod layout;
 mod metrics;
 mod monthly;
-mod outputs;
 mod reflection;
 mod reports;
 mod rhythm;
 mod service;
 mod worker;
 
-pub use candidates::{
-    content_digest, CandidateGate, CandidateGateResult, CandidateRejection, CandidateRejectionCode,
-};
 pub use error::{AutoDreamError, Result};
 pub use inputs::{
     AutoDreamCollectedInput, AutoDreamCollectedInputs, AutoDreamInputCollector,
@@ -26,14 +21,8 @@ pub use inputs::{
 pub use layout::{AutoDreamPaths, AutoDreamStorage};
 pub use metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot};
 pub(crate) use monthly::{AutoDreamMonthlyReportGenerator, MonthlyReportErrorMarker};
-pub use outputs::{
-    AutoDreamArtifactSummary, AutoDreamOutputEmitter, AutoDreamOutputEvent,
-    AutoDreamOutputEventKind, AutoDreamOutputRequest, AutoDreamProposalCandidateDraft,
-    AutoDreamRunArtifact, EmitOutputsResult, EmittedProposalCandidate,
-};
 pub use reflection::{
-    BoundedReflectionInput, DeterministicReflectionEngine, ReflectionEngine, ReflectionError,
-    ReflectionEvidence, ReflectionOutput, SkillReflectionCandidate, SkillReflectionEngine,
+    ReflectionError, ReflectionEvidence, SkillReflectionCandidate, SkillReflectionEngine,
     SkillReflectionIndex, SkillReflectionInput, SkillReflectionOutput,
 };
 pub use reports::{
@@ -46,7 +35,7 @@ pub use service::{
     AutoDreamService, ManualRunTriggerRequest, ScheduledMonthlyReportOutcome,
 };
 pub use worker::{
-    AutoDreamProposalGovernance, AutoDreamReflectionStage, AutoDreamReflectionStageRecord,
-    AutoDreamRestrictedAction, AutoDreamRestrictedProfile, AutoDreamWorker, AutoDreamWorkerConfig,
-    AutoDreamWorkerOutcome, AutoDreamWorkerReport, AutoDreamWorkerStageStatus,
+    AutoDreamReflectionStage, AutoDreamReflectionStageRecord, AutoDreamRestrictedAction,
+    AutoDreamRestrictedProfile, AutoDreamWorker, AutoDreamWorkerConfig, AutoDreamWorkerOutcome,
+    AutoDreamWorkerReport, AutoDreamWorkerStageStatus,
 };

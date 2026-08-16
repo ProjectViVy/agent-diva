@@ -3,11 +3,8 @@
 //! S3 deliberately retires the old AutoDream -> MemoryPatch -> Laputa approval
 //! flow. Evolution/Skill proposal production belongs to S4.
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, time::Duration};
 
-use agent_diva_autodream::{
-    BoundedReflectionInput, ReflectionEngine, ReflectionError, ReflectionOutput,
-};
 use agent_diva_core::{
     bus::MessageBus,
     config::schema::MemoryAuthorityMode,
@@ -15,10 +12,9 @@ use agent_diva_core::{
     experience::{ExperienceJournal, OutcomeKind},
     session::SessionManager,
 };
-use agent_diva_laputa::{ActmemPatch, ProposalFilter};
+use agent_diva_laputa::ActmemPatch;
 use agent_diva_manager::{build_router, AppState};
 use agent_diva_sandbox::CommandApprovalCoordinator;
-use async_trait::async_trait;
 use axum::{
     body::{to_bytes, Body},
     http::{Method, Request, StatusCode},
@@ -29,7 +25,7 @@ use tempfile::TempDir;
 use tokio::sync::mpsc;
 use tower::ServiceExt;
 
-async fn typed_state(root: &Path, engine: Option<Arc<dyn ReflectionEngine>>) -> AppState {
+async fn typed_state(root: &Path) -> AppState {
     let (api_tx, _api_rx) = mpsc::channel(8);
     let mut state = AppState::new_with_runtime_memory(
         api_tx,
@@ -40,11 +36,8 @@ async fn typed_state(root: &Path, engine: Option<Arc<dyn ReflectionEngine>>) -> 
         MemoryAuthorityMode::Typed,
     )
     .unwrap();
-    state.autodream = state
-        .autodream
-        .clone()
-        .with_reflection_engine(engine)
-        .with_skill_reflection_engine(None);
+    // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
+    state.autodream = state.autodream.clone().with_skill_reflection_engine(None);
     state
 }
 
@@ -167,18 +160,16 @@ async fn seed_actmem(state: &AppState) -> u64 {
 async fn e2e_s3_organizes_work_without_memory_or_governance_writes() {
     let temp = TempDir::new().unwrap();
     seed_evidence(temp.path(), "chat:e2e", "verified release evidence");
-    let state = typed_state(temp.path(), None).await;
+    let state = typed_state(temp.path()).await;
     let initial_revision = seed_actmem(&state).await;
     let app = build_router(state.clone());
 
     let (run_id, terminal) = trigger_and_wait(&app, &state).await;
     assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
     assert!(terminal.run.proposal_ids.is_empty());
-    assert!(state
-        .laputa
-        .list_proposals(ProposalFilter::default())
-        .unwrap()
-        .is_empty());
+    assert!(std::fs::read_dir(temp.path().join(".laputa/proposals"))
+        .map(|entries| entries.count() == 0)
+        .unwrap_or(true));
     assert!(!state.memory_home.database_path().exists());
 
     let document = state.memory_home.actmem().read().unwrap();
@@ -205,7 +196,7 @@ async fn e2e_s3_does_not_require_a_reflection_provider() {
         "chat:provider",
         "provider-independent evidence",
     );
-    let state = typed_state(temp.path(), None).await;
+    let state = typed_state(temp.path()).await;
     seed_actmem(&state).await;
     let app = build_router(state.clone());
 
@@ -215,36 +206,29 @@ async fn e2e_s3_does_not_require_a_reflection_provider() {
     assert!(terminal.run.proposal_ids.is_empty());
 }
 
-struct ForbiddenReflectionEngine;
-
-#[async_trait]
-impl ReflectionEngine for ForbiddenReflectionEngine {
-    async fn reflect(
-        &self,
-        _input: BoundedReflectionInput,
-    ) -> Result<ReflectionOutput, ReflectionError> {
-        panic!("S3 must not call the legacy reflection/MemoryPatch engine")
-    }
-}
-
 #[tokio::test]
-async fn e2e_s3_never_calls_the_legacy_memory_patch_engine() {
+async fn e2e_s3_never_writes_legacy_proposal_surfaces() {
     let temp = TempDir::new().unwrap();
     seed_evidence(temp.path(), "chat:no-reflect", "verified task evidence");
-    let state = typed_state(temp.path(), Some(Arc::new(ForbiddenReflectionEngine))).await;
+    let state = typed_state(temp.path()).await;
     seed_actmem(&state).await;
     let app = build_router(state.clone());
 
     let (_, terminal) = trigger_and_wait(&app, &state).await;
     assert_eq!(terminal.run.state, AutoDreamRunState::Completed);
     assert!(terminal.run.proposal_ids.is_empty());
+    assert!(std::fs::read_dir(temp.path().join(".laputa/proposals"))
+        .map(|entries| entries.count() == 0)
+        .unwrap_or(true));
+    assert!(!temp.path().join(".laputa/sections/memory_md.json").exists());
+    assert!(!temp.path().join(".laputa/governance.sqlite3").exists());
 }
 
 #[tokio::test]
 async fn e2e_repeated_s3_organization_is_a_revision_stable_noop() {
     let temp = TempDir::new().unwrap();
     seed_evidence(temp.path(), "chat:noop", "stable evidence");
-    let state = typed_state(temp.path(), None).await;
+    let state = typed_state(temp.path()).await;
     seed_actmem(&state).await;
     let app = build_router(state.clone());
 

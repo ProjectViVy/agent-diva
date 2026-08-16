@@ -21,9 +21,9 @@ use crate::{
     atomic::atomic_write_json,
     metrics::{AutoDreamMetrics, AutoDreamMetricsSnapshot},
     AutoDreamCollectedInputs, AutoDreamError, AutoDreamInputCollector,
-    AutoDreamMonthlyReportGenerator, AutoDreamProposalGovernance, AutoDreamRhythmReportGenerator,
-    AutoDreamStorage, AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker,
-    ReflectionEngine, Result, SkillReflectionEngine,
+    AutoDreamMonthlyReportGenerator, AutoDreamRhythmReportGenerator, AutoDreamStorage,
+    AutoDreamWorker, AutoDreamWorkerReport, MonthlyReportErrorMarker, Result,
+    SkillReflectionEngine,
 };
 
 const DEFAULT_STALE_LOCK_SECS: u64 = 60 * 5;
@@ -90,9 +90,7 @@ pub struct AutoDreamService {
     storage: AutoDreamStorage,
     stale_lock_after: Duration,
     narrative_generator: Option<Arc<dyn ReportNarrativeGenerator>>,
-    reflection_engine: Option<Arc<dyn ReflectionEngine>>,
     skill_reflection_engine: Option<Arc<dyn SkillReflectionEngine>>,
-    proposal_governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
     memory_home: Option<MemoryHome>,
     skill_home: Option<SkillHome>,
     llm_curation: LlmCurationConfig,
@@ -123,9 +121,7 @@ impl AutoDreamService {
             storage,
             stale_lock_after: Duration::from_secs(DEFAULT_STALE_LOCK_SECS),
             narrative_generator: None,
-            reflection_engine: None,
             skill_reflection_engine: None,
-            proposal_governance: None,
             memory_home: None,
             skill_home: None,
             llm_curation: LlmCurationConfig::default(),
@@ -148,24 +144,11 @@ impl AutoDreamService {
         self
     }
 
-    pub fn with_reflection_engine(mut self, engine: Option<Arc<dyn ReflectionEngine>>) -> Self {
-        self.reflection_engine = engine;
-        self
-    }
-
     pub fn with_skill_reflection_engine(
         mut self,
         engine: Option<Arc<dyn SkillReflectionEngine>>,
     ) -> Self {
         self.skill_reflection_engine = engine;
-        self
-    }
-
-    pub fn with_proposal_governance(
-        mut self,
-        governance: Option<Arc<dyn AutoDreamProposalGovernance>>,
-    ) -> Self {
-        self.proposal_governance = governance;
         self
     }
 
@@ -369,11 +352,7 @@ impl AutoDreamService {
 
     pub fn collect_inputs(&self, run_id: &str) -> Result<AutoDreamCollectedInputs> {
         let mut run = self.read_run(run_id)?;
-        let collector = AutoDreamInputCollector::new(
-            self.storage.clone(),
-            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
-                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
-        );
+        let collector = AutoDreamInputCollector::new(self.storage.clone());
         let collected = collector.collect(run_id).inspect_err(|_| {
             Self::metrics().record_failure();
         })?;
@@ -388,16 +367,10 @@ impl AutoDreamService {
     }
 
     pub async fn execute_reflection_worker(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
-        let worker = AutoDreamWorker::new(
-            self.storage.clone(),
-            agent_diva_laputa::LaputaService::open(self.storage.paths().workspace_root())
-                .map_err(|error| AutoDreamError::InputCollection(error.to_string()))?,
-        )
-        .with_reflection_engine(self.reflection_engine.clone())
-        .with_skill_reflection_engine(self.skill_reflection_engine.clone())
-        .with_proposal_governance(self.proposal_governance.clone())
-        .with_memory_home(self.memory_home.clone())
-        .with_skill_home(self.skill_home.clone());
+        let worker = AutoDreamWorker::new(self.storage.clone())
+            .with_skill_reflection_engine(self.skill_reflection_engine.clone())
+            .with_memory_home(self.memory_home.clone())
+            .with_skill_home(self.skill_home.clone());
         worker.execute(run_id).await.inspect_err(|_| {
             Self::metrics().record_failure();
         })
