@@ -482,7 +482,7 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         );
 
         memory.push_str(
-            "\nWhen the user asks you to remember something, use the memory_add tool; to forget, use memory_remove; to recall, use memory_search or memory_list. Writes report one of: applied (durable), proposal_created (awaiting review, contains a proposal id), or failed. High-risk changes (updating or removing existing memory) create reviewable proposals and are not effective until approved. Never write arbitrary files as if they were memory authority; legacy authority files are compatibility inputs only, not default prompt authority.",
+            "\nWhen the user asks you to remember something, use the memory_add tool; to forget, use memory_remove; to recall, use memory_search or memory_list. Writes report one of: applied (durable immediately) or failed. Updating or removing existing memory is a direct write and takes effect as soon as it is applied. Never write arbitrary files as if they were memory authority; legacy authority files are compatibility inputs only, not default prompt authority.",
         );
 
         PromptSection::new(
@@ -1068,8 +1068,12 @@ mod tests {
             "prompt should name memory_remove"
         );
         assert!(
-            prompt.contains("proposal_created"),
-            "prompt should teach honest result states"
+            !prompt.contains("proposal_created"),
+            "prompt must not teach a retired memory-approval contract"
+        );
+        assert!(
+            !prompt.contains("not effective until approved"),
+            "prompt must not say memory writes wait for approval"
         );
         assert!(
             !prompt.contains("Memory management tools are not available"),
