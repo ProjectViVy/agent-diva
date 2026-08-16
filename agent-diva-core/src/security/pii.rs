@@ -180,6 +180,9 @@ struct PiiPatterns {
     passport_general: Regex,
     bank_card: Regex,
     version_like: Regex,
+    /// Stable BML / checkpoint identifiers. Their digit runs look like phones
+    /// or cards and must stay intact so agents can update or remove records.
+    memory_record_id: Regex,
 }
 
 static PATTERNS: OnceLock<PiiPatterns> = OnceLock::new();
@@ -187,8 +190,8 @@ static PATTERNS: OnceLock<PiiPatterns> = OnceLock::new();
 fn patterns() -> &'static PiiPatterns {
     PATTERNS.get_or_init(|| PiiPatterns {
         email: Regex::new(r"[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}").unwrap(),
-        phone_cn: Regex::new(r"1[3-9]\d{9}").unwrap(),
-        phone_intl: Regex::new(r"\+?\d{7,15}").unwrap(),
+        phone_cn: Regex::new(r"\b1[3-9]\d{9}\b").unwrap(),
+        phone_intl: Regex::new(r"\b\+?\d{7,15}\b").unwrap(),
         chinese_id: Regex::new(r"\b[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b").unwrap(),
         credit_card: Regex::new(r"\b(?:\d[ -]*?){13,19}\b").unwrap(),
         api_sk: Regex::new(r"sk-[A-Za-z0-9]{20,}").unwrap(),
@@ -203,7 +206,17 @@ fn patterns() -> &'static PiiPatterns {
         passport_general: Regex::new(r"\b[A-Z]{1,2}\d{6,9}\b").unwrap(),
         bank_card: Regex::new(r"\b\d{16,19}\b").unwrap(),
         version_like: Regex::new(r"\bversion\s+\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap(),
+        memory_record_id: Regex::new(
+            r"\b(?:memory-(?:\d{10,20}-[0-9a-fA-F]{8,64}|tombstone-\d{10,20}|(?:legacy|laputa)-[0-9a-fA-F]{8,64})|session-checkpoint-[0-9a-fA-F]{8,64})\b",
+        )
+        .unwrap(),
     })
+}
+
+fn overlaps_span(start: usize, end: usize, spans: &[(usize, usize)]) -> bool {
+    spans
+        .iter()
+        .any(|&(span_start, span_end)| start < span_end && end > span_start)
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +312,14 @@ pub fn redact_pii(input: &str, config: &PiiConfig) -> RedactionResult {
     // Version-like patterns to exclude from IPv4 matches
     let version_spans: Vec<(usize, usize)> = p
         .version_like
+        .find_iter(input)
+        .map(|m| (m.start(), m.end()))
+        .collect();
+
+    // Memory record / checkpoint ids embed long digit runs. Those runs must
+    // stay intact: agents use the raw id for update and remove.
+    let protected_id_spans: Vec<(usize, usize)> = p
+        .memory_record_id
         .find_iter(input)
         .map(|m| (m.start(), m.end()))
         .collect();
@@ -528,8 +549,9 @@ pub fn redact_pii(input: &str, config: &PiiConfig) -> RedactionResult {
         }
     }
 
-    // Filter out skipped candidates and resolve overlaps (keep longest match)
-    candidates.retain(|c| !c.skip);
+    // Filter out skipped candidates, matches inside protected ids, then
+    // resolve overlaps (keep longest match).
+    candidates.retain(|c| !c.skip && !overlaps_span(c.start, c.end, &protected_id_spans));
     candidates.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
     let mut merged: Vec<Candidate> = Vec::new();
     for c in candidates {
@@ -840,5 +862,66 @@ mod tests {
             &config,
         );
         assert!(result.redacted.contains("[REDACTED:ApiKey]"));
+    }
+
+    #[test]
+    fn test_memory_record_id_timestamp_not_redacted_as_phone() {
+        let config = warning_config();
+        // 2026-era micros start with 17…, which used to match phone_cn (1[3-9] + 9 digits).
+        let id = "memory-1786924800000000-a1b2c3d4e5f6";
+        let result = redact_pii(&format!(r#"{{"id":"{id}","content":"note"}}"#), &config);
+        assert!(
+            result.redacted.contains(id),
+            "memory record id must survive PII: {}",
+            result.redacted
+        );
+        assert!(!result.redacted.contains("[REDACTED:Phone]"));
+    }
+
+    #[test]
+    fn test_memory_record_id_luhn_timestamp_not_redacted_as_card() {
+        let config = warning_config();
+        // 16-digit Luhn-valid run in the current id shape must stay usable.
+        let id = "memory-4111111111111111-abcdef123456";
+        let result = redact_pii(id, &config);
+        assert_eq!(result.redacted, id);
+        assert!(result.detected.is_empty());
+    }
+
+    #[test]
+    fn test_memory_import_and_tombstone_ids_are_preserved() {
+        let config = warning_config();
+        let input = concat!(
+            "memory-laputa-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ",
+            "memory-legacy-fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210 ",
+            "memory-tombstone-1786924800000000 ",
+            "session-checkpoint-0123456789abcdef"
+        );
+        let result = redact_pii(input, &config);
+        assert_eq!(result.redacted, input);
+        assert!(result.detected.is_empty());
+    }
+
+    #[test]
+    fn test_standalone_phone_still_redacted_next_to_memory_id() {
+        let config = warning_config();
+        let id = "memory-1786924800000000-a1b2c3d4e5f6";
+        let result = redact_pii(&format!("{id} call 13812345678"), &config);
+        assert!(result.redacted.contains(id));
+        assert!(result.redacted.contains("[REDACTED:Phone]"));
+        assert!(!result.redacted.contains("13812345678"));
+    }
+
+    #[test]
+    fn test_phone_not_matched_inside_longer_digit_run() {
+        let config = warning_config();
+        // 16-digit run that is not a memory id and fails Luhn / card checks.
+        let result = redact_pii("ref 1786924800000002 leftover", &config);
+        assert!(
+            !result.redacted.contains("[REDACTED:Phone]"),
+            "phones must be isolated numbers, not substrings: {}",
+            result.redacted
+        );
+        assert!(result.redacted.contains("1786924800000002"));
     }
 }

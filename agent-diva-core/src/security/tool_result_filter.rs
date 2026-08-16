@@ -256,6 +256,22 @@ mod tests {
         assert!(result.contains("[SUSPICIOUS]"));
     }
 
+    #[test]
+    fn test_sanitize_preserves_memory_record_ids() {
+        let id = "memory-1786924800000000-a1b2c3d4e5f6";
+        let output = format!(
+            r#"{{"status":"listed","entries":[{{"id":"{id}","content":"note","revision":1}}]}}"#
+        );
+        let result = sanitize_tool_output(&output);
+        assert!(
+            result.contains(id),
+            "memory_list ids must remain operable after sanitization: {result}"
+        );
+        assert!(!result.contains("[REDACTED:Phone]"));
+        assert!(!result.contains("[REDACTED:BankCard]"));
+        assert!(!result.contains("[REDACTED:CreditCard]"));
+    }
+
     // -- Constants --
 
     #[test]

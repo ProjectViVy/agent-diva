@@ -287,6 +287,13 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 - [ ] **MASK-FEATURE-ACCEPTANCE** `sev-P2`
   恢复 `.sisyphus/plans/mask-feature-implementation.md` 前先复核现状，再执行剩余验收。
 
+- [ ] **MEMORY-CRUD-ID-DESKTOP-SMOKE** `sev-P2`
+  人工冒烟已确认：记录还在，但工具结果里的 id 中间 16 位微秒时间戳被 PII 当成手机号
+  藏掉，模型无法增删改。代码已修（`redact_pii` 保护 BML id + 手机号词边界），见
+  `docs/logs/2026-08-memory-id-pii-redaction/v0.0.1-preserve-record-ids/`。
+  重启 gateway 后用真实模型走 `memory_list` → 新增一条不同内容 → `memory_update` /
+  `memory_remove`；`id` 必须是完整 `memory-{micros}-{digest}`，不得含 `[REDACTED:…]`。
+
 ## Reliability / Test Debt
 
 - [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`
