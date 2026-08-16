@@ -151,6 +151,7 @@
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
   I0 已切，S1–S5 已完成；S2 Persona、S3 Memory/ACTMEM/Recap 与 S4 Evolution/Skill 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。
   S5 卸旧已落地（2026-08-16，`710e7684`..`1ea54d08` 五笔功能提交：旧 GUI 治理面、Manager/Tauri 旧治理 API、AutoDream 旧提案路径、Laputa section/proposal 内核与混域 ProposalType、MEMORY.md 文件链、WorldGovernance 队列、persona-retire、旧 distill 路径物理删除；全量门通过，仅余 6 例既有 `CLI-WIREMOCK-502-PREEXISTING`）。
+  S5 复核修复已落地（2026-08-16，`0c1f0dfd`..`c011e680`）：WORLD 巩固丢弃、Prompt 去掉审批假合同、ContextBuilder 测试构造器隔离、Approval/capability/CLI 去掉 memory 域。见 `docs/logs/2026-08-s5-review-repairs/`。
   剩余 **S6 证明**（`just cognitive-clean-break-check` 扫描门 + 桌面 smoke）。按 D4：**S1 停种子 -> S2 Persona -> S3 Memory/ACTMEM/Recap -> S4 Skill -> S5 卸旧 -> S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
@@ -319,7 +320,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   S5 移除治理协调器（`governed_apply`/`MemoryGovernanceCoordinator`）后，
   `TypedMemoryStore::put_governed` / `rollback_governed` 成为无调用方的存储内部接缝。
   按 D4 §3.2 必须保留 BML 表结构，清理时只删代码路径与 `bml/mod.rs` 边界说明同步更新，
-  不动 schema。关联 `agent-diva-laputa/src/bml/`。
+  不动 schema。关联 `agent-diva-laputa/src/bml/`。等 S6 扫描门先落地。
+
+- [ ] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
+  `MemoryCrudOutcome::ProposalCreated` 与 `SyncTurnStatus::ProposalCreated` 仍是公开枚举，
+  巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
+  不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
 
 ## Archive Index
 
