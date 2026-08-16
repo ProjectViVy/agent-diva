@@ -117,7 +117,7 @@ impl ApprovalRecord {
 }
 
 /// Append-only event category.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApprovalLedgerEventKind {
     Requested,
@@ -690,6 +690,14 @@ impl GovernanceLedger for SqliteGovernanceLedger {
         if current.status != ApprovalStatus::Expired {
             return Err(ApprovalLedgerError::InvalidTransition);
         }
+        let already_materialized = self
+            .events(request_id)
+            .await?
+            .iter()
+            .any(|event| event.kind == ApprovalLedgerEventKind::Expired);
+        if already_materialized {
+            return Ok(current);
+        }
         self.append(&ApprovalLedgerEvent {
             event_id: Uuid::new_v4().to_string(),
             request_id: request_id.to_string(),
@@ -743,7 +751,16 @@ impl GovernanceLedger for SqliteGovernanceLedger {
         let next_cursor = has_more.then(|| ids.last().cloned()).flatten();
         let mut states = Vec::with_capacity(ids.len());
         for request_id in ids {
-            states.push(self.replay(&request_id, evaluated_at).await?);
+            match self.replay(&request_id, evaluated_at).await {
+                Ok(state) => states.push(state),
+                Err(error) => {
+                    tracing::warn!(
+                        request_id,
+                        error = %error,
+                        "skipping unreplayable approval aggregate during listing/recovery"
+                    );
+                }
+            }
         }
         Ok(ApprovalStatePage {
             states,
@@ -825,27 +842,38 @@ fn derive_state(
         state.version = event.version;
         match event.kind {
             ApprovalLedgerEventKind::Allowed => {
-                require_replay_status(&state, &[ApprovalStatus::Pending])?;
+                require_replay_status(&state, &[ApprovalStatus::Pending], event.kind)?;
                 validate_stored_receipt(&state.request, event, Decision::Allow)?;
                 state.status = ApprovalStatus::Allowed;
                 state.receipt = event.receipt.clone();
             }
             ApprovalLedgerEventKind::Denied => {
-                require_replay_status(&state, &[ApprovalStatus::Pending])?;
+                require_replay_status(&state, &[ApprovalStatus::Pending], event.kind)?;
                 validate_stored_receipt(&state.request, event, Decision::Deny)?;
                 state.status = ApprovalStatus::Denied;
                 state.receipt = event.receipt.clone();
             }
             ApprovalLedgerEventKind::Revoked => {
-                require_replay_status(&state, &[ApprovalStatus::Pending, ApprovalStatus::Allowed])?;
+                require_replay_status(
+                    &state,
+                    &[ApprovalStatus::Pending, ApprovalStatus::Allowed],
+                    event.kind,
+                )?;
                 state.status = ApprovalStatus::Revoked;
             }
             ApprovalLedgerEventKind::Consumed => {
-                require_replay_status(&state, &[ApprovalStatus::Allowed])?;
+                require_replay_status(&state, &[ApprovalStatus::Allowed], event.kind)?;
                 state.status = ApprovalStatus::Consumed;
             }
             ApprovalLedgerEventKind::Expired => {
-                require_replay_status(&state, &[ApprovalStatus::Pending, ApprovalStatus::Allowed])?;
+                if state.status == ApprovalStatus::Expired {
+                    continue;
+                }
+                require_replay_status(
+                    &state,
+                    &[ApprovalStatus::Pending, ApprovalStatus::Allowed],
+                    event.kind,
+                )?;
                 state.status = ApprovalStatus::Expired;
             }
             ApprovalLedgerEventKind::Requested => {
@@ -896,13 +924,15 @@ fn validate_stored_receipt(
 fn require_replay_status(
     state: &ApprovalState,
     allowed: &[ApprovalStatus],
+    kind: ApprovalLedgerEventKind,
 ) -> Result<(), ApprovalLedgerError> {
     if allowed.contains(&state.status) {
         Ok(())
     } else {
-        Err(ApprovalLedgerError::Persistence(
-            "ledger contains an illegal state transition".into(),
-        ))
+        Err(ApprovalLedgerError::Persistence(format!(
+            "ledger contains an illegal state transition: {:?} from {:?}",
+            kind, state.status
+        )))
     }
 }
 
@@ -1523,5 +1553,140 @@ mod tests {
         assert!(second.next_cursor.is_none());
 
         assert!(ledger.events_page(Some("not-a-cursor"), 1).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn expire_is_idempotent_after_first_materialization() {
+        let ledger = memory_ledger().await;
+        let record = ApprovalRecord::from_request(&request("request-1")).unwrap();
+        let pending = ledger
+            .submit(record.clone(), "submit-1", now() + Duration::seconds(1))
+            .await
+            .unwrap();
+        let allowed = ledger
+            .decide(
+                "request-1",
+                pending.version,
+                "allow-1",
+                receipt(&record, Decision::Allow),
+            )
+            .await
+            .unwrap();
+        let first = ledger
+            .expire("request-1", allowed.version, "expire-1", record.expires_at)
+            .await
+            .unwrap();
+        assert_eq!(first.status, ApprovalStatus::Expired);
+        assert_eq!(first.version, 3);
+        let second = ledger
+            .expire("request-1", first.version, "expire-2", record.expires_at)
+            .await
+            .unwrap();
+        assert_eq!(second, first);
+        assert_eq!(ledger.events("request-1").await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn duplicate_expire_events_replay_as_expired() {
+        let ledger = memory_ledger().await;
+        let record = ApprovalRecord::from_request(&request("request-1")).unwrap();
+        let pending = ledger
+            .submit(record.clone(), "submit-1", now() + Duration::seconds(1))
+            .await
+            .unwrap();
+        let allowed = ledger
+            .decide(
+                "request-1",
+                pending.version,
+                "allow-1",
+                receipt(&record, Decision::Allow),
+            )
+            .await
+            .unwrap();
+        ledger
+            .expire("request-1", allowed.version, "expire-1", record.expires_at)
+            .await
+            .unwrap();
+        ledger
+            .append(&ApprovalLedgerEvent {
+                event_id: "dup-expire".into(),
+                request_id: "request-1".into(),
+                version: 4,
+                idempotency_key: "expire-dup".into(),
+                operation_fingerprint: "expire-dup".into(),
+                occurred_at: record.expires_at + Duration::seconds(1),
+                kind: ApprovalLedgerEventKind::Expired,
+                request: None,
+                receipt: None,
+                actor: None,
+            })
+            .await
+            .unwrap();
+
+        let state = ledger
+            .state("request-1", record.expires_at + Duration::minutes(1))
+            .await
+            .unwrap();
+        assert_eq!(state.status, ApprovalStatus::Expired);
+        assert_eq!(state.version, 4);
+    }
+
+    #[tokio::test]
+    async fn states_page_skips_unreplayable_aggregate() {
+        let ledger = memory_ledger().await;
+        let good = ApprovalRecord::from_request(&request("request-b")).unwrap();
+        ledger
+            .submit(good, "submit-b", now() + Duration::seconds(1))
+            .await
+            .unwrap();
+
+        let bad = ApprovalRecord::from_request(&request("request-a")).unwrap();
+        let pending = ledger
+            .submit(bad.clone(), "submit-a", now() + Duration::seconds(1))
+            .await
+            .unwrap();
+        let allowed = ledger
+            .decide(
+                "request-a",
+                pending.version,
+                "allow-a",
+                receipt(&bad, Decision::Allow),
+            )
+            .await
+            .unwrap();
+        ledger
+            .consume_once(
+                "request-a",
+                allowed.version,
+                "consume-a",
+                now() + Duration::seconds(20),
+            )
+            .await
+            .unwrap();
+        ledger
+            .append(&ApprovalLedgerEvent {
+                event_id: "poison-expire".into(),
+                request_id: "request-a".into(),
+                version: 4,
+                idempotency_key: "poison-expire".into(),
+                operation_fingerprint: "poison-expire".into(),
+                occurred_at: now() + Duration::seconds(30),
+                kind: ApprovalLedgerEventKind::Expired,
+                request: None,
+                receipt: None,
+                actor: None,
+            })
+            .await
+            .unwrap();
+
+        assert!(ledger.state("request-a", now()).await.is_err());
+        let page = ledger.states_page(None, 10, now()).await.unwrap();
+        assert_eq!(
+            page.states
+                .iter()
+                .map(|state| state.request.correlation.request_id.as_str())
+                .collect::<Vec<_>>(),
+            ["request-b"]
+        );
     }
 }

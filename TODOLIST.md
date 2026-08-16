@@ -339,14 +339,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
   不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
 
-- [ ] **GOVERNANCE-LEDGER-SINGLE-RECORD-BRICK** `sev-P2`
-  `governance.db` 中任何一条带未知 wire 值（如已删除的 `memory_apply` capability）的
-  历史记录都会在启动全量重放（`states_page` → `replay` → `request.validate()`）时
-  fail-closed，整条网关引导被单条死数据阻断（2026-08-17 实际发生，已手工清理 16 条
-  `memory-apply:*` 事件，备份 `governance.db.bak-memory-apply-20260817`）。需要独立
-  决策：启动恢复路径对无法重放的孤立聚合按条隔离/跳过并告警，还是增加一次性启动
-  迁移。保持授权路径 fail-closed 不变。关联 `agent-diva-core/src/governance/ledger.rs`、
-  `agent-diva-sandbox/src/approval_coordinator.rs`。
+- [x] **GOVERNANCE-LEDGER-SINGLE-RECORD-BRICK** `sev-P2`
+  2026-08-17 再次发生：`requested → allowed → expired → expired` 使
+  `recover_incomplete` 全量重放失败，gateway 无法启动。已修：重复 `expired`
+  重放为幂等；`expire()` 不再二次落盘；`states_page` 对无法重放的孤立聚合跳过并
+  告警。单条 `state()` / 授权路径仍 fail-closed。见
+  `docs/logs/2026-08-governance-ledger-startup/v0.0.1-expire-idempotent-recovery/`。
 
 ## Archive Index
 
