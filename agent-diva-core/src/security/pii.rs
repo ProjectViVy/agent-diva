@@ -101,7 +101,9 @@ impl Default for PiiConfig {
     fn default() -> Self {
         Self {
             default_severity: PiiSeverity::Warning,
-            enabled: true,
+            // Runtime paths must not hide phones, ids, cards, or similar
+            // format matches. Detection stays available when explicitly enabled.
+            enabled: false,
             category_severity: std::collections::HashMap::new(),
         }
     }
@@ -633,7 +635,10 @@ mod tests {
     use super::*;
 
     fn warning_config() -> PiiConfig {
-        PiiConfig::default()
+        PiiConfig {
+            enabled: true,
+            ..PiiConfig::default()
+        }
     }
 
     fn error_config() -> PiiConfig {
@@ -780,6 +785,19 @@ mod tests {
     }
 
     #[test]
+    fn test_default_config_does_not_hide_content() {
+        let result = redact_pii(
+            "user@example.com 13812345678 memory-1786924800000000-a1b2c3d4e5f6",
+            &PiiConfig::default(),
+        );
+        assert!(result.detected.is_empty());
+        assert_eq!(
+            result.redacted,
+            "user@example.com 13812345678 memory-1786924800000000-a1b2c3d4e5f6"
+        );
+    }
+
+    #[test]
     fn test_passport_detection() {
         let config = warning_config();
         let result = redact_pii("Passport E12345678", &config);
@@ -843,7 +861,7 @@ mod tests {
 
     #[test]
     fn test_category_severity_override() {
-        let mut config = PiiConfig::default();
+        let mut config = warning_config();
         config
             .category_severity
             .insert("Email".to_string(), PiiSeverity::Error);

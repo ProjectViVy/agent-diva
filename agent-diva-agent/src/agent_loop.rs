@@ -1844,7 +1844,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_direct_sanitizes_pii_before_provider_call() {
+    async fn test_process_direct_keeps_original_pii_shaped_text() {
         let bus = MessageBus::new();
         let provider = Arc::new(CapturingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -1872,8 +1872,8 @@ mod tests {
             .map(|message| message.content.to_text_lossy())
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(flattened.contains("[REDACTED:Email]"));
-        assert!(!flattened.contains("test@example.com"));
+        assert!(flattened.contains("test@example.com"));
+        assert!(!flattened.contains("[REDACTED"));
     }
 
     #[tokio::test]

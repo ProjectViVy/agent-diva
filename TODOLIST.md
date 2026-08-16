@@ -288,11 +288,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   恢复 `.sisyphus/plans/mask-feature-implementation.md` 前先复核现状，再执行剩余验收。
 
 - [ ] **MEMORY-CRUD-ID-DESKTOP-SMOKE** `sev-P2`
-  人工冒烟已确认：记录还在，但工具结果里的 id 中间 16 位微秒时间戳被 PII 当成手机号
-  藏掉，模型无法增删改。代码已修（`redact_pii` 保护 BML id + 手机号词边界），见
-  `docs/logs/2026-08-memory-id-pii-redaction/v0.0.1-preserve-record-ids/`。
-  重启 gateway 后用真实模型走 `memory_list` → 新增一条不同内容 → `memory_update` /
-  `memory_remove`；`id` 必须是完整 `memory-{micros}-{digest}`，不得含 `[REDACTED:…]`。
+  人工冒烟已确认：记录还在，但工具结果里的 id 被 PII 脱敏层藏掉，模型无法增删改。
+  用户决策：不再给 id 开特例，直接关闭运行路径上的敏感格式隐藏（工具结果、入站
+  消息、artifact、AutoDream 摘要）。见
+  `docs/logs/2026-08-memory-id-pii-redaction/v0.0.2-disable-runtime-pii-hiding/`。
+  重启 gateway 后用真实模型走 `memory_list` → 新增 → `memory_update` /
+  `memory_remove`；`id` 与邮箱/手机等原文必须原样可见。
 
 ## Reliability / Test Debt
 

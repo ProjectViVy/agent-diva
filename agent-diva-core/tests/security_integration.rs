@@ -22,18 +22,10 @@ fn test_end_to_end_clean_input() {
 }
 
 #[test]
-fn test_end_to_end_pii_detection() {
+fn test_end_to_end_pii_shaped_text_is_not_rewritten() {
     let ctx = test_context();
     let decision = check_security("Contact me at test@example.com", &ctx);
-    assert!(matches!(decision, SecurityDecision::Sanitize { .. }));
-
-    if let SecurityDecision::Sanitize { redacted, findings } = decision {
-        assert!(redacted.contains("[REDACTED"));
-        assert!(!findings.is_empty());
-        assert!(matches!(findings[0].kind, SecurityKind::PiiDetected));
-    } else {
-        panic!("Expected Sanitize decision");
-    }
+    assert!(matches!(decision, SecurityDecision::Allow));
 }
 
 #[test]
@@ -63,10 +55,10 @@ fn test_end_to_end_combined_pii_and_injection() {
     if let SecurityDecision::Block { findings, .. } = decision {
         assert!(findings
             .iter()
-            .any(|finding| matches!(finding.kind, SecurityKind::PiiDetected)));
+            .any(|finding| matches!(finding.kind, SecurityKind::InjectionDetected)));
         assert!(findings
             .iter()
-            .any(|finding| matches!(finding.kind, SecurityKind::InjectionDetected)));
+            .all(|finding| !matches!(finding.kind, SecurityKind::PiiDetected)));
     } else {
         panic!("Expected Block decision");
     }

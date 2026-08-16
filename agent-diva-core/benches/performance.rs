@@ -8,7 +8,10 @@ use agent_diva_core::security::injection::{detect_injection, InjectionContext};
 use agent_diva_core::security::pii::{redact_pii, PiiConfig};
 
 fn bench_pii_redaction(c: &mut Criterion) {
-    let config = PiiConfig::default();
+    let config = PiiConfig {
+        enabled: true,
+        ..PiiConfig::default()
+    };
 
     // Small input — no PII present
     let safe_input = "Hello, this is a normal message with no sensitive data.";

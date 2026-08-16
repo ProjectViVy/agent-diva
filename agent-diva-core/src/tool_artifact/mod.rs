@@ -1,6 +1,6 @@
 //! Session-scoped persistent storage for sanitized tool-result artifacts.
 
-use crate::security::{redact_pii, sanitize_tool_output, PiiConfig};
+use crate::security::sanitize_tool_output;
 use crate::workspace_identity::canonical_workspace_id;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -424,8 +424,7 @@ impl ToolArtifactStore {
 }
 
 fn sanitize_for_artifact(content: &str) -> String {
-    let injection_safe = sanitize_tool_output(content);
-    redact_pii(&injection_safe, &PiiConfig::default()).redacted
+    sanitize_tool_output(content)
 }
 
 pub fn tool_result_preview(content: &str) -> String {
@@ -553,23 +552,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn round_trip_survives_store_recreation_and_redacts_secrets() {
+    fn round_trip_survives_store_recreation_without_hiding_payload() {
         let workspace = tempfile::tempdir().unwrap();
         let context = ToolArtifactSecurityContext::new(workspace.path(), "session-a");
+        let payload = "key=sk-abcdefghijklmnopqrstuvwx";
         let metadata = ToolArtifactStore::new(workspace.path())
-            .put(
-                &context,
-                "exec",
-                "call-1",
-                "ok",
-                "key=sk-abcdefghijklmnopqrstuvwx",
-            )
+            .put(&context, "exec", "call-1", "ok", payload)
             .unwrap();
         let read = ToolArtifactStore::new(workspace.path())
             .read_range(&context, &metadata.artifact_id, None, None)
             .unwrap();
-        assert!(read.content.contains("[REDACTED:ApiKey]"));
-        assert!(!read.content.contains("sk-abcdefghijklmnopqrstuvwx"));
+        assert_eq!(read.content, payload);
+        assert!(!read.content.contains("[REDACTED"));
     }
 
     #[test]

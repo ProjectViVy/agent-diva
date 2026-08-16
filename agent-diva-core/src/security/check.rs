@@ -1,22 +1,22 @@
 //! Security check wrapper module.
 //!
 //! Provides a unified entry point [`check_security`] that chains
-//! PII detection, injection detection, and instruction hierarchy
-//! resolution into a single [`SecurityDecision`].
+//! injection detection and instruction hierarchy resolution into a
+//! single [`SecurityDecision`]. Content is not rewritten for
+//! phone / id / card / email format matches.
 
 use crate::audit::{self, AuditEvent, Severity};
 use crate::security::{
     decision::{SecurityContext, SecurityDecision, SecurityFinding, SecurityKind},
-    detect_injection, redact_pii, resolve_tier_conflict, InjectionContext, InjectionKind,
-    MessageTier, PiiConfig, TieredMessage,
+    detect_injection, resolve_tier_conflict, InjectionContext, InjectionKind, MessageTier,
+    TieredMessage,
 };
 
 /// Run all security checks on the given content and return a unified decision.
 ///
 /// Priority (highest wins):
 /// 1. **Block** — injection detected or critical policy violation
-/// 2. **Sanitize** — PII detected (content is redacted)
-/// 3. **Allow** — no issues found
+/// 2. **Allow** — no issues found
 ///
 /// # Example
 ///
@@ -32,22 +32,7 @@ use crate::security::{
 pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecision {
     let mut findings: Vec<SecurityFinding> = Vec::new();
 
-    // 1. PII check
-    let pii_config = PiiConfig::default();
-    let pii_result = redact_pii(content, &pii_config);
-    let redacted = pii_result.redacted.clone();
-
-    if !pii_result.detected.is_empty() {
-        findings.extend(pii_result.detected.iter().map(|m| SecurityFinding {
-            kind: SecurityKind::PiiDetected,
-            severity: Severity::Medium,
-            span: (m.start, m.end),
-            reason: format!("PII detected: {}", m.kind),
-            source: context.clone(),
-        }));
-    }
-
-    // 2. Injection check
+    // 1. Injection check
     let injection_ctx = match context.source_type.as_str() {
         "tool_output" => InjectionContext::ToolOutput,
         _ => InjectionContext::UserMessage,
@@ -70,7 +55,7 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
         });
     }
 
-    // 3. Instruction hierarchy check (only for user input)
+    // 2. Instruction hierarchy check (only for user input)
     if context.source_type == "user_input" || context.source_type == "tool_output" {
         let tiered = TieredMessage {
             content: content.to_string(),
@@ -104,7 +89,7 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
         }
     }
 
-    // 4. Resolve final decision using the strictest finding.
+    // 3. Resolve final decision using the strictest finding.
     let decision = if findings.iter().any(|finding| {
         matches!(
             finding.kind,
@@ -123,8 +108,6 @@ pub fn check_security(content: &str, context: &SecurityContext) -> SecurityDecis
             reason: reason.to_string(),
             findings,
         }
-    } else if !pii_result.detected.is_empty() {
-        SecurityDecision::Sanitize { redacted, findings }
     } else {
         SecurityDecision::Allow
     };
@@ -204,10 +187,10 @@ mod tests {
     }
 
     #[test]
-    fn test_check_security_pii() {
+    fn test_check_security_does_not_hide_pii_shaped_text() {
         let ctx = test_context();
         let decision = check_security("Contact me at test@example.com", &ctx);
-        assert!(matches!(decision, SecurityDecision::Sanitize { .. }));
+        assert!(matches!(decision, SecurityDecision::Allow));
     }
 
     #[test]

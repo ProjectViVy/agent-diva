@@ -25,7 +25,6 @@
 //! ```
 
 use crate::security::injection::detect_tool_output_injection;
-use crate::security::pii::{redact_pii, PiiConfig};
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -72,8 +71,7 @@ pub fn sanitize_tool_output(content: &str) -> String {
     }
 
     let normalized = normalize_terminal_output(content);
-    let redacted = redact_pii(&normalized, &PiiConfig::default()).redacted;
-    let detection = detect_tool_output_injection(&redacted);
+    let detection = detect_tool_output_injection(&normalized);
 
     if detection.is_injection {
         // Mark the entire content as suspicious but still deliver it
@@ -88,13 +86,13 @@ pub fn sanitize_tool_output(content: &str) -> String {
         crate::audit::emit(crate::audit::AuditEvent::ToolOutputSanitized {
             tool_name: "unknown".to_string(),
             bytes_in: content.len() as u32,
-            bytes_out: redacted.len().saturating_add(13) as u32,
+            bytes_out: normalized.len().saturating_add(13) as u32,
             suspicious_spans: detection.patterns.clone(),
         });
 
-        format!("[SUSPICIOUS] {redacted}")
+        format!("[SUSPICIOUS] {normalized}")
     } else {
-        redacted
+        normalized
     }
 }
 
@@ -257,19 +255,14 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_preserves_memory_record_ids() {
+    fn test_sanitize_does_not_hide_sensitive_looking_text() {
         let id = "memory-1786924800000000-a1b2c3d4e5f6";
         let output = format!(
-            r#"{{"status":"listed","entries":[{{"id":"{id}","content":"note","revision":1}}]}}"#
+            r#"{{"id":"{id}","email":"user@example.com","phone":"13812345678","card":"4111111111111111"}}"#
         );
         let result = sanitize_tool_output(&output);
-        assert!(
-            result.contains(id),
-            "memory_list ids must remain operable after sanitization: {result}"
-        );
-        assert!(!result.contains("[REDACTED:Phone]"));
-        assert!(!result.contains("[REDACTED:BankCard]"));
-        assert!(!result.contains("[REDACTED:CreditCard]"));
+        assert_eq!(result, output);
+        assert!(!result.contains("[REDACTED"));
     }
 
     // -- Constants --

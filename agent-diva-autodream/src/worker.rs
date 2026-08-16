@@ -346,16 +346,11 @@ impl AutoDreamWorker {
             .iter()
             .take(16)
             .map(|item| {
-                let redacted = agent_diva_core::security::redact_pii(
-                    &item.excerpt,
-                    &agent_diva_core::security::PiiConfig::default(),
-                )
-                .redacted;
                 let mut evidence = item.evidence.clone();
                 evidence.excerpt = None;
                 ReflectionEvidence {
                     evidence,
-                    summary: truncate_chars(&redacted, 500),
+                    summary: truncate_chars(&item.excerpt, 500),
                 }
             })
             .collect();
