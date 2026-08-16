@@ -68,6 +68,7 @@ just fmt-check
 just ci
 just memory-provider-check
 just laputa-clean-break-check
+just cognitive-clean-break-check
 just run -- <args>
 just migrate -- <args>
 ```

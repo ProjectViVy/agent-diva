@@ -83,6 +83,8 @@ Prefer `just` recipes from the workspace root:
 - `just memory-provider-check`: run focused provider assembly and failure regressions.
 - `just laputa-clean-break-check`: prove removed legacy runtime dependencies have
   not re-entered active product code, manifests, GUI, CI, or build recipes.
+- `just cognitive-clean-break-check`: prove D4 §3.1 cognitive legacy surfaces
+  stay deleted from production paths (S6 proof gate).
 - `just run -- <args>`: run `agent-diva-cli`.
 - `just migrate -- <args>`: run migration CLI.
 
