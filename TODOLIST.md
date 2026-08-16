@@ -149,13 +149,15 @@
   不是 runtime fallback。
 
 - [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
-  I0 已切，S1 已完成；S2 Persona、S3 Memory/ACTMEM/Recap 与 S4 Evolution/Skill 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。按 D4：**S1 停种子 → S2 Persona → S3 Memory/ACTMEM/Recap → S4 Skill → S5 卸旧 → S6 证明**。
+  I0 已切，S1–S5 已完成；S2 Persona、S3 Memory/ACTMEM/Recap 与 S4 Evolution/Skill 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。
+  S5 卸旧已落地（2026-08-16，`710e7684`..`1ea54d08` 五笔功能提交：旧 GUI 治理面、Manager/Tauri 旧治理 API、AutoDream 旧提案路径、Laputa section/proposal 内核与混域 ProposalType、MEMORY.md 文件链、WorldGovernance 队列、persona-retire、旧 distill 路径物理删除；全量门通过，仅余 6 例既有 `CLI-WIREMOCK-502-PREEXISTING`）。
+  剩余 **S6 证明**（`just cognitive-clean-break-check` 扫描门 + 桌面 smoke）。按 D4：**S1 停种子 -> S2 Persona -> S3 Memory/ACTMEM/Recap -> S4 Skill -> S5 卸旧 -> S6 证明**。
   先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
   S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
 
 ### GUI 排期（跟切片走，不是另开一条无限期 UI 债）
 
-S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、混域 Inbox）。下面三片缺 GUI 不得标完成。
+S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、混域 Inbox）——已落地（2026-08-16，见 `710e7684` 与 `docs/logs/2026-08-cognitive-s5-legacy-removal/`）。下面三片缺 GUI 不得标完成。
 
 - [ ] **UI-S2-PERSONA：Persona 文档工作区** `sev-P0` `acceptance:desktop-smoke`
   左栏只七份；中央三态（当前文档 / 待审 / 历史）；最小 CM6 + Markdown 预览；
@@ -312,6 +314,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 - [ ] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
   `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
   `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
+
+- [ ] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
+  S5 移除治理协调器（`governed_apply`/`MemoryGovernanceCoordinator`）后，
+  `TypedMemoryStore::put_governed` / `rollback_governed` 成为无调用方的存储内部接缝。
+  按 D4 §3.2 必须保留 BML 表结构，清理时只删代码路径与 `bml/mod.rs` 边界说明同步更新，
+  不动 schema。关联 `agent-diva-laputa/src/bml/`。
 
 ## Archive Index
 
