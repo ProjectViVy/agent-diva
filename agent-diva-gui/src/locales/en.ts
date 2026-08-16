@@ -950,7 +950,7 @@ export default {
   },
   approvalCenter: {
     title: 'Approvals', eyebrow: 'Human decision center', open: 'Open approvals ({count} pending)', close: 'Close approval center', refresh: 'Refresh approvals', filters: 'Approval filters', all: 'All', loading: 'Loading approvals…', empty: 'No approvals match these filters.', pageLimit: 'Only the newest 1,000 approval records are shown.', domainFilter: 'Domain', statusFilter: 'Status', sessionFilter: 'Source session', scope: 'Scope', capability: 'Capability', version: 'Version', ttl: 'Time left', inspect: 'Load safe details', evidenceCount: '{count} evidence record(s)', grant: 'Grant', allow: 'Allow', deny: 'Deny', cancel: 'Cancel', edit: 'Edit at source', applyAtSource: 'Review and apply at source', refreshOnly: 'Refresh status only', requestFailed: 'The approval request failed.', stale: 'This decision used a stale version. The latest state was requested.', outcomeUnknown: 'The request outcome is unknown. Do not submit it again; refresh status only.', missingEvidence: 'High-risk Memory approval is disabled until evidence is available.', editAtSource: 'Opened the owning surface. Save a revision there before approving again.', riskLabel: 'Risk: {risk}', cardLabel: '{domain} approval: {title}',
-    domain: { command: 'Command', plan: 'Plan', memory: 'Memory' },
+    domain: { command: 'Command', plan: 'Plan' },
     status: { pending: 'Pending', allowed: 'Allowed', denied: 'Denied', revoked: 'Revoked', consumed: 'Consumed', expired: 'Expired' },
     risk: { low: 'Low', moderate: 'Moderate', high: 'High', critical: 'Critical', prohibited: 'Prohibited', unknown: 'Unknown' },
     grants: { once: 'Once', session: 'This session · 5 min', rule: 'Persistent safe rule' },

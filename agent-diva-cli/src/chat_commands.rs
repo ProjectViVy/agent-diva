@@ -1077,12 +1077,12 @@ mod approval_mode_tests {
     }
 
     #[tokio::test]
-    async fn default_headless_cancels_high_risk_memory_pending() {
+    async fn default_headless_cancels_high_risk_plan_pending() {
         let server = MockServer::start().await;
-        let approval = pending("memory");
+        let approval = pending("plan");
         mount_queued_turn(&server, approval.clone()).await;
         Mock::given(method("POST"))
-            .and(path("/api/approvals/memory-queued/cancel"))
+            .and(path("/api/approvals/plan-queued/cancel"))
             .respond_with(ResponseTemplate::new(200).set_body_json({
                 let mut value = approval;
                 value["status"] = "revoked".into();

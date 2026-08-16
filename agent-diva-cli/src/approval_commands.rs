@@ -239,12 +239,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unified_list_parses_all_three_domains() {
+    async fn unified_list_parses_command_and_plan_domains() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/approvals"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "approvals": [approval("command"), approval("plan"), approval("memory")],
+                "approvals": [approval("command"), approval("plan")],
                 "next_cursor": null
             })))
             .mount(&server)
@@ -253,8 +253,9 @@ mod tests {
             .list_approvals(Some("pending"), Some("cli:test"))
             .await
             .unwrap();
-        assert_eq!(page.approvals.len(), 3);
-        assert_eq!(page.approvals[2].domain, "memory");
+        assert_eq!(page.approvals.len(), 2);
+        assert_eq!(page.approvals[0].domain, "command");
+        assert_eq!(page.approvals[1].domain, "plan");
     }
 
     #[tokio::test]
@@ -281,12 +282,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn command_plan_and_memory_decisions_share_one_cli_contract() {
+    async fn command_and_plan_decisions_share_one_cli_contract() {
         let server = MockServer::start().await;
         for (domain, choice, decision) in [
             ("command", ApprovalChoice::Deny, "deny"),
             ("plan", ApprovalChoice::AllowOnce, "allow"),
-            ("memory", ApprovalChoice::AllowOnce, "allow"),
         ] {
             Mock::given(method("POST"))
                 .and(path(format!("/api/approvals/{domain}-1/decisions")))

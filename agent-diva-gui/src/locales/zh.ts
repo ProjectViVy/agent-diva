@@ -893,7 +893,7 @@ export default {
   },
   approvalCenter: {
     title: '审批中心', eyebrow: '人工决策中心', open: '打开审批中心（{count} 项待处理）', close: '关闭审批中心', refresh: '刷新审批', filters: '审批筛选', all: '全部', loading: '正在加载审批…', empty: '没有符合筛选条件的审批。', pageLimit: '当前仅展示最近 1,000 条审批记录。', domainFilter: '领域', statusFilter: '状态', sessionFilter: '来源会话', scope: '影响范围', capability: '能力', version: '版本', ttl: '剩余时间', inspect: '加载安全详情', evidenceCount: '{count} 条证据记录', grant: '授权范围', allow: '允许', deny: '拒绝', cancel: '撤销', edit: '到原位置编辑', applyAtSource: '到原位置复核并应用', refreshOnly: '只刷新状态', requestFailed: '审批请求失败。', stale: '当前决策使用了旧版本，正在获取最新状态。', outcomeUnknown: '请求结果未知。请勿重复提交，只刷新状态。', missingEvidence: '高风险 Memory 缺少证据，暂不能批准。', editAtSource: '已打开所属页面；请先保存新修订，再重新审批。', riskLabel: '风险：{risk}', cardLabel: '{domain} 审批：{title}',
-    domain: { command: '命令', plan: '计划', memory: '记忆' },
+    domain: { command: '命令', plan: '计划' },
     status: { pending: '待审批', allowed: '已允许', denied: '已拒绝', revoked: '已撤销', consumed: '已消费', expired: '已过期' },
     risk: { low: '低', moderate: '中', high: '高', critical: '严重', prohibited: '禁止', unknown: '未知' },
     grants: { once: '仅本次', session: '本会话 · 5 分钟', rule: '持久安全规则' },

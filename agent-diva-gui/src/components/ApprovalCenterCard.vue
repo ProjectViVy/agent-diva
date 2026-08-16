@@ -44,11 +44,8 @@ const view = computed(() => props.detail ?? props.approval);
 const presentation = computed(() => view.value.presentation ?? {});
 const remainingSeconds = computed(() => Math.max(0, Math.ceil((Date.parse(view.value.expires_at) - now.value) / 1000)));
 const terminal = computed(() => !['pending', 'allowed'].includes(view.value.status));
-const highRiskMissingEvidence = computed(() =>
-  view.value.domain === 'memory' && view.value.risk === 'high' && view.value.evidence.length === 0,
-);
 const allowDisabled = computed(() =>
-  props.submitting || props.outcomeUnknown || terminal.value || remainingSeconds.value === 0 || highRiskMissingEvidence.value,
+  props.submitting || props.outcomeUnknown || terminal.value || remainingSeconds.value === 0,
 );
 watch(
   () => [remainingSeconds.value, view.value.status] as const,
@@ -130,10 +127,6 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
       <p v-if="view.reason_code" class="approval-reason">{{ view.reason_code }}</p>
     </div>
 
-    <p v-if="highRiskMissingEvidence" class="approval-warning">
-      <AlertTriangle :size="15" />
-      <span>{{ t('approvalCenter.missingEvidence') }}</span>
-    </p>
     <p v-if="outcomeUnknown" class="approval-warning" role="status">
       <AlertTriangle :size="15" />
       <span>{{ t('approvalCenter.outcomeUnknown') }}</span>

@@ -125,7 +125,6 @@ function close() {
               <option value="all">{{ t('approvalCenter.all') }}</option>
               <option value="command">Command</option>
               <option value="plan">Plan</option>
-              <option value="memory">Memory</option>
             </select>
           </label>
           <label class="drawer-filter-field">

@@ -34,17 +34,17 @@ describe('ApprovalCenterCard', () => {
     expect(wrapper.find('.approval-refresh').exists()).toBe(true);
   });
 
-  it('disables high-risk Memory approval without evidence', () => {
-    const memory = {
+  it('keeps high-risk plan approvals actionable when evidence is empty', () => {
+    const plan = {
       ...approval,
-      domain: 'memory',
+      domain: 'plan',
       risk: 'high',
       evidence: [],
-      presentation: { title: 'Memory change' },
+      presentation: { title: 'Plan execution' },
     } as ApprovalView;
-    const wrapper = mount(ApprovalCenterCard, { props: { approval: memory } });
-    expect(wrapper.get('button.allow').attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('approvalCenter.missingEvidence');
+    const wrapper = mount(ApprovalCenterCard, { props: { approval: plan } });
+    expect(wrapper.get('button.allow').attributes('disabled')).toBeUndefined();
+    expect(wrapper.text()).not.toContain('approvalCenter.missingEvidence');
   });
 
   it('refreshes once when the server-side approval TTL reaches zero', async () => {

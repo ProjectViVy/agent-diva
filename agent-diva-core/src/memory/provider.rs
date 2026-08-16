@@ -13,7 +13,6 @@ use crate::memory::actmem::{
 use crate::memory::crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryGetRequest,
     MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest, MemoryUpdateRequest,
-    SectionWriteProposalRequest,
 };
 use crate::memory::working::{
     SessionCheckpointRequest, SessionCheckpointResponse, SessionCheckpointWriteRequest,
@@ -586,18 +585,6 @@ pub trait MemoryProvider: Send + Sync {
         _request: MemoryDistillRequest,
     ) -> crate::Result<MemoryCrudOutcome> {
         Ok(MemoryCrudOutcome::unsupported("memory_distill"))
-    }
-
-    /// Create a reviewable proposal writing a Frozen Core section.
-    ///
-    /// High-risk section writes (identity/relationship/commitment/
-    /// preferences) must create a governed proposal, never apply directly.
-    async fn propose_section_write(
-        &self,
-        _context: &MemoryCrudContext,
-        _request: SectionWriteProposalRequest,
-    ) -> crate::Result<MemoryCrudOutcome> {
-        Ok(MemoryCrudOutcome::unsupported("propose_section_write"))
     }
 
     /// Render the current session's checkpoint block for live-turn

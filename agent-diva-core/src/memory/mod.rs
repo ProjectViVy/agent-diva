@@ -1,6 +1,7 @@
 //! Memory management for long-term storage.
 //!
-//! Handles loading and updating of `MEMORY.md` and `HISTORY.md`.
+//! Production authority is the machine-wide BML MemoryHome. The provider
+//! trait, CRUD requests, ACTMEM, and recall contracts live here.
 
 pub mod actmem;
 pub mod crud;
@@ -16,7 +17,7 @@ pub use actmem::{
 pub use crud::{
     MemoryAddRequest, MemoryCrudContext, MemoryCrudOutcome, MemoryDistillRequest, MemoryEntry,
     MemoryGetRequest, MemoryListRequest, MemoryRemoveRequest, MemorySearchRequest,
-    MemoryUpdateRequest, SectionWriteProposalRequest,
+    MemoryUpdateRequest,
 };
 pub use provider::{
     MemoryProvider, PrefetchRequest, PrefetchResponse, PrefetchStatus, RecallOutcomeRequest,

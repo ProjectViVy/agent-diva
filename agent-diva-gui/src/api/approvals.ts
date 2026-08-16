@@ -1,4 +1,4 @@
-export type ApprovalDomain = 'command' | 'plan' | 'memory';
+export type ApprovalDomain = 'command' | 'plan';
 export type ApprovalStatus = 'pending' | 'allowed' | 'denied' | 'revoked' | 'consumed' | 'expired';
 export type ApprovalReasonCode =
   | 'approval_not_found' | 'approval_version_conflict' | 'approval_idempotency_conflict'
@@ -62,7 +62,7 @@ export interface UnifiedApprovalApiError {
   message?: string;
 }
 
-const domains = new Set(['command', 'plan', 'memory']);
+const domains = new Set(['command', 'plan']);
 const statuses = new Set(['pending', 'allowed', 'denied', 'revoked', 'consumed', 'expired']);
 const reasons = new Set([
   'approval_not_found', 'approval_version_conflict', 'approval_idempotency_conflict',
