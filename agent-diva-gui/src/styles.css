@@ -72,6 +72,31 @@
   --text-faint: rgba(107, 39, 55, 0.6);
   --border-strong: rgba(236, 72, 153, 0.35);
   --overlay: rgba(107, 39, 55, 0.35);
+
+  /* 聊天区令牌（原 .theme-love 覆盖层收敛而来） */
+  --app-shell-border: rgba(255, 182, 193, 0.35);
+  --chat-bg: linear-gradient(160deg, rgba(255, 247, 251, 0.95) 0%, rgba(255, 231, 241, 0.9) 65%, rgba(255, 220, 236, 0.95) 100%);
+  --chat-text: #7a2f3e;
+  --chat-bar-bg: rgba(255, 239, 246, 0.95);
+  --chat-bar-border: rgba(255, 182, 193, 0.5);
+  --chat-input-bg: rgba(255, 255, 255, 0.9);
+  --chat-input-border: rgba(255, 182, 193, 0.6);
+  --chat-avatar-bg: rgba(255, 255, 255, 0.95);
+  --chat-avatar-border: rgba(255, 182, 193, 0.6);
+  --chat-avatar-shadow: 0 2px 8px rgba(236, 72, 153, 0.1);
+  --chat-avatar-shadow-hover: 0 4px 16px rgba(236, 72, 153, 0.25);
+  --chat-avatar-me-bg: rgba(255, 182, 193, 0.5);
+  --chat-avatar-me-border: rgba(255, 182, 193, 0.6);
+  --chat-avatar-me-text: #9b3a4a;
+  --bubble-user-bg: linear-gradient(135deg, #ffd3e1 0%, #ffb4cc 100%);
+  --bubble-user-text: #7a2f3e;
+  --bubble-assistant-bg: rgba(255, 255, 255, 0.98);
+  --bubble-assistant-border: rgba(255, 182, 193, 0.5);
+  --chat-empty-icon-bg: rgba(255, 255, 255, 0.9);
+  --chat-empty-icon-border: rgba(255, 182, 193, 0.6);
+  --chat-empty-text: #b35a6a;
+  --subview-bg: rgba(255, 255, 255, 0.85);
+  --subview-border: rgba(255, 182, 193, 0.4);
 }
 
 /* Dark 主题 */
@@ -128,6 +153,31 @@
   --text-faint: rgba(148, 163, 184, 0.6);
   --border-strong: rgba(96, 165, 250, 0.3);
   --overlay: rgba(2, 6, 23, 0.6);
+
+  /* 聊天区令牌（原 .theme-dark 覆盖层收敛而来） */
+  --app-shell-border: transparent;
+  --chat-bg: #0b1220;
+  --chat-text: #e2e8f0;
+  --chat-bar-bg: rgba(15, 23, 42, 0.95);
+  --chat-bar-border: #1f2937;
+  --chat-input-bg: #0f172a;
+  --chat-input-border: #1f2937;
+  --chat-avatar-bg: #111827;
+  --chat-avatar-border: #1f2937;
+  --chat-avatar-shadow: none;
+  --chat-avatar-shadow-hover: 0 4px 12px rgba(96, 165, 250, 0.3);
+  --chat-avatar-me-bg: #1f2937;
+  --chat-avatar-me-border: transparent;
+  --chat-avatar-me-text: #94a3b8;
+  --bubble-user-bg: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  --bubble-user-text: #0b1220;
+  --bubble-assistant-bg: #111827;
+  --bubble-assistant-border: #1f2937;
+  --chat-empty-icon-bg: #111827;
+  --chat-empty-icon-border: #1f2937;
+  --chat-empty-text: #94a3b8;
+  --subview-bg: var(--panel-solid);
+  --subview-border: var(--line);
 }
 
 /* Default 主题 - 简约粉白配色 */
@@ -184,6 +234,31 @@
   --text-faint: rgba(107, 39, 55, 0.55);
   --border-strong: rgba(236, 72, 153, 0.3);
   --overlay: rgba(107, 39, 55, 0.3);
+
+  /* 聊天区令牌（原 .theme-default 覆盖层收敛而来） */
+  --app-shell-border: rgba(236, 72, 153, 0.15);
+  --chat-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 245, 247, 0.92) 45%, rgba(255, 228, 239, 0.95) 100%);
+  --chat-text: #6b2737;
+  --chat-bar-bg: rgba(255, 255, 255, 0.92);
+  --chat-bar-border: rgba(236, 72, 153, 0.25);
+  --chat-input-bg: rgba(255, 255, 255, 0.95);
+  --chat-input-border: rgba(236, 72, 153, 0.2);
+  --chat-avatar-bg: rgba(255, 255, 255, 0.98);
+  --chat-avatar-border: rgba(236, 72, 153, 0.3);
+  --chat-avatar-shadow: 0 2px 8px rgba(236, 72, 153, 0.08);
+  --chat-avatar-shadow-hover: 0 4px 16px rgba(236, 72, 153, 0.2);
+  --chat-avatar-me-bg: rgba(236, 72, 153, 0.3);
+  --chat-avatar-me-border: rgba(236, 72, 153, 0.3);
+  --chat-avatar-me-text: #9b3a4a;
+  --bubble-user-bg: linear-gradient(135deg, #ffd3e1 0%, #ffb4cc 100%);
+  --bubble-user-text: #6b2737;
+  --bubble-assistant-bg: rgba(255, 255, 255, 0.98);
+  --bubble-assistant-border: rgba(236, 72, 153, 0.25);
+  --chat-empty-icon-bg: rgba(255, 255, 255, 0.95);
+  --chat-empty-icon-border: rgba(236, 72, 153, 0.25);
+  --chat-empty-text: #9b5a6a;
+  --subview-bg: var(--panel-solid);
+  --subview-border: var(--line);
 }
 
 /* Miku 主题 - 初音未来应援色 */
@@ -239,6 +314,34 @@
   --text-faint: rgba(125, 133, 144, 0.6);
   --border-strong: rgba(57, 197, 187, 0.35);
   --overlay: rgba(1, 4, 9, 0.6);
+
+  /* 聊天区令牌（原 .theme-miku 覆盖层收敛而来） */
+  --app-shell-border: rgba(0, 215, 200, 0.15);
+  --chat-bg: #0d1117;
+  --chat-text: #e6edf3;
+  --chat-bar-bg: #161b22;
+  --chat-bar-border: rgba(0, 215, 200, 0.15);
+  --chat-input-bg: #0d1117;
+  --chat-input-border: rgba(0, 215, 200, 0.2);
+  --chat-avatar-bg: #161b22;
+  --chat-avatar-border: rgba(0, 215, 200, 0.2);
+  --chat-avatar-text: #39c5bb;
+  --chat-avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --chat-avatar-shadow-hover: 0 4px 16px rgba(57, 197, 187, 0.3);
+  --chat-avatar-me-bg: rgba(57, 197, 187, 0.25);
+  --chat-avatar-me-border: rgba(0, 215, 200, 0.25);
+  --chat-avatar-me-text: #39c5bb;
+  --bubble-user-bg: linear-gradient(135deg, #1a3a3a 0%, #1a2a2a 100%);
+  --bubble-user-text: #e6edf3;
+  --bubble-user-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --bubble-assistant-bg: #161b22;
+  --bubble-assistant-border: rgba(0, 215, 200, 0.15);
+  --bubble-assistant-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --chat-empty-icon-bg: #161b22;
+  --chat-empty-icon-border: rgba(0, 215, 200, 0.2);
+  --chat-empty-text: #7d8590;
+  --subview-bg: rgba(22, 27, 34, 0.85);
+  --subview-border: rgba(0, 215, 200, 0.15);
 }
 
 /* ========================================
@@ -309,6 +412,7 @@
     transition: grid-template-columns 0.2s ease;
     background: var(--bg-app);
     color: var(--text);
+    border: 1px solid var(--app-shell-border, transparent);
   }
 
   .app-shell.sidebar-expanded {
@@ -975,50 +1079,10 @@
   }
 
   /* ========================================
-     旧版 app-shell 样式（向后兼容）
+     兼容桥（DEPRECATED）：未迁移组件仍直接使用 Tailwind
+     gray/white 工具类，这里按主题重映射。随剩余组件
+     迁移到语义令牌后逐块删除（见 TODOLIST）。
      ======================================== */
-
-  .app-shell-old {
-    background: #f5f5f5;
-    color: #111827;
-  }
-
-  .app-titlebar {
-    background: #f5f5f5;
-    border-color: #e5e7eb;
-    color: #111827;
-  }
-
-  .app-emotion {
-    background: #ffffff;
-    border-color: #e5e7eb;
-  }
-
-  .app-badge {
-    background: #e5e7eb;
-    color: #4b5563;
-  }
-
-  .theme-dark.app-shell {
-    background: #0f172a;
-    color: #e2e8f0;
-  }
-
-  .theme-dark .app-titlebar {
-    background: #0f172a;
-    border-color: #1f2937;
-    color: #e2e8f0;
-  }
-
-  .theme-dark .app-emotion {
-    background: #111827;
-    border-color: #1f2937;
-  }
-
-  .theme-dark .app-badge {
-    background: #1f2937;
-    color: #cbd5f5;
-  }
 
   .theme-dark .text-gray-900,
   .theme-dark .text-gray-800,
@@ -1026,8 +1090,15 @@
   .theme-dark .text-gray-600,
   .theme-dark .text-gray-500,
   .theme-dark .text-gray-400,
-  .theme-dark .text-gray-300 {
-    color: #e2e8f0;
+  .theme-dark .text-gray-300,
+  .theme-miku .text-gray-900,
+  .theme-miku .text-gray-800,
+  .theme-miku .text-gray-700,
+  .theme-miku .text-gray-600,
+  .theme-miku .text-gray-500,
+  .theme-miku .text-gray-400,
+  .theme-miku .text-gray-300 {
+    color: var(--text);
   }
 
   .theme-dark .bg-white,
@@ -1046,26 +1117,20 @@
     border-color: #1f2937;
   }
 
-  .theme-love.app-shell {
-    background: linear-gradient(160deg, #fff5f7 0%, #ffe4ef 60%, #ffd6e8 100%);
-    color: #6b2737;
-    border: 1px solid rgba(255, 182, 193, 0.35);
+  .theme-miku .bg-white,
+  .theme-miku .bg-white\/50,
+  .theme-miku .bg-white\/70,
+  .theme-miku .bg-gray-50,
+  .theme-miku .bg-gray-50\/80,
+  .theme-miku .bg-gray-100,
+  .theme-miku .bg-gray-200 {
+    background-color: #161b22;
   }
 
-  .theme-love .app-titlebar {
-    background: rgba(255, 240, 246, 0.85);
-    border-color: rgba(255, 182, 193, 0.5);
-    color: #6b2737;
-  }
-
-  .theme-love .app-emotion {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(255, 182, 193, 0.6);
-  }
-
-  .theme-love .app-badge {
-    background: rgba(255, 182, 193, 0.4);
-    color: #9b3a4a;
+  .theme-miku .border-gray-50,
+  .theme-miku .border-gray-100,
+  .theme-miku .border-gray-200 {
+    border-color: rgba(0, 215, 200, 0.15);
   }
 
   .theme-love .text-gray-900,
@@ -1074,7 +1139,7 @@
   .theme-love .text-gray-600,
   .theme-love .text-gray-500,
   .theme-love .text-gray-400 {
-    color: #7a2f3e;
+    color: var(--text-muted);
   }
 
   .theme-love .bg-white,
@@ -1084,7 +1149,7 @@
   .theme-love .bg-gray-50\/80,
   .theme-love .bg-gray-100,
   .theme-love .bg-gray-200 {
-    background-color: rgba(255, 240, 246, 0.85);
+    background-color: var(--panel);
   }
 
   .theme-love .border-gray-50,
@@ -1095,8 +1160,8 @@
 
   .chat-shell {
     position: relative;
-    background: #f5f5f5;
-    color: #111827;
+    background: var(--chat-bg);
+    color: var(--chat-text);
   }
 
   .chat-list {
@@ -1104,8 +1169,8 @@
   }
 
   .chat-input-bar {
-    background: rgba(245, 245, 245, 0.95);
-    border-color: #e5e7eb;
+    background: var(--chat-bar-bg);
+    border-color: var(--chat-bar-border);
   }
 
   /* ========================================
@@ -1418,27 +1483,29 @@
   }
 
   .chat-input {
-    background: var(--panel-solid, #ffffff);
-    border: 1px solid var(--line);
-    color: var(--text);
+    background: var(--chat-input-bg);
+    border: 1px solid var(--chat-input-border);
+    color: var(--chat-text);
   }
 
   /* OpenAkita 风格气泡组件 */
   .chat-avatar {
-    background: var(--panel-solid, #ffffff);
-    border: 1px solid var(--line);
-    color: var(--text);
+    background: var(--chat-avatar-bg);
+    border: 1px solid var(--chat-avatar-border);
+    color: var(--chat-avatar-text, var(--chat-text));
+    box-shadow: var(--chat-avatar-shadow, none);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
 
   .chat-avatar:hover {
     transform: scale(1.05);
-    box-shadow: 0 4px 12px var(--accent-glow);
+    box-shadow: var(--chat-avatar-shadow-hover);
   }
 
   .chat-avatar-me {
-    background: var(--line);
-    color: var(--text-muted);
+    background: var(--chat-avatar-me-bg);
+    border: 1px solid var(--chat-avatar-me-border, transparent);
+    color: var(--chat-avatar-me-text);
     font-weight: 600;
     font-size: 11px;
   }
@@ -1460,18 +1527,18 @@
   }
 
   .chat-bubble-user {
-    background: linear-gradient(135deg, #95ec69 0%, #85dc58 100%);
-    color: #111827;
+    background: var(--bubble-user-bg);
+    color: var(--bubble-user-text);
     border-radius: var(--bubble-user-radius);
-    box-shadow: var(--bubble-glow);
+    box-shadow: var(--bubble-user-shadow, var(--bubble-glow));
   }
 
   .chat-bubble-assistant {
-    background: var(--panel-solid, #ffffff);
-    color: var(--text);
-    border: 1px solid var(--line);
+    background: var(--bubble-assistant-bg);
+    color: var(--chat-text);
+    border: 1px solid var(--bubble-assistant-border);
     border-radius: var(--bubble-assistant-radius);
-    box-shadow: var(--bubble-shadow);
+    box-shadow: var(--bubble-assistant-shadow, var(--bubble-shadow));
   }
 
   /* Thinking cards need a stable reading column instead of fit-content sizing. */
@@ -1519,162 +1586,23 @@
   }
 
   .chat-empty-icon {
-    background: var(--panel-solid, #ffffff);
-    border: 2px solid var(--success, #d1fae5);
+    background: var(--chat-empty-icon-bg);
+    border: 2px solid var(--chat-empty-icon-border);
     color: var(--danger);
   }
 
   .chat-empty-text {
-    color: var(--text-muted, #9ca3af);
+    color: var(--chat-empty-text);
   }
 
-  .theme-dark .chat-shell {
-    background: #0b1220;
-    color: #e2e8f0;
-  }
-
-  .theme-dark .chat-input-bar {
-    background: rgba(15, 23, 42, 0.95);
-    border-color: #1f2937;
-  }
-
-  .theme-dark .chat-input {
-    background: #0f172a;
-    border-color: #1f2937;
-    color: #e2e8f0;
-  }
-
-  .theme-dark .chat-avatar {
-    background: #111827;
-    border-color: #1f2937;
-    color: #e2e8f0;
-  }
-
-  .theme-dark .chat-avatar:hover {
-    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
-  }
-
-  .theme-dark .chat-avatar-me {
-    background: #1f2937;
-    color: #94a3b8;
-    font-weight: 600;
-    font-size: 11px;
-  }
-
-  .theme-dark .chat-bubble-user {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-    color: #0b1220;
-    border-radius: var(--bubble-user-radius);
-    box-shadow: var(--bubble-glow);
-  }
-
-  .theme-dark .chat-bubble-assistant {
-    background: #111827;
-    color: #e2e8f0;
-    border: 1px solid #1f2937;
-    border-radius: var(--bubble-assistant-radius);
-    box-shadow: var(--bubble-shadow);
-  }
-
-  .theme-dark .chat-empty-icon {
-    background: #111827;
-    border-color: #1f2937;
-  }
-
-  .theme-dark .chat-empty-text {
-    color: #94a3b8;
-  }
-
-  .theme-love .chat-shell {
-    background: linear-gradient(160deg, rgba(255, 247, 251, 0.95) 0%, rgba(255, 231, 241, 0.9) 65%, rgba(255, 220, 236, 0.95) 100%);
-    color: #7a2f3e;
-  }
-
-  .theme-love .chat-input-bar {
-    background: rgba(255, 239, 246, 0.95);
-    border-color: rgba(255, 182, 193, 0.5);
-  }
-
-  .theme-love .chat-input {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(255, 182, 193, 0.6);
-    color: #7a2f3e;
-  }
-
-  .theme-love .chat-avatar {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(255, 182, 193, 0.6);
-    color: #7a2f3e;
-    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.1);
-  }
-
-  .theme-love .chat-avatar:hover {
-    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.25);
-    transform: scale(1.05);
-  }
-
-  .theme-love .chat-avatar-me {
-    background: rgba(255, 182, 193, 0.5);
-    color: #9b3a4a;
-    font-weight: 600;
-    font-size: 11px;
-    border: 1px solid rgba(255, 182, 193, 0.6);
-  }
-
-  .theme-love .chat-bubble-user {
-    background: linear-gradient(135deg, #ffd3e1 0%, #ffb4cc 100%);
-    color: #7a2f3e;
-    border-radius: var(--bubble-user-radius);
-    box-shadow: var(--bubble-glow);
-  }
-
-  .theme-love .chat-bubble-assistant {
-    background: rgba(255, 255, 255, 0.98);
-    color: #7a2f3e;
-    border: 1px solid rgba(255, 182, 193, 0.5);
-    border-radius: var(--bubble-assistant-radius);
-    box-shadow: var(--bubble-shadow);
-  }
-
-  .theme-love .chat-empty-icon {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(255, 182, 193, 0.6);
-  }
-
-  .theme-love .chat-empty-text {
-    color: #b35a6a;
-  }
-
-  /* Default 主题 - 简约粉白配色 样式覆盖 */
-  .theme-default.app-shell {
-    background: linear-gradient(160deg, #ffffff 0%, #fff5f7 40%, #ffe4ef 100%);
-    color: #6b2737;
-    border: 1px solid rgba(236, 72, 153, 0.15);
-  }
-
-  .theme-default .app-titlebar {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(236, 72, 153, 0.2);
-    color: #6b2737;
-  }
-
-  .theme-default .app-emotion {
-    background: rgba(255, 255, 255, 0.85);
-    border-color: rgba(236, 72, 153, 0.3);
-  }
-
-  .theme-default .app-badge {
-    background: rgba(236, 72, 153, 0.2);
-    color: #9b3a4a;
-  }
-
+  /* Default 主题 - 简约粉白配色 兼容桥 */
   .theme-default .text-gray-900,
   .theme-default .text-gray-800,
   .theme-default .text-gray-700,
   .theme-default .text-gray-600,
   .theme-default .text-gray-500,
   .theme-default .text-gray-400 {
-    color: #6b2737;
+    color: var(--text);
   }
 
   .theme-default .bg-white,
@@ -1684,7 +1612,7 @@
   .theme-default .bg-gray-50\/80,
   .theme-default .bg-gray-100,
   .theme-default .bg-gray-200 {
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: var(--panel);
   }
 
   .theme-default .border-gray-50,
@@ -1693,174 +1621,6 @@
     border-color: rgba(236, 72, 153, 0.25);
   }
 
-  .theme-default .chat-shell {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 245, 247, 0.92) 45%, rgba(255, 228, 239, 0.95) 100%);
-    color: #6b2737;
-  }
-
-  .theme-default .chat-input-bar {
-    background: rgba(255, 255, 255, 0.92);
-    border-color: rgba(236, 72, 153, 0.25);
-  }
-
-  .theme-default .chat-input {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(236, 72, 153, 0.2);
-    color: #6b2737;
-  }
-
-  .theme-default .chat-avatar {
-    background: rgba(255, 255, 255, 0.98);
-    border: 1px solid rgba(236, 72, 153, 0.3);
-    color: #6b2737;
-    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.08);
-  }
-
-  .theme-default .chat-avatar:hover {
-    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.2);
-    transform: scale(1.05);
-  }
-
-  .theme-default .chat-avatar-me {
-    background: rgba(236, 72, 153, 0.3);
-    color: #9b3a4a;
-    font-weight: 600;
-    font-size: 11px;
-    border: 1px solid rgba(236, 72, 153, 0.3);
-  }
-
-  .theme-default .chat-bubble-user {
-    background: linear-gradient(135deg, #ffd3e1 0%, #ffb4cc 100%);
-    color: #6b2737;
-    border-radius: var(--bubble-user-radius);
-    box-shadow: var(--bubble-glow);
-  }
-
-  .theme-default .chat-bubble-assistant {
-    background: rgba(255, 255, 255, 0.98);
-    color: #6b2737;
-    border: 1px solid rgba(236, 72, 153, 0.25);
-    border-radius: var(--bubble-assistant-radius);
-    box-shadow: var(--bubble-shadow);
-  }
-
-  .theme-default .chat-empty-icon {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(236, 72, 153, 0.25);
-  }
-
-  .theme-default .chat-empty-text {
-    color: #9b5a6a;
-  }
-
-  /* Miku 主题 - 初音未来风格覆盖 */
-  .theme-miku.app-shell {
-    background: #0d1117;
-    color: #e6edf3;
-    border: 1px solid rgba(0, 215, 200, 0.15);
-  }
-
-  .theme-miku .app-titlebar {
-    background: #161b22;
-    border-color: rgba(0, 215, 200, 0.15);
-    color: #e6edf3;
-  }
-
-  .theme-miku .app-emotion {
-    background: rgba(22, 27, 34, 0.9);
-    border-color: rgba(0, 215, 200, 0.2);
-  }
-
-  .theme-miku .app-badge {
-    background: rgba(57, 197, 187, 0.2);
-    color: #39c5bb;
-  }
-
-  .theme-miku .text-gray-900,
-  .theme-miku .text-gray-800,
-  .theme-miku .text-gray-700,
-  .theme-miku .text-gray-600,
-  .theme-miku .text-gray-500,
-  .theme-miku .text-gray-400,
-  .theme-miku .text-gray-300 {
-    color: #e6edf3;
-  }
-
-  .theme-miku .bg-white,
-  .theme-miku .bg-white\/50,
-  .theme-miku .bg-white\/70,
-  .theme-miku .bg-gray-50,
-  .theme-miku .bg-gray-50\/80,
-  .theme-miku .bg-gray-100,
-  .theme-miku .bg-gray-200 {
-    background-color: #161b22;
-  }
-
-  .theme-miku .border-gray-50,
-  .theme-miku .border-gray-100,
-  .theme-miku .border-gray-200 {
-    border-color: rgba(0, 215, 200, 0.15);
-  }
-
-  .theme-miku .chat-shell {
-    background: #0d1117;
-    color: #e6edf3;
-  }
-
-  .theme-miku .chat-input-bar {
-    background: #161b22;
-    border-color: rgba(0, 215, 200, 0.15);
-  }
-
-  .theme-miku .chat-input {
-    background: #0d1117;
-    border-color: rgba(0, 215, 200, 0.2);
-    color: #e6edf3;
-  }
-
-  .theme-miku .chat-avatar {
-    background: #161b22;
-    border: 1px solid rgba(0, 215, 200, 0.2);
-    color: #39c5bb;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .theme-miku .chat-avatar:hover {
-    box-shadow: 0 4px 16px rgba(57, 197, 187, 0.3);
-    transform: scale(1.05);
-  }
-
-  .theme-miku .chat-avatar-me {
-    background: rgba(57, 197, 187, 0.25);
-    color: #39c5bb;
-    font-weight: 600;
-    font-size: 11px;
-    border: 1px solid rgba(0, 215, 200, 0.25);
-  }
-
-  .theme-miku .chat-bubble-user {
-    background: linear-gradient(135deg, #1a3a3a 0%, #1a2a2a 100%);
-    color: #e6edf3;
-    border-radius: var(--bubble-user-radius);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .theme-miku .chat-bubble-assistant {
-    background: #161b22;
-    color: #e6edf3;
-    border: 1px solid rgba(0, 215, 200, 0.15);
-    border-radius: var(--bubble-assistant-radius);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .theme-miku .chat-empty-icon {
-    background: #161b22;
-    border-color: rgba(0, 215, 200, 0.2);
-  }
-
-  .theme-miku .chat-empty-text {
-    color: #7d8590;
-  }
   .love-hearts {
     position: absolute;
     inset: 0;
@@ -3882,8 +3642,8 @@
 
 /* 子视图容器 - 主题感知背景 */
 .subview-container {
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
+  background: var(--subview-bg);
+  border: 1px solid var(--subview-border);
   border-radius: var(--radius);
   overflow: hidden;
   min-width: 320px;
@@ -3896,52 +3656,6 @@
 
 /* Cron 视图 - 主题感知 */
 .cron-view {
-  background: transparent;
-}
-
-/* 主题特定的子视图样式 */
-
-/* Dark 主题子视图 */
-.theme-dark .subview-container {
-  background: var(--panel-solid);
-  border-color: var(--line);
-}
-
-.theme-dark .console-view,
-.theme-dark .cron-view {
-  background: transparent;
-}
-
-/* Love 主题子视图 */
-.theme-love .subview-container {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(255, 182, 193, 0.4);
-}
-
-.theme-love .console-view,
-.theme-love .cron-view {
-  background: transparent;
-}
-
-/* Default 主题子视图 */
-.theme-default .subview-container {
-  background: var(--panel-solid);
-  border-color: var(--line);
-}
-
-.theme-default .console-view,
-.theme-default .cron-view {
-  background: transparent;
-}
-
-/* Miku 主题子视图 */
-.theme-miku .subview-container {
-  background: rgba(22, 27, 34, 0.85);
-  border-color: rgba(0, 215, 200, 0.15);
-}
-
-.theme-miku .console-view,
-.theme-miku .cron-view {
   background: transparent;
 }
 
