@@ -261,8 +261,22 @@ const pendingApprovalPlan = ref<PlanRuntimeState | null>(null);
 const pendingApprovalSessionKey = ref<string | null>(null);
 const executingPlan = ref<PlanRuntimeState | null>(null);
 const approvingPlan = ref(false);
+type PlanContinuationContext = {
+  planId: string;
+  revision?: number;
+  executionId?: string | null;
+  sessionKey: string;
+};
+const planContinuationContext = ref<PlanContinuationContext | null>(null);
+const planContinuationError = ref<string | null>(null);
 const locallyDeletedSessionKeys = ref<Set<string>>(new Set());
 const titleGenerationInFlight = ref<Set<string>>(new Set());
+
+const currentPlanContinuationError = computed(() =>
+  planContinuationContext.value?.sessionKey === currentSessionKey.value
+    ? planContinuationError.value
+    : null,
+);
 
 watch(currentSessionKey, () => {
   compactionStatus.value = null;
@@ -390,7 +404,10 @@ function approvalActionMessage(error: unknown): string {
   const typed = unifiedError(error);
   if (typed?.reason_code === 'approval_outcome_unknown') return t('approvalCenter.outcomeUnknown');
   if (typed?.status === 409) return t('approvalCenter.stale');
-  return typed?.message || t('approvalCenter.requestFailed');
+  if (typed?.message) return typed.message;
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  return t('approvalCenter.requestFailed');
 }
 
 async function refreshUnifiedApprovals() {
@@ -449,11 +466,62 @@ function approvalIdempotencyKey(requestId: string, operation: string): string {
   return `gui-${operation}-${requestId}-${random}`;
 }
 
+async function prepareUnifiedPlanApproval(approval: ApprovalView): Promise<PlanApprovalTarget> {
+  if (approval.status !== 'pending') {
+    throw new Error('This plan approval is no longer pending; refresh the approval center.');
+  }
+  const presentationSession = approval.presentation?.session_key;
+  const sessionKey = approval.resource.session_id
+    || (typeof presentationSession === 'string' ? presentationSession.trim() : '');
+  if (!sessionKey) throw new Error('The plan approval has no source session.');
+
+  const rawReports = await invoke<unknown>('get_plan_reports');
+  if (!Array.isArray(rawReports)) throw new Error('Invalid plan report response.');
+  const rawReport = rawReports.find((report) => planReportId(report) === approval.resource.resource_id);
+  if (!rawReport) throw new Error('The approved plan report is no longer available.');
+  const reportSession = planReportSessionKey(rawReport);
+  if (reportSession && reportSession !== sessionKey) {
+    throw new Error('The approval source session no longer matches the plan report.');
+  }
+  const plan = planRuntimeFromReportPayload(rawReport);
+  if (!plan || plan.plan_id !== approval.resource.resource_id) {
+    throw new Error('The approval plan payload is unavailable; refresh and retry.');
+  }
+  if (isTyping.value) throw new Error('Another response is already streaming.');
+  if (currentSessionKey.value !== sessionKey) {
+    const loaded = await loadSession(sessionKey);
+    if (!loaded) throw new Error('The plan source session could not be loaded.');
+  }
+  return { plan, sessionKey };
+}
+
 async function decideUnifiedApproval(payload: { approval: ApprovalView; decision: 'allow' | 'deny'; grant: ApprovalGrant }) {
   const { approval } = payload;
   if (unifiedSubmittingIds.value.includes(approval.request_id)) return;
   unifiedSubmittingIds.value = [...unifiedSubmittingIds.value, approval.request_id];
+  const clearActionError = () => {
+    const errors = { ...unifiedActionErrors.value };
+    delete errors[approval.request_id];
+    unifiedActionErrors.value = errors;
+  };
+  clearActionError();
   try {
+    if (approval.domain === 'plan' && payload.decision === 'allow') {
+      if (payload.grant !== 'once') throw new Error('Plan approvals only support a one-time grant.');
+      const target = await prepareUnifiedPlanApproval(approval);
+      await runPlanApproval(
+        {
+          contextPolicy: 'retain',
+          todoPolicy: 'Optional',
+          materializeTodos: false,
+        },
+        target,
+      );
+      await refreshUnifiedApproval(approval.request_id);
+      approvalDrawerAutoOpened.value = false;
+      approvalCenterOpen.value = false;
+      return;
+    }
     const result = await invoke<ApprovalView>('decide_approval', {
       requestId: approval.request_id,
       payload: {
@@ -474,6 +542,17 @@ async function decideUnifiedApproval(payload: { approval: ApprovalView; decision
     const typed = unifiedError(error);
     if (typed?.reason_code === 'approval_outcome_unknown') {
       unifiedOutcomeUnknownIds.value = [...new Set([...unifiedOutcomeUnknownIds.value, approval.request_id])];
+    }
+    // A plan may already be durably approved when stream startup fails. Fetch
+    // the authoritative state before rendering the recoverable error.
+    if (approval.domain === 'plan' && payload.decision === 'allow') {
+      await refreshUnifiedApproval(approval.request_id);
+      if (planContinuationError.value) {
+        // The consumed approval is filtered out of the pending drawer. Close
+        // it so the source chat's retry affordance remains reachable.
+        approvalDrawerAutoOpened.value = false;
+        approvalCenterOpen.value = false;
+      }
     }
     unifiedActionErrors.value = { ...unifiedActionErrors.value, [approval.request_id]: approvalActionMessage(error) };
     if (typed?.status === 409 || typed?.status === 404) await refreshUnifiedApproval(approval.request_id);
@@ -1150,6 +1229,17 @@ function planReportId(value: unknown): string | null {
   return null;
 }
 
+function planReportSessionKey(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const root = value as Record<string, unknown>;
+  const report = root.report && typeof root.report === 'object'
+    ? root.report as Record<string, unknown>
+    : root;
+  return typeof report.session_key === 'string' && report.session_key.trim()
+    ? report.session_key.trim()
+    : null;
+}
+
 function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null {
   if (!payload || typeof payload !== 'object') return null;
   const root = payload as Record<string, unknown>;
@@ -1231,18 +1321,48 @@ function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null
   };
 }
 
-async function approvePlanExecution(payload: {
-  contextPolicy: 'retain' | 'compact' | 'clear';
-  todoPolicy: 'Never' | 'Optional' | 'Always';
-  materializeTodos: boolean;
-}) {
-  if (approvingPlan.value) return;
+function sessionRoute(sessionKey: string): { channel: string; chatId: string } {
+  const separator = sessionKey.indexOf(':');
+  if (separator > 0 && separator < sessionKey.length - 1) {
+    return {
+      channel: sessionKey.slice(0, separator),
+      chatId: sessionKey.slice(separator + 1),
+    };
+  }
+  return { channel: currentChannel.value, chatId: extractChatId(sessionKey) };
+}
+
+type PlanApprovalTarget = {
+  plan: PlanRuntimeState;
+  sessionKey: string;
+};
+
+async function runPlanApproval(
+  payload: {
+    contextPolicy: 'retain' | 'compact' | 'clear';
+    todoPolicy: 'Never' | 'Optional' | 'Always';
+    materializeTodos: boolean;
+  },
+  target?: PlanApprovalTarget,
+): Promise<PlanRuntimeState> {
+  if (approvingPlan.value) throw new Error('Another plan approval is already processing.');
+  if (isTyping.value) throw new Error('Another response is already streaming.');
   approvingPlan.value = true;
   try {
-    const pending = pendingApprovalPlan.value;
-    if (pending?.revision == null) throw new Error('Plan revision is unavailable; refresh before approving.');
+    const pending = target?.plan ?? pendingApprovalPlan.value;
+    const sessionKey = target?.sessionKey
+      || pendingApprovalSessionKey.value
+      || currentSessionKey.value;
+    if (!pending) throw new Error('No pending plan approval is available.');
+    if (pending.revision == null) {
+      throw new Error('Plan revision is unavailable; refresh before approving.');
+    }
+    if (target) {
+      pendingApprovalSessionKey.value = sessionKey;
+      syncPlanRuntime(pending);
+    }
     const result = await approveActivePlanExecution({
-      session_key: pendingApprovalSessionKey.value || currentSessionKey.value,
+      session_key: sessionKey,
       plan_id: pending.plan_id,
       expected_revision: pending.revision,
       markdown: pending.markdown || pending.summary || '',
@@ -1262,12 +1382,43 @@ async function approvePlanExecution(payload: {
     if (!isExecutingPhase(approved)) {
       throw new Error('Approval did not return an executing backend state; refresh and retry.');
     }
-    await continueApprovedPlanExecution(
-      approved.plan_id,
-      approved.revision ?? pending.revision,
-      approved.execution_id ?? undefined,
-    );
+
+    // The backend approval is durable before the stream starts. Reflect that
+    // authority immediately so a stream-start failure cannot resurrect a
+    // stale pending card.
     syncPlanRuntime({ ...approved, initialization_status: 'Ready' });
+    planContinuationContext.value = {
+      planId: approved.plan_id,
+      revision: approved.revision ?? pending.revision,
+      executionId: approved.execution_id ?? null,
+      sessionKey,
+    };
+    planContinuationError.value = null;
+    try {
+      await continueApprovedPlanExecution(
+        approved.plan_id,
+        approved.revision ?? pending.revision,
+        approved.execution_id ?? undefined,
+        sessionKey,
+      );
+    } catch (error) {
+      planContinuationError.value = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+    return { ...approved, initialization_status: 'Ready' };
+  } finally {
+    approvingPlan.value = false;
+  }
+}
+
+async function approvePlanExecution(payload: {
+  contextPolicy: 'retain' | 'compact' | 'clear';
+  todoPolicy: 'Never' | 'Optional' | 'Always';
+  materializeTodos: boolean;
+}) {
+  if (approvingPlan.value) return;
+  try {
+    await runPlanApproval(payload);
   } catch (error) {
     messages.value.push({
       id: generateMessageId(),
@@ -1275,8 +1426,6 @@ async function approvePlanExecution(payload: {
       content: `${t('app.errorPrefix')}${error}`,
       timestamp: Date.now(),
     });
-  } finally {
-    approvingPlan.value = false;
   }
 }
 
@@ -1284,6 +1433,7 @@ async function continueApprovedPlanExecution(
   planId?: string,
   revision?: number,
   executionId?: string,
+  targetSessionKey = currentSessionKey.value,
 ) {
   if (isTyping.value) {
     throw new Error('Another response is already streaming.');
@@ -1307,9 +1457,10 @@ async function continueApprovedPlanExecution(
   });
 
   try {
+    const route = sessionRoute(targetSessionKey);
     await invoke('continue_approved_plan_execution', {
-      channel: currentChannel.value,
-      chatId: currentChatId.value,
+      channel: route.channel,
+      chatId: route.chatId,
       streamRequestId,
       planId,
       revision,
@@ -1320,6 +1471,31 @@ async function continueApprovedPlanExecution(
     removeStreamingAssistantPlaceholder();
     isTyping.value = false;
     throw error;
+  }
+}
+
+async function resumePlanExecution() {
+  const context = planContinuationContext.value;
+  if (!context || !planContinuationError.value || approvingPlan.value || isTyping.value) return;
+  approvingPlan.value = true;
+  planContinuationError.value = null;
+  try {
+    await continueApprovedPlanExecution(
+      context.planId,
+      context.revision,
+      context.executionId ?? undefined,
+      context.sessionKey,
+    );
+  } catch (error) {
+    planContinuationError.value = error instanceof Error ? error.message : String(error);
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `${t('app.errorPrefix')}${error}`,
+      timestamp: Date.now(),
+    });
+  } finally {
+    approvingPlan.value = false;
   }
 }
 
@@ -2505,6 +2681,7 @@ onUnmounted(() => {
       :pending-approval-plan="pendingApprovalPlan"
       :executing-plan="executingPlan"
       :approving-plan="approvingPlan"
+      :plan-execution-error="currentPlanContinuationError"
       :approval-center-open="approvalCenterOpen"
       :approval-pending-count="approvalPendingCount"
       :ask-user-questions="pendingQuestions"
@@ -2514,6 +2691,7 @@ onUnmounted(() => {
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
+      @resume-plan="resumePlanExecution"
       @revoke-plan="revokePlanExecution"
       @refresh-plan="restoreActivePlanRuntime"
       @refresh-sessions="refreshSessions"

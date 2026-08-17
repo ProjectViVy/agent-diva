@@ -101,6 +101,35 @@ describe('ChatView streaming states', () => {
     expect(wrapper.emitted('update:approval-center-open')?.[0]).toEqual([true]);
   });
 
+  it('keeps an approved plan recoverable when stream startup fails', async () => {
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+        approvingPlan: false,
+        planExecutionError: 'stream startup failed',
+        activePlanRuntime: {
+          plan_id: 'plan-1',
+          revision: 1,
+          title: 'Plan 1',
+          goal: 'Ship it',
+          phase: 'Execute',
+          status: 'Approved',
+          strategy: '# Plan',
+          summary: '# Plan',
+          steps: [],
+          todos: [],
+          created_at: '2026-08-18T00:00:00Z',
+          updated_at: '2026-08-18T00:00:00Z',
+        },
+      },
+    });
+
+    expect(wrapper.find('.active-plan-execution-error').text()).toContain('stream startup failed');
+    await wrapper.get('.active-plan-execution-error button').trigger('click');
+    expect(wrapper.emitted('resume-plan')).toHaveLength(1);
+  });
+
   it('keeps the thinking status separate from its loading dots', () => {
     const wrapper = mountChat([
       {

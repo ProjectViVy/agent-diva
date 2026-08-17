@@ -200,6 +200,7 @@ const props = defineProps<{
   pendingApprovalPlan?: PlanRuntimeState | null;
   executingPlan?: PlanRuntimeState | null;
   approvingPlan?: boolean;
+  planExecutionError?: string | null;
   approvalCenterOpen?: boolean;
   approvalPendingCount?: number;
   askUserQuestions?: AskUserQuestionView[];
@@ -209,6 +210,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask', permissionMode?: 'cautious' | 'smart' | 'trusted'): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
+  (e: 'resume-plan'): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
   (e: 'refresh-sessions'): void;
@@ -1194,6 +1196,16 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       v-if="activePlanRuntime && !approvalPlan"
       class="active-plan-todo-panel"
     >
+      <div v-if="planExecutionError" class="active-plan-execution-error" role="alert">
+        <span>{{ planExecutionError }}</span>
+        <button
+          type="button"
+          :disabled="approvingPlan || isTyping"
+          @click.stop="emit('resume-plan')"
+        >
+          {{ approvingPlan ? '正在重试...' : '继续执行' }}
+        </button>
+      </div>
       <div class="active-plan-todo-bar" role="button" tabindex="0" @click="openPlanTasks" @keydown.enter="openPlanTasks">
         <ClipboardList :size="16" class="active-plan-todo-icon" />
         <div class="active-plan-todo-content">
@@ -1574,6 +1586,10 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 .active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 16px 8px; }
 .active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
+.active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: 12px; line-height: 1.4; }
+.active-plan-execution-error span { min-width: 0; overflow-wrap: anywhere; }
+.active-plan-execution-error button { flex: 0 0 auto; border: 1px solid #b91c1c; border-radius: 7px; padding: 5px 9px; color: #fff; background: #b91c1c; font-size: 11px; font-weight: 700; cursor: pointer; }
+.active-plan-execution-error button:disabled { cursor: not-allowed; opacity: .6; }
 .active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
 .active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
 .active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: #92400e; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }

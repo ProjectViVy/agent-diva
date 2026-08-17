@@ -180,17 +180,6 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
         <span>{{ t('approvalCenter.cancel') }}</span>
       </button>
     </div>
-    <div v-else-if="view.status === 'allowed' && can('apply')" class="approval-actions">
-      <button
-        type="button"
-        class="allow"
-        :disabled="submitting || outcomeUnknown"
-        @click="emit('edit', view)"
-      >
-        <ShieldCheck :size="16" />
-        <span>{{ t('approvalCenter.applyAtSource') }}</span>
-      </button>
-    </div>
     <button
       v-if="outcomeUnknown || error"
       type="button"
