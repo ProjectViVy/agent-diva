@@ -1,8 +1,9 @@
 use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
 use agent_diva_core::config::schema::{
-    ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, MatrixConfig,
-    QQConfig, SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
+    ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, IrcConfig,
+    MatrixConfig, MattermostConfig, NeuroLinkConfig, NextcloudTalkConfig, QQConfig,
+    SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
 };
 use agent_diva_providers::{
     build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
@@ -529,7 +530,11 @@ impl Manager {
             "slack" => set_channel(&mut config.channels.slack, update)?,
             "qq" => set_channel(&mut config.channels.qq, update)?,
             "matrix" => set_channel(&mut config.channels.matrix, update)?,
-            _ => warn!("Unknown channel: {}", name),
+            "neuro-link" => set_channel(&mut config.channels.neuro_link, update)?,
+            "irc" => set_channel(&mut config.channels.irc, update)?,
+            "mattermost" => set_channel(&mut config.channels.mattermost, update)?,
+            "nextcloud_talk" => set_channel(&mut config.channels.nextcloud_talk, update)?,
+            _ => anyhow::bail!("Unknown channel: {}", name),
         }
         Ok(())
     }
@@ -661,6 +666,10 @@ impl_channel_toggle!(
     SlackConfig,
     QQConfig,
     MatrixConfig,
+    NeuroLinkConfig,
+    IrcConfig,
+    MattermostConfig,
+    NextcloudTalkConfig,
 );
 
 #[cfg(test)]
@@ -786,5 +795,86 @@ mod tests {
         ));
 
         handle.await.unwrap();
+    }
+
+    fn channel_update(
+        name: &str,
+        enabled: Option<bool>,
+        config: serde_json::Value,
+    ) -> ChannelUpdate {
+        ChannelUpdate {
+            name: name.to_string(),
+            enabled,
+            config,
+        }
+    }
+
+    #[test]
+    fn apply_channel_update_routes_newly_supported_channels() {
+        let mut config = Config::default();
+
+        Manager::apply_channel_update(
+            &mut config,
+            &channel_update(
+                "neuro-link",
+                Some(true),
+                serde_json::json!({ "host": "127.0.0.1", "port": 9123 }),
+            ),
+        )
+        .expect("neuro-link update should apply");
+        assert!(config.channels.neuro_link.enabled);
+        assert_eq!(config.channels.neuro_link.host, "127.0.0.1");
+        assert_eq!(config.channels.neuro_link.port, 9123);
+
+        Manager::apply_channel_update(
+            &mut config,
+            &channel_update(
+                "irc",
+                Some(true),
+                serde_json::json!({ "server": "irc.example.com", "nickname": "diva", "channels": ["#a"] }),
+            ),
+        )
+        .expect("irc update should apply");
+        assert!(config.channels.irc.enabled);
+        assert_eq!(config.channels.irc.server, "irc.example.com");
+        assert_eq!(config.channels.irc.channels, vec!["#a".to_string()]);
+
+        Manager::apply_channel_update(
+            &mut config,
+            &channel_update(
+                "mattermost",
+                Some(true),
+                serde_json::json!({ "base_url": "https://mm.example.com", "bot_token": "tok" }),
+            ),
+        )
+        .expect("mattermost update should apply");
+        assert!(config.channels.mattermost.enabled);
+        assert_eq!(
+            config.channels.mattermost.base_url,
+            "https://mm.example.com"
+        );
+
+        Manager::apply_channel_update(
+            &mut config,
+            &channel_update(
+                "nextcloud_talk",
+                Some(false),
+                serde_json::json!({ "base_url": "https://nc.example.com", "room_token": "room" }),
+            ),
+        )
+        .expect("nextcloud_talk update should apply");
+        assert!(!config.channels.nextcloud_talk.enabled);
+        assert_eq!(config.channels.nextcloud_talk.room_token, "room");
+    }
+
+    #[test]
+    fn apply_channel_update_rejects_unknown_channel() {
+        let mut config = Config::default();
+        let result = Manager::apply_channel_update(
+            &mut config,
+            &channel_update("carrier-pigeon", Some(true), serde_json::json!({})),
+        );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("carrier-pigeon"));
     }
 }

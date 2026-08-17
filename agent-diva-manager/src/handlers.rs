@@ -58,6 +58,7 @@ pub use provider_companion::{
 use agent_diva_agent::AgentEvent;
 use agent_diva_core::bus::{AgentBusEvent, InboundMessage};
 use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
+use agent_diva_core::config::ConfigLoader;
 use axum::{
     extract::{Multipart, Path, Query, State},
     response::sse::{Event, Sse},
@@ -754,13 +755,26 @@ pub async fn get_channels_handler(State(state): State<AppState>) -> Json<Channel
     let (tx, rx) = oneshot::channel();
     if let Err(e) = state.api_tx.send(ManagerCommand::GetChannels(tx)).await {
         tracing::error!("Failed to send GetChannels request: {}", e);
-        return Json(ChannelsConfig::default());
+        return Json(channels_from_disk_fallback(&state));
     }
     match rx.await {
         Ok(config) => Json(config),
         Err(e) => {
             tracing::error!("Failed to receive GetChannels response: {}", e);
-            Json(ChannelsConfig::default())
+            Json(channels_from_disk_fallback(&state))
+        }
+    }
+}
+
+fn channels_from_disk_fallback(state: &AppState) -> ChannelsConfig {
+    match ConfigLoader::with_dir(&state.config_dir).load() {
+        Ok(config) => {
+            tracing::warn!("Runtime unavailable; serving channels from config file");
+            config.channels
+        }
+        Err(e) => {
+            tracing::warn!("Failed to load channels from config file: {}", e);
+            ChannelsConfig::default()
         }
     }
 }
