@@ -140,6 +140,11 @@ search-before-mount、artifact 隔离校验、Recall 顺序与 Drop 语义。保
 - deletion-proof 和闭环测试覆盖 search → 下一次 call 直接执行、授权不可绕过、容量回收、
   重试幂等、工具组中断恢复和旧符号消失。
 
+基础 BML CRUD 是 CORE 的显式可靠性例外：`memory_add`、`memory_update`、
+`memory_remove` 与既有 `memory_search`、`memory_get` 常驻 schema；`memory_list`、
+`memory_distill` 和 ACTMEM 管理工具仍使用上述 task-local DEFERRED 合同。模型发起的
+BML 写在每个用户 turn 先完成一次零写入 MEMRULES 预检，下一次 provider call 才执行。
+
 ## 6. 验收指标
 
 - 正确性：cache 完全禁用时，会话行为、恢复与工具配对仍一致。

@@ -191,11 +191,11 @@ v1 **无** STM→BML 自动晋升。`memory_add` 不得从 ACTMEM 整理器隐�
 - `actmem_list_capsules`：目录。
 - `actmem_read_capsule`：读一颗胶囊。
 
-禁止：常驻一串 BML 式 CRUD；禁止工具写 Pulse/Recap。  
+禁止：把 ACTMEM 管理面扩成常驻 BML 式 CRUD；禁止工具写 Pulse/Recap。
 `actmem_list_capsules` / `actmem_read_capsule` 只留 DEFER；CORE `actmem` 已能按参数读目录/胶囊时，不要再双挂两套更宽接口。  
-BML 工具：`memory_add` / `memory_update` / `memory_remove` / `memory_search` / `memory_list` / `memory_get` 保持直写语义，**移出「要审批」文案**。哪些进 CORE、哪些 DEFER：v1 检索类可 CORE（`memory_search`、`memory_get`），变更类 DEFER（add/update/remove），避免再撑前缀。`memory_list` DEFER。
+BML 工具：`memory_add` / `memory_update` / `memory_remove` / `memory_search` / `memory_list` / `memory_get` 保持直写语义，**移出「要审批」文案**。基础 CRUD 的 `memory_add` / `memory_update` / `memory_remove` / `memory_search` / `memory_get` 进入 CORE，避免模型沿用历史工具认知时在新 turn 首次写入得到 `tool_unavailable`；`memory_list` 继续 DEFER。
 
-（若现网已经把 memory_* 全放 CORE：D2 合同以本段为准，实施时往 DEFER 收，不作为「先加再删」的许可。）
+CORE 写工具仍受 Plan、只读、subagent 与 builtin gate 约束。每个用户 turn 的第一次模型写调用只做 MEMRULES 预检、零写入；全文进入同轮 tool result 后，下一次 provider call 重试才允许真正写入。
 
 ---
 

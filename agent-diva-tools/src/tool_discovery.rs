@@ -1,5 +1,5 @@
 //! CORE tools for deterministic search and task-local activation of deferred
-//! MCP/custom tools.
+//! tools.
 
 use agent_diva_tooling::{DeferredToolActivationHandle, Tool, ToolError};
 use async_trait::async_trait;
@@ -23,7 +23,7 @@ impl Tool for ToolSearchTool {
     }
 
     fn description(&self) -> &str {
-        "Search authorized deferred MCP and custom tools by name, description, and schema keywords."
+        "Search all currently authorized deferred tools by name, description, and schema keywords; returned tools are activated for the next model call."
     }
 
     fn parameters(&self) -> Value {

@@ -415,13 +415,12 @@ impl ToolAssembly {
                         provider.clone(),
                     )));
                     if !action_restricted {
-                        registry.register_in_partition(
-                            Arc::new(agent_diva_tools::MemoryAddTool::with_provider(
+                        registry.register(Arc::new(
+                            agent_diva_tools::MemoryAddTool::with_provider(
                                 provider.clone(),
                                 workspace.clone(),
-                            )),
-                            ToolSchemaPartition::Deferred,
-                        );
+                            ),
+                        ));
                         registry.register_in_partition(
                             Arc::new(agent_diva_tools::MemoryListTool::with_provider(
                                 provider.clone(),
@@ -429,20 +428,18 @@ impl ToolAssembly {
                             )),
                             ToolSchemaPartition::Deferred,
                         );
-                        registry.register_in_partition(
-                            Arc::new(agent_diva_tools::MemoryUpdateTool::with_provider(
+                        registry.register(Arc::new(
+                            agent_diva_tools::MemoryUpdateTool::with_provider(
                                 provider.clone(),
                                 workspace.clone(),
-                            )),
-                            ToolSchemaPartition::Deferred,
-                        );
-                        registry.register_in_partition(
-                            Arc::new(agent_diva_tools::MemoryRemoveTool::with_provider(
+                            ),
+                        ));
+                        registry.register(Arc::new(
+                            agent_diva_tools::MemoryRemoveTool::with_provider(
                                 provider.clone(),
                                 workspace,
-                            )),
-                            ToolSchemaPartition::Deferred,
-                        );
+                            ),
+                        ));
                         registry.register_in_partition(
                             Arc::new(agent_diva_tools::ActmemEditWorkTool::with_provider(
                                 provider.clone(),
@@ -470,9 +467,13 @@ impl ToolAssembly {
                     if !action_restricted {
                         for tool in [
                             Arc::new(agent_diva_tools::MemoryAddTool::new()) as Arc<dyn Tool>,
-                            Arc::new(agent_diva_tools::MemoryListTool::new()),
                             Arc::new(agent_diva_tools::MemoryUpdateTool::new()),
                             Arc::new(agent_diva_tools::MemoryRemoveTool::new()),
+                        ] {
+                            registry.register(tool);
+                        }
+                        for tool in [
+                            Arc::new(agent_diva_tools::MemoryListTool::new()) as Arc<dyn Tool>,
                             Arc::new(agent_diva_tools::ActmemEditWorkTool::new()),
                             Arc::new(agent_diva_tools::ActmemCompleteTool::new()),
                             Arc::new(agent_diva_tools::ActmemDropTool::new()),
@@ -889,7 +890,14 @@ mod tests {
             .iter()
             .filter_map(|definition| definition["function"]["name"].as_str().map(str::to_string))
             .collect::<Vec<_>>();
-        for name in ["memory_search", "memory_get", "actmem"] {
+        for name in [
+            "memory_add",
+            "memory_search",
+            "memory_get",
+            "memory_update",
+            "memory_remove",
+            "actmem",
+        ] {
             assert!(
                 core_names.iter().any(|candidate| candidate == name),
                 "{name}"
@@ -901,10 +909,7 @@ mod tests {
             .map(|tool| tool.name().to_string())
             .collect::<Vec<_>>();
         for name in [
-            "memory_add",
             "memory_list",
-            "memory_update",
-            "memory_remove",
             "actmem_edit_work",
             "actmem_complete",
             "actmem_drop",
@@ -1016,10 +1021,6 @@ mod tests {
                 "{name} should be registered (unavailable) even without a provider"
             );
         }
-        registry
-            .execute("tool_search", serde_json::json!({"query": "memory_add"}))
-            .await
-            .unwrap();
         let result = registry
             .execute("memory_add", serde_json::json!({"content": "x"}))
             .await

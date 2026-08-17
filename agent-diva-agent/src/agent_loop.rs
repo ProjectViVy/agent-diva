@@ -1262,30 +1262,29 @@ mod tests {
                 *calls += 1;
                 index
             };
-            let response = if index == 0 {
-                LLMResponse {
+            let response = match index % 3 {
+                0 | 1 => LLMResponse {
                     content: None,
                     tool_calls: vec![ToolCallRequest {
-                        id: "memory-discovery".into(),
+                        id: format!("memory-add-{index}"),
                         call_type: "function".into(),
-                        name: "tool_search".into(),
+                        name: "memory_add".into(),
                         arguments: HashMap::from([(
-                            "query".into(),
-                            serde_json::Value::String("memory_add".into()),
+                            "content".into(),
+                            serde_json::Value::String("remember this".into()),
                         )]),
                     }],
                     finish_reason: "tool_calls".into(),
                     usage: HashMap::new(),
                     reasoning_content: None,
-                }
-            } else {
-                LLMResponse {
+                },
+                _ => LLMResponse {
                     content: Some("done".into()),
                     tool_calls: Vec::new(),
                     finish_reason: "stop".into(),
                     usage: HashMap::new(),
                     reasoning_content: None,
-                }
+                },
             };
             Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
                 response,
@@ -2272,8 +2271,10 @@ mod tests {
         pulse_count: AtomicUsize,
         recap_count: AtomicUsize,
         fold_count: AtomicUsize,
+        memory_add_count: AtomicUsize,
         prefetch_failure_reason: Option<String>,
         sync_failure_reason: Option<String>,
+        memory_rules_failure_reason: Option<String>,
     }
 
     impl TrackingMemoryProvider {
@@ -2288,8 +2289,10 @@ mod tests {
                 pulse_count: AtomicUsize::new(0),
                 recap_count: AtomicUsize::new(0),
                 fold_count: AtomicUsize::new(0),
+                memory_add_count: AtomicUsize::new(0),
                 prefetch_failure_reason: None,
                 sync_failure_reason: None,
+                memory_rules_failure_reason: None,
             }
         }
 
@@ -2306,6 +2309,13 @@ mod tests {
                 ..Self::new()
             }
         }
+
+        fn with_memory_rules_failure(reason: impl Into<String>) -> Self {
+            Self {
+                memory_rules_failure_reason: Some(reason.into()),
+                ..Self::new()
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -2319,6 +2329,18 @@ mod tests {
                 shape: agent_diva_core::memory::StartupInjectionShape::CompactRenderedMarkdown,
                 markdown: "## Tracking Provider Startup\nTest continuity injected.".to_string(),
             }))
+        }
+
+        async fn memory_add(
+            &self,
+            _context: &agent_diva_core::memory::MemoryCrudContext,
+            _request: agent_diva_core::memory::MemoryAddRequest,
+        ) -> agent_diva_core::Result<agent_diva_core::memory::MemoryCrudOutcome> {
+            self.memory_add_count.fetch_add(1, Ordering::SeqCst);
+            Ok(agent_diva_core::memory::MemoryCrudOutcome::Applied {
+                entry: None,
+                evidence_advisory: None,
+            })
         }
 
         async fn prefetch(
@@ -2405,6 +2427,9 @@ mod tests {
         async fn memory_rules(
             &self,
         ) -> agent_diva_core::Result<agent_diva_core::memory::MemoryRulesResponse> {
+            if let Some(reason) = &self.memory_rules_failure_reason {
+                return Err(agent_diva_core::Error::Internal(reason.clone()));
+            }
             Ok(agent_diva_core::memory::MemoryRulesResponse {
                 content: "# MEMRULES\nR4: direct revision-checked writes".into(),
                 source: "default".into(),
@@ -2432,7 +2457,7 @@ mod tests {
             ToolConfig::default(),
             None,
             file_manager,
-            Some(memory_provider),
+            Some(memory_provider.clone()),
         )
         .await
         .unwrap()
@@ -3474,7 +3499,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn memory_write_activation_injects_full_memrules_before_the_next_model_call() {
+    async fn core_memory_write_preflights_rules_before_execution() {
         let bus = MessageBus::new();
         let provider = Arc::new(MemoryActivationProvider::default());
         let memory_provider = Arc::new(TrackingMemoryProvider::new());
@@ -3491,11 +3516,11 @@ mod tests {
             provider.clone(),
             temp_dir.path().to_path_buf(),
             None,
-            Some(3),
+            Some(4),
             ToolConfig::default(),
             None,
             file_manager,
-            Some(memory_provider),
+            Some(memory_provider.clone()),
         )
         .await
         .unwrap();
@@ -3505,8 +3530,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, "done");
+        assert_eq!(memory_provider.memory_add_count.load(Ordering::SeqCst), 1);
         let calls = provider.captured_messages.lock().unwrap();
-        assert!(calls.len() >= 2);
+        assert!(calls.len() >= 3);
         let second_call = calls[1]
             .iter()
             .map(|message| message.content.to_text_lossy())
@@ -3514,5 +3540,70 @@ mod tests {
             .join("\n");
         assert!(second_call.contains("<memory-write-rules source=\"default\">"));
         assert!(second_call.contains("R4: direct revision-checked writes"));
+        assert!(second_call.contains("\"status\":\"rules_required\""));
+        let third_call = calls[2]
+            .iter()
+            .map(|message| message.content.to_text_lossy())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(third_call.contains("\"status\":\"applied\""));
+
+        drop(calls);
+        let second_result = agent
+            .process_direct("remember another", "ignored", "gui", "rules-chat")
+            .await
+            .unwrap();
+        assert_eq!(second_result, "done");
+        assert_eq!(memory_provider.memory_add_count.load(Ordering::SeqCst), 2);
+        let calls = provider.captured_messages.lock().unwrap();
+        assert!(calls[4]
+            .iter()
+            .map(|message| message.content.to_text_lossy())
+            .collect::<Vec<_>>()
+            .join("\n")
+            .contains("<memory-write-rules source=\"default\">"));
+    }
+
+    #[tokio::test]
+    async fn core_memory_write_fails_closed_when_rules_are_unavailable() {
+        let provider = Arc::new(MemoryActivationProvider::default());
+        let memory_provider = Arc::new(TrackingMemoryProvider::with_memory_rules_failure(
+            "rules offline",
+        ));
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_manager = Arc::new(
+            agent_diva_files::FileManager::new(agent_diva_files::FileConfig::with_path(
+                temp_dir.path().join("files"),
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut agent = AgentLoop::with_tools_and_memory_provider(
+            MessageBus::new(),
+            provider.clone(),
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(4),
+            ToolConfig::default(),
+            None,
+            file_manager,
+            Some(memory_provider.clone()),
+        )
+        .await
+        .unwrap();
+
+        let result = agent
+            .process_direct("remember this", "ignored", "gui", "rules-failure-chat")
+            .await
+            .unwrap();
+        assert_eq!(result, "done");
+        assert_eq!(memory_provider.memory_add_count.load(Ordering::SeqCst), 0);
+        let calls = provider.captured_messages.lock().unwrap();
+        assert!(calls[1]
+            .iter()
+            .map(|message| message.content.to_text_lossy())
+            .collect::<Vec<_>>()
+            .join("\n")
+            .contains("memory_rules_unavailable"));
     }
 }

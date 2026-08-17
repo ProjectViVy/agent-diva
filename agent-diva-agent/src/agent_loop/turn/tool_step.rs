@@ -172,6 +172,23 @@ impl ToolStepResult {
             is_error: true,
         }
     }
+
+    fn memory_rules_required(tool_name: &str, rules: Option<(&str, &str)>) -> Self {
+        let mut output = serde_json::json!({
+            "status": "rules_required",
+            "tool": tool_name,
+            "retry_required": true,
+            "message": "No write was performed. Review the Memory write rules and retry the intended operation in the next model call. Do not claim the write was applied until the retry returns applied."
+        })
+        .to_string();
+        if let Some((source, content)) = rules {
+            append_memory_rules(&mut output, source, content);
+        }
+        Self {
+            output,
+            is_error: false,
+        }
+    }
 }
 
 impl AgentLoop {
@@ -240,21 +257,47 @@ impl AgentLoop {
             event,
         );
 
+        let mut force_inline_memory_rules = false;
         let (mut raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
             Ok(arguments) => {
-                let result = policy
-                    .execute(
-                        &tool_call.name,
-                        &arguments,
-                        ToolExecutionContext {
-                            registry: &self.tools,
-                            channel: &context.message.channel,
-                            chat_id: &context.message.chat_id,
-                            session_key: context.session_key,
-                            cron_trigger: turn_snapshot.scheduled,
-                        },
-                    )
-                    .await;
+                let result = if let Some(error) = policy.denial_reason(&tool_call.name) {
+                    ToolStepResult::error(error)
+                } else if is_memory_write_tool(&tool_call.name)
+                    && registry_exposes_tool(&self.tools, &tool_call.name)
+                    && !turn_snapshot.memory_rules_visible(context.iteration)
+                {
+                    if turn_snapshot.memory_rules_injected_iteration().is_some() {
+                        ToolStepResult::memory_rules_required(&tool_call.name, None)
+                    } else {
+                        match self.memory_provider.memory_rules().await {
+                            Ok(rules) => {
+                                turn_snapshot.note_memory_rules_injected(context.iteration);
+                                force_inline_memory_rules = true;
+                                ToolStepResult::memory_rules_required(
+                                    &tool_call.name,
+                                    Some((&rules.source, &rules.content)),
+                                )
+                            }
+                            Err(error) => ToolStepResult::error(format!(
+                                "memory_rules_unavailable: failed to load Memory write rules: {error}"
+                            )),
+                        }
+                    }
+                } else {
+                    policy
+                        .execute(
+                            &tool_call.name,
+                            &arguments,
+                            ToolExecutionContext {
+                                registry: &self.tools,
+                                channel: &context.message.channel,
+                                chat_id: &context.message.chat_id,
+                                session_key: context.session_key,
+                                cron_trigger: turn_snapshot.scheduled,
+                            },
+                        )
+                        .await
+                };
                 (result.output, result.is_error)
             }
             Err(error) => {
@@ -275,18 +318,16 @@ impl AgentLoop {
         if !is_error && tool_call.name == "tool_search" && activates_memory_write(&raw_result) {
             match self.memory_provider.memory_rules().await {
                 Ok(rules) => {
-                    raw_result.push_str("\n\n<memory-write-rules source=\"");
-                    raw_result.push_str(&rules.source);
-                    raw_result.push_str("\">\n");
-                    raw_result.push_str(&rules.content);
-                    raw_result.push_str("\n</memory-write-rules>");
+                    append_memory_rules(&mut raw_result, &rules.source, &rules.content);
+                    turn_snapshot.note_memory_rules_injected(context.iteration);
+                    force_inline_memory_rules = true;
                 }
                 Err(error) => warn!(%error, "failed to attach MEMRULES to tool activation"),
             }
         }
 
-        let canonical_result = if is_error {
-            agent_diva_core::tool_artifact::CanonicalToolResult::inline(raw_result, true)
+        let canonical_result = if is_error || force_inline_memory_rules {
+            agent_diva_core::tool_artifact::CanonicalToolResult::inline(raw_result, is_error)
         } else {
             crate::tool_results::canonicalize_tool_result(
                 &self.workspace,
@@ -452,6 +493,36 @@ fn activates_memory_write(result: &str) -> bool {
     ]
     .iter()
     .any(|name| result.contains(name))
+}
+
+fn is_memory_write_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "memory_add"
+            | "memory_update"
+            | "memory_remove"
+            | "memory_distill"
+            | "actmem_edit_work"
+            | "actmem_complete"
+            | "actmem_drop"
+            | "session_checkpoint"
+    )
+}
+
+fn registry_exposes_tool(registry: &ToolRegistry, name: &str) -> bool {
+    registry
+        .get_definition_set()
+        .definitions
+        .iter()
+        .any(|definition| definition["function"]["name"].as_str() == Some(name))
+}
+
+fn append_memory_rules(output: &mut String, source: &str, content: &str) {
+    output.push_str("\n\n<memory-write-rules source=\"");
+    output.push_str(source);
+    output.push_str("\">\n");
+    output.push_str(content);
+    output.push_str("\n</memory-write-rules>");
 }
 
 #[cfg(test)]

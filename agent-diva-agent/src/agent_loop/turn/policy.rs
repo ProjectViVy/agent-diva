@@ -3,7 +3,7 @@ use agent_diva_core::planning::model::PlanPhase;
 
 use super::super::policy_phase_for;
 
-/// Immutable policy-relevant decisions for one sampling boundary.
+/// Turn-local policy decisions and write-preflight state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TurnSnapshot {
     pub session_key: String,
@@ -13,6 +13,7 @@ pub(crate) struct TurnSnapshot {
     pub reviewer_read_only: bool,
     pub scheduled: bool,
     pub trace_id: String,
+    memory_rules_injected_iteration: Option<usize>,
 }
 
 impl TurnSnapshot {
@@ -33,6 +34,7 @@ impl TurnSnapshot {
             reviewer_read_only,
             scheduled,
             trace_id,
+            memory_rules_injected_iteration: None,
         }
     }
 
@@ -43,6 +45,23 @@ impl TurnSnapshot {
 
     pub(crate) fn plan_guard_active(&self) -> bool {
         self.policy_phase.is_some()
+    }
+
+    /// Record the provider iteration whose tool results first carried the full
+    /// Memory write handbook. Calls from that same provider response must not
+    /// execute because the model could not have observed those results yet.
+    pub(crate) fn note_memory_rules_injected(&mut self, iteration: usize) {
+        self.memory_rules_injected_iteration
+            .get_or_insert(iteration);
+    }
+
+    pub(crate) fn memory_rules_injected_iteration(&self) -> Option<usize> {
+        self.memory_rules_injected_iteration
+    }
+
+    pub(crate) fn memory_rules_visible(&self, iteration: usize) -> bool {
+        self.memory_rules_injected_iteration
+            .is_some_and(|injected| iteration > injected)
     }
 }
 
@@ -65,5 +84,24 @@ mod tests {
         assert!(snapshot.plan_guard_active());
         assert!(snapshot.reviewer_read_only);
         assert!(!snapshot.scheduled);
+        assert!(!snapshot.memory_rules_visible(0));
+    }
+
+    #[test]
+    fn memory_rules_only_become_visible_after_the_injecting_iteration() {
+        let mut snapshot = TurnSnapshot::capture(
+            "gui:chat".into(),
+            "model".into(),
+            false,
+            None,
+            false,
+            false,
+            "trace".into(),
+        );
+        snapshot.note_memory_rules_injected(2);
+        snapshot.note_memory_rules_injected(3);
+        assert_eq!(snapshot.memory_rules_injected_iteration(), Some(2));
+        assert!(!snapshot.memory_rules_visible(2));
+        assert!(snapshot.memory_rules_visible(3));
     }
 }
