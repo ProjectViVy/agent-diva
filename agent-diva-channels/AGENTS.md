@@ -38,6 +38,10 @@ Flat module layout under `src/`: one file per channel plus `common/` for shared 
 - Register required fields in `manager.rs` `channel_validation` and `build_updated_handler`.
 - Keep platform SDK imports and transport code inside the channel module.
 - Re-export the handler in `src/lib.rs`.
+- Retired-channel injection points in `manager.rs` (imports, validation arms,
+  `configured_channel_names` entries, `build_updated_handler` arms, startup blocks)
+  carry `#[cfg(feature = "channel-*")]` gates marked `RETIRED 2026-08-18`; keep the
+  `_ => None` fallbacks intact so ungated builds degrade to "unknown channel".
 
 ## ANTI-PATTERNS
 
@@ -51,3 +55,13 @@ Flat module layout under `src/`: one file per channel plus `common/` for shared 
 - `BaseChannel::new` defaults to `deny_by_default = true`; an empty `allow_from` denies all senders.
 - `neuro-link` binding is restricted to `127.0.0.1`/`localhost` via `validate_neurolink_host`.
 - QQ uses a separate `reqwest_qq` dependency because `bots.qq.com` needs native TLS on Windows.
+- **Retired channels (2026-08-18, user decision)**: `slack`, `whatsapp`, `matrix`,
+  `irc`, `mattermost`, `nextcloud_talk` are source-retained but **not compiled by
+  default**. Each is gated behind an opt-in Cargo feature: `channel-slack`,
+  `channel-whatsapp`, `channel-matrix`, `channel-irc`, `channel-mattermost`,
+  `channel-nextcloud-talk` (all default-off; `channel-slack` also pulls
+  `dep:slack-morphism`). Re-enable via
+  `cargo build -p agent-diva-channels --features channel-slack,channel-whatsapp,...`
+  or by adding the feature to `default = []` in `Cargo.toml`.
+- `tests/whatsapp_bridge_integration.rs` only compiles with `channel-whatsapp`
+  (`[[test]] required-features`).

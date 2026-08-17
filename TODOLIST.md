@@ -215,6 +215,10 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   GUI 移除（后端历史性保留）。vitest 451/451 + vue-tsc 构建已绿；仍须重启 GUI
   人工确认卡片视图 7 张卡、向导平台列表与列表视图侧边栏均不含退役频道。
   验收步骤见 `docs/logs/2026-08-channels-settings-fix/v0.1.1-retire-unverified-channels-gui/acceptance.md`。
+  2026-08-18 补充：后端门控已落地（`agent-diva-channels` opt-in feature
+  `channel-*`，默认不编译、不路由；恢复见
+  `docs/logs/2026-08-channels-backend-retirement/v0.2.0-retired-channel-feature-gates/`），
+  本条目仍待真机冒烟。
 
 - [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
   `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
