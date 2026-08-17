@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
-import { CHANNEL_PLATFORMS } from './channel-platforms';
+import { CHANNEL_PLATFORMS, isRetiredChannel } from './channel-platforms';
 
 const { t } = useI18n();
 
@@ -50,8 +50,8 @@ async function loadChannels() {
     draftChannels.value = cloneValue(fetchedChannels);
     savedChannels.value = cloneValue(fetchedChannels);
     channelStatuses.value = (await getConfigStatus()).channels;
-    if (!selectedChannel.value || !draftChannels.value[selectedChannel.value]) {
-      selectedChannel.value = Object.keys(draftChannels.value)[0] ?? null;
+    if (!selectedChannel.value || !draftChannels.value[selectedChannel.value] || isRetiredChannel(selectedChannel.value)) {
+      selectedChannel.value = Object.keys(draftChannels.value).find((name) => !isRetiredChannel(name)) ?? null;
     }
   } catch (e) {
     console.error('Failed to load channels:', e);
@@ -67,6 +67,14 @@ onMounted(async () => {
 
 const channelStatusMap = computed(() => {
   return new Map(channelStatuses.value.map((item) => [item.name, item]));
+});
+
+const visibleDraftChannels = computed(() => {
+  const next: Record<string, any> = {};
+  for (const [name, config] of Object.entries(draftChannels.value)) {
+    if (!isRetiredChannel(name)) next[name] = config;
+  }
+  return next;
 });
 
 const selectedChannelDraft = computed(() => {
@@ -143,21 +151,14 @@ const handleWizardTest = async (_data: any) => {
   return { success: false, message: t('channels.testNotImplemented') };
 };
 
-// 向导 select 字段产出 'true'/'false' 字符串，后端期望 bool；irc 用 channels_str 输入再映射为 channels 数组
-function normalizeWizardCredentials(platform: string, credentials: Record<string, any>): Record<string, any> {
-  const BOOL_STRING_KEYS = ['imap_use_ssl', 'smtp_use_ssl', 'use_tls'];
+// 向导 select 字段产出 'true'/'false' 字符串，后端期望 bool
+function normalizeWizardCredentials(_platform: string, credentials: Record<string, any>): Record<string, any> {
+  const BOOL_STRING_KEYS = ['imap_use_ssl', 'smtp_use_ssl'];
   const next: Record<string, any> = { ...credentials };
   for (const key of BOOL_STRING_KEYS) {
     if (typeof next[key] === 'string' && (next[key] === 'true' || next[key] === 'false')) {
       next[key] = next[key] === 'true';
     }
-  }
-  if (platform === 'irc' && typeof next.channels_str === 'string') {
-    next.channels = next.channels_str
-      .split(/[\n,]+/)
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    delete next.channels_str;
   }
   return next;
 }
@@ -206,7 +207,7 @@ const handleRefresh = async () => {
     <div v-if="viewMode === 'list'" class="channels-sidebar">
       <div class="channels-list">
          <div
-            v-for="(config, name) in draftChannels"
+            v-for="(config, name) in visibleDraftChannels"
             :key="name"
             @click="selectedChannel = name"
             @keydown.enter="selectedChannel = name"

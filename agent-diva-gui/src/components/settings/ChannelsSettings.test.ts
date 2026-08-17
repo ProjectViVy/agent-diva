@@ -6,7 +6,8 @@ import ChannelWizardModal from './ChannelWizardModal.vue';
 
 const rawChannels = {
   telegram: { enabled: true, token: 'abc' },
-  slack: { enabled: false, bot_token: 'y' },
+  slack: { enabled: true, bot_token: 'retired' },
+  feishu: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
 };
 
 vi.mock('vue-i18n', () => ({
@@ -73,13 +74,15 @@ describe('ChannelsSettings', () => {
     const { wrapper, saveChannelConfigAction } = mountSettings();
     await flushPromises();
 
-    // telegram is auto-selected on load; toggle the non-selected slack card.
-    await wrapper.find('.toggle-slack').trigger('click');
+    // telegram is auto-selected on load; toggle the non-selected feishu card.
+    await wrapper.find('.toggle-feishu').trigger('click');
     await flushPromises();
 
-    expect(saveChannelConfigAction).toHaveBeenCalledWith('slack', {
+    expect(saveChannelConfigAction).toHaveBeenCalledWith('feishu', {
       enabled: true,
-      bot_token: 'y',
+      app_id: '',
+      app_secret: '',
+      verification_token: '',
     });
   });
 
@@ -88,51 +91,62 @@ describe('ChannelsSettings', () => {
     await flushPromises();
 
     wrapper.findComponent(ChannelWizardModal).vm.$emit('complete', {
-      platform: 'slack',
-      credentials: { bot_token: 'new-token' },
+      platform: 'feishu',
+      credentials: { app_id: 'cli_x', app_secret: 'sec' },
     });
     await flushPromises();
 
-    expect(saveChannelConfigAction).toHaveBeenCalledWith('slack', {
+    expect(saveChannelConfigAction).toHaveBeenCalledWith('feishu', {
       enabled: true,
-      bot_token: 'new-token',
+      app_id: 'cli_x',
+      app_secret: 'sec',
+      verification_token: '',
     });
   });
 
-  it('normalizes irc wizard credentials before saving', async () => {
+  it('normalizes email wizard select strings into booleans before saving', async () => {
     const { wrapper, saveChannelConfigAction } = mountSettings();
     await flushPromises();
 
     wrapper.findComponent(ChannelWizardModal).vm.$emit('complete', {
-      platform: 'irc',
-      credentials: { server: 'irc.example.com', channels_str: '#a, #b', use_tls: 'true' },
+      platform: 'email',
+      credentials: { imap_host: 'imap.example.com', imap_use_ssl: 'false', smtp_use_ssl: 'true' },
     });
     await flushPromises();
 
     expect(saveChannelConfigAction).toHaveBeenCalledWith(
-      'irc',
+      'email',
       expect.objectContaining({
-        server: 'irc.example.com',
-        channels: ['#a', '#b'],
-        use_tls: true,
+        imap_host: 'imap.example.com',
+        imap_use_ssl: false,
+        smtp_use_ssl: true,
         enabled: true,
       }),
     );
-    const saved = saveChannelConfigAction.mock.calls.at(-1)![1] as Record<string, unknown>;
-    expect(saved).not.toHaveProperty('channels_str');
   });
 
   it('prefills wizard credentials when editing an existing channel', async () => {
     const { wrapper } = mountSettings();
     await flushPromises();
 
-    wrapper.findComponent(ChannelCardView).vm.$emit('edit', 'slack');
+    wrapper.findComponent(ChannelCardView).vm.$emit('edit', 'feishu');
     await flushPromises();
 
     const wizard = wrapper.findComponent(ChannelWizardModal);
     expect(wizard.props('initialData')).toEqual({
-      platform: 'slack',
-      credentials: { enabled: false, bot_token: 'y' },
+      platform: 'feishu',
+      credentials: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
     });
+  });
+
+  it('hides retired channels from the list-view sidebar', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    await wrapper.find('button[title="channels.listView"]').trigger('click');
+    const sidebar = wrapper.find('.channels-sidebar').text();
+    expect(sidebar).toContain('telegram');
+    expect(sidebar).toContain('feishu');
+    expect(sidebar).not.toContain('slack');
   });
 });

@@ -68,9 +68,7 @@ const mockChannels = {
   },
   dingtalk: { enabled: true, client_id: 'ding123', client_secret: 'sec456' },
   feishu: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
-  whatsapp: { enabled: false, bridge_url: '' },
   email: { enabled: false, imap_host: '', imap_username: '' },
-  slack: { enabled: false, bot_token: '', app_token: '' },
   qq: { enabled: false, app_id: '', secret: '' },
 };
 

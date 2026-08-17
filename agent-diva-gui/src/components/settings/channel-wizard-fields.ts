@@ -47,16 +47,6 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       hint: 'Discord WebSocket 网关地址',
     },
   ],
-  whatsapp: [
-    {
-      key: 'bridge_url',
-      label: '桥接 URL',
-      type: 'text',
-      required: true,
-      placeholder: 'http://localhost:3000',
-      hint: 'WhatsApp 桥接服务地址',
-    },
-  ],
   feishu: [
     {
       key: 'app_id',
@@ -191,24 +181,6 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       placeholder: 'your@example.com',
     },
   ],
-  slack: [
-    {
-      key: 'bot_token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: 'xoxb-...',
-    },
-    {
-      key: 'app_token',
-      label: 'App Token',
-      type: 'password',
-      secret: true,
-      required: true,
-      placeholder: 'xapp-...',
-    },
-  ],
   qq: [
     {
       key: 'app_id',
@@ -240,112 +212,6 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       type: 'number',
       required: true,
       default: 8080,
-    },
-  ],
-  irc: [
-    {
-      key: 'server',
-      label: '服务器',
-      type: 'text',
-      required: true,
-      placeholder: 'irc.libera.chat',
-    },
-    {
-      key: 'port',
-      label: '端口',
-      type: 'number',
-      required: true,
-      default: 6667,
-    },
-    {
-      key: 'nickname',
-      label: '昵称',
-      type: 'text',
-      required: true,
-      default: 'diva-bot',
-    },
-    {
-      key: 'username',
-      label: '用户名',
-      type: 'text',
-      required: false,
-      placeholder: '可选',
-    },
-    {
-      key: 'channels_str',
-      label: '频道（逗号分隔）',
-      type: 'text',
-      required: true,
-      placeholder: '#channel1, #channel2',
-    },
-    {
-      key: 'use_tls',
-      label: '使用 TLS',
-      type: 'select',
-      required: true,
-      default: 'false',
-      options: [
-        { label: '是', value: 'true' },
-        { label: '否', value: 'false' },
-      ],
-    },
-  ],
-  mattermost: [
-    {
-      key: 'base_url',
-      label: 'Base URL',
-      type: 'text',
-      required: true,
-      placeholder: 'https://mattermost.example.com',
-    },
-    {
-      key: 'bot_token',
-      label: 'Bot Token',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'channel_id',
-      label: '频道 ID',
-      type: 'text',
-      required: false,
-    },
-    {
-      key: 'poll_interval_seconds',
-      label: '轮询间隔（秒）',
-      type: 'number',
-      required: true,
-      default: 5,
-    },
-  ],
-  nextcloud_talk: [
-    {
-      key: 'base_url',
-      label: 'Base URL',
-      type: 'text',
-      required: true,
-      placeholder: 'https://cloud.example.com',
-    },
-    {
-      key: 'app_token',
-      label: 'App Token',
-      type: 'password',
-      secret: true,
-      required: true,
-    },
-    {
-      key: 'room_token',
-      label: '房间令牌',
-      type: 'text',
-      required: true,
-    },
-    {
-      key: 'poll_interval_seconds',
-      label: '轮询间隔（秒）',
-      type: 'number',
-      required: true,
-      default: 5,
     },
   ],
 };

@@ -18,6 +18,23 @@ export interface ChannelPlatformInfo {
 }
 
 /**
+ * 未经验证、已从 GUI 下架的通道（用户决策 2026-08-18）。
+ * 后端代码与配置结构保留作历史性保留，GUI 不再展示/编辑。
+ */
+export const RETIRED_CHANNELS: readonly string[] = [
+  'slack',
+  'whatsapp',
+  'nextcloud_talk',
+  'mattermost',
+  'matrix',
+  'irc',
+];
+
+export function isRetiredChannel(name: string): boolean {
+  return RETIRED_CHANNELS.includes(name);
+}
+
+/**
  * 各平台详细信息
  */
 export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
@@ -49,20 +66,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
       '创建新应用并进入 Bot 页面',
       '点击 "Reset Token" 生成机器人 Token',
       '复制并保存 Token（只显示一次）',
-    ],
-  },
-  whatsapp: {
-    name: 'whatsapp',
-    displayName: 'WhatsApp',
-    tutorialPath: '/docs/channels/whatsapp.md',
-    difficulty: 2,
-    requiresPublicIP: false,
-    accessMethod: '桥接服务',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS.whatsapp,
-    quickGuideSteps: [
-      '部署 WhatsApp 桥接服务（如 whatsapp-web.js）',
-      '启动桥接服务并获取访问地址',
-      '使用手机扫描二维码完成配对',
     ],
   },
   feishu: {
@@ -112,22 +115,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
       '配置收发服务器地址和端口',
     ],
   },
-  slack: {
-    name: 'slack',
-    displayName: 'Slack',
-    tutorialPath: '/docs/channels/slack.md',
-    difficulty: 2,
-    requiresPublicIP: false,
-    accessMethod: 'Socket Mode',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS.slack,
-    quickGuideSteps: [
-      '访问 Slack API (https://api.slack.com)',
-      '创建新应用并添加 Bot 用户',
-      '安装应用到工作区',
-      '获取 Bot Token 和 App Token',
-      '开启 Socket Mode',
-    ],
-  },
   qq: {
     name: 'qq',
     displayName: 'QQ',
@@ -155,49 +142,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
       '配置监听地址（默认 0.0.0.0）',
       '配置监听端口（默认 8080）',
       '启动 Neuro-Link 服务',
-    ],
-  },
-  irc: {
-    name: 'irc',
-    displayName: 'IRC',
-    tutorialPath: '/docs/channels/irc.md',
-    difficulty: 2,
-    requiresPublicIP: false,
-    accessMethod: 'IRC 协议',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS.irc,
-    quickGuideSteps: [
-      '选择 IRC 服务器（如 irc.libera.chat）',
-      '配置服务器端口（默认 6667）',
-      '设置机器人昵称和用户名',
-      '配置要加入的频道列表',
-    ],
-  },
-  mattermost: {
-    name: 'mattermost',
-    displayName: 'Mattermost',
-    tutorialPath: '/docs/channels/mattermost.md',
-    difficulty: 2,
-    requiresPublicIP: false,
-    accessMethod: 'Mattermost API',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS.mattermost,
-    quickGuideSteps: [
-      '配置 Mattermost 服务器地址',
-      '创建 Bot 用户并获取 Token',
-      '配置要监听的频道 ID',
-    ],
-  },
-  nextcloud_talk: {
-    name: 'nextcloud_talk',
-    displayName: 'Nextcloud Talk',
-    tutorialPath: '/docs/channels/nextcloud-talk.md',
-    difficulty: 2,
-    requiresPublicIP: false,
-    accessMethod: 'Nextcloud Talk API',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS.nextcloud_talk,
-    quickGuideSteps: [
-      '配置 Nextcloud 服务器地址',
-      '创建应用密码并获取 Token',
-      '配置房间令牌（Room Token）',
     ],
   },
 };

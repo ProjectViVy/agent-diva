@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
+import { isRetiredChannel } from './channel-platforms';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
 interface Channel {
@@ -26,18 +27,20 @@ const emit = defineEmits<{
 const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
 
 const channelList = computed(() =>
-  Object.entries(props.channels).map(([name, raw]) => ({
-    name,
-    channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,
-    status: statusMap.value.get(name),
-  }))
+  Object.entries(props.channels)
+    .filter(([name]) => !isRetiredChannel(name))
+    .map(([name, raw]) => ({
+      name,
+      channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,
+      status: statusMap.value.get(name),
+    }))
 );
 </script>
 
 <template>
   <div class="channel-card-view">
     <!-- Empty State -->
-    <div v-if="Object.keys(channels).length === 0" class="channel-empty-state">
+    <div v-if="channelList.length === 0" class="channel-empty-state">
       <div class="empty-icon">
         <MessageSquarePlus :size="80" />
       </div>
