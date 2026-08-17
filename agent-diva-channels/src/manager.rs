@@ -5,14 +5,21 @@ use crate::dingtalk::DingTalkHandler;
 use crate::discord::DiscordHandler;
 use crate::email::EmailHandler;
 use crate::feishu::FeishuHandler;
+// RETIRED 2026-08-18：以下 6 通道默认不编译，feature channel-* 恢复
+#[cfg(feature = "channel-irc")]
 use crate::irc::IrcHandler;
+#[cfg(feature = "channel-matrix")]
 use crate::matrix::MatrixHandler;
+#[cfg(feature = "channel-mattermost")]
 use crate::mattermost::MattermostHandler;
 use crate::neuro_link::NeuroLinkHandler;
+#[cfg(feature = "channel-nextcloud-talk")]
 use crate::nextcloud_talk::NextcloudTalkHandler;
 use crate::qq::QQHandler;
+#[cfg(feature = "channel-slack")]
 use crate::slack::SlackHandler;
 use crate::telegram::TelegramHandler;
+#[cfg(feature = "channel-whatsapp")]
 use crate::whatsapp::WhatsAppHandler;
 use agent_diva_core::bus::{InboundMessage, OutboundMessage};
 use agent_diva_core::config::schema::Config;
@@ -59,6 +66,8 @@ impl ChannelManager {
                 enabled: config.channels.discord.enabled,
                 missing_fields: required_fields([("token", &config.channels.discord.token)]),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-whatsapp 恢复
+            #[cfg(feature = "channel-whatsapp")]
             "whatsapp" => ChannelValidation {
                 enabled: config.channels.whatsapp.enabled,
                 missing_fields: required_fields([(
@@ -92,6 +101,8 @@ impl ChannelManager {
                     ("from_address", &config.channels.email.from_address),
                 ]),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-slack 恢复
+            #[cfg(feature = "channel-slack")]
             "slack" => ChannelValidation {
                 enabled: config.channels.slack.enabled,
                 missing_fields: required_fields([
@@ -106,6 +117,8 @@ impl ChannelManager {
                     ("secret", &config.channels.qq.secret),
                 ]),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-matrix 恢复
+            #[cfg(feature = "channel-matrix")]
             "matrix" => ChannelValidation {
                 enabled: config.channels.matrix.enabled,
                 missing_fields: required_fields([
@@ -118,10 +131,14 @@ impl ChannelManager {
                 enabled: config.channels.neuro_link.enabled,
                 missing_fields: Vec::new(),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-irc 恢复
+            #[cfg(feature = "channel-irc")]
             "irc" => ChannelValidation {
                 enabled: config.channels.irc.enabled,
                 missing_fields: required_fields([("server", &config.channels.irc.server)]),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-mattermost 恢复
+            #[cfg(feature = "channel-mattermost")]
             "mattermost" => ChannelValidation {
                 enabled: config.channels.mattermost.enabled,
                 missing_fields: required_fields([
@@ -130,6 +147,8 @@ impl ChannelManager {
                     ("channel_id", &config.channels.mattermost.channel_id),
                 ]),
             },
+            // RETIRED 2026-08-18：默认拆除，feature channel-nextcloud-talk 恢复
+            #[cfg(feature = "channel-nextcloud-talk")]
             "nextcloud_talk" => ChannelValidation {
                 enabled: config.channels.nextcloud_talk.enabled,
                 missing_fields: required_fields([
@@ -147,16 +166,23 @@ impl ChannelManager {
         [
             "telegram",
             "discord",
+            // RETIRED 2026-08-18：退役通道默认不收录，feature channel-* 恢复
+            #[cfg(feature = "channel-whatsapp")]
             "whatsapp",
             "feishu",
             "dingtalk",
             "email",
+            #[cfg(feature = "channel-slack")]
             "slack",
             "qq",
+            #[cfg(feature = "channel-matrix")]
             "matrix",
             "neuro-link",
+            #[cfg(feature = "channel-irc")]
             "irc",
+            #[cfg(feature = "channel-mattermost")]
             "mattermost",
+            #[cfg(feature = "channel-nextcloud-talk")]
             "nextcloud_talk",
         ]
         .into_iter()
@@ -224,6 +250,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-whatsapp 恢复
+            #[cfg(feature = "channel-whatsapp")]
             "whatsapp" => {
                 if Self::channel_validation(new_config, "whatsapp")?.ready() {
                     Some(Arc::new(RwLock::new(WhatsAppHandler::new(
@@ -253,6 +281,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-slack 恢复
+            #[cfg(feature = "channel-slack")]
             "slack" => Self::channel_validation(new_config, "slack")?
                 .ready()
                 .then(|| {
@@ -270,6 +300,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-matrix 恢复
+            #[cfg(feature = "channel-matrix")]
             "matrix" => {
                 if Self::channel_validation(new_config, "matrix")?.ready() {
                     Some(Arc::new(RwLock::new(MatrixHandler::new(
@@ -289,6 +321,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-irc 恢复
+            #[cfg(feature = "channel-irc")]
             "irc" => {
                 if Self::channel_validation(new_config, "irc")?.ready() {
                     Some(Arc::new(RwLock::new(IrcHandler::new(
@@ -298,6 +332,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-mattermost 恢复
+            #[cfg(feature = "channel-mattermost")]
             "mattermost" => {
                 if Self::channel_validation(new_config, "mattermost")?.ready() {
                     Some(Arc::new(RwLock::new(MattermostHandler::new(
@@ -307,6 +343,8 @@ impl ChannelManager {
                     None
                 }
             }
+            // RETIRED 2026-08-18：默认拆除，feature channel-nextcloud-talk 恢复
+            #[cfg(feature = "channel-nextcloud-talk")]
             "nextcloud_talk" => {
                 if Self::channel_validation(new_config, "nextcloud_talk")?.ready() {
                     Some(Arc::new(RwLock::new(NextcloudTalkHandler::new(
@@ -400,6 +438,8 @@ impl ChannelManager {
         }
 
         // Initialize WhatsApp channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-whatsapp 恢复
+        #[cfg(feature = "channel-whatsapp")]
         if Self::channel_validation(&self.config, "whatsapp")
             .is_some_and(|validation| validation.ready())
         {
@@ -459,6 +499,8 @@ impl ChannelManager {
         }
 
         // Initialize Slack channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-slack 恢复
+        #[cfg(feature = "channel-slack")]
         if Self::channel_validation(&self.config, "slack")
             .is_some_and(|validation| validation.ready())
         {
@@ -496,6 +538,8 @@ impl ChannelManager {
         }
 
         // Initialize Matrix channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-matrix 恢复
+        #[cfg(feature = "channel-matrix")]
         if self.config.channels.matrix.enabled {
             if Self::channel_validation(&self.config, "matrix")
                 .is_some_and(|validation| validation.ready())
@@ -531,6 +575,8 @@ impl ChannelManager {
         }
 
         // Initialize IRC channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-irc 恢复
+        #[cfg(feature = "channel-irc")]
         if self.config.channels.irc.enabled {
             if Self::channel_validation(&self.config, "irc")
                 .is_some_and(|validation| validation.ready())
@@ -550,6 +596,8 @@ impl ChannelManager {
         }
 
         // Initialize Mattermost channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-mattermost 恢复
+        #[cfg(feature = "channel-mattermost")]
         if self.config.channels.mattermost.enabled {
             if Self::channel_validation(&self.config, "mattermost")
                 .is_some_and(|validation| validation.ready())
@@ -569,6 +617,8 @@ impl ChannelManager {
         }
 
         // Initialize Nextcloud Talk channel
+        // RETIRED 2026-08-18：默认拆除，feature channel-nextcloud-talk 恢复
+        #[cfg(feature = "channel-nextcloud-talk")]
         if self.config.channels.nextcloud_talk.enabled {
             if Self::channel_validation(&self.config, "nextcloud_talk")
                 .is_some_and(|validation| validation.ready())
@@ -742,5 +792,50 @@ mod tests {
         let configured = ChannelManager::configured_channel_names(&config);
         assert!(configured.iter().any(|name| name == "neuro-link"));
         assert!(!configured.iter().any(|name| name == "discord"));
+    }
+
+    // RETIRED 2026-08-18：即使退役通道在配置里 enabled 且字段齐全，
+    // 默认编译也不得进入可路由名单；feature channel-* 重新启用后例外。
+    #[test]
+    fn configured_channel_names_excludes_retired_channels_by_default() {
+        let mut config = Config::default();
+
+        config.channels.telegram.enabled = true;
+        config.channels.telegram.token = "bot-token".to_string();
+
+        config.channels.whatsapp.enabled = true;
+        config.channels.whatsapp.bridge_url = "http://localhost:3000".to_string();
+        config.channels.slack.enabled = true;
+        config.channels.slack.bot_token = "xoxb-token".to_string();
+        config.channels.slack.app_token = "xapp-token".to_string();
+        config.channels.matrix.enabled = true;
+        config.channels.matrix.homeserver = "https://matrix.example.com".to_string();
+        config.channels.matrix.user_id = "@bot:example.com".to_string();
+        config.channels.matrix.access_token = "token".to_string();
+        config.channels.irc.enabled = true;
+        config.channels.irc.server = "irc.example.com".to_string();
+        config.channels.mattermost.enabled = true;
+        config.channels.mattermost.base_url = "https://mm.example.com".to_string();
+        config.channels.mattermost.bot_token = "token".to_string();
+        config.channels.mattermost.channel_id = "channel".to_string();
+        config.channels.nextcloud_talk.enabled = true;
+        config.channels.nextcloud_talk.base_url = "https://cloud.example.com".to_string();
+        config.channels.nextcloud_talk.app_token = "token".to_string();
+        config.channels.nextcloud_talk.room_token = "room".to_string();
+
+        let configured = ChannelManager::configured_channel_names(&config);
+        assert!(configured.iter().any(|name| name == "telegram"));
+        #[cfg(not(feature = "channel-whatsapp"))]
+        assert!(!configured.iter().any(|name| name == "whatsapp"));
+        #[cfg(not(feature = "channel-slack"))]
+        assert!(!configured.iter().any(|name| name == "slack"));
+        #[cfg(not(feature = "channel-matrix"))]
+        assert!(!configured.iter().any(|name| name == "matrix"));
+        #[cfg(not(feature = "channel-irc"))]
+        assert!(!configured.iter().any(|name| name == "irc"));
+        #[cfg(not(feature = "channel-mattermost"))]
+        assert!(!configured.iter().any(|name| name == "mattermost"));
+        #[cfg(not(feature = "channel-nextcloud-talk"))]
+        assert!(!configured.iter().any(|name| name == "nextcloud_talk"));
     }
 }
