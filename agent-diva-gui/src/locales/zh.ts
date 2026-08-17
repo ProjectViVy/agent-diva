@@ -627,6 +627,8 @@ export default {
     deleteConfirm: '确定要删除通道 "{name}" 吗？此操作不可撤销。',
     deleteNotImplemented: '删除功能正在开发中，敬请期待。',
     testNotImplemented: '连接测试功能正在开发中，跳过测试步骤。',
+    editViaWizard: '通过配置向导编辑',
+    editViaWizardHint: '此通道暂无内联表单，可通过配置向导编辑凭据。',
     // 平台名称
     platformTelegram: 'Telegram',
     platformDiscord: 'Discord',
@@ -636,6 +638,7 @@ export default {
     platformEmail: 'Email',
     platformSlack: 'Slack',
     platformQQ: 'QQ',
+    platformMatrix: 'Matrix',
     platformNeuroLink: 'Neuro-Link',
     platformIRC: 'IRC',
     platformMattermost: 'Mattermost',

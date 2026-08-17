@@ -857,6 +857,8 @@ export default {
     deleteConfirm: 'Are you sure you want to delete channel "{name}"? This cannot be undone.',
     deleteNotImplemented: 'Delete feature is under development. Stay tuned.',
     testNotImplemented: 'Connection test is under development, skipping test step.',
+    editViaWizard: 'Edit via setup wizard',
+    editViaWizardHint: 'This channel has no inline form yet; edit its credentials via the setup wizard.',
     placeholders: {
       telegramToken: 'Enter Telegram Bot Token',
       discordToken: 'Enter Discord Bot Token',

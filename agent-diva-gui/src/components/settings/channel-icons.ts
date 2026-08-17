@@ -1,7 +1,7 @@
 // 通道平台图标映射表
 // 用于在卡片视图和向导中显示各平台的专属图标
 
-import { Mail, Globe, Hash } from '@lucide/vue';
+import { Mail, Globe, Hash, Boxes } from '@lucide/vue';
 import type { Component } from 'vue';
 import TelegramIcon from '../../assets/icons/channels/TelegramIcon.vue';
 import DiscordIcon from '../../assets/icons/channels/DiscordIcon.vue';
@@ -27,6 +27,7 @@ export const PLATFORM_ICONS: Record<string, Component> = {
   email: Mail, // Email 使用 Lucide Mail 图标
   slack: SlackIcon,
   qq: QQIcon,
+  matrix: Boxes, // Matrix 暂无品牌图标，使用 Lucide 兜底
   'neuro-link': Globe, // Neuro-Link 使用 Lucide Globe 图标
   irc: Hash, // IRC 使用 Lucide Hash 图标
   mattermost: MattermostIcon,
@@ -45,6 +46,7 @@ export const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
   email: 'Email',
   slack: 'Slack',
   qq: 'QQ',
+  matrix: 'Matrix',
   'neuro-link': 'Neuro-Link',
   irc: 'IRC',
   mattermost: 'Mattermost',
@@ -63,6 +65,7 @@ export const PLATFORM_DESCRIPTIONS: Record<string, string> = {
   email: '传统电子邮件系统（IMAP/SMTP）',
   slack: '企业团队协作聊天工具',
   qq: '腾讯 QQ 开放平台机器人',
+  matrix: '去中心化开源即时通讯协议',
   'neuro-link': '通用 WebSocket 接入服务',
   irc: '经典的互联网中继聊天协议',
   mattermost: '开源企业协作平台',

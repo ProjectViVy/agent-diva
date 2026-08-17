@@ -11,7 +11,7 @@ interface Channel {
 }
 
 const props = defineProps<{
-  channels: Record<string, Channel>;
+  channels: Record<string, Record<string, any>>;
   statuses: ChannelStatusSummary[];
   loading?: boolean;
 }>();
@@ -26,9 +26,9 @@ const emit = defineEmits<{
 const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
 
 const channelList = computed(() =>
-  Object.entries(props.channels).map(([name, channel]) => ({
+  Object.entries(props.channels).map(([name, raw]) => ({
     name,
-    channel,
+    channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,
     status: statusMap.value.get(name),
   }))
 );

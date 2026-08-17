@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
+import { CHANNEL_PLATFORMS } from './channel-platforms';
 
 const { t } = useI18n();
 
@@ -113,22 +114,27 @@ function setDiscordGroupBypass(text: string) {
   draftChannels.value.discord.group_reply_allowed_sender_ids = splitIdList(text);
 }
 
-const saveCurrentChannel = async () => {
-  if (!selectedChannel.value || !selectedChannelDraft.value || isSaving.value || !isDirty.value) return;
+const persistChannel = async (name: string, config: Record<string, any>) => {
+  if (isSaving.value) return;
   isSaving.value = true;
   try {
-    const nextConfig = cloneValue(selectedChannelDraft.value);
-    await props.saveChannelConfigAction(selectedChannel.value, nextConfig);
-    draftChannels.value[selectedChannel.value] = cloneValue(nextConfig);
-    savedChannels.value[selectedChannel.value] = cloneValue(nextConfig);
+    await props.saveChannelConfigAction(name, cloneValue(config));
+    draftChannels.value[name] = cloneValue(config);
+    savedChannels.value[name] = cloneValue(config);
     channelStatuses.value = (await getConfigStatus()).channels;
   } finally {
     isSaving.value = false;
   }
 };
 
+const saveCurrentChannel = async () => {
+  if (!selectedChannel.value || !selectedChannelDraft.value || isSaving.value || !isDirty.value) return;
+  await persistChannel(selectedChannel.value, selectedChannelDraft.value);
+};
+
 // 向导相关函数
 const openWizard = () => {
+  editingChannel.value = null;
   wizardOpen.value = true;
 };
 
@@ -137,11 +143,33 @@ const handleWizardTest = async (_data: any) => {
   return { success: false, message: t('channels.testNotImplemented') };
 };
 
+// 向导 select 字段产出 'true'/'false' 字符串，后端期望 bool；irc 用 channels_str 输入再映射为 channels 数组
+function normalizeWizardCredentials(platform: string, credentials: Record<string, any>): Record<string, any> {
+  const BOOL_STRING_KEYS = ['imap_use_ssl', 'smtp_use_ssl', 'use_tls'];
+  const next: Record<string, any> = { ...credentials };
+  for (const key of BOOL_STRING_KEYS) {
+    if (typeof next[key] === 'string' && (next[key] === 'true' || next[key] === 'false')) {
+      next[key] = next[key] === 'true';
+    }
+  }
+  if (platform === 'irc' && typeof next.channels_str === 'string') {
+    next.channels = next.channels_str
+      .split(/[\n,]+/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+    delete next.channels_str;
+  }
+  return next;
+}
+
 const handleWizardComplete = async (data: any) => {
   try {
+    const existing = draftChannels.value[data.platform] ?? {};
+    const credentials = normalizeWizardCredentials(data.platform, data.credentials ?? {});
     await props.saveChannelConfigAction(data.platform, {
+      ...cloneValue(existing),
+      ...credentials,
       enabled: true,
-      ...data.credentials,
     });
     await loadChannels();
   } catch (e) {
@@ -164,7 +192,7 @@ const handleCardDelete = async (name: string) => {
 
 const handleCardToggle = async (name: string) => {
   toggleChannelEnabled(name);
-  await saveCurrentChannel();
+  await persistChannel(name, draftChannels.value[name]);
 };
 
 const handleRefresh = async () => {
@@ -404,9 +432,24 @@ const handleRefresh = async () => {
               </details>
             </div>
 
-            <!-- 其他平台配置... (保留原有代码) -->
-            <div v-else class="text-sm" style="color: var(--text-muted);">
-              {{ t('providers.unsupportedUI') }}
+            <!-- 其他平台配置：统一走配置向导 -->
+            <div v-else class="space-y-3">
+              <div v-if="CHANNEL_PLATFORMS[selectedChannel]" class="channels-empty-wizard">
+                <p class="settings-muted text-sm">{{ t('channels.editViaWizardHint') }}</p>
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  @click="
+                    editingChannel = selectedChannel;
+                    wizardOpen = true;
+                  "
+                >
+                  {{ t('channels.editViaWizard') }}
+                </button>
+              </div>
+              <div v-else class="text-sm" style="color: var(--text-muted);">
+                {{ t('providers.unsupportedUI') }}
+              </div>
             </div>
           </div>
         </div>
@@ -421,7 +464,11 @@ const handleRefresh = async () => {
     <!-- 配置向导模态框 -->
     <ChannelWizardModal
       v-model:open="wizardOpen"
-      :initial-data="editingChannel ? { platform: editingChannel, ...draftChannels[editingChannel] } : undefined"
+      :initial-data="
+        editingChannel
+          ? { platform: editingChannel, credentials: { ...(draftChannels[editingChannel] ?? {}) } }
+          : undefined
+      "
       @test="handleWizardTest"
       @complete="handleWizardComplete"
     />
@@ -493,6 +540,13 @@ const handleRefresh = async () => {
 .channels-main-content {
   flex: 1;
   overflow-y: auto;
+}
+
+.channels-empty-wizard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
 /* 按钮样式 */

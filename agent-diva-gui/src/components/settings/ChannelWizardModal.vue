@@ -94,6 +94,15 @@ const currentPlatform = computed<ChannelPlatformInfo | null>(() => {
   return CHANNEL_PLATFORMS[formData.value.platform] || null;
 });
 
+// 仅向导支持（有凭据字段）的平台可选；matrix 等无字段平台不进向导
+const wizardPlatforms = computed(() =>
+  Object.entries(CHANNEL_PLATFORMS).map(([platform, info]) => ({
+    platform,
+    info,
+    icon: PLATFORM_ICONS[platform],
+  }))
+);
+
 const tutorialOpen = ref(false);
 
 const openTutorial = () => {
@@ -230,15 +239,15 @@ watch(
               <label class="wizard-label">{{ t('channels.choosePlatform') }}</label>
               <div class="platform-grid">
                 <div
-                  v-for="(IconComponent, platform) in PLATFORM_ICONS"
-                  :key="platform"
+                  v-for="entry in wizardPlatforms"
+                  :key="entry.platform"
                   class="platform-card"
-                  :class="{ selected: formData.platform === platform }"
-                  @click="selectPlatform(platform)"
+                  :class="{ selected: formData.platform === entry.platform }"
+                  @click="selectPlatform(entry.platform)"
                 >
-                  <component :is="IconComponent" class="platform-wizard-icon" />
-                  <span class="platform-name">{{ PLATFORM_DISPLAY_NAMES[platform] }}</span>
-                  <span class="platform-desc">{{ PLATFORM_DESCRIPTIONS[platform] }}</span>
+                  <component :is="entry.icon" class="platform-wizard-icon" />
+                  <span class="platform-name">{{ entry.info.displayName }}</span>
+                  <span class="platform-desc">{{ PLATFORM_DESCRIPTIONS[entry.platform] }}</span>
                 </div>
               </div>
             </div>
