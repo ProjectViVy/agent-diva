@@ -247,6 +247,17 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 - [ ] **UX-DR-3/4/7** `sev-P3`
   Sprint 评审遗留 UX 缺口；恢复前先重新确认原问题仍存在并补专项设计。
 
+- [ ] **GUI-STYLE-UNIFICATION-PHASE-2：样式令牌化二期** `sev-P3`
+  一期（`docs/logs/2026-08-gui-style-unification/v0.1.0-design-tokens/`）已完成令牌基建、
+  useTheme 治理、`.theme-*` 覆盖层退役与头部 3 组件语义色令牌化。剩余：
+  ① 其余约 31 个组件/scoped 样式的硬编码 `#hex/rgba()` 迁移到 `var(--token, fallback)`；
+  ② 宠物装饰层（DivaPetView / DesktopPetOverlay）rgba 白色系色板的主题方案；
+  ③ 组件内 scoped 的按主题覆盖块（如 ConversationSidebar 尾部 `.theme-*` 段）收敛到全局令牌；
+  ④ WelcomeWizard 粉色身份色板（#be185d/#9d174d/#6b2737）的跨主题适配决策；
+  ⑤ 深色对比色阶语义令牌扩展（如 `--danger-strong` #dc2626、`--warning-strong` #d97706）后替换字面量；
+  ⑥ `tk-*` 字号/间距 scale 渐进迁移（本期只建基建未动现有字号）。
+  迁移顺序建议：先 SettingsView 子树 → Mask/Persona 子树 → 其余；每批附 vitest + 四主题冒烟。
+
 ## 自动化与生产路径证明
 
 - [ ] **BACKGROUND-TASK-PRODUCTION-E2E：后台任务生产路径纵向证明** `sev-P2`
