@@ -41,6 +41,7 @@ import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import MaskSelectorButton from './MaskSelectorButton.vue';
 import { useI18n } from 'vue-i18n';
+import { useTheme } from '../composables/useTheme';
 
 const { t } = useI18n();
 
@@ -189,7 +190,7 @@ const prePetSidebarCollapsed = ref<boolean | null>(null);
 const overlaySidebarOpen = ref(false);
 const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ capabilities: true, tools: true });
-const themeMode = ref('love');
+const { theme: themeMode, setTheme } = useTheme();
 const isModelDropdownOpen = ref(false);
 const evolutionBadge = ref({
   total: 0,
@@ -237,9 +238,7 @@ const handleUpdateSavedModels = (models: SavedModel[]) => {
 };
 
 const handleChangeTheme = (theme: string) => {
-  themeMode.value = theme;
-  // 应用主题到 document.documentElement
-  document.documentElement.setAttribute('data-theme', theme);
+  setTheme(theme);
 };
 
 const selectSavedModel = async (model: SavedModel) => {
