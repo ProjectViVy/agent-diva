@@ -227,7 +227,6 @@ const emit = defineEmits<{
 }>();
 
 const input = ref('');
-const messagesEndRef = ref<HTMLElement | null>(null);
 const chatListRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -302,9 +301,29 @@ const sakura = [
   { left: '90%', top: '38%', size: 16, opacity: 0.2, delay: 1.1 },
 ];
 
-const scrollToBottom = () => {
+const BOTTOM_FOLLOW_THRESHOLD_PX = 48;
+const followsLatestMessage = ref(true);
+
+const isChatListNearBottom = () => {
+  const chatList = chatListRef.value;
+  if (!chatList) return true;
+
+  const distanceFromBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight;
+  return distanceFromBottom <= BOTTOM_FOLLOW_THRESHOLD_PX;
+};
+
+const handleChatScroll = () => {
+  followsLatestMessage.value = isChatListNearBottom();
+};
+
+const scrollToBottom = (force = false) => {
+  if (!force && !followsLatestMessage.value) return;
+  followsLatestMessage.value = true;
   nextTick(() => {
-    messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' });
+    const chatList = chatListRef.value;
+    if (!chatList) return;
+
+    chatList.scrollTop = chatList.scrollHeight;
   });
 };
 
@@ -332,13 +351,22 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   scrollToBottom();
 }, { deep: true });
 
-// 询问卡片 (askUserQuestions) 独立于 messages，需要在其变化或滚动容器高度增长时也自动滚到底部
+// 询问卡片 (askUserQuestions) 独立于 messages；仅在用户仍跟随最新内容时保持滚底。
 watch(
   () => ({
     qLen: (props.askUserQuestions?.length) ?? 0,
     h: chatListRef.value?.scrollHeight ?? 0,
   }),
   () => { scrollToBottom(); },
+);
+
+watch(
+  () => props.activeSessionKey,
+  (activeSessionKey, previousSessionKey) => {
+    if (activeSessionKey !== previousSessionKey) {
+      scrollToBottom(true);
+    }
+  },
 );
 
 onMounted(() => {
@@ -357,6 +385,7 @@ onBeforeUnmount(() => {
 const handleSend = () => {
   if (props.isTyping) return;
   if (!input.value.trim() && attachments.value.length === 0) return;
+  scrollToBottom(true);
   const currentAttachments = [...attachments.value];
   const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
   emit(
@@ -692,6 +721,16 @@ const copyMessage = async (content: string) => {
   }
 };
 
+const handleSelectSession = (sessionKey: string) => {
+  followsLatestMessage.value = true;
+  emit('select-session', sessionKey);
+};
+
+const handleNewSession = () => {
+  followsLatestMessage.value = true;
+  emit('new-session');
+};
+
 const copyArtifactReference = async (msg: Message) => {
   const reference = toolResultRef(msg);
   if (reference) await copyMessage(`artifact://${reference.artifact_id}`);
@@ -787,7 +826,11 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           <span v-if="compactionStatus.summary">{{ ` ${compactionStatus.summary}` }}</span>
         </span>
       </div>
-      <div ref="chatListRef" class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10">
+      <div
+        ref="chatListRef"
+        class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10"
+        @scroll.passive="handleChatScroll"
+      >
       <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
@@ -1145,7 +1188,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
       
-      <div ref="messagesEndRef" />
     </div>
 
     <div
@@ -1467,9 +1509,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       :sessions="sessions || []"
       :active-session-key="activeSessionKey || ''"
       :theme-mode="themeMode || 'love'"
-      @select="(key) => emit('select-session', key)"
+      @select="handleSelectSession"
       @delete="(key) => emit('delete-session', key)"
-      @new="emit('new-session')"
+      @new="handleNewSession"
       @toggle-pin="(key) => emit('toggle-pin', key)"
       @rename="(key, title) => emit('rename-session', key, title)"
       @refresh="emit('refresh-sessions')"

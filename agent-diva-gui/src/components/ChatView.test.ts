@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils';
+import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import ChatView from './ChatView.vue';
 
@@ -29,6 +29,31 @@ function mountChat(messages: Array<Record<string, unknown>>) {
       isTyping: true,
     },
   });
+}
+
+function mockChatScroll(
+  wrapper: VueWrapper,
+  initial: { scrollTop: number; scrollHeight: number; clientHeight: number },
+) {
+  const chatList = wrapper.get('.chat-list').element as HTMLElement;
+  let scrollTop = initial.scrollTop;
+  let scrollHeight = initial.scrollHeight;
+
+  Object.defineProperties(chatList, {
+    clientHeight: { configurable: true, value: initial.clientHeight },
+    scrollHeight: { configurable: true, get: () => scrollHeight },
+    scrollTop: {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; },
+    },
+  });
+
+  return {
+    getScrollTop: () => scrollTop,
+    setScrollTop: (value: number) => { scrollTop = value; },
+    setScrollHeight: (value: number) => { scrollHeight = value; },
+  };
 }
 
 describe('ChatView streaming states', () => {
@@ -180,5 +205,108 @@ describe('ChatView streaming states', () => {
     expect(wrapper.find('.conv-sidebar-wrapper--overlay').exists()).toBe(true);
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+  });
+
+  it('preserves the reading position during streaming and ask-user updates', async () => {
+    const wrapper = mountChat([{
+      id: 'streaming',
+      role: 'agent',
+      content: 'Initial response',
+      isStreaming: true,
+    }]);
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    const scroll = mockChatScroll(wrapper, {
+      scrollTop: 200,
+      scrollHeight: 1000,
+      clientHeight: 200,
+    });
+    await wrapper.get('.chat-list').trigger('scroll');
+
+    scroll.setScrollHeight(1200);
+    await wrapper.setProps({
+      messages: [{
+        id: 'streaming',
+        role: 'agent',
+        content: 'Initial response with a much longer streamed continuation',
+        isStreaming: true,
+      }],
+    });
+    await wrapper.vm.$nextTick();
+    expect(scroll.getScrollTop()).toBe(200);
+
+    scroll.setScrollHeight(1350);
+    await wrapper.setProps({
+      askUserQuestions: [{
+        question_id: 'question-1',
+        question: 'Choose one',
+        choices: ['A', 'B'],
+        allow_other: false,
+        created_at: '2026-08-17T00:00:00Z',
+        timeout_seconds: 60,
+      }],
+    });
+    await wrapper.vm.$nextTick();
+    expect(scroll.getScrollTop()).toBe(200);
+  });
+
+  it('resumes following updates after the user scrolls near the bottom', async () => {
+    const wrapper = mountChat([{
+      id: 'streaming',
+      role: 'agent',
+      content: 'Initial response',
+      isStreaming: true,
+    }]);
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    const scroll = mockChatScroll(wrapper, {
+      scrollTop: 770,
+      scrollHeight: 1000,
+      clientHeight: 200,
+    });
+    await wrapper.get('.chat-list').trigger('scroll');
+
+    scroll.setScrollHeight(1200);
+    await wrapper.setProps({
+      messages: [{
+        id: 'streaming',
+        role: 'agent',
+        content: 'Initial response with a streamed continuation',
+        isStreaming: true,
+      }],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(scroll.getScrollTop()).toBe(1200);
+  });
+
+  it('returns to the latest message when sending or switching sessions', async () => {
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+        activeSessionKey: 'gui:first',
+      },
+    });
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    const scroll = mockChatScroll(wrapper, {
+      scrollTop: 100,
+      scrollHeight: 1000,
+      clientHeight: 200,
+    });
+    await wrapper.get('.chat-list').trigger('scroll');
+
+    await wrapper.get('.chat-textarea').setValue('New message');
+    await wrapper.get('.input-action-btn.send').trigger('click');
+    await wrapper.vm.$nextTick();
+    expect(scroll.getScrollTop()).toBe(1000);
+
+    scroll.setScrollTop(150);
+    scroll.setScrollHeight(1400);
+    await wrapper.get('.chat-list').trigger('scroll');
+    await wrapper.setProps({ activeSessionKey: 'gui:second' });
+    await wrapper.vm.$nextTick();
+    expect(scroll.getScrollTop()).toBe(1400);
   });
 });
