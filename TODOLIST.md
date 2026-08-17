@@ -204,10 +204,17 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   依据 S8 修订 / D2。已实现机械首个非代码结论段、≤200 字即时写入；暂停时间测试
   覆盖 Pulse、Recap、10 分钟折叠、代次取消、cron/子代理排除及 reset 清理。
 
-- [ ] **CHANNELS-STATUS-COVERAGE：config-status 缺 4 通道状态** `sev-P2`
+- [ ] **CHANNELS-STATUS-COVERAGE：config-status 缺 4 通道状态** `sev-P3`
   `agent-diva-cli/src/cli_runtime.rs` `channel_statuses`（:525-688）只输出 9 个通道，
   neuro-link/irc/mattermost/nextcloud_talk 无 ready/missing_fields 汇总，卡片回退
-  needsConfig 显示。2026-08-17 频道页修复时发现，影响小，另行迭代补齐。
+  needsConfig 显示。2026-08-17 频道页修复时发现；2026-08-18 用户决策将
+  irc/mattermost/nextcloud_talk 从 GUI 下架后，实际仅剩 neuro-link 有感知，降为 P3。
+
+- [ ] **CHANNELS-RETIRE-DESKTOP-SMOKE：退役频道 GUI 下架真机冒烟** `sev-P2`
+  2026-08-18 用户决策：slack/whatsapp/nextcloud_talk/mattermost/matrix/irc 从
+  GUI 移除（后端历史性保留）。vitest 451/451 + vue-tsc 构建已绿；仍须重启 GUI
+  人工确认卡片视图 7 张卡、向导平台列表与列表视图侧边栏均不含退役频道。
+  验收步骤见 `docs/logs/2026-08-channels-settings-fix/v0.1.1-retire-unverified-channels-gui/acceptance.md`。
 
 - [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
   `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
