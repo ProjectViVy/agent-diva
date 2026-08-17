@@ -645,8 +645,8 @@ defineExpose({ closeContextMenu });
 
 .conv-item-delete:hover {
   opacity: 1 !important;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
+  color: var(--danger, #ef4444);
 }
 
 /* Empty State */
@@ -721,11 +721,11 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-context-danger {
-  color: #ef4444;
+  color: var(--danger, #ef4444);
 }
 
 .conv-context-danger:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
 }
 
 .conv-context-divider {
@@ -757,7 +757,7 @@ defineExpose({ closeContextMenu });
 }
 
 .theme-dark .conv-item-delete:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.15));
 }
 
 .theme-dark .conv-context-menu {

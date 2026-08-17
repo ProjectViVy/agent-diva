@@ -1311,12 +1311,12 @@ onMounted(refreshList);
 }
 
 .status-dot.connected {
-  background: #22c55e;
+  background: var(--success, #22c55e);
   box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
 }
 
 .status-dot.degraded {
-  background: #f59e0b;
+  background: var(--warning, #f59e0b);
   box-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
 }
 
@@ -1325,7 +1325,7 @@ onMounted(refreshList);
 }
 
 .status-dot.invalid {
-  background: #ef4444;
+  background: var(--danger, #ef4444);
   box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
 }
 
@@ -1405,8 +1405,8 @@ onMounted(refreshList);
 }
 
 .copy-btn:disabled {
-  background: rgba(34, 197, 94, 0.1);
-  color: #22c55e;
+  background: var(--success-bg, rgba(34, 197, 94, 0.1));
+  color: var(--success, #22c55e);
   border-color: rgba(34, 197, 94, 0.2);
 }
 
@@ -1430,12 +1430,12 @@ onMounted(refreshList);
   gap: 6px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
   margin-bottom: 10px;
 }
 
 .error-icon {
-  color: #ef4444;
+  color: var(--danger, #ef4444);
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -1680,7 +1680,7 @@ onMounted(refreshList);
 }
 
 .remove-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
 }
 
 .field-hint {

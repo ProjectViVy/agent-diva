@@ -1537,7 +1537,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .approval-center-icon-btn.active {
   color: #b45309;
-  border-color: #f59e0b;
+  border-color: var(--warning, #f59e0b);
   background: rgba(255, 251, 235, 0.96);
 }
 
@@ -1726,7 +1726,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 :deep(.markdown-body a) {
-  color: #3b82f6;
+  color: var(--info, #3b82f6);
   text-decoration: underline;
 }
 
