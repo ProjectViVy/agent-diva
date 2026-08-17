@@ -204,6 +204,16 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   依据 S8 修订 / D2。已实现机械首个非代码结论段、≤200 字即时写入；暂停时间测试
   覆盖 Pulse、Recap、10 分钟折叠、代次取消、cron/子代理排除及 reset 清理。
 
+- [ ] **CHANNELS-STATUS-COVERAGE：config-status 缺 4 通道状态** `sev-P2`
+  `agent-diva-cli/src/cli_runtime.rs` `channel_statuses`（:525-688）只输出 9 个通道，
+  neuro-link/irc/mattermost/nextcloud_talk 无 ready/missing_fields 汇总，卡片回退
+  needsConfig 显示。2026-08-17 频道页修复时发现，影响小，另行迭代补齐。
+
+- [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
+  `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
+  （两处既有 TODO）；需后端真实连接测试 API 与通道删除 API。2026-08-17 频道页
+  修复时确认仍缺，另行迭代。
+
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
