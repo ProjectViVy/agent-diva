@@ -140,12 +140,14 @@ const expandedReasoning = ref<Record<string, boolean>>({});
 const expandedRawMeta = ref<Record<string, boolean>>({});
 
 interface HistoryPrefs {
+  cleanMode: boolean;
   autoExpandReasoning: boolean;
   autoExpandToolDetails: boolean;
   showRawMetaByDefault: boolean;
 }
 
 const defaultHistoryPrefs: HistoryPrefs = {
+  cleanMode: false,
   autoExpandReasoning: true,
   autoExpandToolDetails: false,
   showRawMetaByDefault: false,
@@ -155,6 +157,10 @@ const toggleTool = (messageId: string) => {
   expandedTools.value[messageId] = !expandedTools.value[messageId];
 };
 
+const setReasoningExpanded = (messageId: string, expanded: boolean) => {
+  expandedReasoning.value[messageId] = expanded;
+};
+
 const toggleRawMeta = (messageId: string) => {
   expandedRawMeta.value[messageId] = !expandedRawMeta.value[messageId];
 };
@@ -162,6 +168,8 @@ const toggleRawMeta = (messageId: string) => {
 const hasRawMeta = (msg: Message) => {
   return !!msg.rawMeta && Object.keys(msg.rawMeta).length > 0;
 };
+
+const toolDisplayName = (msg: Message) => msg.toolName?.trim() || t('app.unknownTool');
 
 const renderRawMeta = (msg: Message) => {
   if (!msg.rawMeta) return '';
@@ -268,7 +276,31 @@ const autoDreamPollTimers = new Set<ReturnType<typeof setTimeout>>();
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
   ...(props.historyPrefs ?? {}),
+  ...(props.historyPrefs?.cleanMode
+    ? {
+        autoExpandReasoning: false,
+        autoExpandToolDetails: false,
+        showRawMetaByDefault: false,
+      }
+    : {}),
 }));
+
+const cleanMode = computed(() => effectiveHistoryPrefs.value.cleanMode);
+
+const reconcileExpansionStates = () => {
+  const prefs = effectiveHistoryPrefs.value;
+  props.messages.forEach((msg) => {
+    if (msg.reasoning) {
+      expandedReasoning.value[msg.id] = prefs.autoExpandReasoning;
+    }
+    if (msg.role === 'tool') {
+      expandedTools.value[msg.id] = prefs.autoExpandToolDetails;
+    }
+    if (hasRawMeta(msg)) {
+      expandedRawMeta.value[msg.id] = prefs.showRawMetaByDefault;
+    }
+  });
+};
 
 const contextBudgetStatus = computed(() =>
   computeBudgetStatus(props.messages, props.toolsConfig?.budget)
@@ -341,7 +373,7 @@ watch(() => props.messages, (newMessages, oldMessages) => {
   // Auto-expand structured sections based on local preferences
   newMessages.forEach((msg) => {
     if (expandedReasoning.value[msg.id] === undefined && msg.reasoning) {
-      expandedReasoning.value[msg.id] = effectiveHistoryPrefs.value.autoExpandReasoning || !!msg.isThinking;
+      expandedReasoning.value[msg.id] = effectiveHistoryPrefs.value.autoExpandReasoning;
     }
     if (expandedTools.value[msg.id] === undefined && msg.role === 'tool') {
       expandedTools.value[msg.id] = effectiveHistoryPrefs.value.autoExpandToolDetails;
@@ -351,7 +383,9 @@ watch(() => props.messages, (newMessages, oldMessages) => {
     }
   });
   scrollToBottom();
-}, { deep: true });
+}, { deep: true, immediate: true });
+
+watch(effectiveHistoryPrefs, reconcileExpansionStates, { deep: true });
 
 // 询问卡片 (askUserQuestions) 独立于 messages；仅在用户仍跟随最新内容时保持滚底。
 watch(
@@ -877,6 +911,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- Card rendering: plan_create / todo_write / approval_request -->
               <template v-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
                 <div class="min-w-0">
+                  <div v-if="msg.toolName" class="tool-call-caption">
+                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
+                  </div>
                   <ChatGovernanceCard
                     :card="asGovernanceCard(getCachedCard(msg.id, msg.content))!"
                     @open-evolution="emitOpenEvolution"
@@ -885,6 +922,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
+                  <div class="tool-call-caption">
+                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
+                  </div>
                   <DecisionCard
                     :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
                     @action="onCardAction"
@@ -893,6 +933,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
+                  <div class="tool-call-caption">
+                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
+                  </div>
                   <TodoCard
                     :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
                     @check="onCardCheck"
@@ -901,6 +944,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'update_plan' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
+                  <div class="tool-call-caption">
+                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
+                  </div>
                   <TodoCard
                     :card="(getCachedCard(msg.id, msg.content) as unknown as UiCard)"
                   />
@@ -909,7 +955,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- Default tool output rendering -->
               <div
                 v-else
-                class="rounded-lg border text-sm overflow-hidden bg-white"
+                class="tool-message rounded-lg border text-sm overflow-hidden bg-white"
                 :class="{
                   'border-gray-200': msg.toolStatus === 'running',
                   'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
@@ -918,8 +964,12 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               >
                 <!-- Tool Header -->
                 <div class="px-3 py-2 flex items-center space-x-2">
-                  <div v-if="msg.toolStatus === 'running'" class="animate-spin text-gray-400">
-                    <Loader2 :size="14" />
+                  <div v-if="msg.toolStatus === 'running'" class="text-gray-400" aria-label="Loading">
+                    <div class="streaming-dots tool-streaming-dots">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
                   </div>
                   <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
                     <CheckCircle2 :size="14" />
@@ -933,17 +983,17 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                     'text-green-700': msg.toolStatus === 'success',
                     'text-red-700': msg.toolStatus === 'error'
                   }">
-                    {{ msg.toolStatus === 'running' ? t('chat.toolRunning') : (msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed')) }}
+                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </span>
 
-                  <span v-if="msg.toolName" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
-                    {{ msg.toolName }}
+                  <span v-if="msg.toolStatus !== 'running'" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                    {{ msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed') }}
                   </span>
                 </div>
 
                 <!-- Tool Details Toggle -->
                 <div
-                  v-if="msg.toolStatus !== 'running' && (msg.toolResult || toolResultRef(msg))"
+                  v-if="!cleanMode && msg.toolStatus !== 'running' && (msg.toolResult || toolResultRef(msg))"
                   class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
                 >
                   {{ toolResultPreview(msg) }}
@@ -1026,6 +1076,8 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 <ThinkingBlock
                   :content="msg.reasoning"
                   :thinking-ms="0"
+                  :expanded="expandedReasoning[msg.id]"
+                  @update:expanded="setReasoningExpanded(msg.id, $event)"
                 />
                 <div
                   v-if="!msg.content && msg.isStreaming"
@@ -1653,6 +1705,13 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .streaming-reasoning-section {
   display: grid;
   gap: 8px;
+}
+
+.tool-call-caption {
+  margin-bottom: 6px;
+  color: var(--text-muted, #6b7280);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .streaming-reasoning-status {

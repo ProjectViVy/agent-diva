@@ -169,6 +169,7 @@ interface SessionInfo {
   pinned?: boolean;
 }
 interface ChatDisplayPrefs {
+  cleanMode: boolean;
   autoExpandReasoning: boolean;
   autoExpandToolDetails: boolean;
   showRawMetaByDefault: boolean;
@@ -233,6 +234,7 @@ const SESSION_CACHE_TTL_MS = 30 * 60 * 1000;
 const STARTUP_TASK_TIMEOUT_MS = 2500;
 const SESSION_LOAD_TIMEOUT_MS = 2000;
 const defaultChatDisplayPrefs: ChatDisplayPrefs = {
+  cleanMode: false,
   autoExpandReasoning: true,
   autoExpandToolDetails: false,
   showRawMetaByDefault: false,
@@ -921,15 +923,44 @@ function isChecklistCardContent(content: string): boolean {
 function extractToolName(
   role: string,
   name?: string | null,
-  toolCalls?: serdeJsonValue[] | null
+  toolCalls?: serdeJsonValue[] | null,
+  fallbackToolName?: string
 ): string | undefined {
   if (name && name.trim()) return name.trim();
-  if (!toolCalls || toolCalls.length === 0) return role === 'tool' ? 'tool' : undefined;
+  if (!toolCalls || toolCalls.length === 0) {
+    if (fallbackToolName && fallbackToolName.trim()) return fallbackToolName.trim();
+    return role === 'tool' ? t('app.unknownTool') : undefined;
+  }
   const firstCall = toolCalls[0];
   const maybeFn = firstCall?.function as Record<string, unknown> | undefined;
   const fnName = maybeFn?.name;
   if (typeof fnName === 'string' && fnName.trim()) return fnName.trim();
-  return role === 'tool' ? 'tool' : undefined;
+  if (fallbackToolName && fallbackToolName.trim()) return fallbackToolName.trim();
+  return role === 'tool' ? t('app.unknownTool') : undefined;
+}
+
+function buildHistoricalToolNameIndex(messages: BackendChatMessage[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.tool_calls) continue;
+    for (const call of message.tool_calls) {
+      const callId = typeof call.id === 'string'
+        ? call.id
+        : typeof call.tool_call_id === 'string'
+          ? call.tool_call_id
+          : undefined;
+      const maybeFunction = call.function as Record<string, unknown> | undefined;
+      const callName = typeof maybeFunction?.name === 'string'
+        ? maybeFunction.name
+        : typeof call.name === 'string'
+          ? call.name
+          : undefined;
+      if (callId && callName?.trim()) {
+        names.set(callId, callName.trim());
+      }
+    }
+  }
+  return names;
 }
 
 function extractToolArgs(toolCalls?: serdeJsonValue[] | null): string | undefined {
@@ -957,13 +988,13 @@ function buildRawMeta(msg: BackendChatMessage): Record<string, unknown> | undefi
   return rawMeta;
 }
 
-function mapBackendMessageToUi(msg: BackendChatMessage): Message | null {
+function mapBackendMessageToUi(msg: BackendChatMessage, fallbackToolName?: string): Message | null {
   const mappedRole = mapSessionRole(msg.role);
   if (!mappedRole) {
     return null;
   }
 
-  const toolName = extractToolName(msg.role, msg.name, msg.tool_calls);
+  const toolName = extractToolName(msg.role, msg.name, msg.tool_calls, fallbackToolName);
   const toolArgs = extractToolArgs(msg.tool_calls);
   const rawMeta = buildRawMeta(msg);
   const toolResult = mappedRole === 'tool' ? (msg.content || '') : undefined;
@@ -1935,8 +1966,12 @@ async function loadSession(sessionKey: string): Promise<boolean> {
     currentSessionKey.value = sessionHistory.key || sessionKey;
     syncPlanRuntime(null);
 
+    const historicalToolNames = buildHistoricalToolNameIndex(sessionHistory.messages);
     const newMessages: Message[] = sessionHistory.messages
-      .map(mapBackendMessageToUi)
+      .map((msg) => mapBackendMessageToUi(
+        msg,
+        msg.tool_call_id ? historicalToolNames.get(msg.tool_call_id) : undefined,
+      ))
       .filter((msg): msg is Message => msg !== null);
 
     if (newMessages.length > 0) {

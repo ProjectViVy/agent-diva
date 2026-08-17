@@ -64,6 +64,7 @@ interface Message {
 }
 
 interface ChatDisplayPrefs {
+  cleanMode: boolean;
   autoExpandReasoning: boolean;
   autoExpandToolDetails: boolean;
   showRawMetaByDefault: boolean;

@@ -4,8 +4,10 @@ import ChatView from './ChatView.vue';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => ({
+    t: (key: string, params?: Record<string, unknown>) => {
+      const value = ({
       'chat.toolRunning': '正在调用工具...',
+      'chat.toolCall': '调用工具：{name}',
       'chat.toolSuccess': '调用成功',
       'chat.toolFailed': '调用失败',
       'chat.thinking': '正在深度思考...',
@@ -18,15 +20,25 @@ vi.mock('vue-i18n', () => ({
       'chat.compactionRunning': '正在压缩上下文…',
       'chat.compactionCompleted': '上下文压缩已完成。',
       'chat.compactionFailed': '上下文压缩失败，原上下文已保留。',
-    })[key] ?? key,
+      'app.unknownTool': '未知工具',
+      'general.cleanMode': '清爽模式',
+      'general.cleanModeDesc': '隐藏工具输出',
+      'general.cleanModeOverridesAutoExpand': '自动展开设置暂不生效',
+    } as Record<string, string>)[key] ?? key;
+      return value.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? `{${name}}`));
+    },
   }),
 }));
 
-function mountChat(messages: Array<Record<string, unknown>>) {
+function mountChat(
+  messages: Array<Record<string, unknown>>,
+  props: Record<string, unknown> = {},
+) {
   return shallowMount(ChatView, {
     props: {
       messages,
       isTyping: true,
+      ...props,
     },
   });
 }
@@ -148,7 +160,7 @@ describe('ChatView streaming states', () => {
     expect(wrapper.find('.chat-bubble-has-reasoning').exists()).toBe(true);
   });
 
-  it('renders a running tool as a tool card without an assistant loading bubble', () => {
+  it('renders a running tool with its name and progress dots', () => {
     const wrapper = mountChat([
       {
         id: 'tool-1',
@@ -159,10 +171,80 @@ describe('ChatView streaming states', () => {
       },
     ]);
 
-    expect(wrapper.text()).toContain('正在调用工具...');
-    expect(wrapper.text()).toContain('shell');
+    expect(wrapper.text()).toContain('调用工具：shell');
     expect(wrapper.find('.streaming-dots-only').exists()).toBe(false);
-    expect(wrapper.findAll('.streaming-dots i')).toHaveLength(0);
+    expect(wrapper.findAll('.tool-streaming-dots i')).toHaveLength(3);
+  });
+
+  it('hides ordinary tool output in clean mode but keeps manual details available', async () => {
+    const wrapper = mountChat([
+      {
+        id: 'tool-clean',
+        role: 'tool',
+        content: 'tool completed',
+        toolName: 'file_read',
+        toolArgs: '{"path":"README.md"}',
+        toolResult: 'secret output preview',
+        toolStatus: 'success',
+      },
+    ], {
+      historyPrefs: {
+        cleanMode: true,
+        autoExpandReasoning: true,
+        autoExpandToolDetails: true,
+        showRawMetaByDefault: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain('调用工具：file_read');
+    expect(wrapper.text()).not.toContain('secret output preview');
+    const detailsButton = wrapper.findAll('button').find((button) => button.text().includes('查看详情'));
+    expect(detailsButton).toBeDefined();
+    await detailsButton!.trigger('click');
+    expect(wrapper.text()).toContain('secret output preview');
+  });
+
+  it('applies clean mode to existing reasoning and tool expansion state', async () => {
+    const wrapper = mountChat([
+      {
+        id: 'reasoning-existing',
+        role: 'agent',
+        content: 'done',
+        reasoning: 'internal reasoning',
+      },
+      {
+        id: 'tool-existing',
+        role: 'tool',
+        content: 'tool completed',
+        toolName: 'shell',
+        toolResult: 'result',
+        toolStatus: 'success',
+      },
+    ], {
+      historyPrefs: {
+        cleanMode: false,
+        autoExpandReasoning: true,
+        autoExpandToolDetails: true,
+        showRawMetaByDefault: false,
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent({ name: 'ThinkingBlock' }).props('expanded')).toBe(true);
+    expect(wrapper.find('.tool-message .border-t').exists()).toBe(true);
+
+    await wrapper.setProps({
+      historyPrefs: {
+        cleanMode: true,
+        autoExpandReasoning: true,
+        autoExpandToolDetails: true,
+        showRawMetaByDefault: true,
+      },
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: 'ThinkingBlock' }).props('expanded')).toBe(false);
+    expect(wrapper.find('.tool-message .border-t').exists()).toBe(false);
   });
 
   it('renders ToolResultRef preview and copies a real artifact reference', async () => {

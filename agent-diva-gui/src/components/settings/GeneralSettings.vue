@@ -8,6 +8,7 @@ import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '..
 const { t } = useI18n();
 
 interface ChatDisplayPrefs {
+  cleanMode: boolean;
   autoExpandReasoning: boolean;
   autoExpandToolDetails: boolean;
   showRawMetaByDefault: boolean;
@@ -125,18 +126,26 @@ async function runFullWipe() {
       </div>
 
       <div class="space-y-3 pl-1">
+        <label class="settings-label flex items-start space-x-2 cursor-pointer">
+          <input type="checkbox" v-model="localPrefs.cleanMode" @change="emitPrefs" class="settings-checkbox mt-0.5" />
+          <span>
+            <span class="block">{{ t('general.cleanMode') }}</span>
+            <span class="settings-muted block mt-1">{{ t('general.cleanModeDesc') }}</span>
+          </span>
+        </label>
         <label class="settings-label flex items-center space-x-2 cursor-pointer">
-          <input type="checkbox" v-model="localPrefs.autoExpandReasoning" @change="emitPrefs" class="settings-checkbox" />
+          <input type="checkbox" v-model="localPrefs.autoExpandReasoning" @change="emitPrefs" class="settings-checkbox" :disabled="localPrefs.cleanMode" />
           <span>{{ t('general.autoExpandReasoning') }}</span>
         </label>
         <label class="settings-label flex items-center space-x-2 cursor-pointer">
-          <input type="checkbox" v-model="localPrefs.autoExpandToolDetails" @change="emitPrefs" class="settings-checkbox" />
+          <input type="checkbox" v-model="localPrefs.autoExpandToolDetails" @change="emitPrefs" class="settings-checkbox" :disabled="localPrefs.cleanMode" />
           <span>{{ t('general.autoExpandToolDetails') }}</span>
         </label>
         <label class="settings-label flex items-center space-x-2 cursor-pointer">
-          <input type="checkbox" v-model="localPrefs.showRawMetaByDefault" @change="emitPrefs" class="settings-checkbox" />
+          <input type="checkbox" v-model="localPrefs.showRawMetaByDefault" @change="emitPrefs" class="settings-checkbox" :disabled="localPrefs.cleanMode" />
           <span>{{ t('general.autoExpandRawMeta') }}</span>
         </label>
+        <p v-if="localPrefs.cleanMode" class="settings-muted pl-6">{{ t('general.cleanModeOverridesAutoExpand') }}</p>
       </div>
     </div>
 

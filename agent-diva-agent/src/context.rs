@@ -726,10 +726,12 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
         &self,
         messages: &mut Vec<Message>,
         tool_call_id: String,
-        _tool_name: String,
+        tool_name: String,
         result: String,
     ) {
-        messages.push(Message::tool(result, tool_call_id));
+        let mut message = Message::tool(result, tool_call_id);
+        message.name = Some(tool_name);
+        messages.push(message);
     }
 
     /// Add an assistant message with optional tool calls
@@ -1547,6 +1549,7 @@ mod tests {
         );
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[1].role, "tool");
+        assert_eq!(messages[1].name.as_deref(), Some("read_file"));
     }
 
     #[test]

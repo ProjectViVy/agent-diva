@@ -33,4 +33,26 @@ describe('ThinkingBlock actions', () => {
     expect(expand.attributes('aria-expanded')).toBe('true');
     expect(wrapper.find('.thinking-content-wrapper').isVisible()).toBe(true);
   });
+
+  it('supports controlled expansion for chat-level display preferences', async () => {
+    const wrapper = mount(ThinkingBlock, {
+      props: { content: '受控思考内容。', expanded: false },
+      global: {
+        mocks: {
+          $t: (key: string) => ({
+            'chat.thinkingProcess': '思考过程',
+            'chat.viewDetails': '展开',
+            'chat.hideDetails': '收起',
+          })[key] ?? key,
+        },
+      },
+    });
+
+    await wrapper.find('.thinking-expand-btn').trigger('click');
+    expect(wrapper.emitted('update:expanded')).toEqual([[true]]);
+    expect(wrapper.find('.thinking-expand-btn').attributes('aria-expanded')).toBe('false');
+
+    await wrapper.setProps({ expanded: true });
+    expect(wrapper.find('.thinking-expand-btn').attributes('aria-expanded')).toBe('true');
+  });
 });

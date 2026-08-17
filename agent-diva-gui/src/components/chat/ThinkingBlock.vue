@@ -54,16 +54,28 @@
 import { computed, ref } from 'vue'
 import { Brain, ChevronDown } from '@lucide/vue'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   content: string
   thinkingMs?: number
+  expanded?: boolean
+}>(), {
+  expanded: undefined,
+})
+
+const emit = defineEmits<{
+  (event: 'update:expanded', expanded: boolean): void
 }>()
 
-const isExpanded = ref(false)
+const internalExpanded = ref(false)
+const isExpanded = computed(() => props.expanded ?? internalExpanded.value)
 const contentId = computed(() => `thinking-content-${Math.random().toString(36).slice(2)}`)
 
 function toggleExpanded() {
-  isExpanded.value = !isExpanded.value
+  const nextExpanded = !isExpanded.value
+  if (props.expanded === undefined) {
+    internalExpanded.value = nextExpanded
+  }
+  emit('update:expanded', nextExpanded)
 }
 
 function formatDuration(ms: number): string {

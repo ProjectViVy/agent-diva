@@ -143,6 +143,7 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
       savedModels: [],
       sessions: [],
       chatDisplayPrefs: {
+        cleanMode: false,
         autoExpandReasoning: false,
         autoExpandToolDetails: false,
         showRawMetaByDefault: false,
