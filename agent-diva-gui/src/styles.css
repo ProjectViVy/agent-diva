@@ -60,7 +60,18 @@
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.1);
   --success: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.1);
   --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.1);
+
+  /* 语义扩展令牌 */
+  --surface-raised: rgba(255, 255, 255, 0.72);
+  --surface-sunken: rgba(236, 72, 153, 0.05);
+  --text-faint: rgba(107, 39, 55, 0.6);
+  --border-strong: rgba(236, 72, 153, 0.35);
+  --overlay: rgba(107, 39, 55, 0.35);
 }
 
 /* Dark 主题 */
@@ -105,7 +116,18 @@
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.15);
   --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.12);
   --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.12);
+
+  /* 语义扩展令牌 */
+  --surface-raised: rgba(30, 41, 59, 0.85);
+  --surface-sunken: rgba(2, 6, 23, 0.5);
+  --text-faint: rgba(148, 163, 184, 0.6);
+  --border-strong: rgba(96, 165, 250, 0.3);
+  --overlay: rgba(2, 6, 23, 0.6);
 }
 
 /* Default 主题 - 简约粉白配色 */
@@ -150,7 +172,18 @@
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.1);
   --success: #22c55e;
+  --success-bg: rgba(34, 197, 94, 0.1);
   --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.1);
+
+  /* 语义扩展令牌 */
+  --surface-raised: rgba(255, 255, 255, 0.85);
+  --surface-sunken: rgba(236, 72, 153, 0.04);
+  --text-faint: rgba(107, 39, 55, 0.55);
+  --border-strong: rgba(236, 72, 153, 0.3);
+  --overlay: rgba(107, 39, 55, 0.3);
 }
 
 /* Miku 主题 - 初音未来应援色 */
@@ -194,7 +227,50 @@
   --danger: #f85149;
   --danger-bg: rgba(248, 81, 73, 0.12);
   --success: #3fb950;
+  --success-bg: rgba(63, 185, 80, 0.12);
   --warning: #d29922;
+  --warning-bg: rgba(210, 153, 34, 0.12);
+  --info: #58a6ff;
+  --info-bg: rgba(88, 166, 255, 0.12);
+
+  /* 语义扩展令牌 */
+  --surface-raised: rgba(33, 39, 48, 0.9);
+  --surface-sunken: rgba(1, 4, 9, 0.5);
+  --text-faint: rgba(125, 133, 144, 0.6);
+  --border-strong: rgba(57, 197, 187, 0.35);
+  --overlay: rgba(1, 4, 9, 0.6);
+}
+
+/* ========================================
+   设计令牌：字号 / 字重 / 间距（主题无关）
+   语义色令牌（surface/ink/line/state-*）
+   由各主题块提供，见下方各 data-theme 区块。
+   ======================================== */
+:root {
+  /* Type scale：6 级，收敛历史 ~30 种字号 */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --line-height-xs: 1rem;
+  --line-height-sm: 1.125rem;
+  --line-height-base: 1.25rem;
+  --line-height-md: 1.5rem;
+  --line-height-lg: 1.75rem;
+  --line-height-xl: 1.75rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Spacing scale：4px 基数 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
 }
 
 @layer base {
@@ -1929,33 +2005,6 @@
     -webkit-app-region: no-drag;
   }
   
-  /* 病娇主题色彩 */
-  .text-yandere {
-    @apply text-pink-400;
-  }
-  
-  .bg-yandere {
-    @apply bg-pink-500;
-  }
-  
-  .border-yandere {
-    @apply border-pink-500;
-  }
-  
-  /* 发光效果 */
-  .glow-pink {
-    box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
-  }
-  
-  .glow-pink-lg {
-    box-shadow: 0 0 40px rgba(236, 72, 153, 0.4);
-  }
-  
-  /* 渐变文字 */
-  .gradient-text {
-    @apply bg-gradient-to-r from-pink-400 to-pink-600 bg-clip-text text-transparent;
-  }
-  
   /* 按钮动画 */
   .btn-primary {
     @apply px-4 py-2 bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-400 hover:to-pink-500 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all transform hover:scale-105 active:scale-95;
@@ -1990,11 +2039,6 @@
   
   .btn-secondary {
     @apply px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-all;
-  }
-  
-  /* 输入框样式 */
-  .input-yandere {
-    @apply bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all;
   }
   
   /* 卡片样式 */
