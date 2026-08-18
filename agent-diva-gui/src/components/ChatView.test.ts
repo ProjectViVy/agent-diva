@@ -176,16 +176,43 @@ describe('ChatView streaming states', () => {
     expect(wrapper.findAll('.tool-streaming-dots i')).toHaveLength(3);
   });
 
-  it('appends clean-mode tool names after the progress dots without a tool bubble', () => {
+  it('collapses clean-mode process messages into one thinking bubble', () => {
     const wrapper = mountChat([
       {
-        id: 'tool-clean',
+        id: 'reasoning-clean',
+        role: 'agent',
+        content: '',
+        reasoning: 'secret reasoning text',
+        isStreaming: false,
+      },
+      {
+        id: 'tool-clean-1',
         role: 'tool',
         content: 'tool completed',
         toolName: 'file_read',
         toolArgs: '{"path":"README.md"}',
         toolResult: 'secret output preview',
         toolStatus: 'success',
+      },
+      {
+        id: 'placeholder-clean',
+        role: 'agent',
+        content: '',
+        isStreaming: false,
+      },
+      {
+        id: 'tool-clean-2',
+        role: 'tool',
+        content: 'tool failed',
+        toolName: 'shell',
+        toolResult: 'another secret output',
+        toolStatus: 'error',
+      },
+      {
+        id: 'answer-clean',
+        role: 'agent',
+        content: '最终答案',
+        reasoning: 'another secret reasoning text',
       },
     ], {
       historyPrefs: {
@@ -196,18 +223,21 @@ describe('ChatView streaming states', () => {
       },
     });
 
-    expect(wrapper.find('.clean-tool-activity').exists()).toBe(true);
-    expect(wrapper.findAll('.clean-tool-dots i')).toHaveLength(3);
-    expect(wrapper.find('.clean-tool-dots--static').exists()).toBe(true);
-    expect(wrapper.find('.clean-tool-name').text()).toBe('file_read');
+    expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(1);
+    expect(wrapper.findAll('.clean-thinking-dots i')).toHaveLength(3);
+    expect(wrapper.find('.clean-thinking-dots--static').exists()).toBe(true);
+    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('file_read · shell');
+    expect(wrapper.find('.clean-thinking-status-icon--error').exists()).toBe(true);
     expect(wrapper.find('.tool-message').exists()).toBe(false);
-    expect(wrapper.find('.tool-call-caption').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain('调用工具：file_read');
-    expect(wrapper.text()).not.toContain('调用成功');
+    expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('secret reasoning text');
+    expect(wrapper.text()).not.toContain('another secret reasoning text');
     expect(wrapper.text()).not.toContain('secret output preview');
+    expect(wrapper.text()).not.toContain('another secret output');
+    expect(wrapper.findComponent({ name: 'AgentMessageBody' }).props('content')).toBe('最终答案');
   });
 
-  it('keeps running clean-mode tool activity in the same three-dot language', () => {
+  it('shows a single active thinking bubble for a running clean-mode tool', () => {
     const wrapper = mountChat([
       {
         id: 'tool-clean-running',
@@ -225,9 +255,11 @@ describe('ChatView streaming states', () => {
       },
     });
 
-    expect(wrapper.findAll('.clean-tool-dots i')).toHaveLength(3);
-    expect(wrapper.find('.clean-tool-dots--static').exists()).toBe(false);
-    expect(wrapper.find('.clean-tool-name').text()).toBe('shell');
+    expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(1);
+    expect(wrapper.findAll('.clean-thinking-dots i')).toHaveLength(3);
+    expect(wrapper.find('.clean-thinking-dots--static').exists()).toBe(false);
+    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('shell');
+    expect(wrapper.find('.tool-message').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('调用工具：shell');
     expect(wrapper.text()).not.toContain('调用成功');
   });
@@ -271,8 +303,10 @@ describe('ChatView streaming states', () => {
     });
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.findComponent({ name: 'ThinkingBlock' }).props('expanded')).toBe(false);
+    expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false);
     expect(wrapper.find('.tool-message .border-t').exists()).toBe(false);
+    expect(wrapper.find('.clean-thinking-bubble').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('internal reasoning');
   });
 
   it('renders ToolResultRef preview and copies a real artifact reference', async () => {

@@ -822,6 +822,44 @@ const hasInteractiveToolCard = (msg: Message) => {
     || ((msg.toolName === 'plan_create' || msg.toolName === 'todo_write' || msg.toolName === 'update_plan') && !!card);
 };
 
+const isCleanProcessMessage = (msg: Message) => {
+  if (msg.role === 'tool') return !hasInteractiveToolCard(msg);
+  return msg.role === 'agent' && !msg.content.trim();
+};
+
+const cleanProcessGroup = (anchorIndex: number) => {
+  const group: Message[] = [];
+  for (let index = anchorIndex; index < props.messages.length; index += 1) {
+    const message = props.messages[index];
+    if (!isCleanProcessMessage(message)) break;
+    group.push(message);
+  }
+  return group;
+};
+
+const isCleanProcessAnchor = (msg: Message, index: number) => {
+  if (!cleanMode.value || !isCleanProcessMessage(msg)) return false;
+  return index === 0 || !isCleanProcessMessage(props.messages[index - 1]);
+};
+
+const cleanProcessToolNames = (anchorIndex: number) => cleanProcessGroup(anchorIndex)
+  .filter((message) => message.role === 'tool')
+  .map((message) => toolDisplayName(message))
+  .join(' · ');
+
+const cleanProcessIsActive = (anchorIndex: number) => cleanProcessGroup(anchorIndex)
+  .some((message) => message.isStreaming || message.isThinking || message.toolStatus === 'running');
+
+const cleanProcessState = (anchorIndex: number) => {
+  const group = cleanProcessGroup(anchorIndex);
+  if (group.some((message) => message.isStreaming || message.isThinking || message.toolStatus === 'running')) {
+    return 'running';
+  }
+  const tools = group.filter((message) => message.role === 'tool');
+  if (tools.length === 0) return 'idle';
+  return tools.some((message) => message.toolStatus === 'error') ? 'error' : 'success';
+};
+
 /** Handle DecisionCard approve/reject action */
 const onCardAction = (payload: { id: string; decision: 'approved' | 'rejected' }) => {
   console.log('[ChatView] card action:', payload);
@@ -880,12 +918,55 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         <p class="text-lg">{{ t('chat.start') }}</p>
       </div>
 
+      <template v-for="(msg, index) in messages" :key="msg.id">
       <div
-        v-for="msg in messages"
-        :key="msg.id"
+        v-if="!cleanMode || !isCleanProcessMessage(msg) || isCleanProcessAnchor(msg, index)"
         class="flex mb-4"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
+        <template v-if="cleanMode && isCleanProcessAnchor(msg, index)">
+          <div class="flex max-w-[85%] items-start space-x-2">
+            <div class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0">
+              {{ getEmotionEmoji(msg.emotion) }}
+            </div>
+            <div class="flex flex-col min-w-0 max-w-full items-start">
+              <div class="chat-bubble chat-bubble-assistant clean-thinking-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words">
+                <div
+                  class="clean-thinking-status"
+                  role="status"
+                  aria-live="polite"
+                  :aria-busy="cleanProcessIsActive(index)"
+                >
+                  <div
+                    class="streaming-dots clean-thinking-dots"
+                    :class="{ 'clean-thinking-dots--static': !cleanProcessIsActive(index) }"
+                    aria-label="Loading"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <span v-if="cleanProcessToolNames(index)" class="clean-thinking-tool-list">
+                    {{ cleanProcessToolNames(index) }}
+                  </span>
+                  <XCircle
+                    v-if="cleanProcessState(index) === 'error'"
+                    :size="13"
+                    class="clean-thinking-status-icon clean-thinking-status-icon--error"
+                    aria-hidden="true"
+                  />
+                  <CheckCircle2
+                    v-else-if="cleanProcessState(index) === 'success'"
+                    :size="13"
+                    class="clean-thinking-status-icon clean-thinking-status-icon--success"
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template v-else>
         <div class="flex max-w-[85%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
           <!-- Avatar -->
           <template v-if="msg.role !== 'user' && msg.role !== 'tool'">
@@ -909,33 +990,8 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           >
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
-              <!-- Clean mode keeps tool activity in the existing progress language, without a tool bubble. -->
-              <template v-if="cleanMode && !hasInteractiveToolCard(msg)">
-                <div
-                  class="clean-tool-activity"
-                  :class="{
-                    'clean-tool-activity--success': msg.toolStatus === 'success',
-                    'clean-tool-activity--error': msg.toolStatus === 'error'
-                  }"
-                  role="status"
-                  :aria-label="toolDisplayName(msg)"
-                >
-                  <div
-                    class="streaming-dots clean-tool-dots"
-                    :class="{ 'clean-tool-dots--static': msg.toolStatus !== 'running' }"
-                    aria-hidden="true"
-                  >
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                  <span class="clean-tool-name">{{ toolDisplayName(msg) }}</span>
-                  <CheckCircle2 v-if="msg.toolStatus === 'success'" :size="13" class="clean-tool-status clean-tool-status--success" aria-hidden="true" />
-                  <XCircle v-else-if="msg.toolStatus === 'error'" :size="13" class="clean-tool-status clean-tool-status--error" aria-hidden="true" />
-                </div>
-              </template>
               <!-- Card rendering: plan_create / todo_write / approval_request -->
-              <template v-else-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
+              <template v-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
                 <div class="min-w-0">
                   <div v-if="!cleanMode && msg.toolName" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
@@ -1094,11 +1150,11 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               class="chat-bubble relative px-4 py-3 rounded-2xl text-sm leading-relaxed break-words"
               :class="[
                 msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant',
-                { 'chat-bubble-has-reasoning': Boolean(msg.reasoning) },
+                { 'chat-bubble-has-reasoning': Boolean(msg.reasoning) && !cleanMode },
               ]"
             >
               <!-- Reasoning Block -->
-              <div v-if="msg.reasoning" class="streaming-reasoning-section">
+              <div v-if="msg.reasoning && !cleanMode" class="streaming-reasoning-section">
                 <ThinkingBlock
                   :content="msg.reasoning"
                   :thinking-ms="0"
@@ -1119,7 +1175,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 </div>
               </div>
 
-              <div v-if="hasRawMeta(msg)" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
+              <div v-if="hasRawMeta(msg) && !cleanMode" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
                 <div
                   @click="toggleRawMeta(msg.id)"
                   class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
@@ -1229,7 +1285,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </span>
           </div>
         </div>
+        </template>
       </div>
+      </template>
 
       <div
         v-for="card in localGovernanceCards"
@@ -1740,23 +1798,26 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   line-height: 1.4;
 }
 
-.clean-tool-activity {
-  display: inline-flex;
+.clean-thinking-status {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 24px;
-  padding: 4px 0;
-  color: var(--text-muted, #6b7280);
-  font-size: 12px;
-  line-height: 1.4;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
-.clean-tool-activity--success { color: #6b7280; }
-.clean-tool-activity--error { color: #b91c1c; }
-.clean-tool-name { font-weight: 500; }
-.clean-tool-status { flex: 0 0 auto; }
-.clean-tool-status--success { color: #16a34a; }
-.clean-tool-status--error { color: #dc2626; }
+.clean-thinking-dots { flex: 0 0 auto; }
+.clean-thinking-status-icon { flex: 0 0 auto; }
+.clean-thinking-status-icon--success { color: #16a34a; }
+.clean-thinking-status-icon--error { color: #dc2626; }
+.clean-thinking-tool-list {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted, #6b7280);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .streaming-reasoning-status {
   display: flex;
@@ -1789,7 +1850,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .streaming-dots i:nth-child(2) { animation-delay: .1s; }
 .streaming-dots i:nth-child(3) { animation-delay: .2s; }
 
-.clean-tool-dots--static i {
+.clean-thinking-dots--static i {
   animation: none;
   opacity: .45;
 }
