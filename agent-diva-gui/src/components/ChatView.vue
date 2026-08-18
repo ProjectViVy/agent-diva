@@ -842,23 +842,35 @@ const isCleanProcessAnchor = (msg: Message, index: number) => {
   return index === 0 || !isCleanProcessMessage(props.messages[index - 1]);
 };
 
-const cleanProcessToolNames = (anchorIndex: number) => cleanProcessGroup(anchorIndex)
-  .filter((message) => message.role === 'tool')
-  .map((message) => toolDisplayName(message))
-  .join(' · ');
+const cleanProcessCurrentToolName = (anchorIndex: number) => {
+  const group = cleanProcessGroup(anchorIndex);
+  for (let index = group.length - 1; index >= 0; index -= 1) {
+    const message = group[index];
+    if (message.role === 'agent' && (message.isStreaming || message.isThinking)) return '';
+    if (
+      message.role === 'tool'
+      && (message.toolStatus === 'running' || message.isStreaming || message.isThinking)
+    ) {
+      return toolDisplayName(message);
+    }
+  }
+  return '';
+};
+
+const cleanProcessCurrentReasoning = (anchorIndex: number) => {
+  const group = cleanProcessGroup(anchorIndex);
+  for (let index = group.length - 1; index >= 0; index -= 1) {
+    const message = group[index];
+    if (message.role === 'tool' && message.toolStatus === 'running') return '';
+    if (message.role === 'agent' && (message.isStreaming || message.isThinking)) {
+      return (message.reasoning || '').replace(/\s+/g, ' ').trim();
+    }
+  }
+  return '';
+};
 
 const cleanProcessIsActive = (anchorIndex: number) => cleanProcessGroup(anchorIndex)
   .some((message) => message.isStreaming || message.isThinking || message.toolStatus === 'running');
-
-const cleanProcessState = (anchorIndex: number) => {
-  const group = cleanProcessGroup(anchorIndex);
-  if (group.some((message) => message.isStreaming || message.isThinking || message.toolStatus === 'running')) {
-    return 'running';
-  }
-  const tools = group.filter((message) => message.role === 'tool');
-  if (tools.length === 0) return 'idle';
-  return tools.some((message) => message.toolStatus === 'error') ? 'error' : 'success';
-};
 
 /** Handle DecisionCard approve/reject action */
 const onCardAction = (payload: { id: string; decision: 'approved' | 'rejected' }) => {
@@ -920,11 +932,11 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
       <template v-for="(msg, index) in messages" :key="msg.id">
       <div
-        v-if="!cleanMode || !isCleanProcessMessage(msg) || isCleanProcessAnchor(msg, index)"
+        v-if="!cleanMode || !isCleanProcessMessage(msg) || (isCleanProcessAnchor(msg, index) && cleanProcessIsActive(index))"
         class="flex mb-4"
         :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
       >
-        <template v-if="cleanMode && isCleanProcessAnchor(msg, index)">
+        <template v-if="cleanMode && isCleanProcessAnchor(msg, index) && cleanProcessIsActive(index)">
           <div class="flex max-w-[85%] items-start space-x-2">
             <div class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0">
               {{ getEmotionEmoji(msg.emotion) }}
@@ -939,28 +951,18 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 >
                   <div
                     class="streaming-dots clean-thinking-dots"
-                    :class="{ 'clean-thinking-dots--static': !cleanProcessIsActive(index) }"
                     aria-label="Loading"
                   >
                     <i />
                     <i />
                     <i />
                   </div>
-                  <span v-if="cleanProcessToolNames(index)" class="clean-thinking-tool-list">
-                    {{ cleanProcessToolNames(index) }}
+                  <span v-if="cleanProcessCurrentReasoning(index)" class="clean-thinking-reasoning">
+                    {{ t('chat.deepThinking') }}：{{ cleanProcessCurrentReasoning(index) }}
                   </span>
-                  <XCircle
-                    v-if="cleanProcessState(index) === 'error'"
-                    :size="13"
-                    class="clean-thinking-status-icon clean-thinking-status-icon--error"
-                    aria-hidden="true"
-                  />
-                  <CheckCircle2
-                    v-else-if="cleanProcessState(index) === 'success'"
-                    :size="13"
-                    class="clean-thinking-status-icon clean-thinking-status-icon--success"
-                    aria-hidden="true"
-                  />
+                  <span v-else-if="cleanProcessCurrentToolName(index)" class="clean-thinking-tool-list">
+                    {{ t('chat.cleanToolCall', { name: cleanProcessCurrentToolName(index) }) }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1808,9 +1810,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 .clean-thinking-dots { flex: 0 0 auto; }
-.clean-thinking-status-icon { flex: 0 0 auto; }
-.clean-thinking-status-icon--success { color: #16a34a; }
-.clean-thinking-status-icon--error { color: #dc2626; }
+.clean-thinking-reasoning {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted, #6b7280);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .clean-thinking-tool-list {
   min-width: 0;
   overflow: hidden;
@@ -1849,11 +1856,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .streaming-dots i:nth-child(2) { animation-delay: .1s; }
 .streaming-dots i:nth-child(3) { animation-delay: .2s; }
-
-.clean-thinking-dots--static i {
-  animation: none;
-  opacity: .45;
-}
 
 @keyframes streaming-dot-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: .45; }

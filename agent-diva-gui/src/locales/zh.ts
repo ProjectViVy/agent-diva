@@ -45,6 +45,7 @@ export default {
     start: '开始和 DIVA 对话吧～',
     toolRunning: '正在调用工具...',
     toolCall: '调用工具：{name}',
+    cleanToolCall: '工具调用：{name}',
     toolSuccess: '调用成功',
     toolFailed: '调用失败',
     viewDetails: '查看详情',

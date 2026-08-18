@@ -8,6 +8,7 @@ vi.mock('vue-i18n', () => ({
       const value = ({
       'chat.toolRunning': '正在调用工具...',
       'chat.toolCall': '调用工具：{name}',
+      'chat.cleanToolCall': '工具调用：{name}',
       'chat.toolSuccess': '调用成功',
       'chat.toolFailed': '调用失败',
       'chat.thinking': '正在深度思考...',
@@ -20,6 +21,7 @@ vi.mock('vue-i18n', () => ({
       'chat.compactionRunning': '正在压缩上下文…',
       'chat.compactionCompleted': '上下文压缩已完成。',
       'chat.compactionFailed': '上下文压缩失败，原上下文已保留。',
+      'chat.deepThinking': '深度思考',
       'app.unknownTool': '未知工具',
       'general.cleanMode': '清爽模式',
       'general.cleanModeDesc': '隐藏工具输出',
@@ -176,7 +178,7 @@ describe('ChatView streaming states', () => {
     expect(wrapper.findAll('.tool-streaming-dots i')).toHaveLength(3);
   });
 
-  it('collapses clean-mode process messages into one thinking bubble', () => {
+  it('hides completed clean-mode process messages after the process ends', () => {
     const wrapper = mountChat([
       {
         id: 'reasoning-clean',
@@ -223,11 +225,8 @@ describe('ChatView streaming states', () => {
       },
     });
 
-    expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(1);
-    expect(wrapper.findAll('.clean-thinking-dots i')).toHaveLength(3);
-    expect(wrapper.find('.clean-thinking-dots--static').exists()).toBe(true);
-    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('file_read · shell');
-    expect(wrapper.find('.clean-thinking-status-icon--error').exists()).toBe(true);
+    expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(0);
+    expect(wrapper.find('.clean-thinking-tool-list').exists()).toBe(false);
     expect(wrapper.find('.tool-message').exists()).toBe(false);
     expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false);
     expect(wrapper.text()).not.toContain('secret reasoning text');
@@ -257,11 +256,101 @@ describe('ChatView streaming states', () => {
 
     expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(1);
     expect(wrapper.findAll('.clean-thinking-dots i')).toHaveLength(3);
-    expect(wrapper.find('.clean-thinking-dots--static').exists()).toBe(false);
-    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('shell');
+    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('工具调用：shell');
+    expect(wrapper.find('.clean-thinking-tool-list').text()).not.toContain('·');
     expect(wrapper.find('.tool-message').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('调用工具：shell');
+    expect(wrapper.text()).toContain('工具调用：shell');
     expect(wrapper.text()).not.toContain('调用成功');
+  });
+
+  it('shows only the current clean-mode process snapshot', () => {
+    const wrapper = mountChat([
+      {
+        id: 'tool-clean-finished',
+        role: 'tool',
+        content: 'tool completed',
+        toolName: 'file_read',
+        toolStatus: 'success',
+      },
+      {
+        id: 'thinking-clean-current',
+        role: 'agent',
+        content: '',
+        isStreaming: false,
+      },
+      {
+        id: 'tool-clean-current',
+        role: 'tool',
+        content: '正在调用工具...',
+        toolName: 'shell',
+        toolStatus: 'running',
+      },
+    ], {
+      historyPrefs: {
+        cleanMode: true,
+        autoExpandReasoning: true,
+        autoExpandToolDetails: true,
+        showRawMetaByDefault: true,
+      },
+    });
+
+    expect(wrapper.findAll('.clean-thinking-bubble')).toHaveLength(1);
+    expect(wrapper.find('.clean-thinking-tool-list').text()).toBe('工具调用：shell');
+    expect(wrapper.find('.clean-thinking-tool-list').text()).not.toContain('file_read');
+    expect(wrapper.text()).not.toContain('·');
+  });
+
+  it('removes the clean-mode thinking bubble when the answer starts', async () => {
+    const wrapper = mountChat([
+      {
+        id: 'thinking-clean-running',
+        role: 'agent',
+        content: '',
+        reasoning: 'secret reasoning text',
+        isThinking: true,
+        isStreaming: true,
+      },
+    ], {
+      historyPrefs: {
+        cleanMode: true,
+        autoExpandReasoning: true,
+        autoExpandToolDetails: true,
+        showRawMetaByDefault: true,
+      },
+    });
+
+    expect(wrapper.find('.clean-thinking-bubble').exists()).toBe(true);
+    expect(wrapper.findAll('.clean-thinking-dots i')).toHaveLength(3);
+    expect(wrapper.find('.clean-thinking-reasoning').text()).toBe('深度思考：secret reasoning text');
+
+    await wrapper.setProps({
+      messages: [{
+        id: 'thinking-clean-running',
+        role: 'agent',
+        content: '',
+        reasoning: '好了，我又看到了问题所在了....',
+        isThinking: true,
+        isStreaming: true,
+      }],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.clean-thinking-reasoning').text()).toBe('深度思考：好了，我又看到了问题所在了....');
+
+    await wrapper.setProps({
+      messages: [{
+        id: 'answer-clean-current',
+        role: 'agent',
+        content: '最终答案',
+        isThinking: false,
+        isStreaming: false,
+      }],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.clean-thinking-bubble').exists()).toBe(false);
+    expect(wrapper.findComponent({ name: 'AgentMessageBody' }).props('content')).toBe('最终答案');
   });
 
   it('applies clean mode to existing reasoning and tool expansion state', async () => {
@@ -305,7 +394,7 @@ describe('ChatView streaming states', () => {
 
     expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false);
     expect(wrapper.find('.tool-message .border-t').exists()).toBe(false);
-    expect(wrapper.find('.clean-thinking-bubble').exists()).toBe(true);
+    expect(wrapper.find('.clean-thinking-bubble').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('internal reasoning');
   });
 

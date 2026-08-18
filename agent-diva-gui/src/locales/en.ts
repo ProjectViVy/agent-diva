@@ -45,6 +45,7 @@ export default {
     start: 'Start chatting with DIVA~',
     toolRunning: 'Calling tool...',
     toolCall: 'Calling tool: {name}',
+    cleanToolCall: 'Tool call: {name}',
     toolSuccess: 'Success',
     toolFailed: 'Failed',
     viewDetails: 'View Details',
