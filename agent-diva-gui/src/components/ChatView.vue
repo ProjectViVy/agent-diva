@@ -816,6 +816,12 @@ const getCachedCard = (messageId: string, content: string): Record<string, unkno
   return result;
 };
 
+const hasInteractiveToolCard = (msg: Message) => {
+  const card = getCachedCard(msg.id, msg.content);
+  return isGovernanceCard(card)
+    || ((msg.toolName === 'plan_create' || msg.toolName === 'todo_write' || msg.toolName === 'update_plan') && !!card);
+};
+
 /** Handle DecisionCard approve/reject action */
 const onCardAction = (payload: { id: string; decision: 'approved' | 'rejected' }) => {
   console.log('[ChatView] card action:', payload);
@@ -882,22 +888,17 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       >
         <div class="flex max-w-[85%] items-start space-x-2" :class="msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'">
           <!-- Avatar -->
-          <div
-            v-if="msg.role !== 'user' && msg.role !== 'tool'"
-            class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0"
-          >
-            {{ getEmotionEmoji(msg.emotion) }}
-          </div>
-          <div
-            v-else-if="msg.role === 'tool'"
-            class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-500 border border-gray-200"
-          >
-            <Wrench :size="16" />
-          </div>
-          <div
-            v-else
-            class="chat-avatar-me w-9 h-9 rounded-md flex items-center justify-center text-xs flex-shrink-0"
-          >
+          <template v-if="msg.role !== 'user' && msg.role !== 'tool'">
+            <div class="chat-avatar w-9 h-9 rounded-md flex items-center justify-center text-xl flex-shrink-0">
+              {{ getEmotionEmoji(msg.emotion) }}
+            </div>
+          </template>
+          <template v-else-if="msg.role === 'tool' && (!cleanMode || hasInteractiveToolCard(msg))">
+            <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-500 border border-gray-200">
+              <Wrench :size="16" />
+            </div>
+          </template>
+          <div v-else-if="msg.role === 'user'" class="chat-avatar-me w-9 h-9 rounded-md flex items-center justify-center text-xs flex-shrink-0">
             Me
           </div>
 
@@ -908,10 +909,35 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           >
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
+              <!-- Clean mode keeps tool activity in the existing progress language, without a tool bubble. -->
+              <template v-if="cleanMode && !hasInteractiveToolCard(msg)">
+                <div
+                  class="clean-tool-activity"
+                  :class="{
+                    'clean-tool-activity--success': msg.toolStatus === 'success',
+                    'clean-tool-activity--error': msg.toolStatus === 'error'
+                  }"
+                  role="status"
+                  :aria-label="toolDisplayName(msg)"
+                >
+                  <div
+                    class="streaming-dots clean-tool-dots"
+                    :class="{ 'clean-tool-dots--static': msg.toolStatus !== 'running' }"
+                    aria-hidden="true"
+                  >
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <span class="clean-tool-name">{{ toolDisplayName(msg) }}</span>
+                  <CheckCircle2 v-if="msg.toolStatus === 'success'" :size="13" class="clean-tool-status clean-tool-status--success" aria-hidden="true" />
+                  <XCircle v-else-if="msg.toolStatus === 'error'" :size="13" class="clean-tool-status clean-tool-status--error" aria-hidden="true" />
+                </div>
+              </template>
               <!-- Card rendering: plan_create / todo_write / approval_request -->
-              <template v-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
+              <template v-else-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
                 <div class="min-w-0">
-                  <div v-if="msg.toolName" class="tool-call-caption">
+                  <div v-if="!cleanMode && msg.toolName" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </div>
                   <ChatGovernanceCard
@@ -922,7 +948,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
-                  <div class="tool-call-caption">
+                  <div v-if="!cleanMode" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </div>
                   <DecisionCard
@@ -933,7 +959,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'todo_write' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
-                  <div class="tool-call-caption">
+                  <div v-if="!cleanMode" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </div>
                   <TodoCard
@@ -944,7 +970,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </template>
               <template v-else-if="msg.toolName === 'update_plan' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
-                  <div class="tool-call-caption">
+                  <div v-if="!cleanMode" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </div>
                   <TodoCard
@@ -1714,6 +1740,24 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   line-height: 1.4;
 }
 
+.clean-tool-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  padding: 4px 0;
+  color: var(--text-muted, #6b7280);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.clean-tool-activity--success { color: #6b7280; }
+.clean-tool-activity--error { color: #b91c1c; }
+.clean-tool-name { font-weight: 500; }
+.clean-tool-status { flex: 0 0 auto; }
+.clean-tool-status--success { color: #16a34a; }
+.clean-tool-status--error { color: #dc2626; }
+
 .streaming-reasoning-status {
   display: flex;
   align-items: center;
@@ -1744,6 +1788,11 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .streaming-dots i:nth-child(2) { animation-delay: .1s; }
 .streaming-dots i:nth-child(3) { animation-delay: .2s; }
+
+.clean-tool-dots--static i {
+  animation: none;
+  opacity: .45;
+}
 
 @keyframes streaming-dot-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: .45; }

@@ -333,7 +333,7 @@ export default {
     desc: '配置 GUI 的通用行为偏好',
     chatSettings: '聊天设置',
     cleanMode: '清爽模式',
-    cleanModeDesc: '隐藏普通工具调用的输入和输出，只保留工具名称与执行状态。',
+    cleanModeDesc: '隐藏普通工具调用的输入和输出，将工具名称追加到三点进度后显示。',
     cleanModeOverridesAutoExpand: '清爽模式开启期间，以下自动展开设置暂不生效；关闭后恢复原设置。',
     autoExpandReasoning: '自动展开思考',
     autoExpandToolDetails: '自动展开工具详情',

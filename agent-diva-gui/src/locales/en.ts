@@ -333,7 +333,7 @@ export default {
     desc: 'Common behavior preferences for the GUI',
     chatSettings: 'Chat Settings',
     cleanMode: 'Clean mode',
-    cleanModeDesc: 'Hide ordinary tool inputs and outputs, keeping only the tool name and execution status.',
+    cleanModeDesc: 'Hide ordinary tool inputs and outputs, appending each tool name after the three-dot progress indicator.',
     cleanModeOverridesAutoExpand: 'While clean mode is on, the auto-expand settings are temporarily inactive and will resume afterward.',
     autoExpandReasoning: 'Auto expand reasoning',
     autoExpandToolDetails: 'Auto expand tool details',

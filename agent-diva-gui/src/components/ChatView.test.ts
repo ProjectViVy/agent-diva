@@ -176,7 +176,7 @@ describe('ChatView streaming states', () => {
     expect(wrapper.findAll('.tool-streaming-dots i')).toHaveLength(3);
   });
 
-  it('hides ordinary tool output in clean mode but keeps manual details available', async () => {
+  it('appends clean-mode tool names after the progress dots without a tool bubble', () => {
     const wrapper = mountChat([
       {
         id: 'tool-clean',
@@ -196,12 +196,40 @@ describe('ChatView streaming states', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('调用工具：file_read');
+    expect(wrapper.find('.clean-tool-activity').exists()).toBe(true);
+    expect(wrapper.findAll('.clean-tool-dots i')).toHaveLength(3);
+    expect(wrapper.find('.clean-tool-dots--static').exists()).toBe(true);
+    expect(wrapper.find('.clean-tool-name').text()).toBe('file_read');
+    expect(wrapper.find('.tool-message').exists()).toBe(false);
+    expect(wrapper.find('.tool-call-caption').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('调用工具：file_read');
+    expect(wrapper.text()).not.toContain('调用成功');
     expect(wrapper.text()).not.toContain('secret output preview');
-    const detailsButton = wrapper.findAll('button').find((button) => button.text().includes('查看详情'));
-    expect(detailsButton).toBeDefined();
-    await detailsButton!.trigger('click');
-    expect(wrapper.text()).toContain('secret output preview');
+  });
+
+  it('keeps running clean-mode tool activity in the same three-dot language', () => {
+    const wrapper = mountChat([
+      {
+        id: 'tool-clean-running',
+        role: 'tool',
+        content: '正在调用工具...',
+        toolName: 'shell',
+        toolStatus: 'running',
+      },
+    ], {
+      historyPrefs: {
+        cleanMode: true,
+        autoExpandReasoning: false,
+        autoExpandToolDetails: false,
+        showRawMetaByDefault: false,
+      },
+    });
+
+    expect(wrapper.findAll('.clean-tool-dots i')).toHaveLength(3);
+    expect(wrapper.find('.clean-tool-dots--static').exists()).toBe(false);
+    expect(wrapper.find('.clean-tool-name').text()).toBe('shell');
+    expect(wrapper.text()).not.toContain('调用工具：shell');
+    expect(wrapper.text()).not.toContain('调用成功');
   });
 
   it('applies clean mode to existing reasoning and tool expansion state', async () => {
