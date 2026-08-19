@@ -845,13 +845,24 @@ impl QQHandler {
         Ok(())
     }
 
+    fn is_group_event(event_type: &str) -> bool {
+        matches!(
+            event_type.to_lowercase().as_str(),
+            "group_at_message_create" | "at_message_create" | "group_message_create"
+        )
+    }
+
     /// Handle WebSocket events
     async fn handle_event(&self, event_type: &str, data: Option<Value>) {
-        match event_type.to_lowercase().as_str() {
+        let event_type_lc = event_type.to_lowercase();
+        match event_type_lc.as_str() {
             "c2c_message_create" => {
                 if let Some(d) = data {
                     self.handle_c2c_message(d).await;
                 }
+            }
+            event if Self::is_group_event(event) => {
+                self.reject_group_message(event, data).await;
             }
             "ready" => {
                 if let Some(d) = data {
@@ -867,6 +878,37 @@ impl QQHandler {
                 debug!("Unhandled event type: {}", event_type);
             }
         }
+    }
+
+    /// Group / guild @ messages are unsupported: log and drop, never forward inbound.
+    async fn reject_group_message(&self, event_type: &str, data: Option<Value>) {
+        let message_id = data
+            .as_ref()
+            .and_then(|value| value.get("id"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let group_id = data
+            .as_ref()
+            .and_then(|value| {
+                value
+                    .get("group_openid")
+                    .or_else(|| value.get("group_id"))
+                    .or_else(|| value.get("guild_id"))
+                    .or_else(|| value.get("channel_id"))
+            })
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+
+        if !message_id.is_empty() {
+            self.mark_processed_qq(message_id.to_string()).await;
+        }
+
+        info!(
+            event_type,
+            group_id,
+            message_id,
+            "QQ group/guild message rejected; only C2C private chat is supported"
+        );
     }
 
     /// Handle C2C (user-to-bot) message
@@ -1141,6 +1183,90 @@ mod tests {
 
         assert!(handler.is_allowed("user123"));
         assert!(!handler.is_allowed("user456"));
+    }
+
+    #[test]
+    fn test_empty_allow_from_allows_anyone() {
+        let qq_config = QQConfig::default();
+        let handler = QQHandler::new(qq_config, Config::default());
+
+        assert!(handler.is_allowed("anyone"));
+        assert!(handler.is_allowed("user123"));
+    }
+
+    fn sample_c2c_payload() -> Value {
+        json!({
+            "id": "c2c-1",
+            "content": "hello",
+            "timestamp": "2026-08-19T00:00:00Z",
+            "author": { "user_openid": "user-openid-1" }
+        })
+    }
+
+    fn sample_group_payload() -> Value {
+        json!({
+            "id": "group-1",
+            "content": "hello group",
+            "timestamp": "2026-08-19T00:00:00Z",
+            "group_openid": "group-openid-1",
+            "author": { "user_openid": "user-openid-1" }
+        })
+    }
+
+    #[tokio::test]
+    async fn test_c2c_message_is_forwarded_when_allow_from_empty() {
+        let (tx, mut rx) = mpsc::channel(4);
+        let mut handler = QQHandler::new(QQConfig::default(), Config::default());
+        handler.set_inbound_sender(tx);
+
+        handler
+            .handle_event("C2C_MESSAGE_CREATE", Some(sample_c2c_payload()))
+            .await;
+
+        let inbound = rx.try_recv().expect("C2C message should be forwarded");
+        assert_eq!(inbound.channel, "qq");
+        assert_eq!(inbound.sender_id, "user-openid-1");
+        assert_eq!(inbound.content, "hello");
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_group_at_message_is_rejected() {
+        let (tx, mut rx) = mpsc::channel(4);
+        let mut handler = QQHandler::new(QQConfig::default(), Config::default());
+        handler.set_inbound_sender(tx);
+
+        handler
+            .handle_event("GROUP_AT_MESSAGE_CREATE", Some(sample_group_payload()))
+            .await;
+
+        assert!(
+            rx.try_recv().is_err(),
+            "group messages must not reach the bus"
+        );
+        assert!(handler.is_processed_qq("group-1").await);
+    }
+
+    #[tokio::test]
+    async fn test_guild_at_message_is_rejected() {
+        let (tx, mut rx) = mpsc::channel(4);
+        let mut handler = QQHandler::new(QQConfig::default(), Config::default());
+        handler.set_inbound_sender(tx);
+
+        handler
+            .handle_event(
+                "AT_MESSAGE_CREATE",
+                Some(json!({
+                    "id": "guild-1",
+                    "content": "hello channel",
+                    "guild_id": "guild-openid-1",
+                    "author": { "id": "user-1" }
+                })),
+            )
+            .await;
+
+        assert!(rx.try_recv().is_err());
+        assert!(handler.is_processed_qq("guild-1").await);
     }
 
     #[test]
