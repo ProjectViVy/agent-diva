@@ -601,6 +601,11 @@ export default {
     discordIntents: 'Gateway Intents（整数）',
     // 向导相关
     wizardTitle: '通道配置向导',
+    wizardEditTitle: '编辑通道',
+    advancedSettings: '高级设置',
+    hideSecret: '隐藏',
+    showSecret: '显示',
+    noEditableFields: '该通道暂无可编辑字段。',
     wizardStepPlatform: '选择平台',
     wizardStepCredentials: '凭据配置',
     wizardStepTest: '测试连接',

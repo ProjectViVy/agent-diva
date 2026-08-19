@@ -117,8 +117,8 @@ const missingFields = computed(() => {
   flex-direction: column;
   gap: 1rem;
   transition: all 0.2s ease;
-  min-width: 260px;
-  max-width: 320px;
+  min-width: 0;
+  width: 100%;
 }
 
 .channel-card:hover {

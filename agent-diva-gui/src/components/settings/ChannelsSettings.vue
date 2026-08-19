@@ -5,8 +5,10 @@ import { LoaderCircle, MessageSquare, LayoutGrid, List, Plus, RefreshCw } from '
 import { useI18n } from 'vue-i18n';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';
+import ChannelEditorForm from './ChannelEditorForm.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
-import { CHANNEL_PLATFORMS, isRetiredChannel } from './channel-platforms';
+import { isRetiredChannel } from './channel-platforms';
+import { normalizeChannelConfig } from './channel-wizard-fields';
 
 const { t } = useI18n();
 
@@ -93,35 +95,6 @@ const toggleChannelEnabled = (channelName: string) => {
   }
 };
 
-function splitIdList(text: string): string[] {
-  return text
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function discordAllowFromText(): string {
-  const d = draftChannels.value.discord;
-  if (!d?.allow_from?.length) return '';
-  return d.allow_from.join('\n');
-}
-
-function setDiscordAllowFrom(text: string) {
-  if (!draftChannels.value.discord) return;
-  draftChannels.value.discord.allow_from = splitIdList(text);
-}
-
-function discordGroupBypassText(): string {
-  const d = draftChannels.value.discord;
-  if (!d?.group_reply_allowed_sender_ids?.length) return '';
-  return d.group_reply_allowed_sender_ids.join('\n');
-}
-
-function setDiscordGroupBypass(text: string) {
-  if (!draftChannels.value.discord) return;
-  draftChannels.value.discord.group_reply_allowed_sender_ids = splitIdList(text);
-}
-
 const persistChannel = async (name: string, config: Record<string, any>) => {
   if (isSaving.value) return;
   isSaving.value = true;
@@ -151,26 +124,16 @@ const handleWizardTest = async (_data: any) => {
   return { success: false, message: t('channels.testNotImplemented') };
 };
 
-// 向导 select 字段产出 'true'/'false' 字符串，后端期望 bool
-function normalizeWizardCredentials(_platform: string, credentials: Record<string, any>): Record<string, any> {
-  const BOOL_STRING_KEYS = ['imap_use_ssl', 'smtp_use_ssl'];
-  const next: Record<string, any> = { ...credentials };
-  for (const key of BOOL_STRING_KEYS) {
-    if (typeof next[key] === 'string' && (next[key] === 'true' || next[key] === 'false')) {
-      next[key] = next[key] === 'true';
-    }
-  }
-  return next;
-}
-
-const handleWizardComplete = async (data: any) => {
+const handleWizardComplete = async (data: { platform: string; credentials?: Record<string, unknown> }) => {
   try {
     const existing = draftChannels.value[data.platform] ?? {};
-    const credentials = normalizeWizardCredentials(data.platform, data.credentials ?? {});
+    const credentials = normalizeChannelConfig(data.platform, data.credentials ?? {});
+    delete credentials.enabled;
+    const enabled = editingChannel.value ? Boolean(existing.enabled) : true;
     await props.saveChannelConfigAction(data.platform, {
       ...cloneValue(existing),
       ...credentials,
-      enabled: true,
+      enabled,
     });
     await loadChannels();
   } catch (e) {
@@ -181,7 +144,7 @@ const handleWizardComplete = async (data: any) => {
 const handleCardEdit = (name: string) => {
   editingChannel.value = name;
   selectedChannel.value = name;
-  viewMode.value = 'list';
+  wizardOpen.value = true;
 };
 
 const handleCardDelete = async (name: string) => {
@@ -272,7 +235,7 @@ const handleRefresh = async () => {
       <!-- 卡片视图 -->
       <div v-if="viewMode === 'card'" class="channels-main-content">
         <ChannelCardView
-          :channels="draftChannels"
+          :channels="visibleDraftChannels"
           :statuses="channelStatuses"
           :loading="isInitializing"
           @add="openWizard"
@@ -283,14 +246,14 @@ const handleRefresh = async () => {
       </div>
 
       <!-- 列表视图（详细配置） -->
-      <div v-else class="channels-main-content">
-        <div v-if="selectedChannel && selectedChannelDraft" class="space-y-8">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex items-center space-x-4">
+      <div v-else class="channels-content">
+        <div v-if="selectedChannel && selectedChannelDraft" class="channels-detail">
+          <div class="channels-detail-header">
+            <div class="flex items-center space-x-4 min-w-0">
               <div class="channels-header-icon">
                 <MessageSquare :size="24" />
               </div>
-              <div>
+              <div class="min-w-0">
                 <h3 class="channels-header-title capitalize">{{ selectedChannel }}</h3>
                 <div class="flex flex-wrap items-center gap-2 mt-1">
                   <span class="settings-muted text-sm">{{ t('channels.status') }}:</span>
@@ -326,7 +289,7 @@ const handleRefresh = async () => {
             </button>
           </div>
 
-          <div class="space-y-4 p-4 rounded-xl border" style="background: var(--accent-bg-light); border-color: var(--line);">
+          <div class="channels-detail-body">
             <div v-if="channelStatusMap.get(selectedChannel)" class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div class="channels-status-card">
                 <div class="channels-status-card-label">{{ t('channels.readiness') }}</div>
@@ -342,116 +305,10 @@ const handleRefresh = async () => {
               </div>
             </div>
 
-            <!-- 各平台配置表单（保留原有逻辑） -->
-            <div v-if="selectedChannel === 'telegram'" class="space-y-4">
-              <div class="channels-field">
-                <label class="channels-field-label">{{ t('channels.botToken') }}</label>
-                <input v-model="draftChannels.telegram.token" type="password" class="channels-field-input" :placeholder="t('channels.placeholders.telegramToken')" />
-              </div>
-            </div>
-
-            <div v-else-if="selectedChannel === 'discord'" class="space-y-4">
-              <div class="channels-field">
-                <label class="channels-field-label">{{ t('channels.botToken') }}</label>
-                <input v-model="draftChannels.discord.token" type="password" class="channels-field-input" :placeholder="t('channels.placeholders.discordToken')" />
-              </div>
-              <div class="channels-field">
-                <label class="channels-field-label">{{ t('channels.discordAllowFrom') }}</label>
-                <textarea
-                  class="channels-field-input"
-                  :value="discordAllowFromText()"
-                  :placeholder="t('channels.placeholders.discordAllowFrom')"
-                  @input="setDiscordAllowFrom(($event.target as HTMLTextAreaElement).value)"
-                />
-                <p class="channels-hint">{{ t('channels.discordAllowFromHint') }}</p>
-              </div>
-              <div class="channels-field">
-                <label class="channels-field-label">{{ t('channels.discordGuildId') }}</label>
-                <input
-                  class="channels-field-input"
-                  :value="draftChannels.discord.guild_id ?? ''"
-                  :placeholder="t('channels.placeholders.discordGuildId')"
-                  @input="
-                    draftChannels.discord.guild_id =
-                      ($event.target as HTMLInputElement).value.trim() || null
-                  "
-                />
-              </div>
-              <div class="channels-config-card switch-row">
-                <span class="text-sm font-medium" style="color: var(--text);">{{ t('channels.discordMentionOnly') }}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="draftChannels.discord.mention_only"
-                  class="channels-toggle"
-                  :class="{ enabled: draftChannels.discord.mention_only }"
-                  @click="draftChannels.discord.mention_only = !draftChannels.discord.mention_only"
-                >
-                  <span class="channels-toggle-thumb" />
-                </button>
-              </div>
-              <div class="channels-config-card switch-row">
-                <span class="text-sm font-medium" style="color: var(--text);">{{ t('channels.discordListenToBots') }}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="draftChannels.discord.listen_to_bots"
-                  class="channels-toggle"
-                  :class="{ enabled: draftChannels.discord.listen_to_bots }"
-                  @click="draftChannels.discord.listen_to_bots = !draftChannels.discord.listen_to_bots"
-                >
-                  <span class="channels-toggle-thumb" />
-                </button>
-              </div>
-              <div class="channels-field">
-                <label class="channels-field-label">{{ t('channels.discordGroupBypass') }}</label>
-                <textarea
-                  class="channels-field-input"
-                  :value="discordGroupBypassText()"
-                  :placeholder="t('channels.placeholders.discordGroupBypass')"
-                  @input="setDiscordGroupBypass(($event.target as HTMLTextAreaElement).value)"
-                />
-                <p class="channels-hint">{{ t('channels.discordGroupBypassHint') }}</p>
-              </div>
-              <details class="channels-details">
-                <summary>{{ t('channels.discordAdvanced') }}</summary>
-                <div class="mt-3 space-y-3 pt-1">
-                  <div class="channels-field">
-                    <label class="channels-field-label">{{ t('channels.discordGatewayUrl') }}</label>
-                    <input v-model="draftChannels.discord.gateway_url" class="channels-field-input" />
-                  </div>
-                  <div class="channels-field">
-                    <label class="channels-field-label">{{ t('channels.discordIntents') }}</label>
-                    <input
-                      v-model.number="draftChannels.discord.intents"
-                      type="number"
-                      min="0"
-                      class="channels-field-input"
-                    />
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <!-- 其他平台配置：统一走配置向导 -->
-            <div v-else class="space-y-3">
-              <div v-if="CHANNEL_PLATFORMS[selectedChannel]" class="channels-empty-wizard">
-                <p class="settings-muted text-sm">{{ t('channels.editViaWizardHint') }}</p>
-                <button
-                  type="button"
-                  class="btn-secondary"
-                  @click="
-                    editingChannel = selectedChannel;
-                    wizardOpen = true;
-                  "
-                >
-                  {{ t('channels.editViaWizard') }}
-                </button>
-              </div>
-              <div v-else class="text-sm" style="color: var(--text-muted);">
-                {{ t('providers.unsupportedUI') }}
-              </div>
-            </div>
+            <ChannelEditorForm
+              :platform="selectedChannel"
+              :config="selectedChannelDraft"
+            />
           </div>
         </div>
 
@@ -490,9 +347,41 @@ const handleRefresh = async () => {
 .channels-content-wrapper {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.channels-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.channels-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.channels-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.channels-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--accent-bg-light);
+  min-width: 0;
 }
 
 /* 工具栏 */

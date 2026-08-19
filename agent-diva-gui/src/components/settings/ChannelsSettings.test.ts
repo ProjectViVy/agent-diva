@@ -60,6 +60,13 @@ vi.mock('./ChannelWizardModal.vue', () => ({
   },
 }));
 
+vi.mock('./ChannelEditorForm.vue', () => ({
+  default: {
+    props: ['platform', 'config'],
+    template: '<div class="editor-stub">{{ platform }}</div>',
+  },
+}));
+
 const mountSettings = () => {
   const saveChannelConfigAction = vi.fn(() => Promise.resolve());
   const wrapper = mount(ChannelsSettings, {
@@ -125,7 +132,7 @@ describe('ChannelsSettings', () => {
     );
   });
 
-  it('prefills wizard credentials when editing an existing channel', async () => {
+  it('opens the wizard in card mode when a card is edited', async () => {
     const { wrapper } = mountSettings();
     await flushPromises();
 
@@ -133,10 +140,32 @@ describe('ChannelsSettings', () => {
     await flushPromises();
 
     const wizard = wrapper.findComponent(ChannelWizardModal);
+    expect(wizard.props('open')).toBe(true);
     expect(wizard.props('initialData')).toEqual({
       platform: 'feishu',
       credentials: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
     });
+    expect(wrapper.find('.card-stub').exists()).toBe(true);
+    expect(wrapper.find('.channels-sidebar').exists()).toBe(false);
+  });
+
+  it('renders an inline editor for every visible channel in list view', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    await wrapper.find('button[title="channels.listView"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('providers.unsupportedUI');
+    expect(wrapper.text()).not.toContain('channels.editViaWizardHint');
+    expect(wrapper.find('.editor-stub').text()).toContain('telegram');
+
+    const feishuItem = wrapper.findAll('.channels-item').find((item) => item.text().includes('feishu'));
+    expect(feishuItem).toBeTruthy();
+    await feishuItem!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.editor-stub').text()).toContain('feishu');
   });
 
   it('hides retired channels from the list-view sidebar', async () => {

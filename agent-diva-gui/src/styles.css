@@ -2362,9 +2362,11 @@
 
 /* 频道侧边栏 */
 .channels-sidebar {
-  width: 33.333333%;
+  width: 220px;
+  flex-shrink: 0;
   min-width: 200px;
   min-height: 0;
+  height: 100%;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;

@@ -833,6 +833,11 @@ export default {
     discordIntents: 'Gateway intents (integer)',
     // Wizard
     wizardTitle: 'Channel Wizard',
+    wizardEditTitle: 'Edit Channel',
+    advancedSettings: 'Advanced settings',
+    hideSecret: 'Hide',
+    showSecret: 'Show',
+    noEditableFields: 'This channel has no editable fields.',
     wizardStepPlatform: 'Platform',
     wizardStepCredentials: 'Credentials',
     wizardStepTest: 'Test',

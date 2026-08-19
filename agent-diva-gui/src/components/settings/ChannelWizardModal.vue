@@ -7,8 +7,6 @@ import {
   Check,
   CircleAlert,
   PlugZap,
-  Eye,
-  EyeOff,
   Lightbulb,
 } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
@@ -21,8 +19,9 @@ import {
   CHANNEL_PLATFORMS,
   validateConfig,
   type ChannelPlatformInfo,
-  type WizardFormField,
 } from './channel-platforms';
+import { fieldDefaults, normalizeChannelConfig } from './channel-wizard-fields';
+import ChannelEditorForm from './ChannelEditorForm.vue';
 import TutorialModal from './TutorialModal.vue';
 
 const { t } = useI18n();
@@ -59,18 +58,18 @@ const steps: Step[] = [
 ];
 
 const currentStep = ref<StepKey>('platform');
+const isEditMode = ref(false);
 
 const formData = ref<ChannelWizardData>({
-  platform: props.initialData?.platform || '',
-  name: props.initialData?.name || '',
-  credentials: props.initialData?.credentials || {},
-  extra: props.initialData?.extra,
+  platform: '',
+  name: '',
+  credentials: {},
+  extra: undefined,
 });
 
 const isTesting = ref(false);
 const testResult = ref<'idle' | 'success' | 'failed'>('idle');
 const testMessage = ref('');
-const revealedSecrets = ref<Set<string>>(new Set());
 
 const currentStepIndex = computed(() => steps.findIndex((s) => s.key === currentStep.value));
 
@@ -82,11 +81,6 @@ const canNext = computed(() => {
   }
   if (currentStep.value === 'test') return testResult.value === 'success';
   return false;
-});
-
-const credentialFields = computed<WizardFormField[]>(() => {
-  if (!formData.value.platform) return [];
-  return CHANNEL_PLATFORMS[formData.value.platform]?.credentialFields || [];
 });
 
 const currentPlatform = computed<ChannelPlatformInfo | null>(() => {
@@ -156,6 +150,7 @@ const close = () => {
 
 const resetForm = () => {
   currentStep.value = 'platform';
+  isEditMode.value = false;
   formData.value = {
     platform: '',
     name: '',
@@ -164,39 +159,45 @@ const resetForm = () => {
   };
   testResult.value = 'idle';
   testMessage.value = '';
-  revealedSecrets.value = new Set();
+};
+
+const applyInitialData = (data?: Partial<ChannelWizardData>) => {
+  if (data?.platform) {
+    const defaults = fieldDefaults(data.platform);
+    const incoming = { ...defaults, ...(data.credentials ?? {}) };
+    delete incoming.enabled;
+    formData.value = {
+      platform: data.platform,
+      name: data.name || PLATFORM_DISPLAY_NAMES[data.platform] || data.platform,
+      credentials: normalizeChannelConfig(data.platform, incoming),
+      extra: data.extra,
+    };
+    isEditMode.value = true;
+    currentStep.value = 'credentials';
+    return;
+  }
+  resetForm();
 };
 
 const selectPlatform = (platform: string) => {
   formData.value.platform = platform;
   formData.value.name = PLATFORM_DISPLAY_NAMES[platform] || platform;
-  // 用字段默认值初始化凭证
-  const defaults: Record<string, any> = {};
-  const fields = CHANNEL_PLATFORMS[platform]?.credentialFields || [];
-  for (const field of fields) {
-    if (field.default !== undefined && formData.value.credentials[field.key] === undefined) {
-      defaults[field.key] = field.default;
-    }
-  }
-  formData.value.credentials = { ...defaults, ...formData.value.credentials };
+  formData.value.credentials = {
+    ...fieldDefaults(platform),
+    ...formData.value.credentials,
+  };
 };
 
-const toggleRevealed = (key: string) => {
-  if (revealedSecrets.value.has(key)) {
-    revealedSecrets.value.delete(key);
-  } else {
-    revealedSecrets.value.add(key);
-  }
-};
-
-// Watch for open state changes
 watch(
   () => props.open,
   (newOpen) => {
-    if (!newOpen) {
+    if (newOpen) {
+      applyInitialData(props.initialData);
+    } else {
       resetForm();
     }
-  }
+  },
+  { immediate: true },
 );
 </script>
 
@@ -207,7 +208,7 @@ watch(
         <div class="wizard-modal">
           <!-- Header -->
           <div class="wizard-header">
-            <h3 class="wizard-title">{{ t('channels.wizardTitle') }}</h3>
+            <h3 class="wizard-title">{{ isEditMode ? t('channels.wizardEditTitle') : t('channels.wizardTitle') }}</h3>
             <button class="wizard-close" @click="close">
               <X :size="18" />
             </button>
@@ -235,7 +236,7 @@ watch(
           <!-- Content -->
           <div class="wizard-content">
             <!-- Step 1: Select Platform -->
-            <div v-if="currentStep === 'platform'" class="wizard-step">
+            <div v-if="currentStep === 'platform' && !isEditMode" class="wizard-step">
               <label class="wizard-label">{{ t('channels.choosePlatform') }}</label>
               <div class="platform-grid">
                 <div
@@ -274,75 +275,11 @@ watch(
                 </button>
               </div>
               
-              <div class="credential-form">
-                <div
-                  v-for="field in credentialFields"
-                  :key="field.key"
-                  class="credential-field"
-                >
-                  <label class="credential-label">
-                    {{ field.label }}
-                    <span v-if="field.required" class="required-mark">*</span>
-                  </label>
-
-                  <!-- Select Type -->
-                  <select
-                    v-if="field.type === 'select'"
-                    v-model="formData.credentials[field.key]"
-                    class="credential-input"
-                  >
-                    <option
-                      v-for="opt in field.options"
-                      :key="opt.value"
-                      :value="opt.value"
-                    >
-                      {{ opt.label }}
-                    </option>
-                  </select>
-
-                  <!-- Textarea Type -->
-                  <textarea
-                    v-else-if="field.type === 'textarea'"
-                    v-model="formData.credentials[field.key]"
-                    :placeholder="field.placeholder"
-                    class="credential-input"
-                    rows="3"
-                  />
-
-                  <!-- Password Type with Toggle -->
-                  <div v-else-if="field.type === 'password'" class="credential-input-wrapper">
-                    <input
-                      v-model="formData.credentials[field.key]"
-                      :type="revealedSecrets.has(field.key) ? 'text' : 'password'"
-                      :placeholder="field.placeholder"
-                      class="credential-input"
-                      autocomplete="off"
-                    />
-                    <button
-                      v-if="field.secret"
-                      type="button"
-                      class="input-toggle"
-                      @click="toggleRevealed(field.key)"
-                      :title="revealedSecrets.has(field.key) ? '隐藏' : '显示'"
-                    >
-                      <EyeOff v-if="revealedSecrets.has(field.key)" :size="16" />
-                      <Eye v-else :size="16" />
-                    </button>
-                  </div>
-
-                  <!-- Default: Text/Number -->
-                  <input
-                    v-else
-                    v-model="formData.credentials[field.key]"
-                    :type="field.type || 'text'"
-                    :placeholder="field.placeholder"
-                    class="credential-input"
-                  />
-
-                  <!-- Hint -->
-                  <p v-if="field.hint" class="credential-hint">{{ field.hint }}</p>
-                </div>
-              </div>
+              <ChannelEditorForm
+                v-if="formData.platform"
+                :platform="formData.platform"
+                :config="formData.credentials"
+              />
             </div>
 
             <!-- Step 3: Test -->
@@ -385,7 +322,7 @@ watch(
           <!-- Footer -->
           <div class="wizard-footer">
             <button
-              v-if="currentStepIndex > 0 && currentStep !== 'done'"
+              v-if="currentStepIndex > 0 && currentStep !== 'done' && !isEditMode"
               class="wizard-btn wizard-btn-secondary"
               @click="prevStep"
             >
