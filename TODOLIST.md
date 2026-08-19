@@ -225,6 +225,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   （两处既有 TODO）；需后端真实连接测试 API 与通道删除 API。2026-08-17 频道页
   修复时确认仍缺，另行迭代。
 
+- [ ] **CHANNELS-EDITOR-DESKTOP-SMOKE：频道 GUI 完整编辑真机冒烟** `sev-P2`
+  2026-08-19 已修卡片编辑空白、列表布局、YAML-only 提示；vitest 468/468 +
+  vue-tsc 构建绿。仍须重启 GUI，按
+  `docs/logs/2026-08-channels-settings-fix/v0.1.2-channel-editor-gui/acceptance.md`
+  点选飞书/Email 编辑、保存刷新、Discord allow_from、列表全通道表单。
+
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
