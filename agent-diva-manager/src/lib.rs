@@ -2,6 +2,7 @@ pub mod approval_service;
 pub mod file_service;
 pub mod handlers;
 pub mod manager;
+pub mod marketplace;
 pub mod mcp_service;
 pub mod planning_service;
 pub mod runtime;

@@ -112,6 +112,47 @@ impl SkillService {
         })
     }
 
+    /// Installs a skills.sh marketplace snapshot (file path + UTF-8 contents).
+    ///
+    /// Mirrors the ZIP upload guards: total size limit, path traversal and
+    /// `history/` rejection, and a required root `SKILL.md`.
+    pub fn install_marketplace_snapshot(
+        &self,
+        slug: &str,
+        files: &[(String, String)],
+    ) -> anyhow::Result<SkillDto> {
+        validate_skill_slug(slug)?;
+        let total = files
+            .iter()
+            .map(|(_, contents)| contents.len() as u64)
+            .sum();
+        validate_skill_zip_size(total).map_err(|error| anyhow!(error))?;
+
+        let mut markdown = None;
+        let mut package_files = Vec::new();
+        for (path, contents) in files {
+            let relative = normalize_snapshot_path(path)
+                .ok_or_else(|| anyhow!("marketplace snapshot contains invalid path: {path}"))?;
+            if relative
+                .components()
+                .any(|part| part.as_os_str() == "history")
+            {
+                return Err(
+                    SkillHomeError::InvalidPackagePath(relative.display().to_string()).into(),
+                );
+            }
+            if relative == Path::new("SKILL.md") {
+                markdown = Some(contents.clone());
+            } else {
+                package_files.push((relative, contents.clone().into_bytes()));
+            }
+        }
+        let markdown =
+            markdown.ok_or_else(|| anyhow!("marketplace snapshot must contain SKILL.md"))?;
+        let document = self.home.install_new(slug, &markdown, &package_files)?;
+        Ok(document.into())
+    }
+
     /// Compatibility delete used by the legacy Settings command. New APIs require CAS.
     pub fn delete_skill(&self, name: &str) -> anyhow::Result<()> {
         let document = self.home.read(name)?;
@@ -253,6 +294,10 @@ fn frontmatter_name(markdown: &str) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn normalize_snapshot_path(path: &str) -> Option<PathBuf> {
+    normalize_archive_path(Path::new(path), None)
+}
+
 fn normalize_archive_path(path: &Path, archive_root: Option<&str>) -> Option<PathBuf> {
     let mut parts = Vec::new();
     for component in path.components() {
@@ -338,5 +383,68 @@ mod tests {
         assert!(parse_zip_package("research.zip", &traversal).is_err());
         let invalid = make_zip(&[("SKILL.md", &markdown("Bad Name"))]);
         assert!(parse_zip_package("Bad Name.zip", &invalid).is_err());
+    }
+
+    fn snapshot_service() -> (TempDir, SkillService) {
+        let config = TempDir::new().unwrap();
+        let builtin = TempDir::new().unwrap();
+        let service = SkillService::with_builtin_skills_dir(
+            ConfigLoader::with_dir(config.path()),
+            builtin.path().to_path_buf(),
+        );
+        (config, service)
+    }
+
+    #[test]
+    fn installs_marketplace_snapshot_into_skill_home() {
+        let (config, service) = snapshot_service();
+        let files = vec![
+            ("SKILL.md".to_string(), markdown("caveman-commit")),
+            ("README.md".to_string(), "readme".to_string()),
+        ];
+        let skill = service
+            .install_marketplace_snapshot("caveman-commit", &files)
+            .unwrap();
+        assert_eq!(skill.slug, "caveman-commit");
+        assert!(config
+            .path()
+            .join("skills/caveman-commit/SKILL.md")
+            .is_file());
+        assert!(config
+            .path()
+            .join("skills/caveman-commit/README.md")
+            .is_file());
+    }
+
+    #[test]
+    fn snapshot_install_rejects_history_traversal_and_missing_skill_md() {
+        let (_config, service) = snapshot_service();
+        let with_history = vec![
+            ("SKILL.md".to_string(), markdown("research")),
+            ("history/9.md".to_string(), "forged".to_string()),
+        ];
+        assert!(service
+            .install_marketplace_snapshot("research", &with_history)
+            .is_err());
+
+        let traversal = vec![
+            ("SKILL.md".to_string(), markdown("research")),
+            ("../escape.md".to_string(), "escape".to_string()),
+        ];
+        assert!(service
+            .install_marketplace_snapshot("research", &traversal)
+            .is_err());
+
+        let no_skill_md = vec![("README.md".to_string(), "readme".to_string())];
+        assert!(service
+            .install_marketplace_snapshot("research", &no_skill_md)
+            .is_err());
+
+        assert!(service
+            .install_marketplace_snapshot(
+                "Bad Name",
+                &[("SKILL.md".to_string(), "body".to_string())]
+            )
+            .is_err());
     }
 }

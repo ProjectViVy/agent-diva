@@ -25,18 +25,20 @@ use crate::handlers::{
     get_session_history_handler, get_sessions_handler, get_skill_handler,
     get_skill_history_revision_handler, get_skill_request_handler, get_skills_handler,
     get_tools_handler, health_handler, heartbeat_handler, initialize_persona_handler,
-    list_actmem_capsules_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
-    list_cron_jobs_handler, list_memory_records_handler, list_persona_history_handler,
-    list_persona_requests_handler, list_recall_feedback_handler, list_skill_history_handler,
-    list_skill_requests_handler, logs_routes, put_actmem_handler, put_memrules_handler,
-    refresh_mcp_status_handler, reject_persona_request_handler, reject_skill_request_handler,
-    repair_persona_handler, reset_session_handler, resolve_provider_handler, run_cron_job_handler,
-    save_persona_document_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler,
-    stop_chat_handler, stop_cron_job_handler, todo_routes, token_stats_routes,
-    trigger_autodream_run_handler, update_channel_handler, update_config_handler,
-    update_cron_job_handler, update_mcp_handler, update_memory_record_handler,
-    update_provider_handler, update_self_evolution_config_handler, update_session_title_handler,
-    update_skill_handler, update_tools_handler, upload_file_handler, upload_skill_handler,
+    install_marketplace_skill_handler, list_actmem_capsules_handler,
+    list_autodream_run_events_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
+    list_recall_feedback_handler, list_skill_history_handler, list_skill_requests_handler,
+    logs_routes, put_actmem_handler, put_memrules_handler, refresh_mcp_status_handler,
+    reject_persona_request_handler, reject_skill_request_handler, repair_persona_handler,
+    reset_session_handler, resolve_provider_handler, run_cron_job_handler,
+    save_persona_document_handler, search_marketplace_skills_handler, set_cron_job_enabled_handler,
+    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, todo_routes,
+    token_stats_routes, trigger_autodream_run_handler, update_channel_handler,
+    update_config_handler, update_cron_job_handler, update_mcp_handler,
+    update_memory_record_handler, update_provider_handler, update_self_evolution_config_handler,
+    update_session_title_handler, update_skill_handler, update_tools_handler, upload_file_handler,
+    upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -239,6 +241,14 @@ fn runtime_routes() -> Router<AppState> {
         .route(
             "/api/skills",
             get(get_skills_handler).post(upload_skill_handler),
+        )
+        .route(
+            "/api/skills/marketplace/search",
+            get(search_marketplace_skills_handler),
+        )
+        .route(
+            "/api/skills/marketplace/install",
+            post(install_marketplace_skill_handler),
         )
         .route(
             "/api/skills/:slug",

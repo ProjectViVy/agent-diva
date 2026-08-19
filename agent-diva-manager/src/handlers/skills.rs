@@ -2,14 +2,18 @@ use agent_diva_core::evolution::{
     CreateSkillProposal, SkillEvidence, SkillHomeError, SkillProposalSource,
 };
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::{skill_service::SkillService, state::AppState};
+use crate::{
+    marketplace::{parse_skill_id, MarketplaceClient},
+    skill_service::SkillService,
+    state::AppState,
+};
 
 type ApiError = (StatusCode, Json<Value>);
 
@@ -61,6 +65,61 @@ pub async fn upload_skill_handler(
     let bytes = bytes.ok_or_else(|| bad_request("missing file body"))?;
     let skill = SkillService::from_home(state.skill_home.clone())
         .upload_skill_zip(&file_name, bytes)
+        .map_err(anyhow_skill_error_response)?;
+    Ok(Json(json!({ "status": "ok", "skill": skill })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MarketplaceSearchQuery {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstallMarketplaceSkillPayload {
+    pub id: String,
+}
+
+pub async fn search_marketplace_skills_handler(
+    Query(params): Query<MarketplaceSearchQuery>,
+) -> Result<Json<Value>, ApiError> {
+    let query = params.q.unwrap_or_default();
+    let query = query.trim();
+    if query.len() < 2 {
+        return Err(bad_request(
+            "marketplace query must be at least 2 characters",
+        ));
+    }
+    let client = MarketplaceClient::new().map_err(|error| internal_error(error.to_string()))?;
+    let skills = client
+        .search(query, params.limit)
+        .await
+        .map_err(marketplace_upstream_error)?;
+    let total = skills.len();
+    Ok(Json(
+        json!({ "status": "ok", "skills": skills, "total": total }),
+    ))
+}
+
+pub async fn install_marketplace_skill_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<InstallMarketplaceSkillPayload>,
+) -> Result<Json<Value>, ApiError> {
+    let (owner, repo, slug) = parse_skill_id(payload.id.trim()).map_err(bad_request)?;
+    let client = MarketplaceClient::new().map_err(|error| internal_error(error.to_string()))?;
+    let snapshot = client
+        .download(&owner, &repo, &slug)
+        .await
+        .map_err(marketplace_upstream_error)?;
+    let files: Vec<(String, String)> = snapshot
+        .files
+        .into_iter()
+        .map(|file| (file.path, file.contents))
+        .collect();
+    let skill = SkillService::from_home(state.skill_home.clone())
+        .install_marketplace_snapshot(&slug, &files)
         .map_err(anyhow_skill_error_response)?;
     Ok(Json(json!({ "status": "ok", "skill": skill })))
 }
@@ -243,6 +302,16 @@ fn internal_error(message: String) -> ApiError {
         Json(json!({
             "status": "error",
             "error": { "code": "skill_internal_error", "message": message }
+        })),
+    )
+}
+
+fn marketplace_upstream_error(error: anyhow::Error) -> ApiError {
+    (
+        StatusCode::BAD_GATEWAY,
+        Json(json!({
+            "status": "error",
+            "error": { "code": "marketplace_upstream_error", "message": error.to_string() }
         })),
     )
 }
