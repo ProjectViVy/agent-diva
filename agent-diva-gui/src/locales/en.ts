@@ -417,6 +417,7 @@ export default {
     skillsTabMarketplace: 'Marketplace',
     searchInstalled: 'Search installed skills...',
     searchMarketplace: 'Search the marketplace...',
+    marketplaceSearchPrompt: 'Type at least 2 characters to search the skills.sh marketplace',
     loadingMarketplace: 'Loading marketplace...',
     emptyMarketplace: 'No skills available yet',
     marketplaceUnavailable: 'Marketplace is currently unavailable',

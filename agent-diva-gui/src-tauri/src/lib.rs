@@ -387,6 +387,8 @@ pub fn run() {
             commands::set_mcp_enabled,
             commands::refresh_mcp_status,
             commands::upload_skill,
+            commands::search_marketplace_skills,
+            commands::install_marketplace_skill,
             commands::upload_file,
             commands::delete_skill,
             commands::get_providers,

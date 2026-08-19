@@ -67,6 +67,9 @@ zhPatched.general = {
   skillsTabMarketplace: zhPatched.general?.skillsTabMarketplace || '技能市场',
   searchInstalled: zhPatched.general?.searchInstalled || '搜索已安装技能...',
   searchMarketplace: zhPatched.general?.searchMarketplace || '搜索技能市场...',
+  marketplaceSearchPrompt:
+    zhPatched.general?.marketplaceSearchPrompt ||
+    '输入至少 2 个字符，搜索 skills.sh 技能市场',
   loadingMarketplace: zhPatched.general?.loadingMarketplace || '正在加载技能市场...',
   emptyMarketplace: zhPatched.general?.emptyMarketplace || '暂无可用技能',
   marketplaceUnavailable: zhPatched.general?.marketplaceUnavailable || '技能市场暂不可用',

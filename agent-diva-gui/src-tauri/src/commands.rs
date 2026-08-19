@@ -3838,6 +3838,41 @@ pub async fn upload_skill(
 }
 
 #[tauri::command]
+pub async fn search_marketplace_skills(
+    query: String,
+    limit: Option<u32>,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let mut url = format!(
+        "{}/skills/marketplace/search?q={}",
+        state.api_base_url(),
+        urlencoding::encode(query.trim())
+    );
+    if let Some(limit) = limit {
+        url.push_str(&format!("&limit={limit}"));
+    }
+    let response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    Ok(response
+        .get("skills")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+}
+
+#[tauri::command]
+pub async fn install_marketplace_skill(
+    id: String,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/skills/marketplace/install", state.api_base_url());
+    let payload = serde_json::json!({ "id": id.trim() });
+    let response = memory_request(&state, reqwest::Method::POST, &url, Some(&payload)).await?;
+    response
+        .get("skill")
+        .cloned()
+        .ok_or_else(|| laputa_string_error("Marketplace install response missing skill".into()))
+}
+
+#[tauri::command]
 pub async fn upload_file(
     file_name: String,
     bytes: Vec<u8>,
