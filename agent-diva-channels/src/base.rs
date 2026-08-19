@@ -78,9 +78,9 @@ pub struct BaseChannel {
     pub config: Config,
     /// Running state
     pub running: bool,
-    /// Allowed senders list (empty + deny_by_default = deny all)
+    /// Allowed senders list (empty + deny_by_default=false = allow all)
     pub allow_from: Vec<String>,
-    /// Whether to deny by default when allow_from is empty (default: true)
+    /// Whether to deny by default when allow_from is empty (default: false)
     pub deny_by_default: bool,
     /// Inbound message sender
     pub inbound_tx: Option<mpsc::Sender<InboundMessage>>,
@@ -89,12 +89,11 @@ pub struct BaseChannel {
 impl BaseChannel {
     /// Create a new base channel
     ///
-    /// **Breaking change (deny-by-default):** An empty `allow_from` list now
-    /// means "deny all senders" instead of "allow all". Set `deny_by_default`
-    /// to `false` explicitly via [`with_default_policy`] if the old behaviour
-    /// is required.
+    /// An empty `allow_from` list means "allow all senders", matching the GUI
+    /// contract (留空表示不限制). Channels that must deny-by-default should call
+    /// [`with_default_policy`] with `deny_by_default = true`.
     pub fn new(name: impl Into<String>, config: Config, allow_from: Vec<String>) -> Self {
-        Self::with_default_policy(name, config, allow_from, true)
+        Self::with_default_policy(name, config, allow_from, false)
     }
 
     /// Create a new base channel with specific deny_by_default policy
@@ -275,8 +274,7 @@ mod tests {
     #[test]
     fn test_base_channel_is_allowed_empty_list_deny_by_default() {
         let config = Config::default();
-        // new() now defaults to deny_by_default = true
-        let channel = BaseChannel::new("test", config, vec![]);
+        let channel = BaseChannel::with_default_policy("test", config, vec![], true);
 
         assert!(!channel.is_allowed("user1"));
         assert!(!channel.is_allowed("12345"));
@@ -286,8 +284,7 @@ mod tests {
     #[test]
     fn test_base_channel_is_allowed_empty_list_allow_all() {
         let config = Config::default();
-        // Explicitly opt in to the old allow-all behaviour
-        let channel = BaseChannel::with_default_policy("test", config, vec![], false);
+        let channel = BaseChannel::new("test", config, vec![]);
 
         assert!(channel.is_allowed("user1"));
         assert!(channel.is_allowed("12345"));
@@ -416,7 +413,7 @@ mod tests {
             config,
             vec!["user1".to_string(), "12345".to_string()],
         );
-        // deny_by_default is true but allow_from is populated → matching works
+        // populated allow_from still restricts even when the empty-list default is allow-all
         assert!(channel.is_allowed("user1"));
         assert!(channel.is_allowed("12345"));
         assert!(!channel.is_allowed("unknown"));
