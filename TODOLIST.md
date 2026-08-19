@@ -237,6 +237,14 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   `docs/logs/2026-08-qq-channel-allowlist/v0.1.0-empty-allow-and-reject-group/acceptance.md`
   测 C2C 私聊与群 @ 拒绝。
 
+- [ ] **SKILL-MARKETPLACE-DESKTOP-SMOKE：技能市场真机冒烟** `sev-P2`
+  2026-08-19 技能市场标签页已接入真实 skills.sh（manager 适配器
+  `/api/skills/marketplace/search|install` + Tauri 命令 + GUI 重写）。
+  manager 103 单测 + marketplace e2e、GUI 472/472 + vue-tsc、just check 已绿。
+  须重建并重启网关 + GUI，按
+  `docs/logs/2026-08-skill-marketplace/v0.1.0-skills-sh-marketplace-adapter/acceptance.md`
+  验证搜索、安装、已安装禁用与错误重试。
+
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
