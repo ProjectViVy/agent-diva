@@ -231,6 +231,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   `docs/logs/2026-08-channels-settings-fix/v0.1.2-channel-editor-gui/acceptance.md`
   点选飞书/Email 编辑、保存刷新、Discord allow_from、列表全通道表单。
 
+- [ ] **QQ-CHANNEL-DESKTOP-SMOKE：QQ 空名单私聊 + 拒群聊真机冒烟** `sev-P2`
+  2026-08-19 恢复空 `allow_from` 为不限制，QQ 群/频道事件拒绝不进 bus。
+  channels lib 84/84 + clippy -D 已绿。须重启网关，按
+  `docs/logs/2026-08-qq-channel-allowlist/v0.1.0-empty-allow-and-reject-group/acceptance.md`
+  测 C2C 私聊与群 @ 拒绝。
+
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
