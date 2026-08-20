@@ -35,7 +35,7 @@ vi.mock('../api/desktop', () => ({
   updateSkill: vi.fn(),
 }));
 
-const skill = (slug: string, description = `${slug} description`): SkillDto => ({
+const skill = (slug: string, description = `${slug} description`, evolution_managed = true): SkillDto => ({
   slug,
   name: slug,
   description,
@@ -47,6 +47,7 @@ const skill = (slug: string, description = `${slug} description`): SkillDto => (
   content_hash: `hash-${slug}`,
   updated_at: '2026-08-15T00:00:00Z',
   can_hard_delete: true,
+  evolution_managed,
   path: '',
   can_delete: true,
 });
@@ -123,6 +124,25 @@ describe('EvolutionView Skill authority', () => {
     await wrapper.findAll('.tabbar button')[0].trigger('click');
     expect(wrapper.text()).toContain('alpha description');
     expect(wrapper.text()).toContain('beta description');
+  });
+
+  it('hides installed skills that are not evolution managed', async () => {
+    const installed = skill('installed-one', 'installed one description', false);
+    const legacyInstalled = { ...skill('legacy-one', 'legacy one description') };
+    delete (legacyInstalled as Record<string, unknown>).evolution_managed;
+    vi.mocked(getSkills).mockResolvedValue([
+      skill('alpha'),
+      installed,
+      legacyInstalled as SkillDto,
+    ]);
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.findAll('.tabbar button')[0].trigger('click');
+
+    expect(wrapper.text()).toContain('alpha description');
+    expect(wrapper.text()).not.toContain('installed one description');
+    expect(wrapper.text()).not.toContain('legacy one description');
   });
 
   it('keeps detail responses bound to the currently selected slug', async () => {

@@ -112,7 +112,7 @@ async function loadSkills() {
   skillsLoading.value = true;
   skillsError.value = null;
   try {
-    const next = await getSkills();
+    const next = (await getSkills()).filter((skill) => skill.evolution_managed === true);
     skills.value = next;
     if (selectedSlug.value && !next.some((skill) => skill.slug === selectedSlug.value)) {
       selectedSlug.value = null;
@@ -401,7 +401,7 @@ onMounted(async () => {
         <template v-if="activeTab === 'skills'">
           <p v-if="skillsError" class="state error">加载失败：{{ skillsError }} <button @click="loadSkills">重试</button></p>
           <p v-else-if="skillsLoading && skills.length === 0" class="state">正在加载 Skill…</p>
-          <p v-else-if="skills.length === 0" class="state">尚无可见 Skill。</p>
+          <p v-else-if="skills.length === 0" class="state">尚无 Evolution 管理的 Skill。</p>
           <p v-else-if="filteredSkills.length === 0" class="state">没有符合筛选条件的 Skill。</p>
           <button v-for="skill in filteredSkills" :key="skill.slug" class="list-row" :class="{ selected: selectedSlug === skill.slug }" @click="selectSkill(skill.slug)">
             <span class="row-title">{{ skill.slug }}</span><span class="source" :class="skill.source">{{ skill.source }}</span>
