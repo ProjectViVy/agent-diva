@@ -240,10 +240,19 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 - [ ] **SKILL-MARKETPLACE-DESKTOP-SMOKE：技能市场真机冒烟** `sev-P2`
   2026-08-19 技能市场标签页已接入真实 skills.sh（manager 适配器
   `/api/skills/marketplace/search|install` + Tauri 命令 + GUI 重写）。
-  manager 103 单测 + marketplace e2e、GUI 472/472 + vue-tsc、just check 已绿。
+  2026-08-21 追加精选榜单：空搜索态展示离线 YAML 快照 Top 100
+  （`/api/skills/marketplace/featured`，Python 脚本生成）。
+  manager 单测 + marketplace e2e、GUI 474/474 + vue-tsc、just check 已绿。
   须重建并重启网关 + GUI，按
-  `docs/logs/2026-08-skill-marketplace/v0.1.0-skills-sh-marketplace-adapter/acceptance.md`
-  验证搜索、安装、已安装禁用与错误重试。
+  `docs/logs/2026-08-skill-marketplace/v0.2.0-featured-leaderboard-snapshot/acceptance.md`
+  验证精选展示、搜索、安装、已安装禁用与错误重试。
+
+- [ ] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
+  2026-08-21 `agent-diva-manager/scripts/fetch_marketplace_featured.py` 支持
+  `AGENT_DIVA_SKILLS_MARKETPLACE_TOKEN`（Vercel OIDC Bearer）走官方
+  `GET /api/v1/skills?view=all-time|trending|hot`；当前无 token，仅验证了
+  无认证首页 leaderboard 降级路径。拿到 token 后跑一次脚本并核对 YAML 输出
+  （`source: api:v1:*`、`metric: installs`）。
 
 ## 产品与架构
 
