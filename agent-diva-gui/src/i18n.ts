@@ -58,6 +58,15 @@ zhPatched.general = {
   skillSourceBuiltin: zhPatched.general?.skillSourceBuiltin || '内置',
   skillSourceWorkspace: zhPatched.general?.skillSourceWorkspace || '工作区',
   deleteSkill: zhPatched.general?.deleteSkill || '删除技能',
+  deletingSkill: zhPatched.general?.deletingSkill || '删除中...',
+  deleteSkillConfirmTitle: zhPatched.general?.deleteSkillConfirmTitle || '删除技能',
+  deleteSkillConfirmBody:
+    zhPatched.general?.deleteSkillConfirmBody || '确认删除技能“{name}”？该操作不可撤销。',
+  skillDeletedToast: zhPatched.general?.skillDeletedToast || '技能已删除',
+  skillManagedByEvolution: zhPatched.general?.skillManagedByEvolution || 'Evolution 管理',
+  skillsInstalledHint:
+    zhPatched.general?.skillsInstalledHint ||
+    '市场安装或手动上传的技能可在此删除；Evolution 生成技能的编辑、停用与历史请前往 Evolution。',
   builtinSkillLocked: zhPatched.general?.builtinSkillLocked || '内置锁定',
   skillUnavailableHint:
     zhPatched.general?.skillUnavailableHint || '该技能已被发现，但当前缺少运行依赖，暂不可用。',

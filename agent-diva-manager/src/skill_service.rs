@@ -26,6 +26,8 @@ pub struct SkillDto {
     pub content_hash: String,
     pub updated_at: DateTime<Utc>,
     pub can_hard_delete: bool,
+    #[serde(default)]
+    pub evolution_managed: bool,
     // Compatibility aliases for the pre-S4 Settings surface. They are not an authority.
     pub name: String,
     pub active: bool,
@@ -50,6 +52,7 @@ impl From<SkillDocument> for SkillDto {
             content_hash: summary.content_hash,
             updated_at: summary.updated_at,
             can_hard_delete: summary.can_hard_delete,
+            evolution_managed: summary.evolution_managed,
             name: summary.slug,
             active: summary.enabled,
             path: String::new(),

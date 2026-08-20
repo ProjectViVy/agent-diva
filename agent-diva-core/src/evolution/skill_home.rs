@@ -54,6 +54,9 @@ pub struct SkillSummary {
     pub content_hash: String,
     pub updated_at: DateTime<Utc>,
     pub can_hard_delete: bool,
+    /// True when an accepted evolution proposal governs this Home skill.
+    #[serde(default)]
+    pub evolution_managed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -291,6 +294,8 @@ impl SkillHome {
                 content_hash: content_hash(&markdown),
                 updated_at,
                 can_hard_delete: source == SkillSource::Home,
+                evolution_managed: source == SkillSource::Home
+                    && self.accepted_slugs()?.contains(slug),
             },
             markdown,
         })
@@ -701,6 +706,17 @@ impl SkillHome {
         }
         requests.sort_by(|left, right| right.created_at.cmp(&left.created_at));
         Ok(requests)
+    }
+
+    /// Slugs governed by an accepted proposal. Lock-free: callers of `read`
+    /// may already hold the write lock.
+    fn accepted_slugs(&self) -> Result<HashSet<String>, SkillHomeError> {
+        Ok(self
+            .list_requests_unlocked()?
+            .into_iter()
+            .filter(|request| request.status == SkillProposalStatus::Accepted)
+            .map(|request| request.slug)
+            .collect())
     }
 
     fn mark_pending_stale(&self, slug: &str) -> Result<(), SkillHomeError> {
@@ -1216,5 +1232,35 @@ mod tests {
             ),
             Err(SkillHomeError::AlreadyExists(_))
         ));
+    }
+
+    #[test]
+    fn evolution_managed_reflects_accepted_proposals() {
+        let (_config, builtin, home) = home();
+        home.install_new("manual", &markdown("Manual", None, None, "manual"), &[])
+            .unwrap();
+        assert!(!home.read("manual").unwrap().summary.evolution_managed);
+
+        let request = home
+            .create_request(CreateSkillProposal {
+                slug: "grown".into(),
+                title: "Grown".into(),
+                proposed_markdown: markdown("Grown", None, None, "grown"),
+                evidence: Vec::new(),
+                attestation: Some("I confirm this skill".into()),
+                base_hash: ZERO_HASH.into(),
+                source: SkillProposalSource::UserRequest,
+                reason: "Grown".into(),
+            })
+            .unwrap();
+        home.accept_request(&request.id).unwrap();
+        assert!(home.read("grown").unwrap().summary.evolution_managed);
+
+        write_builtin(
+            builtin.path(),
+            "builtin-demo",
+            &markdown("Builtin", None, None, "builtin"),
+        );
+        assert!(!home.read("builtin-demo").unwrap().summary.evolution_managed);
     }
 }

@@ -3352,6 +3352,16 @@
   color: white;
 }
 
+.skills-btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.skills-btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: white;
+}
+
 /* Skills 卡片 */
 .skills-item-card {
   border-radius: var(--radius);

@@ -409,6 +409,13 @@ export default {
     skillSourceBuiltin: 'Builtin',
     skillSourceWorkspace: 'Workspace',
     deleteSkill: 'Delete skill',
+    deletingSkill: 'Deleting...',
+    deleteSkillConfirmTitle: 'Delete skill',
+    deleteSkillConfirmBody: 'Delete skill "{name}"? This cannot be undone.',
+    skillDeletedToast: 'Skill deleted',
+    skillManagedByEvolution: 'Managed in Evolution',
+    skillsInstalledHint:
+      'Marketplace and manually uploaded skills can be deleted here. Editing, disabling, and history for Evolution-generated skills live in Evolution.',
     builtinSkillLocked: 'Builtin locked',
     skillUnavailableHint: 'This skill is visible but unavailable because required dependencies are missing.',
     skillsZipOnly: 'Only .zip skill packages are supported.',

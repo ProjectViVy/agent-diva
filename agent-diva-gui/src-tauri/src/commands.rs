@@ -126,6 +126,8 @@ pub struct SkillDto {
     pub content_hash: String,
     pub updated_at: String,
     pub can_hard_delete: bool,
+    #[serde(default)]
+    pub evolution_managed: bool,
     pub path: String,
     pub can_delete: bool,
 }

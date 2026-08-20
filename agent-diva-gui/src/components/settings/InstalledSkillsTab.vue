@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCcw, Upload, ShieldCheck, CircleOff, Search } from '@lucide/vue';
+import { RefreshCcw, Upload, ShieldCheck, CircleOff, Search, Trash2 } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
-import { getSkills, isTauriRuntime, uploadSkill, type SkillDto } from '../../api/desktop';
+import {
+  deleteSkill,
+  getSkills,
+  isTauriRuntime,
+  uploadSkill,
+  type SkillDto,
+} from '../../api/desktop';
+import { appConfirm } from '../../utils/appDialog';
+import { showAppToast } from '../../utils/appToast';
 
 const { t } = useI18n();
 
 const skills = ref<SkillDto[]>([]);
 const loading = ref(false);
 const uploading = ref(false);
+const deleting = ref('');
 const error = ref('');
 const searchQuery = ref('');
 const previewMode = computed(() => !isTauriRuntime());
@@ -66,6 +75,30 @@ async function onUploadChange(event: Event) {
   } finally {
     uploading.value = false;
     input.value = '';
+  }
+}
+
+async function onDelete(skill: SkillDto) {
+  if (deleting.value) return;
+  const confirmed = await appConfirm(
+    t('general.deleteSkillConfirmBody', { name: skill.name }),
+    {
+      title: t('general.deleteSkillConfirmTitle'),
+      confirmLabel: t('general.deleteSkill'),
+    }
+  );
+  if (!confirmed) return;
+
+  deleting.value = skill.slug;
+  error.value = '';
+  try {
+    await deleteSkill(skill.slug, skill.content_hash);
+    showAppToast(t('general.skillDeletedToast'), 'success');
+    await refreshSkills();
+  } catch (err) {
+    error.value = String(err);
+  } finally {
+    deleting.value = '';
   }
 }
 
@@ -132,7 +165,7 @@ defineExpose({ refreshSkills });
     <!-- Hint Box -->
     <div class="skills-hint-box">
       <p>{{ t('general.skillsZipHint') }}</p>
-      <p class="mt-2">编辑、停用、历史与硬删除请前往 Evolution；此处仅负责新 Skill 安装。</p>
+      <p class="mt-2">{{ t('general.skillsInstalledHint') }}</p>
       <p v-if="previewMode" class="mt-2 skills-hint-box warning">{{ t('general.skillsPreviewOnly') }}</p>
     </div>
 
@@ -174,7 +207,21 @@ defineExpose({ refreshSkills });
             <p class="skills-item-desc">{{ skill.description }}</p>
           </div>
 
-          <span class="skills-btn pointer-events-none"><ShieldCheck :size="14" />Evolution 管理</span>
+          <span
+            v-if="skill.evolution_managed"
+            class="skills-btn pointer-events-none"
+          >
+            <ShieldCheck :size="14" />{{ t('general.skillManagedByEvolution') }}
+          </span>
+          <button
+            v-else-if="skill.can_hard_delete"
+            class="skills-btn skills-btn-danger"
+            :disabled="Boolean(deleting) || previewMode"
+            @click="onDelete(skill)"
+          >
+            <Trash2 :size="14" />
+            {{ deleting === skill.slug ? t('general.deletingSkill') : t('general.deleteSkill') }}
+          </button>
         </div>
         <div v-if="!skill.available" class="mt-3 flex items-center gap-2 text-xs" style="color: var(--warning);">
           <CircleOff :size="14" />

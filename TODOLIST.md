@@ -242,10 +242,14 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   `/api/skills/marketplace/search|install` + Tauri 命令 + GUI 重写）。
   2026-08-21 追加精选榜单：空搜索态展示离线 YAML 快照 Top 100
   （`/api/skills/marketplace/featured`，Python 脚本生成）。
-  manager 单测 + marketplace e2e、GUI 474/474 + vue-tsc、just check 已绿。
+  2026-08-21 追加 v0.2.1：已安装页移除“Evolution 管理”硬编码占位，市场/手动
+  安装技能可直接删除（复用 `DELETE /api/skills/:slug`），Evolution 托管技能
+  （存在 Accepted 提案）仅显示 i18n 提示（`SkillSummary.evolution_managed`）。
+  manager 单测 + marketplace e2e、GUI 479/479 + vue-tsc、just check 已绿。
   须重建并重启网关 + GUI，按
   `docs/logs/2026-08-skill-marketplace/v0.2.0-featured-leaderboard-snapshot/acceptance.md`
-  验证精选展示、搜索、安装、已安装禁用与错误重试。
+  与 `docs/logs/2026-08-skill-marketplace/v0.2.1-installed-skill-delete/acceptance.md`
+  验证精选展示、搜索、安装、已安装禁用、错误重试与安装类技能删除。
 
 - [ ] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
   2026-08-21 `agent-diva-manager/scripts/fetch_marketplace_featured.py` 支持

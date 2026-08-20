@@ -20,6 +20,7 @@ export interface SkillDto {
   content_hash: string;
   updated_at: string;
   can_hard_delete: boolean;
+  evolution_managed?: boolean;
   path: string;
   can_delete: boolean;
 }
