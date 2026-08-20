@@ -781,6 +781,18 @@ export async function installMarketplaceSkill(id: string): Promise<SkillDto> {
   return invoke<SkillDto>("install_marketplace_skill", { id });
 }
 
+export interface MarketplaceFeaturedResponse {
+  skills: MarketplaceSkillEntry[];
+  total?: number;
+  generated_at?: string;
+  source?: string;
+  metric?: string;
+}
+
+export async function featuredMarketplaceSkills(): Promise<MarketplaceFeaturedResponse> {
+  return invoke<MarketplaceFeaturedResponse>("featured_marketplace_skills");
+}
+
 // ============================================================
 // Sandbox API
 // ============================================================

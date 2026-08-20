@@ -389,6 +389,7 @@ pub fn run() {
             commands::upload_skill,
             commands::search_marketplace_skills,
             commands::install_marketplace_skill,
+            commands::featured_marketplace_skills,
             commands::upload_file,
             commands::delete_skill,
             commands::get_providers,

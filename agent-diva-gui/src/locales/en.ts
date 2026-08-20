@@ -418,6 +418,8 @@ export default {
     searchInstalled: 'Search installed skills...',
     searchMarketplace: 'Search the marketplace...',
     marketplaceSearchPrompt: 'Type at least 2 characters to search the skills.sh marketplace',
+    marketplaceFeaturedTitle: 'Featured (skills.sh leaderboard)',
+    marketplaceFeaturedSnapshot: 'Snapshot from {date}',
     loadingMarketplace: 'Loading marketplace...',
     emptyMarketplace: 'No skills available yet',
     marketplaceUnavailable: 'Marketplace is currently unavailable',

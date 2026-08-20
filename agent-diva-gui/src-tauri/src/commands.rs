@@ -3873,6 +3873,18 @@ pub async fn install_marketplace_skill(
 }
 
 #[tauri::command]
+pub async fn featured_marketplace_skills(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, serde_json::Value> {
+    let url = format!("{}/skills/marketplace/featured", state.api_base_url());
+    let mut response = memory_request(&state, reqwest::Method::GET, &url, None).await?;
+    if let Some(object) = response.as_object_mut() {
+        object.remove("status");
+    }
+    Ok(response)
+}
+
+#[tauri::command]
 pub async fn upload_file(
     file_name: String,
     bytes: Vec<u8>,

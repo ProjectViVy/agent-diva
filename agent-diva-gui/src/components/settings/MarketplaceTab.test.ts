@@ -4,6 +4,7 @@ import MarketplaceTab from './MarketplaceTab.vue';
 
 const searchMarketplaceSkills = vi.fn();
 const installMarketplaceSkill = vi.fn();
+const featuredMarketplaceSkills = vi.fn();
 const getSkills = vi.fn();
 
 vi.mock('vue-i18n', () => ({
@@ -15,6 +16,7 @@ vi.mock('vue-i18n', () => ({
 vi.mock('../../api/desktop', () => ({
   searchMarketplaceSkills: (...args: unknown[]) => searchMarketplaceSkills(...args),
   installMarketplaceSkill: (...args: unknown[]) => installMarketplaceSkill(...args),
+  featuredMarketplaceSkills: (...args: unknown[]) => featuredMarketplaceSkills(...args),
   getSkills: (...args: unknown[]) => getSkills(...args),
   isTauriRuntime: () => true,
 }));
@@ -29,6 +31,7 @@ describe('MarketplaceTab', () => {
     vi.clearAllMocks();
     getSkills.mockResolvedValue([]);
     searchMarketplaceSkills.mockResolvedValue([]);
+    featuredMarketplaceSkills.mockResolvedValue({ skills: [], generated_at: '' });
     installMarketplaceSkill.mockResolvedValue({ name: 'demo-skill' });
   });
 
@@ -112,5 +115,43 @@ describe('MarketplaceTab', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('general.installFailed');
+  });
+
+  it('shows the featured leaderboard sorted by installs when no search is active', async () => {
+    featuredMarketplaceSkills.mockResolvedValue({
+      skills: [
+        { id: 'a/b/less-popular', name: 'less-popular', source: 'a/b', installs: 5 },
+        { id: 'vercel-labs/skills/find-skills', name: 'find-skills', source: 'vercel-labs/skills', installs: 846620 },
+      ],
+      generated_at: '2026-08-20T21:11:19+00:00',
+    });
+
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(featuredMarketplaceSkills).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('general.marketplaceFeaturedTitle');
+    expect(wrapper.text()).toContain('general.marketplaceFeaturedSnapshot');
+    const cards = wrapper.findAll('.marketplace-card');
+    expect(cards).toHaveLength(2);
+    expect(cards[0].text()).toContain('find-skills');
+    expect(cards[1].text()).toContain('less-popular');
+  });
+
+  it('installs a featured skill by its marketplace id', async () => {
+    featuredMarketplaceSkills.mockResolvedValue({
+      skills: [
+        { id: 'demo-owner/demo-repo/demo-skill', name: 'demo-skill', source: 'demo-owner/demo-repo', installs: 42 },
+      ],
+      generated_at: '2026-08-20T21:11:19+00:00',
+    });
+
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.marketplace-card button').trigger('click');
+    await flushPromises();
+
+    expect(installMarketplaceSkill).toHaveBeenCalledWith('demo-owner/demo-repo/demo-skill');
   });
 });

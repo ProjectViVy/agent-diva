@@ -70,6 +70,10 @@ zhPatched.general = {
   marketplaceSearchPrompt:
     zhPatched.general?.marketplaceSearchPrompt ||
     '输入至少 2 个字符，搜索 skills.sh 技能市场',
+  marketplaceFeaturedTitle:
+    zhPatched.general?.marketplaceFeaturedTitle || '精选推荐（skills.sh 榜单）',
+  marketplaceFeaturedSnapshot:
+    zhPatched.general?.marketplaceFeaturedSnapshot || '快照时间 {date}',
   loadingMarketplace: zhPatched.general?.loadingMarketplace || '正在加载技能市场...',
   emptyMarketplace: zhPatched.general?.emptyMarketplace || '暂无可用技能',
   marketplaceUnavailable: zhPatched.general?.marketplaceUnavailable || '技能市场暂不可用',

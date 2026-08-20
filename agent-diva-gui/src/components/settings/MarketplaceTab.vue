@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import {
   searchMarketplaceSkills,
   installMarketplaceSkill,
+  featuredMarketplaceSkills,
   getSkills,
   isTauriRuntime,
   type MarketplaceSkillEntry,
@@ -16,6 +17,8 @@ const { t } = useI18n();
 const previewMode = computed(() => !isTauriRuntime());
 
 const marketplaceSkills = ref<MarketplaceSkillEntry[]>([]);
+const featuredSkills = ref<MarketplaceSkillEntry[]>([]);
+const featuredGeneratedAt = ref('');
 const loading = ref(false);
 const error = ref('');
 const searchQuery = ref('');
@@ -104,6 +107,21 @@ async function installSkill(skill: MarketplaceSkillEntry) {
   }
 }
 
+async function loadFeatured() {
+  if (previewMode.value) return;
+  try {
+    const featured = await featuredMarketplaceSkills();
+    featuredSkills.value = [...(featured.skills || [])].sort(
+      (a, b) => b.installs - a.installs
+    );
+    featuredGeneratedAt.value = featured.generated_at
+      ? featured.generated_at.slice(0, 10)
+      : '';
+  } catch {
+    featuredSkills.value = [];
+  }
+}
+
 onUnmounted(() => {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -112,6 +130,7 @@ onUnmounted(() => {
 
 onMounted(() => {
   loadInstalledSkills();
+  loadFeatured();
 });
 </script>
 
@@ -147,8 +166,8 @@ onMounted(() => {
     <!-- Loading State -->
     <div v-if="loading" class="text-sm" style="color: var(--text-muted);">{{ t('general.loadingMarketplace') }}</div>
 
-    <!-- Search Prompt -->
-    <div v-else-if="!hasSearched" class="marketplace-empty">
+    <!-- Search Prompt (no featured snapshot available) -->
+    <div v-else-if="!hasSearched && featuredSkills.length === 0" class="marketplace-empty">
       <Store :size="32" class="mx-auto mb-3" style="color: var(--text-muted); opacity: 0.5;" />
       <p class="text-sm" style="color: var(--text-muted);">
         {{ t('general.marketplaceSearchPrompt') }}
@@ -157,7 +176,7 @@ onMounted(() => {
 
     <!-- Empty Results -->
     <div
-      v-else-if="marketplaceSkills.length === 0"
+      v-else-if="hasSearched && marketplaceSkills.length === 0"
       class="marketplace-empty"
     >
       <Store :size="32" class="mx-auto mb-3" style="color: var(--text-muted); opacity: 0.5;" />
@@ -173,10 +192,20 @@ onMounted(() => {
       </button>
     </div>
 
+    <!-- Featured header (offline leaderboard snapshot) -->
+    <div v-else-if="!hasSearched" class="flex items-center justify-between">
+      <h4 class="text-sm font-semibold" style="color: var(--text-primary);">
+        {{ t('general.marketplaceFeaturedTitle') }}
+      </h4>
+      <span v-if="featuredGeneratedAt" class="text-[11px]" style="color: var(--text-muted); opacity: 0.7;">
+        {{ t('general.marketplaceFeaturedSnapshot', { date: featuredGeneratedAt }) }}
+      </span>
+    </div>
+
     <!-- Skills Grid -->
-    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div v-if="!loading && (hasSearched ? marketplaceSkills.length : featuredSkills.length) > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       <div
-        v-for="skill in marketplaceSkills"
+        v-for="skill in hasSearched ? marketplaceSkills : featuredSkills"
         :key="skill.id"
         class="marketplace-card"
       >
