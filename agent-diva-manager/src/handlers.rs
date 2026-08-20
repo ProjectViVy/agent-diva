@@ -31,10 +31,11 @@ pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
 pub use skills::{
     accept_skill_request_handler, create_skill_request_handler, delete_skill_handler,
-    disable_skill_handler, get_skill_handler, get_skill_history_revision_handler,
-    get_skill_request_handler, get_skills_handler, install_marketplace_skill_handler,
-    list_skill_history_handler, list_skill_requests_handler, reject_skill_request_handler,
-    search_marketplace_skills_handler, update_skill_handler, upload_skill_handler,
+    disable_skill_handler, featured_marketplace_skills_handler, get_skill_handler,
+    get_skill_history_revision_handler, get_skill_request_handler, get_skills_handler,
+    install_marketplace_skill_handler, list_skill_history_handler, list_skill_requests_handler,
+    reject_skill_request_handler, search_marketplace_skills_handler, update_skill_handler,
+    upload_skill_handler,
 };
 
 pub use autodream::{

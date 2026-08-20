@@ -32,6 +32,33 @@ pub struct MarketplaceSkill {
     pub installs: u64,
 }
 
+/// Offline featured leaderboard snapshot, committed as YAML and embedded at
+/// build time so the gateway serves it without any runtime network access.
+/// Regenerate with `agent-diva-manager/scripts/fetch_marketplace_featured.py`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeaturedSnapshot {
+    /// UTC timestamp when the snapshot was generated.
+    #[serde(default)]
+    pub generated_at: String,
+    /// Where the data came from (e.g. `api:v1:all-time`, `web:leaderboard`).
+    #[serde(default)]
+    pub source: String,
+    /// What `installs` measures (e.g. `installs`, `weekly_installs_sum`).
+    #[serde(default)]
+    pub metric: String,
+    /// Ranked skills, best first.
+    #[serde(default)]
+    pub skills: Vec<MarketplaceSkill>,
+}
+
+const FEATURED_SNAPSHOT_YAML: &str = include_str!("../data/marketplace_featured.yaml");
+
+/// Parse the embedded featured leaderboard snapshot.
+pub fn featured_snapshot() -> anyhow::Result<FeaturedSnapshot> {
+    serde_yaml::from_str(FEATURED_SNAPSHOT_YAML)
+        .context("embedded marketplace featured snapshot is invalid")
+}
+
 #[derive(Debug, Deserialize)]
 struct SearchApiResponse {
     #[serde(default)]
@@ -321,5 +348,17 @@ mod tests {
         assert!(encode_segment("a/b").is_err());
         assert!(encode_segment("a b").is_err());
         assert_eq!(encode_segment("caveman-commit").unwrap(), "caveman-commit");
+    }
+
+    #[test]
+    fn featured_snapshot_parses_embedded_yaml() {
+        let snapshot = featured_snapshot().unwrap();
+        assert!(!snapshot.generated_at.is_empty());
+        assert!(!snapshot.source.is_empty());
+        assert!(!snapshot.skills.is_empty());
+        for skill in &snapshot.skills {
+            assert!(parse_skill_id(&skill.id).is_ok(), "bad id: {}", skill.id);
+            assert!(!skill.name.is_empty());
+        }
     }
 }

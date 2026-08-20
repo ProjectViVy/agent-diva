@@ -185,3 +185,32 @@ async fn marketplace_search_and_install_end_to_end() {
 
     std::env::remove_var(MARKETPLACE_BASE_URL_ENV);
 }
+
+#[tokio::test]
+async fn marketplace_featured_serves_embedded_snapshot() {
+    let config = TempDir::new().unwrap();
+    let app = build_router(marketplace_state(config.path()));
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/api/skills/marketplace/featured")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let value: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(value["status"], "ok");
+    let skills = value["skills"].as_array().unwrap();
+    assert!(!skills.is_empty());
+    assert_eq!(value["total"], skills.len());
+    assert!(value["generated_at"].as_str().map(str::is_empty) == Some(false));
+    for skill in skills {
+        assert_eq!(skill["id"].as_str().unwrap().matches('/').count(), 2);
+    }
+}

@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::{
-    marketplace::{parse_skill_id, MarketplaceClient},
+    marketplace::{featured_snapshot, parse_skill_id, MarketplaceClient},
     skill_service::SkillService,
     state::AppState,
 };
@@ -101,6 +101,19 @@ pub async fn search_marketplace_skills_handler(
     Ok(Json(
         json!({ "status": "ok", "skills": skills, "total": total }),
     ))
+}
+
+pub async fn featured_marketplace_skills_handler() -> Result<Json<Value>, ApiError> {
+    let snapshot = featured_snapshot().map_err(|error| internal_error(error.to_string()))?;
+    let total = snapshot.skills.len();
+    Ok(Json(json!({
+        "status": "ok",
+        "skills": snapshot.skills,
+        "total": total,
+        "generated_at": snapshot.generated_at,
+        "source": snapshot.source,
+        "metric": snapshot.metric,
+    })))
 }
 
 pub async fn install_marketplace_skill_handler(

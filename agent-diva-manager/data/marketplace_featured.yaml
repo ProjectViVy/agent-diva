@@ -1,0 +1,407 @@
+# skills.sh featured leaderboard snapshot (offline data for the
+# gateway's /api/skills/marketplace/featured route). Regenerate:
+#   python agent-diva-manager/scripts/fetch_marketplace_featured.py
+generated_at: '2026-08-20T21:11:19+00:00'
+source: 'web:leaderboard'
+metric: 'weekly_installs_sum'
+skills:
+  - id: 'vercel-labs/skills/find-skills'
+    name: 'find-skills'
+    source: 'vercel-labs/skills'
+    installs: 846620
+  - id: 'mattpocock/skills/grill-me'
+    name: 'grill-me'
+    source: 'mattpocock/skills'
+    installs: 511056
+  - id: 'anthropics/skills/frontend-design'
+    name: 'frontend-design'
+    source: 'anthropics/skills'
+    installs: 209794
+  - id: 'mattpocock/skills/grill-with-docs'
+    name: 'grill-with-docs'
+    source: 'mattpocock/skills'
+    installs: 448599
+  - id: 'mattpocock/skills/improve-codebase-architecture'
+    name: 'improve-codebase-architecture'
+    source: 'mattpocock/skills'
+    installs: 418887
+  - id: 'mattpocock/skills/tdd'
+    name: 'tdd'
+    source: 'mattpocock/skills'
+    installs: 411775
+  - id: 'vercel-labs/agent-browser/agent-browser'
+    name: 'agent-browser'
+    source: 'vercel-labs/agent-browser'
+    installs: 214121
+  - id: 'mattpocock/skills/setup-matt-pocock-skills'
+    name: 'setup-matt-pocock-skills'
+    source: 'mattpocock/skills'
+    installs: 394361
+  - id: 'vercel-labs/agent-skills/vercel-react-best-practices'
+    name: 'vercel-react-best-practices'
+    source: 'vercel-labs/agent-skills'
+    installs: 143490
+  - id: 'mattpocock/skills/handoff'
+    name: 'handoff'
+    source: 'mattpocock/skills'
+    installs: 397615
+  - id: 'mattpocock/skills/triage'
+    name: 'triage'
+    source: 'mattpocock/skills'
+    installs: 370577
+  - id: 'mattpocock/skills/prototype'
+    name: 'prototype'
+    source: 'mattpocock/skills'
+    installs: 384531
+  - id: 'site/open.feishu.cn/lark-doc'
+    name: 'lark-doc'
+    source: 'site/open.feishu.cn'
+    installs: 319034
+  - id: 'vercel-labs/agent-skills/web-design-guidelines'
+    name: 'web-design-guidelines'
+    source: 'vercel-labs/agent-skills'
+    installs: 140015
+  - id: 'microsoft/azure-skills/microsoft-foundry'
+    name: 'microsoft-foundry'
+    source: 'microsoft/azure-skills'
+    installs: 125713
+  - id: 'site/open.feishu.cn/lark-vc-agent'
+    name: 'lark-vc-agent'
+    source: 'site/open.feishu.cn'
+    installs: 317750
+  - id: 'microsoft/azure-skills/azure-diagnostics'
+    name: 'azure-diagnostics'
+    source: 'microsoft/azure-skills'
+    installs: 122960
+  - id: 'site/open.feishu.cn/lark-apps'
+    name: 'lark-apps'
+    source: 'site/open.feishu.cn'
+    installs: 318283
+  - id: 'mattpocock/skills/grilling'
+    name: 'grilling'
+    source: 'mattpocock/skills'
+    installs: 433106
+  - id: 'mattpocock/skills/teach'
+    name: 'teach'
+    source: 'mattpocock/skills'
+    installs: 371524
+  - id: 'remotion-dev/skills/remotion-best-practices'
+    name: 'remotion-best-practices'
+    source: 'remotion-dev/skills'
+    installs: 97531
+  - id: 'microsoft/azure-skills/azure-rbac'
+    name: 'azure-rbac'
+    source: 'microsoft/azure-skills'
+    installs: 79173
+  - id: 'microsoft/azure-skills/azure-compute'
+    name: 'azure-compute'
+    source: 'microsoft/azure-skills'
+    installs: 121755
+  - id: 'microsoft/azure-skills/azure-cloud-migrate'
+    name: 'azure-cloud-migrate'
+    source: 'microsoft/azure-skills'
+    installs: 121418
+  - id: 'mattpocock/skills/domain-modeling'
+    name: 'domain-modeling'
+    source: 'mattpocock/skills'
+    installs: 396790
+  - id: 'juliusbrussee/caveman/caveman'
+    name: 'caveman'
+    source: 'juliusbrussee/caveman'
+    installs: 166791
+  - id: 'lllllllama/rigorpilot-skills/paper-context-resolver'
+    name: 'paper-context-resolver'
+    source: 'lllllllama/rigorpilot-skills'
+    installs: 207314
+  - id: 'mattpocock/skills/codebase-design'
+    name: 'codebase-design'
+    source: 'mattpocock/skills'
+    installs: 385791
+  - id: 'microsoft/azure-skills/azure-hosted-copilot-sdk'
+    name: 'azure-hosted-copilot-sdk'
+    source: 'microsoft/azure-skills'
+    installs: 59145
+  - id: 'mattpocock/skills/diagnosing-bugs'
+    name: 'diagnosing-bugs'
+    source: 'mattpocock/skills'
+    installs: 379764
+  - id: 'larksuite/cli/lark-doc'
+    name: 'lark-doc'
+    source: 'larksuite/cli'
+    installs: 159318
+  - id: 'heygen-com/hyperframes/hyperframes-cli'
+    name: 'hyperframes-cli'
+    source: 'heygen-com/hyperframes'
+    installs: 287059
+  - id: 'larksuite/cli/lark-event'
+    name: 'lark-event'
+    source: 'larksuite/cli'
+    installs: 154880
+  - id: 'prime-skills/runcomfy-agent-skills/video-edit'
+    name: 'video-edit'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 131087
+  - id: 'microsoft/azure-skills/azure-quotas'
+    name: 'azure-quotas'
+    source: 'microsoft/azure-skills'
+    installs: 121296
+  - id: 'prime-skills/runcomfy-agent-skills/wan-2-7'
+    name: 'wan-2-7'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 129896
+  - id: 'mattpocock/skills/ask-matt'
+    name: 'ask-matt'
+    source: 'mattpocock/skills'
+    installs: 354340
+  - id: 'prime-skills/runcomfy-agent-skills/flux-2-klein'
+    name: 'flux-2-klein'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 130074
+  - id: 'heygen-com/hyperframes/hyperframes'
+    name: 'hyperframes'
+    source: 'heygen-com/hyperframes'
+    installs: 272665
+  - id: 'site/uizze.com/anti-ui-slop'
+    name: 'anti-ui-slop'
+    source: 'site/uizze.com'
+    installs: 330977
+  - id: 'microsoft/azure-skills/azure-upgrade'
+    name: 'azure-upgrade'
+    source: 'microsoft/azure-skills'
+    installs: 121019
+  - id: 'mattpocock/skills/implement'
+    name: 'implement'
+    source: 'mattpocock/skills'
+    installs: 353693
+  - id: 'larksuite/cli/lark-approval'
+    name: 'lark-approval'
+    source: 'larksuite/cli'
+    installs: 154707
+  - id: 'site/open.feishu.cn/lark-note'
+    name: 'lark-note'
+    source: 'site/open.feishu.cn'
+    installs: 318105
+  - id: 'leonxlnx/taste-skill/design-taste-frontend'
+    name: 'design-taste-frontend'
+    source: 'leonxlnx/taste-skill'
+    installs: 195038
+  - id: 'prime-skills/runcomfy-agent-skills/kling-3-0'
+    name: 'kling-3-0'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 129820
+  - id: 'mattpocock/skills/code-review'
+    name: 'code-review'
+    source: 'mattpocock/skills'
+    installs: 343748
+  - id: 'microsoft/azure-skills/azure-enterprise-infra-planner'
+    name: 'azure-enterprise-infra-planner'
+    source: 'microsoft/azure-skills'
+    installs: 121086
+  - id: 'prime-skills/runcomfy-agent-skills/codex-pet'
+    name: 'codex-pet'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 130084
+  - id: 'larksuite/cli/lark-slides'
+    name: 'lark-slides'
+    source: 'larksuite/cli'
+    installs: 155136
+  - id: 'mattpocock/skills/to-prd'
+    name: 'to-prd'
+    source: 'mattpocock/skills'
+    installs: 102794
+  - id: 'heygen-com/hyperframes/hyperframes-registry'
+    name: 'hyperframes-registry'
+    source: 'heygen-com/hyperframes'
+    installs: 244979
+  - id: 'larksuite/cli/lark-attendance'
+    name: 'lark-attendance'
+    source: 'larksuite/cli'
+    installs: 153990
+  - id: 'microsoft/azure-skills/azure-kubernetes'
+    name: 'azure-kubernetes'
+    source: 'microsoft/azure-skills'
+    installs: 121329
+  - id: 'supabase/agent-skills/supabase-postgres-best-practices'
+    name: 'supabase-postgres-best-practices'
+    source: 'supabase/agent-skills'
+    installs: 106464
+  - id: 'anthropics/skills/skill-creator'
+    name: 'skill-creator'
+    source: 'anthropics/skills'
+    installs: 72883
+  - id: 'mattpocock/skills/to-issues'
+    name: 'to-issues'
+    source: 'mattpocock/skills'
+    installs: 100882
+  - id: 'prime-skills/runcomfy-agent-skills/ai-video-generation'
+    name: 'ai-video-generation'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 130755
+  - id: 'larksuite/cli/lark-okr'
+    name: 'lark-okr'
+    source: 'larksuite/cli'
+    installs: 154411
+  - id: 'prime-skills/runcomfy-agent-skills/ai-image-generation'
+    name: 'ai-image-generation'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 130544
+  - id: 'mattpocock/skills/wayfinder'
+    name: 'wayfinder'
+    source: 'mattpocock/skills'
+    installs: 315802
+  - id: 'prime-skills/runcomfy-agent-skills/runcomfy-cli'
+    name: 'runcomfy-cli'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 129968
+  - id: 'mattpocock/skills/research'
+    name: 'research'
+    source: 'mattpocock/skills'
+    installs: 312035
+  - id: 'microsoft/azure-skills/azure-cost'
+    name: 'azure-cost'
+    source: 'microsoft/azure-skills'
+    installs: 121093
+  - id: 'prime-skills/runcomfy-agent-skills/ai-music'
+    name: 'ai-music'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 130198
+  - id: 'prime-skills/runcomfy-agent-skills/ace-step'
+    name: 'ace-step'
+    source: 'prime-skills/runcomfy-agent-skills'
+    installs: 129969
+  - id: 'mattpocock/skills/to-spec'
+    name: 'to-spec'
+    source: 'mattpocock/skills'
+    installs: 302489
+  - id: 'obra/superpowers/brainstorming'
+    name: 'brainstorming'
+    source: 'obra/superpowers'
+    installs: 92246
+  - id: 'mattpocock/skills/resolving-merge-conflicts'
+    name: 'resolving-merge-conflicts'
+    source: 'mattpocock/skills'
+    installs: 290600
+  - id: 'larksuite/cli/lark-markdown'
+    name: 'lark-markdown'
+    source: 'larksuite/cli'
+    installs: 156038
+  - id: 'mattpocock/skills/to-tickets'
+    name: 'to-tickets'
+    source: 'mattpocock/skills'
+    installs: 296222
+  - id: 'nextlevelbuilder/ui-ux-pro-max-skill/ui-ux-pro-max'
+    name: 'ui-ux-pro-max'
+    source: 'nextlevelbuilder/ui-ux-pro-max-skill'
+    installs: 89744
+  - id: 'mattpocock/skills/writing-great-skills'
+    name: 'writing-great-skills'
+    source: 'mattpocock/skills'
+    installs: 296166
+  - id: 'juliusbrussee/caveman/caveman-commit'
+    name: 'caveman-commit'
+    source: 'juliusbrussee/caveman'
+    installs: 131054
+  - id: 'juliusbrussee/caveman/caveman-review'
+    name: 'caveman-review'
+    source: 'juliusbrussee/caveman'
+    installs: 130413
+  - id: 'juliusbrussee/caveman/caveman-compress'
+    name: 'caveman-compress'
+    source: 'juliusbrussee/caveman'
+    installs: 130029
+  - id: 'lllllllama/rigorpilot-skills/ai-research-explore'
+    name: 'ai-research-explore'
+    source: 'lllllllama/rigorpilot-skills'
+    installs: 207785
+  - id: 'juliusbrussee/caveman/caveman-help'
+    name: 'caveman-help'
+    source: 'juliusbrussee/caveman'
+    installs: 128921
+  - id: 'larksuite/cli/lark-vc-agent'
+    name: 'lark-vc-agent'
+    source: 'larksuite/cli'
+    installs: 154278
+  - id: 'vercel-labs/agent-skills/vercel-composition-patterns'
+    name: 'vercel-composition-patterns'
+    source: 'vercel-labs/agent-skills'
+    installs: 71426
+  - id: 'heygen-com/hyperframes/hyperframes-core'
+    name: 'hyperframes-core'
+    source: 'heygen-com/hyperframes'
+    installs: 264951
+  - id: 'heygen-com/hyperframes/hyperframes-animation'
+    name: 'hyperframes-animation'
+    source: 'heygen-com/hyperframes'
+    installs: 261817
+  - id: 'heygen-com/hyperframes/media-use'
+    name: 'media-use'
+    source: 'heygen-com/hyperframes'
+    installs: 274962
+  - id: 'leonxlnx/taste-skill/high-end-visual-design'
+    name: 'high-end-visual-design'
+    source: 'leonxlnx/taste-skill'
+    installs: 136713
+  - id: 'microsoft/azure-skills/airunway-aks-setup'
+    name: 'airunway-aks-setup'
+    source: 'microsoft/azure-skills'
+    installs: 120416
+  - id: 'leonxlnx/taste-skill/redesign-existing-projects'
+    name: 'redesign-existing-projects'
+    source: 'leonxlnx/taste-skill'
+    installs: 135536
+  - id: 'heygen-com/hyperframes/hyperframes-creative'
+    name: 'hyperframes-creative'
+    source: 'heygen-com/hyperframes'
+    installs: 246153
+  - id: 'shadcn/ui/shadcn'
+    name: 'shadcn'
+    source: 'shadcn/ui'
+    installs: 71613
+  - id: 'juliusbrussee/caveman/cavecrew'
+    name: 'cavecrew'
+    source: 'juliusbrussee/caveman'
+    installs: 128583
+  - id: 'leonxlnx/taste-skill/minimalist-ui'
+    name: 'minimalist-ui'
+    source: 'leonxlnx/taste-skill'
+    installs: 124851
+  - id: 'larksuite/cli/lark-apps'
+    name: 'lark-apps'
+    source: 'larksuite/cli'
+    installs: 154292
+  - id: 'juliusbrussee/caveman/caveman-stats'
+    name: 'caveman-stats'
+    source: 'juliusbrussee/caveman'
+    installs: 128321
+  - id: 'microsoft/azure-skills/entra-agent-id'
+    name: 'entra-agent-id'
+    source: 'microsoft/azure-skills'
+    installs: 120334
+  - id: 'skills-101/superpowers/ai-video-generation'
+    name: 'ai-video-generation'
+    source: 'skills-101/superpowers'
+    installs: 172460
+  - id: 'leonxlnx/taste-skill/full-output-enforcement'
+    name: 'full-output-enforcement'
+    source: 'leonxlnx/taste-skill'
+    installs: 117539
+  - id: 'mattpocock/skills/git-guardrails-claude-code'
+    name: 'git-guardrails-claude-code'
+    source: 'mattpocock/skills'
+    installs: 170307
+  - id: 'scrapegraphai/just-scrape/just-scrape'
+    name: 'just-scrape'
+    source: 'scrapegraphai/just-scrape'
+    installs: 33772
+  - id: 'leonxlnx/taste-skill/industrial-brutalist-ui'
+    name: 'industrial-brutalist-ui'
+    source: 'leonxlnx/taste-skill'
+    installs: 115541
+  - id: 'leonxlnx/taste-skill/stitch-design-taste'
+    name: 'stitch-design-taste'
+    source: 'leonxlnx/taste-skill'
+    installs: 114550
+  - id: 'pbakaus/impeccable/impeccable'
+    name: 'impeccable'
+    source: 'pbakaus/impeccable'
+    installs: 67694
