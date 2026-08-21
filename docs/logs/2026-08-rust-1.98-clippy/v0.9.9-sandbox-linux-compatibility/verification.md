@@ -6,6 +6,7 @@
 | --- | --- |
 | `just fmt-check` | Passed |
 | `just check` | Passed with `-D warnings` |
+| `cargo +1.98.0 clippy --all -- -D warnings` | Passed on Windows with the same Clippy version used by CI |
 | `just test` | Passed; all workspace tests and doctests passed |
 | `cargo test -p agent-diva-sandbox --lib` | Passed; 127 tests passed |
 | `git diff --check` | Passed |
@@ -14,7 +15,7 @@ The local Windows environment cannot perform a native Linux build: the installed
 
 ## Failure reproduced and addressed
 
-The prior release run was `32504328675`. Its Ubuntu/macOS failure was caused by stale Landlock and seccompiler API usage, not by the earlier Rust 1.98 Clippy fixes. The source and dependency changes in commit `164fdb4e` address those compiler errors.
+The prior release run was `32504328675`. Its Ubuntu/macOS failure was caused by stale Landlock and seccompiler API usage, not by the earlier Rust 1.98 Clippy fixes. Commit `164fdb4e` addressed that API mismatch. The follow-up run `32509518384` then exposed remaining Rust 1.98 sorting lints and Linux-only type/result/unused-parameter errors; commit `6dcca721` addresses those findings.
 
 ## Remaining gate
 

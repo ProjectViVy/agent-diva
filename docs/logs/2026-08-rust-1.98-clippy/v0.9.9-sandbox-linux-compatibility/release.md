@@ -2,7 +2,7 @@
 
 ## Release method
 
-The implementation commit is `164fdb4e`. The existing `v0.9.9` tag is intentionally force-updated, as previously authorized, to the final documentation commit for this iteration. The tag is pushed with:
+The implementation commits are `164fdb4e` and `6dcca721`. The existing `v0.9.9` tag is intentionally force-updated, as previously authorized, to the final documentation commit for this iteration. The tag is pushed with:
 
 ```text
 git push origin +refs/tags/v0.9.9

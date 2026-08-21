@@ -14,6 +14,11 @@ The `v0.9.9` GitHub Action still failed on the Ubuntu and macOS matrix while com
 
 The existing network-filter modes and filesystem policy intent remain unchanged; port-specific filtering continues to be delegated to the existing bubblewrap layer.
 
-## Commit
+## Follow-up CI findings
 
-The implementation is recorded in commit `164fdb4e` (`fix: restore Linux sandbox compatibility`).
+The first retagged run (`32509518384`) reached the platform builds and exposed two additional Rust 1.98 gates that were invisible to the Windows-only local build: remaining `unnecessary_sort_by` instances across the workspace, and Linux-only Landlock type/result/unused-parameter errors. Those issues were fixed together with the platform corrections.
+
+## Commits
+
+- `164fdb4e` (`fix: restore Linux sandbox compatibility`) updates Landlock/seccompiler compatibility.
+- `6dcca721` (`fix: satisfy Rust 1.98 workspace checks`) fixes the remaining workspace sorting lints and the Linux-only compile errors.
