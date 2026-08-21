@@ -51,6 +51,7 @@ fs2 = "0.4"
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = "0.4"  # Landlock LSM for filesystem access control
 seccompiler = "0.4"  # Seccomp-BPF for syscall filtering
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -8,8 +8,10 @@
 //! Inspired by OpenAI Codex CLI's linux-sandbox architecture.
 
 use crate::error::{SandboxError, SandboxResult};
-use crate::filesystem::{FileSystemSandboxKind, FileSystemSandboxPolicy, WritableRoot};
-use crate::policy::{ReadOnlyAccess, SandboxPolicy};
+use crate::filesystem::{
+    FileSystemPath, FileSystemSandboxKind, FileSystemSandboxPolicy, WritableRoot,
+};
+use crate::policy::SandboxPolicy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -569,16 +571,16 @@ impl Default for LinuxSandboxExecutor {
 // ============================================================================
 
 use landlock::{
-    Access, AccessFs, LandlockPath, PathBeneath, Ruleset, RulesetAttr, RulesetCreated,
-    RulesetNoRights, ABI,
+    Access, AccessFs, BitFlags, CompatLevel, Compatible, PathBeneath, PathFd, Ruleset, RulesetAttr,
+    RulesetCreated, RulesetCreatedAttr, ABI,
 };
 
 /// Landlock ruleset wrapper for easier configuration
 pub struct LandlockRulesetBuilder {
     /// Access rights for read operations
-    read_access: AccessFs,
+    read_access: BitFlags<AccessFs>,
     /// Access rights for write operations
-    write_access: AccessFs,
+    write_access: BitFlags<AccessFs>,
     /// Paths allowed for read access
     read_paths: Vec<PathBuf>,
     /// Paths allowed for write access
@@ -592,16 +594,9 @@ impl LandlockRulesetBuilder {
     pub fn new() -> Self {
         Self {
             // Read operations: read files, execute files, read directories
-            read_access: AccessFs::from_all(ABI::V1)
-                .union(AccessFs::EXEC)
-                .union(AccessFs::READ_DIR),
+            read_access: AccessFs::from_read(ABI::V1),
             // Write operations: write files, create files, delete files, make directories
-            write_access: AccessFs::from_all(ABI::V1)
-                .union(AccessFs::WRITE_FILE)
-                .union(AccessFs::MAKE_REG)
-                .union(AccessFs::REMOVE_FILE)
-                .union(AccessFs::MAKE_DIR)
-                .union(AccessFs::REMOVE_DIR),
+            write_access: AccessFs::from_write(ABI::V1),
             read_paths: Vec::new(),
             write_paths: Vec::new(),
             abi: ABI::V1,
@@ -635,25 +630,26 @@ impl LandlockRulesetBuilder {
     /// Set the ABI version
     pub fn with_abi(mut self, abi: ABI) -> Self {
         self.abi = abi;
+        self.read_access = AccessFs::from_read(abi);
+        self.write_access = AccessFs::from_write(abi);
         self
     }
 
     /// Build the Landlock ruleset
     pub fn build(&self) -> SandboxResult<LandlockRuleset> {
         // Create the base ruleset
-        let ruleset = Ruleset::new()
+        let ruleset = Ruleset::default()
             .handle_access(self.read_access.union(self.write_access))
-            .abi(self.abi)
             .create()
             .map_err(|e| {
                 SandboxError::Internal(format!("Failed to create Landlock ruleset: {}", e))
             })?;
 
         // Add read-only path rules
-        let ruleset = self.add_path_rules(&ruleset, &self.read_paths, self.read_access)?;
+        let ruleset = self.add_path_rules(ruleset, &self.read_paths, self.read_access)?;
 
         // Add writable path rules
-        let ruleset = self.add_path_rules(&ruleset, &self.write_paths, self.write_access)?;
+        let ruleset = self.add_path_rules(ruleset, &self.write_paths, self.write_access)?;
 
         Ok(LandlockRuleset {
             ruleset,
@@ -662,24 +658,30 @@ impl LandlockRulesetBuilder {
     }
 
     /// Add path rules to a ruleset
-    fn add_path_rules<R: landlock::RulesetCreated>(
+    fn add_path_rules(
         &self,
-        ruleset: &R,
+        mut ruleset: RulesetCreated,
         paths: &[PathBuf],
-        access: AccessFs,
-    ) -> SandboxResult<R> {
-        let mut current = ruleset.clone();
-
+        access: BitFlags<AccessFs>,
+    ) -> SandboxResult<RulesetCreated> {
         for path in paths {
             if path.exists() {
-                let path_beneath = PathBeneath::new(path, access);
-                current = current.add_rule(path_beneath).map_err(|e| {
+                let path_fd = PathFd::new(path).map_err(|e| {
                     SandboxError::Internal(format!(
-                        "Failed to add Landlock path rule for {}: {}",
+                        "Failed to open Landlock path {}: {}",
                         path.display(),
                         e
                     ))
                 })?;
+                ruleset = ruleset
+                    .add_rule(PathBeneath::new(path_fd, access))
+                    .map_err(|e| {
+                        SandboxError::Internal(format!(
+                            "Failed to add Landlock path rule for {}: {}",
+                            path.display(),
+                            e
+                        ))
+                    })?;
                 debug!(
                     "Added Landlock rule for path: {} with access {:?}",
                     path.display(),
@@ -688,7 +690,7 @@ impl LandlockRulesetBuilder {
             }
         }
 
-        Ok(current)
+        Ok(ruleset)
     }
 }
 
@@ -700,13 +702,13 @@ impl Default for LandlockRulesetBuilder {
 
 /// Compiled Landlock ruleset ready for enforcement
 pub struct LandlockRuleset {
-    ruleset: RulesetCreated<RulesetNoRights>,
+    ruleset: RulesetCreated,
     abi: ABI,
 }
 
 impl LandlockRuleset {
     /// Restrict the current thread with this ruleset
-    pub fn restrict_current_thread(&self) -> SandboxResult<()> {
+    pub fn restrict_current_thread(self) -> SandboxResult<()> {
         self.ruleset.restrict_self().map_err(|e| {
             SandboxError::Internal(format!("Failed to apply Landlock restrictions: {}", e))
         })?;
@@ -721,87 +723,30 @@ impl LandlockRuleset {
 
 /// Check if Landlock is supported on this kernel
 pub fn is_landlock_supported() -> bool {
-    // Try to create a minimal ruleset to verify Landlock support
-    // This is more reliable than parsing /proc/version
-    #[cfg(target_os = "linux")]
-    {
-        // Try creating a ruleset with ABI V1 (kernel 5.13+)
-        if let Ok(_) = Ruleset::new()
-            .handle_access(AccessFs::from_all(ABI::V1))
-            .abi(ABI::V1)
-            .create()
-        {
-            return true;
-        }
-
-        // Try ABI V2 (kernel 5.19+)
-        if let Ok(_) = Ruleset::new()
-            .handle_access(AccessFs::from_all(ABI::V2))
-            .abi(ABI::V2)
-            .create()
-        {
-            return true;
-        }
-
-        // Try ABI V3 (kernel 6.7+)
-        if let Ok(_) = Ruleset::new()
-            .handle_access(AccessFs::from_all(ABI::V3))
-            .abi(ABI::V3)
-            .create()
-        {
-            return true;
-        }
-    }
-
-    false
+    // Require the minimum Landlock ABI so unsupported kernels do not appear
+    // supported merely because best-effort mode can create a dummy ruleset.
+    can_create_landlock_ruleset(ABI::V1)
 }
 
-/// Parse kernel version from /proc/version
-fn parse_kernel_version() -> Option<(u32, u32, u32)> {
-    if let Ok(version) = std::fs::read_to_string("/proc/version") {
-        // Format: Linux version 5.15.0-...
-        if let Some(version_str) = version.split_whitespace().nth(2) {
-            // Parse major.minor.patch
-            let parts: Vec<&str> = version_str.split('.').collect();
-            if parts.len() >= 3 {
-                let major = parts[0].parse::<u32>().ok()?;
-                let minor = parts[1].parse::<u32>().ok()?;
-                // Handle patch version that may have suffix (e.g., "0-generic")
-                let patch = parts[2]
-                    .split('-')
-                    .next()
-                    .and_then(|p| p.parse::<u32>().ok())?;
-                return Some((major, minor, patch));
-            }
-        }
-    }
-    None
+fn can_create_landlock_ruleset(abi: ABI) -> bool {
+    Ruleset::default()
+        .set_compatibility(CompatLevel::HardRequirement)
+        .handle_access(AccessFs::from_all(abi))
+        .and_then(|ruleset| ruleset.create())
+        .is_ok()
 }
 
 /// Get the best Landlock ABI for this kernel
 pub fn get_best_landlock_abi() -> ABI {
     // Try each ABI version, starting from newest
-    #[cfg(target_os = "linux")]
-    {
-        // ABI V3 (kernel 6.7+) - supports ioctl and truncate
-        if Ruleset::new()
-            .handle_access(AccessFs::from_all(ABI::V3))
-            .abi(ABI::V3)
-            .create()
-            .is_ok()
-        {
-            return ABI::V3;
-        }
+    // ABI V3 (kernel 6.2+) - supports file truncation.
+    if can_create_landlock_ruleset(ABI::V3) {
+        return ABI::V3;
+    }
 
-        // ABI V2 (kernel 5.19+) - supports file truncation
-        if Ruleset::new()
-            .handle_access(AccessFs::from_all(ABI::V2))
-            .abi(ABI::V2)
-            .create()
-            .is_ok()
-        {
-            return ABI::V2;
-        }
+    // ABI V2 (kernel 5.19+) - supports file renaming across directories.
+    if can_create_landlock_ruleset(ABI::V2) {
+        return ABI::V2;
     }
 
     // Default to ABI V1 (kernel 5.13+)
@@ -913,7 +858,7 @@ pub fn install_landlock_on_current_thread(
 // ============================================================================
 
 /// Network syscall filtering mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NetworkSeccompMode {
     /// Block all network syscalls
     FullBlock,
@@ -952,88 +897,58 @@ impl Default for NetworkSeccompMode {
 pub fn build_network_seccomp_filter(
     mode: NetworkSeccompMode,
 ) -> SandboxResult<seccompiler::BpfProgram> {
-    use seccompiler::{
-        Arch, Arg, BpfProgram, Op, Rule, SeccompAction, SeccompCompare, SeccompFilter, SeccompRule,
-        Target,
-    };
+    use seccompiler::{SeccompAction, SeccompFilter, TargetArch};
+    use std::collections::BTreeMap;
+    use std::convert::TryInto;
 
     if !mode.is_enabled() {
         // Return an empty filter (no restrictions)
         return Ok(Vec::new());
     }
 
-    // Define network syscalls to filter
+    // Define network syscalls to filter. The seccompiler 0.4 API uses Linux
+    // syscall numbers rather than syscall names.
     let network_syscalls = [
-        "connect", "sendto", "sendmsg", "recvfrom",
-        "recvmsg",
-        // Note: We allow socket, bind, listen, accept for local usage
+        libc::SYS_connect as i64,
+        libc::SYS_sendto as i64,
+        libc::SYS_sendmsg as i64,
+        libc::SYS_recvfrom as i64,
+        libc::SYS_recvmsg as i64,
     ];
 
-    let mut rules = std::collections::HashMap::new();
+    let blocked_syscalls = match mode {
+        NetworkSeccompMode::FullBlock => &network_syscalls[..],
+        NetworkSeccompMode::ProxyOnly => &network_syscalls[1..],
+        // Port-specific filtering requires inspecting the sockaddr pointed to
+        // by the connect syscall. Keep the existing best-effort behavior and
+        // let the bubblewrap layer enforce network isolation instead.
+        NetworkSeccompMode::AllowPorts(_) | NetworkSeccompMode::Disabled => return Ok(Vec::new()),
+    };
 
-    match mode {
-        NetworkSeccompMode::FullBlock => {
-            // Block all network syscalls
-            for syscall in &network_syscalls {
-                rules.insert(
-                    syscall.to_string(),
-                    vec![Rule::new(vec![], SeccompAction::Errno(13))], // EACCES
-                );
-            }
-        }
-        NetworkSeccompMode::ProxyOnly => {
-            // Allow connect to loopback only (127.0.0.1)
-            // sockaddr_in.sin_addr.s_addr = 0x7f000001 (127.0.0.1)
-            // This is complex to implement with seccomp as we need to inspect memory
-            // For now, we'll allow connect and rely on higher-level filtering
-            // Full implementation would need to inspect sockaddr structure
+    // An empty rule vector matches the syscall number itself. The filter's
+    // match action therefore blocks each selected syscall with EACCES while
+    // all other syscalls use the allow mismatch action.
+    let rules: BTreeMap<i64, Vec<seccompiler::SeccompRule>> = blocked_syscalls
+        .iter()
+        .map(|syscall| (*syscall, Vec::new()))
+        .collect();
 
-            // Allow connect (will be filtered at bwrap level for network isolation)
-            rules.insert(
-                "connect".to_string(),
-                vec![Rule::new(vec![], SeccompAction::Allow)],
-            );
-
-            // Block other network syscalls
-            for syscall in &["sendto", "sendmsg", "recvfrom", "recvmsg"] {
-                rules.insert(
-                    syscall.to_string(),
-                    vec![Rule::new(vec![], SeccompAction::Errno(13))],
-                );
-            }
-        }
-        NetworkSeccompMode::AllowPorts(_ports) => {
-            // Port-specific filtering would require inspecting sockaddr
-            // This is complex with seccomp alone, so we allow connect
-            // and rely on bwrap network isolation
-            rules.insert(
-                "connect".to_string(),
-                vec![Rule::new(vec![], SeccompAction::Allow)],
-            );
-
-            for syscall in &["sendto", "sendmsg", "recvfrom", "recvmsg"] {
-                rules.insert(
-                    syscall.to_string(),
-                    vec![Rule::new(vec![], SeccompAction::Allow)],
-                );
-            }
-        }
-        NetworkSeccompMode::Disabled => {
-            // No rules - allow all
-        }
-    }
+    let target_arch = TargetArch::try_from(std::env::consts::ARCH).map_err(|e| {
+        SandboxError::Internal(format!("Unsupported seccomp target architecture: {}", e))
+    })?;
 
     // Create the filter
     let filter = SeccompFilter::new(
         rules,
-        SeccompAction::Allow, // Default action: allow
-        vec![Arch::X8664],    // Architecture
+        SeccompAction::Allow,     // Default action: allow
+        SeccompAction::Errno(13), // EACCES for matching network syscalls
+        target_arch,
     )
     .map_err(|e| SandboxError::Internal(format!("Failed to create seccomp filter: {}", e)))?;
 
     // Compile to BPF program
     filter
-        .compile()
+        .try_into()
         .map_err(|e| SandboxError::Internal(format!("Failed to compile seccomp filter: {}", e)))
 }
 
