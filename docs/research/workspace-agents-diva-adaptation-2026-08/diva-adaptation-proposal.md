@@ -91,10 +91,17 @@ Codex 的 `.git` 根探测、父子目录逐级合并、`AGENTS.override.md` 和
 
 ### Phase 3：GUI/Manager 一致性
 
-- GUI 增加目录选择器，选择后重启或重建 gateway；不在运行中的 AppState 上热换 root；
-- Manager API 返回 canonical workspace 与 AGENTS 来源摘要；
+- GUI 在 `NormalMode` Topbar 增加只读 WorkspaceChip，在 `SettingsView` 增加 Workspace 页面，
+  显示 canonical root、来源、AGENTS 状态和受限摘要；选择目录后走“停止 → 保存 → 重建
+  gateway → 恢复会话”的单一切换流程，不在运行中的 AppState 上热换 root；
+- GUI 在流式回答、Plan 执行或待审批时阻止切换，避免半切换；失败时保留旧 workspace
+  并提供恢复动作；
+- Manager/API 返回 canonical workspace、来源、AGENTS 状态、预算与 digest，不把正文写入
+  普通状态日志；
 - channel/cron/background task 只能使用启动时绑定的 workspace，不能跟随某条用户消息
   的任意路径参数漂移。
+
+GUI 的页面和状态流详见 [GUI 交互与运行时适配设计](./gui-workspace-agents-design.md)。
 
 ## 4. 验收与停止条件
 

@@ -40,10 +40,24 @@ Subagent 和 ContextBuilder；但没有指定时，默认值是 `~/.agent-diva/w
 建议先做 **Diva 最小适配**：根目录 `AGENTS.md`、显式来源标记、字节/字符上限、按 session
 缓存和显式刷新；暂不复制 Codex 的完整层级发现和 fallback 生态。
 
+### 3. GUI：工作区是运行边界，不是普通设置项
+
+GUI 目前只能在 General 设置中展示解析后的 workspace 路径，不能选择目录，也没有
+`AGENTS.md` 状态。推荐在现有 `NormalMode` Topbar 增加只读 `WorkspaceChip`，在
+`SettingsView` 增加独立的 Workspace 页面，并用 `WorkspacePopover`/AGENTS 详情抽屉表达：
+
+- 当前 canonical workspace、来源和 AGENTS 状态；
+- 原生目录选择、影响范围确认和切换中阻塞态；
+- 停止 → 保存 → 重建 Gateway → 恢复新 workspace 会话的完整切换流程；
+- AGENTS 只展示来源、预算、digest 和摘要，不在 GUI 中编辑、不授予权限。
+
+GUI 不应热替换运行中的 `AppState.workspace_root`，也不应在外部 workspace 静默创建项目模板。
+
 ## 研究材料
 
 - [当前 Diva 与 Codex 证据](./current-state-and-codex-evidence.md)
 - [Diva 化方案与分阶段计划](./diva-adaptation-proposal.md)
+- [GUI 交互与运行时适配设计](./gui-workspace-agents-design.md)
 
 ## 研究 Gate
 

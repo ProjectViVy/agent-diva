@@ -321,6 +321,13 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   的绑定，以及“项目规则不能授予工具权限或写 BML/Persona”的安全合同。先做根文件 MVP，
   不直接复制 Codex 的层级扫描、override 和 fallback 生态。
 
+- [ ] **WORKSPACE-GUI：工作区选择与 AGENTS 状态交互** `sev-P3`
+  当前 GUI 只在 General 设置展示解析后的 workspace 路径，没有目录选择、切换阻塞态、
+  Gateway 重建反馈或 AGENTS.md 状态。需要实现 WorkspaceChip、WorkspaceSettings、
+  AGENTS 摘要抽屉，以及停止→保存→重建→恢复的单一切换流程；禁止热换 AppState root、
+  GUI 内编辑 AGENTS.md、隐式迁移会话或外部 workspace 模板写入。设计：
+  [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
+
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面；剩余 Plan 矩阵、subagent 禁用断言与
   可选 messaging clarify。不得并入审批抽屉或 governance ledger。

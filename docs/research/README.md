@@ -1,6 +1,6 @@
 # 研究资料入口
 
-> 更新日期：2026-08-14
+> 更新日期：2026-08-22
 >
 > 研究材料全部保留。当前研究包放在本目录；已经完成但未施工、较早或仅作参考的研究
 > 放在 `historical/`。研究结论不能自动升级为已批准架构。
@@ -51,7 +51,7 @@
 | `bml-layer-extraction-2026-08/` | BML 抽层研究，按研究结论推进 |
 | `context-management-enhancement-2026-08/` | C1–C5 当前运行时施工与验证依据 |
 | `harness-gap-diva-adaptation-2026-08/` | 2026-08-22 当前 Harness Gap 复核；Hook Kernel + Session Admission 方案，未授权施工 |
-| `workspace-agents-diva-adaptation-2026-08/` | 2026-08-22 Codex 工作区与 AGENTS.md 复核；WorkspaceContext + 项目规则注入方案，未授权施工 |
+| `workspace-agents-diva-adaptation-2026-08/` | 2026-08-22 Codex 工作区、AGENTS.md 与 GUI 交互复核；WorkspaceContext + 项目规则注入方案，未授权施工 |
 
 ## 历史调研（全文保留）
 
