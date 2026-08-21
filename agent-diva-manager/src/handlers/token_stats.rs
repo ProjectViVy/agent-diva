@@ -324,7 +324,7 @@ pub async fn timeline_handler(
                     request_count: usage.request_count,
                 })
                 .collect();
-            points.sort_by(|left, right| left.time_bucket.cmp(&right.time_bucket));
+            points.sort_by_key(|point| point.time_bucket.clone());
             points
         });
     match result {

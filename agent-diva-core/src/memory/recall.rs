@@ -336,7 +336,7 @@ impl RecallPipeline {
             selected_records.push(candidate.candidate.record);
         }
 
-        trace.sort_by(|left, right| left.record_id.cmp(&right.record_id));
+        trace.sort_by_key(|item| item.record_id.clone());
         let prompt_block = if rendered.is_empty() {
             None
         } else {

@@ -323,7 +323,7 @@ fn prepare(request: &MemoryImportRequest) -> Result<PreparedImport> {
             _ => bail!("unsupported Memory import source"),
         }
     }
-    records.sort_by(|left, right| left.id.cmp(&right.id));
+    records.sort_by_key(|record| record.id.clone());
     let input_digest = memory_content_digest(&input_bytes).value;
     let records_digest = memory_content_digest(&serde_json::to_vec(&records)?).value;
     let migration_id = format!("gmh24-{}", &input_digest[..16.min(input_digest.len())]);

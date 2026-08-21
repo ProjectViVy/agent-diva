@@ -204,7 +204,7 @@ fn prepare(workspace: &Path) -> Result<PreparedBackfill> {
             candidates.push(evidence);
         }
     }
-    candidates.sort_by(|left, right| left.id.cmp(&right.id));
+    candidates.sort_by_key(|candidate| candidate.id.clone());
     candidates.dedup_by(|left, right| left.id == right.id);
     let already_present_count = candidates
         .iter()

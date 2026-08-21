@@ -445,7 +445,7 @@ impl ToolRegistry {
             .filter(|(_, registered)| registered.schema_partition == ToolSchemaPartition::Deferred)
             .map(|(name, registered)| (name.clone(), Arc::clone(&registered.tool)))
             .collect::<Vec<_>>();
-        tools.sort_by(|left, right| left.0.cmp(&right.0));
+        tools.sort_by_key(|tool| tool.0.to_string());
         tools.into_iter().map(|(_, tool)| tool).collect()
     }
 
@@ -720,7 +720,7 @@ fn canonicalize_json(value: Value) -> Value {
     match value {
         Value::Object(object) => {
             let mut entries = object.into_iter().collect::<Vec<_>>();
-            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            entries.sort_by_key(|(key, _)| key.clone());
 
             let mut canonical = serde_json::Map::new();
             for (key, value) in entries {

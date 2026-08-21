@@ -3554,7 +3554,7 @@ pub fn list_masks() -> Result<Vec<MaskEntryDto>, String> {
         .into_iter()
         .map(mask_entry_from_file)
         .collect();
-    items.sort_by(|a, b| a.name.cmp(&b.name));
+    items.sort_by_key(|item| item.name.clone());
     Ok(items)
 }
 
@@ -6159,7 +6159,7 @@ fn scan_pet_voice_files(config_dir: &Path) -> Result<Vec<PetVoiceOption>, String
             });
         }
     }
-    options.sort_by(|left, right| left.label.cmp(&right.label));
+    options.sort_by_key(|option| option.label.clone());
     Ok(options)
 }
 

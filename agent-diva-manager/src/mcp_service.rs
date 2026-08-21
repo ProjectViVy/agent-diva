@@ -67,7 +67,7 @@ impl McpService {
             .iter()
             .map(|(name, server)| self.to_dto(&config, name, server))
             .collect::<Vec<_>>();
-        list.sort_by(|a, b| a.name.cmp(&b.name));
+        list.sort_by_key(|item| item.name.clone());
         Ok(list)
     }
 

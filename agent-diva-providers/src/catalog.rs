@@ -94,7 +94,7 @@ impl ProviderCatalogService {
             views.push(self.provider_view_from_custom(id, provider));
         }
 
-        views.sort_by(|left, right| left.display_name.cmp(&right.display_name));
+        views.sort_by_key(|view| view.display_name.clone());
         views
     }
 

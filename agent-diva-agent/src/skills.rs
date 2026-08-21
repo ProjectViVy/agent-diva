@@ -92,7 +92,7 @@ impl SkillsLoader {
             .into_iter()
             .filter(|skill| skill.enabled)
             .collect::<Vec<_>>();
-        skills.sort_by(|left, right| left.slug.cmp(&right.slug));
+        skills.sort_by_key(|skill| skill.slug.clone());
         if skills.is_empty() {
             return String::new();
         }
@@ -118,7 +118,7 @@ impl SkillsLoader {
             .filter(|skill| skill.enabled && skill.always)
             .filter_map(|skill| self.home.read_enabled(&skill.slug).ok())
             .collect::<Vec<_>>();
-        documents.sort_by(|left, right| left.summary.slug.cmp(&right.summary.slug));
+        documents.sort_by_key(|document| document.summary.slug.clone());
 
         let mut remaining = ALWAYS_TOTAL_MAX_CHARS;
         let mut rendered = Vec::new();

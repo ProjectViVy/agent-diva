@@ -240,7 +240,7 @@ fn create_filesystem_args(
     fs_policy: &FileSystemSandboxPolicy,
     sandbox_policy_cwd: &Path,
     command_cwd: &Path,
-    options: &BwrapOptions,
+    _options: &BwrapOptions,
 ) -> SandboxResult<BwrapArgs> {
     let mut args = Vec::new();
     let mut preserved_fds = Vec::new();
@@ -282,7 +282,7 @@ fn create_filesystem_args(
 
     // Sort writable roots by path length (longest first for proper nesting)
     let mut sorted_roots: Vec<_> = writable_roots.iter().collect();
-    sorted_roots.sort_by(|a, b| b.root.as_os_str().len().cmp(&a.root.as_os_str().len()));
+    sorted_roots.sort_by_key(|root| std::cmp::Reverse(root.root.as_os_str().len()));
 
     // Add writable roots with bind mount
     for root in sorted_roots {
@@ -334,13 +334,13 @@ fn collect_writable_roots_from_policy(
                     // Resolve special paths
                     match value {
                         crate::filesystem::FileSystemSpecialPath::CurrentWorkingDirectory => {
-                            cwd.clone()
+                            cwd.to_path_buf()
                         }
                         crate::filesystem::FileSystemSpecialPath::Root => PathBuf::from("/"),
                         crate::filesystem::FileSystemSpecialPath::Tmpdir => std::env::var("TMPDIR")
                             .map(PathBuf::from)
                             .unwrap_or_else(|_| PathBuf::from("/tmp")),
-                        _ => cwd.clone(),
+                        _ => cwd.to_path_buf(),
                     }
                 }
                 _ => continue, // Skip glob patterns for writable roots
@@ -358,7 +358,7 @@ fn append_read_only_subpath_args(
     args: &mut Vec<String>,
     subpath: &Path,
     allowed_write_paths: &[&PathBuf],
-    preserved_fds: &mut Vec<std::os::unix::io::RawFd>,
+    _preserved_fds: &mut Vec<std::os::unix::io::RawFd>,
 ) {
     // Use tmpfs to mask directories or --ro-bind-data for files
     if subpath.is_dir() {
@@ -431,7 +431,7 @@ impl LinuxSandboxExecutor {
         cwd: &Path,
         env: HashMap<String, String>,
         timeout_secs: u64,
-        policy: &SandboxPolicy,
+        _policy: &SandboxPolicy,
         fs_policy: &FileSystemSandboxPolicy,
     ) -> SandboxResult<String> {
         info!("Executing command in Linux sandbox: {}", command);
@@ -639,7 +639,10 @@ impl LandlockRulesetBuilder {
     pub fn build(&self) -> SandboxResult<LandlockRuleset> {
         // Create the base ruleset
         let ruleset = Ruleset::default()
-            .handle_access(self.read_access.union(self.write_access))
+            .handle_access(self.read_access | self.write_access)
+            .map_err(|e| {
+                SandboxError::Internal(format!("Failed to configure Landlock ruleset: {}", e))
+            })?
             .create()
             .map_err(|e| {
                 SandboxError::Internal(format!("Failed to create Landlock ruleset: {}", e))
@@ -777,7 +780,7 @@ pub fn build_landlock_from_fs_policy(
                 }
                 FileSystemPath::Special { value } => match value {
                     crate::filesystem::FileSystemSpecialPath::CurrentWorkingDirectory => {
-                        Some(cwd.clone())
+                        Some(cwd.to_path_buf())
                     }
                     crate::filesystem::FileSystemSpecialPath::Root => Some(PathBuf::from("/")),
                     _ => None,
@@ -802,7 +805,7 @@ pub fn build_landlock_from_fs_policy(
             }
             FileSystemPath::Special { value } => match value {
                 crate::filesystem::FileSystemSpecialPath::CurrentWorkingDirectory => {
-                    Some(cwd.clone())
+                    Some(cwd.to_path_buf())
                 }
                 crate::filesystem::FileSystemSpecialPath::Tmpdir => std::env::var("TMPDIR")
                     .map(PathBuf::from)

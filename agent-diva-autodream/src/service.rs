@@ -246,7 +246,7 @@ impl AutoDreamService {
                 events.push(event);
             }
         }
-        events.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        events.sort_by_key(|event| event.created_at);
         let start = events.len().saturating_sub(limit.clamp(1, 200));
         Ok(events.split_off(start))
     }

@@ -351,7 +351,7 @@ fn read_session_candidates(
         .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("jsonl"))
         .collect::<Vec<_>>();
 
-    entries.sort_by(|left, right| right.cmp(left));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.clone()));
 
     Ok(entries
         .into_iter()

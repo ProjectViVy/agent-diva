@@ -533,7 +533,7 @@ fn to_wide_mut(value: &str) -> Vec<u16> {
 fn build_environment_block(extra_env: HashMap<String, String>) -> Vec<u16> {
     let mut env: Vec<(String, String)> = std::env::vars().collect();
     env.extend(extra_env);
-    env.sort_by(|a, b| a.0.to_uppercase().cmp(&b.0.to_uppercase()));
+    env.sort_by_key(|entry| entry.0.to_uppercase());
 
     let mut block = Vec::new();
     for (key, value) in env {
