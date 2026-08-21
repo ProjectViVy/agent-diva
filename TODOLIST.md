@@ -265,9 +265,23 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
   从已完成的 Context 主线分轨，需另行冻结状态、能力矩阵和非法迁移验收。
+  2026-08-22 当前代码复核：`agent-diva-core/src/planning/policy.rs` 已有
+  `PlanModeState`/`ToolCapability` fail-closed 矩阵，`agent-diva-agent` 工具执行 seam
+  已二次拒绝；剩余工作是把当前合同补成独立验收记录，不得按旧报告重建 permission
+  mode。
 
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
-  来源于 OpenHarness 调研；保留为未来扩展点，当前延期。
+  来源于 OpenHarness/ZeroClaw 的机制调研；保留为未来扩展点，当前延期。2026-08-22
+  研究包已收敛为 Diva 化方案：[`harness-gap-diva-adaptation-2026-08/`](docs/research/harness-gap-diva-adaptation-2026-08/)，
+  只允许显式 Rust handler、Observe/Guard 分流、超时和审计，不开放任意 shell/HTTP/LLM
+  hook，也不得成为 BML/Persona/Evolution 写入口。
+
+- [ ] **HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE：每 session 有界串行准入** `sev-P1`
+  当前 `turn/admission.rs` 只有熔断和小时速率拒绝，`MessageBus` inbound/outbound 是
+  unbounded channel；缺少 per-session FIFO、队列深度上限、等待超时、取消和可观察的
+  queue-full 语义。参考 ZeroClaw `SessionActorQueue`，但只接在 Agent Loop admission，
+  不重写 MessageBus，不改变会话历史/Memory 权威。方案与验收见
+  [`diva-adaptation-proposal.md`](docs/research/harness-gap-diva-adaptation-2026-08/diva-adaptation-proposal.md)。
 
 - [x] **WORLD-MEMRULES-GATE：WORLD 写核 R6 拦截** `sev-P2`
   D1 已删 WorldGovernance 队列。R6 进 WORLD **写核**（用户直存 / 接受 P5）。
