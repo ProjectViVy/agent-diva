@@ -1,5 +1,6 @@
 # Rust
-/target
+# Rust build outputs from the root workspace and nested reference workspaces
+**/target/
 # Accidental cargo message-mode output at repo root
 /build_utf8.json
 /build.json
@@ -109,8 +110,9 @@ tui-test/Cargo.lock
 target/doc/
 
 # GUI bundle 构建产物（由 prepare_gui_bundle.py 生成）
-agent-diva-gui/src-tauri/resources/bin/
-agent-diva-gui/src-tauri/resources/manifests/
+**/src-tauri/gen/
+**/src-tauri/resources/bin/
+**/src-tauri/resources/manifests/
 
 # VRM 子包的编译产物（防止 tsc 无 outDir 时污染 src/）
 agent-diva-gui/shared-avatar-protocol/src/*.js
