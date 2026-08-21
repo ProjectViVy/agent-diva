@@ -54,11 +54,8 @@ impl SessionManager {
     /// Get a session if it exists (cache or disk). Does not create.
     pub fn get_or_load(&mut self, key: &str) -> Option<&Session> {
         if !self.cache.contains_key(key) {
-            if let Some(session) = self.load(key) {
-                self.cache.insert(key.to_string(), session);
-            } else {
-                return None;
-            }
+            let session = self.load(key)?;
+            self.cache.insert(key.to_string(), session);
         }
         self.cache.get(key)
     }

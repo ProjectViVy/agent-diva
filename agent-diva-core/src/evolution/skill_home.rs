@@ -704,7 +704,7 @@ impl SkillHome {
             }
             requests.push(read_json(&entry.path())?);
         }
-        requests.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        requests.sort_by_key(|request| std::cmp::Reverse(request.created_at));
         Ok(requests)
     }
 

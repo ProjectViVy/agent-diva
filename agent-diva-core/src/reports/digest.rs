@@ -120,7 +120,7 @@ pub fn collect_session_window_digest_for_dates(
             }
         })
         .collect::<Vec<_>>();
-    items.sort_by(|left, right| left.first_timestamp.cmp(&right.first_timestamp));
+    items.sort_by_key(|item| item.first_timestamp);
 
     let estimated_tokens = items.iter().map(|item| item.estimated_tokens).sum();
     let message_count = items.iter().map(|item| item.message_count).sum();

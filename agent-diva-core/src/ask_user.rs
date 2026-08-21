@@ -134,7 +134,7 @@ impl AskUserCoordinator {
     pub async fn pending(&self) -> Vec<AskUserQuestion> {
         let state = self.state.lock().await;
         let mut questions: Vec<_> = state.pending.values().map(|p| p.question.clone()).collect();
-        questions.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        questions.sort_by_key(|question| question.created_at);
         questions
     }
 
