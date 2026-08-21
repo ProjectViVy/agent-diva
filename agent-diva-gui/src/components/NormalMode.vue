@@ -947,8 +947,10 @@ defineExpose({
             :initial-tab="evolutionDeepLink?.tab"
             :initial-proposal-id="evolutionDeepLink?.proposalId"
             :initial-source-run-id="evolutionDeepLink?.sourceRunId"
+            :request-key="evolutionDeepLink?.requestKey"
             @count-change="updateEvolutionBadge"
             @open-settings="navigateTo('settings', $event)"
+            @open-chat="navigateTo('chat')"
           />
         </div>
         <!-- Console视图 -->

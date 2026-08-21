@@ -51,7 +51,7 @@ const primaryLink = computed<ChatGovernanceDeepLink>(() => {
   if (runCard.value) {
     return runCard.value.proposal_ids?.length
       ? { tab: 'requests', proposalId: runCard.value.proposal_ids[0], sourceRunId: runCard.value.id }
-      : { tab: 'requests', sourceRunId: runCard.value.id };
+      : { tab: 'autodream', sourceRunId: runCard.value.id };
   }
 
   return {

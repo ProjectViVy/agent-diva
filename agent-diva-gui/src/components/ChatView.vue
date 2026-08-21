@@ -19,12 +19,8 @@ import AgentMessageBody from './planning/AgentMessageBody.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import {
   triggerAutoDream,
-  getAutoDreamRunStatus,
-  getSkillRequest,
   uploadFile,
   FileAttachmentDto,
-  type AutoDreamRunRecord,
-  type SkillRequest,
   type UiCard,
 } from '../api/desktop';
 import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
@@ -269,9 +265,15 @@ watch(permissionMode, (mode) => {
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
-const localGovernanceCards = ref<ChatGovernanceCardModel[]>([]);
+interface AutoDreamTriggerNotice {
+  state: 'success' | 'error';
+  message: string;
+  error?: string;
+  runId?: string;
+}
+
+const autoDreamNotice = ref<AutoDreamTriggerNotice | null>(null);
 const autoDreamTriggering = ref(false);
-const autoDreamPollTimers = new Set<ReturnType<typeof setTimeout>>();
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -400,6 +402,7 @@ watch(
   () => props.activeSessionKey,
   (activeSessionKey, previousSessionKey) => {
     if (activeSessionKey !== previousSessionKey) {
+      autoDreamNotice.value = null;
       scrollToBottom(true);
     }
   },
@@ -414,8 +417,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateNarrowLayout);
-  autoDreamPollTimers.forEach((timer) => clearTimeout(timer));
-  autoDreamPollTimers.clear();
 });
 
 const handleSend = () => {
@@ -512,6 +513,7 @@ const handleClear = async () => {
   } catch (error) {
     console.error('Failed to reset session on backend:', error);
   } finally {
+    autoDreamNotice.value = null;
     emit('clear');
   }
 };
@@ -520,30 +522,6 @@ const handleStop = () => {
   if (!props.isTyping) return;
   emit('stop');
 };
-
-const toRunCard = (run: AutoDreamRunRecord): ChatGovernanceCardModel => ({
-  kind: 'autodream_run',
-  id: run.id,
-  state: run.state,
-  trigger: run.trigger,
-  summary: run.summary,
-  proposal_ids: Array.isArray(run.proposal_ids) ? run.proposal_ids : [],
-  error: run.error,
-  source_run_id: run.id,
-  created_at: run.started_at,
-  updated_at: run.completed_at ?? run.started_at,
-});
-
-const toRequestCard = (request: SkillRequest): ChatGovernanceCardModel => ({
-  kind: 'skill_request',
-  id: request.id,
-  slug: request.slug,
-  state: request.status,
-  source: request.source,
-  summary: request.reason,
-  evidence_count: Array.isArray(request.evidence) ? request.evidence.length : 0,
-  source_run_id: request.evidence.find((item) => item.autodream_run_id)?.autodream_run_id,
-});
 
 const normalizeError = (error: unknown) => {
   if (error && typeof error === 'object' && 'message' in error) {
@@ -554,90 +532,24 @@ const normalizeError = (error: unknown) => {
   return String(error);
 };
 
-const replaceGovernanceCard = (id: string, next: ChatGovernanceCardModel) => {
-  localGovernanceCards.value = localGovernanceCards.value.map((card) => (card.id === id ? next : card));
-};
-
-const appendProposalCards = async (run: AutoDreamRunRecord) => {
-  const proposalIds = Array.isArray(run.proposal_ids) ? run.proposal_ids : [];
-  if (proposalIds.length === 0) return;
-  const existing = new Set(localGovernanceCards.value.map((card) => card.id));
-  const proposals = await Promise.allSettled(proposalIds.map((id) => getSkillRequest(id)));
-  const cards = proposals
-    .filter((result): result is PromiseFulfilledResult<SkillRequest> => result.status === 'fulfilled')
-    .map((result) => toRequestCard(result.value))
-    .filter((card) => !existing.has(card.id));
-  if (cards.length > 0) {
-    localGovernanceCards.value = [...localGovernanceCards.value, ...cards];
-    scrollToBottom();
-  }
-};
-
-const pollAutoDreamRun = (runId: string, cardId: string, attempt = 0) => {
-  const timer = setTimeout(async () => {
-    autoDreamPollTimers.delete(timer);
-    try {
-      const run = await getAutoDreamRunStatus(runId);
-      replaceGovernanceCard(cardId, toRunCard(run));
-      scrollToBottom();
-      if (run.state === 'pending' || run.state === 'running') {
-        pollAutoDreamRun(runId, cardId, attempt + 1);
-      } else {
-        await appendProposalCards(run);
-      }
-    } catch (error) {
-      replaceGovernanceCard(cardId, {
-        kind: 'autodream_run',
-        id: runId,
-        state: 'unavailable',
-        trigger: 'manual',
-        summary: t('chatGovernance.backendUnavailable'),
-        proposal_ids: [],
-        error: normalizeError(error),
-        source_run_id: runId,
-      });
-      scrollToBottom();
-    }
-  }, Math.min(1000 + attempt * 500, 5000));
-  autoDreamPollTimers.add(timer);
-};
-
 const handleAutoDreamTrigger = async () => {
   if (autoDreamTriggering.value) return;
   autoDreamTriggering.value = true;
-  const pendingId = `autodream-local-${Date.now()}`;
-  const pendingCard: ChatGovernanceCardModel = {
-    kind: 'autodream_run',
-    id: pendingId,
-    state: 'running',
-    trigger: 'manual',
-    summary: t('chatGovernance.triggerStarted'),
-    proposal_ids: [],
-    created_at: new Date().toISOString(),
-  };
-  localGovernanceCards.value = [...localGovernanceCards.value, pendingCard];
-  scrollToBottom();
 
   try {
     const run = await triggerAutoDream('manual');
-    replaceGovernanceCard(pendingId, toRunCard(run));
+    autoDreamNotice.value = {
+      state: 'success',
+      message: t('chatGovernance.triggerNotice'),
+      runId: run.id,
+    };
     scrollToBottom();
-    if (run.state === 'pending' || run.state === 'running') {
-      pollAutoDreamRun(run.id, run.id);
-    } else {
-      await appendProposalCards(run);
-    }
   } catch (error) {
-    localGovernanceCards.value = localGovernanceCards.value.map((card) =>
-      card.id === pendingId && card.kind === 'autodream_run'
-        ? {
-            ...card,
-            state: 'unavailable',
-            summary: t('chatGovernance.backendUnavailable'),
-            error: normalizeError(error),
-          }
-        : card,
-    );
+    autoDreamNotice.value = {
+      state: 'error',
+      message: t('chatGovernance.backendUnavailable'),
+      error: normalizeError(error),
+    };
     scrollToBottom();
   } finally {
     autoDreamTriggering.value = false;
@@ -791,14 +703,14 @@ const parseCard = (content: string): Record<string, unknown> | null => {
 };
 
 const asGovernanceCard = (card: Record<string, unknown> | null): ChatGovernanceCardModel | null => {
-  if (!card || (card.kind !== 'autodream_run' && card.kind !== 'evolution_proposal')) {
+  if (!card || (card.kind !== 'autodream_run' && card.kind !== 'skill_request')) {
     return null;
   }
   return card as unknown as ChatGovernanceCardModel;
 };
 
 const isGovernanceCard = (card: Record<string, unknown> | null) => {
-  return card?.kind === 'autodream_run' || card?.kind === 'evolution_proposal';
+  return card?.kind === 'autodream_run' || card?.kind === 'skill_request';
 };
 
 const emitOpenEvolution = (payload: ChatGovernanceDeepLink) => {
@@ -1291,17 +1203,23 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
       </template>
 
-      <div
-        v-for="card in localGovernanceCards"
-        :key="card.id"
-        class="flex mb-4 justify-start"
-      >
+      <div v-if="autoDreamNotice" class="flex mb-4 justify-start">
         <div class="flex max-w-[85%] items-start space-x-2">
           <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-100">
             <GitBranch :size="16" />
           </div>
-          <div class="flex flex-col min-w-0 max-w-full">
-            <ChatGovernanceCard :card="card" @open-evolution="emitOpenEvolution" />
+          <div class="autodream-trigger-notice">
+            <p>{{ autoDreamNotice.message }}</p>
+            <p v-if="autoDreamNotice.error" class="autodream-trigger-notice__error">{{ autoDreamNotice.error }}</p>
+            <button
+              v-if="autoDreamNotice.state === 'success' && autoDreamNotice.runId"
+              type="button"
+              class="autodream-trigger-notice__action"
+              @click="emitOpenEvolution({ tab: 'autodream', sourceRunId: autoDreamNotice.runId })"
+            >
+              {{ t('chatGovernance.openAutodream') }}
+              <ChevronRight :size="14" />
+            </button>
             <span class="text-[10px] text-gray-400 mt-1 text-left">{{ formatTime(Date.now()) }}</span>
           </div>
         </div>
@@ -1919,5 +1837,42 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 :deep(.markdown-body a:hover) {
   color: #2563eb;
+}
+.autodream-trigger-notice {
+  min-width: min(360px, 100%);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 28%, var(--border, #d8dee9));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent, #2563eb) 7%, var(--panel-solid, #fff));
+  color: var(--text, #111827);
+}
+
+.autodream-trigger-notice p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.autodream-trigger-notice__error {
+  margin-top: 4px !important;
+  color: var(--danger, #b42318);
+  font-size: 12px;
+}
+
+.autodream-trigger-notice__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  color: var(--accent, #2563eb);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.autodream-trigger-notice__action:hover {
+  text-decoration: underline;
 }
 </style>

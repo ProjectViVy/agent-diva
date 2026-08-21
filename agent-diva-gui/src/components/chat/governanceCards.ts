@@ -1,7 +1,7 @@
 import type { AutoDreamRunState, SkillRequestSource, SkillRequestStatus } from '../../api/desktop';
 
 export interface ChatGovernanceDeepLink {
-  tab: 'skills' | 'requests';
+  tab: 'skills' | 'requests' | 'autodream';
   proposalId?: string | null;
   sourceRunId?: string | null;
   requestKey?: string | null;

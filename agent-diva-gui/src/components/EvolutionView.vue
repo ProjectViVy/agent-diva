@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { FilePlus2, History, RefreshCw, Save, Search, ShieldCheck, WandSparkles } from '@lucide/vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { FilePlus2, GitBranch, History, RefreshCw, Save, Search, ShieldCheck, WandSparkles } from '@lucide/vue';
+import { useI18n } from 'vue-i18n';
 import {
   acceptSkillRequest,
   createSkillRequest,
   deleteSkill,
   disableSkill,
+  getAutoDreamLiveText,
+  getAutoDreamRunStatus,
   getSkill,
   getSkillHistoryRevision,
   getSkillRequest,
   getSkills,
+  listAutoDreamRunEvents,
+  listAutoDreamRunRecords,
   listSkillHistory,
   listSkillRequests,
   rejectSkillRequest,
   updateSkill,
 } from '../api/desktop';
 import type {
+  AutoDreamRunEvent,
+  AutoDreamRunRecord,
   SkillDocument,
   SkillDto,
   SkillHistoryDocument,
@@ -27,7 +34,7 @@ import { appConfirm } from '../utils/appDialog';
 import { errorMessage } from '../utils/errorMessage';
 import { showAppToast } from '../utils/appToast';
 
-type EvolutionTab = 'skills' | 'requests';
+type EvolutionTab = 'skills' | 'requests' | 'autodream';
 type CountTone = 'none' | 'warning';
 
 const props = withDefaults(defineProps<{
@@ -45,9 +52,11 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (event: 'count-change', payload: { total: number; tone: CountTone; tooltip: string }): void;
   (event: 'open-settings', view: 'self-evolution'): void;
+  (event: 'open-chat'): void;
 }>();
 
-const activeTab = ref<EvolutionTab>(props.initialTab === 'skills' ? 'skills' : 'requests');
+const { t } = useI18n();
+const activeTab = ref<EvolutionTab>(props.initialTab ?? 'requests');
 const skills = ref<SkillDto[]>([]);
 const requests = ref<SkillRequest[]>([]);
 const skillsLoading = ref(false);
@@ -67,6 +76,20 @@ const selectedRequest = ref<SkillRequest | null>(null);
 const requestDetailLoading = ref(false);
 const requestDetailError = ref<string | null>(null);
 let requestDetailToken = 0;
+
+const runs = ref<AutoDreamRunRecord[]>([]);
+const runsLoading = ref(false);
+const runsError = ref<string | null>(null);
+const selectedRunId = ref<string | null>(props.initialSourceRunId ?? null);
+const selectedRun = ref<AutoDreamRunRecord | null>(null);
+const runDetailLoading = ref(false);
+const runDetailError = ref<string | null>(null);
+const runEvents = ref<AutoDreamRunEvent[]>([]);
+const runEventsError = ref<string | null>(null);
+const runLiveText = ref('');
+const runLiveTextError = ref<string | null>(null);
+let runDetailToken = 0;
+let runPollTimer: ReturnType<typeof setInterval> | null = null;
 
 const editing = ref(false);
 const draft = ref('');
@@ -93,11 +116,142 @@ const filteredRequests = computed(() => requests.value.filter((request) => {
   const query = normalizedSearch.value;
   return !query || request.slug.includes(query) || request.title.toLowerCase().includes(query);
 }));
+const filteredRuns = computed(() => runs.value.filter((run) => {
+  const query = normalizedSearch.value;
+  if (!query) return true;
+  return [
+    run.id,
+    run.trigger,
+    run.state,
+    run.orchestration?.phase ?? '',
+    run.summary ?? '',
+    run.error ?? '',
+  ].some((value) => value.toLowerCase().includes(query));
+}));
 const pendingCount = computed(() => requests.value.filter((request) => request.status === 'pending').length);
 const createBaseHash = computed(() => skills.value.find((skill) => skill.slug === createSlug.value.trim())?.content_hash ?? '0');
 
 function normalizeError(error: unknown) {
   return errorMessage(error, 'Evolution 请求失败');
+}
+
+function isActiveRun(run: AutoDreamRunRecord | null | undefined) {
+  return run?.state === 'pending' || run?.state === 'running';
+}
+
+function formatRunTimestamp(value?: string | null) {
+  if (!value) return '—';
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toLocaleString();
+}
+
+function displayRunLiveText(value: string) {
+  return value
+    .replace(/"excerpt"\s*:\s*"(?:\\.|[^"])*"/g, '"excerpt":"[redacted]"')
+    .replace(/"hash"\s*:\s*"(?:\\.|[^"])*"/g, '"hash":"[redacted]"')
+    .replace(/"uri"\s*:\s*"(?:\\.|[^"])*"/g, '"uri":"[redacted]"')
+    .replace(/"workspace_id"\s*:\s*"(?:\\.|[^"])*"/g, '"workspace_id":"[redacted]"');
+}
+
+function runInputSummary(run: AutoDreamRunRecord) {
+  const input = run.input_summary;
+  if (!input) return '—';
+  return `${input.total_items} 项 · ${input.total_bytes} bytes${input.truncated ? ' · truncated' : ''}`;
+}
+
+function runPhaseLabel(run: AutoDreamRunRecord) {
+  return run.orchestration?.phase
+    ? t(`evolution.autodream.phases.${run.orchestration.phase}`)
+    : t(`evolution.autodream.states.${run.state}`);
+}
+
+function stopRunPolling() {
+  if (runPollTimer) clearInterval(runPollTimer);
+  runPollTimer = null;
+}
+
+function syncRunPolling() {
+  stopRunPolling();
+  if (activeTab.value !== 'autodream' || !isActiveRun(selectedRun.value)) return;
+  const runId = selectedRun.value?.id;
+  if (!runId) return;
+  runPollTimer = setInterval(() => {
+    void refreshRunDetails(runId, false);
+  }, 1000);
+}
+
+async function refreshRunDetails(id = selectedRunId.value, showLoading = true) {
+  if (!id) return;
+  const token = ++runDetailToken;
+  if (showLoading) runDetailLoading.value = true;
+  runDetailError.value = null;
+  try {
+    const nextRun = await getAutoDreamRunStatus(id);
+    if (token !== runDetailToken || selectedRunId.value !== id) return;
+    selectedRun.value = nextRun;
+    runs.value = runs.value.map((run) => run.id === nextRun.id ? nextRun : run);
+
+    const [eventsResult, liveTextResult] = await Promise.allSettled([
+      listAutoDreamRunEvents(id),
+      getAutoDreamLiveText(id),
+    ]);
+    if (token !== runDetailToken || selectedRunId.value !== id) return;
+
+    if (eventsResult.status === 'fulfilled') {
+      runEvents.value = eventsResult.value;
+      runEventsError.value = null;
+    } else {
+      runEventsError.value = normalizeError(eventsResult.reason);
+    }
+    if (liveTextResult.status === 'fulfilled') {
+      runLiveText.value = liveTextResult.value;
+      runLiveTextError.value = null;
+    } else {
+      runLiveTextError.value = normalizeError(liveTextResult.reason);
+    }
+    syncRunPolling();
+  } catch (error) {
+    if (token === runDetailToken && selectedRunId.value === id) {
+      runDetailError.value = normalizeError(error);
+    }
+  } finally {
+    if (token === runDetailToken) runDetailLoading.value = false;
+  }
+}
+
+async function selectRun(id: string) {
+  selectedRunId.value = id;
+  selectedRun.value = runs.value.find((run) => run.id === id) ?? null;
+  runEvents.value = [];
+  runLiveText.value = '';
+  runDetailError.value = null;
+  runEventsError.value = null;
+  runLiveTextError.value = null;
+  stopRunPolling();
+  await refreshRunDetails(id);
+}
+
+async function loadRuns() {
+  runsLoading.value = true;
+  runsError.value = null;
+  try {
+    const next = await listAutoDreamRunRecords();
+    runs.value = next;
+    if (selectedRunId.value) {
+      const selected = next.find((run) => run.id === selectedRunId.value);
+      if (selected) {
+        selectedRun.value = selected;
+      } else {
+        selectedRunId.value = null;
+        selectedRun.value = null;
+        stopRunPolling();
+      }
+    }
+  } catch (error) {
+    runsError.value = normalizeError(error);
+  } finally {
+    runsLoading.value = false;
+  }
 }
 
 function emitCount() {
@@ -144,7 +298,8 @@ async function loadRequests() {
 }
 
 async function refresh() {
-  await Promise.all([loadSkills(), loadRequests()]);
+  await Promise.all([loadSkills(), loadRequests(), loadRuns()]);
+  await ensureRunSelection();
 }
 
 async function selectSkill(slug: string) {
@@ -186,6 +341,34 @@ async function selectRequest(id: string) {
     }
   } finally {
     if (token === requestDetailToken) requestDetailLoading.value = false;
+  }
+}
+
+async function ensureRunSelection() {
+  if (activeTab.value !== 'autodream') return;
+  const nextId = selectedRunId.value && runs.value.some((run) => run.id === selectedRunId.value)
+    ? selectedRunId.value
+    : runs.value[0]?.id ?? null;
+  if (!nextId) {
+    selectedRunId.value = null;
+    selectedRun.value = null;
+    stopRunPolling();
+    return;
+  }
+  if (selectedRunId.value !== nextId || selectedRun.value?.id !== nextId) {
+    await selectRun(nextId);
+  } else {
+    await refreshRunDetails(nextId);
+  }
+}
+
+async function openRunRequests() {
+  const proposalId = selectedRun.value?.proposal_ids?.[0];
+  if (!proposalId) return;
+  activeTab.value = 'requests';
+  await loadRequests();
+  if (requests.value.some((request) => request.id === proposalId)) {
+    await selectRequest(proposalId);
   }
 }
 
@@ -325,20 +508,41 @@ function closeMobileDetail() {
   if (activeTab.value === 'skills') {
     selectedSlug.value = null;
     selectedSkill.value = null;
-  } else {
+  } else if (activeTab.value === 'requests') {
     selectedRequestId.value = null;
     selectedRequest.value = null;
+  } else {
+    selectedRunId.value = null;
+    selectedRun.value = null;
+    stopRunPolling();
   }
 }
 
 watch(() => props.requestKey, async () => {
-  activeTab.value = props.initialTab === 'skills' ? 'skills' : 'requests';
+  activeTab.value = props.initialTab ?? 'requests';
   if (props.initialProposalId) {
     await loadRequests();
     if (requests.value.some((item) => item.id === props.initialProposalId)) {
       await selectRequest(props.initialProposalId);
     }
   }
+  if (activeTab.value === 'autodream') {
+    selectedRunId.value = props.initialSourceRunId ?? selectedRunId.value;
+    await loadRuns();
+    await ensureRunSelection();
+  }
+});
+
+watch(activeTab, async (tab, previousTab) => {
+  if (previousTab === 'autodream' && tab !== 'autodream') stopRunPolling();
+  if (tab === 'autodream') {
+    await loadRuns();
+    await ensureRunSelection();
+  }
+});
+
+watch([activeTab, () => selectedRun.value?.state], () => {
+  syncRunPolling();
 });
 
 watch(createSlug, (slug) => {
@@ -350,6 +554,10 @@ onMounted(async () => {
   if (props.initialProposalId && requests.value.some((item) => item.id === props.initialProposalId)) {
     await selectRequest(props.initialProposalId);
   }
+});
+
+onBeforeUnmount(() => {
+  stopRunPolling();
 });
 </script>
 
@@ -374,10 +582,13 @@ onMounted(async () => {
       <button :class="{ active: activeTab === 'requests' }" @click="activeTab = 'requests'">
         <ShieldCheck :size="17" /> 待审 <span>{{ pendingCount }}</span>
       </button>
+      <button :class="{ active: activeTab === 'autodream' }" @click="activeTab = 'autodream'">
+        <GitBranch :size="17" /> {{ t('evolution.autodream.tab') }} <span>{{ runs.length }}</span>
+      </button>
     </nav>
 
     <div class="toolbar">
-      <label class="search-box"><Search :size="16" /><input v-model="search" placeholder="搜索 slug、描述或标题" /></label>
+      <label class="search-box"><Search :size="16" /><input v-model="search" :placeholder="activeTab === 'autodream' ? t('evolution.autodream.search') : '搜索 slug、描述或标题'" /></label>
       <button v-if="activeTab === 'requests'" class="primary" type="button" @click="createOpen = !createOpen">
         <FilePlus2 :size="16" /> 新建请求
       </button>
@@ -396,7 +607,69 @@ onMounted(async () => {
 
     <p v-if="actionError" class="error-banner">{{ actionError }}</p>
 
-    <div class="workspace" :class="{ 'has-detail': selectedSlug || selectedRequestId }">
+    <div v-if="activeTab === 'autodream'" class="workspace autodream-workspace" :class="{ 'has-detail': selectedRunId }">
+      <aside class="master-list">
+        <p v-if="runsError" class="state error">{{ t('evolution.autodream.errorTitle') }}：{{ runsError }} <button @click="refresh">{{ t('evolution.autodream.retry') }}</button></p>
+        <p v-if="runsLoading && runs.length > 0" class="autodream-refreshing" role="status">{{ t('evolution.autodream.refreshing') }}</p>
+        <p v-else-if="runsLoading && runs.length === 0" class="state">{{ t('evolution.autodream.loading') }}</p>
+        <template v-if="!runsError && runs.length === 0 && !runsLoading">
+          <p class="state">{{ t('evolution.autodream.emptyTitle') }}<br /><small>{{ t('evolution.autodream.emptyDesc') }}</small><br /><button @click="emit('open-chat')">{{ t('evolution.autodream.openChat') }}</button></p>
+        </template>
+        <template v-if="runs.length > 0">
+          <p v-if="filteredRuns.length === 0" class="state">{{ t('evolution.autodream.filteredEmpty') }}</p>
+          <button v-for="run in filteredRuns" :key="run.id" class="list-row" :class="{ selected: selectedRunId === run.id }" @click="selectRun(run.id)">
+            <span class="row-title">{{ run.id }}</span><span class="status" :class="run.state">{{ t(`evolution.autodream.states.${run.state}`) }}</span>
+          <span class="row-description">{{ run.trigger }} · {{ runPhaseLabel(run) }}</span>
+            <span class="row-meta">{{ formatRunTimestamp(run.started_at) }}</span>
+          </button>
+        </template>
+      </aside>
+
+      <main class="detail-pane autodream-detail-pane">
+        <button class="mobile-back" type="button" @click="closeMobileDetail">← 返回列表</button>
+        <p v-if="!selectedRunId" class="detail-empty">{{ t('evolution.autodream.select') }}</p>
+        <p v-else-if="runDetailLoading && !selectedRun" class="state">{{ t('evolution.autodream.loading') }}</p>
+        <p v-else-if="runDetailError && !selectedRun" class="state error">{{ runDetailError }} <button @click="refreshRunDetails()">{{ t('evolution.autodream.retry') }}</button></p>
+        <template v-else-if="selectedRun">
+          <div class="detail-heading">
+            <div><p class="eyebrow">{{ t('evolution.autodream.title') }}</p><h2>{{ selectedRun.id }}</h2><p>{{ selectedRun.summary || 'AutoDream' }}</p></div>
+            <span class="status" :class="selectedRun.state">{{ t(`evolution.autodream.states.${selectedRun.state}`) }}</span>
+          </div>
+          <p v-if="runDetailError" class="error-banner">{{ runDetailError }} <button @click="refreshRunDetails()">{{ t('evolution.autodream.retry') }}</button></p>
+          <div class="facts autodream-facts">
+            <span>{{ t('evolution.autodream.trigger') }}: {{ selectedRun.trigger }}</span>
+            <span>{{ t('evolution.autodream.phase') }}: {{ runPhaseLabel(selectedRun) }}</span>
+            <span>{{ t('evolution.autodream.startedAt') }}: {{ formatRunTimestamp(selectedRun.started_at) }}</span>
+            <span>{{ t('evolution.autodream.completedAt') }}: {{ formatRunTimestamp(selectedRun.completed_at) }}</span>
+            <span>{{ t('evolution.autodream.attempt') }}: {{ selectedRun.orchestration?.attempt ?? 0 }}</span>
+            <span>{{ t('evolution.autodream.updatedAt') }}: {{ formatRunTimestamp(selectedRun.orchestration?.updated_at) }}</span>
+          </div>
+          <dl class="autodream-record-grid">
+            <div><dt>{{ t('evolution.autodream.inputs') }}</dt><dd>{{ runInputSummary(selectedRun) }}</dd></div>
+            <div><dt>{{ t('evolution.autodream.proposals') }}</dt><dd>{{ selectedRun.proposal_ids.length }}</dd></div>
+            <div v-if="selectedRun.orchestration"><dt>{{ t('evolution.autodream.deadline') }}</dt><dd>{{ formatRunTimestamp(selectedRun.orchestration.deadline_at) }}</dd></div>
+            <div v-if="selectedRun.error"><dt>{{ t('evolution.autodream.failure') }}</dt><dd class="autodream-error-text">{{ selectedRun.error }}</dd></div>
+          </dl>
+          <button v-if="selectedRun.proposal_ids.length > 0" class="secondary autodream-open-requests" type="button" @click="openRunRequests">{{ t('evolution.autodream.openRequests') }}</button>
+          <section class="autodream-output-panel">
+            <h3>{{ t('evolution.autodream.liveOutput') }}</h3>
+            <p v-if="runLiveTextError" class="state error">{{ t('evolution.autodream.liveOutputError') }}：{{ runLiveTextError }}</p>
+            <pre v-else-if="runLiveText">{{ displayRunLiveText(runLiveText) }}</pre>
+            <p v-else class="state">{{ t('evolution.autodream.liveOutputEmpty') }}</p>
+          </section>
+          <section class="autodream-events-panel">
+            <h3>{{ t('evolution.autodream.events') }}</h3>
+            <p v-if="runEventsError" class="state error">{{ t('evolution.autodream.eventsError') }}：{{ runEventsError }}</p>
+            <ol v-else-if="runEvents.length > 0">
+              <li v-for="event in runEvents" :key="event.id"><time>{{ formatRunTimestamp(event.created_at) }}</time><strong>{{ event.kind }}</strong><span>{{ event.message }}</span></li>
+            </ol>
+            <p v-else class="state">{{ t('evolution.autodream.eventsEmpty') }}</p>
+          </section>
+        </template>
+      </main>
+    </div>
+
+    <div v-else class="workspace" :class="{ 'has-detail': selectedSlug || selectedRequestId }">
       <aside class="master-list">
         <template v-if="activeTab === 'skills'">
           <p v-if="skillsError" class="state error">加载失败：{{ skillsError }} <button @click="loadSkills">重试</button></p>
@@ -491,9 +764,12 @@ button, input { font: inherit; } button { cursor: pointer; } button:disabled { c
 .list-row:hover, .list-row.selected { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 24%, transparent); }
 .row-title { min-width: 0; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }.row-description { grid-column: 1 / -1; overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.row-meta { grid-column: 1 / -1; color: var(--text-muted); font-size: 11px; }
 .source, .status { width: fit-content; padding: 2px 7px; border-radius: 999px; font: 700 10px/1.5 var(--font-mono, monospace); text-transform: uppercase; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }.source.builtin { color: var(--text-muted); background: color-mix(in srgb, var(--text) 7%, transparent); }.status.stale, .status.rejected { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }.status.accepted { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.status.running, .status.pending { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }.status.completed { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }.status.failed, .status.cancelled { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .detail-pane { min-height: 0; overflow: auto; padding: 20px; }.detail-empty, .state { padding: 32px 16px; color: var(--text-muted); text-align: center; }.state.error, .error-banner { color: var(--danger); }.state button { border: 0; color: var(--accent); background: none; }
 .facts { margin: 13px 0; color: var(--text-muted); font: 11px var(--font-mono, monospace); }.facts > span { padding: 4px 8px; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); }.muted { color: var(--text-muted); text-decoration: line-through; }
+.autodream-detail-pane { display: flex; flex-direction: column; gap: 12px; }.autodream-facts { margin: 0; }.autodream-record-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 0; }.autodream-record-grid > div { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--text) 4%, transparent); }.autodream-record-grid dt { color: var(--text-muted); font-size: 11px; }.autodream-record-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--text); font-size: 12px; line-height: 1.45; }.autodream-error-text { color: var(--danger) !important; }.autodream-open-requests { align-self: flex-start; }.autodream-output-panel, .autodream-events-panel { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-solid); }.autodream-output-panel h3, .autodream-events-panel h3 { font-size: 14px; }.autodream-output-panel pre { max-height: 240px; overflow: auto; margin: 0; padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); white-space: pre-wrap; word-break: break-word; }.autodream-events-panel ol { display: grid; gap: 8px; max-height: 280px; overflow: auto; margin: 0; padding: 0; list-style: none; }.autodream-events-panel li { display: grid; grid-template-columns: minmax(130px, auto) minmax(120px, auto) 1fr; gap: 9px; padding: 9px; border-radius: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); font-size: 12px; }.autodream-events-panel time { color: var(--text-muted); }.autodream-events-panel strong { color: var(--accent); }.autodream-events-panel span { overflow-wrap: anywhere; }
+.autodream-refreshing { margin: 4px 8px 8px; color: var(--text-muted); font-size: 11px; }
 .editor-frame { height: min(54vh, 560px); min-height: 260px; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: color-mix(in srgb, var(--panel-solid) 88%, transparent); }.history-toggle { margin-top: 12px; }.history-panel, .evidence-panel, .create-panel { padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-solid); }.history-panel { margin-top: 8px; }.history-panel button { display: block; width: 100%; padding: 8px; border: 0; color: var(--text-muted); background: transparent; text-align: left; }.history-panel pre, .evidence-panel pre { overflow: auto; padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); white-space: pre-wrap; }.evidence-panel { margin-top: 12px; display: grid; gap: 9px; }.stale-notice, .error-banner { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--danger) 7%, transparent); }
 .create-panel { display: grid; gap: 12px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.form-grid label { display: grid; gap: 5px; color: var(--text-muted); font-size: 12px; }.form-grid label.wide { grid-column: 1 / -1; }.form-grid input { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; }.create-editor { height: 260px; }.panel-actions { justify-content: flex-end; }.mobile-back { display: none; }
-@media (max-width: 760px) { .evolution-shell { padding: 14px; }.evolution-header { align-items: flex-start; }.evolution-header > div:first-child p:last-child { display: none; }.workspace { display: block; }.detail-pane { display: none; height: 100%; }.workspace.has-detail .master-list { display: none; }.workspace.has-detail .detail-pane { display: block; }.mobile-back { display: inline-flex; margin-bottom: 12px; border: 0; color: var(--accent); background: none; }.detail-heading { align-items: flex-start; flex-direction: column; }.form-grid { grid-template-columns: 1fr; }.form-grid label.wide { grid-column: auto; } }
+@media (max-width: 760px) { .evolution-shell { padding: 14px; }.evolution-header { align-items: flex-start; }.evolution-header > div:first-child p:last-child { display: none; }.workspace { display: block; }.detail-pane { display: none; height: 100%; }.workspace.has-detail .master-list { display: none; }.workspace.has-detail .detail-pane { display: block; }.mobile-back { display: inline-flex; margin-bottom: 12px; border: 0; color: var(--accent); background: none; }.detail-heading { align-items: flex-start; flex-direction: column; }.form-grid { grid-template-columns: 1fr; }.form-grid label.wide { grid-column: auto; }.autodream-events-panel li { grid-template-columns: 1fr; gap: 4px; } }
 </style>

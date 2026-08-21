@@ -330,7 +330,12 @@ export type AutoDreamFailureCode =
   | 'worker_timeout'
   | 'worker_failed'
   | 'report_generation_failed'
-  | 'stale_run_recovered';
+  | 'stale_run_recovered'
+  | 'legacy_incomplete'
+  | 'provider_unavailable'
+  | 'provider_timeout'
+  | 'provider_failed'
+  | 'invalid_candidate';
 
 export interface AutoDreamInputSourceSummary {
   source: string;

@@ -44,7 +44,7 @@ describe('ChatGovernanceCard', () => {
     ]);
   });
 
-  it('shows recoverable error and links failed run cards to Skill requests', async () => {
+  it('shows recoverable error and links failed run cards to AutoDream status', async () => {
     const wrapper = mount(ChatGovernanceCard, {
       props: {
         card: {
@@ -62,7 +62,7 @@ describe('ChatGovernanceCard', () => {
 
     await wrapper.find('button').trigger('click');
     expect(wrapper.emitted('open-evolution')?.[0]).toEqual([
-      { tab: 'requests', sourceRunId: 'run-2' },
+      { tab: 'autodream', sourceRunId: 'run-2' },
     ]);
   });
 });

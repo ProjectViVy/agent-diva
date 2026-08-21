@@ -5,16 +5,47 @@ import PersonaMarkdownEditor from './persona-memory/PersonaMarkdownEditor.vue';
 import {
   acceptSkillRequest,
   createSkillRequest,
+  getAutoDreamLiveText,
+  getAutoDreamRunStatus,
   getSkill,
   getSkillRequest,
   getSkills,
+  listAutoDreamRunEvents,
+  listAutoDreamRunRecords,
   listSkillRequests,
   updateSkill,
 } from '../api/desktop';
-import type { SkillDocument, SkillDto, SkillRequest } from '../api/desktop';
+import type { AutoDreamRunRecord, SkillDocument, SkillDto, SkillRequest } from '../api/desktop';
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) => {
+      const value = ({
+        'evolution.autodream.states.pending': 'pending',
+        'evolution.autodream.states.running': 'running',
+        'evolution.autodream.states.completed': 'completed',
+        'evolution.autodream.states.failed': 'failed',
+        'evolution.autodream.states.cancelled': 'cancelled',
+        'evolution.autodream.phases.queued': 'queued',
+        'evolution.autodream.phases.reflecting': 'reflecting',
+        'evolution.autodream.phases.completed': 'completed',
+      } as Record<string, string>)[key] ?? key;
+      return params ? value.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? `{${name}}`)) : value;
+    },
+  }),
+}));
+
+vi.mock('./persona-memory/PersonaMarkdownEditor.vue', () => ({
+  default: {
+    name: 'PersonaMarkdownEditor',
+    props: ['modelValue', 'readonly'],
+    emits: ['update:modelValue'],
+    template: '<textarea class="editor-stub" :value="modelValue" :readonly="readonly" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  },
+}));
 
 vi.mock('@lucide/vue', () => Object.fromEntries(
-  ['FilePlus2', 'History', 'RefreshCw', 'Save', 'Search', 'ShieldCheck', 'WandSparkles']
+  ['FilePlus2', 'GitBranch', 'History', 'RefreshCw', 'Save', 'Search', 'ShieldCheck', 'WandSparkles']
     .map((name) => [name, { name, template: `<span class="${name}" />` }]),
 ));
 
@@ -25,10 +56,14 @@ vi.mock('../api/desktop', () => ({
   createSkillRequest: vi.fn(),
   deleteSkill: vi.fn(),
   disableSkill: vi.fn(),
+  getAutoDreamLiveText: vi.fn(),
+  getAutoDreamRunStatus: vi.fn(),
   getSkill: vi.fn(),
   getSkillHistoryRevision: vi.fn(),
   getSkillRequest: vi.fn(),
   getSkills: vi.fn(),
+  listAutoDreamRunEvents: vi.fn(),
+  listAutoDreamRunRecords: vi.fn(),
   listSkillHistory: vi.fn(),
   listSkillRequests: vi.fn(),
   rejectSkillRequest: vi.fn(),
@@ -99,6 +134,9 @@ function mountView(props: Record<string, unknown> = {}) {
 describe('EvolutionView Skill authority', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([]);
+    vi.mocked(listAutoDreamRunEvents).mockResolvedValue([]);
+    vi.mocked(getAutoDreamLiveText).mockResolvedValue('');
     vi.mocked(getSkills).mockResolvedValue([skill('alpha'), skill('beta')]);
     vi.mocked(listSkillRequests).mockResolvedValue([request('request-1')]);
     vi.mocked(getSkill).mockImplementation(async (slug) => document(slug));
@@ -215,5 +253,107 @@ describe('EvolutionView Skill authority', () => {
       attestation: 'I reviewed this content',
     }));
     expect(wrapper.text()).toContain('Improve alpha');
+  });
+
+  it('loads persisted AutoDream runs and opens the linked run detail', async () => {
+    const run = {
+      id: 'run-persisted',
+      started_at: '2026-08-20T00:00:00Z',
+      completed_at: '2026-08-20T00:00:05Z',
+      state: 'completed' as const,
+      trigger: 'manual',
+      summary: 'AutoDream completed',
+      proposal_ids: ['request-1'],
+      orchestration: {
+        schema_version: 1,
+        phase: 'completed' as const,
+        attempt: 1,
+        deadline_at: '2026-08-20T00:01:00Z',
+        updated_at: '2026-08-20T00:00:05Z',
+      },
+    } satisfies AutoDreamRunRecord;
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([run]);
+    vi.mocked(getAutoDreamRunStatus).mockResolvedValue(run);
+    vi.mocked(listAutoDreamRunEvents).mockResolvedValue([{
+      id: 'event-1',
+      run_id: run.id,
+      kind: 'worker_succeeded',
+      message: 'AutoDream completed',
+      created_at: '2026-08-20T00:00:05Z',
+    }]);
+    vi.mocked(getAutoDreamLiveText).mockResolvedValue('{"schema_version":1}');
+
+    const wrapper = mountView({
+      initialTab: 'autodream',
+      initialSourceRunId: run.id,
+    });
+    await flushPromises();
+
+    expect(listAutoDreamRunRecords).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('run-persisted');
+    expect(wrapper.text()).toContain('{"schema_version":1}');
+    expect(wrapper.text()).toContain('AutoDream completed');
+    expect(wrapper.find('.autodream-events-panel').text()).toContain('worker_succeeded');
+    expect(wrapper.find('.autodream-open-requests').exists()).toBe(true);
+  });
+
+  it('keeps the persisted AutoDream list available when the status detail fails', async () => {
+    const run = {
+      id: 'run-detail-error',
+      started_at: '2026-08-20T00:00:00Z',
+      state: 'running' as const,
+      trigger: 'manual',
+      proposal_ids: [],
+    } satisfies AutoDreamRunRecord;
+    vi.mocked(listAutoDreamRunRecords).mockResolvedValue([run]);
+    vi.mocked(getAutoDreamRunStatus).mockRejectedValue(new Error('status unavailable'));
+
+    const wrapper = mountView({ initialTab: 'autodream' });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('run-detail-error');
+    expect(wrapper.text()).toContain('status unavailable');
+    expect(wrapper.find('.list-row').exists()).toBe(true);
+  });
+
+  it('polls an active AutoDream run and stops polling after it reaches a terminal state', async () => {
+    vi.useFakeTimers();
+    try {
+      const activeRun = {
+        id: 'run-active',
+        started_at: '2026-08-20T00:00:00Z',
+        state: 'running' as const,
+        trigger: 'manual',
+        proposal_ids: [],
+        orchestration: {
+          schema_version: 1,
+          phase: 'reflecting' as const,
+          attempt: 1,
+          deadline_at: '2026-08-20T00:01:00Z',
+          updated_at: '2026-08-20T00:00:01Z',
+        },
+      } satisfies AutoDreamRunRecord;
+      const completedRun = { ...activeRun, state: 'completed' as const, completed_at: '2026-08-20T00:00:02Z' };
+      vi.mocked(listAutoDreamRunRecords).mockResolvedValue([activeRun]);
+      vi.mocked(getAutoDreamRunStatus)
+        .mockResolvedValueOnce(activeRun)
+        .mockResolvedValueOnce(completedRun);
+
+      const wrapper = mountView({ initialTab: 'autodream' });
+      await flushPromises();
+      expect(getAutoDreamRunStatus).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await flushPromises();
+      expect(getAutoDreamRunStatus).toHaveBeenCalledTimes(2);
+      expect(wrapper.text()).toContain('completed');
+
+      await vi.advanceTimersByTimeAsync(2000);
+      await flushPromises();
+      expect(getAutoDreamRunStatus).toHaveBeenCalledTimes(2);
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

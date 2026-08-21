@@ -1,6 +1,12 @@
-import { shallowMount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, shallowMount, type VueWrapper } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import ChatView from './ChatView.vue';
+
+const triggerAutoDream = vi.hoisted(() => vi.fn());
+vi.mock('../api/desktop', () => ({
+  triggerAutoDream,
+  uploadFile: vi.fn(),
+}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -26,6 +32,11 @@ vi.mock('vue-i18n', () => ({
       'general.cleanMode': '清爽模式',
       'general.cleanModeDesc': '隐藏工具输出',
       'general.cleanModeOverridesAutoExpand': '自动展开设置暂不生效',
+      'chatGovernance.triggerManual': '手动触发 AutoDream',
+      'chatGovernance.triggering': '正在触发 AutoDream',
+      'chatGovernance.triggerNotice': 'AutoDream 已触发，请在进化页面查看实时进度。',
+      'chatGovernance.openAutodream': '查看 AutoDream 实时进度',
+      'chatGovernance.backendUnavailable': 'AutoDream 后端当前不可用。',
     } as Record<string, string>)[key] ?? key;
       return value.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? `{${name}}`));
     },
@@ -71,6 +82,45 @@ function mockChatScroll(
 }
 
 describe('ChatView streaming states', () => {
+  it('shows a short AutoDream trigger notice and links to the persisted run', async () => {
+    triggerAutoDream.mockResolvedValue({ id: 'run-chat-1' });
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+      },
+    });
+
+    const triggerButton = wrapper.findAll('.toolbar-btn').find((button) =>
+      button.attributes('title') === '手动触发 AutoDream');
+    await triggerButton?.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.autodream-trigger-notice').text()).toContain('AutoDream 已触发');
+    await wrapper.find('.autodream-trigger-notice__action').trigger('click');
+    expect(wrapper.emitted('open-evolution')?.[0]).toEqual([
+      { tab: 'autodream', sourceRunId: 'run-chat-1' },
+    ]);
+  });
+
+  it('does not show a success notice when AutoDream trigger fails', async () => {
+    triggerAutoDream.mockRejectedValueOnce(new Error('gateway unavailable'));
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [],
+        isTyping: false,
+      },
+    });
+
+    const triggerButton = wrapper.findAll('.toolbar-btn').find((button) =>
+      button.attributes('title') === '手动触发 AutoDream');
+    await triggerButton?.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.autodream-trigger-notice').text()).toContain('gateway unavailable');
+    expect(wrapper.find('.autodream-trigger-notice__action').exists()).toBe(false);
+  });
+
   it('restores and persists the permission mode via localStorage', async () => {
     localStorage.setItem('agent-diva.permissionMode', 'trusted');
     const wrapper = shallowMount(ChatView, {
