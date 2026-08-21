@@ -377,6 +377,12 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   CLI approval wiremock 用例在 Windows 环境偶发/持续返回 502；排查系统代理绕过与 mock
   服务器隔离，关闭标准是 `just test` 全绿。
 
+- [ ] **SANDBOX-WINDOWS-RESTRICTED-TOKEN-ENV** `sev-P2`
+  当前 Windows 环境运行 `just test` 时，`agent-diva-sandbox` 的
+  `platform::windows::tests::test_executor_creation` 与
+  `test_restricted_token_execution` 因 Restricted Token 不可用而失败；需确认所需
+  权限/CI runner 配置，或在不可用环境下安全跳过并保留能力覆盖。
+
 - [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
   两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
 
