@@ -28,6 +28,7 @@
 10. [BML Layer Extraction](./bml-layer-extraction-2026-08/bml-layer-extraction-research.md)
 11. [Context C1–C5](./context-management-enhancement-2026-08/README.md)
 12. [Harness Gap：Diva 化适配研究包](./harness-gap-diva-adaptation-2026-08/README.md)
+13. [Workspace 与 AGENTS.md：Diva 化适配研究包](./workspace-agents-diva-adaptation-2026-08/README.md)
 
 ## 当前研究包
 
@@ -50,6 +51,7 @@
 | `bml-layer-extraction-2026-08/` | BML 抽层研究，按研究结论推进 |
 | `context-management-enhancement-2026-08/` | C1–C5 当前运行时施工与验证依据 |
 | `harness-gap-diva-adaptation-2026-08/` | 2026-08-22 当前 Harness Gap 复核；Hook Kernel + Session Admission 方案，未授权施工 |
+| `workspace-agents-diva-adaptation-2026-08/` | 2026-08-22 Codex 工作区与 AGENTS.md 复核；WorkspaceContext + 项目规则注入方案，未授权施工 |
 
 ## 历史调研（全文保留）
 

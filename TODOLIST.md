@@ -309,7 +309,17 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   与 `session_token_budget_limit`、`RejectionCircuitBreaker` 的交互后再实施。
 
 - [ ] **Workspace CLI managed-path 与 runtime 任意路径契约** `sev-P3`
-  路径穿越已修；仍需统一 `config_dir/workspaces/*` 与 runtime 任意路径模型。
+  路径穿越已修；仍需统一 `config_dir/workspaces/*` 与 runtime 任意路径模型。2026-08-22
+  Codex 对照研究补充：现有 `--workspace` 已能覆盖当前 CLI，但默认仍是
+  `~/.agent-diva/workspace`；需要明确“进程当前目录 vs 私有默认工作区”、canonical root、
+  Shell `working_dir` 越界和外部工作区模板写入契约。研究包：
+  [`workspace-agents-diva-adaptation-2026-08/`](docs/research/workspace-agents-diva-adaptation-2026-08/)。
+
+- [ ] **WORKSPACE-AGENTS-MD-INJECTION：项目 AGENTS.md 注入合同** `sev-P3`
+  当前 `ContextBuilder` 已读取 `<workspace>/AGENTS.md`（4000 字符、按 session 缓存，
+  缺失时不追加 Agent Rules）；仍需补来源/digest/截断可观测性、与统一 workspace root
+  的绑定，以及“项目规则不能授予工具权限或写 BML/Persona”的安全合同。先做根文件 MVP，
+  不直接复制 Codex 的层级扫描、override 和 fallback 生态。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面；剩余 Plan 矩阵、subagent 禁用断言与
