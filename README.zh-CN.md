@@ -351,22 +351,26 @@ cargo test --all
 
 ## 文档
 
-- **文档总入口**：[`docs/README.md`](docs/README.md) —— 当前架构、决策、
-  研究与迭代日志的阅读顺序
-- 当前架构：[`docs/architecture/`](docs/architecture/)（认知工作区边界、
-  上下文运行时、Prompt 合同、审批边界）
-- Laputa 架构：[`docs/architecture/laputa/`](docs/architecture/laputa/)
+`main` 分支为精简树：项目文档位于
+[`dev` 分支](https://github.com/ProjectViVy/agent-diva/tree/dev)
+（此处仅保留 `docs/resources/` 图片）。
+
+- **文档总入口**：[`docs/README.md`](https://github.com/ProjectViVy/agent-diva/blob/dev/docs/README.md)
+  —— 当前架构、决策、研究与迭代日志的阅读顺序
+- 当前架构：[`docs/architecture/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/architecture)
+- Laputa 架构：[`docs/architecture/laputa/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/architecture/laputa)
 - 工程参考（贡献指南、变更日志、项目上下文）：
-  [`docs/engineering/`](docs/engineering/)
+  [`docs/engineering/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/engineering)
 - 仓库规则与流程指南：[`AGENTS.md`](AGENTS.md) 与架构参考
   [`AGENTS-ARCH.MD`](AGENTS-ARCH.MD)
-- 迭代日志位于 [`docs/logs/`](docs/logs/)；待办清单见
-  [`TODOLIST.md`](TODOLIST.md)
+- 迭代日志位于 dev 分支的
+  [`docs/logs/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/logs)；
+  待办清单见 [`TODOLIST.md`](TODOLIST.md)
 
 ## 贡献
 
-贡献指南见
-[`docs/engineering/CONTRIBUTING.md`](docs/engineering/CONTRIBUTING.md)。
+贡献指南见 dev 分支的
+[`docs/engineering/CONTRIBUTING.md`](https://github.com/ProjectViVy/agent-diva/blob/dev/docs/engineering/CONTRIBUTING.md)。
 提交前请运行 `just ci`，并保持 PR 聚焦单一主题。
 
 ## 许可证

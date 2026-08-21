@@ -368,24 +368,27 @@ cargo test --all
 
 ## Documentation
 
-- **Docs entry point**: [`docs/README.md`](docs/README.md) — reading order
-  for current architecture, decisions, research, and iteration logs
-- Current architecture: [`docs/architecture/`](docs/architecture/)
-  (cognitive workspace boundaries, context runtime, prompt contract,
-  approval boundary)
-- Laputa architecture: [`docs/architecture/laputa/`](docs/architecture/laputa/)
+The `main` branch ships a slim tree: project documentation lives on the
+[`dev` branch](https://github.com/ProjectViVy/agent-diva/tree/dev) (only
+`docs/resources/` images are kept here).
+
+- **Docs entry point**: [`docs/README.md`](https://github.com/ProjectViVy/agent-diva/blob/dev/docs/README.md)
+  — reading order for current architecture, decisions, research, and
+  iteration logs
+- Current architecture: [`docs/architecture/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/architecture)
+- Laputa architecture: [`docs/architecture/laputa/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/architecture/laputa)
 - Engineering reference (contributing, changelog, project context):
-  [`docs/engineering/`](docs/engineering/)
+  [`docs/engineering/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/engineering)
 - Repository rules and process guide: [`AGENTS.md`](AGENTS.md) and
   architecture reference [`AGENTS-ARCH.MD`](AGENTS-ARCH.MD)
-- Iteration logs live under [`docs/logs/`](docs/logs/); the backlog is
-  [`TODOLIST.md`](TODOLIST.md)
+- Iteration logs live under [`docs/logs/`](https://github.com/ProjectViVy/agent-diva/tree/dev/docs/logs)
+  on the dev branch; the backlog is [`TODOLIST.md`](TODOLIST.md)
 
 ## Contributing
 
-See [`docs/engineering/CONTRIBUTING.md`](docs/engineering/CONTRIBUTING.md)
-for guidelines. Please keep PRs focused on a single concern and run
-`just ci` before submitting.
+See [`docs/engineering/CONTRIBUTING.md`](https://github.com/ProjectViVy/agent-diva/blob/dev/docs/engineering/CONTRIBUTING.md)
+on the dev branch for guidelines. Please keep PRs focused on a single
+concern and run `just ci` before submitting.
 
 ## License
 
