@@ -34,9 +34,9 @@ Use each crate's `src/` for code; add crate-level integration tests under `tests
 - Crate-local `docs/` directories remain beside their crates when they document crate-specific acceptance, debugging, learning, or release workflows; workspace-wide documents belong under the repository-root `docs/`.
 - Runtime prompt/mask files and generated/package-facing README files are not project documentation and must remain with the runtime or packaging surface that consumes them.
 
-**Current repository state (2026-06-15):**
+**Current repository state (2026-08-21):**
 
-- Root workspace package version is `0.5.0` and Rust MSRV is `1.80.0`.
+- Root workspace package version is `0.9.9` and Rust MSRV is `1.80.0`.
 - Root workspace members include `agent-diva-autodream`, `agent-diva-files`, `agent-diva-laputa`, `agent-diva-sandbox`, and `agent-diva-tooling` in addition to the older core/agent/provider/channel/tool/CLI/service/GUI crates.
 - `.workspace/` holds sibling reference projects and research sources, including `agent-diva-nano`, `openfang`, `zeroclaw`, `nanobot`, `codex`, `memtle`, and related references.
 - Memory is layered into three concepts:

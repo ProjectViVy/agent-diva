@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-agent"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-autodream"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-laputa",
@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-channels"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-providers",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-cli"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-channels",
@@ -147,7 +147,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-core"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-files",
  "anyhow",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-files"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "chrono",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-gui"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-cli",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-laputa"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "async-trait",
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-manager"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-agent",
  "agent-diva-autodream",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-migration"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-laputa",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-neuron"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-providers",
  "async-trait",
@@ -362,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-providers"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "async-trait",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-sandbox"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "chrono",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-service"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -427,7 +427,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-tooling"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "async-trait",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "agent-diva-tools"
-version = "0.5.0"
+version = "0.9.9"
 dependencies = [
  "agent-diva-core",
  "agent-diva-files",

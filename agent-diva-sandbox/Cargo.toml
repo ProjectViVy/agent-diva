@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-sandbox"
-version = "0.5.0"
+version = "0.9.9"
 authors = ["mastwet (projectViVY Team, undefine foundation)"]
 edition = "2021"
 rust-version = "1.80.0"
@@ -19,7 +19,7 @@ guardian = []
 filesystem = []
 
 [dependencies]
-agent-diva-core = { path = "../agent-diva-core", version = "0.5.0" }
+agent-diva-core = { path = "../agent-diva-core", version = "0.9.9" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
