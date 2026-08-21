@@ -241,3 +241,230 @@ open_workspace_in_file_manager() -> void
 - 不提供“AGENTS 授权”“跳过安全边界”“允许任意目录”开关；
 - 不在切换 workspace 时自动复制 Session、Plan、Persona 或 Memory；
 - 不在外部 workspace 首次打开时静默创建项目模板，初始化必须是明确动作。
+
+## 10. Oil Frontend 细化：先固定业务对象和数据所有权
+
+### 10.1 核心对象不是路径字符串
+
+GUI 管理的核心对象是 `WorkspaceContext`，而不是一个可随处修改的 `workspace: string`：
+
+```ts
+interface WorkspaceContext {
+  root: string;                 // backend canonical absolute path
+  displayName: string;          // basename，由 root 派生
+  source: 'explicit' | 'configured' | 'process_cwd';
+  agents: AgentsStatus;         // 同一次 status 响应中的快照
+  runtimeGeneration: string;    // gateway 重建后的身份
+}
+```
+
+字段所有权必须固定：
+
+- Rust/Gateway 是 `root`、`source`、`agents` 和 `runtimeGeneration` 的权威来源；
+- `App.vue`（或唯一的 `useWorkspaceContext`）持有当前运行时快照，并向 `NormalMode`、
+  `SettingsView` 传递同一份对象；
+- `WorkspaceSettings` 只持有尚未提交的 `candidatePath` 和候选预览，不能复制完整
+  `WorkspaceContext`；
+- `displayName`、状态文案和颜色都从同一快照派生，不在多个组件重复转换。
+
+当前 `GeneralSettings.vue` 自己调用 `getConfigStatus()`，会与 App 启动时的状态形成第二个
+来源。施工时应改为由上层注入已提交快照；workspace 页面和 Topbar 不得各自请求、各自缓存。
+
+### 10.2 信息层级与应删除的内容
+
+首屏只保留完成判断所需的信息：
+
+1. 当前工作区名称和“正在使用”；
+2. 一行可复制的完整路径；
+3. workspace 来源；
+4. AGENTS 状态；
+5. 一个主操作“切换工作区”。
+
+应从常驻界面删除：
+
+- 内部 enum（`process_cwd` 等）和 `runtimeGeneration`；
+- `config_dir`、cron store、bridge 等机器级路径；
+- 同时出现在 Topbar、SettingsDashboard、GeneralSettings 的重复 workspace 路径；
+- 只表达“存在”的装饰性徽章、重复的 `AGENTS.md` 文件图标和长段说明；
+- 没有真实动作的“保存工作区”“应用 AGENTS”按钮。
+
+完整 canonical path、digest、读取时间和字符预算只在详情或复制操作中出现；它们服务排障，
+不应取代用户识别项目所需的名称。
+
+## 11. 选择、预览与提交边界
+
+### 11.1 这是选择流程，不是普通表单
+
+目录选择由系统原生 picker 完成，GUI 不提供长期可编辑的路径文本框，也不显示“当前值 +
+同一字段禁用 input”。用户点击“切换工作区”后才进入候选态：
+
+```text
+ready(current)
+  → picker
+  → candidate(path)
+  → inspecting(candidate)
+  → preview(candidate + agents)
+  → confirming(candidate)
+  → applying
+  → ready(new current) | error(old current + candidate preserved)
+```
+
+`inspect_workspace(path)` 是只读预览，不写配置、不创建目录、不启动 Gateway；它检查目录有效性
+并读取候选根下的 `AGENTS.md` 摘要。`apply_workspace(path)` 必须在 Rust 端再次校验候选路径，
+防止 picker 返回后目录状态发生变化。
+
+### 11.2 一个提交边界、一个主操作
+
+候选预览页只提供：
+
+- 主操作：`切换并重启 DIVA`；
+- 次级操作：`取消`；
+- 候选状态下的 `重新选择` 作为次级导航动作。
+
+不要出现“确认 → 保存 → 重启”三个同义按钮。一次点击触发一个真实的 `apply_workspace`，
+只有该命令成功且新的 status/session 已提交后，才把候选路径提升为当前对象。
+
+确认文案只说明不可忽略的范围：相对路径、Shell、Session、Plan、Subagent 和 AGENTS.md；
+不重复解释显然的按钮含义，也不在确认框增加独立“迁移数据”选项。
+
+### 11.3 失败时保留上下文
+
+`inspect_workspace` 或 `apply_workspace` 失败时：
+
+- 当前 `WorkspaceContext` 保持旧值；
+- `candidatePath`、候选 AGENTS 预览和用户当前页面位置保留；
+- 就近显示可修正错误（路径不存在、不可读、Gateway 重建失败）；
+- 提供 `重新选择` 或 `重试切换`，不要求用户重新打开设置或重新选择旧目录。
+
+成功后更新原对象：先用 `apply_workspace` 返回的 committed status 替换快照，再刷新该 root
+下的最近 session；不得通过复制一个“新 workspace 对象”让旧组件继续持有旧引用。
+
+## 12. 状态与忙碌范围矩阵
+
+### 12.1 Workspace 状态
+
+`WorkspaceSettings` 的区域状态必须互斥：
+
+| 状态 | 条件 | 内容 | 可用动作 |
+|---|---|---|---|
+| `loading` | 首次获取当前 root | 保留标题和布局骨架 | 无，等待当前状态 |
+| `ready` | 当前 root 可用 | 当前路径、来源、AGENTS 状态 | 切换、复制、打开目录 |
+| `refreshing` | 重扫 AGENTS | 保留旧快照，按钮局部显示刷新中 | 取消不支持时禁用重扫 |
+| `candidate` | picker 已返回 | 候选路径和“尚未生效”标签 | 预览、重新选择、取消 |
+| `inspecting` | 候选预览请求中 | 保留候选路径，AGENTS 卡片局部 loading | 不能提交未检查候选 |
+| `confirming` | 预览完成，等待确认 | 影响范围与候选身份 | 取消、切换并重启 |
+| `processing` | Gateway 正在重建 | 当前 root 不变，显示阶段文字 | 禁止关闭确认和重复提交 |
+| `error` | 请求或重建失败 | 旧 root + 候选 + 可恢复错误 | 重试、重新选择 |
+
+`missing`、`empty`、`unreadable`、`injected`、`truncated` 是 AGENTS 子状态，不得与页面
+`loading`、`processing` 混为一个 spinner：
+
+| AGENTS 子状态 | 说明 | 主动作 |
+|---|---|---|
+| `injected` | 根文件已读取并注入 | 查看摘要、重新扫描 |
+| `truncated` | 已读取但超过预算 | 查看截断摘要、打开文件 |
+| `missing` | 根目录没有文件 | 重新扫描 |
+| `empty` | 文件存在但无有效内容 | 打开文件 |
+| `unreadable` | 文件存在但读取失败 | 查看原因、重新扫描 |
+
+### 12.2 忙碌范围
+
+- AGENTS 重扫只锁定 AGENTS 状态卡和“重新扫描”按钮，不遮挡 Chat；
+- 候选 inspect 只锁定候选预览区，当前 workspace 仍可读；
+- apply workspace 是跨运行时操作：确认弹窗保持打开，主按钮进入 `processing`，遮罩只覆盖
+  会发起新请求的 Chat、模型选择、审批和 workspace 操作；设置导航可保留但不能提交旧 root；
+- 不用无限 spinner 表达 Gateway 重启，显示阶段：`停止运行时` → `保存工作区` →
+  `重建 Gateway` → `恢复会话`；
+- 只有新 status 和 session 恢复成功后关闭弹窗；失败时保留弹窗与候选信息。
+
+## 13. 组件与数据流落点
+
+建议按业务模块新增 `agent-diva-gui/src/features/workspace/`，而不是继续把路径状态堆进
+`GeneralSettings.vue`：
+
+```text
+features/workspace/
+  workspaceTypes.ts          # WorkspaceContext, AgentsStatus, switch states
+  workspaceApi.ts            # get/inspect/apply/rescan/open commands
+  useWorkspaceContext.ts     # 唯一查询、候选、切换和状态机
+  WorkspaceChip.vue          # Topbar 只读入口
+  WorkspacePopover.vue       # 触发器附属浮层，不拥有业务请求
+  WorkspaceSettings.vue      # 设置页组合器
+  WorkspaceSwitchDialog.vue  # 预览/确认/processing/error
+  AgentsInstructionDrawer.vue# 只读摘要详情
+```
+
+职责边界：
+
+- `useWorkspaceContext` 负责请求、候选、提交边界、过期响应保护和 session 恢复；
+- `WorkspaceChip`、`WorkspaceSettings`、`AgentsInstructionDrawer` 只渲染 props 并 emit 用户意图；
+- Tauri API 类型集中在 `workspaceApi.ts`，不在多个 Vue 组件重复声明响应结构；
+- `SettingsView` 只做路由组合，`NormalMode` 只负责把 WorkspaceChip 放入 Topbar；
+- `GeneralSettings` 保留通用运行状态，但移除自己的 workspace 请求和重复路径展示；
+- 组件样式使用现有 tokens 和共享弹层/弹窗/抽屉，不用页面级 `!important`、固定截图宽高或
+  临时 z-index。
+
+后端建议返回一个权威的 `WorkspaceStatus` 快照。若为兼容现有 `StatusPathReport.workspace`
+而暂时增加字段，应让旧字符串成为同一快照的序列化投影，不能让 GUI 同时维护两套可写状态。
+
+## 14. 浮层、弹窗、抽屉和滚动
+
+- `WorkspacePopover` 只承载当前身份、AGENTS 简短状态和导航动作；它是触发器附属浮层，
+  由共享 overlay 负责定位、碰撞、点击外部关闭和视口安全边距；不在其中塞完整候选预览。
+- `WorkspaceSwitchDialog` 是单一共享确认弹窗，使用 Header/Body/Footer：Header 显示
+  “切换工作区”与候选 basename；Body 显示路径、AGENTS 预览、影响范围；Footer 固定
+  `取消 / 切换并重启 DIVA`；Body 是唯一纵向滚动区。
+- `AgentsInstructionDrawer` 适合只读详情，因为底层 Settings/当前 workspace 仍需保持可见；
+  Drawer 内正文摘要滚动，关闭后回到原设置位置，不叠加第二个模态弹窗。
+- Settings 页面由现有 `settings-body` 主滚动容器负责纵向滚动；Popover、Dialog、Drawer
+  不把滚动传递给 body，也不新增无边界的 `overflow: auto`。
+- 宽屏可将“当前 workspace”与“AGENTS 状态”并列；窄屏折叠为单列，主操作仍固定在
+  Dialog Footer，长路径使用中间省略而不是撑破页面。
+
+## 15. 后端接口与过期响应保护
+
+前端不直接读取 workspace 文件，也不通过 `load_config/save_config` 拼接完整配置。建议接口：
+
+```ts
+getWorkspaceStatus(): Promise<WorkspaceStatus>
+inspectWorkspace(path: string): Promise<WorkspacePreview>
+applyWorkspace(path: string): Promise<WorkspaceSwitchResult>
+rescanWorkspaceInstructions(): Promise<WorkspaceStatus>
+openWorkspaceInFileManager(): Promise<void>
+```
+
+约束：
+
+- `inspectWorkspace` 返回 `candidateId`/canonical root；`applyWorkspace` 只接受最新候选或
+  重新 canonicalize，避免旧 picker 结果覆盖新选择；
+- status、AGENTS 摘要和 root 必须来自同一响应快照；不允许先更新路径再异步补 AGENTS；
+- 连续点击“重新扫描”只提交最后一次请求，过期响应不得覆盖当前状态；
+- `applyWorkspace` 成功才更新 `WorkspaceContext`，前端不做乐观 root 更新；
+- `WorkspaceSwitchResult` 返回 committed root、AGENTS status、runtime generation 和
+  恢复的 session key，减少 GUI 再拼装第二套结果。
+
+## 16. Oil Frontend 验收矩阵
+
+### 组件测试
+
+- `WorkspaceChip`：basename/path/source/AGENTS 五种状态和 processing 状态显示唯一且无重复；
+- `WorkspaceSettings`：当前值只读，picker 返回后才出现候选态，取消不改变当前值；
+- `WorkspaceSwitchDialog`：确认按钮只触发一次，processing 时不可关闭，失败保留候选与错误；
+- `AgentsInstructionDrawer`：摘要、预算、digest 和路径缺失/截断状态正确映射。
+
+### 数据流测试
+
+- workspace status 只请求一次并由 Topbar/Settings 共享；
+- inspect 的旧响应不能覆盖最新候选；
+- apply 失败不替换旧 root；成功后只使用 committed result 更新 context 并刷新 session；
+- AGENTS 重扫失败保留旧快照，不退化成 `missing` 或空页面。
+
+### 真实 GUI smoke
+
+1. 启动 GUI，确认 Topbar 与 Settings 显示同一 canonical root；
+2. 选择临时目录 A，写入 `AGENTS.md`，确认候选预览显示 `injected`；
+3. 切换到 A，确认 Gateway 重建、Chat 输入恢复、Session 来自 A；
+4. 删除 A 的 `AGENTS.md` 并点重扫，确认变为 `missing`，旧内容不残留；
+5. 在 streaming/Plan/approval 期间尝试切换，确认动作被阻止且当前 root 不变；
+6. 模拟 apply 失败，确认旧 root、候选路径、页面位置和错误仍保留；
+7. 用长路径和窄窗口检查不出现根页面横向滚动、双重纵向滚动或 Footer 被遮挡。

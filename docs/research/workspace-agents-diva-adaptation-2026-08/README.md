@@ -59,6 +59,9 @@ GUI 不应热替换运行中的 `AppState.workspace_root`，也不应在外部 w
 - [Diva 化方案与分阶段计划](./diva-adaptation-proposal.md)
 - [GUI 交互与运行时适配设计](./gui-workspace-agents-design.md)
 
+GUI 文档后续按 `oil-frontend` 规则补充了业务对象唯一来源、选择/提交边界、状态矩阵、
+组件归属、浮层/弹窗滚动边界、过期响应保护和组件/数据流验收。
+
 ## 研究 Gate
 
 进入施工前只需确认三个产品选择：

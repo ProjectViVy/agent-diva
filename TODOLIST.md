@@ -327,6 +327,9 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   AGENTS 摘要抽屉，以及停止→保存→重建→恢复的单一切换流程；禁止热换 AppState root、
   GUI 内编辑 AGENTS.md、隐式迁移会话或外部 workspace 模板写入。设计：
   [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
+  Oil Frontend 细化还要求 `WorkspaceContext` 作为唯一快照来源，移除 `GeneralSettings.vue`
+  的重复 `getConfigStatus()` 请求，采用候选预览→一次提交→失败保留上下文，并保护过期
+  inspect/status 响应。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面；剩余 Plan 矩阵、subagent 禁用断言与
