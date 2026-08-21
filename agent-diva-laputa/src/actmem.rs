@@ -323,7 +323,7 @@ impl ActmemStore {
                 chars: document.markdown.chars().count(),
             });
         }
-        capsules.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        capsules.sort_by_key(|capsule| std::cmp::Reverse(capsule.created_at));
         Ok(capsules)
     }
 

@@ -339,7 +339,7 @@ impl PersonaService {
                 requests.push(request);
             }
         }
-        requests.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        requests.sort_by_key(|request| std::cmp::Reverse(request.created_at));
         Ok(requests)
     }
 
@@ -411,7 +411,7 @@ impl PersonaService {
             .filter(|line| !line.trim().is_empty())
             .map(serde_json::from_str)
             .collect::<Result<Vec<PersonaHistoryEntry>, _>>()?;
-        entries.sort_by(|a, b| b.revision.cmp(&a.revision));
+        entries.sort_by_key(|entry| std::cmp::Reverse(entry.revision));
         Ok(entries)
     }
 

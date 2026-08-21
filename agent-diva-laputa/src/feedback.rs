@@ -112,8 +112,7 @@ impl RecallFeedbackStore {
                 committed.push(event);
             }
         }
-        file.events
-            .sort_by(|left, right| left.recorded_at.cmp(&right.recorded_at));
+        file.events.sort_by_key(|event| event.recorded_at);
         if file.events.len() > MAX_FEEDBACK_EVENTS {
             file.events.drain(..file.events.len() - MAX_FEEDBACK_EVENTS);
         }
