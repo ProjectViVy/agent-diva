@@ -861,9 +861,10 @@ pub fn install_landlock_on_current_thread(
 // ============================================================================
 
 /// Network syscall filtering mode
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum NetworkSeccompMode {
     /// Block all network syscalls
+    #[default]
     FullBlock,
     /// Allow only loopback connections (for proxy routing)
     ProxyOnly,
@@ -877,12 +878,6 @@ impl NetworkSeccompMode {
     /// Check if filtering is enabled
     pub fn is_enabled(&self) -> bool {
         !matches!(self, NetworkSeccompMode::Disabled)
-    }
-}
-
-impl Default for NetworkSeccompMode {
-    fn default() -> Self {
-        NetworkSeccompMode::FullBlock
     }
 }
 
@@ -912,11 +907,11 @@ pub fn build_network_seccomp_filter(
     // Define network syscalls to filter. The seccompiler 0.4 API uses Linux
     // syscall numbers rather than syscall names.
     let network_syscalls = [
-        libc::SYS_connect as i64,
-        libc::SYS_sendto as i64,
-        libc::SYS_sendmsg as i64,
-        libc::SYS_recvfrom as i64,
-        libc::SYS_recvmsg as i64,
+        libc::SYS_connect,
+        libc::SYS_sendto,
+        libc::SYS_sendmsg,
+        libc::SYS_recvfrom,
+        libc::SYS_recvmsg,
     ];
 
     let blocked_syscalls = match mode {
