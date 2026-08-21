@@ -15,7 +15,7 @@ The local Windows environment cannot perform a native Linux build: the installed
 
 ## Failure reproduced and addressed
 
-The prior release run was `32504328675`. Its Ubuntu/macOS failure was caused by stale Landlock and seccompiler API usage, not by the earlier Rust 1.98 Clippy fixes. Commit `164fdb4e` addressed that API mismatch. The follow-up run `32509518384` then exposed remaining Rust 1.98 sorting lints and Linux-only type/result/unused-parameter errors; commit `6dcca721` addresses those findings.
+The prior release run was `32504328675`. Its Ubuntu/macOS failure was caused by stale Landlock and seccompiler API usage, not by the earlier Rust 1.98 Clippy fixes. Commit `164fdb4e` addressed that API mismatch. The follow-up run `32509518384` then exposed remaining Rust 1.98 sorting lints and Linux-only type/result/unused-parameter errors; commit `6dcca721` addressed those findings. Run `32511048554` exposed six final Linux-only Clippy findings; commit `76716b3a` addressed them. The macOS failure in that run was a crates.io DNS/download outage and is not a source failure.
 
 ## Remaining gate
 
