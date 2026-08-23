@@ -30,6 +30,7 @@
 12. [Harness Gap：Diva 化适配研究包](./harness-gap-diva-adaptation-2026-08/README.md)
 13. [Workspace 与 AGENTS.md：Diva 化适配研究包](./workspace-agents-diva-adaptation-2026-08/README.md)
 14. [A2A Agent-to-Agent 互操作研究包](./a2a-interoperability-2026-08/README.md)
+15. [外部频道能力与参考实现对照](./channel-capability-reference-2026-08/README.md)
 
 ## 当前研究包
 
@@ -54,6 +55,7 @@
 | `harness-gap-diva-adaptation-2026-08/` | 2026-08-22 当前 Harness Gap 复核；Hook Kernel + Session Admission 方案，未授权施工 |
 | `workspace-agents-diva-adaptation-2026-08/` | 2026-08-22 Codex 工作区、AGENTS.md 与 GUI 交互复核；WorkspaceContext + 项目规则注入方案，未授权施工 |
 | `a2a-interoperability-2026-08/` | 2026-08-23 A2A、内部多智能体和远程控制参考调研；多方案适配建议，待正式立项 |
+| `channel-capability-reference-2026-08/` | 2026-08-23 ZeroClaw/Octos/OpenFang 与 agent-diva 外部频道能力对照；Octos 主结构、ZeroClaw 能力标杆，待正式立项 |
 
 ## 历史调研（全文保留）
 

@@ -26,6 +26,16 @@
   **待决策**：A2A v1.0 HTTP+JSON 与 JSON-RPC 兼容范围、TaskStore 复用 RunStore 还是独立
   SQLite 表、默认技能/工具权限、远程出站范围、SSE/Webhook 及多 Agent 是否拆分后续阶段。
 
+- [ ] **CHANNEL-CAPABILITY-CONTRACT-EPIC：外部频道能力合同与可靠性基线** `sev-P1`
+  第二批对照研究确认：当前 agent-diva 的 ChannelHandler 与消息 envelope 缺少统一的
+  `message_id/thread_id`、typed attachments、typing/edit/delete/reaction/health、流式
+  finalize、pacing/backpressure 和 supervisor/reconnect 合同；QQ 的群/Guild/媒体能力
+  尤其不足。方案不能直接照搬单一项目：以 Octos 作为结构对照、ZeroClaw 作为能力标杆、
+  OpenFang 作为 Bridge/TCK 参考，并保留 agent-diva 的 Manager/Sandbox/Approval/Laputa/BML
+  治理边界。研究包：[`channel-capability-reference-2026-08/`](docs/research/channel-capability-reference-2026-08/)。
+  **待决策**：是否先冻结统一 envelope/capability matrix/TCK，再按 QQ、Feishu、DingTalk
+  分阶段施工；不得因 Octos 的 Rust 2024/MSRV 1.85 直接升高 agent-diva 当前 MSRV 1.80。
+
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
   来源于 OpenHarness/ZeroClaw 的机制调研；保留为未来扩展点，当前延期。2026-08-22
   研究包已收敛为 Diva 化方案：[`harness-gap-diva-adaptation-2026-08/`](docs/research/harness-gap-diva-adaptation-2026-08/)，
