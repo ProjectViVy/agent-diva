@@ -16,6 +16,16 @@
   尚未进入实施；与“产品与架构”中已在进行的工作区（workspace-agents、
   gui-style-phase2 等）相互独立，启动时按 LOCK.md 流程另行建锁。
 
+- [ ] **A2A-INTEROPERABILITY-EPIC：Agent-to-Agent 协议与多智能体互操作实现** `sev-P1`
+  当前已完成 `.workspace` 参考项目调研和多方案初步收敛，**待正式立项，不得据此自动
+  开始生产实现**。研究包：[`a2a-interoperability-2026-08/`](docs/research/a2a-interoperability-2026-08/)。
+  建议主路线为“内部统一 AgentRun/Task/Policy 模型 + agent-diva-manager 原生 A2A
+  adapter”，短期可用 Sidecar 做 OpenFang/ZeroClaw 互操作验证；不整体引入任一参考项目
+  作为核心运行时。立项后至少拆分：单 Agent 入站 A2A、持久化 Task/取消/鉴权、出站 Agent
+  Card/远程委托、多 Agent Alias/技能白名单、流式/推送和生产 TCK/安全验证。
+  **待决策**：A2A v1.0 HTTP+JSON 与 JSON-RPC 兼容范围、TaskStore 复用 RunStore 还是独立
+  SQLite 表、默认技能/工具权限、远程出站范围、SSE/Webhook 及多 Agent 是否拆分后续阶段。
+
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
   来源于 OpenHarness/ZeroClaw 的机制调研；保留为未来扩展点，当前延期。2026-08-22
   研究包已收敛为 Diva 化方案：[`harness-gap-diva-adaptation-2026-08/`](docs/research/harness-gap-diva-adaptation-2026-08/)，
