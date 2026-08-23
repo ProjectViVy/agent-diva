@@ -1619,7 +1619,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   place-items: center;
   border-radius: 999px;
   padding: 0 5px;
-  background: #b91c1c;
+  background: var(--danger-deep, #b91c1c);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -1644,7 +1644,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
 .active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: 12px; line-height: 1.4; }
 .active-plan-execution-error span { min-width: 0; overflow-wrap: anywhere; }
-.active-plan-execution-error button { flex: 0 0 auto; border: 1px solid #b91c1c; border-radius: 7px; padding: 5px 9px; color: #fff; background: #b91c1c; font-size: 11px; font-weight: 700; cursor: pointer; }
+.active-plan-execution-error button { flex: 0 0 auto; border: 1px solid var(--danger-deep, #b91c1c); border-radius: 7px; padding: 5px 9px; color: #fff; background: var(--danger-deep, #b91c1c); font-size: 11px; font-weight: 700; cursor: pointer; }
 .active-plan-execution-error button:disabled { cursor: not-allowed; opacity: .6; }
 .active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
 .active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
@@ -1807,7 +1807,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 :deep(.markdown-body pre code) {
   background-color: transparent;
   padding: 0;
-  color: #e5e7eb;
+  color: var(--text-muted, #e5e7eb);
 }
 
 :deep(.markdown-body ul), :deep(.markdown-body ol) {
@@ -1824,9 +1824,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 :deep(.markdown-body blockquote) {
-  border-left: 3px solid #e5e7eb;
+  border-left: 3px solid var(--line, #e5e7eb);
   padding-left: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted, #6b7280);
   margin: 0.5rem 0;
 }
 

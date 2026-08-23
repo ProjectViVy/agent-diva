@@ -173,6 +173,6 @@ function cancel() {
   width: 100%;
   margin: 4px 0 0;
   font-size: 12px;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
 }
 </style>

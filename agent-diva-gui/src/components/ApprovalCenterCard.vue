@@ -206,12 +206,12 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-center-card.risk-high,
 .approval-center-card.risk-critical,
 .approval-center-card.risk-prohibited {
-  border-left-color: #dc2626;
+  border-left-color: var(--danger-strong, #dc2626);
 }
 
 .approval-center-card.risk-medium,
 .approval-center-card.risk-moderate {
-  border-left-color: #d97706;
+  border-left-color: var(--warning-strong, #d97706);
 }
 
 .approval-center-card.risk-low {
@@ -339,8 +339,8 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   margin: 0;
   border-radius: 8px;
   padding: 10px;
-  background: #111827;
-  color: #e5e7eb;
+  background: var(--text, #111827);
+  color: var(--line, #e5e7eb);
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -410,14 +410,14 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 }
 
 .approval-actions .allow {
-  border-color: #047857;
-  background: #047857;
+  border-color: var(--success-strong, #047857);
+  background: var(--success-strong, #047857);
   color: #fff;
 }
 
 .approval-actions .deny {
-  border-color: #b91c1c;
-  color: #b91c1c;
+  border-color: var(--danger-deep, #b91c1c);
+  color: var(--danger-deep, #b91c1c);
   background: transparent;
 }
 
