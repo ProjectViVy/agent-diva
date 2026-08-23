@@ -168,14 +168,16 @@
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
   pin/升级方案，不削弱现有 gate。
 
-- [ ] **MSRV-ISOLATED-TARGET-CACHE** `sev-P2`
-  所有 `cargo +1.80` 探测必须使用独立 `CARGO_TARGET_DIR`，避免污染默认 target cache；
-  将此约束固化进验证命令或脚本。
-
 - [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
   两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
 
 ## Done
+
+- [x] **MSRV-ISOLATED-TARGET-CACHE** `sev-P2`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: `just msrv-probe` sets
+  `CARGO_TARGET_DIR=target/msrv-1.80` for every `cargo +1.80` probe. Does not
+  resolve `WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS`. Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.3.0-msrv-isolated-target-cache/`](docs/logs/2026-08-todolist-auto-close/v0.3.0-msrv-isolated-target-cache/summary.md).
 
 - [x] **SANDBOX-WINDOWS-RESTRICTED-TOKEN-ENV** `sev-P2`
   Closed 2026-08-23 on `chore/todolist-auto-close`: Restricted Token tests skip

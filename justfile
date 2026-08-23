@@ -114,6 +114,23 @@ feature-gate-check:
 ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check cognitive-clean-break-check bml-boundary-check
     @echo "All checks passed!"
 
+# Isolated cache for every `cargo +1.80` probe. Do not point those commands at
+# the default `target/` directory (see TODOLIST WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS
+# for the actual 1.80 compile/pin work; this recipe only isolates the cache).
+msrv-target := "target/msrv-1.80"
+
+# Examples:
+#   just msrv-probe --version
+#   just msrv-probe check -p agent-diva-core
+[windows]
+msrv-probe *ARGS:
+    $env:CARGO_TARGET_DIR = "{{msrv-target}}"
+    cargo +1.80 {{ARGS}}
+
+[unix]
+msrv-probe *ARGS:
+    CARGO_TARGET_DIR="{{msrv-target}}" cargo +1.80 {{ARGS}}
+
 # Install locally
 install:
     cargo install --path agent-diva-cli
