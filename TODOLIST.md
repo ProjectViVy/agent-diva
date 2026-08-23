@@ -49,21 +49,6 @@
   只处理仍有效的通用治理/发布内容；Memory governance 与旧 Evolution 部分由
   clean-break 决策取代（EPIC 已关闭，本条只余通用部分）。
 
-- [ ] **全仓库代码清理提案审批与排期决策** `sev-P3`
-  对 `docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/` 的清理集合
-  做取舍；不得把已被 Evolution/Memory 新决策覆盖的旧方案重新实现。
-
-- [ ] **day/hour token 死循环熔断安全阀决策** `sev-P3`
-  定位为极高默认阈值的异常循环保护，而不是常规预算管理；决定全局或会话窗口，以及
-  与 `session_token_budget_limit`、`RejectionCircuitBreaker` 的交互后再实施。
-
-- [ ] **Workspace CLI managed-path 与 runtime 任意路径契约** `sev-P3`
-  路径穿越已修；仍需统一 `config_dir/workspaces/*` 与 runtime 任意路径模型。2026-08-22
-  Codex 对照研究补充：现有 `--workspace` 已能覆盖当前 CLI，但默认仍是
-  `~/.agent-diva/workspace`；需要明确“进程当前目录 vs 私有默认工作区”、canonical root、
-  Shell `working_dir` 越界和外部工作区模板写入契约。研究包：
-  [`workspace-agents-diva-adaptation-2026-08/`](docs/research/workspace-agents-diva-adaptation-2026-08/)。
-
 - [ ] **WORKSPACE-AGENTS-MD-INJECTION：项目 AGENTS.md 注入合同** `sev-P3`
   当前 `ContextBuilder` 已读取 `<workspace>/AGENTS.md`（4000 字符、按 session 缓存，
   缺失时不追加 Agent Rules）；仍需补来源/digest/截断可观测性、与统一 workspace root
@@ -85,6 +70,8 @@
   subagent 禁用断言与可选 messaging clarify。不得并入审批抽屉或 governance ledger。
 
 - [ ] **GUI-STYLE-UNIFICATION-PHASE-2：样式令牌化二期** `sev-P3`
+  其中伙伴装饰层主题方案与 WelcomeWizard 粉色身份色板两处属待决策项，
+  已单列在下方“待决策事项”分区；其余批次为实施工作。
   一期（`docs/logs/2026-08-gui-style-unification/v0.1.0-design-tokens/`）已完成令牌基建、
   useTheme 治理、`.theme-*` 覆盖层退役与头部 3 组件语义色令牌化。剩余：
   ① 其余约 31 个组件/scoped 样式的硬编码 `#hex/rgba()` 迁移到 `var(--token, fallback)`；
@@ -94,6 +81,31 @@
   ⑤ 深色对比色阶语义令牌扩展（如 `--danger-strong` #dc2626、`--warning-strong` #d97706）后替换字面量；
   ⑥ `tk-*` 字号/间距 scale 渐进迁移（本期只建基建未动现有字号）。
   迁移顺序建议：先 SettingsView 子树 → Mask/Persona 子树 → 其余；每批附 vitest + 四主题冒烟。
+
+## 待决策事项（先拍板、后实施）
+
+- [ ] **全仓库代码清理提案审批与排期决策** `sev-P3`
+  对 `docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/` 的清理集合
+  做取舍；不得把已被 Evolution/Memory 新决策覆盖的旧方案重新实现。
+  **待决策**：清理项取舍与排期。
+
+- [ ] **day/hour token 死循环熔断安全阀决策** `sev-P3`
+  定位为极高默认阈值的异常循环保护，而不是常规预算管理。
+  **待决策**：熔断挂在全局还是会话窗口；与 `session_token_budget_limit`、
+  `RejectionCircuitBreaker` 的交互语义。拍板后再实施。
+
+- [ ] **Workspace CLI managed-path 与 runtime 任意路径契约** `sev-P3`
+  路径穿越已修；仍需统一 `config_dir/workspaces/*` 与 runtime 任意路径模型。2026-08-22
+  Codex 对照研究补充：现有 `--workspace` 已能覆盖当前 CLI，但默认仍是
+  `~/.agent-diva/workspace`。**待决策**：“进程当前目录 vs 私有默认工作区”默认语义、
+  canonical root、Shell `working_dir` 越界策略和外部工作区模板写入契约。
+  研究包：[`workspace-agents-diva-adaptation-2026-08/`](docs/research/workspace-agents-diva-adaptation-2026-08/)。
+
+- [ ] **GUI-STYLE-UNIFICATION-PHASE-2（决策点）** `sev-P3`
+  二期整体属实施项（见上方“产品与架构”分区），但有两处先决决策未拍板：
+  ① 伙伴装饰层（DivaMateView / DesktopMateOverlay）rgba 白色系色板的主题方案；
+  ② WelcomeWizard 粉色身份色板（#be185d/#9d174d/#6b2737）的跨主题适配方向。
+  决策落定前不启动对应批次迁移。
 
 ## 频道遗留
 
