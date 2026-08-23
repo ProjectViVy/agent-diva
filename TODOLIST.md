@@ -129,10 +129,6 @@
   覆盖 `enqueue_background_task` 的 assembly/agent loop 接线、supervised worker
   启动/排空/取消/重启、subagent 终态，以及上下文与预算继承。
 
-- [ ] **STEPFUN-REAL-ENDPOINT-E2E：StepFun model pass-through** `sev-P3`
-  单测已覆盖 model 透传；仍需使用桌面 `keys.txt` 做真实 endpoint E2E，密钥和未脱敏
-  响应不得进入仓库、日志、夹具或提交。
-
 ## 人工验收遗留
 
 - [ ] **MASK-FEATURE-ACCEPTANCE** `sev-P2`
@@ -150,6 +146,11 @@
   pin/升级方案，不削弱现有 gate。
 
 ## Done
+
+- [x] **STEPFUN-REAL-ENDPOINT-E2E：StepFun model pass-through** `sev-P3`
+  Closed 2026-08-23（用户确认真机）：桌面 `keys.txt` 真实 endpoint E2E 已过。
+  单测仍覆盖 model 透传；密钥和未脱敏响应未入库。Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.8.0-stepfun-real-endpoint-e2e/`](docs/logs/2026-08-todolist-auto-close/v0.8.0-stepfun-real-endpoint-e2e/summary.md).
 
 - [x] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES** `sev-P2`
   Closed 2026-08-23（用户决策：不可复现、复发再开）。2026-08-11 全量套件下
