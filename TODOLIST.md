@@ -53,13 +53,6 @@
 
 ## 产品与架构（存量延续与已在进行的工作区）
 
-- [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
-  从已完成的 Context 主线分轨，需另行冻结状态、能力矩阵和非法迁移验收。
-  2026-08-22 当前代码复核：`agent-diva-core/src/planning/policy.rs` 已有
-  `PlanModeState`/`ToolCapability` fail-closed 矩阵，`agent-diva-agent` 工具执行 seam
-  已二次拒绝；剩余工作是把当前合同补成独立验收记录，不得按旧报告重建 permission
-  mode。
-
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
   不回迁 deep-governance 大爆炸。设计：`docs/dev/agent-loop-manager-gui-governance/`。
@@ -169,6 +162,12 @@
   pin/升级方案，不削弱现有 gate。
 
 ## Done
+
+- [x] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: froze the existing
+  fail-closed matrix as an independent acceptance record; added a
+  `ToolStepPolicy` seam test. Did not rebuild permission mode. Logs:
+  [`docs/logs/2026-08-plan-mode-physical-state-machine/v0.1.0-contract-freeze/`](docs/logs/2026-08-plan-mode-physical-state-machine/v0.1.0-contract-freeze/summary.md).
 
 - [x] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
   Closed 2026-08-23 on `chore/todolist-auto-close`: plan execution uses

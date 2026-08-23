@@ -615,6 +615,44 @@ mod tests {
     }
 
     #[test]
+    fn plan_phase_capability_matrix_is_fail_closed_at_executor_seam() {
+        let for_phase = |phase: PlanPhase| ToolStepPolicy {
+            phase: Some(phase),
+            cancelled: false,
+            plan_guard_active: false,
+            persisted_plan_present: true,
+            reviewer_read_only: false,
+        };
+
+        let exploring = for_phase(PlanPhase::Explore);
+        assert!(exploring.denial_reason("read_file").is_none());
+        assert!(exploring.denial_reason("plan_create").is_none());
+        assert!(exploring.denial_reason("exec").is_some());
+        assert!(exploring.denial_reason("write_file").is_some());
+
+        let awaiting = for_phase(PlanPhase::AwaitingApproval);
+        assert!(awaiting.denial_reason("read_file").is_none());
+        assert!(awaiting.denial_reason("plan_create").is_some());
+        assert!(awaiting.denial_reason("exec").is_some());
+
+        let executing = for_phase(PlanPhase::Execute);
+        assert!(executing.denial_reason("exec").is_none());
+        assert!(executing.denial_reason("write_file").is_none());
+        assert!(executing.denial_reason("web_search").is_none());
+
+        let verifying = for_phase(PlanPhase::Verify);
+        assert!(verifying.denial_reason("read_file").is_none());
+        assert!(verifying.denial_reason("exec").is_none());
+        assert!(verifying.denial_reason("write_file").is_some());
+
+        for closed in [PlanPhase::Completed, PlanPhase::Failed, PlanPhase::Partial] {
+            let policy = for_phase(closed.clone());
+            assert!(policy.denial_reason("read_file").is_some(), "{closed}");
+            assert!(policy.denial_reason("exec").is_some(), "{closed}");
+        }
+    }
+
+    #[test]
     fn policy_denies_mutation_before_executor_entry() {
         let policy = ToolStepPolicy {
             phase: Some(PlanPhase::Plan),
