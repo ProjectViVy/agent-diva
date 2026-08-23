@@ -145,15 +145,18 @@
 
 ## Reliability / Test Debt
 
-- [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES** `sev-P2`
-  GUI embedded gateway 启动和 tooling registry timeout 测试曾在 full suite 偶发失败、
-  focused 重跑通过；隔离共享资源和时序依赖。
-
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
   pin/升级方案，不削弱现有 gate。
 
 ## Done
+
+- [x] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES** `sev-P2`
+  Closed 2026-08-23（用户决策：不可复现、复发再开）。2026-08-11 全量套件下
+  `embedded_gateway_serves_health_endpoint` 与 `agent-diva-tooling --lib`
+  各偶发一次，focused 重跑与随后 `just ci` 通过；未做共享资源/时序隔离。
+  复发须重开条目并补专项隔离。Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.7.0-workspace-gui-tooling-load-flakes/`](docs/logs/2026-08-todolist-auto-close/v0.7.0-workspace-gui-tooling-load-flakes/summary.md).
 
 - [x] **CLI-WIREMOCK-502-PREEXISTING** `sev-P2`
   Closed 2026-08-23 on `chore/todolist-auto-close`: loopback `ApiClient`
