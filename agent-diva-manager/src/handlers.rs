@@ -13,6 +13,7 @@ mod provider_companion;
 pub mod skills;
 pub mod todo;
 pub mod token_stats;
+pub mod workspace;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
 pub use logs::{logs_routes, query_logs_handler};
@@ -29,6 +30,7 @@ pub use approvals::approval_routes;
 pub use ask_user::ask_user_routes;
 pub use command_approvals::command_approval_routes;
 pub use health::health_handler;
+pub use workspace::{get_workspace_handler, WorkspaceStatusResponse};
 pub use skills::{
     accept_skill_request_handler, create_skill_request_handler, delete_skill_handler,
     disable_skill_handler, featured_marketplace_skills_handler, get_skill_handler,

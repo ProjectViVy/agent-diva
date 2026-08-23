@@ -24,7 +24,7 @@ use crate::handlers::{
     get_provider_handler, get_provider_models_handler, get_providers_handler,
     get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
     get_skill_handler, get_skill_history_revision_handler, get_skill_request_handler,
-    get_skills_handler, get_tools_handler, health_handler, heartbeat_handler,
+    get_skills_handler, get_tools_handler, get_workspace_handler, health_handler, heartbeat_handler,
     initialize_persona_handler, install_marketplace_skill_handler, list_actmem_capsules_handler,
     list_autodream_run_events_handler, list_autodream_runs_handler, list_cron_jobs_handler,
     list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
@@ -226,6 +226,7 @@ fn runtime_routes() -> Router<AppState> {
             "/api/config",
             get(get_config_handler).post(update_config_handler),
         )
+        .route("/api/workspace", get(get_workspace_handler))
         .route(
             "/api/config/self-evolution",
             get(get_self_evolution_config_handler).post(update_self_evolution_config_handler),
@@ -502,7 +503,12 @@ mod tests {
                 .uri("/api/skills/zip-skill")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    r#"{"markdown":"---\nname: zip-skill\ndescription: changed\n---\nbody\n","base_hash":"wrong"}"#,
+                    r#"{"markdown":"---
+name: zip-skill
+description: changed
+---
+body
+","base_hash":"wrong"}"#,
                 ))
                 .unwrap(),
         )
