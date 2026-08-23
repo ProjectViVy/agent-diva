@@ -99,3 +99,14 @@ EPIC 冻结产品边界（Memory/Persona/BML/Evolution/MEMRULES/Approval 决策�
 - [~] **UX-DR-3/4/7** `sev-P3`（关闭，复发再重开）：Sprint 评审遗留 UX 缺口；
   条目自设前提「恢复前先重新确认原问题仍存在」。2026-08-23 真机冒烟全过、
   功能基本正常，未见复现；按用户决策关闭，若后续复现须重新开条目并补专项设计。
+- [~] **AGENT-DIVA-FILES-CLIPPY** `sev-P3`（失效）：目标文件
+  `agent-diva-files/src/s3.rs` 在当前树不存在，git 全分支历史亦无该文件记录，
+  `empty_line_after_doc_comments` lint 对象从未存在；条目失效直接移除，
+  若未来新增 S3 后端另开新条目。
+
+同日对 Reliability / Test Debt 区其余 10 项逐项核验，均仍有效、保留：
+`put_governed`/`rollback_governed`（typed_store.rs）与 `ProposalCreated` 枚举
+（core/memory）仍在；laputa clippy 迭代（`docs/logs/2026-08-rust-1.98-clippy/`）
+仅修 `unnecessary_sort_by`，未覆盖 all-targets dead code/cmp_owned；MSRV 独立
+`CARGO_TARGET_DIR` 未固化进 justfile；sandbox Windows Restricted Token 无跳过逻辑
+且最新验证记录确认仍失败；三处 flake 与 wiremock 502 无修复记录。

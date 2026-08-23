@@ -160,10 +160,6 @@
 - [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
   两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
 
-- [ ] **AGENT-DIVA-FILES-CLIPPY** `sev-P3`
-  修复 `agent-diva-files/src/s3.rs` 在 Rust 1.94 下的
-  `empty_line_after_doc_comments`，使用独立机械提交。
-
 - [ ] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
   `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
   `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
