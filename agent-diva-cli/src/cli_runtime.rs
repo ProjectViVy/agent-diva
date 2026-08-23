@@ -522,6 +522,11 @@ pub fn provider_statuses(config: &Config) -> Vec<ProviderStatus> {
         .collect()
 }
 
+/// Per-channel ready/missing_fields for doctor and GUI config-status.
+///
+/// `neuro-link` is omitted on purpose: it is a reserved future heavyweight
+/// channel, not a missing telegram-style status row. Do not add a
+/// ready/missing_fields block here until that design starts.
 pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
     vec![
         ChannelStatus {
@@ -684,6 +689,7 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
             .collect(),
             notes: vec![],
         },
+        // neuro-link intentionally omitted: reserved future heavyweight channel.
     ]
 }
 

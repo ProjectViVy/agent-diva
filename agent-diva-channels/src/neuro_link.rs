@@ -1,9 +1,13 @@
-//! Neuro-Link channel ?a WebSocket **server** for third-party integrations.
+//! Neuro-Link: local WebSocket **server** for third-party pipe integrations.
+//!
+//! Reserved as a future heavyweight channel design, not a peer of
+//! telegram/qq-style adapters. Keep the localhost bind restriction
+//! (`validate_neurolink_host`); do not flatten this into
+//! `channel_statuses` ready/missing_fields until that design starts.
 //!
 //! Protocol:
-//!   Client ?Diva:  {"pipe":"msg",   "id":"?, "sender":"?, "chat":"?, "content":"?, "meta":{}}
-//!   Diva ?Client:  {"pipe":"delta", "id":"?, "reply_to":"?, "chat":"?, "content":"?}
-//!   Diva ?Client:  {"pipe":"reply", "id":"?, "reply_to":"?, "chat":"?, "content":"?}
+//!   Client → Diva:  `{"pipe":"msg", "id":"…", "sender":"…", "chat":"…", "content":"…", "meta":{}}`
+//!   Diva → Client:  `{"pipe":"delta"|"reply", "id":"…", "reply_to":"…", "chat":"…", "content":"…"}`
 
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};

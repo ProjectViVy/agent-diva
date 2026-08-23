@@ -121,10 +121,14 @@
   （两处既有 TODO）；需后端真实连接测试 API 与通道删除 API。2026-08-17 频道页
   修复时确认仍缺；真机冒烟已过，本条另行迭代。
 
-- [ ] **CHANNELS-STATUS-COVERAGE：config-status 缺 neuro-link 状态** `sev-P3`
-  `agent-diva-cli/src/cli_runtime.rs` `channel_statuses` 中 neuro-link 无
-  ready/missing_fields 汇总，卡片回退 needsConfig 显示。irc/mattermost/
-  nextcloud_talk 已于 2026-08-18 从 GUI 下架，实际仅剩 neuro-link 有感知。
+- [ ] **NEURO-LINK-HEAVYWEIGHT-CHANNEL：neuro-link 重量级频道预留（待开工）** `sev-P3`
+  用户确认：neuro-link 是特意保留的未来重量级 channel 设计（本地 WebSocket
+  pipe / 第三方接入），不是漏加的 config-status 项。当前 `channel_statuses`
+  省略它是有意的；不要按 telegram/qq 同款补一块 ready/missing_fields 交差。
+  irc/mattermost/nextcloud_talk 已于 2026-08-18 从 GUI 下架。开工时按重量级
+  频道合同设计 status/GUI/运行时，并保留 schema、handler、`channel_statuses`
+  上的预留注释。关联 `NeuroLinkConfig`、`agent-diva-channels/src/neuro_link.rs`、
+  `cli_runtime.rs`。原 `CHANNELS-STATUS-COVERAGE` 并入本条。
 
 ## 自动化与生产路径证明
 

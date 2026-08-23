@@ -623,6 +623,9 @@ pub struct ChannelsConfig {
     pub qq: QQConfig,
     #[serde(default)]
     pub matrix: MatrixConfig,
+    /// Reserved future heavyweight channel (`neuro-link` / `generic_pipe`).
+    /// Not a peer of telegram/qq-style adapters; do not treat missing
+    /// `channel_statuses` coverage as an accidental gap.
     #[serde(
         default,
         rename = "neuro-link",
@@ -968,7 +971,11 @@ pub struct QQConfig {
     pub allow_from: Vec<String>,
 }
 
-/// Neuro-link (WebSocket server) channel configuration
+/// Neuro-link (local WebSocket pipe) channel configuration.
+///
+/// Intentionally reserved as a future heavyweight channel design, not a
+/// conventional messaging adapter. Keep the config surface; do not flatten
+/// it into telegram/qq-style doctor/GUI status until that design starts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuroLinkConfig {
     #[serde(default)]
