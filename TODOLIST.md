@@ -164,12 +164,6 @@
   CLI approval wiremock 用例在 Windows 环境偶发/持续返回 502；排查系统代理绕过与 mock
   服务器隔离，关闭标准是 `just test` 全绿。
 
-- [ ] **SANDBOX-WINDOWS-RESTRICTED-TOKEN-ENV** `sev-P2`
-  当前 Windows 环境运行 `just test` 时，`agent-diva-sandbox` 的
-  `platform::windows::tests::test_executor_creation` 与
-  `test_restricted_token_execution` 因 Restricted Token 不可用而失败；需确认所需
-  权限/CI runner 配置，或在不可用环境下安全跳过并保留能力覆盖。
-
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
   pin/升级方案，不削弱现有 gate。
@@ -182,6 +176,12 @@
   两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
 
 ## Done
+
+- [x] **SANDBOX-WINDOWS-RESTRICTED-TOKEN-ENV** `sev-P2`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: Restricted Token tests skip
+  when `is_available()` is false, and still assert when the token can be
+  created. Production executor unchanged. Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.2.0-sandbox-restricted-token-skip/`](docs/logs/2026-08-todolist-auto-close/v0.2.0-sandbox-restricted-token-skip/summary.md).
 
 - [x] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
   Closed 2026-08-23 on `chore/todolist-auto-close`: moved shared integration

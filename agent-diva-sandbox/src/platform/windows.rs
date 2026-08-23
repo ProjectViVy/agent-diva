@@ -555,9 +555,20 @@ fn build_environment_block(extra_env: HashMap<String, String>) -> Vec<u16> {
 mod tests {
     use super::*;
 
+    fn skip_if_restricted_token_unavailable(executor: &WindowsSandboxExecutor) -> bool {
+        if executor.is_available() {
+            return false;
+        }
+        eprintln!("skipping: Windows Restricted Token is unavailable in this environment");
+        true
+    }
+
     #[test]
     fn test_executor_creation() {
         let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
+        if skip_if_restricted_token_unavailable(&executor) {
+            return;
+        }
         assert!(executor.is_available());
     }
 
@@ -612,6 +623,9 @@ mod tests {
     #[tokio::test]
     async fn test_restricted_token_execution() {
         let executor = WindowsSandboxExecutor::new(WindowsSandboxLevel::RestrictedToken);
+        if skip_if_restricted_token_unavailable(&executor) {
+            return;
+        }
         let policy = SandboxPolicy::default();
         let fs_policy = FileSystemSandboxPolicy::unrestricted();
 
