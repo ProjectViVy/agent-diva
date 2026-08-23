@@ -168,10 +168,13 @@
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
   pin/升级方案，不削弱现有 gate。
 
-- [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
-  两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
-
 ## Done
+
+- [x] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: plan execution uses
+  `send_message`'s `saw_terminal` fallback; no leftover plan-only EventSource
+  loop. Background/approval reconnect loops left unchanged. Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.4.0-plan-sse-disconnect/`](docs/logs/2026-08-todolist-auto-close/v0.4.0-plan-sse-disconnect/summary.md).
 
 - [x] **MSRV-ISOLATED-TARGET-CACHE** `sev-P2`
   Closed 2026-08-23 on `chore/todolist-auto-close`: `just msrv-probe` sets

@@ -1528,6 +1528,10 @@ pub async fn send_message(
 
 /// Continues a previously approved plan without requiring the frontend to
 /// synthesize a visible user chat message.
+///
+/// Uses the same SSE loop as [`send_message`], including the `saw_terminal`
+/// disconnect fallback (emit `agent-error` when the stream ends without a
+/// final/error event). There is no separate plan-only EventSource loop.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn continue_approved_plan_execution(
