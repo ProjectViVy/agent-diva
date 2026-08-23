@@ -145,23 +145,27 @@
 
 ## Reliability / Test Debt
 
-- [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`
-  Windows 全工作区负载下 stale lock 回收偶发 `LockTimeout`，定向重跑与后续 CI 通过；
-  需隔离临时目录锁回收时序。关联 `agent-diva-laputa/src/lock.rs`。
-
 - [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES** `sev-P2`
   GUI embedded gateway 启动和 tooling registry timeout 测试曾在 full suite 偶发失败、
   focused 重跑通过；隔离共享资源和时序依赖。
-
-- [ ] **CLI-WIREMOCK-502-PREEXISTING** `sev-P2`
-  CLI approval wiremock 用例在 Windows 环境偶发/持续返回 502；排查系统代理绕过与 mock
-  服务器隔离，关闭标准是 `just test` 全绿。
 
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
   pin/升级方案，不削弱现有 gate。
 
 ## Done
+
+- [x] **CLI-WIREMOCK-502-PREEXISTING** `sev-P2`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: loopback `ApiClient`
+  uses `no_proxy()` so Windows HTTP_PROXY cannot 502 wiremock. Focused
+  approval tests pass; does not claim full `just test`. Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.6.0-cli-wiremock-no-proxy/`](docs/logs/2026-08-todolist-auto-close/v0.6.0-cli-wiremock-no-proxy/summary.md).
+
+- [x] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: stale recovery is
+  mtime-only; leftover `pid=` lock files can be reclaimed. Default
+  `stale_after` remains 5 minutes. Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.5.0-stale-lock-recovery/`](docs/logs/2026-08-todolist-auto-close/v0.5.0-stale-lock-recovery/summary.md).
 
 - [x] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
   Closed 2026-08-23 on `chore/todolist-auto-close`: froze the existing

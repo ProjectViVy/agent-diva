@@ -36,11 +36,20 @@ struct ToolDeltaEvent {
     delta: String,
 }
 
+fn is_loopback_url(url: &str) -> bool {
+    url.contains("://127.0.0.1") || url.contains("://localhost") || url.contains("://[::1]")
+}
+
 impl ApiClient {
     pub fn new(base_url: Option<String>) -> Self {
+        let base_url = base_url.unwrap_or_else(|| "http://localhost:3000/api".to_string());
+        let mut builder = Client::builder();
+        if is_loopback_url(&base_url) {
+            builder = builder.no_proxy();
+        }
         Self {
-            client: Client::new(),
-            base_url: base_url.unwrap_or_else(|| "http://localhost:3000/api".to_string()),
+            client: builder.build().unwrap_or_else(|_| Client::new()),
+            base_url,
         }
     }
 
