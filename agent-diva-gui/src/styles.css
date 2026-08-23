@@ -66,6 +66,12 @@
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.1);
 
+  /* 深色对比色阶（强调文本/实心按钮用，浅色主题取原字面量零回归） */
+  --danger-strong: #dc2626;
+  --danger-deep: #b91c1c;
+  --warning-strong: #d97706;
+  --success-strong: #047857;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(255, 255, 255, 0.72);
   --surface-sunken: rgba(236, 72, 153, 0.05);
@@ -146,6 +152,12 @@
   --warning-bg: rgba(251, 191, 36, 0.12);
   --info: #60a5fa;
   --info-bg: rgba(96, 165, 250, 0.12);
+
+  /* 深色对比色阶（深色主题取同色相高对比值） */
+  --danger-strong: #f87171;
+  --danger-deep: #f87171;
+  --warning-strong: #fbbf24;
+  --success-strong: #34d399;
 
   /* 语义扩展令牌 */
   --surface-raised: rgba(30, 41, 59, 0.85);
@@ -228,6 +240,12 @@
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.1);
 
+  /* 深色对比色阶（强调文本/实心按钮用，浅色主题取原字面量零回归） */
+  --danger-strong: #dc2626;
+  --danger-deep: #b91c1c;
+  --warning-strong: #d97706;
+  --success-strong: #047857;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(255, 255, 255, 0.85);
   --surface-sunken: rgba(236, 72, 153, 0.04);
@@ -308,6 +326,12 @@
   --info: #58a6ff;
   --info-bg: rgba(88, 166, 255, 0.12);
 
+  /* 深色对比色阶（miku 深底取同色相高对比值） */
+  --danger-strong: #ff6b63;
+  --danger-deep: #ff6b63;
+  --warning-strong: #e3b341;
+  --success-strong: #56d364;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(33, 39, 48, 0.9);
   --surface-sunken: rgba(1, 4, 9, 0.5);
@@ -374,6 +398,23 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
+
+  /* 身份色板（WelcomeWizard 品牌粉）：主题无关，四主题同值；
+     未来按主题适配只需改各主题块覆盖值 */
+  --identity-strong: #be185d;
+  --identity-deep: #9d174d;
+  --identity-ink: #6b2737;
+
+  /* 伙伴装饰层玻璃色板：主题无关（叠层浮在任意桌面壁纸上），
+     白色半透明色阶按角色收敛，供 DivaMateView/DesktopMateOverlay 等引用 */
+  --mate-glass-border: rgba(255, 255, 255, 0.16);
+  --mate-glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --mate-glass-inset: rgba(255, 255, 255, 0.06);
+  --mate-glass-bg: rgba(255, 255, 255, 0.1);
+  --mate-glass-bg-hover: rgba(255, 255, 255, 0.18);
+  --mate-text: rgba(255, 255, 255, 0.92);
+  --mate-text-muted: rgba(255, 255, 255, 0.62);
+  --mate-text-faint: rgba(255, 255, 255, 0.4);
 }
 
 @layer base {
