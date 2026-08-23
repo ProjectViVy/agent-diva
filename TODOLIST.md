@@ -19,15 +19,6 @@
   REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/Governance，也不得把 STM
   改成提案。今日生产路径几乎只有 `worker.rs` 两条 `tracing::warn`。
 
-- [ ] **CONTEXT-DENSITY-PRINCIPLE：把「有限窗口决策信息密度」收成设计原则** `sev-P1`
-  笔记：[`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md)。
-  Diva 有装配/预算/安全，常驻层偏肥、缺逐步活动锚、巩固没有为下一轮减负。
-  不推翻已冻 WORLD/ACTMEM 工具车道。D0/C 系后续设计时对照，现在不施工。
-
-- [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
-  若跑：用桌面 `keys.txt`（不入库、不进 git）。R1c 机制说清优先。测量
-  Action-Verified 遵守率、未验证写入率、L1 行数违规与 patch/overwrite 比。
-
 ## 产品与架构
 
 - [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
@@ -93,14 +84,11 @@
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、
   subagent 禁用断言与可选 messaging clarify。不得并入审批抽屉或 governance ledger。
 
-- [ ] **UX-DR-3/4/7** `sev-P3`
-  Sprint 评审遗留 UX 缺口；恢复前先重新确认原问题仍存在并补专项设计。
-
 - [ ] **GUI-STYLE-UNIFICATION-PHASE-2：样式令牌化二期** `sev-P3`
   一期（`docs/logs/2026-08-gui-style-unification/v0.1.0-design-tokens/`）已完成令牌基建、
   useTheme 治理、`.theme-*` 覆盖层退役与头部 3 组件语义色令牌化。剩余：
   ① 其余约 31 个组件/scoped 样式的硬编码 `#hex/rgba()` 迁移到 `var(--token, fallback)`；
-  ② 宠物装饰层（DivaPetView / DesktopPetOverlay）rgba 白色系色板的主题方案；
+  ② 伙伴装饰层（DivaMateView / DesktopMateOverlay）rgba 白色系色板的主题方案；
   ③ 组件内 scoped 的按主题覆盖块（如 ConversationSidebar 尾部 `.theme-*` 段）收敛到全局令牌；
   ④ WelcomeWizard 粉色身份色板（#be185d/#9d174d/#6b2737）的跨主题适配决策；
   ⑤ 深色对比色阶语义令牌扩展（如 `--danger-strong` #dc2626、`--warning-strong` #d97706）后替换字面量；

@@ -85,3 +85,17 @@ EPIC 冻结产品边界（Memory/Persona/BML/Evolution/MEMRULES/Approval 决策�
 - [x] **EMPTY-POST-TOOL-SUMMARY** `sev-P1`：空 follow-up 按输入压力/输出截断/空 stop
   分类，最多一次 summary-only（禁工具、8192 输出预算）
   （`docs/logs/2026-08-empty-tool-summary/v0.0.1-upstream-empty-followup/`）。
+
+## 五、2026-08-23 二次清理（被取代 / 失效项，用户确认直接清理）
+
+- [~] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT** `sev-P2`（被取代）：GenericAgent 活体结晶
+  实验属旧 GA 参考路线；用户已决策进化走 D6、不再跟 GA，EPIC 亦已关闭，实验失去
+  服务对象。原描述：用桌面 `keys.txt` 测 Action-Verified 遵守率、未验证写入率、
+  L1 行数违规与 patch/overwrite 比。
+- [~] **CONTEXT-DENSITY-PRINCIPLE** `sev-P1`（转为研究参考）：条目自述「现在不施工」，
+  非可执行待办；内容已固化于
+  `docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md`，
+  后续 D0/C 系设计时直接对照该笔记即可，不再占用活跃 backlog。
+- [~] **UX-DR-3/4/7** `sev-P3`（关闭，复发再重开）：Sprint 评审遗留 UX 缺口；
+  条目自设前提「恢复前先重新确认原问题仍存在」。2026-08-23 真机冒烟全过、
+  功能基本正常，未见复现；按用户决策关闭，若后续复现须重新开条目并补专项设计。
