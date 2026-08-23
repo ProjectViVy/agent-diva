@@ -16,6 +16,17 @@
   尚未进入实施；与“产品与架构”中已在进行的工作区（workspace-agents、
   gui-style-phase2 等）相互独立，启动时按 LOCK.md 流程另行建锁。
 
+- [ ] **DIVA-WORKBENCH-EXTERNAL-EMBODIMENT-EPIC：工作台、PEN、Mirror 与伴生形态** `sev-P1`
+  2026-08-23 综合调研已收敛，用户认可总体设计，**但尚未授权生产实现**。研究包：
+  [`diva-workbench-pen-mirror-neurolink-2026-08/`](docs/research/diva-workbench-pen-mirror-neurolink-2026-08/)。
+  冻结方向：Workbench 是模块化第一方前端和控制面，不吞并 Persona/Memory/Evolution
+  等领域权威；PEN 是进程外优先的外部能力单元；Mirror 是无默认通用执行权的具身/
+  呈现单元；手机优先作为首个 Companion Node，感知严格区分 Observation、Moment 与
+  经治理的 BML Memory。立项至少拆分 Module Package/Supervisor、PEN Tool Projection、
+  Browser PEN、Mirror 合同与 Mate 样板迁移、手机伴生节点与 Experience/Moment 研究。
+  **待决策**：第三方模块是否 v1 全部进程外；MVP transport；WorkbenchModule kind；
+  Browser/Mate 首个样板；Experience Store 是否成为独立短期权威；专用硬件继续 defer。
+
 - [ ] **A2A-INTEROPERABILITY-EPIC：Agent-to-Agent 协议与多智能体互操作实现** `sev-P1`
   当前已完成 `.workspace` 参考项目调研和多方案初步收敛，**待正式立项，不得据此自动
   开始生产实现**。研究包：[`a2a-interoperability-2026-08/`](docs/research/a2a-interoperability-2026-08/)。
@@ -53,14 +64,17 @@
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、
   subagent 禁用断言与可选 messaging clarify。不得并入审批抽屉或 governance ledger。
 
-- [ ] **NEURO-LINK-HEAVYWEIGHT-CHANNEL：neuro-link 重量级频道预留（待开工）** `sev-P3`
-  用户确认：neuro-link 是特意保留的未来重量级 channel 设计（本地 WebSocket
-  pipe / 第三方接入），不是漏加的 config-status 项。当前 `channel_statuses`
-  省略它是有意的；不要按 telegram/qq 同款补一块 ready/missing_fields 交差。
-  irc/mattermost/nextcloud_talk 已于 2026-08-18 从 GUI 下架。开工时按重量级
-  频道合同设计 status/GUI/运行时，并保留 schema、handler、`channel_statuses`
-  上的预留注释。关联 `NeuroLinkConfig`、`agent-diva-channels/src/neuro_link.rs`、
-  `cli_runtime.rs`。原 `CHANNELS-STATUS-COVERAGE` 并入本条。
+- [ ] **NEURO-LINK-FRONTEND-FABRIC：完整前端超级通道（待开工）** `sev-P1`
+  用户确认：Neuro-Link 是理论上的超级通道，可彻底作为 agent-diva 的新前端；它不是
+  普通 telegram/qq Channel，也不是 PEN 的专用传输。当前本地 WebSocket pipe 仅是
+  概念胚胎，`channel_statuses` 省略它是有意的，不得补一块 ready/missing_fields 交差。
+  正式 Epic 需要 Frontend/Device Identity、Capability Negotiation、Conversation、
+  Presentation、Control、State Sync、Versioned Service Bindings、有界队列、ACK/取消、
+  重连/快照和 TCK；Mate 的 avatar chat ID/`speak` 特例最终迁移为 Presentation Event。
+  研究与安全门禁：
+  [`neurolink-front-end-fabric.md`](docs/research/diva-workbench-pen-mirror-neurolink-2026-08/neurolink-front-end-fabric.md)。
+  关联 `NeuroLinkConfig`、`agent-diva-channels/src/neuro_link.rs`、`cli_runtime.rs`；
+  原 `NEURO-LINK-HEAVYWEIGHT-CHANNEL` / `CHANNELS-STATUS-COVERAGE` 并入本条。
 
 ## 产品与架构（存量延续与已在进行的工作区）
 

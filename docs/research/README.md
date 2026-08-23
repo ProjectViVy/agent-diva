@@ -1,6 +1,6 @@
 # 研究资料入口
 
-> 更新日期：2026-08-22
+> 更新日期：2026-08-23
 >
 > 研究材料全部保留。当前研究包放在本目录；已经完成但未施工、较早或仅作参考的研究
 > 放在 `historical/`。研究结论不能自动升级为已批准架构。
@@ -31,6 +31,7 @@
 13. [Workspace 与 AGENTS.md：Diva 化适配研究包](./workspace-agents-diva-adaptation-2026-08/README.md)
 14. [A2A Agent-to-Agent 互操作研究包](./a2a-interoperability-2026-08/README.md)
 15. [外部频道能力与参考实现对照](./channel-capability-reference-2026-08/README.md)
+16. [DIVA 工作台、PEN、Mirror、Neuro-Link 与伴生节点](./diva-workbench-pen-mirror-neurolink-2026-08/README.md)
 
 ## 当前研究包
 
@@ -56,6 +57,7 @@
 | `workspace-agents-diva-adaptation-2026-08/` | 2026-08-22 Codex 工作区、AGENTS.md 与 GUI 交互复核；WorkspaceContext + 项目规则注入方案，未授权施工 |
 | `a2a-interoperability-2026-08/` | 2026-08-23 A2A、内部多智能体和远程控制参考调研；多方案适配建议，待正式立项 |
 | `channel-capability-reference-2026-08/` | 2026-08-23 ZeroClaw/Octos/OpenFang 与 agent-diva 外部频道能力对照；Octos 主结构、ZeroClaw 能力标杆，待正式立项 |
+| `diva-workbench-pen-mirror-neurolink-2026-08/` | 2026-08-23 Workbench/PEN/Mirror/Neuro-Link/Companion Node 综合研究；总体方向获用户认可，具体合同与实施仍需独立立项 |
 
 ## 历史调研（全文保留）
 
