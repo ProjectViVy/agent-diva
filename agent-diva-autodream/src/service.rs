@@ -55,6 +55,42 @@ pub struct AutoDreamEvent {
     pub kind: String,
     pub message: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposal_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_code: Option<String>,
+}
+
+impl AutoDreamEvent {
+    pub fn new(
+        run_id: Option<String>,
+        kind: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: format!("evt-{}", Uuid::new_v4()),
+            run_id,
+            kind: kind.into(),
+            message: message.into(),
+            created_at: Utc::now(),
+            phase: None,
+            input_summary: None,
+            gate_code: None,
+            proposal_id: None,
+            failure_code: None,
+        }
+    }
+
+    pub fn with_failure_code(mut self, code: impl Into<String>) -> Self {
+        self.failure_code = Some(code.into());
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,13 +246,11 @@ impl AutoDreamService {
         };
         self.write_lock(&lock)?;
         Self::metrics().record_run();
-        self.append_event(AutoDreamEvent {
-            id: format!("evt-{}", Uuid::new_v4()),
-            run_id: Some(run_id),
-            kind: "manual_run_started".to_string(),
-            message: "manual AutoDream run started".to_string(),
-            created_at: now,
-        })?;
+        self.append_event(AutoDreamEvent::new(
+            Some(run_id),
+            "manual_run_started",
+            "manual AutoDream run started",
+        ))?;
         self.status_from_run(run, Some(lock))
     }
 
@@ -282,13 +316,14 @@ impl AutoDreamService {
             fs::remove_file(&path).map_err(|source| AutoDreamError::io(path, source))?;
         }
 
-        self.append_event(AutoDreamEvent {
-            id: format!("evt-{}", Uuid::new_v4()),
-            run_id: Some(run.id.clone()),
-            kind: "manual_run_cancelled".to_string(),
-            message: "manual AutoDream run cancelled".to_string(),
-            created_at: now,
-        })?;
+        self.append_event(
+            AutoDreamEvent::new(
+                Some(run.id.clone()),
+                "manual_run_cancelled",
+                "manual AutoDream run cancelled",
+            )
+            .with_failure_code("cancelled"),
+        )?;
         self.status_from_run(run, None)
     }
 
@@ -332,13 +367,14 @@ impl AutoDreamService {
                     Some("legacy incomplete AutoDream run cannot be recovered safely".to_string());
                 self.write_run(&run)?;
                 Self::metrics().record_failure();
-                self.append_event(AutoDreamEvent {
-                    id: format!("evt-{}", Uuid::new_v4()),
-                    run_id: Some(run.id.clone()),
-                    kind: "legacy_incomplete_run_rejected".to_string(),
-                    message: "legacy incomplete AutoDream run rejected during recovery".to_string(),
-                    created_at: now,
-                })?;
+                self.append_event(
+                    AutoDreamEvent::new(
+                        Some(run.id.clone()),
+                        "legacy_incomplete_run_rejected",
+                        "legacy incomplete AutoDream run rejected during recovery",
+                    )
+                    .with_failure_code("legacy_incomplete"),
+                )?;
                 continue;
             }
             resumable.push((run.id, run.trigger));
@@ -405,28 +441,24 @@ impl AutoDreamService {
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
                     self.remove_active_lock(run_id)?;
-                    self.append_event(AutoDreamEvent {
-                        id: format!("evt-{}", Uuid::new_v4()),
-                        run_id: Some(run.id.clone()),
-                        kind: "rhythm_report_generated".to_string(),
-                        message: format!("generated {}", result.path.display()),
-                        created_at: now,
-                    })?;
+                    self.append_event(AutoDreamEvent::new(
+                        Some(run.id.clone()),
+                        "rhythm_report_generated",
+                        format!("generated {}", result.path.display()),
+                    ))?;
                     return self.status_from_run(run, None);
                 }
                 Err(error) => {
                     last_error = Some(error);
                     if attempt < max_attempts {
-                        self.append_event(AutoDreamEvent {
-                            id: format!("evt-{}", Uuid::new_v4()),
-                            run_id: Some(run.id.clone()),
-                            kind: "rhythm_report_retry".to_string(),
-                            message: format!(
+                        self.append_event(AutoDreamEvent::new(
+                            Some(run.id.clone()),
+                            "rhythm_report_retry",
+                            format!(
                                 "retrying {} after attempt {attempt} of {max_attempts}",
                                 run.trigger
                             ),
-                            created_at: Utc::now(),
-                        })?;
+                        ))?;
                     }
                 }
             }
@@ -445,13 +477,14 @@ impl AutoDreamService {
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
         Self::metrics().record_failure();
-        self.append_event(AutoDreamEvent {
-            id: format!("evt-{}", Uuid::new_v4()),
-            run_id: Some(run.id.clone()),
-            kind: "rhythm_report_failed".to_string(),
-            message: error.to_string(),
-            created_at: now,
-        })?;
+        self.append_event(
+            AutoDreamEvent::new(
+                Some(run.id.clone()),
+                "rhythm_report_failed",
+                error.to_string(),
+            )
+            .with_failure_code("report_generation_failed"),
+        )?;
         Err(error)
     }
 
@@ -529,28 +562,24 @@ impl AutoDreamService {
                     self.write_run(&run)?;
                     self.write_checkpoint_success(&run, now)?;
                     self.remove_active_lock(run_id)?;
-                    self.append_event(AutoDreamEvent {
-                        id: format!("evt-{}", Uuid::new_v4()),
-                        run_id: Some(run.id.clone()),
-                        kind: "rhythm_report_generated".to_string(),
-                        message: format!("generated {}", result.path.display()),
-                        created_at: now,
-                    })?;
+                    self.append_event(AutoDreamEvent::new(
+                        Some(run.id.clone()),
+                        "rhythm_report_generated",
+                        format!("generated {}", result.path.display()),
+                    ))?;
                     return self.status_from_run(run, None);
                 }
                 Err(error) => {
                     last_error = Some(error);
                     if attempt < REPORT_TRIGGER_MAX_ATTEMPTS {
-                        self.append_event(AutoDreamEvent {
-                            id: format!("evt-{}", Uuid::new_v4()),
-                            run_id: Some(run.id.clone()),
-                            kind: "rhythm_report_retry".to_string(),
-                            message: format!(
+                        self.append_event(AutoDreamEvent::new(
+                            Some(run.id.clone()),
+                            "rhythm_report_retry",
+                            format!(
                                 "retrying {} after attempt {attempt} of {}",
                                 run.trigger, REPORT_TRIGGER_MAX_ATTEMPTS
                             ),
-                            created_at: Utc::now(),
-                        })?;
+                        ))?;
                     }
                 }
             }
@@ -569,13 +598,14 @@ impl AutoDreamService {
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
         Self::metrics().record_failure();
-        self.append_event(AutoDreamEvent {
-            id: format!("evt-{}", Uuid::new_v4()),
-            run_id: Some(run.id.clone()),
-            kind: "rhythm_report_failed".to_string(),
-            message: error.to_string(),
-            created_at: now,
-        })?;
+        self.append_event(
+            AutoDreamEvent::new(
+                Some(run.id.clone()),
+                "rhythm_report_failed",
+                error.to_string(),
+            )
+            .with_failure_code("report_generation_failed"),
+        )?;
         Err(error)
     }
 
@@ -662,13 +692,11 @@ impl AutoDreamService {
                     }
                     self.write_run(&run)?;
                     Self::metrics().record_failure();
-                    self.append_event(AutoDreamEvent {
-                        id: format!("evt-{}", Uuid::new_v4()),
-                        run_id: Some(run.id.clone()),
-                        kind: "interrupted_run_requeued".to_string(),
-                        message: "interrupted AutoDream run queued for recovery".to_string(),
-                        created_at: now,
-                    })?;
+                    self.append_event(AutoDreamEvent::new(
+                        Some(run.id.clone()),
+                        "interrupted_run_requeued",
+                        "interrupted AutoDream run queued for recovery",
+                    ))?;
                 }
             }
         }
@@ -838,7 +866,6 @@ mod tests {
         session::SessionManager,
     };
     use agent_diva_laputa::MemoryHome;
-    use chrono::Utc;
 
     use super::*;
 
@@ -873,15 +900,9 @@ mod tests {
         let path = service.storage.paths().events_jsonl();
 
         fs::write(&path, b"not-json\n").unwrap();
-        service
-            .append_event(AutoDreamEvent {
-                id: "event-valid".into(),
-                run_id: Some(run.id.clone()),
-                kind: "test".into(),
-                message: "bounded event".into(),
-                created_at: Utc::now(),
-            })
-            .unwrap();
+        let mut event = AutoDreamEvent::new(Some(run.id.clone()), "test", "bounded event");
+        event.id = "event-valid".into();
+        service.append_event(event).unwrap();
         let events = service.list_run_events(&run.id, 10).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "event-valid");
@@ -941,6 +962,19 @@ mod tests {
             .read_dir()
             .map(|mut entries| entries.next().is_none())
             .unwrap_or(true));
+        let events = service.list_run_events(&run.id, 200).unwrap();
+        assert!(events.iter().any(|event| {
+            event.kind == "input_collected"
+                && event.phase.as_deref() == Some("gather")
+                && event
+                    .input_summary
+                    .as_deref()
+                    .is_some_and(|summary| summary.contains("items="))
+        }));
+        assert!(events
+            .iter()
+            .any(|event| event.kind == "worker_succeeded"
+                && event.phase.as_deref() == Some("completed")));
     }
 
     #[tokio::test]
@@ -997,6 +1031,13 @@ mod tests {
                         proposed_markdown: skill_markdown("new-review"),
                         reason: "bounded evidence".into(),
                     },
+                    crate::SkillReflectionCandidate {
+                        slug: "INVALID SLUG".into(),
+                        title: "Rejected".into(),
+                        description: "invalid".into(),
+                        proposed_markdown: skill_markdown("invalid-slug"),
+                        reason: "gate should reject".into(),
+                    },
                 ],
                 diagnostic_codes: Vec::new(),
             }),
@@ -1025,6 +1066,15 @@ mod tests {
         assert!(generated.evidence[0].autodream_run_id.is_some());
         assert!(skill_home.read("new-review").is_err());
         assert!(!memory_home.database_path().exists());
+        let events = service.list_run_events(&run.id, 200).unwrap();
+        assert!(events.iter().any(|event| {
+            event.kind == "skill_request_created"
+                && event.proposal_id.as_deref() == Some(report.proposal_ids[0].as_str())
+        }));
+        assert!(events.iter().any(|event| {
+            event.kind == "skill_candidate_rejected"
+                && event.gate_code.as_deref() == Some("skill_slug_invalid")
+        }));
     }
 
     #[tokio::test]

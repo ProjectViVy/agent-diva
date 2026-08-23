@@ -10,15 +10,6 @@
 > 真机桌面冒烟全部通过），积压的真机冒烟批次全部通过、修复已上主线。完成明细见
 > [`completed-2026-08-23-real-device-smoke-batch.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-real-device-smoke-batch.md)。
 
-## EPIC 遗留（Clean Break 关闭后的独立尾巴）
-
-- [ ] **AUTODREAM-DIAGNOSTIC-LOGGING：AutoDream 大型排查、测试与完整日志** `sev-P1`
-  S3 已接入 ACTMEM Work 整理、仅 Pulse/Recap 冲突重试、零 MemoryPatch/BML 写入；
-  表征钉在 `agent-diva-autodream/tests/current_contract.rs`。仍缺阶段级结构化日志
-  （run_id / phase / 输入摘要 / gate 拒绝 / proposal_id / 失败码）。禁止借机写
-  REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/Governance，也不得把 STM
-  改成提案。今日生产路径几乎只有 `worker.rs` 两条 `tracing::warn`。
-
 ## EPIC 新启动（研究包已收敛、尚未开工的独立工作区）
 
 > 以下条目各自构成新的 EPIC/工作区，均有独立研究包或既有表面做底座，
@@ -150,7 +141,9 @@
 归档目录：
 [`docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/README.md)
 
-- 最新：[`completed-2026-08-23-todolist-auto-close.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-todolist-auto-close.md)
+- 最新：[`completed-2026-08-23-autodream-diagnostic-logging.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-autodream-diagnostic-logging.md)
+  （S3 worker 阶段级结构化日志，1 条）
+- [`completed-2026-08-23-todolist-auto-close.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-todolist-auto-close.md)
   （机械收尾 + 合同冻结 + 用户确认真机/不可复现关闭，12 条）
 - [`completed-2026-08-23-real-device-smoke-batch.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-real-device-smoke-batch.md)
   （EPIC 收口 + 真机冒烟批次 + 历史完成项指针）

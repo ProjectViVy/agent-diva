@@ -13,12 +13,13 @@ use agent_diva_core::evolution::{
 use agent_diva_laputa::{actmem::ActmemPatch, MemoryHome};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
-    atomic::atomic_write_json, AutoDreamCheckpoint, AutoDreamCollectedInputs, AutoDreamError,
-    AutoDreamEvent, AutoDreamLockRecord, AutoDreamStorage, ReflectionEvidence, Result,
-    SkillReflectionEngine, SkillReflectionIndex, SkillReflectionInput,
+    atomic::atomic_write_json,
+    diagnostics::{failure_code_name, format_input_summary, Diagnostic},
+    AutoDreamCheckpoint, AutoDreamCollectedInputs, AutoDreamError, AutoDreamLockRecord,
+    AutoDreamStorage, ReflectionEvidence, Result, SkillReflectionEngine, SkillReflectionIndex,
+    SkillReflectionInput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -197,9 +198,13 @@ impl AutoDreamWorker {
 
     pub async fn execute(&self, run_id: &str) -> Result<AutoDreamWorkerReport> {
         if self.memory_home.is_none() {
-            return Err(AutoDreamError::InvalidState(
-                "AutoDream requires the machine-wide MemoryHome authority".to_string(),
-            ));
+            let message = "AutoDream requires the machine-wide MemoryHome authority";
+            let _ = self.append_diagnostic(
+                Diagnostic::new(run_id, "memory_home_missing", message)
+                    .phase(AutoDreamReflectionStage::Orient.as_str())
+                    .failure_code(failure_code_name(AutoDreamFailureCode::WorkerFailed)),
+            );
+            return Err(AutoDreamError::InvalidState(message.to_string()));
         }
         self.execute_actmem_work(run_id).await
     }
@@ -219,21 +224,40 @@ impl AutoDreamWorker {
             .collect::<Vec<_>>();
         self.start_attempt(run_id)?;
         let mut diagnostics = Vec::new();
+        self.append_diagnostic(
+            Diagnostic::new(run_id, "phase_started", "orient stage started")
+                .phase(AutoDreamReflectionStage::Orient.as_str()),
+        )?;
 
         stages[0].status = AutoDreamWorkerStageStatus::Running;
         stages[0].started_at = Some(Utc::now());
-        self.config
+        if let Err(error) = self
+            .config
             .profile
-            .validate_request(AutoDreamRestrictedAction::ReadSessions)?;
-        self.config
-            .profile
-            .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)?;
+            .validate_request(AutoDreamRestrictedAction::ReadSessions)
+            .and_then(|_| {
+                self.config
+                    .profile
+                    .validate_request(AutoDreamRestrictedAction::WriteAutoDreamOutput)
+            })
+        {
+            self.append_diagnostic(
+                Diagnostic::new(run_id, "restricted_profile_denied", error.to_string())
+                    .phase(AutoDreamReflectionStage::Orient.as_str())
+                    .gate_code("restricted_profile"),
+            )?;
+            return Err(error);
+        }
         stages[0].status = AutoDreamWorkerStageStatus::Succeeded;
         stages[0].completed_at = Some(Utc::now());
 
         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Gathering)?;
         stages[1].status = AutoDreamWorkerStageStatus::Running;
         stages[1].started_at = Some(Utc::now());
+        self.append_diagnostic(
+            Diagnostic::new(run_id, "phase_started", "gather stage started")
+                .phase(AutoDreamReflectionStage::Gather.as_str()),
+        )?;
         let collected = crate::AutoDreamInputCollector::new(self.storage.clone()).collect(run_id);
         let collected = match collected {
             Ok(collected) => collected,
@@ -242,7 +266,14 @@ impl AutoDreamWorker {
                 stages[1].status = AutoDreamWorkerStageStatus::Failed;
                 stages[1].completed_at = Some(Utc::now());
                 stages[1].diagnostic = Some(message.clone());
-                diagnostics.push(message);
+                diagnostics.push(message.clone());
+                let failure_code =
+                    worker_failure_code(&AutoDreamWorkerOutcome::Failure, &diagnostics);
+                self.append_diagnostic(
+                    Diagnostic::new(run_id, "input_collection_failed", message)
+                        .phase(AutoDreamReflectionStage::Gather.as_str())
+                        .failure_code(failure_code_name(failure_code)),
+                )?;
                 return self.finish_failure(
                     run_id,
                     AutoDreamWorkerOutcome::Failure,
@@ -258,18 +289,40 @@ impl AutoDreamWorker {
             collected.summary.total_items
         ));
         self.write_run(&run)?;
+        self.append_diagnostic(
+            Diagnostic::new(
+                run_id,
+                "input_collected",
+                format!(
+                    "collected {} inputs for ACTMEM Work organization",
+                    collected.summary.total_items
+                ),
+            )
+            .phase(AutoDreamReflectionStage::Gather.as_str())
+            .input_summary(format_input_summary(&collected.summary)),
+        )?;
         stages[1].status = AutoDreamWorkerStageStatus::Succeeded;
         stages[1].completed_at = Some(Utc::now());
 
         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Reflecting)?;
         stages[2].status = AutoDreamWorkerStageStatus::Running;
         stages[2].started_at = Some(Utc::now());
+        self.append_diagnostic(
+            Diagnostic::new(run_id, "phase_started", "consolidate stage started")
+                .phase(AutoDreamReflectionStage::Consolidate.as_str()),
+        )?;
         if let Err(error) = self.organize_actmem_work(run_id, &collected).await {
             let message = error.to_string();
             stages[2].status = AutoDreamWorkerStageStatus::Failed;
             stages[2].completed_at = Some(Utc::now());
             stages[2].diagnostic = Some(message.clone());
-            diagnostics.push(message);
+            diagnostics.push(message.clone());
+            let failure_code = worker_failure_code(&AutoDreamWorkerOutcome::Failure, &diagnostics);
+            self.append_diagnostic(
+                Diagnostic::new(run_id, "actmem_work_failed", message)
+                    .phase(AutoDreamReflectionStage::Consolidate.as_str())
+                    .failure_code(failure_code_name(failure_code)),
+            )?;
             return self.finish_failure(
                 run_id,
                 AutoDreamWorkerOutcome::Failure,
@@ -283,13 +336,20 @@ impl AutoDreamWorker {
         self.transition_phase(run_id, AutoDreamOrchestrationPhase::Publishing)?;
         stages[3].status = AutoDreamWorkerStageStatus::Running;
         stages[3].started_at = Some(Utc::now());
+        self.append_diagnostic(
+            Diagnostic::new(run_id, "phase_started", "propose stage started")
+                .phase(AutoDreamReflectionStage::Propose.as_str()),
+        )?;
         let proposal_ids = match self.reflect_skill_requests(run_id, &collected).await {
             Ok(ids) => ids,
             Err(error) => {
                 let diagnostic = format!("skill_reflection_degraded: {error}");
                 diagnostics.push(diagnostic.clone());
                 stages[3].diagnostic = Some(diagnostic.clone());
-                self.append_event(run_id, "skill_reflection_degraded", &diagnostic)?;
+                self.append_diagnostic(
+                    Diagnostic::new(run_id, "skill_reflection_degraded", diagnostic)
+                        .phase(AutoDreamReflectionStage::Propose.as_str()),
+                )?;
                 Vec::new()
             }
         };
@@ -298,13 +358,16 @@ impl AutoDreamWorker {
         self.write_run(&run)?;
         stages[3].status = AutoDreamWorkerStageStatus::Succeeded;
         stages[3].completed_at = Some(Utc::now());
-        self.append_event(
-            run_id,
-            "actmem_work_organized",
-            &format!(
-                "ACTMEM Work organized; {} Skill review request(s) emitted and zero memory proposals",
-                proposal_ids.len()
-            ),
+        self.append_diagnostic(
+            Diagnostic::new(
+                run_id,
+                "actmem_work_organized",
+                format!(
+                    "ACTMEM Work organized; {} Skill review request(s) emitted and zero memory proposals",
+                    proposal_ids.len()
+                ),
+            )
+            .phase(AutoDreamReflectionStage::Propose.as_str()),
         )?;
         self.finish_success(run_id, stages, diagnostics)
     }
@@ -376,7 +439,10 @@ impl AutoDreamWorker {
             ));
         }
         for code in output.diagnostic_codes {
-            self.append_event(run_id, "skill_reflection_diagnostic", &code)?;
+            self.append_diagnostic(
+                Diagnostic::new(run_id, "skill_reflection_diagnostic", code)
+                    .phase(AutoDreamReflectionStage::Propose.as_str()),
+            )?;
         }
 
         let mut ids = Vec::new();
@@ -405,16 +471,34 @@ impl AutoDreamWorker {
                 reason: candidate.reason,
             });
             match result {
-                Ok(request) => ids.push(request.id),
-                Err(SkillHomeError::RequestExists(_)) => self.append_event(
-                    run_id,
-                    "skill_request_skipped",
-                    &format!("pending request already exists for {}", candidate.slug),
+                Ok(request) => {
+                    self.append_diagnostic(
+                        Diagnostic::new(
+                            run_id,
+                            "skill_request_created",
+                            format!("emitted Skill review request {}", request.id),
+                        )
+                        .phase(AutoDreamReflectionStage::Propose.as_str())
+                        .proposal_id(request.id.clone()),
+                    )?;
+                    ids.push(request.id);
+                }
+                Err(SkillHomeError::RequestExists(_)) => self.append_diagnostic(
+                    Diagnostic::new(
+                        run_id,
+                        "skill_request_skipped",
+                        format!("pending request already exists for {}", candidate.slug),
+                    )
+                    .phase(AutoDreamReflectionStage::Propose.as_str()),
                 )?,
-                Err(error) => self.append_event(
-                    run_id,
-                    "skill_candidate_rejected",
-                    &format!("{}: {}", error.code(), candidate.slug),
+                Err(error) => self.append_diagnostic(
+                    Diagnostic::new(
+                        run_id,
+                        "skill_candidate_rejected",
+                        format!("{}: {}", error.code(), candidate.slug),
+                    )
+                    .phase(AutoDreamReflectionStage::Propose.as_str())
+                    .gate_code(error.code()),
                 )?,
             }
         }
@@ -457,10 +541,13 @@ impl AutoDreamWorker {
                         .map_err(|error| AutoDreamError::InvalidState(error.to_string()))?;
                     ensure_pulse_recap_only_conflict(&snapshot, &current)?;
                     snapshot = current;
-                    self.append_event(
-                        run_id,
-                        "actmem_work_retry",
-                        "retrying once after Pulse/Recap-only ACTMEM conflict",
+                    self.append_diagnostic(
+                        Diagnostic::new(
+                            run_id,
+                            "actmem_work_retry",
+                            "retrying once after Pulse/Recap-only ACTMEM conflict",
+                        )
+                        .phase(AutoDreamReflectionStage::Consolidate.as_str()),
                     )?;
                 }
                 Err(error) => {
@@ -529,7 +616,10 @@ impl AutoDreamWorker {
         self.write_run(&run)?;
         self.write_checkpoint_success(&run, now)?;
         self.remove_active_lock(run_id)?;
-        self.append_event(run_id, "worker_succeeded", "AutoDream worker completed")?;
+        self.append_diagnostic(
+            Diagnostic::new(run_id, "worker_succeeded", "AutoDream worker completed")
+                .phase("completed"),
+        )?;
         Ok(AutoDreamWorkerReport {
             run_id: run_id.to_string(),
             outcome: AutoDreamWorkerOutcome::Success,
@@ -566,12 +656,26 @@ impl AutoDreamWorker {
             orchestration.updated_at = now;
         }
         let proposal_ids = run.proposal_ids.clone();
+        let failure_code = run
+            .failure_code
+            .clone()
+            .map(failure_code_name)
+            .unwrap_or("worker_failed");
+        let terminal_phase = if outcome == AutoDreamWorkerOutcome::Cancelled {
+            "cancelled"
+        } else {
+            "failed"
+        };
         self.write_run(&run)?;
         self.remove_active_lock(run_id)?;
-        self.append_event(
-            run_id,
-            worker_event_kind(&outcome),
-            &render_failure_summary(&outcome),
+        self.append_diagnostic(
+            Diagnostic::new(
+                run_id,
+                worker_event_kind(&outcome),
+                render_failure_summary(&outcome),
+            )
+            .phase(terminal_phase)
+            .failure_code(failure_code),
         )?;
         Ok(AutoDreamWorkerReport {
             run_id: run_id.to_string(),
@@ -620,20 +724,14 @@ impl AutoDreamWorker {
         Ok(())
     }
 
-    fn append_event(&self, run_id: &str, kind: &str, message: &str) -> Result<()> {
+    fn append_diagnostic(&self, diagnostic: Diagnostic) -> Result<()> {
         let path = self.storage.paths().events_jsonl();
         let mut file = OpenOptions::new()
             .append(true)
             .create(true)
             .open(&path)
             .map_err(|source| AutoDreamError::io(&path, source))?;
-        let event = AutoDreamEvent {
-            id: format!("evt-{}", Uuid::new_v4()),
-            run_id: Some(run_id.to_string()),
-            kind: kind.to_string(),
-            message: message.to_string(),
-            created_at: Utc::now(),
-        };
+        let event = diagnostic.into_event();
         let line = serde_json::to_string(&event)?;
         writeln!(file, "{line}").map_err(|source| AutoDreamError::io(&path, source))?;
         file.sync_all()

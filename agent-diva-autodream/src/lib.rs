@@ -2,6 +2,7 @@
 
 mod atomic;
 mod curation;
+mod diagnostics;
 mod error;
 mod inputs;
 mod layout;
