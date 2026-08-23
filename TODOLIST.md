@@ -181,11 +181,14 @@
 - [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
   两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
 
-- [ ] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
-  `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
-  `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
-
 ## Done
+
+- [x] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
+  Closed 2026-08-23 on `chore/todolist-auto-close`: moved shared integration
+  scanners to `tests/common/` so `--all-targets` clippy no longer flags
+  per-binary dead code. Production lib and `just check` were already clean.
+  Logs:
+  [`docs/logs/2026-08-todolist-auto-close/v0.1.0-laputa-all-targets-clippy/`](docs/logs/2026-08-todolist-auto-close/v0.1.0-laputa-all-targets-clippy/summary.md).
 
 - [x] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
   Closed 2026-08-23（用户确认）：skill 获取链路实测可用，

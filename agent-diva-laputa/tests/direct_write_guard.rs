@@ -1,6 +1,9 @@
-mod authority_boundary_guard;
+mod common;
+
+#[path = "common/assert.rs"]
+mod authority_assert;
 
 #[test]
 fn governance_direct_write_guard_only_allows_laputa_owned_authority_paths() {
-    authority_boundary_guard::assert_authority_boundaries();
+    authority_assert::assert_authority_boundaries();
 }

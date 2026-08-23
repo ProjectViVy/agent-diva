@@ -1,6 +1,9 @@
-mod authority_boundary_guard;
+mod common;
+
+#[path = "common/assert.rs"]
+mod authority_assert;
 
 #[test]
 fn authority_boundaries_enforce_hard_runtime_write_and_read_edges() {
-    authority_boundary_guard::assert_authority_boundaries();
+    authority_assert::assert_authority_boundaries();
 }

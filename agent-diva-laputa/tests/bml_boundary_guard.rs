@@ -1,8 +1,8 @@
-mod authority_boundary_guard;
+mod common;
 
 use std::path::Path;
 
-use authority_boundary_guard::{scan_forbidden_access, ForbiddenPattern};
+use common::{scan_forbidden_access, ForbiddenPattern};
 
 const BML_WRITE_METHODS: &[&str] = &[
     ".put(",
