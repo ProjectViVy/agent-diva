@@ -6,6 +6,7 @@ use authority_boundary_guard::{scan_forbidden_access, ForbiddenPattern};
 
 const BML_WRITE_METHODS: &[&str] = &[
     ".put(",
+    // Deleted store seam; keep scanning so it cannot be reintroduced.
     ".put_governed(",
     ".import_records(",
     ".rollback_governed(",

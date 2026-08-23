@@ -13,9 +13,10 @@
 //! `just bml-boundary-check`).
 //!
 //! Notes:
-//! - The retired governed store seam (`put_governed` / `rollback_governed`)
-//!   is storage-core internal and has no callers; its mechanical removal is
-//!   tracked as a focused storage cleanup.
+//! - `put_governed` / `rollback_governed` are deleted store APIs. The
+//!   `memory_apply_journal` table remains (D4 §3.2: keep schema, drop the
+//!   code path). `tests/bml_boundary_guard` still forbids those names so
+//!   the seam cannot be reintroduced.
 //! - The `memory_records` adapters remain the offline-migration import
 //!   vocabulary for legacy section/Markdown files.
 

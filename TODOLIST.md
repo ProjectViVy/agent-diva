@@ -181,16 +181,20 @@
   `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
   `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
 
-- [ ] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
-  S5 移除治理协调器后，`TypedMemoryStore::put_governed` / `rollback_governed` 成为无
-  调用方的存储内部接缝。按 D4 §3.2 必须保留 BML 表结构，清理时只删代码路径并同步
-  更新 `bml/mod.rs` 边界说明，不动 schema。关联 `agent-diva-laputa/src/bml/`。
-  S6 扫描门已落地，可安排独立清理。
-
 - [ ] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
   `MemoryCrudOutcome::ProposalCreated` 与 `SyncTurnStatus::ProposalCreated` 仍是公开枚举，
   巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
   不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
+
+## Done
+
+- [x] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
+  Closed 2026-08-23 on `chore/bml-governed-seam-dead-code`: deleted
+  `TypedMemoryStore::put_governed` / `rollback_governed` and the
+  `put_inner` governed branch; kept `memory_apply_journal` DDL and
+  `SCHEMA_VERSION = 1`. `bml_boundary_guard` still scans the retired
+  names. Logs:
+  [`docs/logs/2026-08-bml-governed-seam-dead-code/v0.1.0-remove-governed-store-apis/`](docs/logs/2026-08-bml-governed-seam-dead-code/v0.1.0-remove-governed-store-apis/summary.md).
 
 ## Archive Index
 

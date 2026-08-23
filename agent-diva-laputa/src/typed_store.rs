@@ -10,10 +10,7 @@ use std::{
     time::Duration as StdDuration,
 };
 
-use agent_diva_core::{
-    governance::{ApprovalReceipt, ApprovalRecord, GovernanceValidationError},
-    memory::{MemoryRecord, MemoryRecordValidationError, MemoryScope},
-};
+use agent_diva_core::memory::{MemoryRecord, MemoryRecordValidationError, MemoryScope};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -71,10 +68,6 @@ pub enum TypedMemoryStoreError {
     },
     #[error("stored Memory row is corrupt")]
     CorruptRecord,
-    #[error("governed apply receipt is invalid: {0}")]
-    InvalidReceipt(#[from] GovernanceValidationError),
-    #[error("governed apply idempotency key conflicts with an existing operation")]
-    ApplyIdempotencyConflict,
     #[error("imported Memory record {record_id} conflicts with existing content")]
     ImportConflict { record_id: String },
     #[error("workspace identity migration only accepts the recognized legacy path identity")]
@@ -138,16 +131,6 @@ pub enum WorkspaceIdentityMigrationState {
     Prepared,
     Applied,
     RolledBack,
-}
-
-/// Receipt-bound metadata for one non-production typed apply.
-#[derive(Debug, Clone)]
-pub struct GovernedMemoryApply<'a> {
-    pub proposal_id: &'a str,
-    pub idempotency_key: &'a str,
-    pub request: &'a ApprovalRecord,
-    pub receipt: &'a ApprovalReceipt,
-    pub applied_at: chrono::DateTime<Utc>,
 }
 
 /// Replaceable async store scoped to exactly one workspace.
@@ -532,6 +515,8 @@ impl TypedMemoryStore {
         )
         .execute(&mut *tx)
         .await?;
+        // D4 §3.2: keep the apply-journal table even though the governed
+        // write seam is gone. Do not DROP or bump SCHEMA_VERSION.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS memory_apply_journal (
                idempotency_key TEXT PRIMARY KEY,
@@ -903,7 +888,6 @@ impl TypedMemoryStore {
             expected_store_revision,
             expected_record_revision,
             None,
-            None,
         )
         .await
     }
@@ -921,81 +905,9 @@ impl TypedMemoryStore {
             record,
             expected_store_revision,
             None,
-            None,
             Some((target_record_id, expected_target_revision)),
         )
         .await
-    }
-
-    /// Apply one canonical record and payload-free journal row atomically.
-    ///
-    /// This seam remains unregistered until the GMH-24 write cutover.
-    pub async fn put_governed(
-        &self,
-        record: MemoryRecord,
-        expected_store_revision: i64,
-        expected_record_revision: Option<i64>,
-        governed: GovernedMemoryApply<'_>,
-    ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
-        governed.request.validate_approve_once(governed.receipt)?;
-        self.put_inner(
-            record,
-            expected_store_revision,
-            expected_record_revision,
-            Some(governed),
-            None,
-        )
-        .await
-    }
-
-    /// Remove the record produced by a governed proposal during rollback.
-    pub async fn rollback_governed(
-        &self,
-        proposal_id: &str,
-        expected_store_revision: i64,
-    ) -> Result<bool, TypedMemoryStoreError> {
-        let _write_guard = self.write_lock.lock().await;
-        let mut tx = self.pool.begin().await?;
-        let actual_store: i64 =
-            sqlx::query_scalar("SELECT store_revision FROM schema_meta WHERE component = ?")
-                .bind(COMPONENT)
-                .fetch_one(&mut *tx)
-                .await?;
-        if actual_store != expected_store_revision {
-            return Err(TypedMemoryStoreError::StoreRevisionConflict {
-                expected: expected_store_revision,
-                actual: actual_store,
-            });
-        }
-        let record_id: Option<String> =
-            sqlx::query_scalar("SELECT record_id FROM memory_apply_journal WHERE proposal_id = ?")
-                .bind(proposal_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let Some(record_id) = record_id else {
-            tx.rollback().await?;
-            return Ok(false);
-        };
-        sqlx::query("DELETE FROM memory_fts WHERE memory_id = ?")
-            .bind(&record_id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("DELETE FROM memory_records WHERE memory_id = ?")
-            .bind(&record_id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("DELETE FROM memory_apply_journal WHERE proposal_id = ?")
-            .bind(proposal_id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query(
-            "UPDATE schema_meta SET store_revision = store_revision + 1 WHERE component = ?",
-        )
-        .bind(COMPONENT)
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        Ok(true)
     }
 
     async fn put_inner(
@@ -1003,7 +915,6 @@ impl TypedMemoryStore {
         record: MemoryRecord,
         expected_store_revision: i64,
         expected_record_revision: Option<i64>,
-        governed: Option<GovernedMemoryApply<'_>>,
         target_revision_guard: Option<(&str, i64)>,
     ) -> Result<StoredMemoryRecord, TypedMemoryStoreError> {
         let _write_guard = self.write_lock.lock().await;
@@ -1016,33 +927,6 @@ impl TypedMemoryStore {
         })?;
 
         let mut tx = self.pool.begin().await?;
-        if let Some(governed) = governed.as_ref() {
-            let existing = sqlx::query(
-                "SELECT proposal_id, request_id, content_digest, record_id
-                 FROM memory_apply_journal WHERE idempotency_key = ?",
-            )
-            .bind(governed.idempotency_key)
-            .fetch_optional(&mut *tx)
-            .await?;
-            if let Some(existing) = existing {
-                if existing.get::<String, _>("proposal_id") != governed.proposal_id
-                    || existing.get::<String, _>("request_id")
-                        != governed.request.correlation.request_id
-                    || existing.get::<String, _>("content_digest")
-                        != governed.request.content_digest.value
-                    || existing.get::<String, _>("record_id") != record.id
-                {
-                    return Err(TypedMemoryStoreError::ApplyIdempotencyConflict);
-                }
-                let row = sqlx::query(
-                    "SELECT record_revision, record_json FROM memory_records WHERE memory_id = ?",
-                )
-                .bind(&record.id)
-                .fetch_one(&mut *tx)
-                .await?;
-                return decode_stored(&row);
-            }
-        }
         let actual_store: i64 =
             sqlx::query_scalar("SELECT store_revision FROM schema_meta WHERE component = ?")
                 .bind(COMPONENT)
@@ -1223,25 +1107,6 @@ impl TypedMemoryStore {
         .bind(COMPONENT)
         .execute(&mut *tx)
         .await?;
-        if let Some(governed) = governed {
-            sqlx::query(
-                "INSERT INTO memory_apply_journal(
-                   idempotency_key, proposal_id, request_id, content_digest,
-                   record_id, store_revision, record_revision, actor_id, applied_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            )
-            .bind(governed.idempotency_key)
-            .bind(governed.proposal_id)
-            .bind(&governed.request.correlation.request_id)
-            .bind(&governed.request.content_digest.value)
-            .bind(&record.id)
-            .bind(expected_store_revision + 1)
-            .bind(next_record_revision)
-            .bind(&governed.receipt.decided_by.id)
-            .bind(governed.applied_at.to_rfc3339())
-            .execute(&mut *tx)
-            .await?;
-        }
         tx.commit().await?;
         Ok(StoredMemoryRecord {
             record,
