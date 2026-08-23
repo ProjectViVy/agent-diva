@@ -129,31 +129,31 @@ function approve() {
 </template>
 
 <style scoped>
-.plan-approval-card { margin: 0 0 16px; max-width: 680px; border: 1px solid color-mix(in srgb, #2563eb 34%, var(--line, #d9dce3)); border-radius: 12px; padding: 16px; background: color-mix(in srgb, var(--panel-solid, #fff) 94%, #eff6ff); box-shadow: 0 12px 30px rgba(30, 64, 175, .1); }
+.plan-approval-card { margin: 0 0 var(--space-4, 16px); max-width: 680px; border: 1px solid color-mix(in srgb, #2563eb 34%, var(--line, #d9dce3)); border-radius: 12px; padding: var(--space-4, 16px); background: color-mix(in srgb, var(--panel-solid, #fff) 94%, #eff6ff); box-shadow: 0 12px 30px rgba(30, 64, 175, .1); }
 .plan-approval-header, .plan-approval-title-wrap, .plan-approval-actions { display: flex; align-items: flex-start; gap: 10px; }
 .plan-approval-header { justify-content: space-between; }
-.plan-approval-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: #1d4ed8; background: #dbeafe; }
+.plan-approval-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: #1d4ed8; background: var(--line, #dbeafe); }
 .plan-approval-eyebrow { color: #1d4ed8; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .plan-approval-title { margin: 2px 0 0; color: var(--text, #1f2937); font-size: 15px; }
-.plan-approval-badge { border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 9px; color: #1d4ed8; background: #dbeafe; font-size: 11px; }
-.plan-approval-goal { margin: 12px 0 0; color: var(--text-muted, #667085); font-size: 13px; line-height: 1.55; }
-.plan-approval-warnings { margin-top: 12px; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px 12px; color: #92400e; background: #fffbeb; font-size: 12px; line-height: 1.45; }
-.plan-approval-warnings strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.plan-approval-badge { border: 1px solid #bfdbfe; border-radius: 999px; padding: var(--space-1, 4px) 9px; color: #1d4ed8; background: var(--line, #dbeafe); font-size: 11px; }
+.plan-approval-goal { margin: var(--space-3, 12px) 0 0; color: var(--text-muted, #667085); font-size: var(--font-size-sm, 13px); line-height: 1.55; }
+.plan-approval-warnings { margin-top: 12px; border: 1px solid #fcd34d; border-radius: 10px; padding: 10px var(--space-3, 12px); color: #92400e; background: #fffbeb; font-size: var(--font-size-xs, 12px); line-height: 1.45; }
+.plan-approval-warnings strong { display: block; margin-bottom: 6px; font-size: var(--font-size-xs, 12px); }
 .plan-approval-warnings ul { margin: 0; padding-left: 1.1rem; }
 .plan-approval-warnings li { margin: 2px 0; }
-.plan-approval-details-toggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 13px; border: 0; color: #1d4ed8; background: transparent; font-size: 12px; cursor: pointer; }
-.plan-approval-details, .plan-context-choice { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; color: var(--text-muted, #667085); background: rgba(255, 255, 255, .62); font-size: 12px; }
-.plan-context-choice legend { padding: 0 4px; color: var(--text, #1f2937); font-weight: 700; }
-.plan-context-option { display: flex; gap: 8px; cursor: pointer; }
+.plan-approval-details-toggle { display: inline-flex; align-items: center; gap: var(--space-1, 4px); margin-top: 13px; border: 0; color: #1d4ed8; background: transparent; font-size: var(--font-size-xs, 12px); cursor: pointer; }
+.plan-approval-details, .plan-context-choice { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; padding: var(--space-3, 12px); border: 1px solid #bfdbfe; border-radius: 10px; color: var(--text-muted, #667085); background: var(--panel-solid, rgba(255, 255, 255, .62)); font-size: var(--font-size-xs, 12px); }
+.plan-context-choice legend { padding: 0 var(--space-1, 4px); color: var(--text, #1f2937); font-weight: 700; }
+.plan-context-option { display: flex; gap: var(--space-2, 8px); cursor: pointer; }
 .plan-context-option span { display: flex; flex-direction: column; gap: 2px; }
 .plan-context-option small { color: var(--text-muted, #667085); }
 .plan-approval-actions { flex-wrap: wrap; margin-top: 16px; }
-.plan-approval-actions button, .plan-approval-feedback button { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.plan-approval-actions button, .plan-approval-feedback button { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; padding: var(--space-2, 8px) var(--space-3, 12px); font-size: var(--font-size-sm, 13px); font-weight: 600; cursor: pointer; }
 .plan-approval-actions button:disabled, .plan-approval-feedback button:disabled { cursor: not-allowed; opacity: .6; }
-.plan-approval-approve { border: 1px solid #2563eb; color: white; background: #2563eb; }
-.plan-approval-revoke, .plan-approval-refresh { border: 1px solid #d6dce8; color: var(--text, #1f2937); background: white; }
-.plan-approval-feedback { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; color: var(--text-muted, #667085); font-size: 12px; }
-.plan-approval-feedback textarea { min-height: 68px; resize: vertical; border: 1px solid #d6dce8; border-radius: 8px; padding: 8px; font: inherit; }
+.plan-approval-approve { border: 1px solid #2563eb; color: var(--panel-solid, white); background: #2563eb; }
+.plan-approval-revoke, .plan-approval-refresh { border: 1px solid #d6dce8; color: var(--text, #1f2937); background: var(--panel-solid, white); }
+.plan-approval-feedback { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; color: var(--text-muted, #667085); font-size: var(--font-size-xs, 12px); }
+.plan-approval-feedback textarea { min-height: 68px; resize: vertical; border: 1px solid #d6dce8; border-radius: 8px; padding: var(--space-2, 8px); font: inherit; }
 .plan-approval-spinner { animation: plan-spin .9s linear infinite; }
 @keyframes plan-spin { to { transform: rotate(360deg); } }
 </style>

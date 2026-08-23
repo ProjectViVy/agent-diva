@@ -184,7 +184,7 @@ const toggleExpanded = () => {
   background: var(--panel-solid, #fff0f6);
   border: 1px solid var(--line, rgba(255, 182, 193, 0.5));
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
   box-shadow: 0 4px 16px rgba(236, 72, 153, 0.12);
   transition: box-shadow 0.15s ease;
 }
@@ -203,13 +203,13 @@ const toggleExpanded = () => {
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  padding: 4px 0;
+  padding: var(--space-1, 4px) 0;
 }
 
 .decision-card__collapsed-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 .decision-card__check-icon {
@@ -226,14 +226,14 @@ const toggleExpanded = () => {
 .decision-card__expand-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted, #7a2f3e);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px var(--space-1, 4px);
   border-radius: 4px;
   transition: color 0.15s ease, background 0.15s ease;
 }
@@ -279,10 +279,10 @@ const toggleExpanded = () => {
 .decision-card__steps {
   list-style: none;
   padding: 0;
-  margin: 0 0 12px 0;
+  margin: 0 0 var(--space-3, 12px) 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 .decision-card__step {
@@ -349,14 +349,14 @@ const toggleExpanded = () => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin-top: 4px;
 }
 
 .decision-card__btn {
   font-size: 0.8125rem;
   font-weight: 500;
-  padding: 6px 16px;
+  padding: 6px var(--space-4, 16px);
   border-radius: 8px;
   cursor: pointer;
   border: none;

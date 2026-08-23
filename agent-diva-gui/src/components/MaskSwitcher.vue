@@ -126,7 +126,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 }
 
 .mask-switcher-emoji {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   line-height: 1;
 }
 
@@ -158,7 +158,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 }
 
 .mask-switcher-title {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -167,7 +167,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 
 /* ── Mask list ── */
 .mask-switcher-list {
-  padding: 4px;
+  padding: var(--space-1, 4px);
   max-height: 280px;
   overflow-y: auto;
 }
@@ -177,7 +177,7 @@ const maskModeLabel = (mask: MaskEntry) =>
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
@@ -195,7 +195,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 }
 
 .mask-item-icon {
-  font-size: 20px;
+  font-size: var(--font-size-2xl, 20px);
   line-height: 1;
   flex-shrink: 0;
 }
@@ -216,7 +216,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 }
 
 .mask-item-name {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
@@ -248,7 +248,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 }
 
 .mask-item-check {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--accent);
   font-weight: 700;
   flex-shrink: 0;
@@ -256,7 +256,7 @@ const maskModeLabel = (mask: MaskEntry) =>
 
 /* ── Footer ── */
 .mask-switcher-footer {
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border-top: 1px solid var(--line);
 }
 
@@ -265,12 +265,12 @@ const maskModeLabel = (mask: MaskEntry) =>
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   cursor: pointer;
   transition: all 0.15s ease;
 }

@@ -31,7 +31,7 @@ defineProps<{
   align-items: center;
   gap: 0.45rem;
   margin-bottom: 0.85rem;
-  color: #1d4ed8;
+  color: var(--accent, #1d4ed8);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.69rem;
   font-weight: 750;
@@ -45,7 +45,7 @@ defineProps<{
   min-height: 1.55rem;
   padding: 0 0.52rem;
   border-radius: 999px;
-  background: #dbeafe;
+  background: var(--accent-bg-light, #dbeafe);
 }
 .proposed-plan-block__label span:last-child {
   color: #60a5fa;

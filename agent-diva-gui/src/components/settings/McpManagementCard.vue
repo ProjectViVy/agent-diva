@@ -973,7 +973,7 @@ onMounted(refreshList);
 /* 状态卡片 */
 .stat-card {
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 14px var(--space-4, 16px);
   border: 1px solid var(--line);
   background: var(--panel-solid);
   transition: all 0.15s ease;
@@ -1006,7 +1006,7 @@ onMounted(refreshList);
 }
 
 .stat-card-online .stat-value {
-  color: #047857;
+  color: var(--success-strong, #047857);
 }
 
 .stat-card-degraded {
@@ -1015,7 +1015,7 @@ onMounted(refreshList);
 }
 
 .stat-card-degraded .stat-label {
-  color: #d97706;
+  color: var(--warning-strong, #d97706);
 }
 
 .stat-card-degraded .stat-value {
@@ -1062,7 +1062,7 @@ onMounted(refreshList);
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   margin-bottom: 14px;
 }
 
@@ -1078,7 +1078,7 @@ onMounted(refreshList);
 }
 
 .title-desc {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -1086,7 +1086,7 @@ onMounted(refreshList);
 .header-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 /* 操作按钮 */
@@ -1094,9 +1094,9 @@ onMounted(refreshList);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1143,8 +1143,8 @@ onMounted(refreshList);
   min-width: 200px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -1159,7 +1159,7 @@ onMounted(refreshList);
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text);
   outline: none;
 }
@@ -1186,11 +1186,11 @@ onMounted(refreshList);
 }
 
 .filter-select {
-  padding: 8px 12px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text);
   cursor: pointer;
   min-width: 100px;
@@ -1203,7 +1203,7 @@ onMounted(refreshList);
 
 /* 提示框 */
 .hint-box {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-radius: 8px;
   border: 1px dashed var(--line);
   background: rgba(249, 250, 251, 0.5);
@@ -1214,7 +1214,7 @@ onMounted(refreshList);
 
 .preview-warning {
   margin-top: 6px;
-  color: #d97706;
+  color: var(--warning-strong, #d97706);
 }
 
 /* 加载和空状态 */
@@ -1224,10 +1224,10 @@ onMounted(refreshList);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
-  gap: 8px;
+  padding: var(--space-6, 32px);
+  gap: var(--space-2, 8px);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
 }
 
 .empty-icon {
@@ -1237,11 +1237,11 @@ onMounted(refreshList);
 
 .clear-btn {
   margin-top: 8px;
-  padding: 6px 12px;
+  padding: 6px var(--space-3, 12px);
   border-radius: 6px;
   border: 1px solid var(--line);
   background: transparent;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text);
   cursor: pointer;
 }
@@ -1254,7 +1254,7 @@ onMounted(refreshList);
 .server-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 /* 服务器卡片（简化DOM结构） */
@@ -1284,7 +1284,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: var(--space-3, 12px) 14px;
   cursor: pointer;
   user-select: none;
   transition: background 0.15s ease;
@@ -1297,7 +1297,7 @@ onMounted(refreshList);
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   flex: 1;
   min-width: 0;
 }
@@ -1330,7 +1330,7 @@ onMounted(refreshList);
 }
 
 .server-name {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 600;
   color: var(--text);
   truncate: true;
@@ -1353,7 +1353,7 @@ onMounted(refreshList);
 
 /* 展开的详情区域 */
 .card-details {
-  padding: 12px 14px;
+  padding: var(--space-3, 12px) 14px;
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.5);
 }
@@ -1372,7 +1372,7 @@ onMounted(refreshList);
 .connection-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 .command-code {
@@ -1413,7 +1413,7 @@ onMounted(refreshList);
 .metadata-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   font-size: 11px;
   color: var(--text-muted);
   margin-bottom: 8px;
@@ -1428,7 +1428,7 @@ onMounted(refreshList);
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: 6px;
   background: var(--danger-bg, rgba(239, 68, 68, 0.08));
   margin-bottom: 10px;
@@ -1442,7 +1442,7 @@ onMounted(refreshList);
 
 .error-text {
   font-size: 11px;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   word-break: break-word;
 }
 
@@ -1456,7 +1456,7 @@ onMounted(refreshList);
 .action-btn-sm {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid var(--line);
@@ -1477,24 +1477,24 @@ onMounted(refreshList);
 }
 
 .action-btn-danger {
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   border-color: rgba(239, 68, 68, 0.2);
 }
 
 .action-btn-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
 }
 
 /* 消息提示 */
 .success-msg {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: #059669;
   margin-top: 8px;
 }
 
 .error-msg {
-  font-size: 12px;
-  color: #dc2626;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--danger-strong, #dc2626);
   word-break: break-word;
   margin-top: 8px;
 }
@@ -1507,7 +1507,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay, rgba(0, 0, 0, 0.4));
   backdrop-filter: blur(4px);
 }
 
@@ -1528,18 +1528,18 @@ onMounted(refreshList);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: var(--space-4, 16px) 20px;
   border-bottom: 1px solid var(--line);
 }
 
 .modal-title h4 {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   font-weight: 600;
   color: var(--text);
 }
 
 .modal-title p {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -1548,7 +1548,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: var(--space-2, 8px);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: transparent;
@@ -1590,18 +1590,18 @@ onMounted(refreshList);
 }
 
 .field-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 500;
   color: var(--text-muted);
 }
 
 .field-input,
 .field-select {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--text);
 }
 
@@ -1618,7 +1618,7 @@ onMounted(refreshList);
 }
 
 .add-btn {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--brand);
   background: transparent;
   border: none;
@@ -1647,11 +1647,11 @@ onMounted(refreshList);
 .env-key-input,
 .env-value-input {
   flex: 1;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--panel);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text);
 }
 
@@ -1671,11 +1671,11 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   cursor: pointer;
 }
 
@@ -1692,15 +1692,15 @@ onMounted(refreshList);
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: var(--space-3, 12px);
 }
 
 .form-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   padding-top: 24px;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--text);
   cursor: pointer;
 }
@@ -1714,8 +1714,8 @@ onMounted(refreshList);
 .url-input-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-2, 8px);
+  padding: 10px var(--space-3, 12px);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -1730,7 +1730,7 @@ onMounted(refreshList);
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--text);
 }
 
@@ -1752,7 +1752,7 @@ onMounted(refreshList);
 }
 
 .json-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -1800,14 +1800,14 @@ onMounted(refreshList);
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 20px;
+  padding: var(--space-4, 16px) 20px;
   border-top: 1px solid var(--line);
 }
 
 .footer-btn {
-  padding: 10px 16px;
+  padding: 10px var(--space-4, 16px);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;

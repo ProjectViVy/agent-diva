@@ -206,12 +206,12 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-center-card.risk-high,
 .approval-center-card.risk-critical,
 .approval-center-card.risk-prohibited {
-  border-left-color: #dc2626;
+  border-left-color: var(--danger-strong, #dc2626);
 }
 
 .approval-center-card.risk-medium,
 .approval-center-card.risk-moderate {
-  border-left-color: #d97706;
+  border-left-color: var(--warning-strong, #d97706);
 }
 
 .approval-center-card.risk-low {
@@ -220,14 +220,14 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 
 .approval-center-card.compact {
   box-shadow: none;
-  padding: 12px;
+  padding: var(--space-3, 12px);
 }
 
 .approval-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3, 12px);
 }
 
 .approval-card-heading {
@@ -236,7 +236,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 }
 
 .approval-card-heading h3 {
-  margin: 4px 0 0;
+  margin: var(--space-1, 4px) 0 0;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.35;
@@ -247,7 +247,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   color: var(--text-muted, #667085);
   font-size: 11px;
   letter-spacing: 0.05em;
@@ -265,7 +265,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   flex-shrink: 0;
   border: 1px solid currentColor;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
   font-size: 11px;
   font-weight: 700;
   line-height: 1.2;
@@ -276,7 +276,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   margin: 10px 0 0;
   overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.5;
   color: var(--text, #20242d);
 }
@@ -284,8 +284,8 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 12px 0 0;
+  gap: var(--space-2, 8px);
+  margin: var(--space-3, 12px) 0 0;
 }
 
 .approval-meta-item {
@@ -295,7 +295,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-meta-item dt {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   color: var(--text-muted, #667085);
   font-size: 10px;
   font-weight: 600;
@@ -305,7 +305,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   margin: 3px 0 0;
   overflow: hidden;
   color: var(--text, #20242d);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -314,20 +314,20 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   display: inline-flex;
   margin-top: 10px;
   border: 0;
-  padding: 4px 0;
+  padding: var(--space-1, 4px) 0;
   color: #2563eb;
   background: transparent;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   cursor: pointer;
 }
 
 .approval-detail {
   margin-top: 10px;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .approval-detail-line {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2, 8px);
   color: var(--text-muted, #667085);
 }
 
@@ -335,12 +335,12 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   display: flex;
   max-height: 180px;
   overflow: auto;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin: 0;
   border-radius: 8px;
   padding: 10px;
-  background: #111827;
-  color: #e5e7eb;
+  background: var(--text, #111827);
+  color: var(--line, #e5e7eb);
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -353,20 +353,20 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 }
 
 .approval-reason {
-  margin: 8px 0 0;
+  margin: var(--space-2, 8px) 0 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .approval-warning,
 .approval-error {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin: 10px 0 0;
   border-radius: 8px;
   padding: 9px 10px;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.45;
 }
 
@@ -384,7 +384,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin-top: 12px;
 }
 
@@ -397,10 +397,10 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   gap: 6px;
   border: 1px solid var(--line, #d9dce3);
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
   color: var(--text, #20242d);
   background: var(--panel-solid, #fff);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   cursor: pointer;
 }
 
@@ -410,14 +410,14 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 }
 
 .approval-actions .allow {
-  border-color: #047857;
-  background: #047857;
+  border-color: var(--success-strong, #047857);
+  background: var(--success-strong, #047857);
   color: #fff;
 }
 
 .approval-actions .deny {
-  border-color: #b91c1c;
-  color: #b91c1c;
+  border-color: var(--danger-deep, #b91c1c);
+  color: var(--danger-deep, #b91c1c);
   background: transparent;
 }
 
@@ -434,7 +434,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   min-height: 36px;
   border: 1px solid var(--line, #d9dce3);
   border-radius: 8px;
-  padding: 0 8px;
+  padding: 0 var(--space-2, 8px);
   background: var(--panel-solid, #fff);
   color: var(--text, #20242d);
 }

@@ -171,7 +171,6 @@ defineExpose({ closeContextMenu });
 <template>
   <aside
     class="conv-sidebar"
-    :class="`theme-${themeMode}`"
     @click="handleOutsideClick"
   >
     <!-- Header: Search + Actions -->
@@ -386,8 +385,8 @@ defineExpose({ closeContextMenu });
 /* Conversation Sidebar Container */
 .conv-sidebar {
   width: 280px;
-  border-left: 1px solid var(--line, #e5e7eb);
-  background: var(--panel, #ffffff);
+  border-left: 1px solid var(--conv-sidebar-border, #e5e7eb);
+  background: var(--conv-sidebar-bg, #ffffff);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -396,11 +395,11 @@ defineExpose({ closeContextMenu });
 
 /* Header */
 .conv-header {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-bottom: 1px solid var(--line, #e5e7eb);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 /* Search */
@@ -419,12 +418,12 @@ defineExpose({ closeContextMenu });
 
 .conv-search-input {
   width: 100%;
-  padding: 8px 32px 8px 32px;
+  padding: var(--space-2, 8px) var(--space-6, 32px) var(--space-2, 8px) var(--space-6, 32px);
   border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-  color: var(--text, #111827);
-  font-size: 13px;
+  border: 1px solid var(--conv-search-border, #e5e7eb);
+  background: var(--conv-search-bg, #ffffff);
+  color: var(--conv-search-text, #111827);
+  font-size: var(--font-size-sm, 13px);
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -440,7 +439,7 @@ defineExpose({ closeContextMenu });
 .conv-search-clear {
   position: absolute;
   right: 8px;
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border: none;
   background: transparent;
   color: var(--text-muted, #9ca3af);
@@ -462,7 +461,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-action-btn {
-  padding: 6px 8px;
+  padding: 6px var(--space-2, 8px);
   border-radius: var(--radius-sm, 8px);
   border: none;
   background: transparent;
@@ -489,14 +488,14 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-  margin: 8px 12px;
+  gap: var(--space-2, 8px);
+  padding: 10px var(--space-3, 12px);
+  margin: var(--space-2, 8px) var(--space-3, 12px);
   border-radius: var(--radius-sm, 8px);
-  border: 1px dashed var(--line, #e5e7eb);
+  border: 1px dashed var(--conv-new-border, #e5e7eb);
   background: transparent;
-  color: var(--text-muted, #9ca3af);
-  font-size: 13px;
+  color: var(--conv-new-text, #9ca3af);
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -505,7 +504,7 @@ defineExpose({ closeContextMenu });
 .conv-new-session:hover {
   border-color: var(--brand, #ec4899);
   color: var(--brand, #ec4899);
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  background: var(--conv-item-hover-bg, rgba(0, 0, 0, 0.04));
 }
 
 /* Session List */
@@ -513,7 +512,7 @@ defineExpose({ closeContextMenu });
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 8px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
 }
 
 /* Section */
@@ -525,7 +524,7 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px 4px;
+  padding: var(--space-2, 8px) 10px var(--space-1, 4px);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -538,7 +537,7 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   transition: background 0.12s ease;
@@ -546,11 +545,11 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-item:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  background: var(--conv-item-hover-bg, rgba(0, 0, 0, 0.04));
 }
 
 .conv-item-active {
-  background: var(--nav-active, rgba(0, 0, 0, 0.06)) !important;
+  background: var(--conv-item-active-bg, rgba(0, 0, 0, 0.06)) !important;
 }
 
 /* Item Icon */
@@ -558,13 +557,13 @@ defineExpose({ closeContextMenu });
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
+  border: 1px solid var(--conv-icon-border, #e5e7eb);
+  background: var(--conv-icon-bg, #ffffff);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
 }
 
 /* Item Body */
@@ -577,7 +576,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-item-title {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   color: var(--text, #111827);
   white-space: nowrap;
@@ -614,18 +613,18 @@ defineExpose({ closeContextMenu });
 /* Rename Input */
 .conv-rename-input {
   width: 100%;
-  padding: 4px 6px;
+  padding: var(--space-1, 4px) 6px;
   border-radius: 4px;
   border: 1px solid var(--brand, #ec4899);
   background: var(--panel-solid, #ffffff);
   color: var(--text, #111827);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   outline: none;
 }
 
 /* Delete Button */
 .conv-item-delete {
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border: none;
   background: transparent;
   color: var(--text-muted, #9ca3af);
@@ -666,7 +665,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-empty p {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   margin: 0;
 }
 
@@ -692,8 +691,8 @@ defineExpose({ closeContextMenu });
 .conv-context-menu {
   position: fixed;
   min-width: 160px;
-  background: var(--panel-solid, #ffffff);
-  border: 1px solid var(--line, #e5e7eb);
+  background: var(--conv-menu-bg, #ffffff);
+  border: 1px solid var(--conv-menu-border, #e5e7eb);
   border-radius: var(--radius-sm, 8px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 6px;
@@ -703,13 +702,13 @@ defineExpose({ closeContextMenu });
 .conv-context-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border: none;
   background: transparent;
   color: var(--text, #111827);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.12s ease;
@@ -731,133 +730,6 @@ defineExpose({ closeContextMenu });
 .conv-context-divider {
   height: 1px;
   background: var(--line, #e5e7eb);
-  margin: 4px 0;
-}
-
-/* ========================================
-   Theme Overrides
-   ======================================== */
-
-/* Dark Theme */
-:root[data-theme="dark"] .conv-sidebar,
-.theme-dark .conv-sidebar {
-  border-left-color: var(--line, #1f2937);
-  background: var(--panel-solid, #0f172a);
-}
-
-.theme-dark .conv-search-input {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-  color: var(--text, #e2e8f0);
-}
-
-.theme-dark .conv-item-icon {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-}
-
-.theme-dark .conv-item-delete:hover {
-  background: var(--danger-bg, rgba(239, 68, 68, 0.15));
-}
-
-.theme-dark .conv-context-menu {
-  background: var(--panel-solid, #111827);
-  border-color: var(--line, #1f2937);
-}
-
-/* Love Theme */
-.theme-love .conv-sidebar {
-  border-left-color: rgba(255, 182, 193, 0.5);
-  background: rgba(255, 240, 246, 0.9);
-}
-
-.theme-love .conv-search-input {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-  color: #7a2f3e;
-}
-
-.theme-love .conv-search-input:focus {
-  border-color: var(--brand, #ec4899);
-}
-
-.theme-love .conv-item:hover {
-  background: rgba(236, 72, 153, 0.06);
-}
-
-.theme-love .conv-item-active {
-  background: rgba(236, 72, 153, 0.1);
-}
-
-.theme-love .conv-item-icon {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.theme-love .conv-new-session {
-  border-color: rgba(255, 182, 193, 0.5);
-  color: #9b3a4a;
-}
-
-.theme-love .conv-new-session:hover {
-  border-color: var(--brand, #ec4899);
-  color: var(--brand, #ec4899);
-  background: rgba(236, 72, 153, 0.06);
-}
-
-.theme-love .conv-context-menu {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(255, 182, 193, 0.5);
-}
-
-/* Default Theme */
-.theme-default .conv-sidebar {
-  border-left-color: var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-}
-
-/* Miku Theme */
-.theme-miku .conv-sidebar {
-  border-left-color: rgba(0, 215, 200, 0.15);
-  background: var(--panel-solid, #161b22);
-}
-
-.theme-miku .conv-search-input {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-  color: var(--text, #e6edf3);
-}
-
-.theme-miku .conv-search-input:focus {
-  border-color: var(--brand, #39c5bb);
-}
-
-.theme-miku .conv-item:hover {
-  background: rgba(57, 197, 187, 0.06);
-}
-
-.theme-miku .conv-item-active {
-  background: rgba(57, 197, 187, 0.1);
-}
-
-.theme-miku .conv-item-icon {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-}
-
-.theme-miku .conv-new-session {
-  border-color: rgba(0, 215, 200, 0.2);
-  color: #39c5bb;
-}
-
-.theme-miku .conv-new-session:hover {
-  border-color: var(--brand, #39c5bb);
-  color: var(--brand, #39c5bb);
-  background: rgba(57, 197, 187, 0.06);
-}
-
-.theme-miku .conv-context-menu {
-  background: var(--panel-solid, #161b22);
-  border-color: rgba(0, 215, 200, 0.15);
+  margin: var(--space-1, 4px) 0;
 }
 </style>

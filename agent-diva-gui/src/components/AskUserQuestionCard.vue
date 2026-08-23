@@ -103,9 +103,9 @@ function cancel() {
 .ask-user-question-card {
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: var(--space-3, 12px) 14px;
   background: var(--bg-card, #ffffff);
-  margin: 8px 0;
+  margin: var(--space-2, 8px) 0;
 }
 .ask-user-card-header {
   display: flex;
@@ -127,27 +127,27 @@ function cancel() {
   padding: 2px;
 }
 .ask-user-card-question {
-  margin: 6px 0 4px;
-  font-size: 14px;
+  margin: 6px 0 var(--space-1, 4px);
+  font-size: var(--font-size-base, 14px);
   line-height: 1.4;
 }
 .ask-user-card-context {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 var(--space-2, 8px);
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-dim, #64748b);
 }
 .ask-user-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin-top: 8px;
 }
 .ask-user-choice {
   border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 999px;
   background: var(--bg-button, #f1f5f9);
-  padding: 4px 12px;
-  font-size: 13px;
+  padding: var(--space-1, 4px) var(--space-3, 12px);
+  font-size: var(--font-size-sm, 13px);
   cursor: pointer;
 }
 .ask-user-choice:disabled {
@@ -159,20 +159,20 @@ function cancel() {
 }
 .ask-user-other {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   width: 100%;
 }
 .ask-user-other-input {
   flex: 1;
   border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  font-size: var(--font-size-sm, 13px);
 }
 .ask-user-card-error {
   width: 100%;
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #dc2626;
+  margin: var(--space-1, 4px) 0 0;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--danger-strong, #dc2626);
 }
 </style>

@@ -495,7 +495,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: var(--space-3, 12px) 20px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -503,7 +503,7 @@ onUnmounted(() => {
 .notebook-header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
@@ -511,19 +511,19 @@ onUnmounted(() => {
 
 .notebook-tabs {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   background: var(--accent-bg-light);
   border-radius: 8px;
   padding: 3px;
 }
 
 .notebook-tab {
-  padding: 6px 16px;
+  padding: 6px var(--space-4, 16px);
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -553,12 +553,12 @@ onUnmounted(() => {
   min-width: 280px;
   border-right: 1px solid var(--line);
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--space-2, 8px);
   flex-shrink: 0;
 }
 
 .notebook-list-item {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-radius: var(--radius-sm);
   cursor: pointer;
   border-left: 4px solid transparent;
@@ -578,14 +578,14 @@ onUnmounted(() => {
 .notebook-list-date {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--space-1, 4px);
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .notebook-list-title {
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
   font-weight: 500;
   color: var(--text);
   margin-bottom: 4px;
@@ -595,7 +595,7 @@ onUnmounted(() => {
 }
 
 .notebook-list-summary {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -612,7 +612,7 @@ onUnmounted(() => {
 }
 
 .notebook-detail-content {
-  padding: 20px 24px;
+  padding: 20px var(--space-5, 24px);
 }
 
 .notebook-detail-header {
@@ -622,23 +622,23 @@ onUnmounted(() => {
 }
 
 .notebook-detail-title {
-  font-size: 18px;
+  font-size: var(--font-size-xl, 18px);
   font-weight: 600;
   color: var(--text);
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--space-2, 8px) 0;
 }
 
 .notebook-detail-date {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--text-muted);
 }
 
 .notebook-generation-badge {
   margin-left: 4px;
-  padding: 1px 8px;
+  padding: 1px var(--space-2, 8px);
   border-radius: 999px;
   font-size: 11px;
   line-height: 1.4;
@@ -665,12 +665,12 @@ onUnmounted(() => {
 
 .notebook-truncated-banner {
   margin-bottom: 16px;
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--accent-border);
   background: var(--accent-bg-light);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.5;
 }
 
@@ -684,7 +684,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   margin-bottom: 12px;
 }
 
@@ -694,7 +694,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 600;
 }
 
@@ -704,7 +704,7 @@ onUnmounted(() => {
 
 .notebook-session-evidence-search {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 10px;
@@ -717,8 +717,8 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   background: var(--panel-solid);
   color: var(--text);
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: var(--space-2, 8px) 10px;
+  font-size: var(--font-size-sm, 13px);
 }
 
 .notebook-session-search-btn,
@@ -730,8 +730,8 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   background: var(--panel-solid);
   color: var(--text);
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  font-size: var(--font-size-sm, 13px);
   cursor: pointer;
 }
 
@@ -743,7 +743,7 @@ onUnmounted(() => {
 .notebook-session-hit-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -752,7 +752,7 @@ onUnmounted(() => {
 .notebook-session-hit {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   cursor: pointer;
   transition: all 0.15s ease;
   background: var(--panel-solid);
@@ -766,8 +766,8 @@ onUnmounted(() => {
 .notebook-session-hit-meta {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
+  gap: var(--space-3, 12px);
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   margin-bottom: 6px;
 }
@@ -775,7 +775,7 @@ onUnmounted(() => {
 .notebook-session-hit-snippet,
 .notebook-session-error,
 .notebook-session-empty {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -807,7 +807,7 @@ onUnmounted(() => {
 .notebook-markdown :deep(pre code) {
   background-color: transparent;
   padding: 0;
-  color: #e5e7eb;
+  color: var(--line, #e5e7eb);
 }
 
 .notebook-markdown :deep(ul),
@@ -875,8 +875,8 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   min-height: 200px;
-  gap: 12px;
-  padding: 24px;
+  gap: var(--space-3, 12px);
+  padding: var(--space-5, 24px);
   text-align: center;
 }
 
@@ -891,7 +891,7 @@ onUnmounted(() => {
 }
 
 .notebook-empty-text {
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
   color: var(--text-muted);
   margin: 0;
 }
@@ -900,12 +900,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
+  padding: 6px var(--space-4, 16px);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-solid);
   color: var(--accent);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -917,12 +917,12 @@ onUnmounted(() => {
 
 /* Skeleton loading */
 .notebook-skeleton-item {
-  padding: 12px;
+  padding: var(--space-3, 12px);
   margin-bottom: 4px;
 }
 
 .notebook-detail-skeleton {
-  padding: 24px;
+  padding: var(--space-5, 24px);
 }
 
 .skeleton-line {
@@ -947,7 +947,7 @@ onUnmounted(() => {
 .notebook-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   padding: 0 20px;
   height: 56px;
   min-height: 56px;
@@ -961,12 +961,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 7px var(--space-4, 16px);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel-solid);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -998,7 +998,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-5, 24px);
   background: rgba(15, 23, 42, 0.42);
 }
 
@@ -1017,8 +1017,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 16px 18px;
+  gap: var(--space-3, 12px);
+  padding: var(--space-4, 16px) 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1032,7 +1032,7 @@ onUnmounted(() => {
   display: block;
   margin-bottom: 3px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .notebook-preview-header h3,
@@ -1042,7 +1042,7 @@ onUnmounted(() => {
 }
 
 .notebook-preview-header h3 {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   font-weight: 600;
 }
 
@@ -1054,7 +1054,7 @@ onUnmounted(() => {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 20px;
+  font-size: var(--font-size-2xl, 20px);
   line-height: 1;
 }
 
@@ -1066,26 +1066,26 @@ onUnmounted(() => {
 .notebook-preview-attention {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   margin: 14px 18px 0;
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border: 1px solid var(--warning-border, var(--accent-border));
   border-radius: var(--radius-sm);
   background: var(--warning-bg, var(--accent-bg-light));
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
 }
 
 .notebook-preview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  padding: 16px 18px 4px;
+  padding: var(--space-4, 16px) 18px var(--space-1, 4px);
   margin: 0;
 }
 
 .notebook-preview-grid div {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel);
@@ -1094,19 +1094,19 @@ onUnmounted(() => {
 .notebook-preview-grid dt,
 .notebook-preview-section h4 {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 600;
 }
 
 .notebook-preview-grid dd {
-  margin: 4px 0 0;
+  margin: var(--space-1, 4px) 0 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   overflow-wrap: anywhere;
 }
 
 .notebook-preview-section {
-  padding: 12px 18px;
+  padding: var(--space-3, 12px) 18px;
 }
 
 .notebook-preview-section h4 {
@@ -1116,7 +1116,7 @@ onUnmounted(() => {
 .notebook-preview-section p {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   line-height: 1.5;
 }
 
@@ -1128,12 +1128,12 @@ onUnmounted(() => {
 
 .notebook-preview-section li {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   align-items: baseline;
-  padding: 8px 0;
+  padding: var(--space-2, 8px) 0;
   border-top: 1px solid var(--line);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .notebook-preview-section li:first-child {
@@ -1153,7 +1153,7 @@ onUnmounted(() => {
   min-height: 34px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
 }
@@ -1189,7 +1189,7 @@ onUnmounted(() => {
     height: auto;
     min-height: 56px;
     flex-wrap: wrap;
-    padding: 10px 12px;
+    padding: 10px var(--space-3, 12px);
   }
 }
 

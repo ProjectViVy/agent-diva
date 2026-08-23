@@ -66,6 +66,12 @@
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.1);
 
+  /* 深色对比色阶（强调文本/实心按钮用，浅色主题取原字面量零回归） */
+  --danger-strong: #dc2626;
+  --danger-deep: #b91c1c;
+  --warning-strong: #d97706;
+  --success-strong: #047857;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(255, 255, 255, 0.72);
   --surface-sunken: rgba(236, 72, 153, 0.05);
@@ -97,6 +103,21 @@
   --chat-empty-text: #b35a6a;
   --subview-bg: rgba(255, 255, 255, 0.85);
   --subview-border: rgba(255, 182, 193, 0.4);
+
+  /* 会话侧栏令牌 */
+  --conv-sidebar-bg: rgba(255, 240, 246, 0.9);
+  --conv-sidebar-border: rgba(255, 182, 193, 0.5);
+  --conv-search-border: rgba(255, 182, 193, 0.6);
+  --conv-search-bg: rgba(255, 255, 255, 0.9);
+  --conv-search-text: #7a2f3e;
+  --conv-item-hover-bg: rgba(236, 72, 153, 0.06);
+  --conv-item-active-bg: rgba(236, 72, 153, 0.1);
+  --conv-icon-border: rgba(255, 182, 193, 0.6);
+  --conv-icon-bg: rgba(255, 255, 255, 0.9);
+  --conv-new-border: rgba(255, 182, 193, 0.5);
+  --conv-new-text: #9b3a4a;
+  --conv-menu-bg: rgba(255, 255, 255, 0.98);
+  --conv-menu-border: rgba(255, 182, 193, 0.5);
 }
 
 /* Dark 主题 */
@@ -147,6 +168,12 @@
   --info: #60a5fa;
   --info-bg: rgba(96, 165, 250, 0.12);
 
+  /* 深色对比色阶（深色主题取同色相高对比值） */
+  --danger-strong: #f87171;
+  --danger-deep: #f87171;
+  --warning-strong: #fbbf24;
+  --success-strong: #34d399;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(30, 41, 59, 0.85);
   --surface-sunken: rgba(2, 6, 23, 0.5);
@@ -178,6 +205,22 @@
   --chat-empty-text: #94a3b8;
   --subview-bg: var(--panel-solid);
   --subview-border: var(--line);
+
+  /* 会话侧栏令牌 */
+  --conv-sidebar-bg: var(--panel-solid);
+  --conv-sidebar-border: var(--line);
+  --conv-search-border: var(--line);
+  --conv-search-bg: var(--panel-solid);
+  --conv-search-text: var(--text);
+  --conv-item-hover-bg: var(--nav-hover);
+  --conv-item-active-bg: var(--nav-active);
+  --conv-icon-border: var(--line);
+  --conv-icon-bg: var(--panel-solid);
+  --conv-new-border: var(--line);
+  --conv-new-text: var(--text-muted);
+  --conv-menu-bg: var(--panel-solid);
+  --conv-menu-border: var(--line);
+  --saving-overlay-bg: rgba(15, 23, 42, 0.5);
 }
 
 /* Default 主题 - 简约粉白配色 */
@@ -228,6 +271,12 @@
   --info: #3b82f6;
   --info-bg: rgba(59, 130, 246, 0.1);
 
+  /* 深色对比色阶（强调文本/实心按钮用，浅色主题取原字面量零回归） */
+  --danger-strong: #dc2626;
+  --danger-deep: #b91c1c;
+  --warning-strong: #d97706;
+  --success-strong: #047857;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(255, 255, 255, 0.85);
   --surface-sunken: rgba(236, 72, 153, 0.04);
@@ -259,6 +308,21 @@
   --chat-empty-text: #9b5a6a;
   --subview-bg: var(--panel-solid);
   --subview-border: var(--line);
+
+  /* 会话侧栏令牌 */
+  --conv-sidebar-bg: var(--panel-solid);
+  --conv-sidebar-border: var(--line);
+  --conv-search-border: var(--line);
+  --conv-search-bg: var(--panel-solid);
+  --conv-search-text: var(--text);
+  --conv-item-hover-bg: var(--nav-hover);
+  --conv-item-active-bg: var(--nav-active);
+  --conv-icon-border: var(--line);
+  --conv-icon-bg: var(--panel-solid);
+  --conv-new-border: var(--line);
+  --conv-new-text: var(--text-muted);
+  --conv-menu-bg: var(--panel-solid);
+  --conv-menu-border: var(--line);
 }
 
 /* Miku 主题 - 初音未来应援色 */
@@ -308,6 +372,12 @@
   --info: #58a6ff;
   --info-bg: rgba(88, 166, 255, 0.12);
 
+  /* 深色对比色阶（miku 深底取同色相高对比值） */
+  --danger-strong: #ff6b63;
+  --danger-deep: #ff6b63;
+  --warning-strong: #e3b341;
+  --success-strong: #56d364;
+
   /* 语义扩展令牌 */
   --surface-raised: rgba(33, 39, 48, 0.9);
   --surface-sunken: rgba(1, 4, 9, 0.5);
@@ -342,6 +412,21 @@
   --chat-empty-text: #7d8590;
   --subview-bg: rgba(22, 27, 34, 0.85);
   --subview-border: rgba(0, 215, 200, 0.15);
+
+  /* 会话侧栏令牌 */
+  --conv-sidebar-bg: var(--panel-solid);
+  --conv-sidebar-border: rgba(0, 215, 200, 0.15);
+  --conv-search-border: rgba(0, 215, 200, 0.2);
+  --conv-search-bg: var(--panel-solid);
+  --conv-search-text: var(--text);
+  --conv-item-hover-bg: rgba(57, 197, 187, 0.06);
+  --conv-item-active-bg: rgba(57, 197, 187, 0.1);
+  --conv-icon-border: rgba(0, 215, 200, 0.2);
+  --conv-icon-bg: var(--panel-solid);
+  --conv-new-border: rgba(0, 215, 200, 0.2);
+  --conv-new-text: #39c5bb;
+  --conv-menu-bg: var(--panel-solid);
+  --conv-menu-border: rgba(0, 215, 200, 0.15);
 }
 
 /* ========================================
@@ -374,6 +459,23 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
+
+  /* 身份色板（WelcomeWizard 品牌粉）：主题无关，四主题同值；
+     未来按主题适配只需改各主题块覆盖值 */
+  --identity-strong: #be185d;
+  --identity-deep: #9d174d;
+  --identity-ink: #6b2737;
+
+  /* 伙伴装饰层玻璃色板：主题无关（叠层浮在任意桌面壁纸上），
+     白色半透明色阶按角色收敛，供 DivaMateView/DesktopMateOverlay 等引用 */
+  --mate-glass-border: rgba(255, 255, 255, 0.16);
+  --mate-glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --mate-glass-inset: rgba(255, 255, 255, 0.06);
+  --mate-glass-bg: rgba(255, 255, 255, 0.1);
+  --mate-glass-bg-hover: rgba(255, 255, 255, 0.18);
+  --mate-text: rgba(255, 255, 255, 0.92);
+  --mate-text-muted: rgba(255, 255, 255, 0.62);
+  --mate-text-faint: rgba(255, 255, 255, 0.4);
 }
 
 @layer base {
@@ -1080,8 +1182,11 @@
 
   /* ========================================
      兼容桥（DEPRECATED）：未迁移组件仍直接使用 Tailwind
-     gray/white 工具类，这里按主题重映射。随剩余组件
-     迁移到语义令牌后逐块删除（见 TODOLIST）。
+     gray/white 工具类，这里按主题重映射。
+     三期退役条件：当模板侧 `text-gray-*/bg-white` 工具类
+     全部迁移到 `var(--text/--text-muted/--panel-solid)` 后，
+     此段连同 NormalMode/ChatView/AppDialogLayer 上的
+     `theme-${themeMode}` DOM 类绑定一起移除。
      ======================================== */
 
   .theme-dark .text-gray-900,
@@ -1365,7 +1470,7 @@
   }
 
   .input-action-btn.stop-btn:hover {
-    background: #dc2626;
+    background: var(--danger-strong, #dc2626);
     box-shadow: 0 6px 16px var(--danger-bg);
   }
 

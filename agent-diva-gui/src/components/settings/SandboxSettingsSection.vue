@@ -435,7 +435,7 @@ onMounted(() => {
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
-  background: rgba(245, 158, 11, 0.12);
+  background: var(--warning-bg, rgba(245, 158, 11, 0.12));
   border: 1px solid rgba(245, 158, 11, 0.3);
   color: var(--warning);
   font-size: 0.875rem;

@@ -116,7 +116,7 @@ onMounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--success, #22c55e);
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
@@ -217,15 +217,15 @@ onMounted(() => {
 
 /* ── Status accent (left border) ── */
 .subagent-status-ok {
-  border-left: 3px solid #22c55e;
+  border-left: 3px solid var(--success, #22c55e);
 }
 
 .subagent-status-error {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--danger, #ef4444);
 }
 
 .subagent-status-timeout {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--warning, #f59e0b);
 }
 
 .subagent-status-cancelled {

@@ -571,8 +571,8 @@ watch(
   --mate-bg-top: rgba(17, 24, 39, 0.18);
   --mate-bg-mid: rgba(12, 74, 110, 0.12);
   --mate-bg-bottom: rgba(15, 23, 42, 0.42);
-  --mate-panel-bg: linear-gradient(145deg, rgba(19, 28, 45, 0.30), rgba(255, 255, 255, 0.10));
-  --mate-panel-border: rgba(255, 255, 255, 0.16);
+  --mate-panel-bg: linear-gradient(145deg, rgba(19, 28, 45, 0.30), var(--mate-glass-bg, rgba(255, 255, 255, 0.10)));
+  --mate-panel-border: var(--mate-glass-border, rgba(255, 255, 255, 0.16));
   --mate-panel-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
 }
 
@@ -602,7 +602,7 @@ watch(
   justify-content: center;
   border-radius: 9999px;
   color: rgba(255, 255, 255, 0.82);
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.38), rgba(255, 255, 255, 0.10));
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.38), var(--mate-glass-bg, rgba(255, 255, 255, 0.10)));
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.24);
   backdrop-filter: blur(18px);
@@ -653,15 +653,15 @@ watch(
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  color: rgba(255, 255, 255, 0.62);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--mate-text-muted, rgba(255, 255, 255, 0.62));
+  background: var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
 }
 
 .mate-chat-new-topic-button:hover:not(:disabled) {
   color: rgba(255, 255, 255, 0.94);
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--mate-glass-border, rgba(255, 255, 255, 0.16));
   border-color: rgba(255, 255, 255, 0.22);
 }
 
@@ -705,7 +705,7 @@ watch(
 }
 
 .mate-agent-bubble {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--mate-text, rgba(255, 255, 255, 0.92));
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.07));
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
@@ -732,7 +732,7 @@ watch(
   min-width: 0;
   background: transparent;
   border: 0;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--mate-text, rgba(255, 255, 255, 0.92));
   font-size: 12px;
   line-height: 1.4;
   outline: none;
@@ -892,7 +892,7 @@ watch(
 .mate-markdown :deep(h4), .mate-markdown :deep(h5), .mate-markdown :deep(h6) {
   font-weight: 600;
   margin-bottom: 0.25em;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--mate-text, rgba(255, 255, 255, 0.92));
 }
 
 .mate-markdown :deep(h1) { font-size: 0.85rem; }

@@ -200,7 +200,7 @@ function close() {
   flex-shrink: 0;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   padding: 18px 18px 14px;
   border-bottom: 1px solid var(--line, #d9dce3);
 }
@@ -209,7 +209,7 @@ function close() {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1, 4px);
 }
 
 .drawer-eyebrow {
@@ -222,7 +222,7 @@ function close() {
 
 .drawer-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-2xl, 20px);
   font-weight: 700;
   line-height: 1.25;
   color: var(--text, #20242d);
@@ -231,7 +231,7 @@ function close() {
 .drawer-header-actions {
   display: flex;
   flex-shrink: 0;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 .drawer-icon-btn {
@@ -262,7 +262,7 @@ function close() {
   flex-shrink: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  padding: 12px 18px;
+  padding: var(--space-3, 12px) 18px;
   border-bottom: 1px solid var(--line, #d9dce3);
 }
 
@@ -284,17 +284,17 @@ function close() {
   padding: 0 10px;
   background: var(--panel-solid, #fff);
   color: var(--text, #20242d);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .drawer-error {
   flex-shrink: 0;
-  margin: 12px 18px 0;
+  margin: var(--space-3, 12px) 18px 0;
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   background: var(--danger-bg, #fef2f2);
   color: var(--danger, #991b1b);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.45;
 }
 
@@ -303,10 +303,10 @@ function close() {
   flex: 1;
   min-height: 0;
   align-content: start;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 16px 18px 28px;
+  padding: var(--space-4, 16px) 18px 28px;
 }
 
 .drawer-empty {
@@ -316,14 +316,14 @@ function close() {
   place-content: center;
   justify-items: center;
   gap: 10px;
-  padding: 32px 18px;
+  padding: var(--space-6, 32px) 18px;
   color: var(--text-muted, #667085);
   text-align: center;
 }
 
 .drawer-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   line-height: 1.5;
 }
 

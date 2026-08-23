@@ -773,7 +773,7 @@ onUnmounted(() => {
   background: rgba(30, 30, 30, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
 }
@@ -788,11 +788,11 @@ onUnmounted(() => {
 }
 
 .menu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--mate-glass-bg, rgba(255, 255, 255, 0.1));
 }
 
 .menu-item + .menu-item {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--mate-glass-inset, rgba(255, 255, 255, 0.06));
 }
 
 .menu-item-danger {
@@ -823,7 +823,7 @@ onUnmounted(() => {
 
 .menu-separator {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
   margin: 4px 0;
 }
 
@@ -844,7 +844,7 @@ onUnmounted(() => {
   background: rgba(30, 30, 30, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
   z-index: 51;
@@ -861,7 +861,7 @@ onUnmounted(() => {
 }
 
 .submenu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--mate-glass-bg, rgba(255, 255, 255, 0.1));
 }
 
 .submenu-item.active {
@@ -880,7 +880,7 @@ onUnmounted(() => {
 
 .submenu-separator {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
   margin: 2px 8px;
 }
 
@@ -909,7 +909,7 @@ onUnmounted(() => {
 
 .menu-toggle-state {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--mate-text-faint, rgba(255, 255, 255, 0.4));
   transition: color 0.15s ease;
 }
 
@@ -942,14 +942,14 @@ onUnmounted(() => {
     to right,
     #60a5fa 0%,
     #60a5fa var(--slider-progress, 35%),
-    rgba(255, 255, 255, 0.18) var(--slider-progress, 35%),
-    rgba(255, 255, 255, 0.18) 100%
+    var(--mate-glass-bg-hover, rgba(255, 255, 255, 0.18)) var(--slider-progress, 35%),
+    var(--mate-glass-bg-hover, rgba(255, 255, 255, 0.18)) 100%
   );
   border-radius: 999px;
   outline: none;
   cursor: pointer;
   transition: box-shadow 0.15s ease, filter 0.15s ease;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--mate-glass-inset, rgba(255, 255, 255, 0.06));
 }
 
 .menu-slider:hover {
@@ -988,8 +988,8 @@ onUnmounted(() => {
 .menu-slider::-moz-range-track {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  background: var(--mate-glass-bg-hover, rgba(255, 255, 255, 0.18));
+  box-shadow: inset 0 0 0 1px var(--mate-glass-inset, rgba(255, 255, 255, 0.06));
 }
 
 .menu-slider::-moz-range-progress {
@@ -1024,8 +1024,8 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08));
 }
 
 /* ── Submenu transitions ─────────────────────────────────────── */
@@ -1198,7 +1198,7 @@ onUnmounted(() => {
 
 .ptt-error {
   font-size: 10px;
-  color: #ef4444;
+  color: var(--danger, #ef4444);
   white-space: nowrap;
   user-select: none;
   margin-top: 2px;

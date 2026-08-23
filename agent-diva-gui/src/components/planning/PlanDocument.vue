@@ -20,7 +20,7 @@ const renderer = new MarkdownIt({ html: false, breaks: true, linkify: true });
 .plan-document :deep(p) { margin: .55rem 0; }
 .plan-document :deep(ol), .plan-document :deep(ul) { margin: .7rem 0; padding-left: 1.45rem; }
 .plan-document :deep(li) { padding-left: .2rem; margin: .42rem 0; }
-.plan-document :deep(li::marker) { color: #2563eb; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .78em; font-weight: 700; }
+.plan-document :deep(li::marker) { color: var(--accent, #2563eb); font-family: ui-sans-serif, system-ui, sans-serif; font-size: .78em; font-weight: 700; }
 .plan-document :deep(li > ul) { margin: .18rem 0 .45rem; color: var(--text-muted, #667085); font-size: .9em; }
-.plan-document :deep(a) { color: #2563eb; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.plan-document :deep(a) { color: var(--accent, #2563eb); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 </style>

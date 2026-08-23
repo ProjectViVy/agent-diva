@@ -13,7 +13,10 @@ const emit = defineEmits<{
   (e: 'change-theme', theme: string): void;
 }>();
 
-// 可用主题列表
+// 主题预览色板数据（描述主题本身，而非当前渲染的主题样式）。
+// 这些字面量用于主题选择器的预览卡片展示，刻意保留为 #hex/rgba() 而非 var(--token)
+// 因为它们需要同时展示所有主题的配色，而当前页面只能应用一个 data-theme。
+// 修改这些值会改变预览卡的外观，不会改变应用运行时的实际样式。
 const themes = [
   {
     id: 'love',
