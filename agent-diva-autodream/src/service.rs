@@ -866,6 +866,7 @@ mod tests {
         session::SessionManager,
     };
     use agent_diva_laputa::MemoryHome;
+    use chrono::Utc;
 
     use super::*;
 
@@ -906,6 +907,23 @@ mod tests {
         let events = service.list_run_events(&run.id, 10).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "event-valid");
+        assert!(events[0].phase.is_none());
+        assert!(events[0].failure_code.is_none());
+
+        fs::write(
+            &path,
+            format!(
+                r#"{{"id":"event-legacy","run_id":"{}","kind":"legacy","message":"five fields","created_at":"{}"}}"#,
+                run.id,
+                Utc::now().to_rfc3339()
+            ),
+        )
+        .unwrap();
+        let legacy = service.list_run_events(&run.id, 10).unwrap();
+        assert_eq!(legacy.len(), 1);
+        assert_eq!(legacy[0].id, "event-legacy");
+        assert!(legacy[0].phase.is_none());
+        assert!(legacy[0].proposal_id.is_none());
 
         fs::write(&path, [0xff, b'\n']).unwrap();
         assert!(matches!(
@@ -975,6 +993,10 @@ mod tests {
             .iter()
             .any(|event| event.kind == "worker_succeeded"
                 && event.phase.as_deref() == Some("completed")));
+        assert!(events.iter().any(|event| {
+            event.kind == "skill_reflection_degraded"
+                && event.failure_code.as_deref() == Some("provider_unavailable")
+        }));
     }
 
     #[tokio::test]
@@ -1112,6 +1134,12 @@ mod tests {
             .diagnostics
             .iter()
             .any(|item| item.contains("skill_reflection_degraded")));
+        let events = service.list_run_events(&run.id, 200).unwrap();
+        assert!(events.iter().any(|event| {
+            event.kind == "skill_reflection_degraded"
+                && event.phase.as_deref() == Some("propose")
+                && event.failure_code.as_deref() == Some("invalid_candidate")
+        }));
         assert!(memory_home
             .actmem()
             .read()

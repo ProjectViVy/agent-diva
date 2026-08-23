@@ -19,6 +19,9 @@ AutoDream crate's diagnostic surface.
   and `skill_request_created` with `proposal_id`.
 - Gather failure logs `failure_code=input_unavailable`.
 - Missing MemoryHome logs `memory_home_missing` with `phase=orient`.
+- Default S3 without a Skill engine logs `skill_reflection_degraded` with
+  `failure_code=provider_unavailable`; InvalidSchema maps to `invalid_candidate`.
+- Old five-field JSONL events still deserialize.
 - Existing S3 tests still assert zero BML database file and zero memory
   proposals.
 

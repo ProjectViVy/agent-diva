@@ -269,11 +269,11 @@ impl AutoDreamWorker {
                 diagnostics.push(message.clone());
                 let failure_code =
                     worker_failure_code(&AutoDreamWorkerOutcome::Failure, &diagnostics);
-                self.append_diagnostic(
+                let _ = self.append_diagnostic(
                     Diagnostic::new(run_id, "input_collection_failed", message)
                         .phase(AutoDreamReflectionStage::Gather.as_str())
                         .failure_code(failure_code_name(failure_code)),
-                )?;
+                );
                 return self.finish_failure(
                     run_id,
                     AutoDreamWorkerOutcome::Failure,
@@ -318,11 +318,11 @@ impl AutoDreamWorker {
             stages[2].diagnostic = Some(message.clone());
             diagnostics.push(message.clone());
             let failure_code = worker_failure_code(&AutoDreamWorkerOutcome::Failure, &diagnostics);
-            self.append_diagnostic(
+            let _ = self.append_diagnostic(
                 Diagnostic::new(run_id, "actmem_work_failed", message)
                     .phase(AutoDreamReflectionStage::Consolidate.as_str())
                     .failure_code(failure_code_name(failure_code)),
-            )?;
+            );
             return self.finish_failure(
                 run_id,
                 AutoDreamWorkerOutcome::Failure,
@@ -346,9 +346,11 @@ impl AutoDreamWorker {
                 let diagnostic = format!("skill_reflection_degraded: {error}");
                 diagnostics.push(diagnostic.clone());
                 stages[3].diagnostic = Some(diagnostic.clone());
+                let failure_code = reflection_failure_code(&error);
                 self.append_diagnostic(
                     Diagnostic::new(run_id, "skill_reflection_degraded", diagnostic)
-                        .phase(AutoDreamReflectionStage::Propose.as_str()),
+                        .phase(AutoDreamReflectionStage::Propose.as_str())
+                        .failure_code(failure_code_name(failure_code)),
                 )?;
                 Vec::new()
             }
@@ -755,9 +757,9 @@ fn worker_failure_code(
             AutoDreamFailureCode::InputUnavailable
         }
         AutoDreamWorkerOutcome::Failure
-            if diagnostics
-                .iter()
-                .any(|item| item.contains("reflection provider unavailable")) =>
+            if diagnostics.iter().any(|item| {
+                item.contains("provider is unavailable") || item.contains("provider unavailable")
+            }) =>
         {
             AutoDreamFailureCode::ProviderUnavailable
         }
@@ -771,21 +773,25 @@ fn worker_failure_code(
         AutoDreamWorkerOutcome::Failure
             if diagnostics
                 .iter()
-                .any(|item| item.contains("reflection provider failed")) =>
+                .any(|item| item.contains("invalid schema") || item.contains("candidate gate")) =>
         {
-            AutoDreamFailureCode::ProviderFailed
+            AutoDreamFailureCode::InvalidCandidate
         }
         AutoDreamWorkerOutcome::Failure
             if diagnostics
                 .iter()
-                .any(|item| item.contains("invalid schema") || item.contains("candidate gate")) =>
+                .any(|item| item.contains("provider failed")) =>
         {
-            AutoDreamFailureCode::InvalidCandidate
+            AutoDreamFailureCode::ProviderFailed
         }
         AutoDreamWorkerOutcome::Failure | AutoDreamWorkerOutcome::Success => {
             AutoDreamFailureCode::WorkerFailed
         }
     }
+}
+
+fn reflection_failure_code(error: &AutoDreamError) -> AutoDreamFailureCode {
+    worker_failure_code(&AutoDreamWorkerOutcome::Failure, &[error.to_string()])
 }
 
 fn render_organized_work(
