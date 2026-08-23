@@ -1182,8 +1182,11 @@
 
   /* ========================================
      兼容桥（DEPRECATED）：未迁移组件仍直接使用 Tailwind
-     gray/white 工具类，这里按主题重映射。随剩余组件
-     迁移到语义令牌后逐块删除（见 TODOLIST）。
+     gray/white 工具类，这里按主题重映射。
+     三期退役条件：当模板侧 `text-gray-*/bg-white` 工具类
+     全部迁移到 `var(--text/--text-muted/--panel-solid)` 后，
+     此段连同 NormalMode/ChatView/AppDialogLayer 上的
+     `theme-${themeMode}` DOM 类绑定一起移除。
      ======================================== */
 
   .theme-dark .text-gray-900,
@@ -1467,7 +1470,7 @@
   }
 
   .input-action-btn.stop-btn:hover {
-    background: #dc2626;
+    background: var(--danger-strong, #dc2626);
     box-shadow: 0 6px 16px var(--danger-bg);
   }
 
