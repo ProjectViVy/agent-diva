@@ -19,14 +19,11 @@
   REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/Governance，也不得把 STM
   改成提案。今日生产路径几乎只有 `worker.rs` 两条 `tracing::warn`。
 
-## 产品与架构
+## EPIC 新启动（研究包已收敛、尚未开工的独立工作区）
 
-- [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
-  从已完成的 Context 主线分轨，需另行冻结状态、能力矩阵和非法迁移验收。
-  2026-08-22 当前代码复核：`agent-diva-core/src/planning/policy.rs` 已有
-  `PlanModeState`/`ToolCapability` fail-closed 矩阵，`agent-diva-agent` 工具执行 seam
-  已二次拒绝；剩余工作是把当前合同补成独立验收记录，不得按旧报告重建 permission
-  mode。
+> 以下条目各自构成新的 EPIC/工作区，均有独立研究包或既有表面做底座，
+  尚未进入实施；与“产品与架构”中已在进行的工作区（workspace-agents、
+  gui-style-phase2 等）相互独立，启动时按 LOCK.md 流程另行建锁。
 
 - [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
   来源于 OpenHarness/ZeroClaw 的机制调研；保留为未来扩展点，当前延期。2026-08-22
@@ -40,6 +37,19 @@
   queue-full 语义。参考 ZeroClaw `SessionActorQueue`，但只接在 Agent Loop admission，
   不重写 MessageBus，不改变会话历史/Memory 权威。方案与验收见
   [`diva-adaptation-proposal.md`](docs/research/harness-gap-diva-adaptation-2026-08/diva-adaptation-proposal.md)。
+
+- [ ] **CLARIFY-HITL Phase 3** `sev-P3`
+  已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、
+  subagent 禁用断言与可选 messaging clarify。不得并入审批抽屉或 governance ledger。
+
+## 产品与架构（存量延续与已在进行的工作区）
+
+- [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
+  从已完成的 Context 主线分轨，需另行冻结状态、能力矩阵和非法迁移验收。
+  2026-08-22 当前代码复核：`agent-diva-core/src/planning/policy.rs` 已有
+  `PlanModeState`/`ToolCapability` fail-closed 矩阵，`agent-diva-agent` 工具执行 seam
+  已二次拒绝；剩余工作是把当前合同补成独立验收记录，不得按旧报告重建 permission
+  mode。
 
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
@@ -64,10 +74,6 @@
   Oil Frontend 细化还要求 `WorkspaceContext` 作为唯一快照来源，移除 `GeneralSettings.vue`
   的重复 `getConfigStatus()` 请求，采用候选预览→一次提交→失败保留上下文，并保护过期
   inspect/status 响应。
-
-- [ ] **CLARIFY-HITL Phase 3** `sev-P3`
-  已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、
-  subagent 禁用断言与可选 messaging clarify。不得并入审批抽屉或 governance ledger。
 
 - [ ] **GUI-STYLE-UNIFICATION-PHASE-2：样式令牌化二期** `sev-P3`
   其中伙伴装饰层主题方案与 WelcomeWizard 粉色身份色板两处属待决策项，
@@ -102,7 +108,8 @@
   研究包：[`workspace-agents-diva-adaptation-2026-08/`](docs/research/workspace-agents-diva-adaptation-2026-08/)。
 
 - [ ] **GUI-STYLE-UNIFICATION-PHASE-2（决策点）** `sev-P3`
-  二期整体属实施项（见上方“产品与架构”分区），但有两处先决决策未拍板：
+  二期整体属实施项（见上方“产品与架构（存量延续与已在进行的工作区）”分区），
+  但有两处先决决策未拍板：
   ① 伙伴装饰层（DivaMateView / DesktopMateOverlay）rgba 白色系色板的主题方案；
   ② WelcomeWizard 粉色身份色板（#be185d/#9d174d/#6b2737）的跨主题适配方向。
   决策落定前不启动对应批次迁移。
