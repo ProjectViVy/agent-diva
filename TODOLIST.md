@@ -126,13 +126,6 @@
   ready/missing_fields 汇总，卡片回退 needsConfig 显示。irc/mattermost/
   nextcloud_talk 已于 2026-08-18 从 GUI 下架，实际仅剩 neuro-link 有感知。
 
-- [ ] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
-  `agent-diva-manager/scripts/fetch_marketplace_featured.py` 支持
-  `AGENT_DIVA_SKILLS_MARKETPLACE_TOKEN`（Vercel OIDC Bearer）走官方
-  `GET /api/v1/skills?view=all-time|trending|hot`；当前无 token，仅验证了
-  无认证首页 leaderboard 降级路径。拿到 token 后跑一次脚本并核对 YAML 输出
-  （`source: api:v1:*`、`metric: installs`）。
-
 ## 自动化与生产路径证明
 
 - [ ] **BACKGROUND-TASK-PRODUCTION-E2E：后台任务生产路径纵向证明** `sev-P2`
@@ -189,6 +182,10 @@
   `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
 
 ## Done
+
+- [x] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
+  Closed 2026-08-23（用户确认）：skill 获取链路实测可用，
+  `fetch_marketplace_featured.py` 的 token / v1 API 路径验证完成。
 
 - [x] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
   Closed 2026-08-23 on `chore/bml-governed-seam-dead-code`: deleted
