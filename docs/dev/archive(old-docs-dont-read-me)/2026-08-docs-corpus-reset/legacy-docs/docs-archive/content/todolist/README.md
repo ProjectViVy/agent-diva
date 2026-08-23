@@ -5,6 +5,8 @@
 
 - `snapshot-before-2026-08-13-cleanup.md`：2026-08-13 全量清理前快照，包含完成、
   取消、被取代、重复及当时开放的全部记录。
+- `completed-2026-08-23-todolist-auto-close.md`：2026-08-23 机械收尾、合同冻结、
+  用户确认真机/不可复现关闭的完成归档。
 - `completed-2026-08-23-real-device-smoke-batch.md`：2026-08-23 Clean Break EPIC
   收口与真机冒烟批次完成归档。
 - `completed-through-2026-07-29.md`：截至 2026-07-29 的完成项归档。
