@@ -181,11 +181,6 @@
   `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
   `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
 
-- [ ] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
-  `MemoryCrudOutcome::ProposalCreated` 与 `SyncTurnStatus::ProposalCreated` 仍是公开枚举，
-  巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
-  不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
-
 ## Done
 
 - [x] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
@@ -195,6 +190,13 @@
   `SCHEMA_VERSION = 1`. `bml_boundary_guard` still scans the retired
   names. Logs:
   [`docs/logs/2026-08-bml-governed-seam-dead-code/v0.1.0-remove-governed-store-apis/`](docs/logs/2026-08-bml-governed-seam-dead-code/v0.1.0-remove-governed-store-apis/summary.md).
+
+- [x] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
+  Closed 2026-08-23 on `chore/memory-crud-proposal-created-dead-enum`: deleted
+  `MemoryCrudOutcome::ProposalCreated` and `SyncTurnStatus::ProposalCreated`,
+  consolidation dead match arms, and the lock-old proposal provider test.
+  Logs:
+  [`docs/logs/2026-08-memory-crud-proposal-created/v0.1.0-remove-proposal-created-enum/`](docs/logs/2026-08-memory-crud-proposal-created/v0.1.0-remove-proposal-created-enum/summary.md).
 
 ## Archive Index
 

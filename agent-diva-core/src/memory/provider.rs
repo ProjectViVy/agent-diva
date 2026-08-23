@@ -91,9 +91,6 @@ pub enum SyncTurnStatus {
     /// An authority write was applied: the durable authority now reflects the
     /// turn's memory update.
     Persisted,
-    /// A governed proposal was durably created for review; it is not authority
-    /// until approved and applied.
-    ProposalCreated,
     /// No durable write was needed for this turn.
     Noop,
     /// A write was attempted but did not complete successfully.
@@ -458,13 +455,12 @@ pub trait MemoryProvider: Send + Sync {
 
     /// Persist evidence after a successful turn completes.
     ///
-    /// Implementations that create a governed proposal report
-    /// `SyncTurnStatus::ProposalCreated`; implementations that apply the write
-    /// to the durable authority report `SyncTurnStatus::Persisted`. Markdown
-    /// file write failures should prefer `SyncTurnStatus::Failed` over a
-    /// top-level error when the session can continue safely. Secondary backend
-    /// write failures after Markdown persistence should be logged and treated as
-    /// degraded persistence, not as loss of the authoritative Markdown write.
+    /// Implementations that apply the write to the durable authority report
+    /// `SyncTurnStatus::Persisted`. Markdown file write failures should prefer
+    /// `SyncTurnStatus::Failed` over a top-level error when the session can
+    /// continue safely. Secondary backend write failures after Markdown
+    /// persistence should be logged and treated as degraded persistence, not as
+    /// loss of the authoritative Markdown write.
     async fn sync_turn(&self, request: SyncTurnRequest) -> crate::Result<SyncTurnResponse>;
 
     /// Persist a payload-free outcome for the immediately preceding Recall.
