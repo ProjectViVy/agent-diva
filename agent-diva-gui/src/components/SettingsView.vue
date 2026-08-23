@@ -9,7 +9,7 @@ import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
-import PetSettings from './settings/PetSettings.vue';
+import MateSettings from './settings/MateSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
 import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
@@ -70,7 +70,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
-  | 'pet'
+  | 'mate'
   | 'about'
   | 'theme'
   | 'self-evolution'
@@ -112,7 +112,7 @@ const pageTitle = computed(() => {
     channels: t('settings.channels'),
     network: t('settings.network'),
     language: t('settings.language'),
-    pet: t('settings.pet'),
+    mate: t('settings.mate'),
     about: t('settings.about'),
     theme: t('dashboard.theme'),
     'self-evolution': t('dashboard.selfEvolution'),
@@ -236,8 +236,8 @@ watch(
               v-else-if="currentView === 'language'"
             />
 
-            <PetSettings
-              v-else-if="currentView === 'pet'"
+            <MateSettings
+              v-else-if="currentView === 'mate'"
             />
             
             <AboutSettings

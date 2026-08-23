@@ -230,14 +230,14 @@ export const GUI_CAPABILITIES: readonly GuiCapability[] = [
     verification: 'AuditPage.test.ts and Tauri log tests',
   },
   {
-    id: 'desktop.pet',
-    entrypoint: 'pet_* / open_desktop_pet / close_desktop_pet',
+    id: 'desktop.mate',
+    entrypoint: 'mate_* / open_desktop_mate / close_desktop_mate',
     transport: 'tauri-local',
     classification: 'LOCAL',
-    authority: 'Tauri desktop pet host',
+    authority: 'Tauri desktop mate host',
     risk: 'lifecycle',
     failure: 'Surface host/media failure without mutating Manager state.',
-    verification: 'DivaPetView.test.ts and desktop pet smoke',
+    verification: 'DivaMateView.test.ts and desktop mate smoke',
   },
   {
     id: 'manager.direct-browser-http',

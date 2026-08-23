@@ -22,7 +22,7 @@ export const DEFAULT_TRANSFORM: AvatarTransform = {
   rotationPolar: 1.089,
 }
 
-export const DESKTOP_PET_DEFAULT_TRANSFORM: AvatarTransform = {
+export const DESKTOP_MATE_DEFAULT_TRANSFORM: AvatarTransform = {
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -32,7 +32,7 @@ export const DESKTOP_PET_DEFAULT_TRANSFORM: AvatarTransform = {
 
 export function getDefaultTransform(mode: AvatarRuntimeMode): AvatarTransform {
   return {
-    ...(mode === 'desktop-pet' ? DESKTOP_PET_DEFAULT_TRANSFORM : DEFAULT_TRANSFORM),
+    ...(mode === 'desktop-mate' ? DESKTOP_MATE_DEFAULT_TRANSFORM : DEFAULT_TRANSFORM),
   }
 }
 

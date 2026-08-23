@@ -37,13 +37,13 @@ export default defineConfig(async () => ({
     },
   },
 
-  // Multi-page for desktop pet pop-out window
+  // Multi-page for desktop mate pop-out window
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        "desktop-pet": resolve(__dirname, "desktop-pet.html"),
-        "embedded-pet": resolve(__dirname, "embedded-pet.html"),
+        "desktop-mate": resolve(__dirname, "desktop-mate.html"),
+        "embedded-mate": resolve(__dirname, "embedded-mate.html"),
       },
     },
   },

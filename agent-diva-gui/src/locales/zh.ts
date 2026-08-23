@@ -41,7 +41,7 @@ export default {
   },
   chat: {
     placeholder: '输入消息... (Enter 发送)',
-    openPet: '打开桌宠',
+    openMate: '打开伙伴',
     start: '开始和 DIVA 对话吧～',
     toolRunning: '正在调用工具...',
     toolCall: '调用工具：{name}',
@@ -171,7 +171,7 @@ export default {
     channels: '频道',
     network: '网络',
     language: '语言',
-    pet: '宠物',
+    mate: '伙伴',
     about: '关于',
     selfEvolution: '自我进化',
     save: '保存',
@@ -223,8 +223,8 @@ export default {
     sandboxDesc: '隔离执行环境与安全策略',
     compaction: '上下文压缩',
     compactionDesc: '配置上下文窗口压缩与预算管理',
-    pet: '宠物',
-    petDesc: '桌面数字人与语音交互设置',
+    mate: '伙伴',
+    mateDesc: '桌面数字人与语音交互设置',
     audit: '审计日志',
     auditDesc: '查看审计事件与原始网关日志',
   },
@@ -239,7 +239,7 @@ export default {
     persona: '人格',
     memory: '记忆',
     planning: '规划',
-    pet: '宠物',
+    mate: '伙伴',
     cron: '定时任务',
     mcp: 'MCP',
     skills: '技能',
@@ -1408,7 +1408,7 @@ export default {
       unknown: '未知',
     },
   },
-  pet: {
+  mate: {
     // Voice panel
     voice: {
       ttsOn: 'TTS 开',
@@ -1451,16 +1451,16 @@ export default {
     },
     // Config
     config: {
-      enabled: '启用桌宠',
+      enabled: '启用伙伴',
       ttsEnabled: '启用语音播报',
       selectRenderer: '选择渲染器',
       selectModel: '选择模型',
     },
-    // Desktop pet pop-out
-    desktopPet: '桌面宠物',
-    desktopPetOn: '已弹出',
-    openDesktopPet: '打开桌面宠物窗口',
-    closeDesktopPet: '关闭桌面宠物',
-    desktopPetActiveHint: '人物已弹出到桌面，在此窗口控制对话',
+    // Desktop mate pop-out
+    desktopMate: '桌面伙伴',
+    desktopMateOn: '已弹出',
+    openDesktopMate: '打开桌面伙伴窗口',
+    closeDesktopMate: '关闭桌面伙伴',
+    desktopMateActiveHint: '人物已弹出到桌面，在此窗口控制对话',
   },
 }

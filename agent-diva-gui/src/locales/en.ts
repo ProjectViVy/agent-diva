@@ -41,7 +41,7 @@ export default {
   },
   chat: {
     placeholder: 'Type a message... (Enter to send)',
-    openPet: 'Open Pet',
+    openMate: 'Open Mate',
     start: 'Start chatting with DIVA~',
     toolRunning: 'Calling tool...',
     toolCall: 'Calling tool: {name}',
@@ -171,7 +171,7 @@ export default {
     channels: 'Channels',
     network: 'Network',
     language: 'Language',
-    pet: 'Pet',
+    mate: 'Mate',
     about: 'About',
     selfEvolution: 'Self Evolution',
     save: 'Save',
@@ -223,8 +223,8 @@ export default {
     sandboxDesc: 'Isolated execution environment and security policies',
     compaction: 'Compaction',
     compactionDesc: 'Configure context window compaction and budget management',
-    pet: 'Pet',
-    petDesc: 'Desktop avatar and voice interaction settings',
+    mate: 'Mate',
+    mateDesc: 'Desktop avatar and voice interaction settings',
     audit: 'Audit',
     auditDesc: 'View audit events and raw gateway logs',
   },
@@ -239,7 +239,7 @@ export default {
     persona: 'Persona',
     memory: 'Memory',
     planning: 'Planning',
-    pet: 'Pet',
+    mate: 'Mate',
     cron: 'Task Scheduler',
     mcp: 'MCP',
     skills: 'Skills',
@@ -1474,7 +1474,7 @@ export default {
       unknown: 'Unknown',
     },
   },
-  pet: {
+  mate: {
     // Voice panel
     voice: {
       ttsOn: 'TTS On',
@@ -1517,16 +1517,16 @@ export default {
     },
     // Config
     config: {
-      enabled: 'Enable Pet',
+      enabled: 'Enable Mate',
       ttsEnabled: 'Enable TTS',
       selectRenderer: 'Select Renderer',
       selectModel: 'Select Model',
     },
-    // Desktop pet pop-out
-    desktopPet: 'Desktop Pet',
-    desktopPetOn: 'Popped Out',
-    openDesktopPet: 'Open desktop pet window',
-    closeDesktopPet: 'Close desktop pet',
-    desktopPetActiveHint: 'Character is on your desktop. Control chat here.',
+    // Desktop mate pop-out
+    desktopMate: 'Desktop Mate',
+    desktopMateOn: 'Popped Out',
+    openDesktopMate: 'Open desktop mate window',
+    closeDesktopMate: 'Close desktop mate',
+    desktopMateActiveHint: 'Character is on your desktop. Control chat here.',
   },
 }

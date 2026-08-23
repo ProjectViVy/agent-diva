@@ -1,6 +1,6 @@
 export type AvatarRuntimeKind = 'vrm' | 'live2d'
 
-export type AvatarRuntimeMode = 'embedded' | 'desktop-pet'
+export type AvatarRuntimeMode = 'embedded' | 'desktop-mate'
 
 export type AvatarMood = 'neutral' | 'happy' | 'sad' | 'angry' | 'surprised'
 

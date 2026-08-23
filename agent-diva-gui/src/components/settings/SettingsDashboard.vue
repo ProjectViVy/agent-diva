@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'compaction' | 'pet' | 'audit'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'compaction' | 'mate' | 'audit'): void;
 }>();
 
 const cards = computed(() => [
@@ -22,7 +22,7 @@ const cards = computed(() => [
   { id: 'audit', icon: FileText, title: t('dashboard.audit'), desc: t('dashboard.auditDesc') },
   { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
   { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
-  { id: 'pet', icon: Cat, title: t('dashboard.pet'), desc: t('dashboard.petDesc') },
+  { id: 'mate', icon: Cat, title: t('dashboard.mate'), desc: t('dashboard.mateDesc') },
   { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },
 ]);
 </script>

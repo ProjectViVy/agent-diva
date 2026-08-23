@@ -97,10 +97,10 @@ vi.mock('./PersonaMemoryView.vue', () => ({
   },
 }));
 
-vi.mock('../features/diva-pet/components/DivaPetView.vue', () => ({
+vi.mock('../features/diva-mate/components/DivaMateView.vue', () => ({
   default: {
-    name: 'DivaPetView',
-    template: '<div class="diva-pet-view-stub" />',
+    name: 'DivaMateView',
+    template: '<div class="diva-mate-view-stub" />',
     emits: ['toggle-sidebar'],
   },
 }));
@@ -172,56 +172,56 @@ async function clickNav(wrapper: ReturnType<typeof mountNormalMode>, label: stri
   await nextTick();
 }
 
-describe('NormalMode pet focus layout', () => {
-  it('keeps normal pages outside pet focus layout with the topbar visible', () => {
+describe('NormalMode mate focus layout', () => {
+  it('keeps normal pages outside mate focus layout with the topbar visible', () => {
     const wrapper = mountNormalMode();
 
-    expect(wrapper.find('.app-shell').classes()).not.toContain('pet-immersive');
+    expect(wrapper.find('.app-shell').classes()).not.toContain('mate-immersive');
     expect(wrapper.find('.topbar').exists()).toBe(true);
   });
 
-  it('hides the topbar and collapses the sidebar on the pet page', async () => {
+  it('hides the topbar and collapses the sidebar on the mate page', async () => {
     const wrapper = mountNormalMode();
 
-    await clickNav(wrapper, 'nav.pet');
+    await clickNav(wrapper, 'nav.mate');
 
-    expect(wrapper.find('.app-shell').classes()).toContain('pet-immersive');
+    expect(wrapper.find('.app-shell').classes()).toContain('mate-immersive');
     expect(wrapper.find('.app-shell').classes()).not.toContain('sidebar-expanded');
     expect(wrapper.find('.topbar').exists()).toBe(false);
     expect(wrapper.find('.sidebar').exists()).toBe(false);
     expect(wrapper.find('.main-panel').exists()).toBe(true);
-    expect(wrapper.findComponent({ name: 'DivaPetView' }).exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'DivaMateView' }).exists()).toBe(true);
   });
 
-  it('lets the pet view toggle the sidebar without restoring the topbar', async () => {
+  it('lets the mate view toggle the sidebar without restoring the topbar', async () => {
     const wrapper = mountNormalMode();
 
-    await clickNav(wrapper, 'nav.pet');
-    wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
+    await clickNav(wrapper, 'nav.mate');
+    wrapper.findComponent({ name: 'DivaMateView' }).vm.$emit('toggle-sidebar');
     await nextTick();
 
     expect(wrapper.find('.overlay-sidebar').exists()).toBe(true);
     expect(wrapper.find('.topbar').exists()).toBe(false);
 
-    wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
+    wrapper.findComponent({ name: 'DivaMateView' }).vm.$emit('toggle-sidebar');
     await nextTick();
 
     expect(wrapper.find('.app-shell').classes()).not.toContain('sidebar-expanded');
     expect(wrapper.find('.topbar').exists()).toBe(false);
   });
 
-  it('restores the normal topbar after leaving the pet page', async () => {
+  it('restores the normal topbar after leaving the mate page', async () => {
     const wrapper = mountNormalMode();
 
-    await clickNav(wrapper, 'nav.pet');
-    wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
+    await clickNav(wrapper, 'nav.mate');
+    wrapper.findComponent({ name: 'DivaMateView' }).vm.$emit('toggle-sidebar');
     await nextTick();
     const chatOverlayItem = wrapper.findAll('.overlay-sidebar button.nav-item').find((button) => button.text() === 'nav.chat');
     expect(chatOverlayItem, 'overlay chat item').toBeTruthy();
     await chatOverlayItem!.trigger('click');
     await nextTick();
 
-    expect(wrapper.find('.app-shell').classes()).not.toContain('pet-immersive');
+    expect(wrapper.find('.app-shell').classes()).not.toContain('mate-immersive');
     expect(wrapper.find('.topbar').exists()).toBe(true);
   });
 
@@ -248,11 +248,11 @@ describe('NormalMode pet focus layout', () => {
     expect(listSkillRequests).toHaveBeenCalledTimes(callsAfterMount + 1);
   });
 
-  it('includes Evolution in the pet overlay navigation', async () => {
+  it('includes Evolution in the mate overlay navigation', async () => {
     const wrapper = mountNormalMode();
 
-    await clickNav(wrapper, 'nav.pet');
-    wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
+    await clickNav(wrapper, 'nav.mate');
+    wrapper.findComponent({ name: 'DivaMateView' }).vm.$emit('toggle-sidebar');
     await nextTick();
 
     const overlayItems = wrapper.findAll('.overlay-sidebar button.nav-item');

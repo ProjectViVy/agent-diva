@@ -36,7 +36,7 @@ import NotebookView from './NotebookView.vue';
 import EvolutionView from './EvolutionView.vue';
 import PersonaMemoryView from './PersonaMemoryView.vue';
 import MemoryView from './memory/MemoryView.vue';
-import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
+import DivaMateView from '../features/diva-mate/components/DivaMateView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import MaskSelectorButton from './MaskSelectorButton.vue';
@@ -79,7 +79,7 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
-  | 'pet'
+  | 'mate'
   | 'about'
   | 'theme'
   | 'self-evolution'
@@ -178,16 +178,16 @@ type SidebarSection =
   | 'mcp'
   | 'skills'
   | 'notebook'
-  | 'pet';
+  | 'mate';
 type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
+const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'mate' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
 const sidebarAutoCollapsed = ref(false);
-const prePetSidebarCollapsed = ref<boolean | null>(null);
+const preMateSidebarCollapsed = ref<boolean | null>(null);
 const overlaySidebarOpen = ref(false);
 const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ capabilities: true, tools: true });
@@ -366,11 +366,11 @@ watch([activeTab, activeMenu], () => {
 });
 
 const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'dashboard') => {
-  // FR-2: Restore sidebar state when leaving pet page
-  if (activeMenu.value === 'pet' && section !== 'pet') {
-    if (prePetSidebarCollapsed.value !== null) {
-      sidebarCollapsed.value = prePetSidebarCollapsed.value;
-      prePetSidebarCollapsed.value = null;
+  // FR-2: Restore sidebar state when leaving mate page
+  if (activeMenu.value === 'mate' && section !== 'mate') {
+    if (preMateSidebarCollapsed.value !== null) {
+      sidebarCollapsed.value = preMateSidebarCollapsed.value;
+      preMateSidebarCollapsed.value = null;
     }
     closeOverlaySidebar();
   }
@@ -385,10 +385,10 @@ const navigateTo = (section: SidebarSection, settingsView: SettingsSubview = 'da
     activeMenu.value = section;
   }
 
-  // FR-1: Auto-collapse sidebar when entering pet page
-  if (section === 'pet') {
-    if (prePetSidebarCollapsed.value === null) {
-      prePetSidebarCollapsed.value = sidebarCollapsed.value;
+  // FR-1: Auto-collapse sidebar when entering mate page
+  if (section === 'mate') {
+    if (preMateSidebarCollapsed.value === null) {
+      preMateSidebarCollapsed.value = sidebarCollapsed.value;
     }
     sidebarCollapsed.value = true;
   }
@@ -404,7 +404,7 @@ const openSettingsFromModelMenu = () => {
 
 // FR-4 & FR-5: Overlay sidebar functions
 const openOverlaySidebar = () => {
-  if (activeMenu.value !== 'pet') return;
+  if (activeMenu.value !== 'mate') return;
   overlaySidebarOpen.value = true;
   startOverlaySidebarTimer();
 };
@@ -584,7 +584,7 @@ defineExpose({
     :class="{
       'sidebar-expanded': !sidebarCollapsed && !sidebarAutoCollapsed,
       [`theme-${themeMode}`]: true,
-      'pet-immersive': activeMenu === 'pet',
+      'mate-immersive': activeMenu === 'mate',
     }"
     @mousemove="onOverlaySidebarMouseMove"
     @keydown="onOverlaySidebarKeyDown"
@@ -626,12 +626,12 @@ defineExpose({
       </div>
     </div>
     <div
-      v-if="activeMenu !== 'pet' && sidebarAutoCollapsed && !sidebarCollapsed"
+      v-if="activeMenu !== 'mate' && sidebarAutoCollapsed && !sidebarCollapsed"
       class="narrow-sidebar-scrim"
       @click="closeSidebar"
     />
     <aside
-      v-if="activeMenu !== 'pet'"
+      v-if="activeMenu !== 'mate'"
       class="sidebar"
       :class="{
         'sidebar-collapsed': sidebarCollapsed,
@@ -665,9 +665,9 @@ defineExpose({
           </span>
           -->
         </button>
-        <button class="nav-item" :class="{ active: isSectionActive('pet') }" @click="navigateTo('pet')">
+        <button class="nav-item" :class="{ active: isSectionActive('mate') }" @click="navigateTo('mate')">
           <Cat />
-          <span v-if="!sidebarCollapsed">{{ t('nav.pet') }}</span>
+          <span v-if="!sidebarCollapsed">{{ t('nav.mate') }}</span>
         </button>
         <button class="nav-item" :class="{ active: isSectionActive('console') }" @click="navigateTo('console')">
           <Server />
@@ -837,7 +837,7 @@ defineExpose({
     <!-- 主内容区 -->
     <main class="main-panel">
       <!-- Topbar -->
-      <header v-if="activeMenu !== 'pet'" class="topbar drag-region">
+      <header v-if="activeMenu !== 'mate'" class="topbar drag-region">
         <div class="topbar-left no-drag">
           <!-- DIVA 头像和状态 -->
           <div class="topbar-identity">
@@ -992,9 +992,9 @@ defineExpose({
           </div>
         </div>
         <!-- Planning视图 -->
-        <!-- Pet视图 -->
-        <div v-else-if="activeMenu === 'pet'" class="h-full relative">
-          <DivaPetView
+        <!-- Mate视图 -->
+        <div v-else-if="activeMenu === 'mate'" class="h-full relative">
+          <DivaMateView
             :messages="messages"
             :is-typing="isTyping"
             :current-emotion="currentEmotion"
@@ -1025,7 +1025,7 @@ defineExpose({
             </div>
             <nav class="sidebar-nav scrollbar-thin">
               <button
-                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'notebook', 'console', 'cron', 'planning', 'pet', 'mcp', 'skills']"
+                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'notebook', 'console', 'cron', 'planning', 'mate', 'mcp', 'skills']"
                 :key="section"
                 class="nav-item"
                 :class="{ active: isSectionActive(section as SidebarSection) }"

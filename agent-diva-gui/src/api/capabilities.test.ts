@@ -32,7 +32,7 @@ describe('G0 GUI capability ledger', () => {
       classification: 'LOCAL',
       transport: 'tauri-local',
     })
-    expect(byId.get('desktop.pet')).toMatchObject({
+    expect(byId.get('desktop.mate')).toMatchObject({
       classification: 'LOCAL',
       transport: 'tauri-local',
     })

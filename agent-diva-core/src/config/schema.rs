@@ -303,9 +303,9 @@ pub struct Config {
     /// Sandbox configuration
     #[serde(default)]
     pub sandbox: SandboxConfig,
-    /// Pet (desktop avatar) configuration
-    #[serde(default)]
-    pub pet: PetConfig,
+    /// Mate (desktop avatar) configuration
+    #[serde(default, rename = "mate", alias = "pet")]
+    pub mate: MateConfig,
 }
 
 /// Memory authority configuration.
@@ -1607,13 +1607,13 @@ impl Default for ExecToolConfig {
     }
 }
 
-/// Pet (desktop avatar) configuration
+/// Mate (desktop avatar) configuration
 ///
-/// Controls the Diva Pet feature: 3D avatar rendering,
+/// Controls the Diva Mate feature: 3D avatar rendering,
 /// voice interaction (TTS/ASR), and model selection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PetConfig {
-    /// Master switch: show/hide Diva Pet sidebar entry
+pub struct MateConfig {
+    /// Master switch: show/hide Diva Mate sidebar entry
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Selected VRM model filename (relative to public/vrm/models/)
@@ -1699,7 +1699,7 @@ fn default_tts_volume() -> f64 {
     1.0
 }
 
-impl Default for PetConfig {
+impl Default for MateConfig {
     fn default() -> Self {
         Self {
             enabled: true,

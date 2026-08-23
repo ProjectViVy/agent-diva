@@ -133,9 +133,9 @@ fn close_action(close_to_tray: bool, trigger: ExitTrigger) -> CloseAction {
 }
 
 fn close_all_webview_windows_for_exit(app: &tauri::AppHandle) {
-    let _ = app.emit_to("desktop-pet", "desktop-pet-render-pause", true);
+    let _ = app.emit_to("desktop-mate", "desktop-mate-render-pause", true);
 
-    if let Some(window) = app.get_webview_window("desktop-pet") {
+    if let Some(window) = app.get_webview_window("desktop-mate") {
         let _ = window.set_ignore_cursor_events(false);
     }
 
@@ -466,22 +466,22 @@ pub fn run() {
             commands::save_sandbox_config,
             commands::get_gui_prefs,
             commands::set_gui_prefs,
-            commands::pet_list_vrm_models,
-            commands::pet_import_vrm_model,
-            commands::pet_delete_vrm_model,
-            commands::pet_read_vrm_model,
-            commands::pet_load_voice_assets,
-            commands::pet_save_voice_selection,
-            commands::pet_import_voice_file,
-            commands::pet_delete_voice_file,
-            commands::pet_read_voice_file,
-            commands::pet_minimax_synthesize,
-            commands::pet_siliconflow_synthesize,
-            commands::open_desktop_pet,
-            commands::close_desktop_pet,
-            commands::set_desktop_pet_ignore_mouse,
-            commands::set_desktop_pet_always_on_top,
-            commands::minimize_desktop_pet,
+            commands::mate_list_vrm_models,
+            commands::mate_import_vrm_model,
+            commands::mate_delete_vrm_model,
+            commands::mate_read_vrm_model,
+            commands::mate_load_voice_assets,
+            commands::mate_save_voice_selection,
+            commands::mate_import_voice_file,
+            commands::mate_delete_voice_file,
+            commands::mate_read_voice_file,
+            commands::mate_minimax_synthesize,
+            commands::mate_siliconflow_synthesize,
+            commands::open_desktop_mate,
+            commands::close_desktop_mate,
+            commands::set_desktop_mate_ignore_mouse,
+            commands::set_desktop_mate_always_on_top,
+            commands::minimize_desktop_mate,
             commands::get_audit_events,
             commands::get_gateway_log_lines,
             commands::append_gui_log,

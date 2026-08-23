@@ -458,6 +458,8 @@ fn normalize_alias_keys(config: &mut Value) {
     );
     coalesce_alias_keys(config, &["tools"], "mcpServers", &["mcp_servers"]);
     coalesce_alias_keys(config, &["tools"], "mcpManager", &["mcp_manager"]);
+    // Legacy top-level `pet` section was renamed to `mate`.
+    coalesce_alias_keys(config, &[], "mate", &["pet"]);
 }
 
 #[cfg(test)]
@@ -721,6 +723,34 @@ mod tests {
         let server = config.tools.mcp_servers.get("filesystem").unwrap();
         assert_eq!(server.command, "uvx");
         assert_eq!(server.args.len(), 2);
+    }
+
+    #[test]
+    fn test_load_migrates_legacy_pet_section_to_mate() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            r#"{
+  "pet": {
+    "enabled": false,
+    "tts_speed": 1.5
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        assert!(!config.mate.enabled);
+        assert_eq!(config.mate.tts_speed, 1.5);
+
+        // The persisted form must use the canonical `mate` key.
+        let serialized = serde_json::to_string(&config).unwrap();
+        assert!(serialized.contains("\"mate\""));
+        assert!(!serialized.contains("\"pet\""));
     }
 
     #[test]

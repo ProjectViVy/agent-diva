@@ -35,9 +35,9 @@
         "center": true
       },
       {
-        "label": "desktop-pet",
-        "title": "Diva Desktop Pet",
-        "url": "/desktop-pet.html",
+        "label": "desktop-mate",
+        "title": "Diva Desktop Mate",
+        "url": "/desktop-mate.html",
         "visible": false,
         "width": 400,
         "height": 600,

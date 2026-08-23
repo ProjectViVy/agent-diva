@@ -1414,11 +1414,11 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <GitBranch v-else :size="14" />
           </button>
 
-          <!-- 桌面宠物按钮 -->
+          <!-- 桌面伙伴按钮 -->
           <button
             class="toolbar-btn"
-            :title="t('chat.openPet')"
-            @click="invoke('open_desktop_pet')"
+            :title="t('chat.openMate')"
+            @click="invoke('open_desktop_mate')"
           >
             <Cat :size="14" />
           </button>
