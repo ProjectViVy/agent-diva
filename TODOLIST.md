@@ -175,10 +175,14 @@
   更新 `bml/mod.rs` 边界说明，不动 schema。关联 `agent-diva-laputa/src/bml/`。
   S6 扫描门已落地，可安排独立清理。
 
-- [ ] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
-  `MemoryCrudOutcome::ProposalCreated` 与 `SyncTurnStatus::ProposalCreated` 仍是公开枚举，
-  巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
-  不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
+## Done
+
+- [x] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
+  Closed 2026-08-23 on `chore/memory-crud-proposal-created-dead-enum`: deleted
+  `MemoryCrudOutcome::ProposalCreated` and `SyncTurnStatus::ProposalCreated`,
+  consolidation dead match arms, and the lock-old proposal provider test.
+  Logs:
+  [`docs/logs/2026-08-memory-crud-proposal-created/v0.1.0-remove-proposal-created-enum/`](docs/logs/2026-08-memory-crud-proposal-created/v0.1.0-remove-proposal-created-enum/summary.md).
 
 ## Archive Index
 

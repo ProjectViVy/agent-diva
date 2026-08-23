@@ -119,11 +119,6 @@ pub enum MemoryCrudOutcome {
         /// Visible entries of the applied authority.
         entries: Vec<MemoryEntry>,
     },
-    /// A governed proposal was durably created; not authority until approved.
-    ProposalCreated {
-        /// Proposal id for review via the approval surface.
-        proposal_id: String,
-    },
     /// The operation did not succeed.
     Failed {
         /// Stable, payload-free reason.
@@ -180,12 +175,6 @@ mod tests {
         assert!(!json.contains("evidence_advisory"));
         let back: MemoryCrudOutcome = serde_json::from_str(&json).unwrap();
         assert_eq!(back, applied);
-
-        let proposed = MemoryCrudOutcome::ProposalCreated {
-            proposal_id: "prop-42".to_string(),
-        };
-        let json = serde_json::to_string(&proposed).unwrap();
-        assert!(json.contains("\"proposal_id\":\"prop-42\""));
     }
 
     #[test]
