@@ -395,11 +395,11 @@ defineExpose({ closeContextMenu });
 
 /* Header */
 .conv-header {
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border-bottom: 1px solid var(--line, #e5e7eb);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 /* Search */
@@ -418,12 +418,12 @@ defineExpose({ closeContextMenu });
 
 .conv-search-input {
   width: 100%;
-  padding: 8px 32px 8px 32px;
+  padding: var(--space-2, 8px) var(--space-6, 32px) var(--space-2, 8px) var(--space-6, 32px);
   border-radius: var(--radius-sm, 8px);
   border: 1px solid var(--conv-search-border, #e5e7eb);
   background: var(--conv-search-bg, #ffffff);
   color: var(--conv-search-text, #111827);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -439,7 +439,7 @@ defineExpose({ closeContextMenu });
 .conv-search-clear {
   position: absolute;
   right: 8px;
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border: none;
   background: transparent;
   color: var(--text-muted, #9ca3af);
@@ -461,7 +461,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-action-btn {
-  padding: 6px 8px;
+  padding: 6px var(--space-2, 8px);
   border-radius: var(--radius-sm, 8px);
   border: none;
   background: transparent;
@@ -488,14 +488,14 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-  margin: 8px 12px;
+  gap: var(--space-2, 8px);
+  padding: 10px var(--space-3, 12px);
+  margin: var(--space-2, 8px) var(--space-3, 12px);
   border-radius: var(--radius-sm, 8px);
   border: 1px dashed var(--conv-new-border, #e5e7eb);
   background: transparent;
   color: var(--conv-new-text, #9ca3af);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -512,7 +512,7 @@ defineExpose({ closeContextMenu });
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 8px;
+  padding: var(--space-1, 4px) var(--space-2, 8px);
 }
 
 /* Section */
@@ -524,7 +524,7 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px 4px;
+  padding: var(--space-2, 8px) 10px var(--space-1, 4px);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -537,7 +537,7 @@ defineExpose({ closeContextMenu });
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   transition: background 0.12s ease;
@@ -563,7 +563,7 @@ defineExpose({ closeContextMenu });
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
 }
 
 /* Item Body */
@@ -576,7 +576,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-item-title {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   color: var(--text, #111827);
   white-space: nowrap;
@@ -613,18 +613,18 @@ defineExpose({ closeContextMenu });
 /* Rename Input */
 .conv-rename-input {
   width: 100%;
-  padding: 4px 6px;
+  padding: var(--space-1, 4px) 6px;
   border-radius: 4px;
   border: 1px solid var(--brand, #ec4899);
   background: var(--panel-solid, #ffffff);
   color: var(--text, #111827);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   outline: none;
 }
 
 /* Delete Button */
 .conv-item-delete {
-  padding: 4px;
+  padding: var(--space-1, 4px);
   border: none;
   background: transparent;
   color: var(--text-muted, #9ca3af);
@@ -665,7 +665,7 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-empty p {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   margin: 0;
 }
 
@@ -702,13 +702,13 @@ defineExpose({ closeContextMenu });
 .conv-context-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--space-2, 8px) 10px;
   border: none;
   background: transparent;
   color: var(--text, #111827);
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.12s ease;
@@ -730,6 +730,6 @@ defineExpose({ closeContextMenu });
 .conv-context-divider {
   height: 1px;
   background: var(--line, #e5e7eb);
-  margin: 4px 0;
+  margin: var(--space-1, 4px) 0;
 }
 </style>

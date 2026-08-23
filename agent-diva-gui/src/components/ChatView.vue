@@ -1630,53 +1630,53 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .active-plan-todo-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   flex-shrink: 0;
   min-width: 0;
-  margin: 0 16px 8px;
-  padding: 8px 10px;
+  margin: 0 var(--space-4, 16px) var(--space-2, 8px);
+  padding: var(--space-2, 8px) 10px;
   border: 1px solid rgba(245, 158, 11, .28);
   border-radius: 10px;
   background: rgba(255, 251, 235, .96);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
-.active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 16px 8px; }
+.active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 var(--space-4, 16px) var(--space-2, 8px); }
 .active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
-.active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: 12px; line-height: 1.4; }
+.active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: var(--space-2, 8px) 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: var(--font-size-xs, 12px); line-height: 1.4; }
 .active-plan-execution-error span { min-width: 0; overflow-wrap: anywhere; }
 .active-plan-execution-error button { flex: 0 0 auto; border: 1px solid var(--danger-deep, #b91c1c); border-radius: 7px; padding: 5px 9px; color: #fff; background: var(--danger-deep, #b91c1c); font-size: 11px; font-weight: 700; cursor: pointer; }
 .active-plan-execution-error button:disabled { cursor: not-allowed; opacity: .6; }
 .active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
-.active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
+.active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: var(--space-2, 8px); }
 .active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: #92400e; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-todo-title { min-width: 0; overflow: hidden; color: #374151; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-todo-title { min-width: 0; overflow: hidden; color: #374151; font-size: var(--font-size-xs, 12px); text-overflow: ellipsis; white-space: nowrap; }
 .active-plan-todo-progress { flex: 0 0 auto; color: #b45309; font-size: 11px; font-variant-numeric: tabular-nums; }
 .active-plan-todo-toggle { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 5px; color: #92400e; background: transparent; cursor: pointer; }
 .active-plan-todo-toggle:hover { background: rgba(245, 158, 11, .14); }
-.active-plan-todo-details { padding: 9px 12px 10px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
+.active-plan-todo-details { padding: 9px var(--space-3, 12px) 10px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
 .active-plan-todo-details-title { margin-bottom: 6px; color: #92400e; font-size: 11px; font-weight: 700; }
 .active-plan-todo-details-list { display: grid; gap: 5px; }
 .active-plan-todo-detail-item { display: flex; align-items: center; gap: 6px; min-width: 0; color: #374151; font-size: 11px; }
 .active-plan-todo-detail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-task-list { display: grid; gap: 4px; margin-top: -1px; padding: 8px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
-.active-plan-task-list-title { padding: 2px 4px 5px; color: #92400e; font-size: 11px; font-weight: 700; }
+.active-plan-task-list { display: grid; gap: var(--space-1, 4px); margin-top: -1px; padding: var(--space-2, 8px); border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
+.active-plan-task-list-title { padding: 2px var(--space-1, 4px) 5px; color: #92400e; font-size: 11px; font-weight: 700; }
 .active-plan-task-item { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 6px; border: 0; border-radius: 7px; color: #374151; background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
 .active-plan-task-item:hover { background: rgba(245, 158, 11, .14); }
 .active-plan-task-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .active-plan-task-chevron { margin-left: auto; flex: 0 0 auto; color: #b45309; }
-.todo-status-overlay { position: absolute; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
+.todo-status-overlay { position: absolute; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: var(--space-5, 24px); background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
 .todo-status-dialog { width: min(520px, 100%); max-height: min(80vh, 620px); overflow: auto; border: 1px solid var(--line, #e5e7eb); border-radius: 16px; background: var(--panel-solid, #fff); box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
-.todo-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line, #e5e7eb); }
+.todo-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4, 16px); padding: 18px 20px; border-bottom: 1px solid var(--line, #e5e7eb); }
 .todo-status-eyebrow { margin-bottom: 5px; color: var(--text-muted, #9ca3af); font-size: 11px; }
 .todo-status-header h2 { margin: 0; color: var(--text, #111827); font-size: 17px; font-weight: 700; }
 .todo-status-close { display: flex; align-items: center; justify-content: center; padding: 5px; border: 0; border-radius: 7px; color: var(--text-muted, #9ca3af); background: transparent; cursor: pointer; }
 .todo-status-close:hover { color: var(--text, #111827); background: var(--nav-hover, rgba(0, 0, 0, .06)); }
 .todo-status-body { display: grid; gap: 14px; padding: 18px 20px 22px; color: var(--text, #111827); }
-.todo-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, #f1f5f9); font-size: 13px; }
-.todo-status-row span, .todo-status-section > span { color: var(--text-muted, #6b7280); font-size: 12px; }
-.todo-status-row strong { font-size: 13px; }
-.todo-status-section p { margin: 5px 0 0; color: var(--text, #374151); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-.todo-status-blocked { padding: 10px 12px; border-radius: 9px; background: #fff7ed; }
+.todo-status-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3, 12px); padding-bottom: 10px; border-bottom: 1px solid var(--line, #f1f5f9); font-size: var(--font-size-sm, 13px); }
+.todo-status-row span, .todo-status-section > span { color: var(--text-muted, #6b7280); font-size: var(--font-size-xs, 12px); }
+.todo-status-row strong { font-size: var(--font-size-sm, 13px); }
+.todo-status-section p { margin: 5px 0 0; color: var(--text, #374151); font-size: var(--font-size-sm, 13px); line-height: 1.6; white-space: pre-wrap; }
+.todo-status-blocked { padding: 10px var(--space-3, 12px); border-radius: 9px; background: #fff7ed; }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {
@@ -1708,20 +1708,20 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .streaming-reasoning-section {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2, 8px);
 }
 
 .tool-call-caption {
   margin-bottom: 6px;
   color: var(--text-muted, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.4;
 }
 
 .clean-thinking-status {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
@@ -1747,16 +1747,16 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .streaming-reasoning-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 4px;
+  gap: var(--space-2, 8px);
+  padding: 0 var(--space-1, 4px);
   color: var(--text-muted, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .streaming-dots {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   min-height: 12px;
 }
 
@@ -1840,7 +1840,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 .autodream-trigger-notice {
   min-width: min(360px, 100%);
-  padding: 10px 12px;
+  padding: 10px var(--space-3, 12px);
   border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 28%, var(--border, #d8dee9));
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent, #2563eb) 7%, var(--panel-solid, #fff));
@@ -1855,20 +1855,20 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 .autodream-trigger-notice__error {
   margin-top: 4px !important;
   color: var(--danger, #b42318);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .autodream-trigger-notice__action {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1, 4px);
   margin-top: 8px;
   padding: 0;
   border: 0;
   color: var(--accent, #2563eb);
   background: transparent;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   font-weight: 650;
 }
 

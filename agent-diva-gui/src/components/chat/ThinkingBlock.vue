@@ -108,7 +108,7 @@ function onLeave(el: Element) {
 
 <style scoped>
 .thinking-card {
-  margin: 8px 0;
+  margin: var(--space-2, 8px) 0;
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: var(--panel);
@@ -125,7 +125,7 @@ function onLeave(el: Element) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 12px;
+  column-gap: var(--space-3, 12px);
   padding: 10px 14px;
   border-radius: var(--radius);
   transition: background-color 0.2s ease, border-radius 0.2s ease;
@@ -142,7 +142,7 @@ function onLeave(el: Element) {
 .thinking-header-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   min-width: 0;
   padding: 0;
   border: 0;
@@ -155,7 +155,7 @@ function onLeave(el: Element) {
 .thinking-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2, 8px);
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -176,7 +176,7 @@ function onLeave(el: Element) {
 }
 
 .thinking-action-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1;
 }
 
@@ -186,14 +186,14 @@ function onLeave(el: Element) {
 }
 
 .thinking-label {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
 }
 
 .thinking-duration {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -231,7 +231,7 @@ function onLeave(el: Element) {
 }
 
 .thinking-content {
-  padding: 12px 14px;
+  padding: var(--space-3, 12px) 14px;
   border-top: 1px solid var(--line);
   background: var(--panel-solid);
   max-height: 400px;
@@ -242,7 +242,7 @@ function onLeave(el: Element) {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   line-height: 1.6;
   color: var(--text-muted);
   font-family:

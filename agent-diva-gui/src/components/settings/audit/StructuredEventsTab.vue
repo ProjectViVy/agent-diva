@@ -119,16 +119,16 @@ function getEventDataPreview(data: Record<string, unknown>): string {
 .skeleton-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 0;
+  gap: var(--space-2, 8px);
+  padding: var(--space-1, 4px) 0;
 }
 
 .skeleton-row {
   display: grid;
   grid-template-columns: 28px 1fr 100px 1.5fr;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   align-items: center;
-  padding: 12px 8px;
+  padding: var(--space-3, 12px) var(--space-2, 8px);
   border-radius: var(--radius-sm, 8px);
 }
 
@@ -167,7 +167,7 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 64px 24px;
+  padding: 64px var(--space-5, 24px);
   text-align: center;
 }
 
@@ -178,14 +178,14 @@ function getEventDataPreview(data: Record<string, unknown>): string {
 }
 
 .empty-title {
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
   font-weight: 500;
   color: var(--text-muted, #6b7280);
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1, 4px);
 }
 
 .empty-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted, #9ca3af);
   margin: 0;
 }
@@ -199,8 +199,8 @@ function getEventDataPreview(data: Record<string, unknown>): string {
 .event-table-header {
   display: grid;
   grid-template-columns: 28px 1fr 100px 1.5fr;
-  gap: 12px;
-  padding: 10px 8px;
+  gap: var(--space-3, 12px);
+  padding: 10px var(--space-2, 8px);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -213,10 +213,10 @@ function getEventDataPreview(data: Record<string, unknown>): string {
 .event-row {
   display: grid;
   grid-template-columns: 28px 1fr 100px 1.5fr;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   align-items: center;
-  padding: 10px 8px;
-  font-size: 13px;
+  padding: 10px var(--space-2, 8px);
+  font-size: var(--font-size-sm, 13px);
   color: var(--text, #111827);
   border-bottom: 1px solid var(--line, #e5e7eb);
   transition: background 0.1s ease;
@@ -242,7 +242,7 @@ function getEventDataPreview(data: Record<string, unknown>): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
 }
 
 .event-label {
@@ -253,13 +253,13 @@ function getEventDataPreview(data: Record<string, unknown>): string {
 }
 
 .event-time {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted, #6b7280);
   font-variant-numeric: tabular-nums;
 }
 
 .event-data-preview {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--text-muted, #6b7280);
   white-space: nowrap;
   overflow: hidden;

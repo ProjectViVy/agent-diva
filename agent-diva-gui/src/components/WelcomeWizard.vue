@@ -501,7 +501,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-header {
-  padding: 24px 28px 20px;
+  padding: var(--space-5, 24px) 28px 20px;
   text-align: center;
   border-bottom: 1px solid rgba(255, 182, 193, 0.15);
 }
@@ -510,7 +510,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   margin-bottom: 12px;
 }
 
@@ -545,13 +545,13 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-tagline {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--identity-ink, #6b2737);
   opacity: 0.8;
 }
 
 .welcome-progress {
-  padding: 16px 28px;
+  padding: var(--space-4, 16px) 28px;
   background: rgba(255, 245, 248, 0.6);
   border-bottom: 1px solid rgba(255, 182, 193, 0.1);
 }
@@ -639,7 +639,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: var(--space-5, 24px) 28px;
 }
 
 .welcome-step-content {
@@ -664,14 +664,14 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-intro-title {
-  font-size: 18px;
+  font-size: var(--font-size-xl, 18px);
   font-weight: 600;
   color: var(--identity-strong, #be185d);
   margin-bottom: 12px;
 }
 
 .welcome-intro-body {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--identity-ink, #6b2737);
   line-height: 1.6;
   margin-bottom: 24px;
@@ -680,17 +680,17 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 .welcome-features {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3, 12px);
 }
 
 .welcome-feature {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--space-3, 12px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
   background: rgba(255, 245, 248, 0.6);
   border-radius: 12px;
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--identity-ink, #6b2737);
 }
 
@@ -700,7 +700,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 
 .welcome-provider-header {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4, 16px);
   margin-bottom: 20px;
 }
 
@@ -716,14 +716,14 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-provider-title {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   font-weight: 600;
   color: var(--identity-strong, #be185d);
   margin-bottom: 6px;
 }
 
 .welcome-provider-desc {
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
   color: var(--identity-ink, #6b2737);
   line-height: 1.5;
 }
@@ -751,8 +751,8 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 
 .welcome-input {
   width: 100%;
-  padding: 12px 14px;
-  font-size: 13px;
+  padding: var(--space-3, 12px) 14px;
+  font-size: var(--font-size-sm, 13px);
   font-family: 'Inter', ui-monospace, monospace;
   color: var(--identity-ink, #6b2737);
   background: rgba(255, 255, 255, 0.8);
@@ -783,14 +783,14 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-done-title {
-  font-size: 18px;
+  font-size: var(--font-size-xl, 18px);
   font-weight: 600;
   color: var(--identity-strong, #be185d);
   margin-bottom: 12px;
 }
 
 .welcome-done-body {
-  font-size: 13px;
+  font-size: var(--font-size-sm, 13px);
   color: var(--identity-ink, #6b2737);
   line-height: 1.6;
   margin-bottom: 24px;
@@ -808,7 +808,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 14px var(--space-4, 16px);
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(255, 182, 193, 0.25);
   border-radius: 14px;
@@ -825,7 +825,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 .welcome-nav-card-primary {
   background: linear-gradient(135deg, rgba(255, 240, 246, 0.95), rgba(255, 230, 240, 0.9));
   border-color: rgba(236, 72, 153, 0.3);
-  padding: 18px 16px;
+  padding: 18px var(--space-4, 16px);
 }
 
 .welcome-nav-card-primary:hover {
@@ -842,7 +842,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-nav-card-title {
-  font-size: 14px;
+  font-size: var(--font-size-base, 14px);
   font-weight: 600;
   color: var(--identity-strong, #be185d);
 }
@@ -862,7 +862,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 28px;
+  padding: var(--space-4, 16px) 28px;
   background: rgba(255, 250, 252, 0.8);
   border-top: 1px solid rgba(255, 182, 193, 0.15);
 }
@@ -878,8 +878,8 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
-  font-size: 13px;
+  padding: 10px var(--space-4, 16px);
+  font-size: var(--font-size-sm, 13px);
   font-weight: 500;
   border-radius: 10px;
   cursor: pointer;
@@ -924,8 +924,8 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   background: transparent;
   color: var(--identity-deep, #9d174d);
   opacity: 0.6;
-  font-size: 12px;
-  padding: 8px 12px;
+  font-size: var(--font-size-xs, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
 }
 
 .welcome-btn-skip:hover {
