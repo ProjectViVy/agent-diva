@@ -1,7 +1,7 @@
-//! Wave B 表征测试：`CliRuntime::effective_workspace()` 当前行为快照。
+//! Wave B + C1 表征测试：`CliRuntime::effective_workspace()` 合同。
 //!
-//! 这些测试钉住 Phase 0 的现状，为 Wave C1 引入 `WorkspaceContext` 统一解析
-//! 提供回归基线。行为变化必须由 Wave C1 有意识地更新这些断言。
+//! Wave B 钉住 Phase 0 现状；Wave C1 将默认语义切换到进程 CWD 并绝对化/
+//! canonicalize 所有覆盖路径。本文件已更新以反映 Wave C1 合同。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,32 +46,49 @@ fn runtime_with(
 }
 
 #[test]
-fn default_workspace_is_legacy_home_default() {
+fn default_workspace_is_process_cwd_not_legacy_home() {
     let temp = tempfile::tempdir().unwrap();
     let config_path = write_config(temp.path(), None);
     let (runtime, config) = runtime_with(config_path, None);
 
     let workspace = runtime.effective_workspace(&config);
-    let home = dirs::home_dir().expect("home dir");
+    let cwd = std::env::current_dir().unwrap();
+    assert!(
+        workspace.is_absolute(),
+        "未指定 --workspace 且 config 为旧默认时，解析结果必须绝对化：{workspace:?}"
+    );
+    let expected = cwd.canonicalize().unwrap_or(cwd);
     assert_eq!(
-        workspace,
-        home.join(".agent-diva").join("workspace"),
-        "未指定 --workspace 且 config 未保存 workspace 时，当前默认仍是 ~/.agent-diva/workspace"
+        workspace, expected,
+        "LegacyDefault 应解析到进程 CWD，而非 ~/.agent-diva/workspace"
     );
 }
 
 #[test]
-fn explicit_override_wins_without_normalization() {
+fn explicit_override_wins_and_is_absolutized() {
     let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("override-ws");
+    fs::create_dir_all(&target).unwrap();
     let config_path = write_config(temp.path(), None);
-    let override_path = PathBuf::from("some/relative/dir");
-    let (runtime, config) = runtime_with(config_path, Some(override_path.clone()));
+    let (runtime, config) = runtime_with(config_path, Some(target.clone()));
 
     let workspace = runtime.effective_workspace(&config);
+    assert!(workspace.is_absolute());
     assert_eq!(
-        workspace, override_path,
-        "--workspace 覆盖优先，且当前不做绝对化/canonical 化（Wave C1 将统一处理）"
+        workspace,
+        target.canonicalize().unwrap_or(target),
+        "--workspace 覆盖优先且立即 canonicalize"
     );
+}
+
+#[test]
+fn relative_cli_override_is_absolutized() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = write_config(temp.path(), None);
+    let (runtime, config) = runtime_with(config_path, Some(PathBuf::from(".")));
+
+    let workspace = runtime.effective_workspace(&config);
+    assert!(workspace.is_absolute());
 }
 
 #[test]
@@ -82,11 +99,15 @@ fn configured_workspace_with_tilde_is_expanded() {
 
     let workspace = runtime.effective_workspace(&config);
     let home = dirs::home_dir().expect("home dir");
-    assert_eq!(workspace, home.join("custom-ws"));
+    let expected = home.join("custom-ws");
+    assert!(
+        workspace == expected || workspace == expected.canonicalize().unwrap(),
+        "~/custom-ws 应展开到 {expected:?}，实际是 {workspace:?}"
+    );
 }
 
 #[test]
-fn configured_absolute_workspace_is_used_as_is() {
+fn configured_absolute_workspace_is_canonicalized() {
     let temp = tempfile::tempdir().unwrap();
     let target = temp.path().join("project-root");
     fs::create_dir_all(&target).unwrap();
@@ -94,5 +115,20 @@ fn configured_absolute_workspace_is_used_as_is() {
     let (runtime, config) = runtime_with(config_path, None);
 
     let workspace = runtime.effective_workspace(&config);
-    assert_eq!(workspace, target);
+    assert_eq!(workspace, target.canonicalize().unwrap());
+}
+
+#[test]
+fn workspace_context_reports_source() {
+    use agent_diva_core::workspace::WorkspaceSource;
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = write_config(temp.path(), None);
+    let (runtime, config) = runtime_with(config_path, None);
+
+    let ctx = runtime.workspace_context(&config);
+    assert_eq!(
+        ctx.source,
+        WorkspaceSource::LegacyDefault,
+        "旧默认值应被标记为 LegacyDefault 以便 doctor 提示"
+    );
 }

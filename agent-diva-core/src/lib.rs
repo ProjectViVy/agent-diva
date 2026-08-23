@@ -34,6 +34,7 @@ pub mod todo;
 pub mod token_ledger;
 pub mod tool_artifact;
 pub mod utils;
+pub mod workspace;
 pub mod workspace_identity;
 
 pub use attachment::FileAttachment;

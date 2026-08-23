@@ -155,11 +155,42 @@ impl CliRuntime {
     }
 
     pub fn effective_workspace(&self, config: &Config) -> PathBuf {
-        if let Some(workspace) = &self.workspace_override {
-            workspace.clone()
-        } else {
-            expand_tilde(&config.agents.defaults.workspace)
+        self.workspace_context(config).root
+    }
+
+    /// Resolve the full [`WorkspaceContext`] for this runtime invocation.
+    ///
+    /// Delegates to `agent_diva_core::workspace::resolve_workspace`, which
+    /// absolutizes/canonicalizes the result and emits a `warn` log when the
+    /// legacy `~/.agent-diva/workspace` default is still in effect.
+    ///
+    /// For ExplicitCli and Configured sources, the resolved directory is
+    /// created if it does not exist (matching prior `ensure_workspace_templates`
+    /// semantics). LegacyDefault / ProcessCwd rely on an existing CWD.
+    pub fn workspace_context(
+        &self,
+        config: &Config,
+    ) -> agent_diva_core::workspace::WorkspaceContext {
+        let ctx = agent_diva_core::workspace::resolve_workspace(
+            self.workspace_override.as_deref(),
+            &config.agents.defaults.workspace,
+        );
+        match ctx.source {
+            agent_diva_core::workspace::WorkspaceSource::ExplicitCli
+            | agent_diva_core::workspace::WorkspaceSource::Configured => {
+                if !ctx.root.exists() {
+                    if let Err(err) = std::fs::create_dir_all(&ctx.root) {
+                        tracing::warn!(
+                            "failed to create configured workspace `{}`: {}",
+                            ctx.root.display(),
+                            err
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
+        ctx
     }
 
     pub fn cron_store_path(&self) -> PathBuf {

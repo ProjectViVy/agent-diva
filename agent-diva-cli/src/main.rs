@@ -1010,7 +1010,6 @@ async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
     }
 
     let workspace = runtime.effective_workspace(&config);
-    let _ = ensure_workspace_templates(&workspace)?;
 
     println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
     println!("Model: {}", config.agents.defaults.model);
@@ -1303,7 +1302,6 @@ async fn run_tui(
     let config = runtime.load_config()?;
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = runtime.effective_workspace(&config);
-    let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
     let provider = build_provider(&config, &selected_model)?;
