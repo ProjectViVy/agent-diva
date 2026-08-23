@@ -179,8 +179,8 @@ function onStopSpeaking() {
 }
 
 .voice-btn--glass {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, var(--mate-glass-bg-hover, rgba(255, 255, 255, 0.18)), var(--mate-glass-border-subtle, rgba(255, 255, 255, 0.08)));
+  border: 1px solid var(--mate-glass-bg-hover, rgba(255, 255, 255, 0.18));
   box-shadow: 0 10px 30px rgba(9, 14, 28, 0.18);
   backdrop-filter: blur(18px);
 }
