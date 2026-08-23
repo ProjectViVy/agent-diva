@@ -129,6 +129,11 @@
 - [ ] **MASK-FEATURE-ACCEPTANCE** `sev-P2`
   恢复 `.sisyphus/plans/mask-feature-implementation.md` 前先复核现状，再执行剩余验收。
 
+- [ ] **PET-TO-MATE-DESKTOP-SMOKE** `sev-P3`
+  pet→mate 全面改名后的桌面级人工冒烟：侧边栏"伙伴"入口、设置页"启用伙伴"开关、
+  桌面伙伴弹窗（`desktop-mate` 窗口）、`config.json` 出现 `"mate"` 节且旧配置不丢。
+  步骤见 `docs/logs/2026-08-pet-to-mate-rename/v0.1.0-pet-to-mate-rename/acceptance.md`。
+
 ## Reliability / Test Debt
 
 - [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`
