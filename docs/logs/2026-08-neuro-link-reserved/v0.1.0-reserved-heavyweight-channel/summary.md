@@ -13,8 +13,9 @@
 - `neuro_link.rs` module docs: same contract; repaired garbled protocol
   arrows in the existing header.
 - TODOLIST: `CHANNELS-STATUS-COVERAGE` reframed to
-  `NEURO-LINK-HEAVYWEIGHT-CHANNEL` (pending start). Do not fill
-  ready/missing_fields as a telegram-style gap.
+  `NEURO-LINK-HEAVYWEIGHT-CHANNEL` (pending start) and moved from
+  频道遗留 into **EPIC 新启动**. Do not fill ready/missing_fields as a
+  telegram-style gap.
 
 ## Not done
 
