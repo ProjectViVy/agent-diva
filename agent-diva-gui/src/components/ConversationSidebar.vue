@@ -171,7 +171,6 @@ defineExpose({ closeContextMenu });
 <template>
   <aside
     class="conv-sidebar"
-    :class="`theme-${themeMode}`"
     @click="handleOutsideClick"
   >
     <!-- Header: Search + Actions -->
@@ -386,8 +385,8 @@ defineExpose({ closeContextMenu });
 /* Conversation Sidebar Container */
 .conv-sidebar {
   width: 280px;
-  border-left: 1px solid var(--line, #e5e7eb);
-  background: var(--panel, #ffffff);
+  border-left: 1px solid var(--conv-sidebar-border, #e5e7eb);
+  background: var(--conv-sidebar-bg, #ffffff);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -421,9 +420,9 @@ defineExpose({ closeContextMenu });
   width: 100%;
   padding: 8px 32px 8px 32px;
   border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-  color: var(--text, #111827);
+  border: 1px solid var(--conv-search-border, #e5e7eb);
+  background: var(--conv-search-bg, #ffffff);
+  color: var(--conv-search-text, #111827);
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -493,9 +492,9 @@ defineExpose({ closeContextMenu });
   padding: 10px 12px;
   margin: 8px 12px;
   border-radius: var(--radius-sm, 8px);
-  border: 1px dashed var(--line, #e5e7eb);
+  border: 1px dashed var(--conv-new-border, #e5e7eb);
   background: transparent;
-  color: var(--text-muted, #9ca3af);
+  color: var(--conv-new-text, #9ca3af);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -505,7 +504,7 @@ defineExpose({ closeContextMenu });
 .conv-new-session:hover {
   border-color: var(--brand, #ec4899);
   color: var(--brand, #ec4899);
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  background: var(--conv-item-hover-bg, rgba(0, 0, 0, 0.04));
 }
 
 /* Session List */
@@ -546,11 +545,11 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-item:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  background: var(--conv-item-hover-bg, rgba(0, 0, 0, 0.04));
 }
 
 .conv-item-active {
-  background: var(--nav-active, rgba(0, 0, 0, 0.06)) !important;
+  background: var(--conv-item-active-bg, rgba(0, 0, 0, 0.06)) !important;
 }
 
 /* Item Icon */
@@ -558,8 +557,8 @@ defineExpose({ closeContextMenu });
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
+  border: 1px solid var(--conv-icon-border, #e5e7eb);
+  background: var(--conv-icon-bg, #ffffff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -692,8 +691,8 @@ defineExpose({ closeContextMenu });
 .conv-context-menu {
   position: fixed;
   min-width: 160px;
-  background: var(--panel-solid, #ffffff);
-  border: 1px solid var(--line, #e5e7eb);
+  background: var(--conv-menu-bg, #ffffff);
+  border: 1px solid var(--conv-menu-border, #e5e7eb);
   border-radius: var(--radius-sm, 8px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 6px;
@@ -732,132 +731,5 @@ defineExpose({ closeContextMenu });
   height: 1px;
   background: var(--line, #e5e7eb);
   margin: 4px 0;
-}
-
-/* ========================================
-   Theme Overrides
-   ======================================== */
-
-/* Dark Theme */
-:root[data-theme="dark"] .conv-sidebar,
-.theme-dark .conv-sidebar {
-  border-left-color: var(--line, #1f2937);
-  background: var(--panel-solid, #0f172a);
-}
-
-.theme-dark .conv-search-input {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-  color: var(--text, #e2e8f0);
-}
-
-.theme-dark .conv-item-icon {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-}
-
-.theme-dark .conv-item-delete:hover {
-  background: var(--danger-bg, rgba(239, 68, 68, 0.15));
-}
-
-.theme-dark .conv-context-menu {
-  background: var(--panel-solid, #111827);
-  border-color: var(--line, #1f2937);
-}
-
-/* Love Theme */
-.theme-love .conv-sidebar {
-  border-left-color: rgba(255, 182, 193, 0.5);
-  background: rgba(255, 240, 246, 0.9);
-}
-
-.theme-love .conv-search-input {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-  color: #7a2f3e;
-}
-
-.theme-love .conv-search-input:focus {
-  border-color: var(--brand, #ec4899);
-}
-
-.theme-love .conv-item:hover {
-  background: rgba(236, 72, 153, 0.06);
-}
-
-.theme-love .conv-item-active {
-  background: rgba(236, 72, 153, 0.1);
-}
-
-.theme-love .conv-item-icon {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.theme-love .conv-new-session {
-  border-color: rgba(255, 182, 193, 0.5);
-  color: #9b3a4a;
-}
-
-.theme-love .conv-new-session:hover {
-  border-color: var(--brand, #ec4899);
-  color: var(--brand, #ec4899);
-  background: rgba(236, 72, 153, 0.06);
-}
-
-.theme-love .conv-context-menu {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(255, 182, 193, 0.5);
-}
-
-/* Default Theme */
-.theme-default .conv-sidebar {
-  border-left-color: var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-}
-
-/* Miku Theme */
-.theme-miku .conv-sidebar {
-  border-left-color: rgba(0, 215, 200, 0.15);
-  background: var(--panel-solid, #161b22);
-}
-
-.theme-miku .conv-search-input {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-  color: var(--text, #e6edf3);
-}
-
-.theme-miku .conv-search-input:focus {
-  border-color: var(--brand, #39c5bb);
-}
-
-.theme-miku .conv-item:hover {
-  background: rgba(57, 197, 187, 0.06);
-}
-
-.theme-miku .conv-item-active {
-  background: rgba(57, 197, 187, 0.1);
-}
-
-.theme-miku .conv-item-icon {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-}
-
-.theme-miku .conv-new-session {
-  border-color: rgba(0, 215, 200, 0.2);
-  color: #39c5bb;
-}
-
-.theme-miku .conv-new-session:hover {
-  border-color: var(--brand, #39c5bb);
-  color: var(--brand, #39c5bb);
-  background: rgba(57, 197, 187, 0.06);
-}
-
-.theme-miku .conv-context-menu {
-  background: var(--panel-solid, #161b22);
-  border-color: rgba(0, 215, 200, 0.15);
 }
 </style>
