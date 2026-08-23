@@ -1,16 +1,46 @@
-# v0.4.0 GUI/Manager 工作区一致性：总结
+# v0.4.0 WorkspaceInstructions + Manager `/api/workspace` 总结（Wave C3 + Wave D backend）
 
-> 状态：骨架（Wave D 完成后补全）
+## 交付
 
-## 交付范围
+### Wave C3：WorkspaceInstructions 模块与安全合同
 
-- Manager 状态端点返回 canonical workspace、来源、AGENTS 状态（存在/截断/digest/预算），
-  正文不入普通日志。
-- GUI `WorkspaceContext` store 作为唯一快照来源；移除 `GeneralSettings.vue` /
-  `ProvidersSettings.vue` 重复的 `statusReport.config.workspace` 回显与重复
-  `getConfig_status()` 请求。
-- `NormalMode` Topbar 只读 `WorkspaceChip`；`SettingsView` 新增 Workspace 页面
-  （canonical root、来源、AGENTS 摘要抽屉：来源/预算/digest/截断，只读不可编辑）。
-- 目录选择走"停止 → 保存 → 重建 Gateway → 恢复会话"单一切换流程；流式回答/Plan
-  执行/待审批时阻止切换；失败保留旧上下文并提供恢复动作；过期 inspect/status 响应丢弃。
-- 设计依据：`docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md`。
+- `agent-diva-agent/src/workspace_instructions.rs`（新建）：
+  - `WorkspaceInstruction { source, digest, truncated, char_count, body }`
+  - `AGENTS_MD_MAX_CHARS = 4000`（与原 `WORKSPACE_MD_MAX_CHARS` 对齐）
+  - `DIGEST_PREFIX_LEN = 16`（SHA-256 hex 前 16 字符）
+  - `SECURITY_CONTRACT` 常量：声明 AGENTS.md 是项目指导而非无条件权威
+  - `load_workspace_instructions(root)` 与 `load_from_path(path)`
+  - `format_header()`：注入 `Source: <path> (SHA256: <digest>, truncated: <bool>). <contract>`
+  - 空文件/纯空白/不可读返回 `None`
+- `agent-diva-agent/src/context.rs`：
+  - `append_agent_rules` 改为委托新模块
+  - 新增 `tracing::info` 事件（source/digest/truncated/char_count）
+  - 删除 `read_workspace_markdown` / `read_trimmed_markdown` 死代码
+  - 新增 `agents_md_injection_carries_digest_and_security_contract` Wave C3 合同测试
+
+### Wave D backend：Manager `/api/workspace` 端点
+
+- `agent-diva-manager/src/handlers/workspace.rs`（新建）：
+  - `GET /api/workspace` 返回 `WorkspaceStatusResponse { root, source, legacy_hint, agents_md }`
+  - `agents_md: { path, digest, truncated, char_count, present }`
+  - 直接读 `state.config_dir/config.json` + workspace root 的 AGENTS.md，无 ManagerCommand 回环
+  - 3 个 handler 测试（AGENTS.md 存在/缺失/legacy-default 提示）
+- `agent-diva-manager/src/server.rs` 路由注册
+
+## 影响
+
+- 每次 AGENTS.md 注入会留下可审计的 digest / 截断标记。
+- 安全合同明确项目指令不得授予工具权限、覆盖系统安全策略或修改 BML/Persona 权威。
+- GUI 可通过 `/api/workspace` 获取当前 workspace 与 AGENTS.md 状态。
+
+## 验证
+
+- `cargo test -p agent-diva-agent --lib workspace_instructions`：6/6 通过。
+- `cargo test -p agent-diva-agent --lib agents_md`：5/5 通过（含 Wave C3 合同测试）。
+- `cargo test -p agent-diva-manager --lib handlers::workspace`：3/3 通过。
+- `cargo fmt --check` / `cargo clippy --lib -D warnings`：干净。
+
+## 已知遗留
+
+- GUI WorkspaceChip / Settings / 切换流程未实现（见 TODOLIST `WORKSPACE-GUI`）。
+- `/api/workspace` 的 source 分类是 best-effort（从 root 推断，非完整 `WorkspaceContext`）。

@@ -1,15 +1,26 @@
-# v0.3.0 AGENTS.md 注入 MVP：总结
+# v0.3.0 Shell working_dir 越界限制总结（Wave C2）
 
-> 状态：骨架（Wave C2+C3 完成后补全）
+## 交付
 
-## 交付范围
+- `agent-diva-tools/src/shell.rs`：
+  - 新增 `enforce_workspace_boundary(target, scope)`：canonicalize 后验证
+    `starts_with`，越界返回 `Err` 并附清晰消息
+  - 新增 `canonicalize_best_effort`：对尚未创建的路径沿祖先链 canonicalize
+  - `ExecTool::execute` 重构 working_dir 解析链：
+    - 模型传入 > 工具配置默认 > workspace scope > 进程 CWD
+    - 相对 working_dir 以 workspace 为基准解析
+    - 当存在 workspace scope 时强制边界检查
+  - 激活之前 `#[ignore]` 的负向测试；新增 `working_dir_relative_escape_is_rejected`
+    与 `working_dir_inside_workspace_subdir_runs`
+- 无 workspace scope 的工具保持旧 CWD 回退行为
 
-- Shell `working_dir` 越界限制：模型传入的 `working_dir` 规范化后验证在 workspace
-  root 内，越界直接返回错误；默认 cwd 使用 workspace root 而非进程 CWD。
-- `WorkspaceInstructions` 模块（agent-diva-agent）：返回 `Option<WorkspaceInstruction>`，
-  含绝对来源路径、内容 digest、截断标记；只读 workspace 根 `AGENTS.md`。
-- 注入包裹 `## Project Instructions (AGENTS.md)` + 安全合同声明（项目指令不能授予
-  工具权限、覆盖系统安全策略或改变 BML/Persona 权威）。
-- 空文件/目录/不可读 → debug/warn 日志，不阻断 turn；保持 4000 字符预算与 session
-  缓存 + `invalidate_agent_rules` 语义。
-- 可观测性：CLI status/doctor 与 debug 日志输出"已注入/未发现/被截断 + digest"。
+## 影响
+
+- 模型无法再将 shell 执行切到 workspace 外部目录（含 `..` 穿越）。
+- 越界被拒绝时返回带 "workspace" 关键词的消息，供上层观察和审计。
+- 不影响无 scope 工具与单测。
+
+## 验证
+
+- `cargo test -p agent-diva-tools --lib shell`：18/18 通过（含 3 个新测试）。
+- `cargo fmt --check` / `cargo clippy --lib -D warnings`：干净。

@@ -860,6 +860,7 @@ mod tests {
     use agent_diva_core::session::{SessionManager, SessionSearchQuery};
     use agent_diva_laputa::{PersonaInitialization, PersonaKind, PersonaService};
     use std::fs;
+    use std::path::Path;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::sync::{Arc, RwLock};
     use tempfile::TempDir;
