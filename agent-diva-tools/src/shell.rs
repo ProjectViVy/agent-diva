@@ -506,6 +506,27 @@ mod tests {
         assert!(result.contains("blocked by safety guard"));
     }
 
+    /// Wave B 表征负向测试：模型传入的 `working_dir` 跳出选定 workspace 根目录
+    /// 时，Wave C2 合同要求直接拒绝。当前实现尚未强制，故先 ignore；
+    /// Wave C2 落地后移除 ignore 转正。
+    #[tokio::test]
+    #[ignore = "Wave C2: workspace root enforcement not yet implemented"]
+    async fn working_dir_outside_workspace_root_is_rejected() {
+        let workspace = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let tool = ExecTool::with_config(60, Some(workspace.path().to_path_buf()), true);
+        let params = json!({
+            "command": "echo boundary",
+            "working_dir": outside.path().to_str().unwrap()
+        });
+
+        let result = tool.execute(params).await.unwrap();
+        assert!(
+            result.to_lowercase().contains("workspace"),
+            "越界 working_dir 应返回包含 workspace 约束说明的拒绝：{result}"
+        );
+    }
+
     #[tokio::test]
     async fn test_exec_timeout() {
         let tool = ExecTool::with_config(1, None, false);

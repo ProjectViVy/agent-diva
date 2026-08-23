@@ -1294,6 +1294,68 @@ mod tests {
         );
     }
 
+    // Wave B 表征：AGENTS.md 注入矩阵（缺失/空/存在一次/超限截断）。
+
+    #[test]
+    fn agents_md_missing_adds_no_agent_rules_section() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-missing");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(
+            !body.contains("## Agent Rules"),
+            "workspace 根没有 AGENTS.md 时不应追加 Agent Rules 段：{body}"
+        );
+    }
+
+    #[test]
+    fn agents_md_empty_or_whitespace_adds_no_agent_rules_section() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("AGENTS.md"), "   \n\n  \t \n").unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-empty");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(
+            !body.contains("## Agent Rules"),
+            "空/纯空白 AGENTS.md 视为无可注入内容：{body}"
+        );
+    }
+
+    #[test]
+    fn agents_md_present_injects_rules_section_exactly_once() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("AGENTS.md"), "# Rules once").unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-once");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert_eq!(
+            body.matches("## Agent Rules").count(),
+            1,
+            "AGENTS.md 只应注入一次：{body}"
+        );
+        assert!(body.contains("Rules once"));
+    }
+
+    #[test]
+    fn agents_md_over_budget_is_truncated_with_marker() {
+        let workspace = TempDir::new().unwrap();
+        let content = format!("{}TAILMARKER", "R".repeat(WORKSPACE_MD_MAX_CHARS + 1000));
+        fs::write(workspace.path().join("AGENTS.md"), &content).unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-truncated");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(body.contains("..."), "超限内容应以截断标记结尾：{body}");
+        assert!(
+            !body.contains("TAILMARKER"),
+            "超出 WORKSPACE_MD_MAX_CHARS 的尾部不应被注入"
+        );
+        assert!(body.contains(&"R".repeat(100)));
+    }
+
     #[test]
     fn c1c_workspace_skill_reload_invalidates_all_sessions_lazily() {
         let workspace = TempDir::new().unwrap();
