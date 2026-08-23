@@ -19,6 +19,7 @@ pub mod token_estimate;
 pub mod tool_assembly;
 pub mod tool_config;
 mod tool_results;
+pub mod workspace_instructions;
 
 pub use agent_diva_core::bus::AgentEvent;
 pub use agent_loop::{AgentLoop, AgentLoopToolSet, ToolConfig};
