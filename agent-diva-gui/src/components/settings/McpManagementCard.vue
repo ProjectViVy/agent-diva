@@ -1006,7 +1006,7 @@ onMounted(refreshList);
 }
 
 .stat-card-online .stat-value {
-  color: #047857;
+  color: var(--success-strong, #047857);
 }
 
 .stat-card-degraded {
@@ -1015,7 +1015,7 @@ onMounted(refreshList);
 }
 
 .stat-card-degraded .stat-label {
-  color: #d97706;
+  color: var(--warning-strong, #d97706);
 }
 
 .stat-card-degraded .stat-value {
@@ -1214,7 +1214,7 @@ onMounted(refreshList);
 
 .preview-warning {
   margin-top: 6px;
-  color: #d97706;
+  color: var(--warning-strong, #d97706);
 }
 
 /* 加载和空状态 */
@@ -1442,7 +1442,7 @@ onMounted(refreshList);
 
 .error-text {
   font-size: 11px;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   word-break: break-word;
 }
 
@@ -1477,12 +1477,12 @@ onMounted(refreshList);
 }
 
 .action-btn-danger {
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   border-color: rgba(239, 68, 68, 0.2);
 }
 
 .action-btn-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
 }
 
 /* 消息提示 */
@@ -1494,7 +1494,7 @@ onMounted(refreshList);
 
 .error-msg {
   font-size: 12px;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   word-break: break-word;
   margin-top: 8px;
 }
@@ -1507,7 +1507,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay, rgba(0, 0, 0, 0.4));
   backdrop-filter: blur(4px);
 }
 
@@ -1675,7 +1675,7 @@ onMounted(refreshList);
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: #dc2626;
+  color: var(--danger-strong, #dc2626);
   cursor: pointer;
 }
 
