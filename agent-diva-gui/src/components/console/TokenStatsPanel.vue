@@ -419,10 +419,10 @@ onUnmounted(() => {
 
 .error-banner {
   padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: var(--radius-sm);
-  color: #ef4444;
+  color: var(--danger, #ef4444);
   font-size: 0.875rem;
 }
 

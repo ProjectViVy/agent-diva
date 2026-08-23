@@ -396,8 +396,8 @@ onMounted(() => void loadBml());
 .workspace-tabs button { border: 0; background: transparent; color: var(--text-muted); padding: 7px 14px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; }
 .workspace-tabs button.active { color: var(--accent); background: var(--accent-bg-light); }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 11px; cursor: pointer; color: var(--text); background: var(--panel-solid); }
-.button:disabled { opacity: .55; cursor: default; }.button.primary { color: white; background: var(--accent); border-color: var(--accent); }.button.danger { color: #dc2626; }.action-row.compact { justify-content: flex-end; }
-.error-banner { margin: 8px 18px 0; padding: 8px 10px; color: #b91c1c; background: color-mix(in srgb, #ef4444 10%, transparent); border-radius: var(--radius-sm); }
+.button:disabled { opacity: .55; cursor: default; }.button.primary { color: white; background: var(--accent); border-color: var(--accent); }.button.danger { color: var(--danger-strong, #dc2626); }.action-row.compact { justify-content: flex-end; }
+.error-banner { margin: 8px 18px 0; padding: 8px 10px; color: var(--danger-deep, #b91c1c); background: color-mix(in srgb, #ef4444 10%, transparent); border-radius: var(--radius-sm); }
 .split-layout, .actmem-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 34%) 1fr; }
 .list-panel, .capsule-panel { border-right: 1px solid var(--line); overflow: auto; }.detail-panel, .actmem-head, .rules-panel { min-width: 0; overflow: auto; }
 .panel-toolbar { min-height: 52px; padding: 10px 14px; border-bottom: 1px solid var(--line); }

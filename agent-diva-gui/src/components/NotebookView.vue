@@ -807,7 +807,7 @@ onUnmounted(() => {
 .notebook-markdown :deep(pre code) {
   background-color: transparent;
   padding: 0;
-  color: #e5e7eb;
+  color: var(--line, #e5e7eb);
 }
 
 .notebook-markdown :deep(ul),
