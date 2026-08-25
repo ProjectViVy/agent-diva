@@ -16,12 +16,15 @@ import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
 import AuditPage from './settings/audit/AuditPage.vue';
+import WorkspaceSettings from './settings/WorkspaceSettings.vue';
 import MaskSelectorPanel from './MaskSelectorPanel.vue';
 import MaskEditor from './MaskEditor.vue';
 import { useMasks } from '../composables/useMasks';
 import { useI18n } from 'vue-i18n';
 import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { MaskEntryDto, MaskPayload } from '../api/desktop';
+import type { WorkspaceStatus } from '../api/desktop';
+import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 
 const { t } = useI18n();
 
@@ -77,7 +80,8 @@ type SettingsSubview =
   | 'sandbox'
   | 'compaction'
   | 'audit'
-  | 'masks';
+  | 'masks'
+  | 'workspace';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -89,6 +93,10 @@ const props = defineProps<{
   chatDisplayPrefs: ChatDisplayPrefs;
   themeMode?: string;
   initialView?: SettingsSubview;
+  workspace: WorkspaceStatus | null;
+  workspaceState: WorkspaceContextState;
+  workspaceError?: string | null;
+  refreshWorkspace: () => Promise<boolean>;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
   saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
@@ -106,6 +114,7 @@ const pageTitle = computed(() => {
   if (currentView.value === 'dashboard') return t('settings.title');
   const titles = {
     general: t('settings.general'),
+    workspace: '工作区',
     mcp: t('settings.mcp'),
     skills: t('settings.skills'),
     providers: t('settings.providers'),
@@ -202,6 +211,14 @@ watch(
               :tools-config="toolsConfig"
               :save-tools-config-action="saveToolsConfigAction"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
+            />
+
+            <WorkspaceSettings
+              v-else-if="currentView === 'workspace'"
+              :workspace="workspace"
+              :state="workspaceState"
+              :error="workspaceError"
+              :refresh-workspace="refreshWorkspace"
             />
 
             <McpSettings

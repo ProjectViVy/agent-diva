@@ -193,6 +193,24 @@ export interface RuntimeConfigSnapshot {
   has_api_key: boolean;
 }
 
+export interface AgentsMdStatus {
+  path: string;
+  digest: string;
+  truncated: boolean;
+  char_count: number;
+  present: boolean;
+}
+
+export interface WorkspaceStatus {
+  root: string;
+  source: 'configured' | 'explicit-cli' | 'legacy-default' | 'process-cwd' | string;
+  legacy_hint?: string | null;
+  agents_md?: AgentsMdStatus | null;
+}
+
+export const getWorkspaceStatus = () =>
+  invoke<WorkspaceStatus>('get_workspace_status');
+
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);

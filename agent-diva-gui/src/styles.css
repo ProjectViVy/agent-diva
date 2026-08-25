@@ -1183,7 +1183,7 @@
   /* ========================================
      兼容桥（DEPRECATED）：未迁移组件仍直接使用 Tailwind
      gray/white 工具类，这里按主题重映射。
-     三期退役条件：当模板侧 `text-gray-*/bg-white` 工具类
+     三期退役条件：当模板侧 `text-gray-*` / `bg-white` 工具类
      全部迁移到 `var(--text/--text-muted/--panel-solid)` 后，
      此段连同 NormalMode/ChatView/AppDialogLayer 上的
      `theme-${themeMode}` DOM 类绑定一起移除。

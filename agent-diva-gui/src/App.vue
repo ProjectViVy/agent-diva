@@ -25,6 +25,7 @@ import {
   type PlanStreamEvent,
 } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
+import { useWorkspaceContext } from "./composables/useWorkspaceContext";
 import {
   ApprovalEventGuard,
   isApprovalEventView,
@@ -55,6 +56,12 @@ import {
 } from "./utils/streamingMessages";
 
 const { t } = useI18n();
+const {
+  status: workspace,
+  state: workspaceState,
+  error: workspaceError,
+  refresh: refreshWorkspace,
+} = useWorkspaceContext();
 
 type ExecMode = 'agent' | 'plan' | 'ask';
 
@@ -2316,6 +2323,7 @@ onMounted(async () => {
     const healthInterval = setInterval(checkHealth, 5000);
 
     // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
+    await refreshWorkspace();
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
     await restoreActivePlanRuntime();
@@ -2712,6 +2720,10 @@ onUnmounted(() => {
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
       :current-session-key="currentSessionKey"
+      :workspace="workspace"
+      :workspace-state="workspaceState"
+      :workspace-error="workspaceError"
+      :refresh-workspace="refreshWorkspace"
       :active-plan-runtime="activePlanRuntime"
       :pending-approval-plan="pendingApprovalPlan"
       :executing-plan="executingPlan"

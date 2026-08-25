@@ -107,6 +107,23 @@ pub struct RuntimeConfigSnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceStatusDto {
+    pub root: String,
+    pub source: String,
+    pub legacy_hint: Option<String>,
+    pub agents_md: Option<AgentsMdStatusDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentsMdStatusDto {
+    pub path: String,
+    pub digest: String,
+    pub truncated: bool,
+    pub char_count: usize,
+    pub present: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateSessionTitlePayload {
     pub first_user_message: String,
@@ -4899,6 +4916,28 @@ pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSna
         .json::<RuntimeConfigSnapshot>()
         .await
         .map_err(|e| format!("Invalid runtime config payload: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_workspace_status(
+    state: State<'_, AgentState>,
+) -> Result<WorkspaceStatusDto, String> {
+    let url = format!("{}/workspace", state.api_base_url());
+    let response = state
+        .client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch workspace status: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned error: {}", response.status()));
+    }
+
+    response
+        .json::<WorkspaceStatusDto>()
+        .await
+        .map_err(|e| format!("Invalid workspace status payload: {}", e))
 }
 
 #[tauri::command]

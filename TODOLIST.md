@@ -45,11 +45,14 @@
 
 #### WS-01：唯一 WorkspaceContext 与只读 GUI（2026-08-28）
 
-- [ ] **WS-01-WORKSPACE-CONTEXT-GUI：建立 GUI 唯一工作区快照** `sev-P1`
+- [x] **WS-01-WORKSPACE-CONTEXT-GUI：建立 GUI 唯一工作区快照** `sev-P1` ✅ 2026-08-26
   建立 workspace feature 模块和唯一 store/composable；Topbar `WorkspaceChip`、Popover、
   Workspace Settings 与 AGENTS 摘要抽屉只消费该快照。移除 `GeneralSettings.vue` 对
-  workspace 的重复 `getConfigStatus()` 回显，不在组件内重新解析路径。覆盖
-  loading/refreshing/ready/error/legacy-default，旧响应不得覆盖新 workspace generation。
+  workspace 的重复 `getConfigStatus()` 回显，不在组件内重新解析路径。已接入 Tauri
+  `get_workspace_status`、启动刷新、refresh generation 保护、Topbar chip、只读 Workspace
+  Settings 和 AGENTS 状态展示；覆盖 loading/refreshing/ready/error/legacy-default，旧响应
+  不得覆盖新 workspace generation。验证记录见 `v0.1.2-workspace-gui-readonly`，提交记录见本分支
+  Git history。
   依赖：WS-00。
 
 #### WS-02：选择、预览与持久化（2026-08-31）

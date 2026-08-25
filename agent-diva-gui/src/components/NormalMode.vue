@@ -40,6 +40,9 @@ import DivaMateView from '../features/diva-mate/components/DivaMateView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
 import MaskSelectorButton from './MaskSelectorButton.vue';
+import WorkspaceChip from './WorkspaceChip.vue';
+import type { WorkspaceStatus } from '../api/desktop';
+import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../composables/useTheme';
 
@@ -85,7 +88,8 @@ type SettingsSubview =
   | 'self-evolution'
   | 'sandbox'
   | 'compaction'
-  | 'masks';
+  | 'masks'
+  | 'workspace';
 
 interface SavedModel {
   id: string;
@@ -143,6 +147,10 @@ interface Props {
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
   saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
+  workspace: WorkspaceStatus | null;
+  workspaceState: WorkspaceContextState;
+  workspaceError?: string | null;
+  refreshWorkspace: () => Promise<boolean>;
 }
 
 const props = defineProps<Props>();
@@ -864,6 +872,13 @@ defineExpose({
               </div>
             </div>
           </div>
+          <WorkspaceChip
+            :workspace="workspace"
+            :state="workspaceState"
+            :error="workspaceError"
+            @open-settings="navigateTo('settings', 'workspace')"
+            @refresh="refreshWorkspace"
+          />
         </div>
 
         <div class="topbar-right no-drag">
@@ -1105,6 +1120,10 @@ defineExpose({
               :save-config-action="saveConfigAction"
               :save-tools-config-action="saveToolsConfigAction"
               :save-channel-config-action="saveChannelConfigAction"
+              :workspace="workspace"
+              :workspace-state="workspaceState"
+              :workspace-error="workspaceError"
+              :refresh-workspace="refreshWorkspace"
               @update-saved-models="handleUpdateSavedModels"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
               @change-theme="handleChangeTheme"

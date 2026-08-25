@@ -446,6 +446,7 @@ pub fn run() {
             commands::uninstall_gateway,
             commands::load_config,
             commands::get_config,
+            commands::get_workspace_status,
             commands::get_config_status,
             commands::wipe_local_data,
             commands::save_config,
