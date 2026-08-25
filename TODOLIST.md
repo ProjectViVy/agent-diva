@@ -57,10 +57,12 @@
 
 #### WS-02：选择、预览与持久化（2026-08-31）
 
-- [ ] **WS-02-WORKSPACE-INSPECT：目录选择与候选预检** `sev-P1`
+- [x] **WS-02-WORKSPACE-INSPECT：目录选择与候选预检** `sev-P1` ✅ 2026-08-26
   接入原生目录选择、canonicalize/可读性/AGENTS 状态 inspect 和确认页。候选路径只属于
   switch draft；提交前不得覆盖已生效 WorkspaceContext。取消或预检失败时保留当前工作区，
-  连续选择只接受最新响应。依赖：WS-01。
+  连续选择只接受最新响应。已接入 Tauri 原生目录选择、候选 workspace ID/readability/AGENTS
+  预检、Settings draft 预览与最新 generation 响应保护；预检失败、取消和未确认时保留当前
+  workspace。验证记录见 `v0.1.5-workspace-inspect`。依赖：WS-01。
 
 #### WS-03：原子切换事务（2026-09-01 ～ 2026-09-02）
 

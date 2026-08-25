@@ -21,6 +21,12 @@ impl GatewayStatus {
         }
     }
 
+    pub fn stopped(port: u16) -> Self {
+        let mut status = Self::new(port);
+        status.stop();
+        status
+    }
+
     pub fn stop(&mut self) {
         self.running = false;
     }

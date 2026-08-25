@@ -1,4 +1,5 @@
 use crate::app_state::AgentState;
+use crate::embedded_server::{start_embedded_gateway, EmbeddedGatewayHandle};
 use crate::gateway_status::GatewayStatus;
 use crate::notebook::{
     load_notebook_reports, search_notebook_session_evidence, NotebookPeriod, NotebookReportDto,
@@ -6,6 +7,7 @@ use crate::notebook::{
 };
 use crate::process_utils;
 use crate::shutdown_manager::ShutdownManager;
+use crate::{EmbeddedGatewayState, WorkspaceSwitchState};
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
 use agent_diva_core::bus::PlanRuntimeState;
@@ -114,7 +116,213 @@ pub struct WorkspaceStatusDto {
     pub agents_md: Option<AgentsMdStatusDto>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCandidateDto {
+    pub root: String,
+    pub workspace_id: String,
+    pub readable: bool,
+    pub agents_md: Option<AgentsMdStatusDto>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSwitchRequest {
+    pub root: String,
+    #[serde(default)]
+    pub active_turn: bool,
+    #[serde(default)]
+    pub plan_active: bool,
+    #[serde(default)]
+    pub approval_pending: bool,
+    #[serde(default)]
+    pub ask_user_pending: bool,
+}
+
+const WORKSPACE_SWITCH_TIMEOUT: Duration = Duration::from_secs(30);
+const WORKSPACE_SWITCH_PROBE_INTERVAL: Duration = Duration::from_millis(120);
+
+fn agents_md_status_for_workspace(root: &Path) -> Option<AgentsMdStatusDto> {
+    agent_diva_agent::workspace_instructions::load_workspace_instructions(root).map(|instr| {
+        AgentsMdStatusDto {
+            path: instr.source.display().to_string(),
+            digest: instr.digest,
+            truncated: instr.truncated,
+            char_count: instr.char_count,
+            present: true,
+        }
+    })
+}
+
+fn inspect_workspace_candidate(root: &str) -> Result<WorkspaceCandidateDto, String> {
+    let raw = root.trim();
+    if raw.is_empty() {
+        return Err("workspace path cannot be empty".to_string());
+    }
+
+    let expanded = expand_user_path(raw);
+    let canonical = std::fs::canonicalize(&expanded).map_err(|error| {
+        format!(
+            "workspace path is not accessible ({}): {error}",
+            expanded.display()
+        )
+    })?;
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|error| format!("failed to inspect workspace metadata: {error}"))?;
+    if !metadata.is_dir() {
+        return Err(format!(
+            "workspace path is not a directory: {}",
+            canonical.display()
+        ));
+    }
+    std::fs::read_dir(&canonical)
+        .map_err(|error| format!("workspace directory is not readable: {error}"))?;
+
+    Ok(WorkspaceCandidateDto {
+        root: canonical.display().to_string(),
+        workspace_id: agent_diva_core::workspace_identity::canonical_workspace_id(&canonical),
+        readable: true,
+        agents_md: agents_md_status_for_workspace(&canonical),
+    })
+}
+
+fn validate_workspace_switch_guard(request: &WorkspaceSwitchRequest) -> Result<(), String> {
+    let mut blockers = Vec::new();
+    if request.active_turn {
+        blockers.push("当前仍有流式输出");
+    }
+    if request.plan_active {
+        blockers.push("当前有未结束的 Plan 执行");
+    }
+    if request.approval_pending {
+        blockers.push("当前有待处理审批");
+    }
+    if request.ask_user_pending {
+        blockers.push("当前有等待用户回答的 HITL 问题");
+    }
+    if blockers.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "workspace switch is blocked: {}。请先完成或取消这些运行中的操作。",
+            blockers.join("、")
+        ))
+    }
+}
+
+async fn fetch_workspace_status_on_port(
+    client: &reqwest::Client,
+    port: u16,
+) -> Result<WorkspaceStatusDto, String> {
+    let url = format!("http://127.0.0.1:{port}/api/workspace");
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("server returned {}", response.status()));
+    }
+    response
+        .json::<WorkspaceStatusDto>()
+        .await
+        .map_err(|error| format!("invalid workspace status payload: {error}"))
+}
+
+async fn wait_for_workspace_status(
+    client: &reqwest::Client,
+    port: u16,
+    expected_root: &Path,
+) -> Result<WorkspaceStatusDto, String> {
+    let deadline = Instant::now() + WORKSPACE_SWITCH_TIMEOUT;
+
+    loop {
+        let last_error = match fetch_workspace_status_on_port(client, port).await {
+            Ok(status) => {
+                let actual_root = PathBuf::from(&status.root);
+                let actual_canonical = actual_root
+                    .canonicalize()
+                    .unwrap_or_else(|_| actual_root.clone());
+                if actual_canonical == expected_root {
+                    return Ok(status);
+                }
+                Some(format!(
+                    "gateway reported workspace {} instead of {}",
+                    actual_canonical.display(),
+                    expected_root.display()
+                ))
+            }
+            Err(error) => Some(error),
+        };
+
+        if Instant::now() >= deadline {
+            return Err(last_error.unwrap_or_else(|| "gateway did not become ready".to_string()));
+        }
+        tokio::time::sleep(WORKSPACE_SWITCH_PROBE_INTERVAL).await;
+    }
+}
+
+async fn shutdown_gateway_handle(handle: EmbeddedGatewayHandle) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || handle.shutdown())
+        .await
+        .map_err(|error| format!("embedded gateway shutdown task failed: {error}"))
+}
+
+async fn start_verified_gateway(
+    client: &reqwest::Client,
+    expected_root: &Path,
+) -> Result<(EmbeddedGatewayHandle, WorkspaceStatusDto), String> {
+    let handle = start_embedded_gateway(crate::build_gateway_runtime_config())
+        .map_err(|error| format!("failed to start embedded gateway: {error}"))?;
+    let port = handle.port;
+    match wait_for_workspace_status(client, port, expected_root).await {
+        Ok(status) => Ok((handle, status)),
+        Err(error) => {
+            let shutdown_error = shutdown_gateway_handle(handle).await.err();
+            if let Some(shutdown_error) = shutdown_error {
+                Err(format!(
+                    "gateway failed workspace verification: {error}; cleanup also failed: {shutdown_error}"
+                ))
+            } else {
+                Err(format!("gateway failed workspace verification: {error}"))
+            }
+        }
+    }
+}
+
+async fn install_gateway(
+    state: &AgentState,
+    gateway_state: &EmbeddedGatewayState,
+    gateway_status: &AsyncMutex<GatewayStatus>,
+    handle: EmbeddedGatewayHandle,
+) {
+    let port = handle.port;
+    {
+        let mut guard = gateway_state.lock().await;
+        *guard = Some(handle);
+    }
+    state.update_gateway_port(port);
+    if let Err(error) = save_gateway_port_config(port) {
+        warn!(%error, "failed to persist the active embedded gateway port after workspace switch");
+    }
+    let mut status = gateway_status.lock().await;
+    *status = GatewayStatus::new(port);
+    crate::tray::update_tray_status(&status.format_status());
+}
+
+async fn restore_workspace_runtime(
+    loader: &ConfigLoader,
+    old_config: &Config,
+    old_root: &Path,
+    client: &reqwest::Client,
+) -> Result<(EmbeddedGatewayHandle, WorkspaceStatusDto), String> {
+    loader
+        .save(old_config)
+        .map_err(|error| format!("failed to restore committed workspace config: {error}"))?;
+    start_verified_gateway(client, old_root).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AgentsMdStatusDto {
     pub path: String,
     pub digest: String,
@@ -4941,6 +5149,146 @@ pub async fn get_workspace_status(
 }
 
 #[tauri::command]
+pub fn inspect_workspace(root: String) -> Result<WorkspaceCandidateDto, String> {
+    inspect_workspace_candidate(&root)
+}
+
+#[tauri::command]
+pub async fn choose_workspace_directory() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("选择 Agent Diva 工作区")
+            .pick_folder()
+            .map(|path| path.display().to_string())
+    })
+    .await
+    .map_err(|error| format!("workspace directory picker failed: {error}"))
+}
+
+#[tauri::command]
+pub async fn switch_workspace(
+    state: State<'_, AgentState>,
+    gateway_state: State<'_, EmbeddedGatewayState>,
+    gateway_status: State<'_, AsyncMutex<GatewayStatus>>,
+    switch_state: State<'_, WorkspaceSwitchState>,
+    request: WorkspaceSwitchRequest,
+) -> Result<WorkspaceStatusDto, String> {
+    if !crate::should_manage_gateway_lifecycle() {
+        return Err(
+            "workspace atomic switch requires the embedded gateway; restart the external debug gateway instead"
+                .to_string(),
+        );
+    }
+    validate_workspace_switch_guard(&request)?;
+    let candidate = inspect_workspace_candidate(&request.root)?;
+    let _switch_guard = switch_state.inner().lock().await;
+
+    let loader = config_loader();
+    let old_config = loader
+        .load()
+        .map_err(|error| format!("failed to load committed workspace config: {error}"))?;
+    let runtime = cli_runtime_from_loader(&loader);
+    let old_root = runtime.workspace_context(&old_config).root;
+    let old_root = std::fs::canonicalize(&old_root).unwrap_or(old_root);
+
+    if old_root == PathBuf::from(&candidate.root) {
+        return get_workspace_status(state).await;
+    }
+
+    {
+        let guard = gateway_state.inner().lock().await;
+        if guard.is_none() {
+            return Err(
+                "embedded gateway handle is unavailable; workspace switch was not started"
+                    .to_string(),
+            );
+        }
+    }
+
+    let mut next_config = old_config.clone();
+    next_config.agents.defaults.workspace = candidate.root.clone();
+    loader
+        .save(&next_config)
+        .map_err(|error| format!("failed to persist candidate workspace: {error}"))?;
+
+    let old_handle = match gateway_state.inner().lock().await.take() {
+        Some(handle) => handle,
+        None => {
+            loader.save(&old_config).map_err(|error| {
+                format!("embedded gateway disappeared and rollback failed: {error}")
+            })?;
+            return Err(
+                "embedded gateway disappeared before switch shutdown; committed workspace restored"
+                    .to_string(),
+            );
+        }
+    };
+    {
+        let mut status = gateway_status.inner().lock().await;
+        status.stop();
+        crate::tray::update_tray_status(&status.format_status());
+    }
+
+    if let Err(shutdown_error) = shutdown_gateway_handle(old_handle).await {
+        let recovery =
+            restore_workspace_runtime(&loader, &old_config, &old_root, &state.client).await;
+        if let Ok((handle, _status)) = recovery {
+            install_gateway(
+                state.inner(),
+                gateway_state.inner(),
+                gateway_status.inner(),
+                handle,
+            )
+            .await;
+            return Err(format!(
+                "workspace switch stopped before rebuild: {shutdown_error}; committed workspace restored"
+            ));
+        }
+        return Err(format!(
+            "workspace switch stopped before rebuild: {shutdown_error}; rollback could not restart the previous workspace"
+        ));
+    }
+
+    match start_verified_gateway(&state.client, Path::new(&candidate.root)).await {
+        Ok((handle, status)) => {
+            install_gateway(
+                state.inner(),
+                gateway_state.inner(),
+                gateway_status.inner(),
+                handle,
+            )
+            .await;
+            info!(workspace = %candidate.root, "workspace switch committed");
+            Ok(status)
+        }
+        Err(switch_error) => {
+            match restore_workspace_runtime(&loader, &old_config, &old_root, &state.client).await {
+                Ok((handle, _status)) => {
+                    install_gateway(
+                        state.inner(),
+                        gateway_state.inner(),
+                        gateway_status.inner(),
+                        handle,
+                    )
+                    .await;
+                    Err(format!(
+                        "workspace switch failed: {switch_error}; rollback completed and the previous workspace remains active"
+                    ))
+                }
+                Err(rollback_error) => {
+                    let mut status = gateway_status.inner().lock().await;
+                    status.stop();
+                    crate::tray::update_tray_status(&status.format_status());
+                    Err(format!(
+                        "workspace switch failed: {switch_error}; rollback failed: {rollback_error}. Retry the workspace switch or restart the application"
+                    ))
+                }
+            }
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn get_config_status() -> Result<StatusReport, String> {
     let loader = config_loader();
     let runtime = cli_runtime_from_loader(&loader);
@@ -7269,5 +7617,69 @@ mod mask_tests {
             active.is_none(),
             "active mask should be None after deleting the active mask"
         );
+    }
+}
+
+#[cfg(test)]
+mod workspace_switch_tests {
+    use super::{
+        inspect_workspace_candidate, validate_workspace_switch_guard, WorkspaceSwitchRequest,
+    };
+    use std::fs;
+
+    fn request() -> WorkspaceSwitchRequest {
+        WorkspaceSwitchRequest {
+            root: String::new(),
+            active_turn: false,
+            plan_active: false,
+            approval_pending: false,
+            ask_user_pending: false,
+        }
+    }
+
+    #[test]
+    fn candidate_is_canonicalized_and_reports_agents_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("AGENTS.md"), "# workspace rules\n").unwrap();
+        let alias = temp.path().join(".");
+
+        let candidate = inspect_workspace_candidate(alias.to_str().unwrap()).unwrap();
+
+        assert_eq!(
+            std::fs::canonicalize(candidate.root).unwrap(),
+            temp.path().canonicalize().unwrap()
+        );
+        assert!(candidate.readable);
+        assert!(candidate.workspace_id.starts_with("workspace-"));
+        assert!(candidate.agents_md.unwrap().present);
+    }
+
+    #[test]
+    fn candidate_rejects_empty_missing_and_file_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("not-a-directory");
+        fs::write(&file, "payload").unwrap();
+
+        assert!(inspect_workspace_candidate(" ").is_err());
+        assert!(
+            inspect_workspace_candidate(temp.path().join("missing").to_str().unwrap()).is_err()
+        );
+        assert!(inspect_workspace_candidate(file.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn switch_guard_reports_all_unsafe_runtime_states() {
+        let mut guarded = request();
+        guarded.active_turn = true;
+        guarded.plan_active = true;
+        guarded.approval_pending = true;
+        guarded.ask_user_pending = true;
+
+        let error = validate_workspace_switch_guard(&guarded).unwrap_err();
+        assert!(error.contains("流式输出"));
+        assert!(error.contains("Plan"));
+        assert!(error.contains("审批"));
+        assert!(error.contains("HITL"));
+        assert!(validate_workspace_switch_guard(&request()).is_ok());
     }
 }

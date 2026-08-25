@@ -208,8 +208,32 @@ export interface WorkspaceStatus {
   agents_md?: AgentsMdStatus | null;
 }
 
+export interface WorkspaceCandidate {
+  root: string;
+  workspaceId: string;
+  readable: boolean;
+  agentsMd?: AgentsMdStatus | null;
+}
+
+export interface WorkspaceSwitchRequest {
+  root: string;
+  activeTurn: boolean;
+  planActive: boolean;
+  approvalPending: boolean;
+  askUserPending: boolean;
+}
+
 export const getWorkspaceStatus = () =>
   invoke<WorkspaceStatus>('get_workspace_status');
+
+export const inspectWorkspace = (root: string) =>
+  invoke<WorkspaceCandidate>('inspect_workspace', { root });
+
+export const chooseWorkspaceDirectory = () =>
+  invoke<string | null>('choose_workspace_directory');
+
+export const switchWorkspace = (request: WorkspaceSwitchRequest) =>
+  invoke<WorkspaceStatus>('switch_workspace', { request });
 
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&

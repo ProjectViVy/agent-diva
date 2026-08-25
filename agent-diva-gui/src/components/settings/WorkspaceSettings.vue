@@ -2,16 +2,81 @@
 import { ref } from 'vue';
 import { ChevronDown, FileText, FolderOpen, RefreshCw, ShieldCheck } from '@lucide/vue';
 import type { WorkspaceContextState } from '../../composables/useWorkspaceContext';
-import type { WorkspaceStatus } from '../../api/desktop';
+import {
+  chooseWorkspaceDirectory,
+  inspectWorkspace,
+  type WorkspaceCandidate,
+  type WorkspaceStatus,
+} from '../../api/desktop';
 
-defineProps<{
+const props = defineProps<{
   workspace: WorkspaceStatus | null;
   state: WorkspaceContextState;
   error?: string | null;
   refreshWorkspace: () => Promise<boolean>;
+  switchWorkspace?: (root: string) => Promise<boolean>;
+  switchBlockedReason?: string | null;
+  switching?: boolean;
 }>();
 
 const agentsOpen = ref(false);
+const draftRoot = ref('');
+const candidate = ref<WorkspaceCandidate | null>(null);
+const inspectState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
+const inspectError = ref<string | null>(null);
+let inspectGeneration = 0;
+
+function resetDraft() {
+  inspectGeneration += 1;
+  draftRoot.value = '';
+  candidate.value = null;
+  inspectState.value = 'idle';
+  inspectError.value = null;
+}
+
+async function inspectDraft(root = draftRoot.value) {
+  const trimmed = root.trim();
+  draftRoot.value = root;
+  candidate.value = null;
+  inspectError.value = null;
+  if (!trimmed) {
+    inspectState.value = 'error';
+    inspectError.value = '请输入或选择一个工作区目录。';
+    return false;
+  }
+
+  const generation = ++inspectGeneration;
+  inspectState.value = 'loading';
+  try {
+    const inspected = await inspectWorkspace(trimmed);
+    if (generation !== inspectGeneration) return false;
+    candidate.value = inspected;
+    inspectState.value = 'ready';
+    return true;
+  } catch (cause) {
+    if (generation !== inspectGeneration) return false;
+    inspectState.value = 'error';
+    inspectError.value = cause instanceof Error ? cause.message : String(cause);
+    return false;
+  }
+}
+
+async function chooseDirectory() {
+  try {
+    const selected = await chooseWorkspaceDirectory();
+    if (!selected) return;
+    await inspectDraft(selected);
+  } catch (cause) {
+    inspectState.value = 'error';
+    inspectError.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+async function commitCandidate() {
+  if (!candidate.value || !props.switchWorkspace) return;
+  const committed = await props.switchWorkspace(candidate.value.root);
+  if (committed) resetDraft();
+}
 </script>
 
 <template>
@@ -65,7 +130,51 @@ const agentsOpen = ref(false);
       </div>
     </section>
 
-    <p class="workspace-settings-boundary">工作区切换将在后续切片实现，并遵循停止→保存→重建→恢复；本页当前不提供热切换或路径编辑。</p>
+    <section class="workspace-settings-card workspace-settings-switch-card">
+      <div class="workspace-settings-card-heading">
+        <div>
+          <p class="workspace-settings-label">切换工作区</p>
+          <p class="workspace-settings-switch-hint">先选择并预检候选目录；预检结果只保存在本页 draft，确认后才会启动原子切换。</p>
+        </div>
+        <FolderOpen :size="17" class="workspace-settings-switch-icon" />
+      </div>
+      <div class="workspace-settings-picker-row">
+        <input
+          v-model="draftRoot"
+          class="workspace-settings-path-input"
+          type="text"
+          placeholder="输入绝对路径，或使用目录选择"
+          @keyup.enter="inspectDraft()"
+        />
+        <button type="button" class="workspace-settings-secondary" @click="chooseDirectory">选择目录</button>
+        <button type="button" class="workspace-settings-secondary" :disabled="switching" @click="inspectDraft()">
+          {{ inspectState === 'loading' ? '预检中…' : '预检' }}
+        </button>
+      </div>
+      <p v-if="inspectState === 'error'" class="workspace-settings-switch-error">{{ inspectError }}</p>
+      <div v-if="candidate" class="workspace-settings-candidate" data-testid="workspace-candidate">
+        <div class="workspace-settings-candidate-heading">
+          <span class="workspace-settings-candidate-status">候选已验证</span>
+          <span class="workspace-settings-candidate-readable">{{ candidate.readable ? '可读' : '不可读' }}</span>
+        </div>
+        <dl class="workspace-settings-details">
+          <div><dt>Canonical root</dt><dd>{{ candidate.root }}</dd></div>
+          <div><dt>Workspace ID</dt><dd>{{ candidate.workspaceId }}</dd></div>
+          <div><dt>AGENTS.md</dt><dd>{{ candidate.agentsMd?.present ? `已发现 · ${candidate.agentsMd.digest}` : '未发现' }}</dd></div>
+        </dl>
+        <p v-if="switchBlockedReason" class="workspace-settings-switch-warning">{{ switchBlockedReason }}</p>
+        <button
+          v-if="switchWorkspace"
+          type="button"
+          class="workspace-settings-primary"
+          :disabled="switching || !!switchBlockedReason"
+          @click="commitCandidate"
+        >
+          {{ switching ? '切换中…' : '确认切换到此工作区' }}
+        </button>
+      </div>
+      <p v-else class="workspace-settings-boundary">候选目录未通过预检前，不会改变当前运行时 workspace、会话集合或配置。</p>
+    </section>
   </div>
 </template>
 
@@ -99,4 +208,21 @@ const agentsOpen = ref(false);
 .workspace-settings-details dd { margin: 0; color: var(--text, #334155); font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.65rem; overflow-wrap: anywhere; }
 .workspace-settings-empty { margin: 0.85rem 0 0; color: var(--text-muted, #64748b); font-size: 0.68rem; }
 .workspace-settings-boundary { margin: 1rem 0 0; color: var(--text-muted, #64748b); font-size: 0.68rem; line-height: 1.5; }
+.workspace-settings-switch-card { border-color: color-mix(in srgb, var(--accent, #ec4899) 22%, var(--line, rgba(148, 163, 184, 0.24))); }
+.workspace-settings-switch-hint { margin: 0.35rem 0 0; color: var(--text-muted, #64748b); font-size: 0.68rem; line-height: 1.45; }
+.workspace-settings-switch-icon { color: var(--accent, #db2777); }
+.workspace-settings-picker-row { display: flex; gap: 0.45rem; margin-top: 0.9rem; }
+.workspace-settings-path-input { min-width: 0; flex: 1; padding: 0.5rem 0.6rem; border: 1px solid var(--line, rgba(148, 163, 184, 0.3)); border-radius: 0.5rem; background: var(--surface-raised, rgba(255, 255, 255, 0.7)); color: var(--text, #334155); font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.68rem; }
+.workspace-settings-secondary, .workspace-settings-primary { padding: 0.45rem 0.65rem; border-radius: 0.5rem; font-size: 0.68rem; white-space: nowrap; }
+.workspace-settings-secondary { border: 1px solid var(--line, rgba(148, 163, 184, 0.3)); color: var(--text, #334155); }
+.workspace-settings-secondary:hover:not(:disabled) { background: var(--nav-hover, rgba(148, 163, 184, 0.12)); }
+.workspace-settings-primary { margin-top: 0.9rem; color: white; background: var(--accent, #db2777); }
+.workspace-settings-primary:hover:not(:disabled) { filter: brightness(0.96); }
+.workspace-settings-secondary:disabled, .workspace-settings-primary:disabled { opacity: 0.55; cursor: wait; }
+.workspace-settings-switch-error, .workspace-settings-switch-warning { margin: 0.75rem 0 0; color: #b45309; font-size: 0.68rem; line-height: 1.45; }
+.workspace-settings-candidate { margin-top: 0.9rem; padding: 0.8rem; border: 1px solid color-mix(in srgb, #22c55e 35%, var(--line, rgba(148, 163, 184, 0.24))); border-radius: 0.65rem; background: color-mix(in srgb, #22c55e 5%, transparent); }
+.workspace-settings-candidate-heading { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; }
+.workspace-settings-candidate-status { color: #15803d; font-size: 0.7rem; font-weight: 600; }
+.workspace-settings-candidate-readable { color: #15803d; font-size: 0.65rem; }
+@media (max-width: 640px) { .workspace-settings-picker-row { flex-wrap: wrap; } .workspace-settings-path-input { flex-basis: 100%; } }
 </style>
