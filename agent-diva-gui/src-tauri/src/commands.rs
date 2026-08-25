@@ -5191,7 +5191,7 @@ pub async fn switch_workspace(
     let old_root = runtime.workspace_context(&old_config).root;
     let old_root = std::fs::canonicalize(&old_root).unwrap_or(old_root);
 
-    if old_root == PathBuf::from(&candidate.root) {
+    if old_root.as_path() == Path::new(&candidate.root) {
         return get_workspace_status(state).await;
     }
 

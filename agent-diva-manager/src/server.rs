@@ -503,12 +503,7 @@ mod tests {
                 .uri("/api/skills/zip-skill")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    r#"{"markdown":"---
-name: zip-skill
-description: changed
----
-body
-","base_hash":"wrong"}"#,
+                    r#"{"markdown":"---\nname: zip-skill\ndescription: changed\n---\nbody\n","base_hash":"wrong"}"#,
                 ))
                 .unwrap(),
         )

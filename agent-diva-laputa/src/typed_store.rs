@@ -5,7 +5,6 @@
 
 use std::{
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
     time::Duration as StdDuration,
 };
@@ -169,7 +168,8 @@ impl TypedMemoryStore {
         if !path.is_file() {
             return Err(TypedMemoryStoreError::InvalidBackup);
         }
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
             .journal_mode(SqliteJournalMode::Wal)
             .foreign_keys(true)
             .busy_timeout(BUSY_TIMEOUT);
@@ -419,7 +419,8 @@ impl TypedMemoryStore {
         if !path.is_file() {
             return Err(TypedMemoryStoreError::InvalidBackup);
         }
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
             .read_only(true)
             .foreign_keys(true)
             .busy_timeout(BUSY_TIMEOUT);
@@ -449,7 +450,8 @@ impl TypedMemoryStore {
     }
 
     async fn open_path(path: PathBuf, workspace_id: String) -> Result<Self, TypedMemoryStoreError> {
-        let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
             .foreign_keys(true)

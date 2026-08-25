@@ -18,10 +18,11 @@ pub const SESSION_META_BRANCH_LABEL: &str = "branch_label";
 pub const SESSION_META_LEGACY: &str = "legacy";
 
 /// Session role in the workspace history tree.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionKind {
     /// A user-facing conversation root.
+    #[default]
     Root,
     /// A user-created or system-created branch of another session.
     Branch,
@@ -29,12 +30,6 @@ pub enum SessionKind {
     Subagent,
     /// A short-lived session that should not be treated as a durable root.
     Ephemeral,
-}
-
-impl Default for SessionKind {
-    fn default() -> Self {
-        Self::Root
-    }
 }
 
 impl SessionKind {

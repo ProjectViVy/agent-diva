@@ -24,6 +24,8 @@
   `Workspace → Channel → Root Session → Branch/Subagent` 展示，并且层级来自持久化合同，
   不由标题或时间猜测。设计基线：
   [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
+  当前状态（2026-08-26）：WS-00～WS-05 的实现与自动化验证已完成；WS-06 仅剩真实桌面
+  G2D+ smoke，故本总项暂不提前勾选完成。
   - [ ] 本期只查询当前活动 workspace 的 session authority；跨工作区全局历史索引另行立项。
   - [ ] 旧会话缺少 lineage 时按该频道的独立 root 展示，标记为 legacy，不伪造父子关系。
   - [ ] 禁止热换 `AppState` root、隐式迁移/复制会话、GUI 编辑 AGENTS.md、扫描未登记路径。
@@ -104,6 +106,10 @@
   smoke。至少覆盖：无 AGENTS/正常/截断、候选预检竞态、切换阻塞、切换成功、重建失败回滚、
   workspace 会话隔离、legacy root、真实 branch/subagent、搜索祖先路径。验收通过后将本 WBS
   及原 `WORKSPACE-AGENTS-MD-INJECTION` / `WORKSPACE-GUI` / managed-path 条目一起归档。
+  当前自动化出口已完成：`just ci`、`just gui-automated-check`、Tauri workspace guard、
+  Manager `/api/workspace`、CLI effective workspace、Gateway lifecycle focused tests 均通过；
+  验证与接受记录见 `v0.1.7-workspace-closeout`。真实桌面 G2D+ 仍待人工执行，完成前不归档本
+  WBS 和其合并的旧条目。
   依赖：WS-03、WS-05。
 
 ### L1-C：里程碑排期
@@ -219,7 +225,7 @@
 
 - [ ] **WORKSPACE-AGENTS-MD-INJECTION / WORKSPACE-GUI：已并入 WORKSPACE 系统收尾 WBS** `sev-P1`
   后端隔离分支、GUI 当前工作区展示、受控切换和分层会话历史统一由 WS-00～WS-06 跟踪，
-  不再以两个互相割裂的待办重复排期。
+  不再以两个互相割裂的待办重复排期；待 WS-06 真机 smoke 后随 WBS 一并归档。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、

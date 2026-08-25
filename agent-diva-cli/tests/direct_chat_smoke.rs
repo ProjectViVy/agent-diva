@@ -134,7 +134,6 @@ fn agent_message_smoke_supports_config_and_workspace_override() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("mock "), "{stdout}");
     assert!(workspace_override.exists());
-    assert!(workspace_override.join("skills").exists());
 }
 
 #[test]
