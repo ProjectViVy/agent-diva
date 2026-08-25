@@ -24,6 +24,7 @@ const draftRoot = ref('');
 const candidate = ref<WorkspaceCandidate | null>(null);
 const inspectState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const inspectError = ref<string | null>(null);
+const commitError = ref<string | null>(null);
 let inspectGeneration = 0;
 
 function resetDraft() {
@@ -32,6 +33,7 @@ function resetDraft() {
   candidate.value = null;
   inspectState.value = 'idle';
   inspectError.value = null;
+  commitError.value = null;
 }
 
 async function inspectDraft(root = draftRoot.value) {
@@ -74,8 +76,13 @@ async function chooseDirectory() {
 
 async function commitCandidate() {
   if (!candidate.value || !props.switchWorkspace) return;
-  const committed = await props.switchWorkspace(candidate.value.root);
-  if (committed) resetDraft();
+  commitError.value = null;
+  try {
+    const committed = await props.switchWorkspace(candidate.value.root);
+    if (committed) resetDraft();
+  } catch (cause) {
+    commitError.value = cause instanceof Error ? cause.message : String(cause);
+  }
 }
 </script>
 
@@ -152,6 +159,7 @@ async function commitCandidate() {
         </button>
       </div>
       <p v-if="inspectState === 'error'" class="workspace-settings-switch-error">{{ inspectError }}</p>
+      <p v-if="commitError" class="workspace-settings-switch-error">{{ commitError }}</p>
       <div v-if="candidate" class="workspace-settings-candidate" data-testid="workspace-candidate">
         <div class="workspace-settings-candidate-heading">
           <span class="workspace-settings-candidate-status">候选已验证</span>

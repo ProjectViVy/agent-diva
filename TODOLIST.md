@@ -66,11 +66,14 @@
 
 #### WS-03：原子切换事务（2026-09-01 ～ 2026-09-02）
 
-- [ ] **WS-03-WORKSPACE-SWITCH：停止→保存→重建→恢复单一切换流程** `sev-P1`
+- [x] **WS-03-WORKSPACE-SWITCH：停止→保存→重建→恢复单一切换流程** `sev-P1` ✅ 2026-08-26
   流式输出、Plan 执行、审批/HITL 等不安全状态下拒绝切换并说明原因；允许时先保存旧会话，
   停止旧 runtime，持久化目标，重建完整 runtime/AppState，再读取新 workspace 的最新 GUI
   会话。失败时恢复旧 committed context 或进入明确的可重试错误态，不得出现“UI 已切、
-  runtime 未切”。覆盖取消、超时、重建失败与旧请求迟到。依赖：WS-02。
+  runtime 未切”。已接入串行切换锁、运行态 guard、旧会话刷新、嵌入式 gateway 停止/重建、
+  `/api/workspace` 目标校验、旧配置与 runtime 回滚、GUI 快照应用和新 workspace 历史重载；
+  debug 外部 gateway 明确拒绝原子切换。验证记录见 `v0.1.6-workspace-atomic-switch`。
+  依赖：WS-02。
 
 #### WS-04：会话层级持久化与 API（2026-09-03）
 

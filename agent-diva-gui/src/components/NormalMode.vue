@@ -151,6 +151,9 @@ interface Props {
   workspaceState: WorkspaceContextState;
   workspaceError?: string | null;
   refreshWorkspace: () => Promise<boolean>;
+  switchWorkspace?: (root: string) => Promise<boolean>;
+  switchBlockedReason?: string | null;
+  switching?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -1125,6 +1128,9 @@ defineExpose({
               :workspace-state="workspaceState"
               :workspace-error="workspaceError"
               :refresh-workspace="refreshWorkspace"
+              :switch-workspace="switchWorkspace"
+              :switch-blocked-reason="switchBlockedReason"
+              :switching="switching"
               @update-saved-models="handleUpdateSavedModels"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
               @change-theme="handleChangeTheme"

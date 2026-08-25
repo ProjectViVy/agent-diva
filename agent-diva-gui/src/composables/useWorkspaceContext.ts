@@ -32,11 +32,19 @@ async function refresh(): Promise<boolean> {
   }
 }
 
+function apply(nextStatus: WorkspaceStatus) {
+  refreshGeneration += 1;
+  status.value = nextStatus;
+  state.value = 'ready';
+  error.value = null;
+}
+
 export function useWorkspaceContext() {
   return {
     status: readonly(status),
     state: readonly(state),
     error: readonly(error),
     refresh,
+    apply,
   };
 }

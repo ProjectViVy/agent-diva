@@ -101,4 +101,26 @@ describe('WorkspaceSettings candidate draft', () => {
     expect(wrapper.find('[data-testid="workspace-candidate"]').text()).toContain('C:\\projects\\second');
     expect(wrapper.find('[data-testid="workspace-candidate"]').text()).not.toContain('C:\\projects\\first');
   });
+
+  it('only commits an inspected candidate and disables commit while blocked', async () => {
+    inspectWorkspace.mockResolvedValueOnce(candidate('C:\\projects\\next'));
+    const switchWorkspace = vi.fn(() => Promise.resolve(true));
+    const wrapper = mount(WorkspaceSettings, {
+      props: {
+        workspace: currentWorkspace,
+        state: 'ready',
+        refreshWorkspace: vi.fn(() => Promise.resolve(true)),
+        switchWorkspace,
+        switchBlockedReason: '当前仍有流式输出，请先停止。',
+      },
+    });
+
+    await wrapper.find('input').setValue('C:\\projects\\next');
+    await wrapper.findAll('.workspace-settings-secondary')[1].trigger('click');
+    await flushPromises();
+
+    const commitButton = wrapper.find('.workspace-settings-primary');
+    expect(commitButton.attributes('disabled')).toBeDefined();
+    expect(switchWorkspace).not.toHaveBeenCalled();
+  });
 });
