@@ -72,13 +72,15 @@
 
 #### WS-04：会话层级持久化与 API（2026-09-03）
 
-- [ ] **WS-04-SESSION-HIERARCHY-CONTRACT：扩展会话摘要与 lineage 合同** `sev-P1`
+- [x] **WS-04-SESSION-HIERARCHY-CONTRACT：扩展会话摘要与 lineage 合同** `sev-P1` ✅ 2026-08-26
   在 session authority/摘要/API DTO 中增加稳定 `workspace_id`、`channel`、
   `kind(root|branch|subagent|ephemeral)`、`root_session_key`、`parent_session_key` 和可选
   `branch_label`；创建 root/branch/subagent 时写入真实关系。旧 JSONL 采用只读兼容投影：
   channel 从完整 key 解析、kind=root、lineage 为空、legacy=true。API 默认仅返回活动
   workspace 集合，不把 GUI 的 `extractChatId()` 当业务身份。依赖：WS-00；可与 WS-02
-  并行，但必须在 WS-05 前完成。
+  并行，但必须在 WS-05 前完成。已完成 SessionInfo DTO、JSONL lineage metadata、root
+  创建与显式 child(parent/kind/label) 创建 seam，并覆盖 legacy 不猜 lineage；验证记录见
+  `v0.1.3-session-hierarchy-contract`。
 
 #### WS-05：历史会话分层 GUI（2026-09-04）
 

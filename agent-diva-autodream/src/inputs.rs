@@ -362,7 +362,7 @@ fn read_session_candidates(
                 .unwrap_or_default()
                 .replace('_', ":");
             agent_diva_core::session::SessionInfo {
-                key: name,
+                key: name.clone(),
                 created_at: None,
                 updated_at: None,
                 path: path.to_string_lossy().to_string(),
@@ -372,6 +372,15 @@ fn read_session_candidates(
                 title_generated: false,
                 title_manually_set: false,
                 pinned: false,
+                workspace_id: agent_diva_core::workspace_identity::canonical_workspace_id(
+                    storage.paths().workspace_root(),
+                ),
+                channel: agent_diva_core::session::session_channel_from_key(&name),
+                kind: agent_diva_core::session::SessionKind::Root,
+                root_session_key: None,
+                parent_session_key: None,
+                branch_label: None,
+                legacy: true,
             }
         })
         .collect())

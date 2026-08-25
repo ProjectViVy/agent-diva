@@ -1186,7 +1186,7 @@ mod tests {
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::MessageBus;
     use agent_diva_core::session::store::{ChatMessage, Session};
-    use agent_diva_core::session::SessionInfo;
+    use agent_diva_core::session::{SessionInfo, SessionKind};
     use axum::{
         body::to_bytes,
         extract::{Path, State},
@@ -1228,6 +1228,13 @@ mod tests {
                             title_generated: true,
                             title_manually_set: false,
                             pinned: false,
+                            workspace_id: "workspace-test".to_string(),
+                            channel: "gui".to_string(),
+                            kind: SessionKind::Root,
+                            root_session_key: Some("gui:with-title".to_string()),
+                            parent_session_key: None,
+                            branch_label: None,
+                            legacy: false,
                         },
                         SessionInfo {
                             key: "gui:no-title".to_string(),
@@ -1240,6 +1247,13 @@ mod tests {
                             title_generated: false,
                             title_manually_set: false,
                             pinned: false,
+                            workspace_id: "workspace-test".to_string(),
+                            channel: "gui".to_string(),
+                            kind: SessionKind::Root,
+                            root_session_key: Some("gui:no-title".to_string()),
+                            parent_session_key: None,
+                            branch_label: None,
+                            legacy: false,
                         },
                     ];
                     let _ = tx.send(Ok(sessions));
