@@ -84,11 +84,13 @@
 
 #### WS-05：历史会话分层 GUI（2026-09-04）
 
-- [ ] **WS-05-SESSION-HISTORY-TREE：按工作区、频道和 lineage 展示历史** `sev-P1`
+- [x] **WS-05-SESSION-HISTORY-TREE：按工作区、频道和 lineage 展示历史** `sev-P1` ✅ 2026-08-26
   `ConversationSidebar` 从平铺/仅置顶分组改为层级投影：当前 workspace header → channel
   group → root session → branch/subagent。列表只展示身份、标题、最后活动与必要状态；完整
   消息仍由详情区负责。搜索结果保留祖先路径，折叠/展开不改变服务端集合，active session
-  在刷新和切换后仍可定位；pinned 是会话属性，不另造第二套 session 集合。依赖：WS-01、WS-04。
+  在刷新和切换后仍可定位；pinned 是会话属性，不另造第二套 session 集合。已完成 workspace
+  header、channel group、lineage indentation、本地折叠/展开、搜索祖先保留和 legacy root
+  标识；依赖：WS-01、WS-04。验证记录见 `v0.1.4-session-history-tree`。
 
 #### WS-06：纵向验收与收口（2026-09-07，缓冲 2026-09-08）
 

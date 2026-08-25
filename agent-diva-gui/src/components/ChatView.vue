@@ -198,6 +198,7 @@ const props = defineProps<{
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
   sessions?: Session[];
+  workspaceRoot?: string;
   toolsConfig?: ToolsConfigShape;
   activeSessionKey?: string;
   activePlanRuntime?: PlanRuntimeState | null;
@@ -1577,6 +1578,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       :sessions="sessions || []"
       :active-session-key="activeSessionKey || ''"
       :theme-mode="themeMode || 'love'"
+      :workspace-root="workspaceRoot"
       @select="handleSelectSession"
       @delete="(key) => emit('delete-session', key)"
       @new="handleNewSession"

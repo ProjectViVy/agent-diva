@@ -1,6 +1,22 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X, RefreshCw } from '@lucide/vue';
+import {
+  Search,
+  Plus,
+  Pin,
+  PinOff,
+  Trash2,
+  Edit3,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  MessageSquare,
+  X,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+} from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -19,12 +35,29 @@ interface Session {
   status?: 'idle' | 'running' | 'completed' | 'error';
   agent_icon?: string;
   agent_name?: string;
+  workspace_id?: string;
+  channel?: string;
+  kind?: 'root' | 'branch' | 'subagent' | 'ephemeral';
+  root_session_key?: string | null;
+  parent_session_key?: string | null;
+  branch_label?: string | null;
+  legacy?: boolean;
+}
+
+interface SessionTreeRow {
+  type: 'workspace' | 'channel' | 'session';
+  key: string;
+  label?: string;
+  depth?: number;
+  hasChildren?: boolean;
+  session?: Session;
 }
 
 const props = defineProps<{
   sessions: Session[];
   activeSessionKey: string;
   themeMode: string;
+  workspaceRoot?: string;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +71,7 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref('');
-const showPinnedOnly = ref(false);
+const collapsedKeys = ref<string[]>([]);
 const renamingId = ref<string | null>(null);
 const renameInput = ref('');
 const contextMenu = ref<{ visible: boolean; x: number; y: number; sessionId: string }>({
@@ -48,27 +81,164 @@ const contextMenu = ref<{ visible: boolean; x: number; y: number; sessionId: str
   sessionId: '',
 });
 
-// Filter sessions by search query
-const filteredSessions = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return props.sessions;
-  return props.sessions.filter((s) => {
-    const haystack = `${s.title || ''} ${s.last_message || s.snippet || ''}`.toLowerCase();
-    return haystack.includes(q);
-  });
+const workspaceName = computed(() => {
+  const root = props.workspaceRoot?.trim();
+  if (!root) return '当前工作区';
+  const parts = root.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || root;
 });
-// Separate pinned and regular sessions
-const pinnedSessions = computed(() =>
-  filteredSessions.value
-    .filter((s) => s.pinned)
-    .sort((a, b) => b.timestamp - a.timestamp)
-);
 
-const regularSessions = computed(() =>
-  filteredSessions.value
-    .filter((s) => !s.pinned)
-    .sort((a, b) => b.timestamp - a.timestamp)
-);
+const isCollapsed = (key: string) => collapsedKeys.value.includes(key);
+
+const toggleCollapsed = (key: string) => {
+  collapsedKeys.value = isCollapsed(key)
+    ? collapsedKeys.value.filter((item) => item !== key)
+    : [...collapsedKeys.value, key];
+};
+
+const sessionChannel = (session: Session) => {
+  if (session.channel?.trim()) return session.channel.trim();
+  const separator = session.session_key.indexOf(':');
+  return separator > 0 ? session.session_key.slice(0, separator) : 'unknown';
+};
+
+const kindLabel = (session: Session) => {
+  switch (session.kind) {
+    case 'branch':
+      return '分支';
+    case 'subagent':
+      return '子代理';
+    case 'ephemeral':
+      return '临时';
+    default:
+      return session.legacy ? '历史 root' : 'root';
+  }
+};
+
+const sessionPathText = (session: Session, byKey: Map<string, Session>) => {
+  const path: string[] = [];
+  let current: Session | undefined = session;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.session_key)) {
+    seen.add(current.session_key);
+    path.unshift(current.title || current.branch_label || current.session_key);
+    current = current.parent_session_key ? byKey.get(current.parent_session_key) : undefined;
+  }
+  return path.join(' / ');
+};
+
+const filteredSessions = computed(() => {
+  const all = props.sessions;
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return all;
+
+  const byKey = new Map(all.map((session) => [session.session_key, session]));
+  const visibleKeys = new Set<string>();
+  for (const session of all) {
+    const haystack = [
+      session.title,
+      session.last_message,
+      session.snippet,
+      session.branch_label,
+      sessionChannel(session),
+      kindLabel(session),
+      session.legacy ? 'legacy 历史 root' : '',
+      sessionPathText(session, byKey),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    if (!haystack.includes(q)) continue;
+
+    let current: Session | undefined = session;
+    const seen = new Set<string>();
+    while (current && !seen.has(current.session_key)) {
+      seen.add(current.session_key);
+      visibleKeys.add(current.session_key);
+      current = current.parent_session_key ? byKey.get(current.parent_session_key) : undefined;
+    }
+  }
+  return all.filter((session) => visibleKeys.has(session.session_key));
+});
+
+const treeRows = computed<SessionTreeRow[]>(() => {
+  const groups = new Map<string, { workspaceKey: string; channel: string; sessions: Session[] }>();
+  for (const session of filteredSessions.value) {
+    const workspaceKey = session.workspace_id || '__active_workspace__';
+    const channel = sessionChannel(session);
+    const key = `${workspaceKey}::${channel}`;
+    const group = groups.get(key) || { workspaceKey, channel, sessions: [] };
+    group.sessions.push(session);
+    groups.set(key, group);
+  }
+
+  const sortedGroups = [...groups.values()].sort((a, b) => {
+    const aTime = Math.max(...a.sessions.map((session) => session.timestamp), 0);
+    const bTime = Math.max(...b.sessions.map((session) => session.timestamp), 0);
+    return bTime - aTime || a.channel.localeCompare(b.channel);
+  });
+  const rows: SessionTreeRow[] = [];
+  let previousWorkspaceKey: string | null = null;
+
+  if (sortedGroups.length === 0) {
+    rows.push({
+      type: 'workspace',
+      key: 'workspace:__active_workspace__',
+      label: workspaceName.value,
+    });
+  }
+
+  for (const group of sortedGroups) {
+    const workspaceCollapseKey = `workspace:${group.workspaceKey}`;
+    if (previousWorkspaceKey !== group.workspaceKey) {
+      rows.push({
+        type: 'workspace',
+        key: workspaceCollapseKey,
+        label: workspaceName.value,
+      });
+      previousWorkspaceKey = group.workspaceKey;
+    }
+    if (isCollapsed(workspaceCollapseKey)) continue;
+
+    const channelCollapseKey = `channel:${group.workspaceKey}:${group.channel}`;
+    rows.push({ type: 'channel', key: channelCollapseKey, label: group.channel });
+    if (isCollapsed(channelCollapseKey)) continue;
+
+    const byKey = new Map(group.sessions.map((session) => [session.session_key, session]));
+    const children = new Map<string, Session[]>();
+    const roots: Session[] = [];
+    for (const session of group.sessions) {
+      const parent = session.parent_session_key ? byKey.get(session.parent_session_key) : undefined;
+      if (parent) {
+        const siblings = children.get(parent.session_key) || [];
+        siblings.push(session);
+        children.set(parent.session_key, siblings);
+      } else {
+        roots.push(session);
+      }
+    }
+    const sortSessions = (sessions: Session[]) =>
+      sessions.sort((a, b) => b.timestamp - a.timestamp || a.session_key.localeCompare(b.session_key));
+    sortSessions(roots);
+
+    const appendSession = (session: Session, depth: number) => {
+      const childSessions = sortSessions(children.get(session.session_key) || []);
+      const sessionKey = `session:${session.session_key}`;
+      rows.push({
+        type: 'session',
+        key: sessionKey,
+        depth,
+        hasChildren: childSessions.length > 0,
+        session,
+      });
+      if (!isCollapsed(sessionKey)) {
+        for (const child of childSessions) appendSession(child, depth + 1);
+      }
+    };
+    for (const root of roots) appendSession(root, 0);
+  }
+  return rows;
+});
 
 // Format time relative to now
 const formatTimeAgo = (timestamp: number): string => {
@@ -211,86 +381,60 @@ defineExpose({ closeContextMenu });
       <span>{{ t('convSidebar.newSession') }}</span>
     </button>
 
-    <!-- Session List -->
+    <!-- Session hierarchy: workspace -> channel -> root/child lineage -->
     <div class="conv-list">
-      <!-- Pinned Section -->
-      <div v-if="!showPinnedOnly || pinnedSessions.length > 0" class="conv-section">
-        <div v-if="pinnedSessions.length > 0" class="conv-section-label">
-          <Pin :size="12" class="text-amber-500" />
-          <span>{{ t('convSidebar.pinned') }}</span>
-        </div>
-        <div
-          v-for="session in pinnedSessions"
-          :key="session.session_key"
-          class="conv-item"
-          :class="{ 'conv-item-active': session.session_key === activeSessionKey }"
-          @click="handleSessionClick(session.session_key)"
-          @contextmenu="handleContextMenu($event, session.session_key)"
+      <template v-for="row in treeRows" :key="row.key">
+        <button
+          v-if="row.type === 'workspace'"
+          type="button"
+          class="conv-tree-workspace"
+          @click="toggleCollapsed(row.key)"
         >
-          <!-- Icon -->
-          <div class="conv-item-icon">
-            <span>{{ session.agent_icon || '💬' }}</span>
-          </div>
-          <!-- Body -->
-          <div class="conv-item-body">
-            <!-- Renaming Mode -->
-            <template v-if="renamingId === session.session_key">
-              <input
-                v-model="renameInput"
-                @keydown="handleRenameKeydown"
-                @blur="confirmRename"
-                class="conv-rename-input"
-                autofocus
-              />
-            </template>
-            <!-- Normal Mode -->
-            <template v-else>
-              <div class="conv-item-title">{{ session.title || t('convSidebar.untitled') }}</div>
-              <div class="conv-item-meta">
-                <span class="conv-item-preview">{{ session.last_message || session.snippet || t('convSidebar.untitled') }}</span>
-                <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
-                <span class="conv-item-count">{{ session.message_count }}</span>
-                <component
-                  :is="getStatusIcon(session.status).component"
-                  :size="12"
-                  :class="getStatusIcon(session.status).class"
-                />
-              </div>
-            </template>
-          </div>
-          <!-- Delete Button (hover reveal) -->
-          <button
-            @click.stop="emit('delete', session.session_key)"
-            class="conv-item-delete"
-            :title="t('convSidebar.delete')"
-          >
-            <Trash2 :size="12" />
-          </button>
-        </div>
-      </div>
+          <FolderOpen :size="13" />
+          <span class="conv-tree-heading-label">工作区</span>
+          <strong>{{ row.label }}</strong>
+          <ChevronRight v-if="isCollapsed(row.key)" :size="13" />
+          <ChevronDown v-else :size="13" />
+        </button>
 
-      <!-- Regular Section -->
-      <div v-if="!showPinnedOnly" class="conv-section">
-        <div v-if="regularSessions.length > 0 || pinnedSessions.length > 0" class="conv-section-label">
-          <MessageSquare :size="12" />
-          <span>{{ t('convSidebar.sessions') }}</span>
-        </div>
-        <div
-          v-for="session in regularSessions"
-          :key="session.session_key"
-          class="conv-item"
-          :class="{ 'conv-item-active': session.session_key === activeSessionKey }"
-          @click="handleSessionClick(session.session_key)"
-          @contextmenu="handleContextMenu($event, session.session_key)"
+        <button
+          v-else-if="row.type === 'channel'"
+          type="button"
+          class="conv-tree-channel"
+          @click="toggleCollapsed(row.key)"
         >
-          <!-- Icon -->
+          <MessageSquare :size="12" />
+          <span>{{ row.label }}</span>
+          <ChevronRight v-if="isCollapsed(row.key)" :size="12" />
+          <ChevronDown v-else :size="12" />
+        </button>
+
+        <div
+          v-else-if="row.session"
+          class="conv-item conv-tree-session"
+          :class="{ 'conv-item-active': row.session.session_key === activeSessionKey }"
+          :style="{ '--conv-depth': row.depth || 0 }"
+          @click="handleSessionClick(row.session.session_key)"
+          @contextmenu="handleContextMenu($event, row.session.session_key)"
+        >
+          <div class="conv-tree-indent" aria-hidden="true" />
+          <button
+            v-if="row.hasChildren"
+            type="button"
+            class="conv-tree-toggle"
+            :aria-label="isCollapsed(row.key) ? '展开子会话' : '折叠子会话'"
+            @click.stop="toggleCollapsed(row.key)"
+          >
+            <ChevronRight v-if="isCollapsed(row.key)" :size="12" />
+            <ChevronDown v-else :size="12" />
+          </button>
+          <span v-else class="conv-tree-toggle-spacer" aria-hidden="true" />
+
           <div class="conv-item-icon">
-            <span>{{ session.agent_icon || '💬' }}</span>
+            <span>{{ row.session.agent_icon || (row.session.kind === 'subagent' ? '⚙️' : '💬') }}</span>
           </div>
-          <!-- Body -->
           <div class="conv-item-body">
-            <!-- Renaming Mode -->
-            <template v-if="renamingId === session.session_key">
+            <template v-if="renamingId === row.session.session_key">
               <input
                 v-model="renameInput"
                 @keydown="handleRenameKeydown"
@@ -299,31 +443,36 @@ defineExpose({ closeContextMenu });
                 autofocus
               />
             </template>
-            <!-- Normal Mode -->
             <template v-else>
-              <div class="conv-item-title">{{ session.title || t('convSidebar.untitled') }}</div>
+              <div class="conv-item-title">
+                <span>{{ row.session.title || t('convSidebar.untitled') }}</span>
+                <span v-if="(row.session.kind && row.session.kind !== 'root') || row.session.legacy" class="conv-kind-badge">
+                  {{ kindLabel(row.session) }}
+                </span>
+                <Pin v-if="row.session.pinned" :size="11" class="conv-pinned-indicator" />
+              </div>
               <div class="conv-item-meta">
-                <span class="conv-item-preview">{{ session.last_message || session.snippet || t('convSidebar.untitled') }}</span>
-                <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
-                <span class="conv-item-count">{{ session.message_count }}</span>
+                <span class="conv-item-channel">{{ sessionChannel(row.session) }}</span>
+                <span class="conv-item-preview">{{ row.session.last_message || row.session.snippet || t('convSidebar.untitled') }}</span>
+                <span class="conv-item-time">{{ formatTimeAgo(row.session.timestamp) }}</span>
+                <span class="conv-item-count">{{ row.session.message_count }}</span>
                 <component
-                  :is="getStatusIcon(session.status).component"
+                  :is="getStatusIcon(row.session.status).component"
                   :size="12"
-                  :class="getStatusIcon(session.status).class"
+                  :class="getStatusIcon(row.session.status).class"
                 />
               </div>
             </template>
           </div>
-          <!-- Delete Button (hover reveal) -->
           <button
-            @click.stop="emit('delete', session.session_key)"
+            @click.stop="emit('delete', row.session.session_key)"
             class="conv-item-delete"
             :title="t('convSidebar.delete')"
           >
             <Trash2 :size="12" />
           </button>
         </div>
-      </div>
+      </template>
 
       <!-- Empty State -->
       <div v-if="filteredSessions.length === 0" class="conv-empty">
@@ -530,6 +679,118 @@ defineExpose({ closeContextMenu });
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted, #9ca3af);
+}
+
+/* Workspace/channel lineage headers */
+.conv-tree-workspace,
+.conv-tree-channel {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conv-tree-workspace {
+  gap: 6px;
+  padding: 10px 10px 7px;
+  color: var(--text, #334155);
+  font-size: 11px;
+}
+
+.conv-tree-workspace strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--accent, #db2777);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-tree-heading-label {
+  color: var(--text-muted, #94a3b8);
+  font-size: 10px;
+}
+
+.conv-tree-workspace svg:last-child,
+.conv-tree-channel svg:last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.conv-tree-channel {
+  gap: 6px;
+  padding: 6px 10px 4px 24px;
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.conv-tree-channel:hover,
+.conv-tree-workspace:hover {
+  color: var(--accent, #db2777);
+}
+
+.conv-tree-session {
+  padding-left: calc(10px + (var(--conv-depth, 0) * 14px));
+}
+
+.conv-tree-indent {
+  width: 0;
+  flex: 0 0 auto;
+}
+
+.conv-tree-toggle,
+.conv-tree-toggle-spacer {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 20px;
+  flex: 0 0 14px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.conv-tree-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.conv-tree-toggle:hover {
+  color: var(--accent, #db2777);
+}
+
+.conv-item-channel {
+  flex: 0 0 auto;
+  color: var(--text-muted, #94a3b8);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.conv-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--nav-hover, rgba(148, 163, 184, 0.12));
+  color: var(--text-muted, #64748b);
+  font-size: 9px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.conv-pinned-indicator {
+  margin-left: 4px;
+  color: #f59e0b;
+  vertical-align: middle;
 }
 
 /* Session Item */

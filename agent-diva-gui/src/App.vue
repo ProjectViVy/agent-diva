@@ -174,6 +174,13 @@ interface SessionInfo {
   title_generated: boolean;
   title_manually_set: boolean;
   pinned?: boolean;
+  workspace_id?: string;
+  channel?: string;
+  kind?: 'root' | 'branch' | 'subagent' | 'ephemeral';
+  root_session_key?: string | null;
+  parent_session_key?: string | null;
+  branch_label?: string | null;
+  legacy?: boolean;
 }
 interface ChatDisplayPrefs {
   cleanMode: boolean;
@@ -193,6 +200,13 @@ interface BackendSessionInfo {
   title_generated?: boolean;
   title_manually_set?: boolean;
   pinned?: boolean;
+  workspace_id?: string;
+  channel?: string;
+  kind?: 'root' | 'branch' | 'subagent' | 'ephemeral';
+  root_session_key?: string | null;
+  parent_session_key?: string | null;
+  branch_label?: string | null;
+  legacy?: boolean;
 }
 
 interface BackendChatMessage {
@@ -1892,6 +1906,13 @@ async function refreshSessions(): Promise<boolean> {
           title_generated: session.title_generated === true,
           title_manually_set: session.title_manually_set === true,
           pinned: session.pinned === true,
+          workspace_id: session.workspace_id || undefined,
+          channel: session.channel || undefined,
+          kind: session.kind || 'root',
+          root_session_key: session.root_session_key || undefined,
+          parent_session_key: session.parent_session_key || undefined,
+          branch_label: session.branch_label || undefined,
+          legacy: session.legacy === true,
         } satisfies SessionInfo;
       });
       sessions.value = mapped

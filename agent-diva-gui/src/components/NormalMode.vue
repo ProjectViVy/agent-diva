@@ -1076,6 +1076,7 @@ defineExpose({
               :theme-mode="themeMode"
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
+              :workspace-root="workspace?.root"
               :tools-config="toolsConfig"
               :active-session-key="activeSessionKey"
               :active-plan-runtime="activePlanRuntime"

@@ -33,6 +33,7 @@ vi.mock('@lucide/vue', () => {
     ClipboardList: stub('ClipboardList'),
     ChevronDown: stub('ChevronDown'),
     ChevronRight: stub('ChevronRight'),
+    FolderOpen: stub('FolderOpen'),
   };
 });
 
@@ -122,5 +123,100 @@ describe('ConversationSidebar', () => {
     });
 
     expect(wrapper.find('.conv-item-title').text()).toBe('新会话');
+  });
+
+  it('renders workspace, channel, and explicit child lineage levels', () => {
+    const wrapper = mount(ConversationSidebar, {
+      props: {
+        activeSessionKey: 'gui:root',
+        themeMode: 'love',
+        workspaceRoot: 'C:\\Projects\\agent-diva',
+        sessions: [
+          {
+            session_key: 'gui:root',
+            chat_id: 'root',
+            snippet: 'root',
+            last_message: 'root reply',
+            timestamp: Date.now(),
+            title: 'Root',
+            message_count: 2,
+            title_generated: false,
+            title_manually_set: false,
+            pinned: true,
+            workspace_id: 'workspace-root',
+            channel: 'gui',
+            kind: 'root',
+            root_session_key: 'gui:root',
+            legacy: false,
+          },
+          {
+            session_key: 'gui:branch',
+            chat_id: 'branch',
+            snippet: 'branch',
+            last_message: 'branch reply',
+            timestamp: Date.now() - 1_000,
+            title: 'Branch',
+            message_count: 1,
+            title_generated: false,
+            title_manually_set: false,
+            pinned: false,
+            workspace_id: 'workspace-root',
+            channel: 'gui',
+            kind: 'branch',
+            root_session_key: 'gui:root',
+            parent_session_key: 'gui:root',
+            branch_label: 'experiment',
+            legacy: false,
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.find('.conv-tree-workspace').text()).toContain('agent-diva');
+    expect(wrapper.find('.conv-tree-channel').text()).toContain('gui');
+    expect(wrapper.findAll('.conv-tree-session')).toHaveLength(2);
+    expect(wrapper.findAll('.conv-tree-session')[1].attributes('style')).toContain('--conv-depth: 1');
+    expect(wrapper.findAll('.conv-kind-badge')[0].text()).toBe('分支');
+  });
+
+  it('keeps lineage ancestors visible when searching a child session', async () => {
+    const wrapper = mount(ConversationSidebar, {
+      props: {
+        activeSessionKey: 'gui:branch',
+        themeMode: 'love',
+        sessions: [
+          {
+            session_key: 'gui:root',
+            chat_id: 'root',
+            snippet: 'root',
+            timestamp: Date.now(),
+            title: 'Parent Conversation',
+            message_count: 1,
+            title_generated: false,
+            title_manually_set: false,
+            kind: 'root',
+            root_session_key: 'gui:root',
+          },
+          {
+            session_key: 'gui:branch',
+            chat_id: 'branch',
+            snippet: 'needle',
+            timestamp: Date.now() - 1_000,
+            title: 'Child Experiment',
+            last_message: 'needle result',
+            message_count: 1,
+            title_generated: false,
+            title_manually_set: false,
+            kind: 'branch',
+            root_session_key: 'gui:root',
+            parent_session_key: 'gui:root',
+          },
+        ],
+      },
+    });
+
+    await wrapper.find('.conv-search-input').setValue('needle');
+    expect(wrapper.findAll('.conv-tree-session')).toHaveLength(2);
+    expect(wrapper.find('.conv-item-title').text()).toContain('Parent Conversation');
   });
 });
