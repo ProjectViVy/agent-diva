@@ -34,12 +34,14 @@
 
 #### WS-00：基线接管与后端合入（2026-08-27）
 
-- [ ] **WS-00-INTEGRATE-BACKEND：接管并合入 workspace-agents Wave A–D** `sev-P1`
+- [x] **WS-00-INTEGRATE-BACKEND：接管并合入 workspace-agents Wave A–D** `sev-P1` ✅ 2026-08-26
   从 `feat/workspace-agents-impl` 的 `8ccc82b2..d1264f3d` 做提交级审计，在基于最新 `dev`
   的新隔离 worktree 中重放/合并；不得直接在旧工作树续写。解决 TODOLIST 冲突后验证
   `WorkspaceContext`、Shell root 边界、`WorkspaceInstructions` digest/截断/安全包裹和
   `GET /api/workspace`。同时将 Manager endpoint 的 `source` 改为权威上下文投影，禁止
-  根据 root 路径反推来源。依赖：无；后续 WS-01 至 WS-06 均依赖本切片。
+  根据 root 路径反推来源。已在 `feat/workspace-system-closeout` 新隔离 worktree 完成提交级
+  重放；Manager/CLI/Tauri 的 Gateway bootstrap 统一传递 `WorkspaceContext`，`/api/workspace`
+  直接投影 context source，并补充 process-cwd 反猜测测试。后续 WS-01 至 WS-06 依赖本切片。
 
 #### WS-01：唯一 WorkspaceContext 与只读 GUI（2026-08-28）
 

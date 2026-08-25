@@ -46,11 +46,9 @@ pub struct AgentsMdStatus {
 ///
 /// Lightweight (no ManagerCommand roundtrip): reads the workspace root and
 /// `AGENTS.md` directly. Suitable for the desktop GUI's workspace chip.
-pub async fn get_workspace_handler(
-    State(state): State<AppState>,
-) -> Json<WorkspaceStatusResponse> {
-    let root = &state.workspace_root;
-    let source = detect_source_from_root(root);
+pub async fn get_workspace_handler(State(state): State<AppState>) -> Json<WorkspaceStatusResponse> {
+    let root = &state.workspace_context.root;
+    let source = state.workspace_context.source.to_string();
 
     let legacy_hint = agent_diva_core::workspace::legacy_default_doctor_hint(
         &configured_workspace_string(&state).await,
@@ -79,28 +77,6 @@ pub async fn get_workspace_handler(
     })
 }
 
-/// Best-effort source classification from the resolved root.
-///
-/// Without access to the original `WorkspaceContext`, we infer the source from
-/// the root alone: if the root matches the expanded legacy home default, we
-/// label it `legacy-default`; otherwise we report `configured`.
-///
-/// The CLI/runtime path carries a full `WorkspaceContext` with exact source;
-/// this handler is a best-effort projection for operator display.
-fn detect_source_from_root(root: &std::path::Path) -> String {
-    let home_legacy = dirs::home_dir()
-        .map(|h| h.join(".agent-diva").join("workspace"))
-        .and_then(|p| std::fs::canonicalize(&p).ok());
-    let resolved = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-
-    if let Some(legacy) = home_legacy {
-        if resolved == legacy {
-            return "legacy-default".to_string();
-        }
-    }
-    "configured".to_string()
-}
-
 async fn configured_workspace_string(state: &AppState) -> String {
     let config_path = state.config_dir.join("config.json");
     let raw = match std::fs::read_to_string(&config_path) {
@@ -117,9 +93,7 @@ async fn configured_workspace_string(state: &AppState) -> String {
         .and_then(|d| d.get("workspace"))
         .and_then(|w| w.as_str())
         .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            agent_diva_core::workspace::LEGACY_DEFAULT_WORKSPACE.to_string()
-        })
+        .unwrap_or_else(|| agent_diva_core::workspace::LEGACY_DEFAULT_WORKSPACE.to_string())
 }
 
 #[cfg(test)]
@@ -138,7 +112,12 @@ mod tests {
 
     async fn make_state(workspace_root: &std::path::Path) -> AppState {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel::<crate::ManagerCommand>(4);
-        AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), workspace_root).unwrap()
+        AppState::new(
+            api_tx,
+            agent_diva_core::bus::MessageBus::new(),
+            workspace_root,
+        )
+        .unwrap()
     }
 
     #[tokio::test]
@@ -211,13 +190,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn source_is_projected_from_authoritative_workspace_context() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut state = make_state(temp.path()).await;
+        state.workspace_context.source = agent_diva_core::workspace::WorkspaceSource::ProcessCwd;
+        let app = Router::new()
+            .route("/api/workspace", get(get_workspace_handler))
+            .with_state(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/workspace")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let body = axum::body::to_bytes(response.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        let payload: WorkspaceStatusResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(payload.source, "process-cwd");
+    }
+
+    #[tokio::test]
     async fn legacy_default_root_emits_doctor_hint() {
         let home = dirs::home_dir().expect("home");
         let legacy = home.join(".agent-diva").join("workspace");
         if !legacy.exists() {
             std::fs::create_dir_all(&legacy).unwrap();
         }
-        let state = make_state(&legacy).await;
+        let mut state = make_state(&legacy).await;
+        state.workspace_context.source = agent_diva_core::workspace::WorkspaceSource::LegacyDefault;
         let app = Router::new()
             .route("/api/workspace", get(get_workspace_handler))
             .with_state(state);

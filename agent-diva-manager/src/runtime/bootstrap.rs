@@ -82,6 +82,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         cron_store,
         port,
     } = runtime;
+    let workspace_root = workspace.root.clone();
 
     let bus = MessageBus::new();
     let bus_for_hotreload = bus.clone();
@@ -90,7 +91,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let command_rules = Arc::new(agent_diva_sandbox::CommandRuleStore::open(
         loader.config_dir().join("execpolicy.toml"),
     )?);
-    let governance_dir = workspace.join(".laputa");
+    let governance_dir = workspace_root.join(".laputa");
     std::fs::create_dir_all(&governance_dir)?;
     let governance_pool = SqlitePoolOptions::new()
         .max_connections(4)
@@ -107,7 +108,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         .with_command_rules(command_rules)
         .governed(
             governance.clone(),
-            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace),
+            agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root),
         );
     let recovered = command_approvals.recover_incomplete().await?;
     if recovered > 0 {
@@ -124,7 +125,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         handle_config_diff(diff, new_config, &bus_for_hotreload);
     });
 
-    let cron_service = start_cron_service(cron_store, bus.clone(), workspace.clone()).await;
+    let cron_service = start_cron_service(cron_store, bus.clone(), workspace_root.clone()).await;
     ensure_notebook_monthly_cron_job(&cron_service).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(build_provider(
         &config,
@@ -142,7 +143,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         loader.config_dir(),
         config.memory.l1_index_lines,
     );
-    let persisted_sessions = agent_diva_core::session::SessionManager::new(&workspace)
+    let persisted_sessions = agent_diva_core::session::SessionManager::new(&workspace_root)
         .list_sessions()
         .into_iter()
         .map(|session| session.key)
@@ -161,7 +162,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         &config,
         bus.clone(),
         dynamic_provider.clone(),
-        workspace.clone(),
+        workspace_root,
         loader.config_dir().to_path_buf(),
         memory_home.clone(),
         runtime_control_rx,

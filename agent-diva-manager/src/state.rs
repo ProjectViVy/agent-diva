@@ -8,6 +8,7 @@ use agent_diva_core::config::schema::{
 use agent_diva_core::cron::{CreateCronJobRequest, CronJobDto, UpdateCronJobRequest};
 use agent_diva_core::evolution::SkillHome;
 use agent_diva_core::governance::ApprovalCoordinator;
+use agent_diva_core::workspace::{WorkspaceContext, WorkspaceSource};
 use agent_diva_laputa::{MemoryHome, PersonaService};
 use agent_diva_providers::{CustomProviderUpsert, ProviderModelCatalogView, ProviderView};
 use agent_diva_sandbox::CommandApprovalCoordinator;
@@ -64,6 +65,10 @@ impl HealthSignals {
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
     pub bus: MessageBus,
+    /// Authoritative runtime workspace snapshot used by operator-facing APIs.
+    /// `workspace_root` remains as a compatibility projection for existing
+    /// handlers and must always be copied from this context at construction.
+    pub workspace_context: WorkspaceContext,
     pub workspace_root: PathBuf,
     pub config_dir: PathBuf,
     pub audit_root: PathBuf,
@@ -138,7 +143,7 @@ impl AppState {
         Self::new_with_runtime_governance_inner(
             api_tx,
             bus,
-            workspace_root.into(),
+            configured_workspace_context(workspace_root.into()),
             command_approvals,
             ask_user,
             None,
@@ -162,7 +167,7 @@ impl AppState {
         Self::new_with_runtime_governance_inner(
             api_tx,
             bus,
-            workspace_root.into(),
+            configured_workspace_context(workspace_root.into()),
             command_approvals,
             ask_user,
             Some(governance),
@@ -179,7 +184,7 @@ impl AppState {
     pub fn new_with_runtime_governance_and_control(
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
-        workspace_root: impl Into<PathBuf>,
+        workspace_context: WorkspaceContext,
         config_dir: impl Into<PathBuf>,
         memory_home: MemoryHome,
         command_approvals: CommandApprovalCoordinator,
@@ -191,7 +196,7 @@ impl AppState {
         Self::new_with_runtime_governance_inner(
             api_tx,
             bus,
-            workspace_root.into(),
+            workspace_context,
             command_approvals,
             ask_user,
             Some(governance),
@@ -206,7 +211,7 @@ impl AppState {
     fn new_with_runtime_governance_inner(
         api_tx: mpsc::Sender<ManagerCommand>,
         bus: MessageBus,
-        workspace_root: PathBuf,
+        workspace_context: WorkspaceContext,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         governance: Option<ApprovalCoordinator>,
@@ -215,6 +220,7 @@ impl AppState {
         config_dir: Option<PathBuf>,
         memory_home: Option<MemoryHome>,
     ) -> anyhow::Result<Self> {
+        let workspace_root = workspace_context.root.clone();
         let config_dir = config_dir.unwrap_or_else(|| workspace_root.clone());
         let audit_root = agent_diva_core::audit_sink::workspace_audit_dir(&workspace_root);
         std::fs::create_dir_all(&audit_root)?;
@@ -243,6 +249,7 @@ impl AppState {
         let state = Self {
             api_tx,
             bus,
+            workspace_context,
             workspace_root,
             config_dir,
             audit_root,
@@ -266,6 +273,15 @@ impl AppState {
             Err(error) => tracing::error!(%error, "failed to recover AutoDream runs at startup"),
         }
         Ok(state)
+    }
+}
+
+fn configured_workspace_context(root: PathBuf) -> WorkspaceContext {
+    let root = std::fs::canonicalize(&root).unwrap_or(root);
+    WorkspaceContext {
+        root,
+        source: WorkspaceSource::Configured,
+        agents_md: None,
     }
 }
 

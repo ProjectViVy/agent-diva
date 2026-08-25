@@ -88,7 +88,7 @@ fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
     );
 
     agent_diva_manager::GatewayRuntimeConfig {
-        workspace: runtime.effective_workspace(&config),
+        workspace: runtime.workspace_context(&config),
         cron_store: runtime.cron_store_path(),
         config,
         loader,

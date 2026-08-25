@@ -20,6 +20,7 @@ use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::governance::ApprovalCoordinator;
 use agent_diva_core::supervised::RunStore;
+use agent_diva_core::workspace::WorkspaceContext;
 use agent_diva_files::{default_data_dir_or_fallback, FileConfig, FileManager};
 use agent_diva_providers::{
     build_llm_provider, DynamicProvider, LLMProvider, LlmProviderBuildOptions,
@@ -210,7 +211,7 @@ fn parse_skill_reflection_output(
 pub struct GatewayRuntimeConfig {
     pub config: Config,
     pub loader: ConfigLoader,
-    pub workspace: PathBuf,
+    pub workspace: WorkspaceContext,
     pub cron_store: PathBuf,
     pub port: u16,
 }
@@ -234,7 +235,7 @@ struct GatewayBootstrap {
     bus: MessageBus,
     cron_service: Arc<CronService>,
     dynamic_provider: Arc<DynamicProvider>,
-    workspace: PathBuf,
+    workspace: WorkspaceContext,
     runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,

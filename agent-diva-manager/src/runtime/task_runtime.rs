@@ -66,12 +66,13 @@ async fn start_runtime_tasks_inner(
         channel_manager,
         inbound_bridge_handle,
     } = channel_bootstrap;
+    let workspace_root = workspace.root.clone();
     let config_dir = loader.config_dir().to_path_buf();
 
-    if let Err(error) = agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace) {
+    if let Err(error) = agent_diva_core::audit_sink::ensure_workspace_jsonl_sink(&workspace_root) {
         tracing::error!(
             "failed to initialize workspace audit sink for {}: {}",
-            workspace.display(),
+            workspace_root.display(),
             error
         );
     }
@@ -85,9 +86,9 @@ async fn start_runtime_tasks_inner(
 
     let (api_tx, api_rx) = mpsc::channel(100);
     let planning_service = Arc::new(crate::planning_service::PlanningService::governed(
-        workspace.clone(),
+        workspace_root.clone(),
         governance.clone(),
-        agent_diva_core::workspace_identity::canonical_workspace_id(&workspace),
+        agent_diva_core::workspace_identity::canonical_workspace_id(&workspace_root),
     ));
     let recovered_plans = planning_service
         .recover_incomplete()
@@ -113,7 +114,7 @@ async fn start_runtime_tasks_inner(
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
         file_manager,
-        workspace.clone(),
+        workspace_root,
         governance.clone(),
         Some(Arc::clone(&planning_service)),
     );

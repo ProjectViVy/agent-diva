@@ -174,7 +174,11 @@ mod tests {
         GatewayRuntimeConfig {
             config,
             loader: loader.clone(),
-            workspace: PathBuf::from(workspace_dir.path()),
+            workspace: agent_diva_core::workspace::WorkspaceContext {
+                root: PathBuf::from(workspace_dir.path()),
+                source: agent_diva_core::workspace::WorkspaceSource::Configured,
+                agents_md: None,
+            },
             cron_store: config_dir.path().join("cron.json"),
             port: 0,
         }
