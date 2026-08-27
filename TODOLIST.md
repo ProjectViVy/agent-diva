@@ -10,7 +10,7 @@
 > 真机桌面冒烟全部通过），积压的真机冒烟批次全部通过、修复已上主线。完成明细见
 > [`completed-2026-08-23-real-device-smoke-batch.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-real-device-smoke-batch.md)。
 
-## L0-WBS：WORKSPACE 系统收尾（已授权开工）
+## L0-WBS：WORKSPACE 系统收尾（已完成）
 
 > **启动时间**：2026-08-26。**目标完成时间**：2026-09-07；2026-09-08 为风险缓冲，
 > 不是默认扩展范围。实施必须使用隔离 worktree，并按每个 WS 切片单独认领锁、验证和提交。
@@ -18,18 +18,19 @@
 
 ### L1-A：范围与冻结决策
 
-- [ ] **WORKSPACE-SYSTEM-CLOSEOUT：统一工作区、AGENTS 合同与分层会话历史** `sev-P1`
+- [x] **WORKSPACE-SYSTEM-CLOSEOUT：统一工作区、AGENTS 合同与分层会话历史** `sev-P1` ✅ 2026-08-27
   完成标志：运行时只有一个权威 `WorkspaceContext`；GUI 始终显示当前工作区及
   AGENTS.md 状态；切换遵循停止→保存→重建→恢复且失败不产生半切换；历史会话按
   `Workspace → Channel → Root Session → Branch/Subagent` 展示，并且层级来自持久化合同，
   不由标题或时间猜测。设计基线：
   [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
-  当前状态（2026-08-26）：WS-00～WS-05 的实现与自动化验证已完成；WS-06 仅剩真实桌面
-  G2D+ smoke，故本总项暂不提前勾选完成。
-  - [ ] 本期只查询当前活动 workspace 的 session authority；跨工作区全局历史索引另行立项。
-  - [ ] 旧会话缺少 lineage 时按该频道的独立 root 展示，标记为 legacy，不伪造父子关系。
-  - [ ] 禁止热换 `AppState` root、隐式迁移/复制会话、GUI 编辑 AGENTS.md、扫描未登记路径。
-  - [ ] 路径优先级沿用已完成合同：CLI override → 显式配置 → 进程启动 CWD；旧私有默认值
+  当前状态（2026-08-27）：WS-00～WS-06 的实现、自动化验证与真实桌面 G2D+ smoke
+  均已完成；用户已人工确认工作区重置、当前 session 显示、显式同路径选择、刷新和新建
+  聊天场景通过，本总项已收口。
+  - [x] 本期只查询当前活动 workspace 的 session authority；跨工作区全局历史索引另行立项。
+  - [x] 旧会话缺少 lineage 时按该频道的独立 root 展示，标记为 legacy，不伪造父子关系。
+  - [x] 禁止热换 `AppState` root、隐式迁移/复制会话、GUI 编辑 AGENTS.md、扫描未登记路径。
+  - [x] 路径优先级沿用已完成合同：CLI override → 显式配置 → 进程启动 CWD；旧私有默认值
     仅作为迁移来源。所有执行、Shell、Plan、Session 和 AGENTS 读取绑定同一 canonical root。
 
 ### L1-B：交付切片与依赖
@@ -112,18 +113,18 @@
 
 #### WS-06：纵向验收与收口（2026-09-07，缓冲 2026-09-08）
 
-- [ ] **WS-06-E2E-CLOSEOUT：自动化、真机 smoke、文档与归档** `sev-P1`
-  完成 Rust focused/full gates、GUI vitest/typecheck/build、Tauri/Manager 纵向测试和桌面真机
-  smoke。至少覆盖：无 AGENTS/正常/截断、候选预检竞态、切换阻塞、切换成功、重建失败回滚、
-  workspace 会话隔离、legacy root、真实 branch/subagent、搜索祖先路径。验收通过后将本 WBS
-  及原 `WORKSPACE-AGENTS-MD-INJECTION` / `WORKSPACE-GUI` / managed-path 条目一起归档。
-  当前自动化出口已完成：`just ci`、`just gui-automated-check`、Tauri workspace guard、
-  Manager `/api/workspace`、CLI effective workspace、Gateway lifecycle focused tests 均通过；
-  验证与接受记录见 `v0.1.7-workspace-closeout`。真实桌面 G2D+ 仍待人工执行，完成前不归档本
-  WBS 和其合并的旧条目。
+- [x] **WS-06-E2E-CLOSEOUT：自动化、真机 smoke、文档与归档** `sev-P1` ✅ 2026-08-27
+  已完成 Rust focused/full gates、GUI vitest/typecheck/build、Tauri/Manager 纵向测试和桌面真机
+  smoke。覆盖无 AGENTS/正常/截断、候选预检竞态、切换阻塞、切换成功、重建失败回滚、
+  workspace 会话隔离、legacy root、真实 branch/subagent、搜索祖先路径；本 WBS 及原
+  `WORKSPACE-AGENTS-MD-INJECTION` / `WORKSPACE-GUI` / managed-path 条目随本次收口归档。
+  自动化出口已完成：`just ci`、`just gui-automated-check`、Tauri workspace guard、Manager
+  `/api/workspace`、CLI effective workspace、Gateway lifecycle focused tests 均通过；用户于
+  2026-08-27 完成人工桌面验收并确认通过。验证与接受记录见 `v0.1.7-workspace-closeout` 与
+  `v0.1.15-session-workspace-label`。
   依赖：WS-03、WS-05。
 
-#### 后续缺口
+#### 后续缺口（不属于本次 WORKSPACE 收口）
 
 - [ ] **WS-CLI-LEGACY-DEFAULT-MIGRATION：评估 CLI legacy 默认值的 CWD 兼容策略** `sev-P3`
   GUI legacy 默认值已在 `v0.1.14-default-workspace-reset` 中稳定投影到 profile-local Diva
@@ -243,9 +244,9 @@
   只处理仍有效的通用治理/发布内容；Memory governance 与旧 Evolution 部分由
   clean-break 决策取代（EPIC 已关闭，本条只余通用部分）。
 
-- [ ] **WORKSPACE-AGENTS-MD-INJECTION / WORKSPACE-GUI：已并入 WORKSPACE 系统收尾 WBS** `sev-P1`
+- [x] **WORKSPACE-AGENTS-MD-INJECTION / WORKSPACE-GUI：已并入 WORKSPACE 系统收尾 WBS** `sev-P1` ✅ 2026-08-27
   后端隔离分支、GUI 当前工作区展示、受控切换和分层会话历史统一由 WS-00～WS-06 跟踪，
-  不再以两个互相割裂的待办重复排期；待 WS-06 真机 smoke 后随 WBS 一并归档。
+  不再以两个互相割裂的待办重复排期；WS-06 已完成人工验收，随本 WBS 一并归档。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、

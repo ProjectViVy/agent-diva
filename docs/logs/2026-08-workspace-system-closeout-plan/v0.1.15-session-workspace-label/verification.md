@@ -23,3 +23,7 @@
 - 默认目录重置后，活动旧 runtime 仍在 `Pictures` 时，接口返回 `source: configured`、`uses_default_workspace: false`，入口显示 `Pictures`。
 - 选择当前已运行目录时，Tauri 返回 `source: explicit-cli`、`uses_default_workspace: false`；后续刷新不会恢复“默认工作区”标签。
 - 设置页刷新当前 session 状态不会改写默认目录之外的 runtime/session authority。
+
+## 人工验收
+
+- 用户确认真实桌面 GUI 的工作区重置、当前 session 显示、显式同路径选择、刷新和新建聊天场景全部通过（2026-08-27）。

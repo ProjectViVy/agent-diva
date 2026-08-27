@@ -9,14 +9,13 @@
 - 原子切换覆盖成功路径、运行态阻塞、Gateway 重建和失败回滚逻辑的自动化测试。
 - Rust/GUI 全量门禁、Tauri/Manager/CLI 聚焦测试通过。
 
-## 待人工验收
+## 人工验收通过（2026-08-27）
 
-以下步骤需要真实 Windows Tauri 桌面窗口执行，完成前 WS-06 保持开放：
+用户已在真实 Windows Tauri 桌面窗口完成工作区验收并确认通过。验收覆盖以下场景：
 
-1. 启动 GUI，确认 Topbar 与 Settings 显示同一 canonical root。
-2. 选择临时目录 A，准备 `AGENTS.md`，确认候选预览显示正确状态并完成切换。
-3. 确认 Gateway 重建、Chat 输入恢复、Session 列表切换到 A；再切回原 workspace。
-4. 删除 A 的 `AGENTS.md` 并重扫，确认状态变为 `missing` 且旧内容不残留。
-5. 在 streaming、Plan、approval 或 HITL 期间尝试切换，确认被阻止且 root 不变。
-6. 模拟 apply/rebuild 失败，确认旧 root、候选、页面位置和错误信息保留。
-7. 用长路径和窄窗口检查无横向滚动、双重纵向滚动或 Footer 遮挡。
+1. 默认工作区重置后，当前 session 仍显示其实际显式目录，不被默认配置覆盖。
+2. 聊天入口选择当前目录时，仍保留显式 session 工作区身份。
+3. 刷新、设置页保存/重置和新建聊天均保持同一 session authority 工作区。
+4. 工作区入口、目录选择和状态展示在真实桌面 GUI 中可正常使用。
+
+详细的本轮标签回归验收记录见同一收口计划下的 `v0.1.15-session-workspace-label/acceptance.md`。

@@ -16,4 +16,4 @@
 
 - Rust 编译仍报告 `imap-proto` future-incompatibility 提示；未因本迭代新增，未阻断门禁。
 - GUI bundle 存在既有的大 chunk warning；不影响 typecheck、build 或测试结果。
-- 真实桌面 G2D+ smoke 未执行；仓库 `justfile` 明确将其与 `e7-automated-release-gate` 分离，故不能以自动化结果替代人工接受。
+- 真实桌面 G2D+ smoke 已由用户于 2026-08-27 执行并确认通过；验收结果与当前 session/default workspace 行为回归记录见同一收口计划下的 `v0.1.15-session-workspace-label/verification.md`。
