@@ -107,6 +107,7 @@ async function commitCandidate() {
   defaultState.value = 'saving';
   try {
     defaultWorkspace.value = await setDefaultWorkspace(candidate.value.root);
+    await props.refreshWorkspace();
     defaultState.value = 'ready';
     resetDraft();
   } catch (cause) {
@@ -121,6 +122,7 @@ async function resetToDefaultWorkspace() {
   defaultState.value = 'resetting';
   try {
     defaultWorkspace.value = await resetDefaultWorkspace();
+    await props.refreshWorkspace();
     defaultState.value = 'ready';
     resetDraft();
   } catch (cause) {

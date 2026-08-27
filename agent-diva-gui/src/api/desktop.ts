@@ -204,6 +204,7 @@ export interface AgentsMdStatus {
 export interface WorkspaceStatus {
   root: string;
   source: 'configured' | 'explicit-cli' | 'legacy-default' | 'process-cwd' | string;
+  uses_default_workspace?: boolean;
   legacy_hint?: string | null;
   agents_md?: AgentsMdStatus | null;
 }

@@ -19,6 +19,11 @@ pub struct WorkspaceStatusResponse {
     /// CLI, `"legacy-default"` when the config still matches the historical
     /// `~/.agent-diva/workspace` default, `"process-cwd"` otherwise.
     pub source: String,
+    /// Whether this runtime is currently using the persisted default workspace.
+    /// An active runtime can become detached when the default is changed while
+    /// the gateway stays alive; in that case this is `false` even if the
+    /// original resolution source was `configured`.
+    pub uses_default_workspace: bool,
     /// Doctor-facing hint when the legacy default is still active.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub legacy_hint: Option<String>,
@@ -49,10 +54,10 @@ pub struct AgentsMdStatus {
 pub async fn get_workspace_handler(State(state): State<AppState>) -> Json<WorkspaceStatusResponse> {
     let root = &state.workspace_context.root;
     let source = state.workspace_context.source.to_string();
+    let configured_workspace = configured_workspace_string(&state).await;
+    let uses_default_workspace = runtime_uses_current_default(&state, &configured_workspace);
 
-    let legacy_hint = agent_diva_core::workspace::legacy_default_doctor_hint(
-        &configured_workspace_string(&state).await,
-    );
+    let legacy_hint = agent_diva_core::workspace::legacy_default_doctor_hint(&configured_workspace);
 
     let agents_md_path = root.join("AGENTS.md");
     let agents_md = if agents_md_path.exists() {
@@ -72,9 +77,40 @@ pub async fn get_workspace_handler(State(state): State<AppState>) -> Json<Worksp
     Json(WorkspaceStatusResponse {
         root: root.display().to_string(),
         source,
+        uses_default_workspace,
         legacy_hint,
         agents_md,
     })
+}
+
+fn runtime_uses_current_default(state: &AppState, configured_workspace: &str) -> bool {
+    if state.workspace_context.source == agent_diva_core::workspace::WorkspaceSource::ExplicitCli {
+        return false;
+    }
+
+    let configured_root =
+        if configured_workspace == agent_diva_core::workspace::LEGACY_DEFAULT_WORKSPACE {
+            // The desktop GUI projects the legacy value to its stable profile-local
+            // workspace before bootstrapping the embedded manager. Keep that
+            // projection visible to the status endpoint without rewriting config.
+            let gui_default = state.config_dir.join("workspace");
+            if std::fs::canonicalize(&gui_default).ok().as_deref()
+                == std::fs::canonicalize(&state.workspace_context.root)
+                    .ok()
+                    .as_deref()
+            {
+                gui_default
+            } else {
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+            }
+        } else {
+            agent_diva_core::workspace::resolve_workspace(None, configured_workspace).root
+        };
+
+    let active_root = std::fs::canonicalize(&state.workspace_context.root)
+        .unwrap_or_else(|_| state.workspace_context.root.clone());
+    let configured_root = std::fs::canonicalize(&configured_root).unwrap_or(configured_root);
+    active_root == configured_root
 }
 
 async fn configured_workspace_string(state: &AppState) -> String {
@@ -213,6 +249,41 @@ mod tests {
             .unwrap();
         let payload: WorkspaceStatusResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload.source, "process-cwd");
+    }
+
+    #[tokio::test]
+    async fn changed_default_marks_the_active_configured_runtime_as_detached() {
+        let config_dir = tempfile::tempdir().unwrap();
+        let active_workspace = tempfile::tempdir().unwrap();
+        let new_default = tempfile::tempdir().unwrap();
+        let loader = agent_diva_core::config::ConfigLoader::with_dir(config_dir.path());
+        let mut config = agent_diva_core::config::schema::Config::default();
+        config.agents.defaults.workspace = new_default.path().display().to_string();
+        loader.save(&config).unwrap();
+
+        let mut state = make_state(active_workspace.path()).await;
+        state.config_dir = std::path::PathBuf::from(config_dir.path());
+        state.workspace_context.source = agent_diva_core::workspace::WorkspaceSource::Configured;
+
+        let app = Router::new()
+            .route("/api/workspace", get(get_workspace_handler))
+            .with_state(state);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/workspace")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        let payload: WorkspaceStatusResponse = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(payload.source, "configured");
+        assert!(!payload.uses_default_workspace);
     }
 
     #[tokio::test]

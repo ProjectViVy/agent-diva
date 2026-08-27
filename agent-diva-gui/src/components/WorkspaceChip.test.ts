@@ -37,6 +37,18 @@ describe('WorkspaceChip', () => {
     expect(wrapper.get('[data-testid="workspace-chip"]').text()).not.toContain('agent-diva');
   });
 
+  it('shows the active directory when the runtime is detached from the new default', () => {
+    const wrapper = mount(WorkspaceChip, {
+      props: {
+        workspace: { ...workspace, source: 'configured', uses_default_workspace: false },
+        state: 'ready',
+      },
+    });
+
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('agent-diva');
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).not.toContain('默认工作区');
+  });
+
   it('identifies the active workspace and AGENTS state', async () => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace, state: 'ready' },

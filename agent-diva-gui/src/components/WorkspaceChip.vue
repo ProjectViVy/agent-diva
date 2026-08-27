@@ -30,6 +30,10 @@ const workspaceDisplayRoot = computed(() => (
 
 const workspaceName = computed(() => {
   if (!workspaceDisplayRoot.value) return '默认工作区';
+  if (props.workspace?.uses_default_workspace === false) {
+    const parts = workspaceDisplayRoot.value.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] || workspaceDisplayRoot.value;
+  }
   if (
     props.workspace?.source === 'configured'
     || props.workspace?.source === 'process-cwd'

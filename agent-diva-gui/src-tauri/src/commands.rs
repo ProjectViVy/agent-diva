@@ -113,6 +113,8 @@ pub struct RuntimeConfigSnapshot {
 pub struct WorkspaceStatusDto {
     pub root: String,
     pub source: String,
+    #[serde(default)]
+    pub uses_default_workspace: Option<bool>,
     pub legacy_hint: Option<String>,
     pub agents_md: Option<AgentsMdStatusDto>,
 }
@@ -340,6 +342,19 @@ fn workspace_source_from_status(source: &str) -> Result<WorkspaceSource, String>
             "gateway reported an unknown workspace source: {value}"
         )),
     }
+}
+
+/// Mark a same-root picker choice as an explicit session selection.
+///
+/// Selecting the current directory is still an intentional workspace choice.
+/// Returning the gateway's original `configured` status here would make the
+/// GUI lose that intent on the next status refresh, especially when the
+/// selected directory happens to be the persisted default.
+fn mark_explicit_session_workspace(mut status: WorkspaceStatusDto) -> WorkspaceStatusDto {
+    status.source = WorkspaceSource::ExplicitCli.to_string();
+    status.uses_default_workspace = Some(false);
+    status.legacy_hint = None;
+    status
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -5285,7 +5300,7 @@ pub async fn switch_workspace(
     let old_root = std::fs::canonicalize(&old_root).unwrap_or(old_root);
 
     if old_root.as_path() == Path::new(&candidate.root) {
-        return Ok(old_status);
+        return Ok(mark_explicit_session_workspace(old_status));
     }
 
     {
@@ -7711,7 +7726,8 @@ mod mask_tests {
 mod workspace_switch_tests {
     use super::{
         default_workspace_status, ensure_built_in_default_workspace_root,
-        inspect_workspace_candidate, validate_workspace_switch_guard, workspace_source_from_status,
+        inspect_workspace_candidate, mark_explicit_session_workspace,
+        validate_workspace_switch_guard, workspace_source_from_status, WorkspaceStatusDto,
         WorkspaceSwitchRequest,
     };
     use agent_diva_core::config::ConfigLoader;
@@ -7784,6 +7800,23 @@ mod workspace_switch_tests {
             agent_diva_core::workspace::WorkspaceSource::ExplicitCli
         );
         assert!(workspace_source_from_status("unknown").is_err());
+    }
+
+    #[test]
+    fn selecting_the_current_root_still_marks_an_explicit_session_workspace() {
+        let status = WorkspaceStatusDto {
+            root: r"C:\Users\Administrator\Pictures".to_string(),
+            source: "configured".to_string(),
+            uses_default_workspace: Some(true),
+            legacy_hint: None,
+            agents_md: None,
+        };
+
+        let marked = mark_explicit_session_workspace(status);
+
+        assert_eq!(marked.source, "explicit-cli");
+        assert_eq!(marked.uses_default_workspace, Some(false));
+        assert!(marked.legacy_hint.is_none());
     }
 
     #[test]
