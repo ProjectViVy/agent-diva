@@ -21,6 +21,7 @@ use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as AsyncMutex;
 
 static LOGGING_INITIALIZED: OnceLock<()> = OnceLock::new();
+const EXTERNAL_GATEWAY_ENV: &str = "AGENT_DIVA_EXTERNAL_GATEWAY";
 
 /// Tracks completion of frontend/backend setup for splash screen.
 struct SplashState {
@@ -32,9 +33,16 @@ pub type EmbeddedGatewayState = Arc<AsyncMutex<Option<EmbeddedGatewayHandle>>>;
 pub type WorkspaceSwitchState = Arc<AsyncMutex<()>>;
 
 fn should_manage_gateway_lifecycle() -> bool {
-    // Only manage gateway lifecycle in release mode
-    // In debug mode, developers should start the gateway manually for better control
-    !cfg!(debug_assertions)
+    should_manage_gateway_lifecycle_from(std::env::var(EXTERNAL_GATEWAY_ENV).ok().as_deref())
+}
+
+fn should_manage_gateway_lifecycle_from(external_gateway: Option<&str>) -> bool {
+    !external_gateway.is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
 }
 
 fn config_loader() -> ConfigLoader {
@@ -243,7 +251,8 @@ pub fn run() {
                 (Arc::new(AsyncMutex::new(Some(handle))), Some(port))
             } else {
                 tracing::info!(
-                    "Gateway lifecycle management is disabled in debug mode; expecting an external backend"
+                    env = EXTERNAL_GATEWAY_ENV,
+                    "Embedded gateway lifecycle is disabled explicitly; expecting an external backend"
                 );
                 (Arc::new(AsyncMutex::new(None)), None)
             };
@@ -520,25 +529,26 @@ pub fn run() {
 mod tests {
     use super::{
         close_action, resolve_configured_path, resolve_logging_config,
-        should_manage_gateway_lifecycle, CloseAction, ExitTrigger,
+        should_manage_gateway_lifecycle_from, CloseAction, ExitTrigger,
     };
     use crate::shutdown_manager::ShutdownManager;
     use agent_diva_core::config::schema::LoggingConfig;
     use tempfile::TempDir;
 
     #[test]
-    fn gateway_lifecycle_is_disabled_in_debug_mode() {
-        // In debug mode, gateway lifecycle should be disabled
-        // In release mode, gateway lifecycle should be enabled
-        if cfg!(debug_assertions) {
+    fn gateway_lifecycle_is_managed_by_default() {
+        assert!(should_manage_gateway_lifecycle_from(None));
+        assert!(should_manage_gateway_lifecycle_from(Some("")));
+        assert!(should_manage_gateway_lifecycle_from(Some("false")));
+        assert!(should_manage_gateway_lifecycle_from(Some("0")));
+    }
+
+    #[test]
+    fn external_gateway_mode_requires_an_explicit_truthy_flag() {
+        for value in ["1", "true", "TRUE", " yes ", "on"] {
             assert!(
-                !should_manage_gateway_lifecycle(),
-                "Gateway lifecycle should be disabled in debug mode"
-            );
-        } else {
-            assert!(
-                should_manage_gateway_lifecycle(),
-                "Gateway lifecycle should be enabled in release mode"
+                !should_manage_gateway_lifecycle_from(Some(value)),
+                "{value:?} should enable external gateway mode"
             );
         }
     }

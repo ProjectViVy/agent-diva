@@ -1,6 +1,4 @@
-# Launch local Agent Diva dev stack in two dedicated PowerShell windows:
-#   1) just diva-gate  (gateway backend)
-#   2) pnpm tauri dev  (GUI frontend, under agent-diva-gui)
+# Launch the Agent Diva GUI dev process with its embedded Gateway.
 #
 # Usage (from repo root):
 #   just make-diva
@@ -59,13 +57,7 @@ function Start-DevWindow {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $guiDir = Join-Path $repoRoot "agent-diva-gui"
-$justfile = Join-Path $repoRoot "justfile"
 
-if (-not (Test-Path -LiteralPath $justfile)) {
-    throw "Repo root not found (missing justfile): $repoRoot"
-}
-
-Assert-Command -Name "just" -Hint "Install just (https://github.com/casey/just) and ensure it is on PATH."
 Assert-Command -Name "pnpm" -Hint "Install pnpm and ensure it is on PATH."
 Assert-Command -Name "cargo" -Hint "Install Rust/cargo and ensure it is on PATH."
 
@@ -74,7 +66,6 @@ if (-not (Test-Path -LiteralPath $guiDir)) {
 }
 
 Write-Step "Repo: $repoRoot"
-Start-DevWindow -Title "diva-gate" -Workdir $repoRoot -Command "just diva-gate"
 Start-DevWindow -Title "tauri-dev" -Workdir $guiDir -Command "pnpm tauri dev"
-Write-Step "Launched two windows: just diva-gate + pnpm tauri dev (agent-diva-gui)."
-Write-Host "Close each window separately to stop that process." -ForegroundColor DarkGray
+Write-Step "Launched pnpm tauri dev with the embedded Gateway."
+Write-Host "Close the window to stop both the GUI and its embedded Gateway." -ForegroundColor DarkGray

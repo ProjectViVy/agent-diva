@@ -5175,7 +5175,7 @@ pub async fn switch_workspace(
 ) -> Result<WorkspaceStatusDto, String> {
     if !crate::should_manage_gateway_lifecycle() {
         return Err(
-            "workspace atomic switch requires the embedded gateway; restart the external debug gateway instead"
+            "workspace atomic switch is unavailable while AGENT_DIVA_EXTERNAL_GATEWAY is enabled; unset it and restart the Tauri app to use the embedded gateway"
                 .to_string(),
         );
     }

@@ -35,6 +35,10 @@ Agent Diva 的图形化桌面客户端，基于 Tauri + Vue 3 构建。
     pnpm tauri dev
     ```
 
+开发模式默认启动内嵌 Gateway，关闭 Tauri 应用时会一并停止。只有需要单独调试 Gateway
+进程时才设置 `AGENT_DIVA_EXTERNAL_GATEWAY=1`；外部 Gateway 兼容模式不支持应用内原子
+切换工作区。
+
 ## 外部 Hook 使用
 
 应用启动后，会在后台监听 `3000` 端口。你可以通过 HTTP POST 请求向 GUI 发送消息：

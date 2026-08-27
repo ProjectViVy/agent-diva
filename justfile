@@ -8,18 +8,15 @@ set windows-shell := ["powershell.exe", "-NoProfile", "-c"]
 default:
     @just --list
 
-# Start both Gateway and GUI
+# Start the GUI with its embedded Gateway
 start:
-    Start-Process -FilePath "cargo" -ArgumentList "run --bin agent-diva -- gateway"
     cd agent-diva-gui; npm run tauri dev
 
 # Start Gateway only
 diva-gate:
     cargo run --package agent-diva-cli -- gateway run
 
-# Windows: open two new PowerShell windows for local full-stack dev
-#   window 1 -> just diva-gate  (backend gateway)
-#   window 2 -> pnpm tauri dev  (GUI under agent-diva-gui)
+# Windows: open the GUI dev process with its embedded Gateway
 make-diva:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/make-diva.ps1
 

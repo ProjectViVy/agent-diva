@@ -302,6 +302,10 @@ pnpm install
 pnpm tauri dev
 ```
 
+开发模式默认由 Tauri 启动并管理内嵌 Gateway，因此工作区可以执行原子切换，不需要另开
+Gateway 进程。仅在调试独立 Gateway 时，先设置 `AGENT_DIVA_EXTERNAL_GATEWAY=1` 再启动
+Tauri；该兼容模式不支持应用内原子切换工作区。
+
 ### Build for production
 
 ```bash

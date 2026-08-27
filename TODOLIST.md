@@ -79,7 +79,9 @@
   会话。失败时恢复旧 committed context 或进入明确的可重试错误态，不得出现“UI 已切、
   runtime 未切”。已接入串行切换锁、运行态 guard、旧会话刷新、嵌入式 gateway 停止/重建、
   `/api/workspace` 目标校验、旧配置与 runtime 回滚、GUI 快照应用和新 workspace 历史重载；
-  debug 外部 gateway 明确拒绝原子切换。验证记录见 `v0.1.6-workspace-atomic-switch`。
+  debug/release 均默认使用内嵌 gateway；仅显式设置 `AGENT_DIVA_EXTERNAL_GATEWAY=1` 时进入
+  不支持原子切换的外部 gateway 兼容模式。验证记录见 `v0.1.6-workspace-atomic-switch` 和
+  `v0.1.12-debug-embedded-gateway`。
   依赖：WS-02。
 
 #### WS-04：会话层级持久化与 API（2026-09-03）
@@ -116,6 +118,15 @@
   验证与接受记录见 `v0.1.7-workspace-closeout`。真实桌面 G2D+ 仍待人工执行，完成前不归档本
   WBS 和其合并的旧条目。
   依赖：WS-03、WS-05。
+
+#### 后续缺口
+
+- [ ] **WS-GUI-DEFAULT-ROOT-STABILITY：固定 GUI 未配置工作区时的默认根目录** `sev-P2`
+  2026-08-27 的内嵌 Gateway smoke 显示，未配置 workspace 时 legacy fallback 会继承 Tauri
+  启动进程 CWD；`cargo tauri dev` 下实际落到 `agent-diva-gui/src-tauri`，启动方式变化会改变
+  默认 session/workspace 归属。期望 GUI 使用稳定、可解释的默认工作区 authority，同时保留
+  显式 workspace 配置优先级。相关：`agent-diva-gui/src-tauri/src/lib.rs`、
+  `agent-diva-core` WorkspaceContext fallback。
 
 ### L1-C：里程碑排期
 
