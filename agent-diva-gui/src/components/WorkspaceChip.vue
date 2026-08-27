@@ -22,6 +22,9 @@ const open = ref(false);
 
 const workspaceName = computed(() => {
   if (!props.workspace?.root) return '工作区加载中';
+  if (props.workspace.source === 'process-cwd' || props.workspace.source === 'legacy-default') {
+    return '默认工作区';
+  }
   const parts = props.workspace.root.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] || props.workspace.root;
 });

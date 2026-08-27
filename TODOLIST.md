@@ -55,7 +55,8 @@
   Settings 和 AGENTS 状态展示；覆盖 loading/refreshing/ready/error/legacy-default，旧响应
   不得覆盖新 workspace generation。验证记录见 `v0.1.2-workspace-gui-readonly`，提交记录见本分支
   Git history。2026-08-27 根据真机验收反馈将入口从 Topbar 移到聊天输入框底栏，弹层向上展开；
-  记录见 `v0.1.8-workspace-chat-footer-entry`。
+  未显式指定时显示“默认工作区”，仅 `configured` / `explicit-cli` 显示具体目录名；记录见
+  `v0.1.8-workspace-chat-footer-entry` 与 `v0.1.9-workspace-default-label`。
   依赖：WS-00。
 
 #### WS-02：选择、预览与持久化（2026-08-31）

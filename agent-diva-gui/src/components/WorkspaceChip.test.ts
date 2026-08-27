@@ -15,6 +15,15 @@ const workspace = {
 };
 
 describe('WorkspaceChip', () => {
+  it.each(['process-cwd', 'legacy-default'])('labels %s as the default workspace', (source) => {
+    const wrapper = mount(WorkspaceChip, {
+      props: { workspace: { ...workspace, source }, state: 'ready' },
+    });
+
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('默认工作区');
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).not.toContain('agent-diva');
+  });
+
   it('identifies the active workspace and AGENTS state', async () => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace, state: 'ready' },
@@ -24,6 +33,14 @@ describe('WorkspaceChip', () => {
     await wrapper.get('[data-testid="workspace-chip"]').trigger('click');
     expect(wrapper.get('[data-testid="workspace-popover"]').text()).toContain('AGENTS.md 已加载');
     expect(wrapper.get('[data-testid="workspace-popover"]').text()).toContain('C:\\Projects\\agent-diva');
+  });
+
+  it('shows the selected directory for an explicit CLI workspace', () => {
+    const wrapper = mount(WorkspaceChip, {
+      props: { workspace: { ...workspace, source: 'explicit-cli' }, state: 'ready' },
+    });
+
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('agent-diva');
   });
 
   it('opens workspace settings from the popover', async () => {
