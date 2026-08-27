@@ -56,7 +56,7 @@ describe('WorkspaceChip', () => {
     expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('agent-diva');
   });
 
-  it('opens workspace settings from the popover', async () => {
+  it('requests the native workspace selection flow from the popover', async () => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace, state: 'ready' },
     });
@@ -64,7 +64,7 @@ describe('WorkspaceChip', () => {
     await wrapper.get('[data-testid="workspace-chip"]').trigger('click');
     await wrapper.get('[data-testid="workspace-popover"] button:last-child').trigger('click');
 
-    expect(wrapper.emitted('open-settings')).toHaveLength(1);
+    expect(wrapper.emitted('select-workspace')).toHaveLength(1);
   });
 
   it('opens upward when rendered in the chat footer', async () => {

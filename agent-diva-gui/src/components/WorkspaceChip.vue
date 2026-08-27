@@ -9,12 +9,16 @@ const props = withDefaults(defineProps<{
   state: WorkspaceContextState;
   error?: string | null;
   placement?: 'above' | 'below';
+  canSwitch?: boolean;
+  switching?: boolean;
 }>(), {
   placement: 'below',
+  canSwitch: true,
+  switching: false,
 });
 
 const emit = defineEmits<{
-  (event: 'open-settings'): void;
+  (event: 'select-workspace'): void;
   (event: 'refresh'): void;
 }>();
 
@@ -39,9 +43,9 @@ function close() {
   open.value = false;
 }
 
-function openSettings() {
+function selectWorkspace() {
   close();
-  emit('open-settings');
+  emit('select-workspace');
 }
 </script>
 
@@ -102,9 +106,14 @@ function openSettings() {
           <RefreshCw :size="13" :class="{ 'animate-spin': state === 'loading' || state === 'refreshing' }" />
           刷新状态
         </button>
-        <button type="button" class="workspace-popover-action workspace-popover-primary" @click="openSettings">
+        <button
+          type="button"
+          class="workspace-popover-action workspace-popover-primary"
+          :disabled="!canSwitch || switching"
+          @click="selectWorkspace"
+        >
           <Settings2 :size="13" />
-          切换工作区
+          {{ switching ? '正在切换…' : '切换工作区' }}
         </button>
       </div>
     </section>
@@ -178,5 +187,6 @@ function openSettings() {
 .workspace-popover-actions { gap: 0.45rem; margin-top: 0.85rem; }
 .workspace-popover-action { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.42rem 0.55rem; border-radius: 0.5rem; color: var(--text-muted, #64748b); font-size: 0.65rem; }
 .workspace-popover-action:hover { background: var(--nav-hover, rgba(148, 163, 184, 0.12)); color: var(--text, #334155); }
+.workspace-popover-action:disabled { opacity: 0.5; cursor: not-allowed; }
 .workspace-popover-primary { margin-left: auto; color: var(--accent, #db2777); }
 </style>

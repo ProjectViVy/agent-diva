@@ -58,7 +58,8 @@
   未显式指定时显示“默认工作区”，仅 `configured` / `explicit-cli` 显示具体目录名；记录见
   `v0.1.8-workspace-chat-footer-entry`、`v0.1.9-workspace-default-label` 与
   `v0.1.10-workspace-default-fallback`。状态未返回或旧 Gateway 404 时也保持默认标签，
-  不再把错误态显示成“工作区加载中”。
+  不再把错误态显示成“工作区加载中”。2026-08-27 将“切换工作区”改为直接打开原生目录
+  选择器，并复用 candidate inspect 与原子切换；记录见 `v0.1.11-workspace-direct-folder-picker`。
   依赖：WS-00。
 
 #### WS-02：选择、预览与持久化（2026-08-31）

@@ -4,6 +4,17 @@ import { nextTick } from 'vue';
 import NormalMode from './NormalMode.vue';
 import { listSkillRequests } from '../api/desktop';
 
+const workspacePickerMocks = vi.hoisted(() => ({
+  chooseWorkspaceDirectory: vi.fn<() => Promise<string | null>>(() => Promise.resolve(null)),
+  inspectWorkspace: vi.fn((_root: string) => Promise.resolve({
+    root: '',
+    workspaceId: '',
+    readable: true,
+    agentsMd: null,
+  })),
+  showAppToast: vi.fn(),
+}));
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key,
@@ -19,15 +30,19 @@ vi.mock('@lucide/vue', () => ({
   Cat: { name: 'Cat', template: '<span class="Cat" />' },
   Check: { name: 'Check', template: '<span class="Check" />' },
   ChevronDown: { name: 'ChevronDown', template: '<span class="ChevronDown" />' },
+  CircleAlert: { name: 'CircleAlert', template: '<span class="CircleAlert" />' },
   ClipboardList: { name: 'ClipboardList', template: '<span class="ClipboardList" />' },
   Database: { name: 'Database', template: '<span class="Database" />' },
+  FileText: { name: 'FileText', template: '<span class="FileText" />' },
   FolderOpen: { name: 'FolderOpen', template: '<span class="FolderOpen" />' },
   GitBranch: { name: 'GitBranch', template: '<span class="GitBranch" />' },
   Heart: { name: 'Heart', template: '<span class="Heart" />' },
   Menu: { name: 'Menu', template: '<span class="Menu" />' },
   MessageSquare: { name: 'MessageSquare', template: '<span class="MessageSquare" />' },
+  RefreshCw: { name: 'RefreshCw', template: '<span class="RefreshCw" />' },
   Server: { name: 'Server', template: '<span class="Server" />' },
   Settings: { name: 'Settings', template: '<span class="Settings" />' },
+  Settings2: { name: 'Settings2', template: '<span class="Settings2" />' },
   Sparkles: { name: 'Sparkles', template: '<span class="Sparkles" />' },
   Trash2: { name: 'Trash2', template: '<span class="Trash2" />' },
   WandSparkles: { name: 'WandSparkles', template: '<span class="WandSparkles" />' },
@@ -44,7 +59,13 @@ vi.mock('../api/desktop', () => ({
       { id: 'request-3', status: 'pending' },
     ])
   ),
+  chooseWorkspaceDirectory: workspacePickerMocks.chooseWorkspaceDirectory,
+  inspectWorkspace: workspacePickerMocks.inspectWorkspace,
   isTauriRuntime: () => false,
+}));
+
+vi.mock('../utils/appToast', () => ({
+  showAppToast: workspacePickerMocks.showAppToast,
 }));
 
 vi.mock('./ChatView.vue', () => ({
@@ -186,6 +207,26 @@ describe('NormalMode mate focus layout', () => {
 
     expect(wrapper.find('.topbar [data-testid="workspace-chip"]').exists()).toBe(false);
     expect(wrapper.find('.chat-view-stub [data-testid="workspace-chip"]').exists()).toBe(true);
+  });
+
+  it('opens the native directory picker and switches to the inspected folder', async () => {
+    const switchWorkspace = vi.fn(() => Promise.resolve(true));
+    workspacePickerMocks.chooseWorkspaceDirectory.mockResolvedValueOnce('C:\\Projects\\selected');
+    workspacePickerMocks.inspectWorkspace.mockResolvedValueOnce({
+      root: 'C:\\Projects\\selected',
+      workspaceId: 'workspace-selected',
+      readable: true,
+      agentsMd: null,
+    });
+    const wrapper = mountNormalMode({ switchWorkspace });
+
+    await wrapper.get('[data-testid="workspace-chip"]').trigger('click');
+    await wrapper.get('[data-testid="workspace-popover"] button:last-child').trigger('click');
+    await flushPromises();
+
+    expect(workspacePickerMocks.chooseWorkspaceDirectory).toHaveBeenCalledTimes(1);
+    expect(workspacePickerMocks.inspectWorkspace).toHaveBeenCalledWith('C:\\Projects\\selected');
+    expect(switchWorkspace).toHaveBeenCalledWith('C:\\Projects\\selected');
   });
 
   it('keeps normal pages outside mate focus layout with the topbar visible', () => {

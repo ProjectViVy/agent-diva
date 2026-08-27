@@ -22,7 +22,7 @@ import {
 } from '@lucide/vue';
 import { invoke } from '@tauri-apps/api/core';
 import ChatView, { type AskUserQuestionView, type CompactionStatus } from './ChatView.vue';
-import { listSkillRequests } from '../api/desktop';
+import { chooseWorkspaceDirectory, inspectWorkspace, listSkillRequests } from '../api/desktop';
 import type { FileAttachmentDto } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
 import type { ToolsConfigShape } from '../types/toolsConfig';
@@ -45,6 +45,7 @@ import type { WorkspaceStatus } from '../api/desktop';
 import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../composables/useTheme';
+import { showAppToast } from '../utils/appToast';
 
 const { t } = useI18n();
 
@@ -157,6 +158,26 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const selectingWorkspace = ref(false);
+
+async function selectWorkspaceDirectory() {
+  if (!props.switchWorkspace || props.switching || selectingWorkspace.value) return;
+  selectingWorkspace.value = true;
+  let switchStarted = false;
+  try {
+    const selected = await chooseWorkspaceDirectory();
+    if (!selected) return;
+    const candidate = await inspectWorkspace(selected);
+    switchStarted = true;
+    await props.switchWorkspace(candidate.root);
+  } catch (cause) {
+    if (!switchStarted) {
+      showAppToast(cause instanceof Error ? cause.message : String(cause), 'error', 6000);
+    }
+  } finally {
+    selectingWorkspace.value = false;
+  }
+}
 
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
@@ -1107,7 +1128,9 @@ defineExpose({
                   :state="workspaceState"
                   :error="workspaceError"
                   placement="above"
-                  @open-settings="navigateTo('settings', 'workspace')"
+                  :can-switch="Boolean(switchWorkspace)"
+                  :switching="Boolean(switching || selectingWorkspace)"
+                  @select-workspace="selectWorkspaceDirectory"
                   @refresh="refreshWorkspace"
                 />
               </template>
