@@ -48,7 +48,10 @@ vi.mock('../api/desktop', () => ({
 }));
 
 vi.mock('./ChatView.vue', () => ({
-  default: { name: 'ChatView', template: '<div class="chat-view-stub" />' },
+  default: {
+    name: 'ChatView',
+    template: '<div class="chat-view-stub"><slot name="context-footer-action" /></div>',
+  },
 }));
 
 vi.mock('./SettingsView.vue', () => ({
@@ -178,6 +181,13 @@ async function clickNav(wrapper: ReturnType<typeof mountNormalMode>, label: stri
 }
 
 describe('NormalMode mate focus layout', () => {
+  it('places the workspace selector in the chat footer slot instead of the topbar', () => {
+    const wrapper = mountNormalMode();
+
+    expect(wrapper.find('.topbar [data-testid="workspace-chip"]').exists()).toBe(false);
+    expect(wrapper.find('.chat-view-stub [data-testid="workspace-chip"]').exists()).toBe(true);
+  });
+
   it('keeps normal pages outside mate focus layout with the topbar visible', () => {
     const wrapper = mountNormalMode();
 

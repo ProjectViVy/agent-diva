@@ -36,4 +36,14 @@ describe('WorkspaceChip', () => {
 
     expect(wrapper.emitted('open-settings')).toHaveLength(1);
   });
+
+  it('opens upward when rendered in the chat footer', async () => {
+    const wrapper = mount(WorkspaceChip, {
+      props: { workspace, state: 'ready', placement: 'above' },
+    });
+
+    await wrapper.get('[data-testid="workspace-chip"]').trigger('click');
+    expect(wrapper.get('[data-testid="workspace-popover"]').classes()).toContain('workspace-popover-above');
+    expect(wrapper.get('[data-testid="workspace-popover"]').text()).toContain('切换工作区');
+  });
 });

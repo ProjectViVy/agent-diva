@@ -875,13 +875,6 @@ defineExpose({
               </div>
             </div>
           </div>
-          <WorkspaceChip
-            :workspace="workspace"
-            :state="workspaceState"
-            :error="workspaceError"
-            @open-settings="navigateTo('settings', 'workspace')"
-            @refresh="refreshWorkspace"
-          />
         </div>
 
         <div class="topbar-right no-drag">
@@ -1107,7 +1100,18 @@ defineExpose({
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
               @open-evolution="openEvolutionDeepLink"
-            />
+            >
+              <template #context-footer-action>
+                <WorkspaceChip
+                  :workspace="workspace"
+                  :state="workspaceState"
+                  :error="workspaceError"
+                  placement="above"
+                  @open-settings="navigateTo('settings', 'workspace')"
+                  @refresh="refreshWorkspace"
+                />
+              </template>
+            </ChatView>
           </div>
           <div v-else class="h-full min-h-0">
             <SettingsView

@@ -1501,24 +1501,27 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
         <!-- 底部操作栏 -->
         <div class="chat-input-footer">
-          <!-- 上下文使用指示器 -->
-          <div class="context-usage" :title="contextUsageTitle">
-            <svg class="context-ring" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
-                fill="none"
-                :stroke="contextRingColor"
-                stroke-width="2"
-                stroke-dasharray="56.5"
-                :stroke-dashoffset="contextRingDashoffset"
-                stroke-linecap="round"
-                transform="rotate(-90 12 12)"
-              />
-            </svg>
-            <span class="context-text">{{ contextUsagePercent }}%</span>
+          <div class="footer-context-group">
+            <!-- 上下文使用指示器 -->
+            <div class="context-usage" :title="contextUsageTitle">
+              <svg class="context-ring" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  :stroke="contextRingColor"
+                  stroke-width="2"
+                  stroke-dasharray="56.5"
+                  :stroke-dashoffset="contextRingDashoffset"
+                  stroke-linecap="round"
+                  transform="rotate(-90 12 12)"
+                />
+              </svg>
+              <span class="context-text">{{ contextUsagePercent }}%</span>
+            </div>
+            <slot name="context-footer-action" />
           </div>
 
           <!-- 右侧按钮组 -->

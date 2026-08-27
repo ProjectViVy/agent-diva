@@ -81,6 +81,21 @@ function mockChatScroll(
   };
 }
 
+describe('ChatView footer actions', () => {
+  it('renders the workspace action immediately after the context budget', () => {
+    const wrapper = shallowMount(ChatView, {
+      props: { messages: [], isTyping: false },
+      slots: {
+        'context-footer-action': '<button data-testid="workspace-slot-probe">workspace</button>',
+      },
+    });
+
+    const group = wrapper.get('.footer-context-group');
+    expect(group.element.children[0].classList.contains('context-usage')).toBe(true);
+    expect(group.element.children[1].getAttribute('data-testid')).toBe('workspace-slot-probe');
+  });
+});
+
 describe('ChatView streaming states', () => {
   it('shows a short AutoDream trigger notice and links to the persisted run', async () => {
     triggerAutoDream.mockResolvedValue({ id: 'run-chat-1' });

@@ -1486,6 +1486,14 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  .footer-context-group {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
   }
 
   /* 右侧按钮组 */

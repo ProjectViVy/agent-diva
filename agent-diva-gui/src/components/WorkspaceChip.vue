@@ -4,11 +4,14 @@ import { ChevronDown, CircleAlert, FileText, FolderOpen, RefreshCw, Settings2 } 
 import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 import type { WorkspaceStatus } from '../api/desktop';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   workspace: WorkspaceStatus | null;
   state: WorkspaceContextState;
   error?: string | null;
-}>();
+  placement?: 'above' | 'below';
+}>(), {
+  placement: 'below',
+});
 
 const emit = defineEmits<{
   (event: 'open-settings'): void;
@@ -66,7 +69,8 @@ function openSettings() {
     <div v-if="open" class="fixed inset-0 z-30" aria-hidden="true" @click="close" />
     <section
       v-if="open"
-      class="workspace-popover absolute left-0 top-[calc(100%+8px)] z-40 w-[min(360px,calc(100vw-32px))]"
+      class="workspace-popover absolute left-0 z-40 w-[min(360px,calc(100vw-32px))]"
+      :class="placement === 'above' ? 'workspace-popover-above' : 'workspace-popover-below'"
       role="dialog"
       aria-label="当前工作区"
       data-testid="workspace-popover"
@@ -97,7 +101,7 @@ function openSettings() {
         </button>
         <button type="button" class="workspace-popover-action workspace-popover-primary" @click="openSettings">
           <Settings2 :size="13" />
-          查看工作区设置
+          切换工作区
         </button>
       </div>
     </section>
@@ -151,6 +155,9 @@ function openSettings() {
   background: var(--surface-raised, rgba(255, 255, 255, 0.97));
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
 }
+
+.workspace-popover-above { bottom: calc(100% + 8px); }
+.workspace-popover-below { top: calc(100% + 8px); }
 
 .workspace-popover-heading,
 .workspace-popover-status,
