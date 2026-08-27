@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { ChevronDown, CircleAlert, FileText, FolderOpen, RefreshCw, Settings2 } from '@lucide/vue';
 import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 import type { WorkspaceStatus } from '../api/desktop';
+import { formatDisplayPath } from '../utils/pathDisplay';
 
 const props = withDefaults(defineProps<{
   workspace: WorkspaceStatus | null;
@@ -23,14 +24,17 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
+const workspaceDisplayRoot = computed(() => (
+  props.workspace?.root ? formatDisplayPath(props.workspace.root) : null
+));
 
 const workspaceName = computed(() => {
-  if (!props.workspace?.root) return '默认工作区';
-  if (props.workspace.source === 'process-cwd' || props.workspace.source === 'legacy-default') {
+  if (!workspaceDisplayRoot.value) return '默认工作区';
+  if (props.workspace?.source === 'process-cwd' || props.workspace?.source === 'legacy-default') {
     return '默认工作区';
   }
-  const parts = props.workspace.root.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] || props.workspace.root;
+  const parts = workspaceDisplayRoot.value.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || workspaceDisplayRoot.value;
 });
 
 const agentsLabel = computed(() => {
@@ -56,7 +60,7 @@ function selectWorkspace() {
       class="workspace-chip no-drag"
       :class="{ 'workspace-chip-open': open }"
       data-testid="workspace-chip"
-      :title="workspace?.root || error || '默认工作区'"
+      :title="workspaceDisplayRoot || error || '默认工作区'"
       aria-haspopup="dialog"
       :aria-expanded="open"
       @click="open = !open"
@@ -90,7 +94,7 @@ function selectWorkspace() {
         <CircleAlert v-if="state === 'error'" :size="16" class="text-amber-500" />
       </div>
 
-      <div class="workspace-popover-path">{{ workspace?.root || error || '使用默认工作区' }}</div>
+      <div class="workspace-popover-path">{{ workspaceDisplayRoot || error || '使用默认工作区' }}</div>
 
       <div class="workspace-popover-status">
         <FileText :size="14" />

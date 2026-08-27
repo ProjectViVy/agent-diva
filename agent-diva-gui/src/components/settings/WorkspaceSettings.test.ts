@@ -77,6 +77,25 @@ describe('WorkspaceSettings candidate draft', () => {
     expect(wrapper.find('[data-testid="workspace-candidate"]').exists()).toBe(true);
   });
 
+  it('shows canonical Windows paths without the verbatim prefix', async () => {
+    const verbatimRoot = '\\\\?\\C:\\Users\\Administrator\\Pictures';
+    inspectWorkspace.mockResolvedValueOnce(candidate(verbatimRoot));
+    const wrapper = mount(WorkspaceSettings, {
+      props: {
+        workspace: { ...currentWorkspace, root: verbatimRoot },
+        state: 'ready',
+        refreshWorkspace: vi.fn(() => Promise.resolve(true)),
+      },
+    });
+
+    await wrapper.find('input').setValue('C:\\Users\\Administrator\\Pictures');
+    await wrapper.findAll('.workspace-settings-secondary')[1].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('C:\\Users\\Administrator\\Pictures');
+    expect(wrapper.text()).not.toContain('\\\\?\\');
+  });
+
   it('ignores an older inspection response after a newer selection', async () => {
     let resolveFirst!: (value: ReturnType<typeof candidate>) => void;
     let resolveSecond!: (value: ReturnType<typeof candidate>) => void;

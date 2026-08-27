@@ -48,6 +48,23 @@ describe('WorkspaceChip', () => {
     expect(wrapper.get('[data-testid="workspace-popover"]').text()).toContain('C:\\Projects\\agent-diva');
   });
 
+  it('hides the Windows verbatim prefix in visible workspace paths', async () => {
+    const wrapper = mount(WorkspaceChip, {
+      props: {
+        workspace: { ...workspace, root: '\\\\?\\C:\\Users\\Administrator\\Pictures' },
+        state: 'ready',
+      },
+    });
+
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('Pictures');
+    expect(wrapper.get('[data-testid="workspace-chip"]').attributes('title'))
+      .toBe('C:\\Users\\Administrator\\Pictures');
+    await wrapper.get('[data-testid="workspace-chip"]').trigger('click');
+    expect(wrapper.get('[data-testid="workspace-popover"]').text())
+      .toContain('C:\\Users\\Administrator\\Pictures');
+    expect(wrapper.get('[data-testid="workspace-popover"]').text()).not.toContain('\\\\?\\');
+  });
+
   it('shows the selected directory for an explicit CLI workspace', () => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace: { ...workspace, source: 'explicit-cli' }, state: 'ready' },

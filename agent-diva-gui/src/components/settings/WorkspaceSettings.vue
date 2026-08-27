@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ChevronDown, FileText, FolderOpen, RefreshCw, ShieldCheck } from '@lucide/vue';
 import type { WorkspaceContextState } from '../../composables/useWorkspaceContext';
 import {
@@ -8,6 +8,7 @@ import {
   type WorkspaceCandidate,
   type WorkspaceStatus,
 } from '../../api/desktop';
+import { formatDisplayPath } from '../../utils/pathDisplay';
 
 const props = defineProps<{
   workspace: WorkspaceStatus | null;
@@ -26,6 +27,9 @@ const inspectState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const inspectError = ref<string | null>(null);
 const commitError = ref<string | null>(null);
 let inspectGeneration = 0;
+const workspaceDisplayRoot = computed(() => (
+  props.workspace?.root ? formatDisplayPath(props.workspace.root) : null
+));
 
 function resetDraft() {
   inspectGeneration += 1;
@@ -101,7 +105,7 @@ async function commitCandidate() {
       <div class="workspace-settings-card-heading">
         <div>
           <p class="workspace-settings-label">当前路径</p>
-          <p class="workspace-settings-path">{{ workspace?.root || error || '正在读取…' }}</p>
+          <p class="workspace-settings-path">{{ workspaceDisplayRoot || error || '正在读取…' }}</p>
         </div>
         <span class="workspace-settings-state" :class="`workspace-settings-state-${state}`">
           {{ state === 'ready' ? '已同步' : state === 'error' ? '读取失败' : '读取中' }}
@@ -128,7 +132,7 @@ async function commitCandidate() {
       <div v-if="agentsOpen" class="workspace-settings-agents-drawer">
         <div class="workspace-settings-readonly"><ShieldCheck :size="14" /> 只读观测；GUI 不编辑项目规则。</div>
         <dl v-if="workspace?.agents_md" class="workspace-settings-details">
-          <div><dt>来源文件</dt><dd>{{ workspace.agents_md.path }}</dd></div>
+          <div><dt>来源文件</dt><dd>{{ formatDisplayPath(workspace.agents_md.path) }}</dd></div>
           <div><dt>Digest</dt><dd>{{ workspace.agents_md.digest }}</dd></div>
           <div><dt>字符数</dt><dd>{{ workspace.agents_md.char_count }}</dd></div>
           <div><dt>注入状态</dt><dd>{{ workspace.agents_md.truncated ? '已按预算截断' : '完整' }}</dd></div>
@@ -166,7 +170,7 @@ async function commitCandidate() {
           <span class="workspace-settings-candidate-readable">{{ candidate.readable ? '可读' : '不可读' }}</span>
         </div>
         <dl class="workspace-settings-details">
-          <div><dt>Canonical root</dt><dd>{{ candidate.root }}</dd></div>
+          <div><dt>Canonical root</dt><dd>{{ formatDisplayPath(candidate.root) }}</dd></div>
           <div><dt>Workspace ID</dt><dd>{{ candidate.workspaceId }}</dd></div>
           <div><dt>AGENTS.md</dt><dd>{{ candidate.agentsMd?.present ? `已发现 · ${candidate.agentsMd.digest}` : '未发现' }}</dd></div>
         </dl>
