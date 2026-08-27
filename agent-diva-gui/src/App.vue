@@ -1995,7 +1995,7 @@ async function switchWorkspaceAction(root: string): Promise<boolean> {
       showAppToast('工作区已切换，但新工作区历史刷新失败，请稍后重试。', 'error', 6000);
     }
     await restoreActivePlanRuntime();
-    if (sessionsRefreshed) showAppToast('工作区切换完成');
+    if (sessionsRefreshed) showAppToast('已切换工作区，并载入该工作区会话');
     return true;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

@@ -15,6 +15,7 @@ use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::planning::{normalize_report_markdown, revision_hash, ExecutionContextPolicy};
 use agent_diva_core::session::SessionSearchResponse;
+use agent_diva_core::workspace::WorkspaceSource;
 use agent_diva_neuron::{LlmNeuron, NeuronNode, NeuronRequest};
 use agent_diva_providers::{
     build_llm_provider, CustomProviderUpsert, LlmProviderBuildOptions, Message, ProviderAccess,
@@ -137,6 +138,13 @@ pub struct WorkspaceSwitchRequest {
     pub approval_pending: bool,
     #[serde(default)]
     pub ask_user_pending: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DefaultWorkspaceDto {
+    pub root: String,
+    pub is_built_in_default: bool,
 }
 
 const WORKSPACE_SWITCH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -271,9 +279,13 @@ async fn shutdown_gateway_handle(handle: EmbeddedGatewayHandle) -> Result<(), St
 async fn start_verified_gateway(
     client: &reqwest::Client,
     expected_root: &Path,
+    source: WorkspaceSource,
 ) -> Result<(EmbeddedGatewayHandle, WorkspaceStatusDto), String> {
-    let handle = start_embedded_gateway(crate::build_gateway_runtime_config())
-        .map_err(|error| format!("failed to start embedded gateway: {error}"))?;
+    let handle = start_embedded_gateway(crate::build_gateway_runtime_config_for_workspace(
+        expected_root,
+        source,
+    ))
+    .map_err(|error| format!("failed to start embedded gateway: {error}"))?;
     let port = handle.port;
     match wait_for_workspace_status(client, port, expected_root).await {
         Ok(status) => Ok((handle, status)),
@@ -311,15 +323,23 @@ async fn install_gateway(
 }
 
 async fn restore_workspace_runtime(
-    loader: &ConfigLoader,
-    old_config: &Config,
     old_root: &Path,
+    old_source: WorkspaceSource,
     client: &reqwest::Client,
 ) -> Result<(EmbeddedGatewayHandle, WorkspaceStatusDto), String> {
-    loader
-        .save(old_config)
-        .map_err(|error| format!("failed to restore committed workspace config: {error}"))?;
-    start_verified_gateway(client, old_root).await
+    start_verified_gateway(client, old_root, old_source).await
+}
+
+fn workspace_source_from_status(source: &str) -> Result<WorkspaceSource, String> {
+    match source {
+        "explicit-cli" => Ok(WorkspaceSource::ExplicitCli),
+        "configured" => Ok(WorkspaceSource::Configured),
+        "process-cwd" => Ok(WorkspaceSource::ProcessCwd),
+        "legacy-default" => Ok(WorkspaceSource::LegacyDefault),
+        value => Err(format!(
+            "gateway reported an unknown workspace source: {value}"
+        )),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -5130,6 +5150,10 @@ pub async fn get_config(state: State<'_, AgentState>) -> Result<RuntimeConfigSna
 pub async fn get_workspace_status(
     state: State<'_, AgentState>,
 ) -> Result<WorkspaceStatusDto, String> {
+    fetch_active_workspace_status(state.inner()).await
+}
+
+async fn fetch_active_workspace_status(state: &AgentState) -> Result<WorkspaceStatusDto, String> {
     let url = format!("{}/workspace", state.api_base_url());
     let response = state
         .client
@@ -5165,6 +5189,78 @@ pub async fn choose_workspace_directory() -> Result<Option<String>, String> {
     .map_err(|error| format!("workspace directory picker failed: {error}"))
 }
 
+fn ensure_built_in_default_workspace_root(config_dir: &Path) -> Result<PathBuf, String> {
+    let root = config_dir.join("workspace");
+    std::fs::create_dir_all(&root).map_err(|error| {
+        format!(
+            "failed to create the default Diva workspace ({}): {error}",
+            root.display()
+        )
+    })?;
+    std::fs::canonicalize(&root).map_err(|error| {
+        format!(
+            "failed to resolve the default Diva workspace ({}): {error}",
+            root.display()
+        )
+    })
+}
+
+fn default_workspace_status(loader: &ConfigLoader) -> Result<DefaultWorkspaceDto, String> {
+    let config = loader
+        .load()
+        .map_err(|error| format!("failed to load default workspace config: {error}"))?;
+    let built_in = loader.config_dir().join("workspace");
+    let root = if config.agents.defaults.workspace
+        == agent_diva_core::workspace::LEGACY_DEFAULT_WORKSPACE
+    {
+        built_in.clone()
+    } else {
+        cli_runtime_from_loader(loader)
+            .workspace_context(&config)
+            .root
+    };
+    let resolved_root = std::fs::canonicalize(&root).unwrap_or(root);
+    let resolved_built_in = std::fs::canonicalize(&built_in).unwrap_or(built_in);
+    Ok(DefaultWorkspaceDto {
+        root: resolved_root.display().to_string(),
+        is_built_in_default: resolved_root == resolved_built_in,
+    })
+}
+
+#[tauri::command]
+pub fn get_default_workspace() -> Result<DefaultWorkspaceDto, String> {
+    let loader = config_loader();
+    default_workspace_status(&loader)
+}
+
+#[tauri::command]
+pub fn set_default_workspace(root: String) -> Result<DefaultWorkspaceDto, String> {
+    let candidate = inspect_workspace_candidate(&root)?;
+    let loader = config_loader();
+    let mut config = loader
+        .load()
+        .map_err(|error| format!("failed to load default workspace config: {error}"))?;
+    config.agents.defaults.workspace = candidate.root;
+    loader
+        .save(&config)
+        .map_err(|error| format!("failed to save default workspace config: {error}"))?;
+    default_workspace_status(&loader)
+}
+
+#[tauri::command]
+pub fn reset_default_workspace() -> Result<DefaultWorkspaceDto, String> {
+    let loader = config_loader();
+    let root = ensure_built_in_default_workspace_root(loader.config_dir())?;
+    let mut config = loader
+        .load()
+        .map_err(|error| format!("failed to load default workspace config: {error}"))?;
+    config.agents.defaults.workspace = root.display().to_string();
+    loader
+        .save(&config)
+        .map_err(|error| format!("failed to reset default workspace config: {error}"))?;
+    default_workspace_status(&loader)
+}
+
 #[tauri::command]
 pub async fn switch_workspace(
     state: State<'_, AgentState>,
@@ -5183,16 +5279,13 @@ pub async fn switch_workspace(
     let candidate = inspect_workspace_candidate(&request.root)?;
     let _switch_guard = switch_state.inner().lock().await;
 
-    let loader = config_loader();
-    let old_config = loader
-        .load()
-        .map_err(|error| format!("failed to load committed workspace config: {error}"))?;
-    let runtime = cli_runtime_from_loader(&loader);
-    let old_root = runtime.workspace_context(&old_config).root;
+    let old_status = fetch_active_workspace_status(state.inner()).await?;
+    let old_source = workspace_source_from_status(&old_status.source)?;
+    let old_root = PathBuf::from(&old_status.root);
     let old_root = std::fs::canonicalize(&old_root).unwrap_or(old_root);
 
     if old_root.as_path() == Path::new(&candidate.root) {
-        return get_workspace_status(state).await;
+        return Ok(old_status);
     }
 
     {
@@ -5205,23 +5298,12 @@ pub async fn switch_workspace(
         }
     }
 
-    let mut next_config = old_config.clone();
-    next_config.agents.defaults.workspace = candidate.root.clone();
-    loader
-        .save(&next_config)
-        .map_err(|error| format!("failed to persist candidate workspace: {error}"))?;
-
     let old_handle = match gateway_state.inner().lock().await.take() {
         Some(handle) => handle,
-        None => {
-            loader.save(&old_config).map_err(|error| {
-                format!("embedded gateway disappeared and rollback failed: {error}")
-            })?;
-            return Err(
-                "embedded gateway disappeared before switch shutdown; committed workspace restored"
-                    .to_string(),
-            );
-        }
+        None => return Err(
+            "embedded gateway disappeared before switch shutdown; the session workspace was not changed"
+                .to_string(),
+        ),
     };
     {
         let mut status = gateway_status.inner().lock().await;
@@ -5230,8 +5312,7 @@ pub async fn switch_workspace(
     }
 
     if let Err(shutdown_error) = shutdown_gateway_handle(old_handle).await {
-        let recovery =
-            restore_workspace_runtime(&loader, &old_config, &old_root, &state.client).await;
+        let recovery = restore_workspace_runtime(&old_root, old_source, &state.client).await;
         if let Ok((handle, _status)) = recovery {
             install_gateway(
                 state.inner(),
@@ -5241,7 +5322,7 @@ pub async fn switch_workspace(
             )
             .await;
             return Err(format!(
-                "workspace switch stopped before rebuild: {shutdown_error}; committed workspace restored"
+                "workspace switch stopped before rebuild: {shutdown_error}; previous session workspace restored"
             ));
         }
         return Err(format!(
@@ -5249,7 +5330,13 @@ pub async fn switch_workspace(
         ));
     }
 
-    match start_verified_gateway(&state.client, Path::new(&candidate.root)).await {
+    match start_verified_gateway(
+        &state.client,
+        Path::new(&candidate.root),
+        WorkspaceSource::ExplicitCli,
+    )
+    .await
+    {
         Ok((handle, status)) => {
             install_gateway(
                 state.inner(),
@@ -5258,11 +5345,11 @@ pub async fn switch_workspace(
                 handle,
             )
             .await;
-            info!(workspace = %candidate.root, "workspace switch committed");
+            info!(workspace = %candidate.root, "session workspace switch committed");
             Ok(status)
         }
         Err(switch_error) => {
-            match restore_workspace_runtime(&loader, &old_config, &old_root, &state.client).await {
+            match restore_workspace_runtime(&old_root, old_source, &state.client).await {
                 Ok((handle, _status)) => {
                     install_gateway(
                         state.inner(),
@@ -7623,8 +7710,11 @@ mod mask_tests {
 #[cfg(test)]
 mod workspace_switch_tests {
     use super::{
-        inspect_workspace_candidate, validate_workspace_switch_guard, WorkspaceSwitchRequest,
+        default_workspace_status, ensure_built_in_default_workspace_root,
+        inspect_workspace_candidate, validate_workspace_switch_guard, workspace_source_from_status,
+        WorkspaceSwitchRequest,
     };
+    use agent_diva_core::config::ConfigLoader;
     use std::fs;
 
     fn request() -> WorkspaceSwitchRequest {
@@ -7681,5 +7771,45 @@ mod workspace_switch_tests {
         assert!(error.contains("审批"));
         assert!(error.contains("HITL"));
         assert!(validate_workspace_switch_guard(&request()).is_ok());
+    }
+
+    #[test]
+    fn runtime_workspace_source_round_trips_from_gateway_status() {
+        assert_eq!(
+            workspace_source_from_status("configured").unwrap(),
+            agent_diva_core::workspace::WorkspaceSource::Configured
+        );
+        assert_eq!(
+            workspace_source_from_status("explicit-cli").unwrap(),
+            agent_diva_core::workspace::WorkspaceSource::ExplicitCli
+        );
+        assert!(workspace_source_from_status("unknown").is_err());
+    }
+
+    #[test]
+    fn default_workspace_root_is_stable_under_the_config_directory() {
+        let temp = tempfile::tempdir().unwrap();
+
+        let root = ensure_built_in_default_workspace_root(temp.path()).unwrap();
+
+        assert_eq!(root, temp.path().join("workspace").canonicalize().unwrap());
+        assert!(root.is_dir());
+    }
+
+    #[test]
+    fn legacy_default_config_projects_the_built_in_diva_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let loader = ConfigLoader::with_dir(temp.path());
+        loader
+            .save(&agent_diva_core::config::schema::Config::default())
+            .unwrap();
+
+        let status = default_workspace_status(&loader).unwrap();
+
+        assert_eq!(
+            status.root,
+            temp.path().join("workspace").display().to_string()
+        );
+        assert!(status.is_built_in_default);
     }
 }

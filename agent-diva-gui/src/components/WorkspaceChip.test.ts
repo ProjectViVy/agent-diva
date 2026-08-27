@@ -4,7 +4,7 @@ import WorkspaceChip from './WorkspaceChip.vue';
 
 const workspace = {
   root: 'C:\\Projects\\agent-diva',
-  source: 'configured',
+  source: 'explicit-cli',
   agents_md: {
     path: 'C:\\Projects\\agent-diva\\AGENTS.md',
     digest: 'abc123',
@@ -28,7 +28,7 @@ describe('WorkspaceChip', () => {
     expect(wrapper.get('[data-testid="workspace-chip"]').attributes('title')).toContain('404 Not Found');
   });
 
-  it.each(['process-cwd', 'legacy-default'])('labels %s as the default workspace', (source) => {
+  it.each(['configured', 'process-cwd', 'legacy-default'])('labels %s as the default workspace', (source) => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace: { ...workspace, source }, state: 'ready' },
     });

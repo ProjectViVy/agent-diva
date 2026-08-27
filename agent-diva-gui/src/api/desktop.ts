@@ -208,6 +208,11 @@ export interface WorkspaceStatus {
   agents_md?: AgentsMdStatus | null;
 }
 
+export interface DefaultWorkspace {
+  root: string;
+  isBuiltInDefault: boolean;
+}
+
 export interface WorkspaceCandidate {
   root: string;
   workspaceId: string;
@@ -234,6 +239,15 @@ export const chooseWorkspaceDirectory = () =>
 
 export const switchWorkspace = (request: WorkspaceSwitchRequest) =>
   invoke<WorkspaceStatus>('switch_workspace', { request });
+
+export const getDefaultWorkspace = () =>
+  invoke<DefaultWorkspace>('get_default_workspace');
+
+export const setDefaultWorkspace = (root: string) =>
+  invoke<DefaultWorkspace>('set_default_workspace', { root });
+
+export const resetDefaultWorkspace = () =>
+  invoke<DefaultWorkspace>('reset_default_workspace');
 
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&

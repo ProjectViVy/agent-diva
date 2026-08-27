@@ -97,9 +97,6 @@ const props = defineProps<{
   workspaceState: WorkspaceContextState;
   workspaceError?: string | null;
   refreshWorkspace: () => Promise<boolean>;
-  switchWorkspace?: (root: string) => Promise<boolean>;
-  switchBlockedReason?: string | null;
-  switching?: boolean;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
   saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
   saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
@@ -222,9 +219,6 @@ watch(
               :state="workspaceState"
               :error="workspaceError"
               :refresh-workspace="refreshWorkspace"
-              :switch-workspace="switchWorkspace"
-              :switch-blocked-reason="switchBlockedReason"
-              :switching="switching"
             />
 
             <McpSettings

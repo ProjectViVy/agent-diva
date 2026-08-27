@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { ChevronDown, FileText, FolderOpen, RefreshCw, ShieldCheck } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
+import { ChevronDown, FileText, FolderOpen, RefreshCw, RotateCcw, ShieldCheck } from '@lucide/vue';
 import type { WorkspaceContextState } from '../../composables/useWorkspaceContext';
 import {
   chooseWorkspaceDirectory,
+  getDefaultWorkspace,
   inspectWorkspace,
+  resetDefaultWorkspace,
+  setDefaultWorkspace,
+  type DefaultWorkspace,
   type WorkspaceCandidate,
   type WorkspaceStatus,
 } from '../../api/desktop';
@@ -15,9 +19,6 @@ const props = defineProps<{
   state: WorkspaceContextState;
   error?: string | null;
   refreshWorkspace: () => Promise<boolean>;
-  switchWorkspace?: (root: string) => Promise<boolean>;
-  switchBlockedReason?: string | null;
-  switching?: boolean;
 }>();
 
 const agentsOpen = ref(false);
@@ -26,10 +27,31 @@ const candidate = ref<WorkspaceCandidate | null>(null);
 const inspectState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const inspectError = ref<string | null>(null);
 const commitError = ref<string | null>(null);
+const resetError = ref<string | null>(null);
+const defaultWorkspace = ref<DefaultWorkspace | null>(null);
+const defaultState = ref<'loading' | 'ready' | 'saving' | 'resetting' | 'error'>('loading');
+const defaultError = ref<string | null>(null);
+const defaultBusy = computed(() => (
+  defaultState.value === 'loading'
+  || defaultState.value === 'saving'
+  || defaultState.value === 'resetting'
+));
 let inspectGeneration = 0;
 const workspaceDisplayRoot = computed(() => (
   props.workspace?.root ? formatDisplayPath(props.workspace.root) : null
 ));
+
+async function loadDefaultWorkspace() {
+  defaultState.value = 'loading';
+  defaultError.value = null;
+  try {
+    defaultWorkspace.value = await getDefaultWorkspace();
+    defaultState.value = 'ready';
+  } catch (cause) {
+    defaultState.value = 'error';
+    defaultError.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
 
 function resetDraft() {
   inspectGeneration += 1;
@@ -79,15 +101,35 @@ async function chooseDirectory() {
 }
 
 async function commitCandidate() {
-  if (!candidate.value || !props.switchWorkspace) return;
+  if (!candidate.value) return;
   commitError.value = null;
+  resetError.value = null;
+  defaultState.value = 'saving';
   try {
-    const committed = await props.switchWorkspace(candidate.value.root);
-    if (committed) resetDraft();
+    defaultWorkspace.value = await setDefaultWorkspace(candidate.value.root);
+    defaultState.value = 'ready';
+    resetDraft();
   } catch (cause) {
+    defaultState.value = 'error';
     commitError.value = cause instanceof Error ? cause.message : String(cause);
   }
 }
+
+async function resetToDefaultWorkspace() {
+  resetError.value = null;
+  commitError.value = null;
+  defaultState.value = 'resetting';
+  try {
+    defaultWorkspace.value = await resetDefaultWorkspace();
+    defaultState.value = 'ready';
+    resetDraft();
+  } catch (cause) {
+    defaultState.value = 'error';
+    resetError.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+onMounted(loadDefaultWorkspace);
 </script>
 
 <template>
@@ -97,27 +139,54 @@ async function commitCandidate() {
       <div>
         <p class="workspace-settings-kicker">运行时边界</p>
         <h3>工作区</h3>
-        <p>当前运行时、会话、Shell 与 AGENTS.md 共同使用的 canonical root。</p>
+        <p>默认目录只决定未显式选择时从哪里启动；当前 session 始终属于当前运行时工作区。</p>
       </div>
     </div>
 
     <section class="workspace-settings-card">
       <div class="workspace-settings-card-heading">
         <div>
-          <p class="workspace-settings-label">当前路径</p>
+          <p class="workspace-settings-label">默认工作区目录</p>
+          <p class="workspace-settings-path">{{ defaultWorkspace ? formatDisplayPath(defaultWorkspace.root) : defaultError || '正在读取…' }}</p>
+        </div>
+        <span class="workspace-settings-state" :class="`workspace-settings-state-${defaultState}`">
+          {{ defaultState === 'ready' ? '已保存' : defaultState === 'error' ? '操作失败' : defaultState === 'saving' ? '保存中' : defaultState === 'resetting' ? '重置中' : '读取中' }}
+        </span>
+      </div>
+      <p v-if="defaultWorkspace?.isBuiltInDefault" class="workspace-settings-meta">Diva 内置默认目录</p>
+      <div class="workspace-settings-current-actions">
+        <button type="button" class="workspace-settings-refresh" :disabled="defaultBusy" @click="loadDefaultWorkspace">
+          <RefreshCw :size="14" :class="{ 'animate-spin': defaultState === 'loading' }" />
+          刷新默认值
+        </button>
+        <button
+          type="button"
+          class="workspace-settings-reset"
+          data-testid="workspace-reset"
+          :disabled="defaultBusy"
+          title="恢复到用户配置目录下的 Diva workspace"
+          @click="resetToDefaultWorkspace"
+        >
+          <RotateCcw :size="14" />
+          重置为 Diva 默认目录
+        </button>
+      </div>
+      <p v-if="resetError" class="workspace-settings-switch-error">{{ resetError }}</p>
+    </section>
+
+    <section class="workspace-settings-card">
+      <div class="workspace-settings-card-heading">
+        <div>
+          <p class="workspace-settings-label">当前 session 所属工作区</p>
           <p class="workspace-settings-path">{{ workspaceDisplayRoot || error || '正在读取…' }}</p>
         </div>
         <span class="workspace-settings-state" :class="`workspace-settings-state-${state}`">
-          {{ state === 'ready' ? '已同步' : state === 'error' ? '读取失败' : '读取中' }}
+          {{ state === 'ready' ? '运行中' : state === 'error' ? '读取失败' : '读取中' }}
         </span>
-      </div>
-      <div v-if="workspace" class="workspace-settings-meta">
-        <span>来源：{{ workspace.source }}</span>
-        <span v-if="workspace.legacy_hint">{{ workspace.legacy_hint }}</span>
       </div>
       <button type="button" class="workspace-settings-refresh" :disabled="state === 'loading' || state === 'refreshing'" @click="refreshWorkspace">
         <RefreshCw :size="14" :class="{ 'animate-spin': state === 'loading' || state === 'refreshing' }" />
-        刷新运行时状态
+        刷新 session 状态
       </button>
     </section>
 
@@ -144,8 +213,8 @@ async function commitCandidate() {
     <section class="workspace-settings-card workspace-settings-switch-card">
       <div class="workspace-settings-card-heading">
         <div>
-          <p class="workspace-settings-label">切换工作区</p>
-          <p class="workspace-settings-switch-hint">先选择并预检候选目录；预检结果只保存在本页 draft，确认后才会启动原子切换。</p>
+          <p class="workspace-settings-label">更改默认工作区目录</p>
+          <p class="workspace-settings-switch-hint">选择并预检目录；保存只更新默认值，不改变当前 session 工作区。</p>
         </div>
         <FolderOpen :size="17" class="workspace-settings-switch-icon" />
       </div>
@@ -155,10 +224,11 @@ async function commitCandidate() {
           class="workspace-settings-path-input"
           type="text"
           placeholder="输入绝对路径，或使用目录选择"
+          :disabled="defaultBusy"
           @keyup.enter="inspectDraft()"
         />
-        <button type="button" class="workspace-settings-secondary" @click="chooseDirectory">选择目录</button>
-        <button type="button" class="workspace-settings-secondary" :disabled="switching" @click="inspectDraft()">
+        <button type="button" class="workspace-settings-secondary" :disabled="defaultBusy" @click="chooseDirectory">选择目录</button>
+        <button type="button" class="workspace-settings-secondary" :disabled="defaultBusy" @click="inspectDraft()">
           {{ inspectState === 'loading' ? '预检中…' : '预检' }}
         </button>
       </div>
@@ -174,18 +244,16 @@ async function commitCandidate() {
           <div><dt>Workspace ID</dt><dd>{{ candidate.workspaceId }}</dd></div>
           <div><dt>AGENTS.md</dt><dd>{{ candidate.agentsMd?.present ? `已发现 · ${candidate.agentsMd.digest}` : '未发现' }}</dd></div>
         </dl>
-        <p v-if="switchBlockedReason" class="workspace-settings-switch-warning">{{ switchBlockedReason }}</p>
         <button
-          v-if="switchWorkspace"
           type="button"
           class="workspace-settings-primary"
-          :disabled="switching || !!switchBlockedReason"
+          :disabled="defaultBusy"
           @click="commitCandidate"
         >
-          {{ switching ? '切换中…' : '确认切换到此工作区' }}
+          {{ defaultState === 'saving' ? '保存中…' : '设为默认工作区目录' }}
         </button>
       </div>
-      <p v-else class="workspace-settings-boundary">候选目录未通过预检前，不会改变当前运行时 workspace、会话集合或配置。</p>
+      <p v-else class="workspace-settings-boundary">候选目录未通过预检前不会保存；保存默认值也不会改变当前 session。</p>
     </section>
   </div>
 </template>
@@ -204,11 +272,14 @@ async function commitCandidate() {
 .workspace-settings-state { flex: 0 0 auto; padding: 0.25rem 0.45rem; border-radius: 999px; font-size: 0.62rem; }
 .workspace-settings-state-ready { color: #15803d; background: #dcfce7; }
 .workspace-settings-state-error { color: #b45309; background: #fef3c7; }
-.workspace-settings-state-loading, .workspace-settings-state-refreshing { color: #64748b; background: #f1f5f9; }
+.workspace-settings-state-loading, .workspace-settings-state-refreshing, .workspace-settings-state-saving, .workspace-settings-state-resetting { color: #64748b; background: #f1f5f9; }
 .workspace-settings-meta { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.75rem; color: var(--text-muted, #64748b); font-size: 0.68rem; line-height: 1.4; }
-.workspace-settings-refresh { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.85rem; padding: 0.45rem 0.65rem; border-radius: 0.5rem; color: var(--accent, #db2777); font-size: 0.68rem; }
-.workspace-settings-refresh:hover:not(:disabled) { background: var(--nav-hover, rgba(148, 163, 184, 0.12)); }
-.workspace-settings-refresh:disabled { opacity: 0.55; cursor: wait; }
+.workspace-settings-current-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+.workspace-settings-refresh, .workspace-settings-reset { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.65rem; border-radius: 0.5rem; color: var(--accent, #db2777); font-size: 0.68rem; }
+.workspace-settings-reset { color: var(--text-muted, #64748b); }
+.workspace-settings-refresh:hover:not(:disabled), .workspace-settings-reset:hover:not(:disabled) { background: var(--nav-hover, rgba(148, 163, 184, 0.12)); }
+.workspace-settings-refresh:disabled, .workspace-settings-reset:disabled { opacity: 0.55; cursor: not-allowed; }
+.workspace-settings-card > .workspace-settings-refresh { margin-top: 0.85rem; }
 .workspace-settings-disclosure { display: flex; justify-content: space-between; width: 100%; color: var(--text, #334155); font-size: 0.75rem; text-align: left; }
 .workspace-settings-disclosure-title, .workspace-settings-disclosure-right { display: inline-flex; align-items: center; gap: 0.45rem; }
 .workspace-settings-disclosure-right { color: var(--text-muted, #64748b); font-size: 0.68rem; }

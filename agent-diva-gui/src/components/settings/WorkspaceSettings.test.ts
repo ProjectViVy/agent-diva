@@ -5,12 +5,24 @@ import WorkspaceSettings from './WorkspaceSettings.vue';
 const workspaceApi = vi.hoisted(() => ({
   inspectWorkspace: vi.fn(),
   chooseWorkspaceDirectory: vi.fn(),
+  getDefaultWorkspace: vi.fn(),
+  setDefaultWorkspace: vi.fn(),
+  resetDefaultWorkspace: vi.fn(),
 }));
-const { inspectWorkspace, chooseWorkspaceDirectory } = workspaceApi;
+const {
+  inspectWorkspace,
+  chooseWorkspaceDirectory,
+  getDefaultWorkspace,
+  setDefaultWorkspace,
+  resetDefaultWorkspace,
+} = workspaceApi;
 
 vi.mock('../../api/desktop', () => ({
   inspectWorkspace: workspaceApi.inspectWorkspace,
   chooseWorkspaceDirectory: workspaceApi.chooseWorkspaceDirectory,
+  getDefaultWorkspace: workspaceApi.getDefaultWorkspace,
+  setDefaultWorkspace: workspaceApi.setDefaultWorkspace,
+  resetDefaultWorkspace: workspaceApi.resetDefaultWorkspace,
 }));
 
 vi.mock('@lucide/vue', () => {
@@ -20,6 +32,7 @@ vi.mock('@lucide/vue', () => {
     FileText: icon('FileText'),
     FolderOpen: icon('FolderOpen'),
     RefreshCw: icon('RefreshCw'),
+    RotateCcw: icon('RotateCcw'),
     ShieldCheck: icon('ShieldCheck'),
   };
 });
@@ -61,11 +74,19 @@ describe('WorkspaceSettings candidate draft', () => {
   beforeEach(() => {
     inspectWorkspace.mockReset();
     chooseWorkspaceDirectory.mockReset();
+    getDefaultWorkspace.mockReset();
+    setDefaultWorkspace.mockReset();
+    resetDefaultWorkspace.mockReset();
+    getDefaultWorkspace.mockResolvedValue({
+      root: 'C:\\projects\\default',
+      isBuiltInDefault: false,
+    });
   });
 
   it('previews a candidate without changing the current workspace', async () => {
     inspectWorkspace.mockResolvedValueOnce(candidate('C:\\projects\\next'));
     const wrapper = mountSettings();
+    await flushPromises();
 
     await wrapper.find('input').setValue('C:\\projects\\next');
     await wrapper.findAll('.workspace-settings-secondary')[1].trigger('click');
@@ -87,6 +108,7 @@ describe('WorkspaceSettings candidate draft', () => {
         refreshWorkspace: vi.fn(() => Promise.resolve(true)),
       },
     });
+    await flushPromises();
 
     await wrapper.find('input').setValue('C:\\Users\\Administrator\\Pictures');
     await wrapper.findAll('.workspace-settings-secondary')[1].trigger('click');
@@ -104,6 +126,7 @@ describe('WorkspaceSettings candidate draft', () => {
       .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
 
     const wrapper = mountSettings();
+    await flushPromises();
     const input = wrapper.find('input');
     const inspectButton = () => wrapper.findAll('.workspace-settings-secondary')[1];
 
@@ -121,25 +144,41 @@ describe('WorkspaceSettings candidate draft', () => {
     expect(wrapper.find('[data-testid="workspace-candidate"]').text()).not.toContain('C:\\projects\\first');
   });
 
-  it('only commits an inspected candidate and disables commit while blocked', async () => {
+  it('saves an inspected candidate as the default without switching the session', async () => {
     inspectWorkspace.mockResolvedValueOnce(candidate('C:\\projects\\next'));
-    const switchWorkspace = vi.fn(() => Promise.resolve(true));
-    const wrapper = mount(WorkspaceSettings, {
-      props: {
-        workspace: currentWorkspace,
-        state: 'ready',
-        refreshWorkspace: vi.fn(() => Promise.resolve(true)),
-        switchWorkspace,
-        switchBlockedReason: '当前仍有流式输出，请先停止。',
-      },
+    setDefaultWorkspace.mockResolvedValueOnce({
+      root: 'C:\\projects\\next',
+      isBuiltInDefault: false,
     });
+    const wrapper = mountSettings();
+    await flushPromises();
 
     await wrapper.find('input').setValue('C:\\projects\\next');
     await wrapper.findAll('.workspace-settings-secondary')[1].trigger('click');
     await flushPromises();
 
     const commitButton = wrapper.find('.workspace-settings-primary');
-    expect(commitButton.attributes('disabled')).toBeDefined();
-    expect(switchWorkspace).not.toHaveBeenCalled();
+    await commitButton.trigger('click');
+    await flushPromises();
+
+    expect(setDefaultWorkspace).toHaveBeenCalledWith('C:\\projects\\next');
+    expect(wrapper.text()).toContain('C:\\projects\\current');
+  });
+
+  it('resets only the persisted default workspace', async () => {
+    resetDefaultWorkspace.mockResolvedValueOnce({
+      root: 'C:\\Users\\Administrator\\.agent-diva\\workspace',
+      isBuiltInDefault: true,
+    });
+    const wrapper = mountSettings();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('默认工作区目录');
+    await wrapper.get('[data-testid="workspace-reset"]').trigger('click');
+    await flushPromises();
+
+    expect(resetDefaultWorkspace).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('C:\\projects\\current');
+    expect(wrapper.text()).toContain('Diva 内置默认目录');
   });
 });

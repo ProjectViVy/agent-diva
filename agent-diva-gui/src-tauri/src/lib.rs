@@ -8,7 +8,7 @@ mod process_utils;
 mod shutdown_manager;
 mod tray;
 
-use agent_diva_core::config::schema::LoggingConfig;
+use agent_diva_core::config::schema::{Config, LoggingConfig};
 use agent_diva_core::config::ConfigLoader;
 use app_state::AgentState;
 use embedded_server::EmbeddedGatewayHandle;
@@ -89,7 +89,8 @@ fn init_gui_logging() {
 
 pub(crate) fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
     let loader = config_loader();
-    let config = loader.load().unwrap_or_default();
+    let mut config = loader.load().unwrap_or_default();
+    normalize_gui_default_workspace(&mut config, loader.config_dir());
     let runtime = agent_diva_cli::cli_runtime::CliRuntime::from_paths(
         None,
         Some(loader.config_dir().to_path_buf()),
@@ -102,6 +103,41 @@ pub(crate) fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRunti
         config,
         loader,
         port: 0,
+    }
+}
+
+fn normalize_gui_default_workspace(config: &mut Config, config_dir: &Path) {
+    if config.agents.defaults.workspace != agent_diva_core::workspace::LEGACY_DEFAULT_WORKSPACE {
+        return;
+    }
+    let root = config_dir.join("workspace");
+    if let Err(error) = std::fs::create_dir_all(&root) {
+        tracing::warn!(
+            path = %root.display(),
+            %error,
+            "failed to create the built-in Diva default workspace"
+        );
+    }
+    config.agents.defaults.workspace = root.display().to_string();
+}
+
+pub(crate) fn build_gateway_runtime_config_for_workspace(
+    root: &Path,
+    source: agent_diva_core::workspace::WorkspaceSource,
+) -> agent_diva_manager::GatewayRuntimeConfig {
+    let mut runtime = build_gateway_runtime_config();
+    runtime.workspace = workspace_runtime_override(root, source);
+    runtime
+}
+
+fn workspace_runtime_override(
+    root: &Path,
+    source: agent_diva_core::workspace::WorkspaceSource,
+) -> agent_diva_core::workspace::WorkspaceContext {
+    agent_diva_core::workspace::WorkspaceContext {
+        root: root.to_path_buf(),
+        source,
+        agents_md: None,
     }
 }
 
@@ -467,6 +503,9 @@ pub fn run() {
             commands::inspect_workspace,
             commands::choose_workspace_directory,
             commands::switch_workspace,
+            commands::get_default_workspace,
+            commands::set_default_workspace,
+            commands::reset_default_workspace,
             commands::get_config_status,
             commands::wipe_local_data,
             commands::save_config,
@@ -528,11 +567,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        close_action, resolve_configured_path, resolve_logging_config,
-        should_manage_gateway_lifecycle_from, CloseAction, ExitTrigger,
+        close_action, normalize_gui_default_workspace, resolve_configured_path,
+        resolve_logging_config, should_manage_gateway_lifecycle_from, workspace_runtime_override,
+        CloseAction, ExitTrigger,
     };
     use crate::shutdown_manager::ShutdownManager;
     use agent_diva_core::config::schema::LoggingConfig;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]
@@ -551,6 +592,36 @@ mod tests {
                 "{value:?} should enable external gateway mode"
             );
         }
+    }
+
+    #[test]
+    fn legacy_gui_default_is_normalized_to_the_profile_workspace() {
+        let temp = TempDir::new().unwrap();
+        let mut config = agent_diva_core::config::schema::Config::default();
+
+        normalize_gui_default_workspace(&mut config, temp.path());
+
+        assert_eq!(
+            config.agents.defaults.workspace,
+            temp.path().join("workspace").display().to_string()
+        );
+        assert!(temp.path().join("workspace").is_dir());
+    }
+
+    #[test]
+    fn workspace_runtime_override_preserves_the_requested_source() {
+        let root = PathBuf::from("session-workspace");
+
+        let workspace = workspace_runtime_override(
+            &root,
+            agent_diva_core::workspace::WorkspaceSource::ExplicitCli,
+        );
+
+        assert_eq!(workspace.root, root);
+        assert_eq!(
+            workspace.source,
+            agent_diva_core::workspace::WorkspaceSource::ExplicitCli
+        );
     }
 
     #[test]
