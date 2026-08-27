@@ -21,7 +21,7 @@ const emit = defineEmits<{
 const open = ref(false);
 
 const workspaceName = computed(() => {
-  if (!props.workspace?.root) return '工作区加载中';
+  if (!props.workspace?.root) return '默认工作区';
   if (props.workspace.source === 'process-cwd' || props.workspace.source === 'legacy-default') {
     return '默认工作区';
   }
@@ -52,7 +52,7 @@ function openSettings() {
       class="workspace-chip no-drag"
       :class="{ 'workspace-chip-open': open }"
       data-testid="workspace-chip"
-      :title="workspace?.root || '工作区状态加载中'"
+      :title="workspace?.root || error || '默认工作区'"
       aria-haspopup="dialog"
       :aria-expanded="open"
       @click="open = !open"
@@ -86,7 +86,7 @@ function openSettings() {
         <CircleAlert v-if="state === 'error'" :size="16" class="text-amber-500" />
       </div>
 
-      <div class="workspace-popover-path">{{ workspace?.root || error || '正在读取运行时工作区…' }}</div>
+      <div class="workspace-popover-path">{{ workspace?.root || error || '使用默认工作区' }}</div>
 
       <div class="workspace-popover-status">
         <FileText :size="14" />
@@ -119,17 +119,16 @@ function openSettings() {
   max-width: 190px;
   height: 30px;
   padding: 0 0.6rem;
-  border: 1px solid var(--line, rgba(148, 163, 184, 0.28));
+  border: 0;
   border-radius: 0.65rem;
   background: var(--surface, rgba(255, 255, 255, 0.7));
   color: var(--text-muted, #64748b);
   font-size: 0.7rem;
-  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .workspace-chip:hover,
 .workspace-chip-open {
-  border-color: var(--accent, #ec4899);
   background: var(--surface-raised, rgba(255, 255, 255, 0.92));
   color: var(--text, #334155);
 }

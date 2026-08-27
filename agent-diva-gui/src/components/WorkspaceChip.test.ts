@@ -15,6 +15,19 @@ const workspace = {
 };
 
 describe('WorkspaceChip', () => {
+  it('uses the default label before status loads or when status fails', async () => {
+    const wrapper = mount(WorkspaceChip, {
+      props: { workspace: null, state: 'loading' },
+    });
+
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('默认工作区');
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).not.toContain('加载中');
+
+    await wrapper.setProps({ state: 'error', error: 'Server returned error: 404 Not Found' });
+    expect(wrapper.get('[data-testid="workspace-chip"]').text()).toContain('默认工作区');
+    expect(wrapper.get('[data-testid="workspace-chip"]').attributes('title')).toContain('404 Not Found');
+  });
+
   it.each(['process-cwd', 'legacy-default'])('labels %s as the default workspace', (source) => {
     const wrapper = mount(WorkspaceChip, {
       props: { workspace: { ...workspace, source }, state: 'ready' },

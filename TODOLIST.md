@@ -56,7 +56,9 @@
   不得覆盖新 workspace generation。验证记录见 `v0.1.2-workspace-gui-readonly`，提交记录见本分支
   Git history。2026-08-27 根据真机验收反馈将入口从 Topbar 移到聊天输入框底栏，弹层向上展开；
   未显式指定时显示“默认工作区”，仅 `configured` / `explicit-cli` 显示具体目录名；记录见
-  `v0.1.8-workspace-chat-footer-entry` 与 `v0.1.9-workspace-default-label`。
+  `v0.1.8-workspace-chat-footer-entry`、`v0.1.9-workspace-default-label` 与
+  `v0.1.10-workspace-default-fallback`。状态未返回或旧 Gateway 404 时也保持默认标签，
+  不再把错误态显示成“工作区加载中”。
   依赖：WS-00。
 
 #### WS-02：选择、预览与持久化（2026-08-31）
