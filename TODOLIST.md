@@ -24,6 +24,8 @@
   `Workspace → Channel → Root Session → Branch/Subagent` 展示，并且层级来自持久化合同，
   不由标题或时间猜测。设计基线：
   [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
+  当前状态（2026-08-26）：WS-00～WS-05 的实现与自动化验证已完成；WS-06 仅剩真实桌面
+  G2D+ smoke，故本总项暂不提前勾选完成。
   - [ ] 本期只查询当前活动 workspace 的 session authority；跨工作区全局历史索引另行立项。
   - [ ] 旧会话缺少 lineage 时按该频道的独立 root 展示，标记为 legacy，不伪造父子关系。
   - [ ] 禁止热换 `AppState` root、隐式迁移/复制会话、GUI 编辑 AGENTS.md、扫描未登记路径。
@@ -34,54 +36,68 @@
 
 #### WS-00：基线接管与后端合入（2026-08-27）
 
-- [ ] **WS-00-INTEGRATE-BACKEND：接管并合入 workspace-agents Wave A–D** `sev-P1`
+- [x] **WS-00-INTEGRATE-BACKEND：接管并合入 workspace-agents Wave A–D** `sev-P1` ✅ 2026-08-26
   从 `feat/workspace-agents-impl` 的 `8ccc82b2..d1264f3d` 做提交级审计，在基于最新 `dev`
   的新隔离 worktree 中重放/合并；不得直接在旧工作树续写。解决 TODOLIST 冲突后验证
   `WorkspaceContext`、Shell root 边界、`WorkspaceInstructions` digest/截断/安全包裹和
   `GET /api/workspace`。同时将 Manager endpoint 的 `source` 改为权威上下文投影，禁止
-  根据 root 路径反推来源。依赖：无；后续 WS-01 至 WS-06 均依赖本切片。
+  根据 root 路径反推来源。已在 `feat/workspace-system-closeout` 新隔离 worktree 完成提交级
+  重放；Manager/CLI/Tauri 的 Gateway bootstrap 统一传递 `WorkspaceContext`，`/api/workspace`
+  直接投影 context source，并补充 process-cwd 反猜测测试。后续 WS-01 至 WS-06 依赖本切片。
 
 #### WS-01：唯一 WorkspaceContext 与只读 GUI（2026-08-28）
 
-- [ ] **WS-01-WORKSPACE-CONTEXT-GUI：建立 GUI 唯一工作区快照** `sev-P1`
+- [x] **WS-01-WORKSPACE-CONTEXT-GUI：建立 GUI 唯一工作区快照** `sev-P1` ✅ 2026-08-26
   建立 workspace feature 模块和唯一 store/composable；Topbar `WorkspaceChip`、Popover、
   Workspace Settings 与 AGENTS 摘要抽屉只消费该快照。移除 `GeneralSettings.vue` 对
-  workspace 的重复 `getConfigStatus()` 回显，不在组件内重新解析路径。覆盖
-  loading/refreshing/ready/error/legacy-default，旧响应不得覆盖新 workspace generation。
+  workspace 的重复 `getConfigStatus()` 回显，不在组件内重新解析路径。已接入 Tauri
+  `get_workspace_status`、启动刷新、refresh generation 保护、Topbar chip、只读 Workspace
+  Settings 和 AGENTS 状态展示；覆盖 loading/refreshing/ready/error/legacy-default，旧响应
+  不得覆盖新 workspace generation。验证记录见 `v0.1.2-workspace-gui-readonly`，提交记录见本分支
+  Git history。
   依赖：WS-00。
 
 #### WS-02：选择、预览与持久化（2026-08-31）
 
-- [ ] **WS-02-WORKSPACE-INSPECT：目录选择与候选预检** `sev-P1`
+- [x] **WS-02-WORKSPACE-INSPECT：目录选择与候选预检** `sev-P1` ✅ 2026-08-26
   接入原生目录选择、canonicalize/可读性/AGENTS 状态 inspect 和确认页。候选路径只属于
   switch draft；提交前不得覆盖已生效 WorkspaceContext。取消或预检失败时保留当前工作区，
-  连续选择只接受最新响应。依赖：WS-01。
+  连续选择只接受最新响应。已接入 Tauri 原生目录选择、候选 workspace ID/readability/AGENTS
+  预检、Settings draft 预览与最新 generation 响应保护；预检失败、取消和未确认时保留当前
+  workspace。验证记录见 `v0.1.5-workspace-inspect`。依赖：WS-01。
 
 #### WS-03：原子切换事务（2026-09-01 ～ 2026-09-02）
 
-- [ ] **WS-03-WORKSPACE-SWITCH：停止→保存→重建→恢复单一切换流程** `sev-P1`
+- [x] **WS-03-WORKSPACE-SWITCH：停止→保存→重建→恢复单一切换流程** `sev-P1` ✅ 2026-08-26
   流式输出、Plan 执行、审批/HITL 等不安全状态下拒绝切换并说明原因；允许时先保存旧会话，
   停止旧 runtime，持久化目标，重建完整 runtime/AppState，再读取新 workspace 的最新 GUI
   会话。失败时恢复旧 committed context 或进入明确的可重试错误态，不得出现“UI 已切、
-  runtime 未切”。覆盖取消、超时、重建失败与旧请求迟到。依赖：WS-02。
+  runtime 未切”。已接入串行切换锁、运行态 guard、旧会话刷新、嵌入式 gateway 停止/重建、
+  `/api/workspace` 目标校验、旧配置与 runtime 回滚、GUI 快照应用和新 workspace 历史重载；
+  debug 外部 gateway 明确拒绝原子切换。验证记录见 `v0.1.6-workspace-atomic-switch`。
+  依赖：WS-02。
 
 #### WS-04：会话层级持久化与 API（2026-09-03）
 
-- [ ] **WS-04-SESSION-HIERARCHY-CONTRACT：扩展会话摘要与 lineage 合同** `sev-P1`
+- [x] **WS-04-SESSION-HIERARCHY-CONTRACT：扩展会话摘要与 lineage 合同** `sev-P1` ✅ 2026-08-26
   在 session authority/摘要/API DTO 中增加稳定 `workspace_id`、`channel`、
   `kind(root|branch|subagent|ephemeral)`、`root_session_key`、`parent_session_key` 和可选
   `branch_label`；创建 root/branch/subagent 时写入真实关系。旧 JSONL 采用只读兼容投影：
   channel 从完整 key 解析、kind=root、lineage 为空、legacy=true。API 默认仅返回活动
   workspace 集合，不把 GUI 的 `extractChatId()` 当业务身份。依赖：WS-00；可与 WS-02
-  并行，但必须在 WS-05 前完成。
+  并行，但必须在 WS-05 前完成。已完成 SessionInfo DTO、JSONL lineage metadata、root
+  创建与显式 child(parent/kind/label) 创建 seam，并覆盖 legacy 不猜 lineage；验证记录见
+  `v0.1.3-session-hierarchy-contract`。
 
 #### WS-05：历史会话分层 GUI（2026-09-04）
 
-- [ ] **WS-05-SESSION-HISTORY-TREE：按工作区、频道和 lineage 展示历史** `sev-P1`
+- [x] **WS-05-SESSION-HISTORY-TREE：按工作区、频道和 lineage 展示历史** `sev-P1` ✅ 2026-08-26
   `ConversationSidebar` 从平铺/仅置顶分组改为层级投影：当前 workspace header → channel
   group → root session → branch/subagent。列表只展示身份、标题、最后活动与必要状态；完整
   消息仍由详情区负责。搜索结果保留祖先路径，折叠/展开不改变服务端集合，active session
-  在刷新和切换后仍可定位；pinned 是会话属性，不另造第二套 session 集合。依赖：WS-01、WS-04。
+  在刷新和切换后仍可定位；pinned 是会话属性，不另造第二套 session 集合。已完成 workspace
+  header、channel group、lineage indentation、本地折叠/展开、搜索祖先保留和 legacy root
+  标识；依赖：WS-01、WS-04。验证记录见 `v0.1.4-session-history-tree`。
 
 #### WS-06：纵向验收与收口（2026-09-07，缓冲 2026-09-08）
 
@@ -90,6 +106,10 @@
   smoke。至少覆盖：无 AGENTS/正常/截断、候选预检竞态、切换阻塞、切换成功、重建失败回滚、
   workspace 会话隔离、legacy root、真实 branch/subagent、搜索祖先路径。验收通过后将本 WBS
   及原 `WORKSPACE-AGENTS-MD-INJECTION` / `WORKSPACE-GUI` / managed-path 条目一起归档。
+  当前自动化出口已完成：`just ci`、`just gui-automated-check`、Tauri workspace guard、
+  Manager `/api/workspace`、CLI effective workspace、Gateway lifecycle focused tests 均通过；
+  验证与接受记录见 `v0.1.7-workspace-closeout`。真实桌面 G2D+ 仍待人工执行，完成前不归档本
+  WBS 和其合并的旧条目。
   依赖：WS-03、WS-05。
 
 ### L1-C：里程碑排期
@@ -205,7 +225,7 @@
 
 - [ ] **WORKSPACE-AGENTS-MD-INJECTION / WORKSPACE-GUI：已并入 WORKSPACE 系统收尾 WBS** `sev-P1`
   后端隔离分支、GUI 当前工作区展示、受控切换和分层会话历史统一由 WS-00～WS-06 跟踪，
-  不再以两个互相割裂的待办重复排期。
+  不再以两个互相割裂的待办重复排期；待 WS-06 真机 smoke 后随 WBS 一并归档。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、

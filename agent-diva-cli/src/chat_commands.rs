@@ -1,9 +1,7 @@
 use crate::approval_commands::{
     print_human, ApprovalCliResult, APPROVAL_QUEUE_UNAVAILABLE, APPROVAL_REQUIRED_NONINTERACTIVE,
 };
-use crate::cli_runtime::{
-    build_provider, ensure_workspace_templates, session_channel_and_chat_id, CliRuntime,
-};
+use crate::cli_runtime::{build_provider, session_channel_and_chat_id, CliRuntime};
 use crate::client::ApiClient;
 use agent_diva_agent::{
     mask::{MaskFile, MaskRegistry},
@@ -93,7 +91,6 @@ async fn build_local_cli_agent(
     let config = runtime.load_config()?;
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = runtime.effective_workspace(&config);
-    let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
     let provider = build_provider(&config, &selected_model)?;

@@ -17,7 +17,6 @@ use agent_diva_laputa::{capture_frozen_core_for_session, DEFAULT_FROZEN_CORE_BUD
 use agent_diva_providers::{DynamicContextTransport, Message};
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -31,8 +30,10 @@ const DEFAULT_AGENT_ROLE: &str = "helpful AI assistant";
 static CONTEXT_BUILDER_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Character budget for workspace markdown files injected into the prompt
-/// (e.g. AGENTS.md).
-const WORKSPACE_MD_MAX_CHARS: usize = 4000;
+/// (e.g. AGENTS.md). Kept in sync with the canonical definition in
+/// [`workspace_instructions`]; tests may reference either symbol.
+#[allow(dead_code)]
+const WORKSPACE_MD_MAX_CHARS: usize = crate::workspace_instructions::AGENTS_MD_MAX_CHARS;
 
 #[derive(Default)]
 struct StableContextCache {
@@ -520,14 +521,18 @@ Always be helpful, accurate, and concise. When using tools, explain what you're 
     }
 
     fn append_agent_rules(&self, prompt: &mut String) {
-        if let Some(content) = self.read_workspace_markdown("AGENTS.md") {
-            self.append_section(prompt, "Agent Rules", &content);
+        if let Some(instruction) =
+            crate::workspace_instructions::load_workspace_instructions(&self.workspace)
+        {
+            tracing::info!(
+                source = %instruction.source.display(),
+                digest = %instruction.digest,
+                truncated = instruction.truncated,
+                char_count = instruction.char_count,
+                "AGENTS.md injected into agent context"
+            );
+            self.append_section(prompt, "Agent Rules", &instruction.body);
         }
-    }
-
-    fn read_workspace_markdown(&self, rel: &str) -> Option<String> {
-        let path = self.workspace.join(rel);
-        read_trimmed_markdown(&path, WORKSPACE_MD_MAX_CHARS)
     }
 
     fn append_section(&self, prompt: &mut String, title: &str, content: &str) {
@@ -814,28 +819,6 @@ impl Default for ContextBuilder {
     }
 }
 
-fn read_trimmed_markdown(path: &Path, max_chars: usize) -> Option<String> {
-    let content = std::fs::read_to_string(path).ok()?;
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    if trimmed.chars().count() <= max_chars {
-        return Some(trimmed.to_string());
-    }
-
-    let mut out = String::new();
-    for (idx, ch) in trimmed.chars().enumerate() {
-        if idx >= max_chars.saturating_sub(3) {
-            break;
-        }
-        out.push(ch);
-    }
-    out.push_str("...");
-    Some(out)
-}
-
 #[cfg(test)]
 fn parse_identity_field(content: &str, keys: &[&str]) -> Option<String> {
     for line in content.lines() {
@@ -877,6 +860,7 @@ mod tests {
     use agent_diva_core::session::{SessionManager, SessionSearchQuery};
     use agent_diva_laputa::{PersonaInitialization, PersonaKind, PersonaService};
     use std::fs;
+    use std::path::Path;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use std::sync::{Arc, RwLock};
     use tempfile::TempDir;
@@ -1294,6 +1278,105 @@ mod tests {
         );
     }
 
+    // Wave B 表征：AGENTS.md 注入矩阵（缺失/空/存在一次/超限截断）。
+
+    #[test]
+    fn agents_md_missing_adds_no_agent_rules_section() {
+        let workspace = TempDir::new().unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-missing");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(
+            !body.contains("## Agent Rules"),
+            "workspace 根没有 AGENTS.md 时不应追加 Agent Rules 段：{body}"
+        );
+    }
+
+    #[test]
+    fn agents_md_empty_or_whitespace_adds_no_agent_rules_section() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("AGENTS.md"), "   \n\n  \t \n").unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-empty");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(
+            !body.contains("## Agent Rules"),
+            "空/纯空白 AGENTS.md 视为无可注入内容：{body}"
+        );
+    }
+
+    #[test]
+    fn agents_md_present_injects_rules_section_exactly_once() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(workspace.path().join("AGENTS.md"), "# Rules once").unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-once");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert_eq!(
+            body.matches("## Agent Rules").count(),
+            1,
+            "AGENTS.md 只应注入一次：{body}"
+        );
+        assert!(body.contains("Rules once"));
+    }
+
+    #[test]
+    fn agents_md_over_budget_is_truncated_with_marker() {
+        let workspace = TempDir::new().unwrap();
+        let content = format!("{}TAILMARKER", "R".repeat(WORKSPACE_MD_MAX_CHARS + 1000));
+        fs::write(workspace.path().join("AGENTS.md"), &content).unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-truncated");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+        assert!(body.contains("..."), "超限内容应以截断标记结尾：{body}");
+        assert!(
+            !body.contains("TAILMARKER"),
+            "超出 WORKSPACE_MD_MAX_CHARS 的尾部不应被注入"
+        );
+        assert!(body.contains(&"R".repeat(100)));
+    }
+
+    // Wave C3：注入体必须声明来源路径、SHA-256 摘要与安全合同。
+
+    #[test]
+    fn agents_md_injection_carries_digest_and_security_contract() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(
+            workspace.path().join("AGENTS.md"),
+            "# Contract test payload\n",
+        )
+        .unwrap();
+        let builder = ContextBuilder::with_skills(workspace.path().to_path_buf(), None);
+
+        let snapshot = builder.stable_prefix_snapshot_for_session(None, "agents-contract");
+        let body = &snapshot_section(&snapshot, ContextSection::AgentRulesAndSkills).body;
+
+        assert!(
+            body.contains("SHA256:"),
+            "注入体应包含 SHA-256 摘要前缀：{body}"
+        );
+        assert!(
+            body.contains("truncated: false"),
+            "未截断时应声明 truncated: false：{body}"
+        );
+        assert!(
+            body.contains(crate::workspace_instructions::SECURITY_CONTRACT),
+            "注入体必须携带安全合同：{body}"
+        );
+        assert!(
+            body.contains("AGENTS.md"),
+            "Source 路径字段应指向 AGENTS.md：{body}"
+        );
+        assert!(
+            body.contains("Contract test payload"),
+            "原始内容应保留：{body}"
+        );
+    }
+
     #[test]
     fn c1c_workspace_skill_reload_invalidates_all_sessions_lazily() {
         let workspace = TempDir::new().unwrap();
@@ -1624,17 +1707,6 @@ mod tests {
         assert!(!prompt.contains("## User Profile"));
         assert!(!prompt.contains("# Core Traits"));
         assert!(!prompt.contains("# Preferences"));
-    }
-
-    #[test]
-    fn test_read_trimmed_markdown_respects_char_limit() {
-        let temp = TempDir::new().unwrap();
-        let path = temp.path().join("SOUL.md");
-        fs::write(&path, "abcdefghij").unwrap();
-
-        let got = read_trimmed_markdown(&path, 6).unwrap();
-        assert_eq!(got, "abc...");
-        assert!(got.chars().count() <= 6);
     }
 
     #[test]

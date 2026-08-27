@@ -9,6 +9,64 @@ pub const SESSION_META_CONVERSATION_TITLE: &str = "conversation_title";
 pub const SESSION_META_TITLE_GENERATED: &str = "title_generated";
 pub const SESSION_META_TITLE_MANUALLY_SET: &str = "title_manually_set";
 pub const SESSION_META_PINNED: &str = "pinned";
+pub const SESSION_META_WORKSPACE_ID: &str = "workspace_id";
+pub const SESSION_META_CHANNEL: &str = "channel";
+pub const SESSION_META_KIND: &str = "kind";
+pub const SESSION_META_ROOT_SESSION_KEY: &str = "root_session_key";
+pub const SESSION_META_PARENT_SESSION_KEY: &str = "parent_session_key";
+pub const SESSION_META_BRANCH_LABEL: &str = "branch_label";
+pub const SESSION_META_LEGACY: &str = "legacy";
+
+/// Session role in the workspace history tree.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionKind {
+    /// A user-facing conversation root.
+    #[default]
+    Root,
+    /// A user-created or system-created branch of another session.
+    Branch,
+    /// A delegated subagent session attached to a parent turn/session.
+    Subagent,
+    /// A short-lived session that should not be treated as a durable root.
+    Ephemeral,
+}
+
+impl SessionKind {
+    /// Stable wire/metadata representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Root => "root",
+            Self::Branch => "branch",
+            Self::Subagent => "subagent",
+            Self::Ephemeral => "ephemeral",
+        }
+    }
+
+    /// Parse a persisted kind without allowing malformed metadata to break a
+    /// legacy session listing.
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "branch" => Self::Branch,
+            "subagent" => Self::Subagent,
+            "ephemeral" => Self::Ephemeral,
+            _ => Self::Root,
+        }
+    }
+}
+
+/// Derive the channel portion from a stable `channel:chat_id` session key.
+///
+/// Chat IDs may themselves contain colons, so only the first separator is
+/// meaningful. Keys without a separator are retained as `unknown` rather than
+/// being guessed as a GUI session.
+pub fn session_channel_from_key(key: &str) -> String {
+    key.split_once(':')
+        .map(|(channel, _)| channel.trim())
+        .filter(|channel| !channel.is_empty())
+        .unwrap_or("unknown")
+        .to_string()
+}
 
 // ---------------------------------------------------------------------------
 // Canonical checkpoint types
@@ -165,6 +223,50 @@ impl Session {
         }
     }
 
+    /// Create a new durable root session with explicit workspace lineage.
+    pub fn new_with_lineage(key: impl Into<String>, workspace_id: impl Into<String>) -> Self {
+        let key = key.into();
+        let mut session = Self::new(&key);
+        session.set_lineage(workspace_id, SessionKind::Root, Some(key), None, None);
+        session
+    }
+
+    /// Set the durable lineage metadata for a session.
+    pub fn set_lineage(
+        &mut self,
+        workspace_id: impl Into<String>,
+        kind: SessionKind,
+        root_session_key: Option<String>,
+        parent_session_key: Option<String>,
+        branch_label: Option<String>,
+    ) {
+        let metadata = ensure_object(&mut self.metadata);
+        metadata.insert(
+            SESSION_META_WORKSPACE_ID.to_string(),
+            serde_json::Value::String(workspace_id.into()),
+        );
+        metadata.insert(
+            SESSION_META_CHANNEL.to_string(),
+            serde_json::Value::String(session_channel_from_key(&self.key)),
+        );
+        metadata.insert(
+            SESSION_META_KIND.to_string(),
+            serde_json::Value::String(kind.as_str().to_string()),
+        );
+        metadata.insert(
+            SESSION_META_LEGACY.to_string(),
+            serde_json::Value::Bool(false),
+        );
+
+        set_optional_metadata_string(metadata, SESSION_META_ROOT_SESSION_KEY, root_session_key);
+        set_optional_metadata_string(
+            metadata,
+            SESSION_META_PARENT_SESSION_KEY,
+            parent_session_key,
+        );
+        set_optional_metadata_string(metadata, SESSION_META_BRANCH_LABEL, branch_label);
+    }
+
     /// Add a message to the session
     pub fn add_message(&mut self, role: impl Into<String>, content: impl Into<String>) {
         self.messages.push(ChatMessage {
@@ -294,6 +396,21 @@ impl Session {
     fn set_metadata_bool(&mut self, key: &str, value: bool) {
         let metadata = ensure_object(&mut self.metadata);
         metadata.insert(key.to_string(), serde_json::Value::Bool(value));
+    }
+}
+
+fn set_optional_metadata_string(
+    metadata: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    value: Option<String>,
+) {
+    match value {
+        Some(value) if !value.trim().is_empty() => {
+            metadata.insert(key.to_string(), serde_json::Value::String(value));
+        }
+        _ => {
+            metadata.remove(key);
+        }
     }
 }
 

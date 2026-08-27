@@ -21,6 +21,7 @@ vi.mock('@lucide/vue', () => ({
   ChevronDown: { name: 'ChevronDown', template: '<span class="ChevronDown" />' },
   ClipboardList: { name: 'ClipboardList', template: '<span class="ClipboardList" />' },
   Database: { name: 'Database', template: '<span class="Database" />' },
+  FolderOpen: { name: 'FolderOpen', template: '<span class="FolderOpen" />' },
   GitBranch: { name: 'GitBranch', template: '<span class="GitBranch" />' },
   Heart: { name: 'Heart', template: '<span class="Heart" />' },
   Menu: { name: 'Menu', template: '<span class="Menu" />' },
@@ -142,6 +143,10 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
       },
       savedModels: [],
       sessions: [],
+      workspace: null,
+      workspaceState: 'ready',
+      workspaceError: null,
+      refreshWorkspace: vi.fn(() => Promise.resolve(true)),
       chatDisplayPrefs: {
         cleanMode: false,
         autoExpandReasoning: false,

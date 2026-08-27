@@ -1,9 +1,11 @@
 //! Session manager for handling multiple sessions
 
-use super::store::Session;
+use super::store::{session_channel_from_key, Session, SessionKind};
 use super::store::{
-    SESSION_META_CONVERSATION_TITLE, SESSION_META_PINNED, SESSION_META_TITLE_GENERATED,
-    SESSION_META_TITLE_MANUALLY_SET,
+    SESSION_META_BRANCH_LABEL, SESSION_META_CHANNEL, SESSION_META_CONVERSATION_TITLE,
+    SESSION_META_KIND, SESSION_META_LEGACY, SESSION_META_PARENT_SESSION_KEY, SESSION_META_PINNED,
+    SESSION_META_ROOT_SESSION_KEY, SESSION_META_TITLE_GENERATED, SESSION_META_TITLE_MANUALLY_SET,
+    SESSION_META_WORKSPACE_ID,
 };
 use super::{search::search_sessions_in_dir, SessionSearchQuery, SessionSearchResponse};
 use std::collections::HashMap;
@@ -20,6 +22,8 @@ static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct SessionManager {
     /// Sessions directory
     sessions_dir: PathBuf,
+    /// Stable identity of the workspace owning this session authority.
+    workspace_id: String,
     /// In-memory cache of sessions
     cache: HashMap<String, Session>,
 }
@@ -27,9 +31,11 @@ pub struct SessionManager {
 impl SessionManager {
     /// Create a new session manager
     pub fn new<P: AsRef<Path>>(workspace: P) -> Self {
-        let sessions_dir = workspace.as_ref().join("sessions");
+        let workspace = workspace.as_ref();
+        let sessions_dir = workspace.join("sessions");
         Self {
             sessions_dir,
+            workspace_id: crate::workspace_identity::canonical_workspace_id(workspace),
             cache: HashMap::new(),
         }
     }
@@ -39,11 +45,67 @@ impl SessionManager {
         let key = key.into();
 
         if !self.cache.contains_key(&key) {
-            let session = self.load(&key).unwrap_or_else(|| Session::new(&key));
+            let workspace_id = self.workspace_id.clone();
+            let session = self
+                .load(&key)
+                .unwrap_or_else(|| Session::new_with_lineage(&key, workspace_id));
             self.cache.insert(key.clone(), session);
         }
 
         self.cache.get_mut(&key).unwrap()
+    }
+
+    /// Get or create a session attached to an existing parent session.
+    ///
+    /// This is the explicit creation seam for future branch/subagent flows;
+    /// ordinary `get_or_create` remains a root-session operation. A parent is
+    /// required so the persisted relationship is never inferred from a key.
+    pub fn get_or_create_child(
+        &mut self,
+        key: impl Into<String>,
+        parent_key: impl Into<String>,
+        kind: SessionKind,
+        branch_label: Option<String>,
+    ) -> crate::Result<&mut Session> {
+        if kind == SessionKind::Root {
+            return Err(crate::Error::Session(
+                "child session kind must be branch, subagent, or ephemeral".to_string(),
+            ));
+        }
+
+        let key = key.into();
+        let parent_key = parent_key.into();
+        if key == parent_key {
+            return Err(crate::Error::Session(
+                "child session key must differ from its parent".to_string(),
+            ));
+        }
+
+        let root_session_key = {
+            let parent = self.get_or_load(&parent_key).ok_or_else(|| {
+                crate::Error::NotFound(format!("parent session not found: {parent_key}"))
+            })?;
+            session_root_key_from_metadata(parent).unwrap_or_else(|| parent.key.clone())
+        };
+
+        if !self.cache.contains_key(&key) {
+            let workspace_id = self.workspace_id.clone();
+            self.cache
+                .insert(key.clone(), Session::new_with_lineage(&key, workspace_id));
+        }
+
+        let workspace_id = self.workspace_id.clone();
+        let session = self.cache.get_mut(&key).ok_or_else(|| {
+            crate::Error::Session(format!("failed to create child session: {key}"))
+        })?;
+        session.set_lineage(
+            workspace_id,
+            kind,
+            Some(root_session_key),
+            Some(parent_key),
+            branch_label,
+        );
+        Ok(session)
     }
 
     /// Get a session if it exists
@@ -236,7 +298,8 @@ impl SessionManager {
                     continue;
                 }
 
-                if let Some(session) = session_summary_from_file(&entry.path()) {
+                if let Some(session) = session_summary_from_file(&entry.path(), &self.workspace_id)
+                {
                     sessions.push(session);
                 }
             }
@@ -343,9 +406,31 @@ pub struct SessionInfo {
     /// Whether the session is pinned
     #[serde(default)]
     pub pinned: bool,
+    /// Stable identity of the workspace owning this session.
+    #[serde(default)]
+    pub workspace_id: String,
+    /// Channel parsed from the full session key for legacy records, or stored
+    /// explicitly for new records.
+    #[serde(default)]
+    pub channel: String,
+    /// Durable role in the session tree.
+    #[serde(default)]
+    pub kind: SessionKind,
+    /// Root session key for a new root/branch/subagent record.
+    #[serde(default)]
+    pub root_session_key: Option<String>,
+    /// Immediate parent for a new branch/subagent/ephemeral record.
+    #[serde(default)]
+    pub parent_session_key: Option<String>,
+    /// Optional human-readable branch label.
+    #[serde(default)]
+    pub branch_label: Option<String>,
+    /// Old JSONL without lineage metadata; shown as an independent root.
+    #[serde(default)]
+    pub legacy: bool,
 }
 
-fn session_summary_from_file(path: &Path) -> Option<SessionInfo> {
+fn session_summary_from_file(path: &Path, workspace_id: &str) -> Option<SessionInfo> {
     let content = std::fs::read_to_string(path).ok()?;
     let mut metadata = serde_json::Map::new();
     let mut created_at = None;
@@ -412,6 +497,62 @@ fn session_summary_from_file(path: &Path) -> Option<SessionInfo> {
             .and_then(|name| name.to_str())
             .map(|name| name.replace('_', ":"))
     })?;
+    let has_lineage_metadata = metadata
+        .get(SESSION_META_WORKSPACE_ID)
+        .and_then(|value| value.as_str())
+        .is_some()
+        && metadata
+            .get(SESSION_META_KIND)
+            .and_then(|value| value.as_str())
+            .is_some();
+    let legacy = metadata
+        .get(SESSION_META_LEGACY)
+        .and_then(|value| value.as_bool())
+        .unwrap_or(!has_lineage_metadata);
+    let workspace_id = metadata
+        .get(SESSION_META_WORKSPACE_ID)
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(workspace_id)
+        .to_string();
+    let channel = metadata
+        .get(SESSION_META_CHANNEL)
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| session_channel_from_key(&key));
+    let kind = metadata
+        .get(SESSION_META_KIND)
+        .and_then(|value| value.as_str())
+        .map(SessionKind::parse)
+        .unwrap_or_default();
+    let root_session_key = if legacy {
+        None
+    } else {
+        metadata
+            .get(SESSION_META_ROOT_SESSION_KEY)
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+            .or_else(|| (kind == SessionKind::Root).then(|| key.clone()))
+    };
+    let parent_session_key = if legacy {
+        None
+    } else {
+        metadata
+            .get(SESSION_META_PARENT_SESSION_KEY)
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+    };
+    let branch_label = if legacy {
+        None
+    } else {
+        metadata
+            .get(SESSION_META_BRANCH_LABEL)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
     let title = metadata
         .get(SESSION_META_CONVERSATION_TITLE)
         .and_then(|v| v.as_str())
@@ -444,7 +585,22 @@ fn session_summary_from_file(path: &Path) -> Option<SessionInfo> {
             .get(SESSION_META_PINNED)
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
+        workspace_id,
+        channel,
+        kind,
+        root_session_key,
+        parent_session_key,
+        branch_label,
+        legacy,
     })
+}
+
+fn session_root_key_from_metadata(session: &Session) -> Option<String> {
+    session
+        .metadata
+        .get(SESSION_META_ROOT_SESSION_KEY)
+        .and_then(|value| value.as_str())
+        .map(str::to_string)
 }
 
 fn compact_preview(content: &str, max_chars: usize) -> String {
@@ -731,6 +887,99 @@ mod tests {
         assert!(info.title_generated);
         assert!(!info.title_manually_set);
         assert!(info.pinned);
+    }
+
+    #[test]
+    fn new_sessions_persist_root_lineage_and_workspace_identity() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+        let session = manager.get_or_create("gui:root");
+        session.add_message("user", "Root session");
+        let key = session.key.clone();
+        let snapshot = manager.get(&key).unwrap().clone();
+        manager.save(&snapshot).unwrap();
+
+        let info = manager
+            .list_sessions()
+            .into_iter()
+            .next()
+            .expect("root session summary");
+        assert_eq!(
+            info.workspace_id,
+            crate::workspace_identity::canonical_workspace_id(temp_dir.path())
+        );
+        assert_eq!(info.channel, "gui");
+        assert_eq!(info.kind, SessionKind::Root);
+        assert_eq!(info.root_session_key.as_deref(), Some("gui:root"));
+        assert_eq!(info.parent_session_key, None);
+        assert!(!info.legacy);
+    }
+
+    #[test]
+    fn child_sessions_persist_explicit_parent_and_root_relationship() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = SessionManager::new(temp_dir.path());
+        let root = manager.get_or_create("gui:root");
+        let root_key = root.key.clone();
+        let root_snapshot = root.clone();
+        manager.save(&root_snapshot).unwrap();
+
+        let child = manager
+            .get_or_create_child(
+                "gui:branch",
+                &root_key,
+                SessionKind::Branch,
+                Some("experiment".to_string()),
+            )
+            .unwrap();
+        let child_key = child.key.clone();
+        let child_snapshot = child.clone();
+        manager.save(&child_snapshot).unwrap();
+
+        let info = manager
+            .list_sessions()
+            .into_iter()
+            .find(|info| info.key == child_key)
+            .expect("child session summary");
+        assert_eq!(info.kind, SessionKind::Branch);
+        assert_eq!(info.root_session_key.as_deref(), Some("gui:root"));
+        assert_eq!(info.parent_session_key.as_deref(), Some("gui:root"));
+        assert_eq!(info.branch_label.as_deref(), Some("experiment"));
+        assert!(!info.legacy);
+    }
+
+    #[test]
+    fn legacy_sessions_are_independent_roots_without_inferred_lineage() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = SessionManager::new(temp_dir.path());
+        let path = temp_dir
+            .path()
+            .join("sessions")
+            .join("telegram_room_42.jsonl");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            serde_json::json!({
+                "_type": "metadata",
+                "key": "telegram:room:42",
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "updated_at": chrono::Utc::now().to_rfc3339(),
+                "metadata": {}
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let info = manager
+            .list_sessions()
+            .into_iter()
+            .next()
+            .expect("legacy session summary");
+        assert_eq!(info.channel, "telegram");
+        assert_eq!(info.kind, SessionKind::Root);
+        assert_eq!(info.root_session_key, None);
+        assert_eq!(info.parent_session_key, None);
+        assert!(info.legacy);
     }
 
     #[test]

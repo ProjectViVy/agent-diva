@@ -15,8 +15,10 @@ import {
   getConfigStatus,
   getRuntimeConfig,
   returnActivePlanToDraft,
+  switchWorkspace as switchWorkspaceApi,
   FileAttachmentDto,
   ChecklistItem,
+  type WorkspaceSwitchRequest,
 } from "./api/desktop";
 import {
   planReportValidationIssues,
@@ -25,6 +27,7 @@ import {
   type PlanStreamEvent,
 } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
+import { useWorkspaceContext } from "./composables/useWorkspaceContext";
 import {
   ApprovalEventGuard,
   isApprovalEventView,
@@ -55,6 +58,13 @@ import {
 } from "./utils/streamingMessages";
 
 const { t } = useI18n();
+const {
+  status: workspace,
+  state: workspaceState,
+  error: workspaceError,
+  refresh: refreshWorkspace,
+  apply: applyWorkspaceStatus,
+} = useWorkspaceContext();
 
 type ExecMode = 'agent' | 'plan' | 'ask';
 
@@ -167,6 +177,13 @@ interface SessionInfo {
   title_generated: boolean;
   title_manually_set: boolean;
   pinned?: boolean;
+  workspace_id?: string;
+  channel?: string;
+  kind?: 'root' | 'branch' | 'subagent' | 'ephemeral';
+  root_session_key?: string | null;
+  parent_session_key?: string | null;
+  branch_label?: string | null;
+  legacy?: boolean;
 }
 interface ChatDisplayPrefs {
   cleanMode: boolean;
@@ -186,6 +203,13 @@ interface BackendSessionInfo {
   title_generated?: boolean;
   title_manually_set?: boolean;
   pinned?: boolean;
+  workspace_id?: string;
+  channel?: string;
+  kind?: 'root' | 'branch' | 'subagent' | 'ephemeral';
+  root_session_key?: string | null;
+  parent_session_key?: string | null;
+  branch_label?: string | null;
+  legacy?: boolean;
 }
 
 interface BackendChatMessage {
@@ -258,6 +282,7 @@ const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const compactionStatus = ref<CompactionStatus | null>(null);
 const activeStreamRequestId = ref<string | null>(null);
+const workspaceSwitching = ref(false);
 const activePlanRuntime = ref<PlanRuntimeState | null>(null);
 const pendingApprovalPlan = ref<PlanRuntimeState | null>(null);
 const pendingApprovalSessionKey = ref<string | null>(null);
@@ -341,6 +366,17 @@ const pendingQuestions = ref<AskUserQuestionView[]>([]);
 const askUserSubmittingIds = ref<string[]>([]);
 const askUserError = ref<string | null>(null);
 let askUserPollTimer: ReturnType<typeof setInterval> | null = null;
+
+const workspaceSwitchBlockedReason = computed(() => {
+  if (workspaceSwitching.value) return '工作区切换进行中，请稍候。';
+  if (isTyping.value) return '当前仍有流式输出，请先停止并等待会话保存。';
+  if (activePlanRuntime.value || pendingApprovalPlan.value || executingPlan.value || approvingPlan.value) {
+    return '当前有未结束的 Plan 或审批流程，请先完成或取消。';
+  }
+  if (approvalPendingCount.value > 0) return '当前有待处理审批，请先处理完审批。';
+  if (pendingQuestions.value.length > 0) return '当前有等待用户回答的 HITL 问题，请先回答或取消。';
+  return null;
+});
 
 async function listAskUserQuestions() {
   if (!isTauri()) return;
@@ -1611,6 +1647,10 @@ async function revokePlanExecution(feedback = '') {
 }
 
 async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent', permissionMode?: 'cautious' | 'smart' | 'trusted') {
+  if (workspaceSwitching.value) {
+    showAppToast('工作区切换进行中，请稍候。', 'error', 4000);
+    return;
+  }
   if (!content.trim() && (!attachments || attachments.length === 0)) return;
   if (isTyping.value) return;
   if (content.trim() === '/stop') {
@@ -1885,6 +1925,13 @@ async function refreshSessions(): Promise<boolean> {
           title_generated: session.title_generated === true,
           title_manually_set: session.title_manually_set === true,
           pinned: session.pinned === true,
+          workspace_id: session.workspace_id || undefined,
+          channel: session.channel || undefined,
+          kind: session.kind || 'root',
+          root_session_key: session.root_session_key || undefined,
+          parent_session_key: session.parent_session_key || undefined,
+          branch_label: session.branch_label || undefined,
+          legacy: session.legacy === true,
         } satisfies SessionInfo;
       });
       sessions.value = mapped
@@ -1896,6 +1943,67 @@ async function refreshSessions(): Promise<boolean> {
     console.error("Failed to fetch sessions:", e);
   }
   return false;
+}
+
+async function switchWorkspaceAction(root: string): Promise<boolean> {
+  const blocked = workspaceSwitchBlockedReason.value;
+  if (blocked) {
+    showAppToast(blocked, 'error', 5000);
+    throw new Error(blocked);
+  }
+  if (!isTauri()) {
+    const error = '工作区原子切换仅支持桌面 Tauri 运行时。';
+    showAppToast(error, 'error', 5000);
+    throw new Error(error);
+  }
+
+  workspaceSwitching.value = true;
+  try {
+    // Refresh the active workspace collection before stopping its runtime. The
+    // session authority already persisted completed turns; this snapshot keeps
+    // the GUI list aligned with the committed old workspace at the boundary.
+    syncCurrentSessionListEntry();
+    if (!(await refreshSessions())) {
+      throw new Error('旧工作区会话快照读取失败，切换已取消。');
+    }
+
+    const request: WorkspaceSwitchRequest = {
+      root,
+      activeTurn: isTyping.value,
+      planActive: Boolean(
+        activePlanRuntime.value
+        || pendingApprovalPlan.value
+        || executingPlan.value
+        || approvingPlan.value,
+      ),
+      approvalPending: approvalPendingCount.value > 0,
+      askUserPending: pendingQuestions.value.length > 0,
+    };
+    const nextStatus = await switchWorkspaceApi(request);
+    applyWorkspaceStatus(nextStatus);
+
+    locallyDeletedSessionKeys.value = new Set();
+    unifiedApprovals.value = [];
+    approvalDetails.value = {};
+    pendingQuestions.value = [];
+    clearMessages();
+
+    const sessionsRefreshed = await refreshSessions();
+    if (sessionsRefreshed) {
+      await restoreLatestGuiChatOnStartup();
+    } else {
+      showAppToast('工作区已切换，但新工作区历史刷新失败，请稍后重试。', 'error', 6000);
+    }
+    await restoreActivePlanRuntime();
+    if (sessionsRefreshed) showAppToast('工作区切换完成');
+    return true;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    showAppToast(message, 'error', 6000);
+    throw cause instanceof Error ? cause : new Error(message);
+  } finally {
+    workspaceSwitching.value = false;
+  }
 }
 
 /** GUI channel sessions only, already newest-first (same order as `sessions`). */
@@ -2316,6 +2424,7 @@ onMounted(async () => {
     const healthInterval = setInterval(checkHealth, 5000);
 
     // Fetch sessions and reopen the latest GUI chat (not a fresh random chat id)
+    await refreshWorkspace();
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
     await restoreActivePlanRuntime();
@@ -2712,6 +2821,13 @@ onUnmounted(() => {
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
       :current-session-key="currentSessionKey"
+      :workspace="workspace"
+      :workspace-state="workspaceState"
+      :workspace-error="workspaceError"
+      :refresh-workspace="refreshWorkspace"
+      :switch-workspace="switchWorkspaceAction"
+      :switch-blocked-reason="workspaceSwitchBlockedReason"
+      :switching="workspaceSwitching"
       :active-plan-runtime="activePlanRuntime"
       :pending-approval-plan="pendingApprovalPlan"
       :executing-plan="executingPlan"

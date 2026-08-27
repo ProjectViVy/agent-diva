@@ -13,6 +13,7 @@ mod provider_companion;
 pub mod skills;
 pub mod todo;
 pub mod token_stats;
+pub mod workspace;
 
 pub use audit::{get_audit_events_handler, get_audit_log_handler};
 pub use logs::{logs_routes, query_logs_handler};
@@ -37,6 +38,7 @@ pub use skills::{
     reject_skill_request_handler, search_marketplace_skills_handler, update_skill_handler,
     upload_skill_handler,
 };
+pub use workspace::{get_workspace_handler, WorkspaceStatusResponse};
 
 pub use autodream::{
     cancel_autodream_run_handler, get_autodream_live_text_handler, get_autodream_run_handler,
@@ -1184,7 +1186,7 @@ mod tests {
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::MessageBus;
     use agent_diva_core::session::store::{ChatMessage, Session};
-    use agent_diva_core::session::SessionInfo;
+    use agent_diva_core::session::{SessionInfo, SessionKind};
     use axum::{
         body::to_bytes,
         extract::{Path, State},
@@ -1226,6 +1228,13 @@ mod tests {
                             title_generated: true,
                             title_manually_set: false,
                             pinned: false,
+                            workspace_id: "workspace-test".to_string(),
+                            channel: "gui".to_string(),
+                            kind: SessionKind::Root,
+                            root_session_key: Some("gui:with-title".to_string()),
+                            parent_session_key: None,
+                            branch_label: None,
+                            legacy: false,
                         },
                         SessionInfo {
                             key: "gui:no-title".to_string(),
@@ -1238,6 +1247,13 @@ mod tests {
                             title_generated: false,
                             title_manually_set: false,
                             pinned: false,
+                            workspace_id: "workspace-test".to_string(),
+                            channel: "gui".to_string(),
+                            kind: SessionKind::Root,
+                            root_session_key: Some("gui:no-title".to_string()),
+                            parent_session_key: None,
+                            branch_label: None,
+                            legacy: false,
                         },
                     ];
                     let _ = tx.send(Ok(sessions));

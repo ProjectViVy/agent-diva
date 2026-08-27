@@ -986,7 +986,7 @@ async fn run_onboard(runtime: &CliRuntime, args: OnboardArgs) -> Result<()> {
 fn build_gateway_runtime_config(
     runtime: &CliRuntime,
     config: Config,
-    workspace: PathBuf,
+    workspace: agent_diva_core::workspace::WorkspaceContext,
 ) -> GatewayRuntimeConfig {
     let port = config.gateway.port;
     GatewayRuntimeConfig {
@@ -1009,12 +1009,11 @@ async fn run_gateway(runtime: &CliRuntime) -> Result<()> {
         );
     }
 
-    let workspace = runtime.effective_workspace(&config);
-    let _ = ensure_workspace_templates(&workspace)?;
+    let workspace = runtime.workspace_context(&config);
 
     println!("{}", style("Starting Agent Diva Gateway...").bold().cyan());
     println!("Model: {}", config.agents.defaults.model);
-    println!("Workspace: {}", workspace.display());
+    println!("Workspace: {}", workspace.root.display());
     println!(
         "{}",
         style("Bootstrapping (agent, optional MCP servers, channels, HTTP API) — please wait…",)
@@ -1303,7 +1302,6 @@ async fn run_tui(
     let config = runtime.load_config()?;
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = runtime.effective_workspace(&config);
-    let _ = ensure_workspace_templates(&workspace)?;
 
     let bus = MessageBus::new();
     let provider = build_provider(&config, &selected_model)?;
@@ -2605,7 +2603,15 @@ mod tests {
         let mut config = Config::default();
         config.gateway.port = 3999;
 
-        let gateway = build_gateway_runtime_config(&runtime, config, temp.path().join("workspace"));
+        let gateway = build_gateway_runtime_config(
+            &runtime,
+            config,
+            agent_diva_core::workspace::WorkspaceContext {
+                root: temp.path().join("workspace"),
+                source: agent_diva_core::workspace::WorkspaceSource::Configured,
+                agents_md: None,
+            },
+        );
 
         assert_eq!(gateway.port, 3999);
     }
@@ -2616,7 +2622,15 @@ mod tests {
         let runtime = CliRuntime::from_paths(None, Some(temp.path().to_path_buf()), None);
         let config = Config::default();
 
-        let gateway = build_gateway_runtime_config(&runtime, config, temp.path().join("workspace"));
+        let gateway = build_gateway_runtime_config(
+            &runtime,
+            config,
+            agent_diva_core::workspace::WorkspaceContext {
+                root: temp.path().join("workspace"),
+                source: agent_diva_core::workspace::WorkspaceSource::Configured,
+                agents_md: None,
+            },
+        );
 
         assert_eq!(gateway.port, DEFAULT_GATEWAY_PORT);
     }

@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck, Minimize2, FileText } from '@lucide/vue';
+import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck, Minimize2, FileText, FolderOpen } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'compaction' | 'mate' | 'audit'): void;
+  (e: 'navigate', view: 'general' | 'workspace' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'compaction' | 'mate' | 'audit'): void;
 }>();
 
 const cards = computed(() => [
   { id: 'providers', icon: Server, title: t('dashboard.providers'), desc: t('dashboard.providersDesc') },
   { id: 'channels', icon: MessageSquare, title: t('dashboard.channels'), desc: t('dashboard.channelsDesc') },
   { id: 'general', icon: SlidersHorizontal, title: t('dashboard.general'), desc: t('dashboard.generalDesc') },
+  { id: 'workspace', icon: FolderOpen, title: '工作区', desc: '查看当前运行时路径与 AGENTS.md 状态' },
   { id: 'skills', icon: WandSparkles, title: t('dashboard.skills'), desc: t('dashboard.skillsDesc') },
   { id: 'mcp', icon: Bot, title: t('dashboard.mcp'), desc: t('dashboard.mcpDesc') },
   { id: 'sandbox', icon: ShieldCheck, title: t('dashboard.sandbox'), desc: t('dashboard.sandboxDesc') },

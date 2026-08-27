@@ -243,6 +243,60 @@ impl Default for ExecTool {
     }
 }
 
+/// Wave C2 workspace-root enforcement.
+///
+/// Reject any resolved working directory that does not reside at or inside
+/// the tool's configured workspace scope after canonicalization. Symlinks and
+/// `..` traversal are resolved so naive string comparisons cannot be fooled.
+///
+/// If the target path does not yet exist, `canonicalize` is attempted on the
+/// parent chain; if that also fails we fall back to the raw path and compare
+/// normalized string components, which is safe because the workspace scope
+/// itself must already exist when the tool is configured.
+fn enforce_workspace_boundary(target: &Path, workspace_scope: &Path) -> Result<(), String> {
+    let resolved = std::fs::canonicalize(target)
+        .or_else(|_| canonicalize_best_effort(target))
+        .unwrap_or_else(|_| target.to_path_buf());
+    let scope =
+        std::fs::canonicalize(workspace_scope).unwrap_or_else(|_| workspace_scope.to_path_buf());
+
+    if resolved.starts_with(&scope) {
+        Ok(())
+    } else {
+        Err(format!(
+            "resolved path `{}` is outside workspace scope `{}`",
+            resolved.display(),
+            scope.display()
+        ))
+    }
+}
+
+/// Best-effort canonicalize for paths whose tail may not yet exist.
+fn canonicalize_best_effort(path: &Path) -> std::io::Result<PathBuf> {
+    let mut probe = path.to_path_buf();
+    let mut tail = Vec::new();
+    while !probe.as_os_str().is_empty() {
+        if let Ok(base) = std::fs::canonicalize(&probe) {
+            tail.reverse();
+            let mut rebuilt = base;
+            for component in tail {
+                rebuilt.push(component);
+            }
+            return Ok(rebuilt);
+        }
+        if let Some(file_name) = probe.file_name() {
+            tail.push(file_name.to_os_string());
+        }
+        if !probe.pop() {
+            break;
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "no existing ancestor for canonicalize",
+    ))
+}
+
 #[async_trait]
 impl Tool for ExecTool {
     fn name(&self) -> &str {
@@ -282,12 +336,53 @@ impl Tool for ExecTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParams("Missing 'command' parameter".to_string()))?;
 
-        let working_dir = params
+        // Resolve working_dir with Wave C2 workspace-root enforcement.
+        //
+        // Priority: model-supplied `working_dir` > tool-config default > workspace root
+        // (when the tool is workspace-scoped) > process CWD (legacy fallback for
+        // unscoped tools).
+        //
+        // When the tool is scoped to a workspace root, any resolved directory must
+        // remain inside that root after canonicalization; otherwise the command is
+        // rejected with an explanatory message. This prevents the model from
+        // pivoting shell execution outside the active project.
+        let (requested, from_model) = params
             .get("working_dir")
             .and_then(|v| v.as_str())
-            .map(PathBuf::from)
-            .or_else(|| self.working_dir.clone())
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            .map(|s| (PathBuf::from(s), true))
+            .unwrap_or_else(|| {
+                self.working_dir
+                    .clone()
+                    .map(|p| (p, false))
+                    .unwrap_or_else(|| {
+                        (
+                            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                            false,
+                        )
+                    })
+            });
+
+        let working_dir = if requested.is_absolute() {
+            requested.clone()
+        } else if let Some(scope) = self.working_dir.as_ref() {
+            scope.join(&requested)
+        } else {
+            requested.clone()
+        };
+
+        if let Some(scope) = self.working_dir.as_ref() {
+            if let Err(err) = enforce_workspace_boundary(&working_dir, scope) {
+                let source = if from_model {
+                    "model-supplied working_dir"
+                } else {
+                    "configured working_dir"
+                };
+                return Ok(format!(
+                    "Error: {source} rejected: {err} (workspace root: {})",
+                    scope.display()
+                ));
+            }
+        }
 
         // Safety guard
         if let Err(err) = self.guard_command(command, &working_dir) {
@@ -504,6 +599,60 @@ mod tests {
 
         let result = tool.execute(params).await.unwrap();
         assert!(result.contains("blocked by safety guard"));
+    }
+
+    /// Wave C2：模型传入的 `working_dir` 跳出选定 workspace 根目录时，
+    /// 返回包含 workspace 约束说明的拒绝消息。
+    #[tokio::test]
+    async fn working_dir_outside_workspace_root_is_rejected() {
+        let workspace = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let tool = ExecTool::with_config(60, Some(workspace.path().to_path_buf()), true);
+        let params = json!({
+            "command": "echo boundary",
+            "working_dir": outside.path().to_str().unwrap()
+        });
+
+        let result = tool.execute(params).await.unwrap();
+        assert!(
+            result.to_lowercase().contains("workspace"),
+            "越界 working_dir 应返回包含 workspace 约束说明的拒绝：{result}"
+        );
+    }
+
+    /// Wave C2：相对路径 working_dir 必须以 workspace 为基准解析，
+    /// 且 `..` 穿越到根外部时同样被拒绝。
+    #[tokio::test]
+    async fn working_dir_relative_escape_is_rejected() {
+        let workspace = tempfile::tempdir().unwrap();
+        let tool = ExecTool::with_config(60, Some(workspace.path().to_path_buf()), true);
+        let params = json!({
+            "command": "echo escape",
+            "working_dir": "../../../.."
+        });
+        let result = tool.execute(params).await.unwrap();
+        assert!(
+            result.to_lowercase().contains("workspace"),
+            "`..` 穿越越界应被拒绝：{result}"
+        );
+    }
+
+    /// Wave C2：合法路径（workspace 内子目录）正常执行。
+    #[tokio::test]
+    async fn working_dir_inside_workspace_subdir_runs() {
+        let workspace = tempfile::tempdir().unwrap();
+        let inner = workspace.path().join("sub-project");
+        std::fs::create_dir_all(&inner).unwrap();
+        let tool = ExecTool::with_config(60, Some(workspace.path().to_path_buf()), true);
+        let params = json!({
+            "command": if cfg!(target_os = "windows") { "echo hello" } else { "echo hello" },
+            "working_dir": inner.to_str().unwrap()
+        });
+        let result = tool.execute(params).await.unwrap();
+        assert!(
+            result.contains("hello"),
+            "workspace 内子目录应正常执行：{result}"
+        );
     }
 
     #[tokio::test]

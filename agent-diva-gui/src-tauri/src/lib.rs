@@ -29,6 +29,7 @@ struct SplashState {
 }
 
 pub type EmbeddedGatewayState = Arc<AsyncMutex<Option<EmbeddedGatewayHandle>>>;
+pub type WorkspaceSwitchState = Arc<AsyncMutex<()>>;
 
 fn should_manage_gateway_lifecycle() -> bool {
     // Only manage gateway lifecycle in release mode
@@ -78,7 +79,7 @@ fn init_gui_logging() {
     });
 }
 
-fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
+pub(crate) fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
     let loader = config_loader();
     let config = loader.load().unwrap_or_default();
     let runtime = agent_diva_cli::cli_runtime::CliRuntime::from_paths(
@@ -88,7 +89,7 @@ fn build_gateway_runtime_config() -> agent_diva_manager::GatewayRuntimeConfig {
     );
 
     agent_diva_manager::GatewayRuntimeConfig {
-        workspace: runtime.effective_workspace(&config),
+        workspace: runtime.workspace_context(&config),
         cron_store: runtime.cron_store_path(),
         config,
         loader,
@@ -228,8 +229,9 @@ pub fn run() {
             frontend_done: false,
             backend_done: false,
         })))
+        .manage(Arc::new(AsyncMutex::new(())) as WorkspaceSwitchState)
         .setup(|app| {
-            if should_manage_gateway_lifecycle() {
+            let (gateway_state, gateway_port) = if should_manage_gateway_lifecycle() {
                 let handle = embedded_server::start_embedded_gateway(build_gateway_runtime_config())
                     .map_err(|error| {
                         tracing::error!("Failed to start embedded gateway: {}", error);
@@ -238,18 +240,24 @@ pub fn run() {
                         ))
                     })?;
                 let port = handle.port;
-                let gateway_state: EmbeddedGatewayState = Arc::new(AsyncMutex::new(Some(handle)));
-
-                app.manage(gateway_state);
-                app.manage(AsyncMutex::new(GatewayStatus::new(port)));
-                app.state::<AgentState>().update_gateway_port(port);
-                commands::save_gateway_port_config(port)
-                    .map_err(std::io::Error::other)?;
-                tracing::info!("Embedded gateway started on port {}", port);
+                (Arc::new(AsyncMutex::new(Some(handle))), Some(port))
             } else {
                 tracing::info!(
                     "Gateway lifecycle management is disabled in debug mode; expecting an external backend"
                 );
+                (Arc::new(AsyncMutex::new(None)), None)
+            };
+
+            app.manage(gateway_state);
+            let status = gateway_port
+                .map(GatewayStatus::new)
+                .unwrap_or_else(|| GatewayStatus::stopped(3000));
+            app.manage(AsyncMutex::new(status));
+            if let Some(port) = gateway_port {
+                app.state::<AgentState>().update_gateway_port(port);
+                commands::save_gateway_port_config(port)
+                    .map_err(std::io::Error::other)?;
+                tracing::info!("Embedded gateway started on port {}", port);
             }
 
             if let Ok(mut guard) = app.state::<Arc<Mutex<SplashState>>>().lock() {
@@ -446,6 +454,10 @@ pub fn run() {
             commands::uninstall_gateway,
             commands::load_config,
             commands::get_config,
+            commands::get_workspace_status,
+            commands::inspect_workspace,
+            commands::choose_workspace_directory,
+            commands::switch_workspace,
             commands::get_config_status,
             commands::wipe_local_data,
             commands::save_config,

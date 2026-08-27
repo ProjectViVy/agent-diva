@@ -193,6 +193,48 @@ export interface RuntimeConfigSnapshot {
   has_api_key: boolean;
 }
 
+export interface AgentsMdStatus {
+  path: string;
+  digest: string;
+  truncated: boolean;
+  char_count: number;
+  present: boolean;
+}
+
+export interface WorkspaceStatus {
+  root: string;
+  source: 'configured' | 'explicit-cli' | 'legacy-default' | 'process-cwd' | string;
+  legacy_hint?: string | null;
+  agents_md?: AgentsMdStatus | null;
+}
+
+export interface WorkspaceCandidate {
+  root: string;
+  workspaceId: string;
+  readable: boolean;
+  agentsMd?: AgentsMdStatus | null;
+}
+
+export interface WorkspaceSwitchRequest {
+  root: string;
+  activeTurn: boolean;
+  planActive: boolean;
+  approvalPending: boolean;
+  askUserPending: boolean;
+}
+
+export const getWorkspaceStatus = () =>
+  invoke<WorkspaceStatus>('get_workspace_status');
+
+export const inspectWorkspace = (root: string) =>
+  invoke<WorkspaceCandidate>('inspect_workspace', { root });
+
+export const chooseWorkspaceDirectory = () =>
+  invoke<string | null>('choose_workspace_directory');
+
+export const switchWorkspace = (request: WorkspaceSwitchRequest) =>
+  invoke<WorkspaceStatus>('switch_workspace', { request });
+
 export const isTauriRuntime = () =>
   typeof window !== "undefined" &&
   ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);

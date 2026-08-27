@@ -207,7 +207,6 @@ async function runFullWipe() {
         <div class="settings-code-block space-y-2">
           <div>{{ statusReport.config.config_path }}</div>
           <div>{{ statusReport.config.runtime_dir }}</div>
-          <div>{{ statusReport.config.workspace }}</div>
         </div>
       </div>
     </div>
@@ -225,7 +224,6 @@ async function runFullWipe() {
         <div class="text-xs font-medium settings-danger-text">{{ t('general.dangerPathsHint') }}</div>
         <div class="text-xs font-mono settings-label break-all space-y-0.5">
           <div>{{ statusReport.config.config_path }}</div>
-          <div>{{ statusReport.config.workspace }}</div>
           <div>{{ statusReport.config.runtime_dir }}</div>
         </div>
       </div>
