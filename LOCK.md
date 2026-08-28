@@ -9,10 +9,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Owner: `none`
 - Session/Task: `(completed)`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-27T16:14:19+08:00`
-- Last Heartbeat: `2026-08-27T20:15:00+08:00`
+- Started At: `2026-08-29T01:10:50+08:00`
+- Last Heartbeat: `2026-08-29T01:12:58+08:00`
 - Expires At: `released`
-- Handoff Notes: `User confirmed manual workspace acceptance. Commit ca460101 closes WS-06, WORKSPACE-SYSTEM-CLOSEOUT, and the merged workspace backlog entry; the separate CLI legacy-default migration TODO remains open.`
+- Handoff Notes: `HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE now has a 13-engineering-day HQ-00..HQ-05 plan, dated schedule, architecture gate, acceptance criteria, and planning logs. No product code changed.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE planning and scheduling` — **RELEASED 2026-08-29T01:12:58+08:00** by `Codex`. Planning-only update to `TODOLIST.md` and `docs/logs/2026-08-harness-session-admission-planning/`; baseline 13 engineering days (2026-08-31 through 2026-09-16), with risk buffer through 2026-09-18. No product code changed.
 
 - `Default workspace directory configuration and reset` — **RELEASED 2026-08-27T18:59:41+08:00** by `Codex`. Commit `1b9f1a13`; independent default/session workspace authorities, reset command, rollback source preservation, full workspace gates, 509 GUI tests, production build, and Windows Tauri smoke passed.
 
