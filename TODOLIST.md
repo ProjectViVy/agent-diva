@@ -112,10 +112,12 @@
     `idle_ttl=10m`），并输出 dispatcher/worker 生命周期与 drop/abort 行为。冻结合同见
     [`hq00-contract.md`](docs/dev/harness-session-admission/hq00-contract.md)；HQ-01/02 须按该
     所有权模型证明不改 MessageBus 权威即可让不同 session 独立推进、同 session 严格 FIFO。
-  - [ ] **HQ-01 Core admission kernel**（09-02 ～ 09-04，3d）：在
+  - [x] **HQ-01 Core admission kernel**（原排期 09-02 ～ 09-04；08-29 提前完成）：已在
     `agent-diva-core/src/session/admission.rs` 实现有界 FIFO、RAII lease、等待超时、队满、
-    显式取消和 idle slot 回收；时钟可注入、测试可暂停，禁止持锁跨 provider/tool await。
-    单测覆盖 FIFO、容量边界、timeout/cancel race、lease drop 唤醒、idle eviction。
+    显式取消、关闭排空和 idle slot 回收；时钟可注入、测试可暂停，且所有状态锁均在 await
+    前释放。12 个定向单测覆盖 FIFO、容量边界、跨 session 独立、timeout/cancel race、future/
+    lease drop、任务 abort、idle eviction 与 close drain。实现提交 `5ff59b5c`，验证记录见
+    [`v0.2.0-hq01-core-kernel`](docs/logs/2026-08-harness-session-admission/v0.2.0-hq01-core-kernel/verification.md)。
   - [ ] **HQ-02 Agent dispatcher 与 turn 接线**（09-07 ～ 09-09，3d）：在既有
     `turn/admission.rs` 的 circuit/rate check 之前取得 session lease，将可变 turn 状态收敛到
     session/turn 所有权；Bus 与 `process_direct(_stream)` 共用同一准入 seam。验证同 session
