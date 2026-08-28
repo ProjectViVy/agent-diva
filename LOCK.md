@@ -7,12 +7,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `none`
 - Owner: `none`
-- Session/Task: `HARNESS-SESSION-ADMISSION HQ-00 complete`
+- Session/Task: `HARNESS-SESSION-ADMISSION HQ-01 complete`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-29T01:54:30+08:00`
-- Last Heartbeat: `2026-08-29T02:11:20+08:00`
+- Started At: `2026-08-29T02:42:30+08:00`
+- Last Heartbeat: `2026-08-29T03:11:11+08:00`
 - Expires At: `released`
-- Handoff Notes: `HQ-00 merged into dev as 1f9aa730 and 003b5633. Isolated worktree and feature branch removed; HQ-01 remains open.`
+- Handoff Notes: `HQ-01 merged into dev as 5ff59b5c, 3beefb52, and d2ba9067. Isolated worktree and feature branch removed; HQ-02 remains open.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION HQ-01 core admission kernel` — **RELEASED 2026-08-29T03:11:11+08:00** by `Codex`. Commits `5ff59b5c`, `3beefb52`, and `d2ba9067`; bounded FIFO kernel, deterministic lifecycle/race tests, HQ-00 timeout stabilization, TODO/log closeout, and full workspace gates completed. No AgentLoop runtime, MessageBus, config, or wire integration added.
 
 - `HARNESS-SESSION-ADMISSION HQ-00 contract freeze and characterization` — **RELEASED 2026-08-29T02:11:20+08:00** by `Codex`. Commits `1f9aa730` and `003b5633`; baseline characterization, ownership/lifecycle contract, TODO/log closeout, and full workspace gates completed. Initial Laputa stale-lock flake was isolated and tracked; focused reruns and final `just test` passed. No production queue or wire behavior added.
 
