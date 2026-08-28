@@ -1,17 +1,18 @@
-﻿# LOCK
+# LOCK
 
 Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-laputa/src/cognitive/`; `agent-diva-laputa/src/layout.rs`; `agent-diva-laputa/src/frozen_core.rs`; `agent-diva-laputa/src/service.rs`; `agent-diva-laputa/tests/`; `agent-diva-manager/src/handlers/laputa.rs`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-workspace-reset-implementation/`
-- Owner: `Codex`
-- Session/Task: `I1-S1 stop legacy cognitive seed writes (complete)`
-- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-14T00:00:00+08:00`
-- Last Heartbeat: `2026-08-14T00:30:00+08:00`
-- Expires At: `—`
+- Scope: `none`
+- Owner: `none`
+- Session/Task: `(completed)`
+- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `2026-08-27T16:14:19+08:00`
+- Last Heartbeat: `2026-08-27T20:15:00+08:00`
+- Expires At: `released`
+- Handoff Notes: `User confirmed manual workspace acceptance. Commit ca460101 closes WS-06, WORKSPACE-SYSTEM-CLOSEOUT, and the merged workspace backlog entry; the separate CLI legacy-default migration TODO remains open.`
 
 ## Lock Rules
 
@@ -25,572 +26,133 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `Correct Laputa architecture gate wording` — **RELEASED 2026-08-15T06:25:00+08:00**
-  by `Grok`; R1-hold wording corrected. Docs only. No S1.
+- `Default workspace directory configuration and reset` — **RELEASED 2026-08-27T18:59:41+08:00** by `Codex`. Commit `1b9f1a13`; independent default/session workspace authorities, reset command, rollback source preservation, full workspace gates, 509 GUI tests, production build, and Windows Tauri smoke passed.
 
-- `Schedule GUI in TODOLIST` — **RELEASED 2026-08-15T06:05:00+08:00**
-  by `Grok`; UI-S2/S3/S4 scheduled. Docs only.
+- `Fix explicit session workspace identity after default reset` — **RELEASED 2026-08-27T19:58:00+08:00** by `Codex`. Commit `bf1fd5d4`; active/default divergence, same-root explicit selection, refresh behavior, regression tests/docs, full gates, and Windows embedded-Gateway smoke passed. Persisted default behavior remains unchanged.
+- `Close WORKSPACE TODO after manual acceptance` — **RELEASED 2026-08-27T20:15:00+08:00** by `Codex`. Commit `ca460101`; TODO closure and acceptance evidence only; product code unchanged.
 
-- `Unify Recap + TODOLIST` — **RELEASED 2026-08-15T05:50:00+08:00**
-  by `Grok`; Recap semantics unified; TODOLIST refreshed. Docs only.
+- `Windows workspace display path cleanup` — **RELEASED 2026-08-27T16:14:19+08:00** by `Codex`. Commit `ba11e098`; 15 focused tests and production build passed.
 
-- `Create protection branch` — **RELEASED 2026-08-15T05:20:00+08:00**
-  by `Grok`; protect/cognitive-pre-clean-break-20260815 @ 2aab18cc. Not pushed.
+- `Debug embedded gateway default for atomic workspace switching` — **RELEASED 2026-08-27T15:52:23+08:00** by `Codex`. Commit `c0ae1982`; Tauri debug smoke started embedded Gateway on an ephemeral port and `/api/workspace` returned 200. Test processes were stopped.
 
-- `Approve D4 and freeze recap` — **RELEASED 2026-08-15T05:00:00+08:00**
-  by `Grok`; D4 approved; S8 per-turn recap. No production code. No backup branch.
+- `Direct workspace folder picker from chat footer` — **RELEASED 2026-08-27T15:35:00+08:00** by `Codex`. Commit `db692ee9`; 19 focused GUI tests and production build passed.
 
-- `Approve D3 and draft D4` — **RELEASED 2026-08-15T04:20:00+08:00**
-  by `Grok`; D3 approved; D4 draft + review fixes. No production code. No backup branch.
+- `Workspace default fallback and borderless entry` — **RELEASED 2026-08-27T14:10:00+08:00** by `Codex`. Commit `fefef70d`; 15 focused GUI tests and production build passed.
 
-- `Draft D3 Evolution/Skill` — **RELEASED 2026-08-15T03:00:00+08:00**
-  by `Grok`; D3 design draft + review fixes. No production code.
+- `Correct workspace default label logic` — **RELEASED 2026-08-27T14:10:00+08:00** by `Codex`. Commit `51f0ece8`; 14 focused GUI tests and production build passed.
 
-- `Record D2 approval` — **RELEASED 2026-08-15T01:30:00+08:00**
-  by `Grok`; D2 approved. No production code.
+- `Move workspace selector to chat footer` — **RELEASED 2026-08-27T13:50:00+08:00** by `Codex`. Commit `046cae2e`; 40 focused GUI tests and production build passed.
 
-- `Approve D1 and draft D2` — **RELEASED 2026-08-15T01:15:00+08:00**
-  by `Grok`; D1 approved; D2 draft + review fixes. No production code.
+- `Merge WORKSPACE system closeout into dev` — **RELEASED 2026-08-27T13:45:00+08:00** by `Codex`. Merged as `26b4a1f8`; 18 focused GUI tests and production build passed. Deleted `feat/workspace-system-closeout` and deregistered its clean worktree. Residual directory removal was blocked by command policy.
 
-- `Draft D1 Persona architecture` — **RELEASED 2026-08-15T00:10:00+08:00**
-  by `Grok`; D1 design draft + review fixes. No production code.
+- `WORKSPACE-SYSTEM-CLOSEOUT planning and scheduling` — **RELEASED 2026-08-26T05:02:00+08:00** by `Codex`. Commit `f6fe4545`; scope was `TODOLIST.md` plus the v0.1.0 planning log. No product code changed.
 
-- `Freeze D0 A/B/C` — **RELEASED 2026-08-14T23:05:00+08:00**
-  by `Grok`; P22 + S1 revision + D7. No production code.
+- `WORKSPACE-SYSTEM-CLOSEOUT WS-06 closeout validation` — **RELEASED 2026-08-27T13:45:00+08:00** by `Codex`. Implementation merged into `dev` as `26b4a1f8`; real desktop G2D+ smoke remains open in TODOLIST and v0.1.7 acceptance until user validation.
 
-- `Draft D0 domain-authority ADR` — **RELEASED 2026-08-14T22:10:00+08:00**
-  by `Grok`; D0 design draft + architect review fixes. No production code.
+- `Workbench / PEN / Mirror / Neuro-Link / Companion Node 综合调研归档` — **RELEASED 2026-08-23T21:31:32+08:00** by `Codex`. Commit `76c574d8`; research package, index, focused TODOLIST epic records, and iteration logs only. No production or GUI files changed.
 
-- `Freeze S9/P21 MEMRULES` — **RELEASED 2026-08-14T20:25:00+08:00**
-  by `Grok`; MEMRULES out of Laputa, GA-style write-time inject. No production code.
+- `A2A/频道参考实现增补调研与待立项记录` — **RELEASED 2026-08-23T20:20:00+08:00** by `Codex`. Commit `eb905aea`; scope was A2A research addendum, new channel reference comparison package, research log, and `TODOLIST.md`; no production code changes.
 
-- `Clarify AutoDream Laputa allow/deny matrix` — **RELEASED 2026-08-14T10:35:00+08:00**
-  by `Grok`; P19 allow/deny matrix. No production code.
+- `AUTODREAM-DIAGNOSTIC-LOGGING` — **RELEASED 2026-08-23T19:50:00+08:00** by `Grok`. Commits `a5252c35` + `91717409` on `feat/autodream-diagnostic-logging`, FF into local `dev`. Phase-level structured logs on S3 worker; TODOLIST closed. Not pushed. Isolated worktree left for user to prune.
 
-- `Reject AutoDream persona writes; schedule diagnostic` — **RELEASED 2026-08-14T00:20:00+08:00**
-  by `Grok`; P19 + Evolution D5 + TODOLIST diagnostic. No AutoDream production code.
+- `archive closed TODOLIST Done items` — **RELEASED 2026-08-23T18:25:00+08:00** by `Grok`. Commit `56f0b759` on `chore/todolist-auto-close`, FF into local `dev`. 12 Done items archived. Not pushed.
 
-- `P18 v1-closed roster, team-extensible kinds` — **RELEASED 2026-08-13T22:50:00+08:00**
-  by `Grok`; P18 recorded. No production code.
+- `close STEPFUN-REAL-ENDPOINT-E2E` — **RELEASED 2026-08-23T18:05:00+08:00** by `Grok`. Commit `55edb61e` on `chore/todolist-auto-close`, FF into local `dev`. User confirmed real-device E2E. TODOLIST + logs only; no keys. Not pushed.
 
-- `Record IDENTITY body + DARK.MD booths` — **RELEASED 2026-08-13T22:25:00+08:00**
-  by `Grok`; P17 DARK booths + IDENTITY body recorded. No production code.
+- `close WORKSPACE-GUI-TOOLING-LOAD-FLAKES` — **RELEASED 2026-08-23T17:45:00+08:00** by `Grok`. Commit `ae0ade31` on `chore/todolist-auto-close`, FF into local `dev`. User decision: 不可复现、复发再开. TODOLIST + logs only. Not pushed.
 
-- `Persona authority Markdown roster decision revision` — **RELEASED 2026-08-13T21:45:00+08:00`
-  by `Grok`; decision record P1/P13–P16 + current-boundary sync. No production code.
+- `todolist auto-close (mechanical leftovers)` — **RELEASED 2026-08-23T17:20:00+08:00** by `Grok`. Fast-forwarded local `dev` to `b5bde059` (`chore/todolist-auto-close`). Closed 7 TODOs. Isolated worktree left in place. Not pushed.
 
-- `COGNITIVE-R4-CLEAN-BREAK-SAFETY research package` — **RELEASED 2026-08-13T20:55:00+08:00**
-  by `Grok`; documentation-only R4 research package delivered under
-  `docs/research/cognitive-r4-clean-break-safety-2026-08/` plus logs/index.
-  No production source/config/build changes.
+- `move NEURO-LINK-HEAVYWEIGHT-CHANNEL to EPIC 新启动` — **RELEASED 2026-08-23T15:40:00+08:00** by `Grok`. TODOLIST-only: item moved from 频道遗留 to EPIC 新启动. Not pushed.
 
-- `COGNITIVE-R3-PERSONA-WORKSPACE research package` — **RELEASED 2026-08-13T20:15:00+08:00**
-  by `Grok`; documentation-only R3 research package delivered under
-  `docs/research/cognitive-r3-persona-workspace-2026-08/` plus logs/index.
-  No production source/config/build changes.
+- `neuro-link reserved-future-channel comments` — **RELEASED 2026-08-23T15:30:00+08:00** by `Grok`. Commit `4e21d997` on `dev`: reserved-future comments on `NeuroLinkConfig`, `channel_statuses` omission, `neuro_link.rs`; TODOLIST reframed to `NEURO-LINK-HEAVYWEIGHT-CHANNEL` (pending start). No status/GUI/runtime behavior change. Not pushed.
 
-- `COGNITIVE-R2-STM-CONTEXT research package` — **RELEASED 2026-08-13T19:05:00+08:00**
-  by `Grok`; documentation-only R2 research package delivered under
-  `docs/research/cognitive-r2-stm-context-2026-08/` plus logs/index.
-  No production source/config/build changes.
+- `merge BML-GOVERNED-SEAM + MEMORY-CRUD-PROPOSAL-CREATED onto dev` — **RELEASED 2026-08-23T14:50:00+08:00** by `Grok`. Merged into `dev`: `d8e1f2b5` (BML seam, auto TODOLIST) then `de2435f3` (ProposalCreated enum; TODOLIST conflict resolved to keep pending-decision layout + both Done entries). HEAD `de2435f3`. Worktrees left in place. Not pushed.
 
-- `COGNITIVE-R0-CURRENT-STATE research package` — **RELEASED 2026-08-13T17:20:00+08:00**
-  by `Grok`; documentation-only R0 current-state inventory delivered under
-  `docs/research/cognitive-r0-current-state-2026-08/` plus logs/index.
-  No production source/config/build changes.
+- `MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM` — **RELEASED 2026-08-23T14:25:00+08:00** by `Grok`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-memory-crud-enum` on branch `chore/memory-crud-proposal-created-dead-enum` (based on local `dev` @ `41e8e23e`). Commit `861f86e9`: deleted `MemoryCrudOutcome::ProposalCreated` / `SyncTurnStatus::ProposalCreated`, consolidation dead match arms, and the lock-old proposal provider test. Gates: core 702 + agent 405 lib tests plus integrations, clippy -D, fmt-check. Not pushed. Merge to `dev` separately from BML seam branch; `TODOLIST.md` conflict possible.
 
-- `COGNITIVE-R1-GENERICAGENT-EVOLUTION research package` — **RELEASED 2026-08-13T13:30:00+08:00**
-  by `Grok`; documentation-only R1 research package delivered under
-  `docs/research/cognitive-r1-genericagent-evolution-2026-08/` plus logs/index.
-  No production source/config/build changes.
+- `BML-GOVERNED-SEAM-DEAD-CODE: remove unused put_governed/rollback_governed` — **RELEASED 2026-08-23T13:40:00+08:00** by `Grok`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-bml-governed-seam` on branch `chore/bml-governed-seam-dead-code` (based on local `dev` @ `1471f1e6`). Commit `296021e0`: deleted `put_governed`/`rollback_governed`/`GovernedMemoryApply`; kept `memory_apply_journal` DDL and `SCHEMA_VERSION=1`. Gates: laputa tests 50 pass / 1 ignored, clippy -D, fmt-check, cognitive-clean-break-check. Not pushed.
 
-- `Collect remaining archive-root legacy files and refresh archive package` — **RELEASED 2026-08-13T10:07:16+08:00**
-  by `Codex`; documentation-only cleanup of seven legacy files left beside the
-  archive index, plus ZIP/manifest refresh is complete. No source, config, or build
-  files were changed; tests were not run per user instruction.
+- `GUI-STYLE-UNIFICATION-PHASE-2: design token migration wave 2` — **RELEASED 2026-08-24T01:00:00+08:00** by `Qoder`. Merged into `dev` as `6d71086b`; details preserved in Handoff Notes.
 
-- `Consolidate pre-existing archive batches and compress legacy corpus` — **RELEASED 2026-08-13T10:05:19+08:00**
-  by `Codex`; documentation-only consolidation of already archived historical batches
-  under `docs/dev/archive(old-docs-dont-read-me)/`; no source, config, or build files
-  were changed, and tests were not run per user instruction.
+- `A2A research + pending EPIC` — **RELEASED 2026-08-23T19:34:00+08:00** by `Codex`. Commit `92230058` on branch `dev`. Scope: `docs/research/a2a-interoperability-2026-08/`, `docs/research/README.md`, `docs/logs/2026-08-a2a-research/`, and `TODOLIST.md`; no production code changes.
 
-- `Reorganize complete docs corpus and pre-August logs` — **RELEASED 2026-08-13T09:53:49+08:00**
-  by `Codex`; documentation-only cleanup of the complete `docs/` corpus, current
-  architecture/research entrypoints, retained decision summaries, legacy archive
-  folders, manifests, and ZIP packages is complete. Production source, config, and
-  build files were out of scope; tests were not run per user instruction.
-
-- `Cognitive workspace reset master EPIC` — **RELEASED 2026-08-13T02:47:47+08:00**
-  by `Codex`; documentation-only orchestration committed in `0d2acb60`. Today's
-  product decisions are consolidated into R0-R4 research, D0-D4 architecture,
-  and implementation gates; no production code or target architecture design
-  was created.
-
-- `STM cross-session clean-break decision` — **RELEASED 2026-08-13T02:35:20+08:00**
-  by `Codex`; documentation-only decision committed in `503c836d`. Freezes
-  memory/persona/STM boundaries and GUI ownership while leaving storage,
-  automation and context assembly to research.
-
-- `Laputa first-run initialization decision` — **RELEASED 2026-08-13T02:26:10+08:00**
-  by `Codex`; documentation-only decision committed in `544d1944`. Records
-  five-authority first-run initialization, direct atomic write, absence-only
-  trigger, and lifetime Persona/WORLD history.
-
-- `Persona workspace interaction decision` — **RELEASED 2026-08-13T01:45:30+08:00**
-  by `Codex`; documentation-only decision committed in `6ff3744b`. Records
-  current-document, pending-change and history states, plus the boundary between
-  content review and security approval.
-
-- `Persona Markdown authority decision` — **RELEASED 2026-08-13T01:17:17+08:00**
-  by `Codex`; Markdown authority, source/preview/diff workspace, direct-save
-  boundary and zero-compatibility deletion direction recorded in `262a8297`.
-
-- `TODOLIST stale-record archive` — **RELEASED 2026-08-13T01:01:09+08:00**
-  by `Codex`; root backlog reduced to 30 active items, full pre-cleanup snapshot
-  and archive index recorded in `77bac367`; no product code changes.
-
-- `Governance / Persona / Evolution recovery` — **RELEASED
-  2026-08-12T23:24:30+08:00** by `Codex`; unified Memory approval authority,
-  AutoDream proposal-boundary registration, Persona/Evolution resilient GUI state,
-  full isolated `just ci`, GUI tests/build, and real-workspace read-only smoke complete
-  in `78e2bcf5`, `d6f82ea3`, `ab4705e4`, and `df21bd17`. Gateway PID 27624 is
-  running the current branch; visual/state-changing M3 acceptance remains with user.
-
-- `CTX-C5b canonical checkpoint implementation` — **RELEASED
-  2026-08-11T18:30+08:00** by `Codex`; canonical checkpoint clean break,
-  focused/full validation, TODOLIST and iteration logs complete in commits
-  `19a5bfec`, `c6e3ace4`, and `12bb92ce`; not pushed.
-
-- `CTX-C5a final wire cache prefix implementation` — **RELEASED
-  2026-08-11T18:05+08:00** by `Codex`; provider final-wire snapshot, agent
-  observer clean break, focused/full gates, TODOLIST and iteration logs complete.
-
-- `CTX-C5e automatic deferred tool activation planning` — **RELEASED
-  2026-08-11T17:10+08:00** by `Codex`; technical plan, TODOLIST and iteration
-  logs complete; no production-code changes.
-
-- `CTX-C5 plan formatting follow-up` — **RELEASED 2026-08-11T16:30+08:00**
-  by `Codex`; trailing whitespace removed in commit `1f91c0c7`.
-
-- `CTX-C5 lightweight context convergence plan and clean-break policy` —
-  **RELEASED 2026-08-11T16:25+08:00** by `Codex`; technical plan, research
-  index, TODOLIST and iteration logs complete; no production-code changes.
-
-- `CTX-C4 deferred tool discovery, same-turn mount, and recall verification` —
-  **RELEASED 2026-08-11T10:20+08:00** by `Codex`; implementation and final
-  verification complete in commits `66fb1ed4`, `8b79fcac`, `2747462d`,
-  `646b50c0`, and `07bc4ee0`; not pushed.
-
-- None. `merge feat/gmh41-budget-closure + fix/small-fixes-batch` — owner
-  `QoderCN` — **RELEASED 2026-08-11T09:39+08:00**; merges `8c1f5b39` (GMH
-  batch) + `c05ce32a` (small-fixes) on `agent-diva-pro`, marker cleanup
-  `a1a60355`, TODOLIST bookkeeping `5245e92f`; gates green except the 6
-  pre-existing CLI wiremock 502 cases; not pushed.
-- None. `CTX-C3 tool-result artifact references and microcompact` released
-  `2026-08-11T09:18+08:00`; see Handoff Notes.
-- `small-fixes-batch (gateway port config + clippy lint batch)` — owner
-  `QoderCN` — **RELEASED 2026-08-11T09:40+08:00; MERGED 2026-08-11 via
-  `c05ce32a`**（3 commits：`83b87787` / `1aba27a3` / `2ccb05e6`）.
+- `Workspace 与 AGENTS.md 全研发周期（Wave A-D backend）` — **STALE/TAKEN OVER 2026-08-26T00:00:00+08:00** by `Codex` for backlog consolidation only. Original lock expired `2026-08-24T04:00:00+08:00`; implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-workspace-agents`, branch `feat/workspace-agents-impl`, commits `8ccc82b2` → `d1264f3d`, unmerged and not pushed. Product code remains untouched in this planning iteration.
 
 ## Handoff Notes
 
-- `2026-08-14T00:30:00+08:00`: Released I1-S1 after stopping Frozen Core
-  `null` section seeds and `WORLD.MD` pre-seeding. Laputa/Manager tests,
-  `just fmt-check`, `just check`, and full `just test` passed. Code commit
-  `559faa8d`; S2/S3/S4 remain separately gated.
+- `2026-08-24T01:00:00+08:00`: Released GUI-STYLE-UNIFICATION-PHASE-2 (Qoder). Merged `feat/gui-style-phase2` into `dev` as `6d71086b` (TODOLIST conflict resolved manually). 8 commits: token extension + settings/persona/conv-sidebar/cards/console/mate/tk-* batches + residual fix. ~490 color/spacing tokenizations across ~30 files; 127-line ConversationSidebar scoped override section deleted; 13 --conv-* + 4 --*-strong + 3 --identity-* + 8 --mate-* tokens added. Gates: vitest 68/487 + vue-tsc/vite build. Worktree removed, branch deleted. Not pushed.
 
-- `2026-08-15T06:25:00+08:00`: Corrected stale R1-hold gate in laputa architecture pack.
+- `2026-08-24T00:40:00+08:00`: Workspace-agents backend 全周期完工（Qoder），分支 `feat/workspace-agents-impl` 共 7 commits（`8ccc82b2` → `d1264f3d`）。Wave A prep / Wave B 表征 / Wave C1 WorkspaceContext + 模板收缩 / Wave C2 Shell working_dir 越界拒绝 / Wave C3 WorkspaceInstructions 安全合同 + digest / Wave D backend `/api/workspace` 端点 / 收尾迭代日志 + TODOLIST。全部门：core 714+ / agent 427+ / tools 124 / cli effective_workspace + workspace_commands 全绿；clippy -D / fmt-check 干净。GUI WorkspaceChip / Settings / 切换流程 deferred（TODOLIST `WORKSPACE-GUI` 保留 4 项剩余子任务）。唯一未过项 `MANAGER-SKILL-EVOLUTION-CAS-409-ASSERT` 经 `git stash` 复测复现，与本轮无关，已记入 worktree TODOLIST.md 为 sev-P2 预存在项。Worktree 保留、未推送。
 
-- `2026-08-15T06:05:00+08:00`: GUI scheduled in TODOLIST as UI-S2/S3/S4.
+- `2026-08-23T21:31:32+08:00`: Released Workbench/PEN/Mirror/Neuro-Link/Companion Node research consolidation after commit `76c574d8`. Relative Markdown links and staged whitespace checks passed; production tests were not run for this documentation-only update.
 
-- `2026-08-15T05:50:00+08:00`: Recap wording unified; TODOLIST caught up.
+- `2026-08-23T21:21:18+08:00`: Claimed documentation-only consolidation of today's Workbench, PEN, Mirror, Neuro-Link, embodied companion, Experience/Memory boundary, security model, and staged Epic recommendations. Root-tree GUI/product code remains out of scope.
 
-- `2026-08-15T05:20:00+08:00`: Protection branch created locally at 2aab18cc.
-  Not pushed. S1 not started.
+- `2026-08-23T19:50:00+08:00`: Released `AUTODREAM-DIAGNOSTIC-LOGGING` (Grok). Commits `a5252c35` + follow-up `91717409` FF into local `dev`. Worker emits tracing + JSONL with run_id/phase/input_summary/gate_code/proposal_id/failure_code. Follow-up: diagnostic I/O cannot block finish_failure; propose degradation carries mapped failure_code. Gates: autodream 40 tests, clippy -D, fmt-check. Not pushed. Worktree `agent-diva-autodream-diagnostics` left for user to prune.
 
-- `2026-08-15T05:00:00+08:00`: Released after D4 approval and S8 Recap revision.
-  Next: user says 切 then S1. Docs only.
+- `2026-08-23T19:10:00+08:00`: Claimed `AUTODREAM-DIAGNOSTIC-LOGGING` (Grok) in isolated worktree `agent-diva-autodream-diagnostics` @ local `dev` `56f0b759`. Close condition is phase-level structured logs on the S3 worker path, not a product-table rewrite.
 
-- `2026-08-15T04:20:00+08:00`: Released after D3 approval and D4 delivery draft.
-  Backup only when user says 切. Docs only.
+- `2026-08-23T18:25:00+08:00`: Released TODOLIST Done archive (Grok). Commit `56f0b759`. File: completed-2026-08-23-todolist-auto-close.md.
 
-- `2026-08-15T03:00:00+08:00`: Released after D3 Evolution/Skill design draft.
-  Awaiting user review. Docs only.
+- `2026-08-23T18:20:00+08:00`: Claimed archive of closed TODOLIST Done items (Grok). User: 关掉的可以归档了.
 
-- `2026-08-15T01:30:00+08:00`: Released after recording D2 approval. Docs only.
+- `2026-08-23T18:05:00+08:00`: Released close of `STEPFUN-REAL-ENDPOINT-E2E` (Grok). Commit `55edb61e`. User confirmed desktop live endpoint.
 
-- `2026-08-15T01:15:00+08:00`: Released after D1 user approval and D2 design
-  draft. D2 awaits review. Docs only.
+- `2026-08-23T18:00:00+08:00`: Claimed close of `STEPFUN-REAL-ENDPOINT-E2E` (Grok). User confirmed real-device verification. Docs/TODOLIST only; no keys in repo.
 
-- `2026-08-15T00:10:00+08:00`: Released after D1 Persona design draft. Path
-  `{config_dir}/persona/`. Awaiting user review. Docs only.
+- `2026-08-23T17:45:00+08:00`: Released close of `WORKSPACE-GUI-TOOLING-LOAD-FLAKES` (Grok). Commit `ae0ade31`. Recurrence must reopen the item with isolation work.
 
-- `2026-08-14T23:05:00+08:00`: Released after freezing D0 A/B/C as P22 / S1
-  revision / D7. One-machine companion; BML follows persona; distill always
-  Evolution review. Docs only.
+- `2026-08-23T17:40:00+08:00`: Claimed close of `WORKSPACE-GUI-TOOLING-LOAD-FLAKES` (Grok). User: 不可复现、复发再开. Docs/TODOLIST only.
 
-- `2026-08-14T22:10:00+08:00`: Released after D0 design draft. Open questions
-  A/B/C in domain-authority.md §11. Docs only.
+- `2026-08-23T17:20:00+08:00`: Released todolist auto-close (Grok). FF `dev` `e4014887` → `b5bde059`. Closed: LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY, SANDBOX-WINDOWS-RESTRICTED-TOKEN-ENV, MSRV-ISOLATED-TARGET-CACHE, GUI-TAURI-PLAN-STREAM-DISCONNECT, PLAN-MODE-PHYSICAL-STATE-MACHINE, LAPUTA-STORAGE-STALE-LOCK-FLAKE, CLI-WIREMOCK-502-PREEXISTING. Worktree `agent-diva-todolist-auto-close` left for user to prune. Not pushed.
 
-- `2026-08-14T20:25:00+08:00`: Released after freezing S9/P21 MEMRULES. Not a
-  persona file; `{config_dir}/memory/MEMRULES.MD`; Memory settings editable;
-  context like GA L0. Docs only. No production code.
+- `2026-08-23T16:10:00+08:00`: Claimed todolist auto-close mechanical leftovers (Grok) in isolated worktree `agent-diva-todolist-auto-close` @ local `dev` `e4014887`. Existing HELD locks (workspace-agents, gui-style-phase2) not overwritten. Wave A: laputa all-targets clippy, sandbox Restricted Token skip, justfile msrv-probe. Wave B: plan-SSE disconnect verify/close, plan-mode contract freeze. Wave C: stale-lock flake + CLI wiremock 502 attempt only.
 
-- `2026-08-14T10:35:00+08:00`: Released after correcting P19: AutoDream is a
-  Laputa proposal generator with an allow/deny matrix, not a total ban.
+- `2026-08-23T15:40:00+08:00`: Released TODOLIST move of `NEURO-LINK-HEAVYWEIGHT-CHANNEL` to EPIC 新启动 (Grok). Commit `e4014887`.
 
-- `2026-08-14T00:20:00+08:00`: Released after recording AutoDream-must-not-write
-  persona (P19/D5) and diagnostic backlog. Source inventory confirmed two
-  propose-only paths (agent tool + AutoDream emit). Docs only.
+- `2026-08-23T15:30:00+08:00`: Released neuro-link reserved-future-channel comments (Grok). Commit `4e21d997`. Implementation of the heavyweight channel remains pending.
 
-- `2026-08-13T22:50:00+08:00`: Released after P18 (v1 closed set, team-extensible
-  kind registry, users cannot add authority kinds). Docs only.
+- `2026-08-23T15:20:00+08:00`: Claimed neuro-link reserved-future-channel comments (Grok). User: not a drive-by `channel_statuses` fill; document reserved heavyweight design; implementation later.
 
-- `2026-08-13T22:25:00+08:00`: Released after recording IDENTITY-includes-body
-  and DARK.MD FEAR/SHADOW booths. Docs only.
+- `2026-08-23T15:10:00+08:00`: 用户确认 skill 获取链路实测可用，根工作树将
+  `SKILL-MARKETPLACE-V1-TOKEN-VERIFY` 从“频道遗留”移入 Done（内容无其他改动）。
+  与前述注记同属被锁 `TODOLIST.md` 的根树改动，合并时需人工解冲突；未推送。
 
-- `2026-08-13T21:45:00+08:00`: Released after writing authority roster into
-  the Persona decision record and syncing current product-facing entries.
-  No production source, config, or build changes.
+- `2026-08-23T15:05:00+08:00`: Removed merged worktrees (Grok, user requested): `agent-diva-bml-governed-seam` and `agent-diva-memory-crud-enum`. Deleted local branches `chore/bml-governed-seam-dead-code` (`296021e0`) and `chore/memory-crud-proposal-created-dead-enum` (`861f86e9`). Other worktrees (workspace-agents, gui-style-phase2, prunable historical) left untouched.
 
-- `2026-08-13T21:20:00+08:00`: Claimed Persona authority Markdown roster
-  revision (REDLINE/USER/DREAM, uppercase names, Frozen Core 10-char DREAM).
+- `2026-08-23T14:55:00+08:00`: 用户直接指令在根工作树对 `TODOLIST.md` 再次纯结构调整：
+  新增“EPIC 新启动（研究包已收敛、尚未开工的独立工作区）”分区，将
+  EVENTBUS-TRAIT-HOOKS、HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE、CLARIFY-HITL Phase 3
+  从“产品与架构”移入；条目内容未改，仅同步更新 GUI-STYLE 决策点的分区交叉引用。
+  与 14:10 注记同属 workspace-agents/gui-style-phase2 持有范围内的 `TODOLIST.md`
+  合并冲突风险，合并时需人工解冲突；未触碰其他被锁文件，未推送。
 
-- `2026-08-13T20:55:00+08:00`: Released after COGNITIVE-R4-CLEAN-BREAK-SAFETY
-  documentation-only research package. Deliverables under
-  `docs/research/cognitive-r4-clean-break-safety-2026-08/` plus EPIC/index/TODOLIST/logs.
-  No production source, config, or build changes; `just ci` not run (docs-only).
-  No protect/* branch created. Architecture design remains blocked pending
-  user Research Gate on R0–R4.
+- `2026-08-23T14:50:00+08:00`: Released merge of BML governed-seam + ProposalCreated enum onto `dev` (Grok). Commits `d8e1f2b5` + `de2435f3`. Not pushed. Isolated worktrees `agent-diva-bml-governed-seam` and `agent-diva-memory-crud-enum` still present.
 
-- `2026-08-13T20:25:00+08:00`: Claimed COGNITIVE-R4-CLEAN-BREAK-SAFETY
-  documentation-only research package. Scope is research docs, EPIC/index,
-  R0/R3 open-gap lines, TODOLIST R4/EPIC status, and iteration logs. No
-  production source, config, or build changes.
+- `2026-08-23T14:40:00+08:00`: Claimed merge of BML governed-seam and ProposalCreated enum branches onto `dev` (Grok). User said mainline rename is done and these two can merge. TODOLIST overlap with workspace-agents/gui-style-phase2 is expected; resolve onto current pending-decision layout.
 
-- `2026-08-13T20:15:00+08:00`: Released after COGNITIVE-R3-PERSONA-WORKSPACE
-  documentation-only research package. Deliverables under
-  `docs/research/cognitive-r3-persona-workspace-2026-08/` plus EPIC/index/TODOLIST/logs.
-  No production source, config, or build changes; `just ci` not run (docs-only,
-  same as R0/R1/R2). Architecture design remains blocked.
+- `2026-08-23T14:10:00+08:00`: 用户直接指令在根工作树对 `TODOLIST.md` 做纯结构调整
+  （新增“待决策事项（先拍板、后实施）”独立分区，三条待决策条目移入并标注待决策点；
+  GUI-STYLE-UNIFICATION-PHASE-2 实施条目仅加交叉引用注记，未改内容）。
+  该改动与 workspace-agents 持有范围内的 worktree-local `TODOLIST.md` 存在合并冲突风险，
+  合并时需人工解冲突；未触碰其他被锁文件，未推送。
 
-- `2026-08-13T19:20:00+08:00`: Claimed COGNITIVE-R3-PERSONA-WORKSPACE
-  documentation-only research package. Scope is research docs, EPIC/index,
-  R0 open-gap line, TODOLIST R3/EPIC status, and iteration logs. No
-  production source, config, or build changes.
+- `2026-08-23T14:25:00+08:00`: Released `MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM` (Grok). Commit `861f86e9` on `chore/memory-crud-proposal-created-dead-enum`. Not pushed.
 
-- `2026-08-13T19:05:00+08:00`: Released after COGNITIVE-R2-STM-CONTEXT
-  documentation-only research package. Deliverables under
-  `docs/research/cognitive-r2-stm-context-2026-08/` plus EPIC/index/TODOLIST/logs.
-  No production source, config, or build changes; `just ci` not run (docs-only,
-  same as R0/R1). Architecture design remains blocked.
+- `2026-08-23T14:00:00+08:00`: Claimed `MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM` (Grok) in isolated worktree `agent-diva-memory-crud-enum` @ local `dev` `41e8e23e`. Re-marked own BML-GOVERNED-SEAM lock RELEASED (commit `296021e0` already landed; prior HELD line had been overwritten by a later LOCK rewrite). Does not overlap workspace-agents or gui-style-phase2 production files.
 
-- `2026-08-12T12:55:00+08:00`: Released code-review residual scope. Runtime
-  commits `b4c10047`, `bb92204d`, `bdef0f87`; approval `e3f6660d`; context/GUI
-  `d3dc56ed`; docs/TODOLIST `93e07f75`. `just fmt-check`, `just check`, focused
-  Rust libs, GUI `npm test` (455/455) and `npm run build` passed. Final `just ci`
-  also passed, including workspace tests, feature gates and BML clean-break gate.
-  M3 real desktop smoke remains open in TODOLIST.
+- `2026-08-23T13:40:00+08:00`: pet→mate rename final bookkeeping closed (Qoder). Committed `41e8e23e` on `dev`: remaining iteration logs (verification/release/acceptance under `docs/logs/2026-08-pet-to-mate-rename/v0.1.0-pet-to-mate-rename/`) + new TODOLIST human-acceptance item `PET-TO-MATE-DESKTOP-SMOKE` (desktop smoke steps in acceptance.md). Rename itself fully landed in `abe3e17f` + summary `1471f1e6`; temp scripts already cleaned. Pre-existing root dirt (`.vibeyardignore` deletion, eight untracked crate agents.md files) left untouched. Not pushed.
 
-- `2026-08-12T11:20:00+08:00`: Merged `feat/m3-hitl-closure` into `agent-diva-pro`
-  as `131d2dc5` (clean ort; S1–S5 three-mode HITL). TODOLIST backlog from review
-  committed `586147cc`; post-merge TODOLIST bookkeeping follows. Sandbox lib
-  tests 127/127. Not pushed. Residual: dual-channel stream, human M3 smoke,
-  Track A doc/UX gaps still open in TODOLIST.
+- `2026-08-23T13:10:00+08:00`: Claimed `BML-GOVERNED-SEAM-DEAD-CODE` (Grok) in isolated worktree `agent-diva-bml-governed-seam` @ local `dev` `1471f1e6`, branch `chore/bml-governed-seam-dead-code`. Parallel to workspace-agents and gui-style-phase2; no overlap on laputa typed store. Worktree-local TODOLIST check of this P3 only; merge-time conflict expected. Existing HELD locks not overwritten.
 
-- `2026-08-12T10:45:00+08:00`: Released line-review cache+HITL. Review log at
-  `docs/logs/2026-08-code-review-cache-hitl/v0.0.1-line-review/`. Critical:
-  M3 HITL S1–S5 lives only on `feat/m3-hitl-closure` (not merged into
-  `agent-diva-pro`); HEAD Guardian still merges OnRequest|UnlessTrusted and
-  ShellTool has no mode-driven Guardian. Track A C1–C5 is on HEAD.
+- `2026-08-23T12:35:00+08:00`: Released pet->mate rename after stale-lock closure, claimed GUI-STYLE-UNIFICATION-PHASE-2 in isolated worktree (Qoder). Verified the rename work complete in the root dirty tree, cleaned `.tmp-bulk-rename.ps1`/`.tmp-rename-mate.ps1`/`.tmp-todolist-diff.txt`, committed `abe3e17f` (92 files / 66 renames) + docs summary commit. Gates: GUI vitest 68 files / 487 tests + vue-tsc/vite build; agent-diva-core clippy -D (default targets) + 702 lib + integration tests; src-tauri cargo check. Not pushed. Phase 2 now runs in `agent-diva-style-phase2` worktree (branch `feat/gui-style-phase2`), parallel to the workspace-agents worktree; both touch TODOLIST.md at merge time. Root tree dirt (`.vibeyardignore` deletion, eight untracked crate agents.md files) left untouched.
 
-- `2026-08-12T01:10:30+08:00`: Released G2D automated E2E coverage. Added
-  `agent-diva-manager/tests/autodream_laputa_e2e.rs` with 6 Manager HTTP vertical
-  scenarios and the four iteration log documents; TODOLIST records the automated
-  gate and a pre-existing Windows stale-lock timing flake. Commit `b4d2a84b`;
-  `just ci` passed; no push. G2D+ real desktop acceptance remains pending.
+- `2026-08-23T12:20:00+08:00`: Took over stale GLOBAL pet→mate rename lock (Qoder). Lock expired 2026-08-23T04:00 with no heartbeat after 01:00; verified the rename work itself remains uncommitted in the root working tree (103 dirty entries). Per lock rules, the stale claim is marked, not overwritten; the new `Workspace 与 AGENTS.md 全研发周期` task runs in isolated worktree `agent-diva-workspace-agents` (branch `feat/workspace-agents-impl`) per user authorization and does not touch root-tree dirty files. Both lanes edit TODOLIST.md on different branches; resolve at merge time.
 
-- `2026-08-12T01:00:00+08:00`: Claimed independent Manager HTTP automated E2E
-  coverage for the G2D+ preparation batch. Scope is limited to the new integration
-  suite, TODOLIST bookkeeping, and iteration logs; no production code or existing
-  test files are to be changed unless a test exposes a focused defect.
+- `2026-08-23T00:30:00+08:00`: Released TODOLIST consolidation after real-device smoke batch (Qoder). User statement 2026-08-23: all pending real-device desktop smokes passed, a batch of small fixes already on mainline. Actions: archived EPIC closure + smoke batch + historical checked items to the legacy todolist archive (`completed-2026-08-23-real-device-smoke-batch.md`, index updated); rewrote root `TODOLIST.md` (~28 open items across EPIC 遗留 / 产品与架构 / 频道遗留 / 自动化 / 人工验收 / Reliability), fixed broken `docs/archive/todolist/` links. Docs-only change; unrelated pre-existing dirty files (`.vibeyardignore` deletion, `agent-diva-gui/src-tauri/Cargo.toml`) left untouched. Not pushed.
 
-- `2026-08-12T01:00:00+08:00`: Released C1c Skills Reload wiring. Added
-  workspace-scoped Runtime Control, lazy all-Session skills invalidation,
-  Manager upload/delete notifications, Applied-only `memory_distill` reload,
-  upload no-op detection, focused tests, `just ci`, and CLI help smoke. Commits
-  `cdfb8e23` and `9639df5c`; no push. LOCK remains intentionally uncommitted.
+---
 
-- `2026-08-11T20:45:00+08:00`: Claimed C1c Skills Reload wiring; superseded by
-  the release note above after implementation, validation, and focused commits.
-
-- `2026-08-11T20:34:00+08:00`: Released after C1c Workspace Memory Epoch
-  implementation. Typed Provider authority/projection revisions, workspace-scoped
-  Runtime Control refresh, apply/recovery/replay/rollback notification wiring,
-  focused tests, `just ci`, and CLI help smoke passed. Commits `bc989338` and
-  `824ff890`; no push. Skills reload remains a separate TODO.
-
-- `2026-08-11T19:03:17+08:00`: Released after CTX-C5c/C5e/C5d tools lifecycle
-  convergence. Canonical tool results, automatic deferred activation, three-region
-  bounded context recovery, full gates, CLI help smoke, and deletion-proof passed.
-  Commits: `6f1331f0`, `3ce9eba2`, `e25a97fd`, `0ffa01fb`, `54715677`, `ce1dc08b`;
-  no push.
-
-- `2026-08-11T18:30:00+08:00`: Released after CTX-C5b implementation. The
-  workspace now has one bounded `canonical_checkpoint_v1`, one unified
-  checkpoint compactor entry, tool-group-aware boundaries, and reactive
-  turn-local pending updates. `just ci`, CLI help smoke, and the production
-  deletion proof passed. C5c-C5e remain separate follow-up scope; no push.
-
-- `2026-08-11T18:05:00+08:00`: Released after C5a closure. Final provider-wire
-  cache snapshots and CORE-only tool prefix hashes are live; heuristic hit/miss
-  state is deleted. Commits: `73dff1bc`, `a8747e86`, `1673b2d8`. Full
-  `just fmt-check`, `just check`, `just test`, `just ci`, affected strict Clippy,
-  and CLI help smoke passed. C5b is next; no push performed.
-
-- `2026-08-11T17:10:00+08:00`: Released after adding C5e automatic deferred
-  tool activation. The scheduled clean break retains `tool_search`, removes
-  model-visible `mount_tool` and persistent discovered state, bounds the
-  task-local active set, and preserves all authorization/approval gates.
-
-- `2026-08-11T16:25:00+08:00`: Released after revising C5 into lightweight
-  context convergence with a strict clean-break/no-compatibility policy and
-  C5a-C5d slices. Documentation diff check passed; implementation remains
-  pending and must use separate focused locks/commits.
-
-- `2026-08-11T10:20:05+08:00`: Released after CTX-C4 implementation,
-  focused and full workspace tests, `just ci`, strict affected Clippy, and
-  CLI `--help` smoke all passed. No push performed. C4 iteration logs are in
-  `docs/logs/2026-08-context-management-enhancement/v0.0.9-c4-deferred-tool-discovery-recall/`.
-
-- `2026-08-11T09:39:00+08:00`: Released after merging both parked batches
-  into `agent-diva-pro` (QoderCN, user-approved). `feat/gmh41-budget-closure`
-  merged `8c1f5b39` (only LOCK.md conflicted: kept mainline notes + branch's
-  12:00 GMH closure note superseding the 10:15 interim; stray marker cleaned
-  in `a1a60355`). `fix/small-fixes-batch` merged `c05ce32a` (clean). TODOLIST
-  bookkeeping `5245e92f`: GATEWAY-PORT-CONFIG-IGNORED and
-  PROVIDERS-EXAMPLE-1.94-CLIPPY checked, laputa `int_plus_one` closed,
-  LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY added. Gates on merged tree:
-  `just fmt-check` / `just check` green; `just test` fails only the 6
-  pre-existing `CLI-WIREMOCK-502-PREEXISTING` cases; CLI bin 16/16 including
-  the two new gateway-port tests. Not pushed. Follow-up: remove merged
-  worktrees `agent-diva-gmh41` / `agent-diva-small-fixes` (pending user OK);
-  gateway 端口人工验收仍挂人工测试汇总区。
-
-- `2026-08-11T09:18:00+08:00`: Released after CTX-C3 closure. Secure
-  session-persistent tool artifacts, structured full-output execution,
-  versioned references, bound `read_tool_result`, main/supervised wiring,
-  session deletion/startup GC, and C2-driven oldest-first microcompact are
-  complete. Commits: `b6959dc2`, `02fe040c`, `ffff0fe6`, `cdc88fe7`.
-  Full `just fmt-check`, `just check`, `just test`, `just ci`, affected strict
-  all-target Clippy, and CLI `--help` smoke passed. C4 remains next.
-
-- `2026-08-11T10:25:00+08:00`: QoderCN edited `TODOLIST.md` **with explicit
-  user authorization** while the CTX-C3 lock covers it: inserted a new
-  aggregation section 「人工测试验收汇总（Human / Real-Device Smoke）」
-  between Operational Rules and Open Backlog. Follow-up (same user request,
-  commit after this note): StepFun moved out of the manual section into a
-  new 「E2E 自动化验收汇总」 section, which also aggregates the Wave 3
-  residual production-path E2E items. No existing items were moved,
-  reworded, or checked. Mainline session: if in-flight TODOLIST edits touch
-  those insertion points, keep both changes. Committed as standalone docs
-  changes; `LOCK.md` itself left uncommitted (shared live mutex file).
-
-- `2026-08-11T12:00:00+08:00`: Released GMH closure lock (QoderCN,
-  `feat/gmh41-budget-closure` worktree `agent-diva-gmh41`). GMH-41/50/52 代码可完成
-  项全部落地并逐片单 concern 提交（未 push）：S2a 删迁移死代码 `93e9f5b6`；S1b
-  拒绝熔断 `321f4405`；S1c offline 拒绝 `9e772267`；S2b migration feature flags
-  `325c834d`；S3 CI+deletion-proof `77380b5f`；fmt `f388dda6`。`just ci` 仅剩既有
-  `CLI-WIREMOCK-502-PREEXISTING` 6 例失败（未触碰 agent-diva-cli）。day/hour 限额
-  已按用户决策推迟为待决策独立功能提案（见 TODOLIST.md）。
-  （supersedes the 10:15 interim note: S1b/S1c/S2b/S3 then pending.）
-
-- `2026-08-11T08:15:00+08:00`: Released after CTX-C2 layered context budget
-  and AssemblyReport closure. Stable rules, CORE/DEFERRED schemas, L1, WM,
-  Recall, compaction, history, inline tool results and current turn are measured
-  in typed layers; Recall drops explicitly under pressure; macro compaction and
-  legacy count fallback report typed reasons. Agent 413 tests, strict Clippy,
-  full `just ci`, clean-break and CLI help smoke passed. C3 is next.
-
-- `2026-08-11T09:40:00+08:00`: Released `small-fixes-batch` (QoderCN,
-  isolated worktree, no overlap with CTX-C2): 3 commits on
-  `fix/small-fixes-batch` — `83b87787` gateway port config fix (cli),
-  `1aba27a3` providers Rust 1.94 clippy lint batch, `2ccb05e6` iteration
-  logs. Gates: just fmt-check / just check / cli bin 16/16 /
-  providers --all-targets clippy + retry 11/11 green. Deferred until
-  CTX-C2 releases TODOLIST.md: mark GATEWAY-PORT-CONFIG-IGNORED and
-  PROVIDERS-EXAMPLE-1.94-CLIPPY done, close `Laputa service 预存 clippy
-  int_plus_one` (verified already resolved), and add new entry
-  LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY (authority_boundary_guard /
-  direct_write_guard / governance_proof_loop dead_code ×5,
-  context_plane_invariants cmp_owned, authority_boundaries ×1).
-
-- `2026-08-11T02:14:55+08:00`: Released after C1d prompt-cache observability
-  closure. Provider cache profiles, explicit stable-system/core-tool anchors,
-  classified prefix hashes, warmup-aware two-sample miss detection, and
-  cache-token ledger persistence are implemented. Affected tests, strict
-  Clippy, full workspace fmt/check/test, and CLI help smoke passed. `just ci`
-  reaches only the pre-existing clean-break violation at
-  `agent-diva-laputa/src/bml/mod.rs:3`; C2 is next.
-
-- `2026-08-10T23:44:12+08:00`: Released after C1c/P0-2 SessionStable section
-  cache. ContextBuilder now caches four stable sections and rendered prefix per
-  session with typed break reasons and prefix versions; mask/L1 refresh is
-  selective, reset/delete/shutdown are wired, and compact does not clear the
-  cache. T5–T6, Agent 403 tests, full workspace fmt/check/test, and CLI help
-  smoke passed. `just ci` reaches the final pre-existing clean-break violation
-  at `agent-diva-laputa/src/bml/mod.rs:3`, recorded in TODOLIST. C1d is next.
-
-- `2026-08-10T22:27:59+08:00`: Released after C1b/P0-3 tool schema stability.
-  `ToolRegistry` now emits sorted CORE then DEFERRED definitions with recursive
-  JSON object canonicalization; MCP/custom registration uses the deferred
-  suffix. T4 covers repeat calls, reverse registration, and independent
-  ToolAssembly rebuilds. Tooling 31, tools 115, agent 397, affected clippy,
-  CLI help smoke, and full `just fmt-check` / `just check` / `just test` gates
-  passed. Provider `apply_cache_control` was not changed. C1c/P0-2 is next.
-
-- `2026-08-10T18:44:07+08:00`: Released after C1a/P0-1 typed stable-prefix
-  production migration. Stable prompt now consumes C1-0 sections; time/session,
-  WM, Recall, Plan/Ask/Scheduled use provider-aware post-prefix envelopes;
-  reactive compaction reuses the same turn snapshot. Provider 122, agent 396,
-  compaction integration 11, compaction E2E 15, and full `just fmt-check` /
-  `just check` / `just test` gates passed. C1b tool schema stability is next.
-
-- `2026-08-10T01:15:00+08:00`: Released after freezing context-management
-  construction decisions DEC-CTX-A..G across README/C0/C1: provider-aware
-  volatile serialization, typed C1 migration, explicit snapshot invalidation,
-  atomic tool/cache changes, artifact safety, same-turn mount, and classified
-  cache observability. Documentation-only revision; diff check clean.
-
-- `2026-08-10T00:45:00+08:00`: Released after C1-0 context contract and
-  characterization closure: provider-neutral section/stability/order skeleton,
-  six focused contract/characterization tests, no production wire-shape change,
-  agent lib 390 tests and full `just fmt-check` / `just check` / `just test`
-  gates green. C1 stable-prefix migration remains next.
-
-- `2026-08-10T00:05:00+08:00`: Released after recording the user-approved
-  SEV-P1 disposition: OpenHarness aggregate closed except deferred EventBus
-  Trait Hooks, Harness Gap prioritized next, and F3/GMH-52/Windows release/
-  CLARIFY-HITL deferred until later.
-
-- `2026-08-09T17:56:00+08:00`: Released `LAPUTA-PERSONA-WORKSPACE` after
-  implementing and validating the singleton persona lifecycle workspace,
-  session Frozen Core effectiveness projection, inline governance actions,
-  and strict no-legacy-compatibility boundary.
-
-- `2026-08-07T23:55:00+08:00`: Released after LAPUTA-COGNITIVE-SYNC
-  (S0–S7) closure: 15 commits on `feat/laputa-cognitive-sync`（未 push）—
-  S0 基线修复 `88195ffa`；S1 cognitive/MEMRULES `41e60a7e`；S2 WORLD.MD
-  claim 存储+治理 upsert `5788eddf`/`b22b50e8`；S3 Frozen Core 会话冻结
-  `1c97d7be`；S4 人格文件层退役 `49e778e1`/`57044ba8`/`989a18a2`；S5 注册表
-  14→8 硬删 `e61630b8`；S6 报告边界重构+D2 产物迁移
-  `23ea4b1e`/`856335b2`/`6def944e`；S7 Context Plane 负向不变量矩阵
-  `2457239b`；另 3 笔 TODOLIST docs 提交。全量 `just ci` 仅余 6 个基线
-  预存在 CLI wiremock 502 失败（CLI-WIREMOCK-502-PREEXISTING）。
-  S6-4 节律以进程级集成测试验证，完整 daemon-cron 真机挂 G2D+。
-  四件套：docs/logs/2026-08-laputa-cognitive-sync/
-  (plan/summary/verification/acceptance)。待用户评审合并分支。
-
-- `2026-08-07T14:00:00+08:00`: Took over stale Wave 5 S2 lock (expired
-  2026-08-07T13:30+08:00, no heartbeat after 11:30; 核实该锁对应工作已
-  全部提交——`16aa46ed` Wave 5 S2 superseded gate、`166e499a` Wave 5
-  收口、Wave 6 亦已 close，仅锁文件未释放，无丢失工作)。新任务
-  LAPUTA-COGNITIVE-SYNC 开工清理：
-  3 commits 落袋（提案+TODOLIST 冻结 `2c3fbe5e`、根文档归位 docs/ +
-  crate AGENTS `fca1505e`、legacy archive 清理 `23bf2de9`）；工作树清零
-  后从 agent-diva-pro 切 `feat/laputa-cognitive-sync` 开始 S1。
-
-- `2026-08-06T22:30:00+08:00`: Released after GA-MEM-PARITY Wave 4
-  (AutoDream G4 dedup) closure: 3 commits —
-  `f042bba4` laputa `LaputaService::applied_authority_digests` + new
-  `LaputaError::InvalidState(String)` variant + service wave4_tests × 3;
-  `a39638bb` autodream worker dual-path digest merge (legacy section +
-  typed authority) + tracing::warn graceful degradation + worker
-  wave4_tests × 3; `76dc772c` docs close (TODOLIST WAVE4 checked +
-  "Wave 4 延期项" G1/G2/G3/G5/G6/G7/G10/G11/G12 条目化 +
-  memory-write-paths-contract.md "Realized in Wave 4" 追溯注脚 +
-  v0.0.8 iteration logs). All gates green per slice (fmt/clippy -D
-  warnings; laputa 38+9, autodream 14+6 suites); full workspace test
-  only fails the 6 pre-existing CLI wiremock 502 cases
-  (CLI-WIREMOCK-502-PREEXISTING). Wave 5 (consolidation 条目化 + B7 GC +
-  F3/F4/F6/F7 延期项收口) or G2D+ 真机桌面验收 pending. Deferred to
-  G2D+ / 后续独立 Wave: G1 手动触发端到端、G2 自动阈值触发联通、G3
-  多源输入闭环、G5 候选→proposal 端到端、G6 审查 UI、G7 节律报告可见、
-  G10 与 agent 即时记忆分工真机验证、G11 L4/salient 等价、G12
-  Action-Verified 公理对齐.
-
-- `2026-08-06T19:45:00+08:00`: Released after GA-MEM-PARITY Wave 3
-  (read-side closure) closure: 3 commits — laputa wave3_tests (8 tests
-  + supersedes-target production bug fix via new
-  TypedMemoryStore::superseded_target_ids), agent wave3_tests (3 tests
-  covering D2 prefetch degradation + D4 typed injection order), docs
-  close (TODOLIST WAVE3 checked + F3/F4/F6/F7 延期条目化 + v0.0.7
-  iteration logs). All gates green per slice (fmt/clippy -D warnings;
-  laputa lib 35 + 集成 9 / agent lib 386 + 集成 15); full workspace
-  test (excluding CLI/GUI) green; CLI 6 pre-existing wiremock 502
-  cases remain (CLI-WIREMOCK-502-PREEXISTING). Wave 4 (AutoDream
-  dedup, inventory §10.3 G4) pending. Deferred to Wave 5 / GMH-52:
-  F3 GUI/CLI approval memory 端到端, F4 同会话热注入, F6 Rollback 端到端,
-  F7 tombstone U3 完整路径.
-
-- `2026-08-06T17:25:00+08:00`: Released after GA-MEM-PARITY Wave 2
-  (layers + working memory) closure: 7 commits — working memory trait
-  surface + L1 budget config, typed L1 index rendering + session checkpoint
-  (incl. deps lockfile), L0 policy + working memory turn injection + session
-  end enumeration, update_working_checkpoint tool + distill evidence, docs
-  close (TODOLIST WAVE2 checked + v0.0.6 iteration logs), CLI builtin gates
-  wiring fix. All gates green per slice (fmt/clippy -D warnings; core 692 /
-  laputa 27+ / agent 383 / tools 109 / manager); full workspace test only
-  fails the 6 pre-existing CLI wiremock 502 cases
-  (CLI-WIREMOCK-502-PREEXISTING). Wave 3 (read-side closure) pending; see
-  TODOLIST WAVE3-MEMORY-READ-CLOSURE. Deferred to Wave 5: session-abort
-  checkpoint residue GC, B9 enforced tool-result evidence binding.
-
-- `2026-08-06T15:35:00+08:00`: Released after GA-MEM-PARITY Wave 1
-  (memory tool CRUD) closure: 6 commits — core CRUD trait surface,
-  typed memory CRUD provider methods, legacy proposal-first CRUD +
-  coordinator wiring, memory add/list/search/update/remove/distill tools,
-  docs close (TODOLIST WAVE1 checked + v0.0.5 iteration logs). All gates
-  green per slice (fmt/clippy -D warnings; core 682+/laputa 20+/agent
-  378+/tools 12+); full workspace test only fails the 6 pre-existing CLI
-  wiremock 502 cases (CLI-WIREMOCK-502-PREEXISTING). Wave 2 (working
-  memory/layers) and Wave 3 (read-side closure) pending; see TODOLIST
-  WAVE3-MEMORY-READ-CLOSURE.
-
-- `2026-08-06T03:15:00+08:00`: Released after GUI provider error/retry visibility fix
-  (ERROR-SILENT + RETRY-VISIBILITY): 10 commits — core AgentEvent variants, providers
-  retry listener channel (Arc callback + trait hook + ProviderTap forward), agent
-  per-call listener injection, manager dual-stage idle timeout + SSE mapping, Tauri
-  bridge provider events + broken-stream fallback, GUI retry/stall badges, e2e
-  collector match, fmt, docs+TODOLIST. All gates green (fmt/check; core 678 /
-  providers 127 / agent 372 / manager 109 / e2e 61 / GUI vitest 454 + vue-tsc).
-  CLI smoke vs local 500-mock confirmed 1+3 retries + error propagation. HTTP SSE
-  end-to-end + GUI desktop smoke pending (blocked by hardcoded gateway port 3000
-  while user gateway PID 8856 holds it; recorded GATEWAY-PORT-CONFIG-IGNORED).
-  New TODOs: GUI-TAURI-PLAN-STREAM-DISCONNECT, PROVIDERS-EXAMPLE-1.94-CLIPPY,
-  GATEWAY-PORT-CONFIG-IGNORED. User gateway/GUI processes untouched.
-
-- `2026-08-06T01:15:00+08:00`: Released after recording GUI-PROVIDER-RETRY-VISIBILITY
-  backlog entry (TODOLIST.md) per user instruction - record only, no fix.
-
-- `2026-08-06T01:05:00+08:00`: Released after recording GUI-PROVIDER-ERROR-SILENT
-  backlog entry (TODOLIST.md) per user instruction - record only, no fix.
-
-- `2026-08-05T22:35:00+08:00`: Released after CLARIFY-HITL Phase 2 surface closed loop
-  (ask_user): manager HTTP API + injection, CLI interactive (chat/tui), Tauri bridge,
-  GUI QuestionCard with 2s polling; 4 feature commits + style cleanup; manager 106 /
-  core 676 / tools 94 / agent 371 tests pass, GUI vitest 451 + vue-tsc clean,
-  clippy -D warnings clean. Remaining: manual smoke with a real LLM (acceptance.md).
-
-- `2026-08-05T21:40:00+08:00`: Released after CLARIFY-HITL Phase 1 运行时 MVP
-  （ask_user 工具）：core `AskUserCoordinator`、tools `AskUserTool`、装配+配置+
-  prompt、13 个新测试 + mock 集成闭环测试全绿；fmt/clippy 通过；受影响 crate
-  全量测试通过。全量 `just test` 仅有 6 个既有 CLI wiremock 502 失败（预存在，
-  stash 验证，TODOLIST `CLI-WIREMOCK-502-PREEXISTING`）。Phase 2（GUI QuestionCard /
-  CLI interactive / manager 注入）待独立迭代。
-- `2026-08-05T20:33:28+08:00`: Released after archiving ask-user / conversational clarify HITL research
-  (`docs/research/ask-user-clarify-hitl-proposal.md`, README index, TODOLIST CLARIFY-HITL,
-  `docs/logs/2026-08-ask-user-hitl-research/v0.0.1-research-archive/`). Implementation pending.
-- `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
-  `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
-  Implementation still pending; see TODOLIST `审批三模式完善`.
+> Historical lock entries and handoff notes (pre-2026-08-23) archived to:
+> `docs/dev/archive(old-docs-dont-read-me)/lock-archive/lock-history-2026-08-23.md`
