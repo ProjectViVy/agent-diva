@@ -10,140 +10,9 @@
 > 真机桌面冒烟全部通过），积压的真机冒烟批次全部通过、修复已上主线。完成明细见
 > [`completed-2026-08-23-real-device-smoke-batch.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-real-device-smoke-batch.md)。
 
-## L0-WBS：WORKSPACE 系统收尾（已完成）
-
-> **启动时间**：2026-08-26。**目标完成时间**：2026-09-07；2026-09-08 为风险缓冲，
-> 不是默认扩展范围。实施必须使用隔离 worktree，并按每个 WS 切片单独认领锁、验证和提交。
-> 本期核心对象是运行时 `WorkspaceContext`，不是散落在配置页中的路径字符串。
-
-### L1-A：范围与冻结决策
-
-- [x] **WORKSPACE-SYSTEM-CLOSEOUT：统一工作区、AGENTS 合同与分层会话历史** `sev-P1` ✅ 2026-08-27
-  完成标志：运行时只有一个权威 `WorkspaceContext`；GUI 始终显示当前工作区及
-  AGENTS.md 状态；切换遵循停止→保存→重建→恢复且失败不产生半切换；历史会话按
-  `Workspace → Channel → Root Session → Branch/Subagent` 展示，并且层级来自持久化合同，
-  不由标题或时间猜测。设计基线：
-  [`gui-workspace-agents-design.md`](docs/research/workspace-agents-diva-adaptation-2026-08/gui-workspace-agents-design.md)。
-  当前状态（2026-08-27）：WS-00～WS-06 的实现、自动化验证与真实桌面 G2D+ smoke
-  均已完成；用户已人工确认工作区重置、当前 session 显示、显式同路径选择、刷新和新建
-  聊天场景通过，本总项已收口。
-  - [x] 本期只查询当前活动 workspace 的 session authority；跨工作区全局历史索引另行立项。
-  - [x] 旧会话缺少 lineage 时按该频道的独立 root 展示，标记为 legacy，不伪造父子关系。
-  - [x] 禁止热换 `AppState` root、隐式迁移/复制会话、GUI 编辑 AGENTS.md、扫描未登记路径。
-  - [x] 路径优先级沿用已完成合同：CLI override → 显式配置 → 进程启动 CWD；旧私有默认值
-    仅作为迁移来源。所有执行、Shell、Plan、Session 和 AGENTS 读取绑定同一 canonical root。
-
-### L1-B：交付切片与依赖
-
-#### WS-00：基线接管与后端合入（2026-08-27）
-
-- [x] **WS-00-INTEGRATE-BACKEND：接管并合入 workspace-agents Wave A–D** `sev-P1` ✅ 2026-08-26
-  从 `feat/workspace-agents-impl` 的 `8ccc82b2..d1264f3d` 做提交级审计，在基于最新 `dev`
-  的新隔离 worktree 中重放/合并；不得直接在旧工作树续写。解决 TODOLIST 冲突后验证
-  `WorkspaceContext`、Shell root 边界、`WorkspaceInstructions` digest/截断/安全包裹和
-  `GET /api/workspace`。同时将 Manager endpoint 的 `source` 改为权威上下文投影，禁止
-  根据 root 路径反推来源。已在 `feat/workspace-system-closeout` 新隔离 worktree 完成提交级
-  重放；Manager/CLI/Tauri 的 Gateway bootstrap 统一传递 `WorkspaceContext`，`/api/workspace`
-  直接投影 context source，并补充 process-cwd 反猜测测试。后续 WS-01 至 WS-06 依赖本切片。
-
-#### WS-01：唯一 WorkspaceContext 与只读 GUI（2026-08-28）
-
-- [x] **WS-01-WORKSPACE-CONTEXT-GUI：建立 GUI 唯一工作区快照** `sev-P1` ✅ 2026-08-26
-  建立 workspace feature 模块和唯一 store/composable；聊天底栏 `WorkspaceChip`、Popover、
-  Workspace Settings 与 AGENTS 摘要抽屉只消费该快照。移除 `GeneralSettings.vue` 对
-  workspace 的重复 `getConfigStatus()` 回显，不在组件内重新解析路径。已接入 Tauri
-  `get_workspace_status`、启动刷新、refresh generation 保护、上下文预算右侧 chip、只读 Workspace
-  Settings 和 AGENTS 状态展示；覆盖 loading/refreshing/ready/error/legacy-default，旧响应
-  不得覆盖新 workspace generation。验证记录见 `v0.1.2-workspace-gui-readonly`，提交记录见本分支
-  Git history。2026-08-27 根据真机验收反馈将入口从 Topbar 移到聊天输入框底栏，弹层向上展开；
-  未显式指定时显示“默认工作区”，仅 `configured` / `explicit-cli` 显示具体目录名；记录见
-  `v0.1.8-workspace-chat-footer-entry`、`v0.1.9-workspace-default-label` 与
-  `v0.1.10-workspace-default-fallback`。状态未返回或旧 Gateway 404 时也保持默认标签，
-  不再把错误态显示成“工作区加载中”。2026-08-27 将“切换工作区”改为直接打开原生目录
-  选择器，并复用 candidate inspect 与原子切换；记录见 `v0.1.11-workspace-direct-folder-picker`。
-  同日补充默认配置变更后的运行时脱钩标记：当前 session 若仍在旧目录，入口显示实际目录名；
-  即使选择目录恰好等于默认值，也保留显式 session 选择，不再回退为“默认工作区”。
-  依赖：WS-00。
-
-#### WS-02：选择、预览与持久化（2026-08-31）
-
-- [x] **WS-02-WORKSPACE-INSPECT：目录选择与候选预检** `sev-P1` ✅ 2026-08-26
-  接入原生目录选择、canonicalize/可读性/AGENTS 状态 inspect 和确认页。候选路径只属于
-  switch draft；提交前不得覆盖已生效 WorkspaceContext。取消或预检失败时保留当前工作区，
-  连续选择只接受最新响应。已接入 Tauri 原生目录选择、候选 workspace ID/readability/AGENTS
-  预检、Settings draft 预览与最新 generation 响应保护；预检失败、取消和未确认时保留当前
-  workspace。验证记录见 `v0.1.5-workspace-inspect`。依赖：WS-01。
-
-#### WS-03：原子切换事务（2026-09-01 ～ 2026-09-02）
-
-- [x] **WS-03-WORKSPACE-SWITCH：停止→保存→重建→恢复单一切换流程** `sev-P1` ✅ 2026-08-26
-  流式输出、Plan 执行、审批/HITL 等不安全状态下拒绝切换并说明原因；允许时先保存旧会话，
-  停止旧 runtime，持久化目标，重建完整 runtime/AppState，再读取新 workspace 的最新 GUI
-  会话。失败时恢复旧 committed context 或进入明确的可重试错误态，不得出现“UI 已切、
-  runtime 未切”。已接入串行切换锁、运行态 guard、旧会话刷新、嵌入式 gateway 停止/重建、
-  `/api/workspace` 目标校验、旧配置与 runtime 回滚、GUI 快照应用和新 workspace 历史重载；
-  debug/release 均默认使用内嵌 gateway；仅显式设置 `AGENT_DIVA_EXTERNAL_GATEWAY=1` 时进入
-  不支持原子切换的外部 gateway 兼容模式。验证记录见 `v0.1.6-workspace-atomic-switch` 和
-  `v0.1.12-debug-embedded-gateway`。聊天入口切换活动 workspace/session authority，不改写
-  既有 session 归属，也不再写入全局默认目录；设置页独立维护默认目录及重置，见
-  `v0.1.14-default-workspace-reset`。
-  依赖：WS-02。
-
-#### WS-04：会话层级持久化与 API（2026-09-03）
-
-- [x] **WS-04-SESSION-HIERARCHY-CONTRACT：扩展会话摘要与 lineage 合同** `sev-P1` ✅ 2026-08-26
-  在 session authority/摘要/API DTO 中增加稳定 `workspace_id`、`channel`、
-  `kind(root|branch|subagent|ephemeral)`、`root_session_key`、`parent_session_key` 和可选
-  `branch_label`；创建 root/branch/subagent 时写入真实关系。旧 JSONL 采用只读兼容投影：
-  channel 从完整 key 解析、kind=root、lineage 为空、legacy=true。API 默认仅返回活动
-  workspace 集合，不把 GUI 的 `extractChatId()` 当业务身份。依赖：WS-00；可与 WS-02
-  并行，但必须在 WS-05 前完成。已完成 SessionInfo DTO、JSONL lineage metadata、root
-  创建与显式 child(parent/kind/label) 创建 seam，并覆盖 legacy 不猜 lineage；验证记录见
-  `v0.1.3-session-hierarchy-contract`。
-
-#### WS-05：历史会话分层 GUI（2026-09-04）
-
-- [x] **WS-05-SESSION-HISTORY-TREE：按工作区、频道和 lineage 展示历史** `sev-P1` ✅ 2026-08-26
-  `ConversationSidebar` 从平铺/仅置顶分组改为层级投影：当前 workspace header → channel
-  group → root session → branch/subagent。列表只展示身份、标题、最后活动与必要状态；完整
-  消息仍由详情区负责。搜索结果保留祖先路径，折叠/展开不改变服务端集合，active session
-  在刷新和切换后仍可定位；pinned 是会话属性，不另造第二套 session 集合。已完成 workspace
-  header、channel group、lineage indentation、本地折叠/展开、搜索祖先保留和 legacy root
-  标识；依赖：WS-01、WS-04。验证记录见 `v0.1.4-session-history-tree`。
-
-#### WS-06：纵向验收与收口（2026-09-07，缓冲 2026-09-08）
-
-- [x] **WS-06-E2E-CLOSEOUT：自动化、真机 smoke、文档与归档** `sev-P1` ✅ 2026-08-27
-  已完成 Rust focused/full gates、GUI vitest/typecheck/build、Tauri/Manager 纵向测试和桌面真机
-  smoke。覆盖无 AGENTS/正常/截断、候选预检竞态、切换阻塞、切换成功、重建失败回滚、
-  workspace 会话隔离、legacy root、真实 branch/subagent、搜索祖先路径；本 WBS 及原
-  `WORKSPACE-AGENTS-MD-INJECTION` / `WORKSPACE-GUI` / managed-path 条目随本次收口归档。
-  自动化出口已完成：`just ci`、`just gui-automated-check`、Tauri workspace guard、Manager
-  `/api/workspace`、CLI effective workspace、Gateway lifecycle focused tests 均通过；用户于
-  2026-08-27 完成人工桌面验收并确认通过。验证与接受记录见 `v0.1.7-workspace-closeout` 与
-  `v0.1.15-session-workspace-label`。
-  依赖：WS-03、WS-05。
-
-#### 后续缺口（不属于本次 WORKSPACE 收口）
-
-- [ ] **WS-CLI-LEGACY-DEFAULT-MIGRATION：评估 CLI legacy 默认值的 CWD 兼容策略** `sev-P3`
-  GUI legacy 默认值已在 `v0.1.14-default-workspace-reset` 中稳定投影到 profile-local Diva
-  workspace，设置页也已支持独立配置/重置，运行时 workspace 选择不会反写默认值。CLI 仍按既有
-  合同把 legacy `~/.agent-diva/workspace` 解析为进程 CWD；若未来要让 CLI 与 GUI 使用同一
-  默认语义，需要单独设计迁移、doctor 提示和向后兼容策略。相关：
-  `agent-diva-core/src/workspace.rs`、`agent-diva-cli/tests/effective_workspace.rs`。
-
-### L1-C：里程碑排期
-
-| 里程碑 | 日期 | 出口条件 |
-| --- | --- | --- |
-| M0 开工冻结 | 2026-08-26 | 本 WBS、范围、依赖、验收门槛入库 |
-| M1 后端基线 | 2026-08-27 | Wave A–D 并入最新基线，focused gates 通过 |
-| M2 工作区可见 | 2026-08-28 | GUI 唯一快照、Chip/Settings/AGENTS 只读状态可用 |
-| M3 可控切换 | 2026-09-02 | inspect + 原子切换 + 失败恢复闭环 |
-| M4 分层历史 | 2026-09-04 | lineage DTO 与会话树闭环，legacy 行为明确 |
-| M5 交付收口 | 2026-09-07 | 全门禁、桌面 smoke、文档和 TODO 归档完成 |
-| 风险缓冲 | 2026-09-08 | 只处理 M1–M5 暴露的阻断，不新增功能 |
+> **2026-08-28 正式关闭 WORKSPACE 系统收尾**：WS-00～WS-06 的实现、自动化验证、
+> 真实桌面验收、分支/worktree 退休和成果归档均已完成。关闭记录见
+> [`completed-2026-08-28-workspace-system-closeout.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-28-workspace-system-closeout.md)。
 
 ## L0-WBS：工作台系统与频道全面增强（大型 WBS）
 
@@ -236,6 +105,14 @@
 
 ### L1：治理与既有工作区
 
+- [ ] **WS-CLI-LEGACY-DEFAULT-MIGRATION：评估 CLI legacy 默认值的 CWD 兼容策略** `sev-P3`
+  Workspace 收口后仍保留的独立兼容性缺口：GUI legacy 默认值已在
+  `v0.1.14-default-workspace-reset` 中稳定投影到 profile-local Diva workspace，设置页也已
+  支持独立配置/重置，运行时 workspace 选择不会反写默认值。CLI 仍按既有合同把 legacy
+  `~/.agent-diva/workspace` 解析为进程 CWD；若未来要让 CLI 与 GUI 使用同一默认语义，需要
+  单独设计迁移、doctor 提示和向后兼容策略。相关：`agent-diva-core/src/workspace.rs`、
+  `agent-diva-cli/tests/effective_workspace.rs`。
+
 - [ ] **RG-CODE-GOV 后续分期** `sev-P2`
   原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
   不回迁 deep-governance 大爆炸。设计：`docs/dev/agent-loop-manager-gui-governance/`。
@@ -243,10 +120,6 @@
 - [ ] **GMH-53：灰度与清理** `sev-P2`
   只处理仍有效的通用治理/发布内容；Memory governance 与旧 Evolution 部分由
   clean-break 决策取代（EPIC 已关闭，本条只余通用部分）。
-
-- [x] **WORKSPACE-AGENTS-MD-INJECTION / WORKSPACE-GUI：已并入 WORKSPACE 系统收尾 WBS** `sev-P1` ✅ 2026-08-27
-  后端隔离分支、GUI 当前工作区展示、受控切换和分层会话历史统一由 WS-00～WS-06 跟踪，
-  不再以两个互相割裂的待办重复排期；WS-06 已完成人工验收，随本 WBS 一并归档。
 
 - [ ] **CLARIFY-HITL Phase 3** `sev-P3`
   已有 `ask_user` 运行时、CLI/Tauri/GUI 表面，真机冒烟已过；剩余 Plan 矩阵、
@@ -300,7 +173,9 @@
 归档目录：
 [`docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/README.md)
 
-- 最新：[`completed-2026-08-23-autodream-diagnostic-logging.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-autodream-diagnostic-logging.md)
+- 最新：[`completed-2026-08-28-workspace-system-closeout.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-28-workspace-system-closeout.md)
+  （WORKSPACE 系统收尾正式关闭，WS-00～WS-06 及已合并的 Workspace 旧条目）
+- [`completed-2026-08-23-autodream-diagnostic-logging.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-autodream-diagnostic-logging.md)
   （S3 worker 阶段级结构化日志，1 条）
 - [`completed-2026-08-23-todolist-auto-close.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-todolist-auto-close.md)
   （机械收尾 + 合同冻结 + 用户确认真机/不可复现关闭，12 条）

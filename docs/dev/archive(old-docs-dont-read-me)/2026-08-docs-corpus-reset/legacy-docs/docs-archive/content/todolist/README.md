@@ -5,6 +5,8 @@
 
 - `snapshot-before-2026-08-13-cleanup.md`：2026-08-13 全量清理前快照，包含完成、
   取消、被取代、重复及当时开放的全部记录。
+- `completed-2026-08-28-workspace-system-closeout.md`：2026-08-28 WORKSPACE 系统收尾
+  正式关闭、成果归档及旧 Workspace 待办移出活跃清单。
 - `completed-2026-08-23-todolist-auto-close.md`：2026-08-23 机械收尾、合同冻结、
   用户确认真机/不可复现关闭的完成归档。
 - `completed-2026-08-23-real-device-smoke-batch.md`：2026-08-23 Clean Break EPIC
