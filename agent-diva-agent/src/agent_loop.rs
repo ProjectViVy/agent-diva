@@ -48,6 +48,9 @@ mod loop_tools;
 mod loop_turn;
 mod turn;
 
+#[cfg(test)]
+mod session_admission_characterization_tests;
+
 /// Configuration for tool setup
 #[derive(Clone)]
 pub struct ToolConfig {
