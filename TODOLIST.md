@@ -106,11 +106,12 @@
 
   **开发分解与里程碑**：
 
-  - [ ] **HQ-00 合同冻结与并发所有权表征**（08-31 ～ 09-01，2d）：补齐当前全局串行、
+  - [x] **HQ-00 合同冻结与并发所有权表征**（08-31 ～ 09-01，2d）：已补齐当前全局串行、
     session identity、Stop/Reset、直接调用与 Bus 调用的表征测试；冻结 typed outcome/error
-    code、配置位置与默认值（候选：`max_queue_depth=2`、`wait_timeout=30s`、
-    `idle_ttl=10m`），输出 dispatcher/worker 生命周期与 drop/abort 行为。退出条件：证明
-    不改 MessageBus 权威即可让不同 session 独立推进，同 session 严格 FIFO。
+    code、配置位置与默认值（`max_queue_depth=2`、`wait_timeout=30s`、
+    `idle_ttl=10m`），并输出 dispatcher/worker 生命周期与 drop/abort 行为。冻结合同见
+    [`hq00-contract.md`](docs/dev/harness-session-admission/hq00-contract.md)；HQ-01/02 须按该
+    所有权模型证明不改 MessageBus 权威即可让不同 session 独立推进、同 session 严格 FIFO。
   - [ ] **HQ-01 Core admission kernel**（09-02 ～ 09-04，3d）：在
     `agent-diva-core/src/session/admission.rs` 实现有界 FIFO、RAII lease、等待超时、队满、
     显式取消和 idle slot 回收；时钟可注入、测试可暂停，禁止持锁跨 provider/tool await。
@@ -213,6 +214,18 @@
   步骤见 `docs/logs/2026-08-pet-to-mate-rename/v0.1.0-pet-to-mate-rename/acceptance.md`。
 
 ## L0-可靠性与测试债务
+
+- [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE-RECURRENCE** `sev-P2`
+  2026-08-29 HQ-00 全量 `just test` 再次在
+  `agent-diva-laputa::lock::tests::stale_lock_file_with_pid_is_recovered` 出现 `LockTimeout`；
+  随后定向连续 3 次均通过，确认是已关闭问题的偶发回归。应隔离 PID/时间/文件系统竞态，
+  使陈旧锁恢复测试可重复且不依赖宿主时序；相关代码：`agent-diva-laputa/src/lock.rs`。
+
+- [ ] **AGENT-ALL-TARGETS-CLIPPY-AWAIT-HOLDING-LOCK** `sev-P3`
+  `cargo clippy -p agent-diva-agent --all-targets -- -D warnings` 在既有测试
+  `agent-diva-agent/src/agent_loop.rs` 的规则加载场景报告 `await_holding_lock`（约 3537～3557
+  行）。工作区标准 `just check` 不含 `--all-targets`，本轮未扩张修复；应缩短 guard 生命周期，
+  并把 all-targets lint 纳入对应 crate 的稳定门禁。
 
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
