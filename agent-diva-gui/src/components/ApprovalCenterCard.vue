@@ -44,6 +44,9 @@ const view = computed(() => props.detail ?? props.approval);
 const presentation = computed(() => view.value.presentation ?? {});
 const remainingSeconds = computed(() => Math.max(0, Math.ceil((Date.parse(view.value.expires_at) - now.value) / 1000)));
 const terminal = computed(() => !['pending', 'allowed'].includes(view.value.status));
+const lowTtlWarning = computed(() =>
+  !terminal.value && remainingSeconds.value > 0 && remainingSeconds.value <= 10,
+);
 const allowDisabled = computed(() =>
   props.submitting || props.outcomeUnknown || terminal.value || remainingSeconds.value === 0,
 );
@@ -108,9 +111,14 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
           <Clock3 :size="13" />
           <span>{{ t('approvalCenter.ttl') }}</span>
         </dt>
-        <dd>{{ remainingSeconds }}s</dd>
+        <dd :class="{ 'ttl-low': lowTtlWarning }">{{ remainingSeconds }}s</dd>
       </div>
     </dl>
+
+    <p v-if="lowTtlWarning" class="approval-ttl-warning" role="status">
+      <AlertTriangle :size="13" />
+      {{ t('approvalCenter.ttlWarning') }} ({{ remainingSeconds }}s)
+    </p>
 
     <button
       v-if="!detail && !compact"
