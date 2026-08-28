@@ -7,12 +7,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `none`
 - Owner: `none`
-- Session/Task: `(completed)`
+- Session/Task: `HARNESS-SESSION-ADMISSION HQ-00 complete`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-29T01:10:50+08:00`
-- Last Heartbeat: `2026-08-29T01:12:58+08:00`
+- Started At: `2026-08-29T01:54:30+08:00`
+- Last Heartbeat: `2026-08-29T02:11:20+08:00`
 - Expires At: `released`
-- Handoff Notes: `HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE now has a 13-engineering-day HQ-00..HQ-05 plan, dated schedule, architecture gate, acceptance criteria, and planning logs. No product code changed.`
+- Handoff Notes: `HQ-00 merged into dev as 1f9aa730 and 003b5633. Isolated worktree and feature branch removed; HQ-01 remains open.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION HQ-00 contract freeze and characterization` — **RELEASED 2026-08-29T02:11:20+08:00** by `Codex`. Commits `1f9aa730` and `003b5633`; baseline characterization, ownership/lifecycle contract, TODO/log closeout, and full workspace gates completed. Initial Laputa stale-lock flake was isolated and tracked; focused reruns and final `just test` passed. No production queue or wire behavior added.
 
 - `HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE planning and scheduling` — **RELEASED 2026-08-29T01:12:58+08:00** by `Codex`. Planning-only update to `TODOLIST.md` and `docs/logs/2026-08-harness-session-admission-planning/`; baseline 13 engineering days (2026-08-31 through 2026-09-16), with risk buffer through 2026-09-18. No product code changed.
 
