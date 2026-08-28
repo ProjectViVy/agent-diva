@@ -3,10 +3,16 @@
 //! Sessions store conversation history in JSONL format for easy
 //! reading and persistence.
 
+pub mod admission;
 pub mod manager;
 pub mod search;
 pub mod store;
 
+pub use admission::{
+    SessionAdmissionCancelReason, SessionAdmissionClock, SessionAdmissionError,
+    SessionAdmissionKernel, SessionAdmissionLease, SessionAdmissionLimits,
+    SessionAdmissionSnapshot, TokioSessionAdmissionClock,
+};
 pub use manager::{SessionInfo, SessionManager};
 pub use search::{
     SessionSearchDiagnostic, SessionSearchHit, SessionSearchQuery, SessionSearchResponse,
