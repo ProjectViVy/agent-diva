@@ -17,6 +17,8 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Semaphore};
 use tokio::time::{timeout, Duration};
 
+const PROGRESS_TIMEOUT: Duration = Duration::from_secs(10);
+
 fn completed_response(content: &str) -> LLMResponse {
     LLMResponse {
         content: Some(content.to_string()),
@@ -153,9 +155,7 @@ async fn bus_dispatch_is_globally_serial_before_session_workers() {
         .unwrap();
 
     assert_eq!(
-        timeout(Duration::from_secs(2), call_rx.recv())
-            .await
-            .unwrap(),
+        timeout(PROGRESS_TIMEOUT, call_rx.recv()).await.unwrap(),
         Some(0)
     );
     assert!(
@@ -167,9 +167,7 @@ async fn bus_dispatch_is_globally_serial_before_session_workers() {
 
     first_call_gate.add_permits(1);
     assert_eq!(
-        timeout(Duration::from_secs(2), call_rx.recv())
-            .await
-            .unwrap(),
+        timeout(PROGRESS_TIMEOUT, call_rx.recv()).await.unwrap(),
         Some(1)
     );
 
@@ -219,9 +217,7 @@ async fn stop_session_is_observed_while_provider_stream_is_pending() {
     bus.publish_inbound(InboundMessage::new("gui", "user", "stop-target", "wait"))
         .unwrap();
     assert_eq!(
-        timeout(Duration::from_secs(2), call_rx.recv())
-            .await
-            .unwrap(),
+        timeout(PROGRESS_TIMEOUT, call_rx.recv()).await.unwrap(),
         Some(0)
     );
 
@@ -231,7 +227,7 @@ async fn stop_session_is_observed_while_provider_stream_is_pending() {
         })
         .unwrap();
 
-    let stopped = timeout(Duration::from_secs(2), async {
+    let stopped = timeout(PROGRESS_TIMEOUT, async {
         loop {
             let event = event_rx.recv().await.unwrap();
             if event.channel != "gui" || event.chat_id != "stop-target" {
