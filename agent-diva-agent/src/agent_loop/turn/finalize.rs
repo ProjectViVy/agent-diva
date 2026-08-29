@@ -181,7 +181,8 @@ impl AgentLoop {
         }
 
         {
-            let session = self.sessions.get_or_create(&session_key);
+            let pending = self.worker.pending_checkpoint_updates.remove(&session_key);
+            let session = self.worker.sessions.get_or_create(&session_key);
             save_turn(
                 session,
                 &messages,
@@ -191,22 +192,26 @@ impl AgentLoop {
                 &finalization.content,
                 finalization.usage.clone(),
             );
-            if let Some(pending) = self.pending_checkpoint_updates.remove(&session_key) {
+            if let Some(pending) = pending {
                 session.canonical_checkpoint =
                     Some(pending.finalize_for_durable_message_count(session.messages.len()));
             }
         }
 
         {
-            let session = self.sessions.get_or_create(&session_key);
-            if consolidation::should_consolidate(session, self.memory_window) {
+            let memory_window = self.memory_window;
+            let provider = self.provider.clone();
+            let workspace = self.workspace.clone();
+            let memory_provider = self.memory_provider.clone();
+            let session = self.worker.sessions.get_or_create(&session_key);
+            if consolidation::should_consolidate(session, memory_window) {
                 if let Err(error) = consolidation::consolidate(
                     session,
-                    &self.provider,
+                    &provider,
                     &model,
-                    &self.workspace,
-                    &*self.memory_provider,
-                    self.memory_window,
+                    &workspace,
+                    &*memory_provider,
+                    memory_window,
                 )
                 .await
                 {
@@ -215,7 +220,8 @@ impl AgentLoop {
             }
         }
 
-        let title_update = if let Some(session) = self.sessions.get(&session_key) {
+        let title_session = self.worker.sessions.get(&session_key).cloned();
+        let title_update = if let Some(session) = title_session.as_ref() {
             if should_generate_session_title(session) {
                 let fallback = fallback_session_title(session);
                 let generated = self.generate_session_title_with_llm(session, &model).await;

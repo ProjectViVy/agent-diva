@@ -22,6 +22,7 @@ use agent_diva_tooling::{
 };
 use agent_diva_tools::BackgroundTaskContext;
 use std::collections::{HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -120,7 +121,6 @@ pub struct AgentLoop {
     max_iterations: usize,
     memory_window: usize,
     context: ContextBuilder,
-    sessions: SessionManager,
     tool_config: ToolConfig,
     session_token_budget_limit: Option<u64>,
     token_ledger_data_root: PathBuf,
@@ -130,31 +130,52 @@ pub struct AgentLoop {
     turn_rate_limiter: ActionTracker,
     /// Window threshold for `turn_rate_limiter`, from `max_actions_per_hour`.
     max_actions_per_hour: u32,
-    tools: ToolRegistry,
     subagent_manager: Arc<SubagentManager>,
     runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
-    cancelled_sessions: HashSet<String>,
     file_manager: Arc<FileManager>,
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
     custom_tools: Vec<Arc<dyn Tool>>,
     /// Current thinking mode (auto/on/off), modifiable at runtime via SetThinking.
     thinking_mode: ThinkingMode,
-    active_tool_surface: ActiveToolSurface,
-    cache_observer: crate::context_assembly::CacheObserveState,
-    /// Task-local deferred tool activation, reclaimed at each new turn.
-    active_deferred_tools: HashMap<String, ActiveDeferredToolsHandle>,
-    /// Turn-local reactive checkpoint updates; committed only after finalize.
-    pub(crate) pending_checkpoint_updates:
-        HashMap<String, crate::compaction::PendingCheckpointUpdate>,
-    /// Monotonic per-session activity generations used to invalidate idle folds.
-    actmem_activity_generations: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
-    /// One cancellable ACTMEM idle-fold timer per live session.
-    actmem_idle_handles: HashMap<String, JoinHandle<()>>,
     /// Per-session bounded admission and running-turn cancellation authority.
     session_dispatcher: dispatcher::SessionDispatcher,
-    /// Cancellation token for the turn currently executed by this processor.
+    /// Mutable state owned by the currently selected session worker.
+    worker: SessionWorkerState,
+}
+
+/// Mutable state that must never be shared by concurrently executing sessions.
+///
+/// HQ-02 keeps production transport consumption serialized, but makes this
+/// ownership boundary explicit so HQ-03 can place one instance behind each
+/// session worker without moving turn logic again.
+#[doc(hidden)]
+pub struct SessionWorkerState {
+    sessions: SessionManager,
+    tools: ToolRegistry,
+    cancelled_sessions: HashSet<String>,
+    active_tool_surface: ActiveToolSurface,
+    cache_observer: crate::context_assembly::CacheObserveState,
+    active_deferred_tools: HashMap<String, ActiveDeferredToolsHandle>,
+    pub(crate) pending_checkpoint_updates:
+        HashMap<String, crate::compaction::PendingCheckpointUpdate>,
+    actmem_activity_generations: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
+    actmem_idle_handles: HashMap<String, JoinHandle<()>>,
     active_turn_cancellation: Option<tokio_util::sync::CancellationToken>,
+}
+
+impl Deref for AgentLoop {
+    type Target = SessionWorkerState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.worker
+    }
+}
+
+impl DerefMut for AgentLoop {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.worker
+    }
 }
 
 pub struct AgentLoopToolSet {
@@ -539,7 +560,6 @@ impl AgentLoop {
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
-            sessions,
             tool_config,
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
@@ -549,22 +569,25 @@ impl AgentLoop {
             ),
             turn_rate_limiter: ActionTracker::with_window(3600),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
-            tools,
             subagent_manager,
             runtime_control_rx: None,
-            cancelled_sessions: HashSet::new(),
             file_manager,
             memory_provider,
             custom_tools: Vec::new(),
             thinking_mode: ThinkingMode::default(),
-            active_tool_surface: ActiveToolSurface::default(),
-            cache_observer: crate::context_assembly::CacheObserveState::default(),
-            active_deferred_tools: HashMap::new(),
-            pending_checkpoint_updates: HashMap::new(),
-            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-            actmem_idle_handles: HashMap::new(),
             session_dispatcher: dispatcher::SessionDispatcher::default(),
-            active_turn_cancellation: None,
+            worker: SessionWorkerState {
+                sessions,
+                tools,
+                cancelled_sessions: HashSet::new(),
+                active_tool_surface: ActiveToolSurface::default(),
+                cache_observer: crate::context_assembly::CacheObserveState::default(),
+                active_deferred_tools: HashMap::new(),
+                pending_checkpoint_updates: HashMap::new(),
+                actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                actmem_idle_handles: HashMap::new(),
+                active_turn_cancellation: None,
+            },
         })
     }
 
@@ -726,7 +749,6 @@ impl AgentLoop {
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
-            sessions,
             tool_config: tool_config.clone(),
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
@@ -736,22 +758,25 @@ impl AgentLoop {
             ),
             turn_rate_limiter: ActionTracker::with_window(3600),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
-            tools,
             subagent_manager,
             runtime_control_rx,
-            cancelled_sessions: HashSet::new(),
             file_manager,
             memory_provider,
             custom_tools,
             thinking_mode: ThinkingMode::default(),
-            active_tool_surface: ActiveToolSurface::default(),
-            cache_observer: crate::context_assembly::CacheObserveState::default(),
-            active_deferred_tools: HashMap::new(),
-            pending_checkpoint_updates: HashMap::new(),
-            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-            actmem_idle_handles: HashMap::new(),
             session_dispatcher: dispatcher::SessionDispatcher::default(),
-            active_turn_cancellation: None,
+            worker: SessionWorkerState {
+                sessions,
+                tools,
+                cancelled_sessions: HashSet::new(),
+                active_tool_surface: ActiveToolSurface::default(),
+                cache_observer: crate::context_assembly::CacheObserveState::default(),
+                active_deferred_tools: HashMap::new(),
+                pending_checkpoint_updates: HashMap::new(),
+                actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                actmem_idle_handles: HashMap::new(),
+                active_turn_cancellation: None,
+            },
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -830,7 +855,6 @@ impl AgentLoop {
             max_iterations: max_iterations.unwrap_or(20),
             memory_window: consolidation::DEFAULT_MEMORY_WINDOW,
             context,
-            sessions,
             tool_config: toolset.config.clone(),
             session_token_budget_limit: runtime_security.token_budget_limit,
             token_ledger_data_root,
@@ -840,22 +864,25 @@ impl AgentLoop {
             ),
             turn_rate_limiter: ActionTracker::with_window(3600),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
-            tools: toolset.registry,
             subagent_manager,
             runtime_control_rx,
-            cancelled_sessions: HashSet::new(),
             file_manager,
             memory_provider,
             custom_tools,
             thinking_mode: ThinkingMode::default(),
-            active_tool_surface: ActiveToolSurface::default(),
-            cache_observer: crate::context_assembly::CacheObserveState::default(),
-            active_deferred_tools: HashMap::new(),
-            pending_checkpoint_updates: HashMap::new(),
-            actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-            actmem_idle_handles: HashMap::new(),
             session_dispatcher: dispatcher::SessionDispatcher::default(),
-            active_turn_cancellation: None,
+            worker: SessionWorkerState {
+                sessions,
+                tools: toolset.registry,
+                cancelled_sessions: HashSet::new(),
+                active_tool_surface: ActiveToolSurface::default(),
+                cache_observer: crate::context_assembly::CacheObserveState::default(),
+                active_deferred_tools: HashMap::new(),
+                pending_checkpoint_updates: HashMap::new(),
+                actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                actmem_idle_handles: HashMap::new(),
+                active_turn_cancellation: None,
+            },
         })
     }
 
