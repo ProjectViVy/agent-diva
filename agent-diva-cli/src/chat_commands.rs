@@ -127,7 +127,7 @@ async fn build_local_cli_agent(
     let file_config = FileConfig::with_path(&storage_path);
     let file_manager = Arc::new(FileManager::new(file_config).await?);
 
-    let agent = AgentLoop::with_tools(
+    let mut agent = AgentLoop::with_tools(
         bus,
         provider,
         workspace,
@@ -139,6 +139,9 @@ async fn build_local_cli_agent(
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
+    agent
+        .configure_session_admission(config.agents.defaults.session_admission)
+        .map_err(|error| anyhow::anyhow!("Invalid session admission config: {error}"))?;
 
     Ok((config, selected_model, agent, runtime_control_tx, ask_user))
 }
@@ -709,8 +712,11 @@ pub async fn run_chat(
             }
             "/stop" => {
                 if let Some(tx) = &runtime_control_tx {
+                    let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
                     let _ = tx.send(RuntimeControlCommand::StopSession {
                         session_key: current_session.clone(),
+                        request_id: None,
+                        reply_tx,
                     });
                     println!("{}", style("stop requested").yellow());
                 }

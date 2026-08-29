@@ -158,9 +158,7 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self
-            .bus
-            .publish_event(message.channel.clone(), message.chat_id.clone(), event);
+        super::super::publish_message_event(&self.bus, &message, event);
 
         // The user-visible response is already emitted. ACTMEM failure is
         // therefore observable only as structured diagnostics and never

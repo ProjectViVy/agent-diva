@@ -1846,6 +1846,7 @@ async function stopMessage() {
     await invoke("stop_generation", {
       channel: currentChannel.value,
       chatId: currentChatId.value,
+      requestId: activeStreamRequestId.value,
     });
     suppressNextStopError.value = true;
     const hadVisibleResponse = messages.value.some(

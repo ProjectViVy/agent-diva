@@ -83,6 +83,8 @@ use crate::state::{
 #[derive(serde::Deserialize)]
 pub struct ChatRequest {
     pub message: String,
+    #[serde(default)]
+    pub request_id: Option<String>,
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub attachments: Option<Vec<String>>,
@@ -132,6 +134,7 @@ pub struct EventsQuery {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub chat_prefix: Option<String>,
+    pub request_id: Option<String>,
 }
 
 pub async fn chat_handler(
@@ -140,12 +143,20 @@ pub async fn chat_handler(
 ) -> Sse<futures::stream::BoxStream<'static, Result<Event, Infallible>>> {
     let channel = payload.channel.unwrap_or("api".to_string());
     let chat_id = payload.chat_id.unwrap_or("default".to_string());
+    let request_id = payload
+        .request_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 128)
+        .map(str::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     if payload.message.trim() == "/stop" {
         let (stop_tx, stop_rx) = oneshot::channel();
         let stop_req = StopChatRequest {
             channel: Some(channel),
             chat_id: Some(chat_id),
+            request_id: Some(request_id.clone()),
         };
         let stop_send_result = state
             .api_tx
@@ -203,6 +214,7 @@ pub async fn chat_handler(
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
+    msg = msg.with_metadata("request_id", request_id.clone());
     if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
         msg = msg.with_metadata("exec_mode", mode);
     }
@@ -237,8 +249,11 @@ pub async fn chat_handler(
     }
 
     let stream = UnboundedReceiverStream::new(event_rx)
-        .map(|event| {
+        .map(move |event| {
             let evt = match event {
+                AgentEvent::SessionAdmission { observation } => Event::default()
+                    .event("session_admission")
+                    .data(serde_json::to_string(&observation).unwrap_or_default()),
                 AgentEvent::AssistantDelta { text } => Event::default().event("delta").data(text),
                 AgentEvent::ReasoningDelta { text } => {
                     Event::default().event("reasoning_delta").data(text)
@@ -343,7 +358,7 @@ pub async fn chat_handler(
                 }
                 _ => Event::default().comment("keep-alive"),
             };
-            Ok(evt)
+            Ok(evt.id(request_id.clone()))
         })
         .boxed();
 
@@ -373,7 +388,11 @@ pub async fn stop_chat_handler(
     }
 
     match rx.await {
-        Ok(Ok(stopped)) => Json(serde_json::json!({ "status": "ok", "stopped": stopped })),
+        Ok(Ok(outcome)) => Json(serde_json::json!({
+            "status": "ok",
+            "stopped": outcome.running_cancelled,
+            "outcome": outcome,
+        })),
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => {
             tracing::error!("Failed to receive StopChat response: {}", e);
@@ -397,7 +416,11 @@ pub async fn reset_session_handler(
     }
 
     match rx.await {
-        Ok(Ok(reset)) => Json(serde_json::json!({ "status": "ok", "reset": reset })),
+        Ok(Ok(outcome)) => Json(serde_json::json!({
+            "status": "ok",
+            "reset": outcome.cleanup_complete,
+            "outcome": outcome,
+        })),
         Ok(Err(e)) => Json(serde_json::json!({ "status": "error", "message": e })),
         Err(e) => {
             tracing::error!("Failed to receive ResetSession response: {}", e);
@@ -581,11 +604,19 @@ pub async fn generate_session_title_handler(
 }
 
 fn agent_bus_event_to_sse(bus_event: &AgentBusEvent) -> Option<Event> {
-    match &bus_event.event {
+    let event = match &bus_event.event {
+        AgentEvent::SessionAdmission { observation } => Some(
+            Event::default()
+                .event("session_admission")
+                .data(serde_json::to_string(observation).ok()?),
+        ),
         AgentEvent::FinalResponse { content } => {
             let data = serde_json::json!({
                 "channel": &bus_event.channel,
                 "chat_id": &bus_event.chat_id,
+                "session_key": &bus_event.session_key,
+                "request_id": &bus_event.request_id,
+                "trace_id": &bus_event.trace_id,
                 "content": content
             });
             Some(Event::default().event("final").data(data.to_string()))
@@ -594,6 +625,9 @@ fn agent_bus_event_to_sse(bus_event: &AgentBusEvent) -> Option<Event> {
             let data = serde_json::json!({
                 "channel": &bus_event.channel,
                 "chat_id": &bus_event.chat_id,
+                "session_key": &bus_event.session_key,
+                "request_id": &bus_event.request_id,
+                "trace_id": &bus_event.trace_id,
                 "message": message
             });
             Some(Event::default().event("error").data(data.to_string()))
@@ -602,6 +636,9 @@ fn agent_bus_event_to_sse(bus_event: &AgentBusEvent) -> Option<Event> {
             let data = serde_json::json!({
                 "channel": &bus_event.channel,
                 "chat_id": &bus_event.chat_id,
+                "session_key": &bus_event.session_key,
+                "request_id": &bus_event.request_id,
+                "trace_id": &bus_event.trace_id,
                 "args": args,
             });
             Some(
@@ -611,7 +648,11 @@ fn agent_bus_event_to_sse(bus_event: &AgentBusEvent) -> Option<Event> {
             )
         }
         _ => None,
-    }
+    };
+    event.map(|event| match bus_event.request_id.as_deref() {
+        Some(request_id) => event.id(request_id),
+        None => event,
+    })
 }
 
 pub async fn events_handler(
@@ -622,11 +663,13 @@ pub async fn events_handler(
     let channel_filter = query.channel;
     let chat_id_filter = query.chat_id;
     let chat_prefix_filter = query.chat_prefix;
+    let request_id_filter = query.request_id;
 
     let stream = BroadcastStream::new(event_rx).filter_map(move |evt| {
         let channel_filter = channel_filter.clone();
         let chat_id_filter = chat_id_filter.clone();
         let chat_prefix_filter = chat_prefix_filter.clone();
+        let request_id_filter = request_id_filter.clone();
         async move {
             let Ok(bus_event) = evt else {
                 return None;
@@ -644,6 +687,11 @@ pub async fn events_handler(
             }
             if let Some(prefix) = &chat_prefix_filter {
                 if !bus_event.chat_id.starts_with(prefix) {
+                    return None;
+                }
+            }
+            if let Some(request_id) = &request_id_filter {
+                if bus_event.request_id.as_ref() != Some(request_id) {
                     return None;
                 }
             }
@@ -1406,6 +1454,7 @@ mod tests {
             State(state),
             Json(ChatRequest {
                 message: "hello".to_string(),
+                request_id: None,
                 channel: None,
                 chat_id: None,
                 attachments: None,
@@ -1458,6 +1507,9 @@ mod tests {
         let bus_event = AgentBusEvent {
             channel: "gui".to_string(),
             chat_id: "chat-7".to_string(),
+            session_key: None,
+            request_id: None,
+            trace_id: None,
             event: AgentEvent::ChatPlanUpdate { args: args.clone() },
         };
 
@@ -1495,6 +1547,9 @@ mod tests {
         let bus_event = AgentBusEvent {
             channel: expected["channel"].as_str().unwrap().to_string(),
             chat_id: expected["chat_id"].as_str().unwrap().to_string(),
+            session_key: None,
+            request_id: None,
+            trace_id: None,
             event: AgentEvent::ChatPlanUpdate {
                 args: UpdatePlanArgs {
                     explanation: Some(

@@ -2,6 +2,7 @@
 
 use agent_diva_core::bus::{
     AgentEvent, InboundMessage, MessageBus, OutboundMessage, PlanRuntimeState,
+    SessionAdmissionCode, SessionAdmissionObservation, SessionAdmissionPhase,
 };
 use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
@@ -27,8 +28,249 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+const REQUEST_ID_METADATA_KEY: &str = "request_id";
+const TRACE_ID_METADATA_KEY: &str = "trace_id";
+
+fn normalized_request_id(value: Option<&serde_json::Value>) -> Option<String> {
+    value
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 128)
+        .map(str::to_owned)
+}
+
+pub(crate) fn publish_message_event(bus: &MessageBus, msg: &InboundMessage, event: AgentEvent) {
+    let request_id = normalized_request_id(msg.metadata.get(REQUEST_ID_METADATA_KEY));
+    let trace_id = normalized_request_id(msg.metadata.get(TRACE_ID_METADATA_KEY));
+    if let (Some(request_id), Some(trace_id)) = (request_id, trace_id) {
+        let _ = bus.publish_correlated_event(
+            msg.channel.clone(),
+            msg.chat_id.clone(),
+            msg.session_key(),
+            request_id,
+            trace_id,
+            event,
+        );
+    } else {
+        let _ = bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+    }
+}
+
+fn admission_code_and_phase(
+    error: &agent_diva_core::session::SessionAdmissionError,
+) -> (SessionAdmissionCode, SessionAdmissionPhase, u64) {
+    use agent_diva_core::session::{SessionAdmissionCancelReason, SessionAdmissionError};
+    match error {
+        SessionAdmissionError::QueueFull { .. } => (
+            SessionAdmissionCode::SessionQueueFull,
+            SessionAdmissionPhase::Rejected,
+            0,
+        ),
+        SessionAdmissionError::WaitTimeout { timeout } => (
+            SessionAdmissionCode::SessionQueueWaitTimeout,
+            SessionAdmissionPhase::Rejected,
+            timeout.as_millis().try_into().unwrap_or(u64::MAX),
+        ),
+        SessionAdmissionError::Cancelled { reason } => match reason {
+            SessionAdmissionCancelReason::SessionReset => (
+                SessionAdmissionCode::SessionReset,
+                SessionAdmissionPhase::Reset,
+                0,
+            ),
+            SessionAdmissionCancelReason::WorkerUnavailable => (
+                SessionAdmissionCode::SessionWorkerUnavailable,
+                SessionAdmissionPhase::Unavailable,
+                0,
+            ),
+            SessionAdmissionCancelReason::TurnCancelled => (
+                SessionAdmissionCode::SessionTurnCancelled,
+                SessionAdmissionPhase::Cancelled,
+                0,
+            ),
+        },
+        SessionAdmissionError::Unavailable => (
+            SessionAdmissionCode::SessionWorkerUnavailable,
+            SessionAdmissionPhase::Unavailable,
+            0,
+        ),
+    }
+}
+
+fn prepare_turn_message(
+    mut message: InboundMessage,
+) -> (InboundMessage, dispatcher::SessionRequestIdentity) {
+    let request_id = normalized_request_id(message.metadata.get(REQUEST_ID_METADATA_KEY))
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let trace_id = Uuid::new_v4().to_string();
+    message.metadata.insert(
+        REQUEST_ID_METADATA_KEY.to_string(),
+        serde_json::Value::String(request_id.clone()),
+    );
+    message.metadata.insert(
+        TRACE_ID_METADATA_KEY.to_string(),
+        serde_json::Value::String(trace_id.clone()),
+    );
+    (
+        message,
+        dispatcher::SessionRequestIdentity {
+            request_id,
+            trace_id,
+        },
+    )
+}
+
+fn admission_observer(
+    bus: MessageBus,
+    message: InboundMessage,
+    event_tx: Option<mpsc::UnboundedSender<AgentEvent>>,
+    identity: dispatcher::SessionRequestIdentity,
+) -> Arc<dyn Fn(dispatcher::SessionDispatchTransition) + Send + Sync> {
+    Arc::new(move |transition| {
+        let (code, phase, queue_depth, wait_latency_ms) = match transition {
+            dispatcher::SessionDispatchTransition::Queued { queue_depth } => {
+                (None, SessionAdmissionPhase::Queued, queue_depth, 0)
+            }
+            dispatcher::SessionDispatchTransition::Running {
+                queue_depth,
+                wait_latency,
+            } => (
+                None,
+                SessionAdmissionPhase::Running,
+                queue_depth,
+                wait_latency.as_millis().try_into().unwrap_or(u64::MAX),
+            ),
+            dispatcher::SessionDispatchTransition::Rejected(error) => {
+                let (code, phase, latency) = admission_code_and_phase(&error);
+                let queue_depth = match error {
+                    agent_diva_core::session::SessionAdmissionError::QueueFull {
+                        waiting_depth,
+                        ..
+                    } => waiting_depth,
+                    _ => 0,
+                };
+                (Some(code), phase, queue_depth, latency)
+            }
+        };
+        let event = AgentEvent::SessionAdmission {
+            observation: SessionAdmissionObservation {
+                code,
+                phase,
+                session_key: message.session_key(),
+                request_id: identity.request_id.clone(),
+                trace_id: identity.trace_id.clone(),
+                queue_depth,
+                wait_latency_ms,
+            },
+        };
+        if let Some(tx) = event_tx.as_ref() {
+            let _ = tx.send(event.clone());
+        }
+        publish_message_event(&bus, &message, event);
+    })
+}
+
+async fn dispatch_bus_turn(
+    dispatcher: dispatcher::SessionDispatcher,
+    bus: MessageBus,
+    worker_tx: mpsc::UnboundedSender<SessionWorkerCommand>,
+    message: InboundMessage,
+) {
+    let (message, identity) = prepare_turn_message(message);
+    let session_key = message.session_key();
+    let observer = admission_observer(bus.clone(), message.clone(), None, identity.clone());
+    let execution_message = message.clone();
+    let result = dispatcher
+        .dispatch_observed(
+            session_key,
+            identity,
+            observer,
+            move |cancellation| async move {
+                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                worker_tx
+                    .send(SessionWorkerCommand::Execute {
+                        message: execution_message,
+                        cancellation,
+                        reply_tx,
+                    })
+                    .map_err(|_| "session worker unavailable".to_string())?;
+                reply_rx
+                    .await
+                    .map_err(|_| "session worker unavailable".to_string())?
+            },
+        )
+        .await;
+
+    match result {
+        Ok(Some(response)) => {
+            if let Err(error) = bus.publish_outbound(response) {
+                tracing::error!(%error, "failed to publish session worker response");
+            }
+        }
+        Ok(None) => {
+            tracing::debug!(session_key = %message.session_key(), "turn produced no response")
+        }
+        Err(error) => {
+            if matches!(
+                &error,
+                dispatcher::SessionDispatchError::Turn(message)
+                    if message == "session worker unavailable"
+            ) {
+                publish_message_event(
+                    &bus,
+                    &message,
+                    AgentEvent::SessionAdmission {
+                        observation: SessionAdmissionObservation {
+                            code: Some(SessionAdmissionCode::SessionWorkerUnavailable),
+                            phase: SessionAdmissionPhase::Unavailable,
+                            session_key: message.session_key(),
+                            request_id: normalized_request_id(
+                                message.metadata.get(REQUEST_ID_METADATA_KEY),
+                            )
+                            .unwrap_or_default(),
+                            trace_id: normalized_request_id(
+                                message.metadata.get(TRACE_ID_METADATA_KEY),
+                            )
+                            .unwrap_or_default(),
+                            queue_depth: 0,
+                            wait_latency_ms: 0,
+                        },
+                    },
+                );
+            }
+            let message_text = format!("Failed to process message: {error}");
+            let context = ErrorContext::new("dispatch_bus_turn", &message_text)
+                .with_metadata("channel", message.channel.clone())
+                .with_metadata("chat_id", message.chat_id.clone())
+                .with_metadata("sender_id", message.sender_id.clone());
+            tracing::error!("{}", context.to_detailed_string());
+            publish_message_event(
+                &bus,
+                &message,
+                AgentEvent::Error {
+                    message: message_text.clone(),
+                },
+            );
+            let mut outbound = OutboundMessage::new(
+                message.channel.clone(),
+                message.chat_id.clone(),
+                message_text,
+            );
+            if let Some(request_id) = message.metadata.get(REQUEST_ID_METADATA_KEY) {
+                outbound = outbound.with_metadata("request_id", request_id.clone());
+            }
+            if let Some(trace_id) = message.metadata.get(TRACE_ID_METADATA_KEY) {
+                outbound = outbound.with_metadata("trace_id", trace_id.clone());
+            }
+            if let Err(error) = bus.publish_outbound(outbound) {
+                tracing::error!(%error, "failed to publish session admission error");
+            }
+        }
+    }
+}
 
 use crate::consolidation;
 use crate::context::ContextBuilder;
@@ -120,14 +362,14 @@ pub struct AgentLoop {
     model: String,
     max_iterations: usize,
     memory_window: usize,
-    context: ContextBuilder,
+    context: Arc<ContextBuilder>,
     tool_config: ToolConfig,
     session_token_budget_limit: Option<u64>,
     token_ledger_data_root: PathBuf,
     /// Dead-loop safety valve counting model/provider rejection failures.
     rejection_circuit: RejectionCircuitBreaker,
     /// Per-process sliding-window turn admission limiter (default 100/hour).
-    turn_rate_limiter: ActionTracker,
+    turn_rate_limiter: Arc<ActionTracker>,
     /// Window threshold for `turn_rate_limiter`, from `max_actions_per_hour`.
     max_actions_per_hour: u32,
     subagent_manager: Arc<SubagentManager>,
@@ -142,6 +384,43 @@ pub struct AgentLoop {
     session_dispatcher: dispatcher::SessionDispatcher,
     /// Mutable state owned by the currently selected session worker.
     worker: SessionWorkerState,
+    session_workers:
+        Arc<std::sync::Mutex<HashMap<String, mpsc::UnboundedSender<SessionWorkerCommand>>>>,
+    /// True only for the bus-owned root loop. Forked/direct workers keep
+    /// session cleanup local so control commands cannot recursively route.
+    actor_dispatch_enabled: bool,
+    pending_session_cleanups: Vec<PendingSessionCleanup>,
+}
+
+enum SessionWorkerCommand {
+    Execute {
+        message: InboundMessage,
+        cancellation: tokio_util::sync::CancellationToken,
+        reply_tx: tokio::sync::oneshot::Sender<Result<Option<OutboundMessage>, String>>,
+    },
+    Reset {
+        session_key: String,
+        running_cancelled: bool,
+        queued_cancelled: usize,
+        reply_tx: tokio::sync::oneshot::Sender<agent_diva_core::bus::SessionControlOutcome>,
+    },
+    Delete {
+        session_key: String,
+        reply_tx: tokio::sync::oneshot::Sender<Result<bool, String>>,
+    },
+}
+
+enum PendingSessionCleanup {
+    Reset {
+        session_key: String,
+        running_cancelled: bool,
+        queued_cancelled: usize,
+        reply_tx: tokio::sync::oneshot::Sender<agent_diva_core::bus::SessionControlOutcome>,
+    },
+    Delete {
+        session_key: String,
+        reply_tx: tokio::sync::oneshot::Sender<Result<bool, String>>,
+    },
 }
 
 /// Mutable state that must never be shared by concurrently executing sessions.
@@ -519,7 +798,11 @@ impl AgentLoop {
             .config_dir()
             .to_path_buf();
         let memory_provider = default_memory_provider(&config_dir);
-        let context = ContextBuilder::with_skill_home(workspace.clone(), config_dir, None);
+        let context = Arc::new(ContextBuilder::with_skill_home(
+            workspace.clone(),
+            config_dir,
+            None,
+        ));
         let sessions = SessionManager::new(workspace.clone());
         let tools = ToolRegistry::with_timeout(runtime_security.global_tool_timeout_secs);
         let token_ledger_data_root = workspace.join(".agent-diva");
@@ -567,7 +850,7 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
-            turn_rate_limiter: ActionTracker::with_window(3600),
+            turn_rate_limiter: Arc::new(ActionTracker::with_window(3600)),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
             subagent_manager,
             runtime_control_rx: None,
@@ -588,12 +871,148 @@ impl AgentLoop {
                 actmem_idle_handles: HashMap::new(),
                 active_turn_cancellation: None,
             },
+            session_workers: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            actor_dispatch_enabled: false,
+            pending_session_cleanups: Vec::new(),
         })
     }
 
     /// Get the file manager
     pub fn file_manager(&self) -> Arc<FileManager> {
         self.file_manager.clone()
+    }
+
+    /// Apply the serialized per-session admission limits before the loop starts.
+    pub fn configure_session_admission(
+        &mut self,
+        config: agent_diva_core::config::schema::SessionAdmissionConfig,
+    ) -> Result<(), String> {
+        config.validate()?;
+        self.session_dispatcher = dispatcher::SessionDispatcher::new(
+            agent_diva_core::session::SessionAdmissionLimits::from(config),
+        );
+        Ok(())
+    }
+
+    fn fork_session_worker(&self) -> Self {
+        let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
+            manager: self.subagent_manager.clone(),
+            mask: None,
+        });
+        let tools = build_agent_tools(
+            self.workspace.clone(),
+            &self.tool_config,
+            spawner,
+            self.file_manager.clone(),
+            self.custom_tools.clone(),
+            self.tool_config.cron_service.clone(),
+            Some(self.memory_provider.clone()),
+            ToolTurnOptions::default(),
+        );
+        Self {
+            bus: self.bus.clone(),
+            provider: self.provider.clone(),
+            workspace: self.workspace.clone(),
+            persona_root: self.persona_root.clone(),
+            model: self.model.clone(),
+            max_iterations: self.max_iterations,
+            memory_window: self.memory_window,
+            context: self.context.clone(),
+            tool_config: self.tool_config.clone(),
+            session_token_budget_limit: self.session_token_budget_limit,
+            token_ledger_data_root: self.token_ledger_data_root.clone(),
+            rejection_circuit: self.rejection_circuit.clone(),
+            turn_rate_limiter: self.turn_rate_limiter.clone(),
+            max_actions_per_hour: self.max_actions_per_hour,
+            subagent_manager: self.subagent_manager.clone(),
+            runtime_control_rx: None,
+            file_manager: self.file_manager.clone(),
+            memory_provider: self.memory_provider.clone(),
+            custom_tools: self.custom_tools.clone(),
+            thinking_mode: self.thinking_mode,
+            session_dispatcher: self.session_dispatcher.clone(),
+            worker: SessionWorkerState {
+                sessions: SessionManager::new(self.workspace.clone()),
+                tools,
+                cancelled_sessions: HashSet::new(),
+                active_tool_surface: ActiveToolSurface::default(),
+                cache_observer: crate::context_assembly::CacheObserveState::default(),
+                active_deferred_tools: HashMap::new(),
+                pending_checkpoint_updates: HashMap::new(),
+                actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+                actmem_idle_handles: HashMap::new(),
+                active_turn_cancellation: None,
+            },
+            session_workers: self.session_workers.clone(),
+            actor_dispatch_enabled: false,
+            pending_session_cleanups: Vec::new(),
+        }
+    }
+
+    fn session_worker_sender(
+        &self,
+        session_key: &str,
+    ) -> mpsc::UnboundedSender<SessionWorkerCommand> {
+        let mut workers = self
+            .session_workers
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(sender) = workers.get(session_key) {
+            if !sender.is_closed() {
+                return sender.clone();
+            }
+        }
+
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let mut worker = self.fork_session_worker();
+        let worker_session_key = session_key.to_string();
+        tokio::spawn(async move {
+            while let Some(command) = receiver.recv().await {
+                match command {
+                    SessionWorkerCommand::Execute {
+                        message,
+                        cancellation,
+                        reply_tx,
+                    } => {
+                        worker.active_turn_cancellation = Some(cancellation);
+                        let result = worker
+                            .process_inbound_message_admitted(message, None)
+                            .await
+                            .map_err(|error| error.to_string());
+                        worker.active_turn_cancellation = None;
+                        let _ = reply_tx.send(result);
+                    }
+                    SessionWorkerCommand::Reset {
+                        session_key,
+                        running_cancelled,
+                        queued_cancelled,
+                        reply_tx,
+                    } => {
+                        worker
+                            .finish_reset_session(
+                                session_key,
+                                running_cancelled,
+                                queued_cancelled,
+                                reply_tx,
+                            )
+                            .await;
+                    }
+                    SessionWorkerCommand::Delete {
+                        session_key,
+                        reply_tx,
+                    } => {
+                        let result = worker.finish_delete_session(&session_key).await;
+                        let _ = reply_tx.send(result);
+                    }
+                }
+            }
+            for (_, handle) in worker.actmem_idle_handles.drain() {
+                handle.abort();
+            }
+            tracing::debug!(session_key = %worker_session_key, "session worker stopped");
+        });
+        workers.insert(session_key.to_string(), sender.clone());
+        sender
     }
 
     #[cfg(test)]
@@ -728,6 +1147,7 @@ impl AgentLoop {
             mask: None,
         });
         context = context.with_memory_provider(memory_provider.clone());
+        let context = Arc::new(context);
 
         let tools = build_agent_tools(
             workspace.clone(),
@@ -756,7 +1176,7 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
-            turn_rate_limiter: ActionTracker::with_window(3600),
+            turn_rate_limiter: Arc::new(ActionTracker::with_window(3600)),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
             subagent_manager,
             runtime_control_rx,
@@ -777,6 +1197,9 @@ impl AgentLoop {
                 actmem_idle_handles: HashMap::new(),
                 active_turn_cancellation: None,
             },
+            session_workers: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            actor_dispatch_enabled: false,
+            pending_session_cleanups: Vec::new(),
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -844,6 +1267,7 @@ impl AgentLoop {
             ),
         );
         context = context.with_memory_provider(memory_provider.clone());
+        let context = Arc::new(context);
 
         let custom_tools = toolset.registry.deferred_tools();
         Ok(Self {
@@ -862,7 +1286,7 @@ impl AgentLoop {
                 runtime_security.rejection_circuit_window_secs,
                 runtime_security.rejection_circuit_threshold,
             ),
-            turn_rate_limiter: ActionTracker::with_window(3600),
+            turn_rate_limiter: Arc::new(ActionTracker::with_window(3600)),
             max_actions_per_hour: runtime_security.max_actions_per_hour,
             subagent_manager,
             runtime_control_rx,
@@ -883,6 +1307,9 @@ impl AgentLoop {
                 actmem_idle_handles: HashMap::new(),
                 active_turn_cancellation: None,
             },
+            session_workers: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            actor_dispatch_enabled: false,
+            pending_session_cleanups: Vec::new(),
         })
     }
 
@@ -899,12 +1326,16 @@ impl AgentLoop {
     /// Run the agent loop, processing messages from the bus
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Agent loop started");
+        self.actor_dispatch_enabled = true;
 
         // Take the inbound receiver
         let Some(mut inbound_rx) = self.bus.take_inbound_receiver().await else {
             error!("Failed to take inbound receiver");
             return Err("Inbound receiver already taken".into());
         };
+        let mut turn_tasks = JoinSet::new();
+        let mut reap_tick = tokio::time::interval(std::time::Duration::from_secs(30));
+        reap_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         loop {
             if let Some(control_rx) = self.runtime_control_rx.as_mut() {
@@ -921,24 +1352,27 @@ impl AgentLoop {
                     }
                     maybe_msg = inbound_rx.recv() => {
                         match maybe_msg {
-                            Some(msg) => self.handle_inbound(msg).await,
+                            Some(msg) => self.enqueue_inbound(msg, &mut turn_tasks),
                             None => {
                                 info!("Message bus closed, stopping agent loop");
                                 break;
                             }
                         }
                     }
+                    _ = reap_tick.tick() => self.reap_idle_session_workers(),
                 }
             } else {
-                match tokio::time::timeout(std::time::Duration::from_secs(1), inbound_rx.recv())
-                    .await
-                {
-                    Ok(Some(msg)) => self.handle_inbound(msg).await,
-                    Ok(None) => {
-                        info!("Message bus closed, stopping agent loop");
-                        break;
+                tokio::select! {
+                    maybe_msg = inbound_rx.recv() => {
+                        match maybe_msg {
+                            Some(msg) => self.enqueue_inbound(msg, &mut turn_tasks),
+                            None => {
+                                info!("Message bus closed, stopping agent loop");
+                                break;
+                            }
+                        }
                     }
-                    Err(_) => continue,
+                    _ = reap_tick.tick() => self.reap_idle_session_workers(),
                 }
             }
         }
@@ -946,7 +1380,16 @@ impl AgentLoop {
         info!("Agent loop stopped");
 
         self.session_dispatcher.close();
+        while let Some(result) = turn_tasks.join_next().await {
+            if let Err(error) = result {
+                tracing::error!(%error, "session dispatch task failed during drain");
+            }
+        }
         let _ = self.session_dispatcher.evict_idle();
+        self.session_workers
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
 
         // Daemon shutdown is not a logical session end. Preserve durable
         // checkpoints and only cancel process-local idle timers.
@@ -961,24 +1404,70 @@ impl AgentLoop {
         Ok(())
     }
 
+    fn enqueue_inbound(&self, msg: InboundMessage, turn_tasks: &mut JoinSet<()>) {
+        debug!("Received message from {}:{}", msg.channel, msg.chat_id);
+        let worker_tx = self.session_worker_sender(&msg.session_key());
+        turn_tasks.spawn(dispatch_bus_turn(
+            self.session_dispatcher.clone(),
+            self.bus.clone(),
+            worker_tx,
+            msg,
+        ));
+    }
+
+    fn reap_idle_session_workers(&self) {
+        for session_key in self.session_dispatcher.evict_idle() {
+            let session_key = session_key.to_string();
+            self.session_workers
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .remove(&session_key);
+            let (channel, chat_id) = session_key
+                .split_once(':')
+                .map(|(channel, chat_id)| (channel.to_string(), chat_id.to_string()))
+                .unwrap_or_else(|| ("system".to_string(), session_key.clone()));
+            let request_id = Uuid::new_v4().to_string();
+            let trace_id = Uuid::new_v4().to_string();
+            let _ = self.bus.publish_correlated_event(
+                channel,
+                chat_id,
+                session_key.clone(),
+                request_id.clone(),
+                trace_id.clone(),
+                AgentEvent::SessionAdmission {
+                    observation: SessionAdmissionObservation {
+                        code: None,
+                        phase: SessionAdmissionPhase::Evicted,
+                        session_key,
+                        request_id,
+                        trace_id,
+                        queue_depth: 0,
+                        wait_latency_ms: 0,
+                    },
+                },
+            );
+        }
+    }
+
+    #[cfg(test)]
     async fn handle_inbound(&mut self, msg: InboundMessage) {
         debug!("Received message from {}:{}", msg.channel, msg.chat_id);
         let event_msg = msg.clone();
         match self.process_inbound_message(msg, None).await {
             Ok(Some(response)) => {
-                if let Err(e) = self.bus.publish_outbound(response) {
-                    error!("Failed to publish response: {}", e);
+                if let Err(error) = self.bus.publish_outbound(response) {
+                    error!(%error, "failed to publish response");
                 }
             }
             Ok(None) => debug!("No response needed"),
-            Err(e) => {
-                let error_message = format!("Failed to process message: {}", e);
-                let ctx = ErrorContext::new("handle_inbound", &error_message)
+            Err(error) => {
+                let message = format!("Failed to process message: {error}");
+                let context = ErrorContext::new("handle_inbound", &message)
                     .with_metadata("channel", event_msg.channel.clone())
                     .with_metadata("chat_id", event_msg.chat_id.clone())
                     .with_metadata("sender_id", event_msg.sender_id.clone());
-                error!("{}", ctx.to_detailed_string());
-                self.emit_error_event(&event_msg, None, error_message);
+                error!("{}", context.to_detailed_string());
+                publish_message_event(&self.bus, &event_msg, AgentEvent::Error { message });
             }
         }
     }
@@ -989,17 +1478,29 @@ impl AgentLoop {
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        let (msg, identity) = prepare_turn_message(msg);
         let session_key = msg.session_key();
+        let observer = admission_observer(
+            self.bus.clone(),
+            msg.clone(),
+            event_tx.cloned(),
+            identity.clone(),
+        );
         let dispatcher = self.session_dispatcher.clone();
-        dispatcher
-            .dispatch(session_key, |cancellation| async move {
-                self.active_turn_cancellation = Some(cancellation);
-                let result = self.process_inbound_message_admitted(msg, event_tx).await;
-                self.active_turn_cancellation = None;
-                result
-            })
-            .await
-            .map_err(|error| -> Box<dyn std::error::Error> { error.to_string().into() })
+        let result = {
+            let agent = &mut *self;
+            dispatcher
+                .dispatch_observed(session_key, identity, observer, |cancellation| async move {
+                    agent.active_turn_cancellation = Some(cancellation);
+                    let result = agent.process_inbound_message_admitted(msg, event_tx).await;
+                    agent.active_turn_cancellation = None;
+                    result
+                })
+                .await
+                .map_err(|error| error.to_string())
+        };
+        self.finish_pending_session_cleanups().await;
+        result.map_err(|error| -> Box<dyn std::error::Error> { error.into() })
     }
 
     /// Execute a turn after the dispatcher has granted exclusive ownership.
@@ -1008,7 +1509,8 @@ impl AgentLoop {
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
     ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let trace_id = Uuid::new_v4().to_string();
+        let trace_id = normalized_request_id(msg.metadata.get(TRACE_ID_METADATA_KEY))
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
         let corrected = signals_memory_correction(&msg.content);
         let terminal_session_key = msg.session_key();
         let interactive_turn = is_interactive_actmem_turn(&msg);
@@ -2668,9 +3170,11 @@ mod tests {
             .await
             .unwrap();
         tokio::task::yield_now().await;
+        let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
         agent
             .handle_runtime_control_command(RuntimeControlCommand::ResetSession {
                 session_key: session_key.clone(),
+                reply_tx,
             })
             .await;
         tokio::time::advance(Duration::from_secs(601)).await;

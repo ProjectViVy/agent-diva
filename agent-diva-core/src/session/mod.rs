@@ -9,8 +9,8 @@ pub mod search;
 pub mod store;
 
 pub use admission::{
-    SessionAdmissionCancelReason, SessionAdmissionClock, SessionAdmissionError,
-    SessionAdmissionKernel, SessionAdmissionLease, SessionAdmissionLimits,
+    SessionAdmissionAttempt, SessionAdmissionCancelReason, SessionAdmissionClock,
+    SessionAdmissionError, SessionAdmissionKernel, SessionAdmissionLease, SessionAdmissionLimits,
     SessionAdmissionSnapshot, TokioSessionAdmissionClock,
 };
 pub use manager::{SessionInfo, SessionManager};

@@ -143,9 +143,7 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self
-            .bus
-            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+        super::publish_message_event(&self.bus, msg, event);
     }
 
     pub(super) async fn emit_planning_runtime_events(
@@ -412,9 +410,7 @@ impl AgentLoop {
             if let Some(tx) = event_tx {
                 let _ = tx.send(event.clone());
             }
-            let _ = self
-                .bus
-                .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+            super::publish_message_event(&self.bus, &msg, event);
 
             // Call LLM (streaming when provider supports it)
             // For cron-triggered turns, keep normal tools available but hide cron tool

@@ -59,6 +59,10 @@ pub struct PlanApprovalResult {
 /// Streaming events emitted by the agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentEvent {
+    /// Observable per-session admission lifecycle transition.
+    SessionAdmission {
+        observation: SessionAdmissionObservation,
+    },
     IterationStarted {
         index: usize,
         max_iterations: usize,
@@ -144,11 +148,89 @@ pub enum AgentEvent {
     },
 }
 
+/// Stable machine-readable bounded-admission outcomes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionAdmissionCode {
+    SessionQueueFull,
+    SessionQueueWaitTimeout,
+    SessionTurnCancelled,
+    SessionReset,
+    SessionWorkerUnavailable,
+    SessionSlotEvicted,
+}
+
+/// Observable stage of one request's admission lifecycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionAdmissionPhase {
+    Queued,
+    Running,
+    Rejected,
+    Cancelled,
+    Reset,
+    Unavailable,
+    Evicted,
+}
+
+/// Correlated admission state projected to every streaming surface.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionAdmissionObservation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<SessionAdmissionCode>,
+    pub phase: SessionAdmissionPhase,
+    pub session_key: String,
+    pub request_id: String,
+    pub trace_id: String,
+    pub queue_depth: usize,
+    pub wait_latency_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionControlAction {
+    Stop,
+    Reset,
+    Delete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionControlTargetState {
+    Running,
+    QueuedPreserved,
+    Session,
+    Absent,
+}
+
+/// Typed result returned after a runtime session-control decision.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionControlOutcome {
+    pub action: SessionControlAction,
+    pub session_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<SessionAdmissionCode>,
+    pub target_state: SessionControlTargetState,
+    pub running_cancelled: bool,
+    pub queued_cancelled: usize,
+    pub cleanup_complete: bool,
+}
+
 /// Event with context for the bus
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentBusEvent {
     pub channel: String,
     pub chat_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
     pub event: AgentEvent,
 }
 
@@ -258,6 +340,9 @@ mod tests {
         let original = AgentBusEvent {
             channel: "telegram".to_string(),
             chat_id: "12345".to_string(),
+            session_key: None,
+            request_id: None,
+            trace_id: None,
             event: AgentEvent::ChatPlanUpdate {
                 args: sample_update_plan_args(),
             },

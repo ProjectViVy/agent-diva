@@ -310,8 +310,14 @@ pub enum ProviderCommand {
 pub enum ManagerCommand {
     // Core runtime control plane used by the formal CLI runtime.
     Chat(ApiRequest),
-    StopChat(StopChatRequest, oneshot::Sender<Result<bool, String>>),
-    ResetSession(ResetSessionRequest, oneshot::Sender<Result<bool, String>>),
+    StopChat(
+        StopChatRequest,
+        oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,
+    ),
+    ResetSession(
+        ResetSessionRequest,
+        oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,
+    ),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate),
     GetConfig(oneshot::Sender<ConfigResponse>),
@@ -425,6 +431,8 @@ pub struct ApiRequest {
 pub struct StopChatRequest {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

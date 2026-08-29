@@ -129,7 +129,8 @@ impl EventCollector {
                     }
                     // Planning/Todo events are preserved in the timeline but do
                     // not belong to the collector's tool/response aggregates.
-                    AgentEvent::TodoCreated { .. }
+                    AgentEvent::SessionAdmission { .. }
+                    | AgentEvent::TodoCreated { .. }
                     | AgentEvent::TodoStepUpdated { .. }
                     | AgentEvent::TodoCompleted { .. }
                     | AgentEvent::TodoCancelled { .. }

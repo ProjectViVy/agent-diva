@@ -870,7 +870,7 @@ async fn build_agent_loop(
     let memory_provider: Option<Arc<dyn agent_diva_core::memory::MemoryProvider>> =
         Some(Arc::new(memory_home));
 
-    AgentLoop::with_tools_and_memory_provider(
+    let mut agent = AgentLoop::with_tools_and_memory_provider(
         bus,
         agent_provider,
         workspace,
@@ -882,7 +882,11 @@ async fn build_agent_loop(
         memory_provider,
     )
     .await
-    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))
+    .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
+    agent
+        .configure_session_admission(config.agents.defaults.session_admission)
+        .map_err(|error| anyhow::anyhow!("Invalid session admission config: {error}"))?;
+    Ok(agent)
 }
 
 fn resolve_provider_credentials(config: &Config) -> Result<(Option<String>, Option<String>)> {

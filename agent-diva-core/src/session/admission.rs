@@ -39,6 +39,16 @@ impl Default for SessionAdmissionLimits {
     }
 }
 
+impl From<crate::config::schema::SessionAdmissionConfig> for SessionAdmissionLimits {
+    fn from(config: crate::config::schema::SessionAdmissionConfig) -> Self {
+        Self {
+            max_queue_depth: config.max_queue_depth,
+            wait_timeout: Duration::from_secs(config.wait_timeout),
+            idle_ttl: Duration::from_secs(config.idle_ttl),
+        }
+    }
+}
+
 /// Why queued turns were explicitly cancelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionAdmissionCancelReason {
@@ -89,6 +99,14 @@ pub struct SessionAdmissionSnapshot {
     pub accepting: bool,
     /// Elapsed idle time when the slot has neither a runner nor waiters.
     pub idle_for: Option<Duration>,
+}
+
+/// Synchronous result of attempting to enter one session slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionAdmissionAttempt {
+    Immediate { sequence: u64 },
+    Queued { sequence: u64, waiting_depth: usize },
+    Rejected(SessionAdmissionError),
 }
 
 /// Clock boundary used for timeout and idle-eviction decisions.
@@ -159,7 +177,7 @@ impl SessionAdmissionKernel {
         &self,
         session_key: impl Into<Arc<str>>,
     ) -> Result<SessionAdmissionLease, SessionAdmissionError> {
-        self.acquire_inner(session_key.into(), None).await
+        self.acquire_inner(session_key.into(), None, None).await
     }
 
     /// Acquire a lease while observing an individual cancellation token.
@@ -168,14 +186,34 @@ impl SessionAdmissionKernel {
         session_key: impl Into<Arc<str>>,
         cancellation: CancellationToken,
     ) -> Result<SessionAdmissionLease, SessionAdmissionError> {
-        self.acquire_inner(session_key.into(), Some(cancellation))
+        self.acquire_inner(session_key.into(), Some(cancellation), None)
             .await
+    }
+
+    /// Acquire while synchronously reporting whether this request ran,
+    /// queued, or was rejected at the zero-side-effect boundary.
+    pub async fn acquire_cancellable_observed<F>(
+        &self,
+        session_key: impl Into<Arc<str>>,
+        cancellation: CancellationToken,
+        observer: F,
+    ) -> Result<SessionAdmissionLease, SessionAdmissionError>
+    where
+        F: FnOnce(SessionAdmissionAttempt) + Send + 'static,
+    {
+        self.acquire_inner(
+            session_key.into(),
+            Some(cancellation),
+            Some(Box::new(observer)),
+        )
+        .await
     }
 
     async fn acquire_inner(
         &self,
         session_key: Arc<str>,
         cancellation: Option<CancellationToken>,
+        observer: Option<Box<dyn FnOnce(SessionAdmissionAttempt) + Send>>,
     ) -> Result<SessionAdmissionLease, SessionAdmissionError> {
         let now = self.inner.clock.now();
         let mut expired = Vec::new();
@@ -183,50 +221,69 @@ impl SessionAdmissionKernel {
         let admission = {
             let mut state = self.inner.state.lock();
             if !state.accepting {
-                return Err(SessionAdmissionError::Unavailable);
-            }
-
-            let sequence = state.next_sequence;
-            state.next_sequence = state.next_sequence.saturating_add(1);
-            let slot = state
-                .slots
-                .entry(Arc::clone(&session_key))
-                .or_insert_with(|| SessionSlot::new(now));
-
-            remove_expired_waiters(slot, now, &mut expired);
-
-            if !slot.running && slot.waiters.is_empty() {
-                slot.running = true;
-                Admission::Immediate(Grant {
-                    sequence,
-                    waited: Duration::ZERO,
-                    waiting_depth_at_enqueue: 0,
-                })
-            } else if slot.waiters.len() >= self.inner.limits.max_queue_depth {
-                Admission::Rejected(SessionAdmissionError::QueueFull {
-                    max_queue_depth: self.inner.limits.max_queue_depth,
-                    waiting_depth: slot.waiters.len(),
-                })
+                Admission::Rejected(SessionAdmissionError::Unavailable)
             } else {
-                let (sender, receiver) = oneshot::channel();
-                let waiting_depth_at_enqueue = slot.waiters.len() + 1;
-                let deadline = now + self.inner.limits.wait_timeout;
-                slot.waiters.push_back(Waiter {
-                    sequence,
-                    enqueued_at: now,
-                    deadline,
-                    waiting_depth_at_enqueue,
-                    sender,
-                });
-                Admission::Queued {
-                    sequence,
-                    deadline,
-                    receiver,
+                let sequence = state.next_sequence;
+                state.next_sequence = state.next_sequence.saturating_add(1);
+                let slot = state
+                    .slots
+                    .entry(Arc::clone(&session_key))
+                    .or_insert_with(|| SessionSlot::new(now));
+
+                remove_expired_waiters(slot, now, &mut expired);
+
+                if !slot.running && slot.waiters.is_empty() {
+                    slot.running = true;
+                    Admission::Immediate(Grant {
+                        sequence,
+                        waited: Duration::ZERO,
+                        waiting_depth_at_enqueue: 0,
+                    })
+                } else if slot.waiters.len() >= self.inner.limits.max_queue_depth {
+                    Admission::Rejected(SessionAdmissionError::QueueFull {
+                        max_queue_depth: self.inner.limits.max_queue_depth,
+                        waiting_depth: slot.waiters.len(),
+                    })
+                } else {
+                    let (sender, receiver) = oneshot::channel();
+                    let waiting_depth_at_enqueue = slot.waiters.len() + 1;
+                    let deadline = now + self.inner.limits.wait_timeout;
+                    slot.waiters.push_back(Waiter {
+                        sequence,
+                        enqueued_at: now,
+                        deadline,
+                        waiting_depth_at_enqueue,
+                        sender,
+                    });
+                    Admission::Queued {
+                        sequence,
+                        deadline,
+                        receiver,
+                        waiting_depth_at_enqueue,
+                    }
                 }
             }
         };
 
         notify_expired(expired, self.inner.limits.wait_timeout);
+
+        if let Some(observer) = observer {
+            let attempt = match &admission {
+                Admission::Immediate(grant) => SessionAdmissionAttempt::Immediate {
+                    sequence: grant.sequence,
+                },
+                Admission::Queued {
+                    sequence,
+                    waiting_depth_at_enqueue,
+                    ..
+                } => SessionAdmissionAttempt::Queued {
+                    sequence: *sequence,
+                    waiting_depth: *waiting_depth_at_enqueue,
+                },
+                Admission::Rejected(error) => SessionAdmissionAttempt::Rejected(error.clone()),
+            };
+            observer(attempt);
+        }
 
         match admission {
             Admission::Immediate(grant) => Ok(self.lease(session_key, grant)),
@@ -235,6 +292,7 @@ impl SessionAdmissionKernel {
                 sequence,
                 deadline,
                 receiver,
+                ..
             } => {
                 self.await_queued(session_key, sequence, deadline, receiver, cancellation)
                     .await
@@ -498,6 +556,7 @@ enum Admission {
         sequence: u64,
         deadline: Instant,
         receiver: oneshot::Receiver<Result<Grant, SessionAdmissionError>>,
+        waiting_depth_at_enqueue: usize,
     },
     Rejected(SessionAdmissionError),
 }

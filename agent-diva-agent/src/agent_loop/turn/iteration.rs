@@ -273,12 +273,11 @@ impl AgentLoop {
             let final_wire_snapshot = Arc::new(Mutex::new(None));
             let stream_result = {
                 let bus = self.bus.clone();
-                let channel = message.channel.clone();
-                let chat_id = message.chat_id.clone();
+                let event_message = message.clone();
                 let listener: RetryListener = Arc::new(move |r: RetryAttempt| {
-                    let _ = bus.publish_event(
-                        channel.clone(),
-                        chat_id.clone(),
+                    super::super::publish_message_event(
+                        &bus,
+                        &event_message,
                         AgentEvent::ProviderRetry {
                             model: r.model,
                             attempt: r.attempt,
@@ -563,11 +562,7 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        let _ = self.bus.publish_event(
-                            message.channel.clone(),
-                            message.chat_id.clone(),
-                            event,
-                        );
+                        super::super::publish_message_event(&self.bus, message, event);
                     }
                 }
                 LLMStreamEvent::ReasoningDelta(delta) => {
@@ -577,11 +572,7 @@ impl AgentLoop {
                     if let Some(tx) = event_tx {
                         let _ = tx.send(event.clone());
                     }
-                    let _ = self.bus.publish_event(
-                        message.channel.clone(),
-                        message.chat_id.clone(),
-                        event,
-                    );
+                    super::super::publish_message_event(&self.bus, message, event);
                 }
                 LLMStreamEvent::ToolCallDelta {
                     name,
@@ -596,11 +587,7 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        let _ = self.bus.publish_event(
-                            message.channel.clone(),
-                            message.chat_id.clone(),
-                            event,
-                        );
+                        super::super::publish_message_event(&self.bus, message, event);
                     }
                 }
                 LLMStreamEvent::Completed(done) => {
@@ -628,9 +615,7 @@ impl AgentLoop {
                 if let Some(tx) = event_tx {
                     let _ = tx.send(event.clone());
                 }
-                let _ =
-                    self.bus
-                        .publish_event(message.channel.clone(), message.chat_id.clone(), event);
+                super::super::publish_message_event(&self.bus, message, event);
             }
         }
 

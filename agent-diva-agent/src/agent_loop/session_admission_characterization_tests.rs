@@ -1,8 +1,7 @@
-//! HQ-00 characterization tests for the pre-queue AgentLoop contract.
+//! Session-admission and actor-dispatch characterization tests.
 //!
-//! These tests intentionally describe the baseline that HQ-02 will replace:
-//! Bus turns are globally serial today, direct-call session identity comes from
-//! `channel:chat_id`, and Stop is observed while a provider stream is polled.
+//! Bus turns are concurrent across sessions, direct-call session identity comes
+//! from `channel:chat_id`, and Stop is observed while a provider stream is polled.
 
 use super::*;
 use agent_diva_providers::{
@@ -132,7 +131,7 @@ impl LLMProvider for ImmediateProvider {
 }
 
 #[tokio::test]
-async fn bus_dispatch_is_globally_serial_before_session_workers() {
+async fn bus_dispatch_runs_different_sessions_concurrently() {
     let bus = MessageBus::new();
     let (call_tx, mut call_rx) = mpsc::unbounded_channel();
     let first_call_gate = Arc::new(Semaphore::new(0));
@@ -158,18 +157,11 @@ async fn bus_dispatch_is_globally_serial_before_session_workers() {
         timeout(PROGRESS_TIMEOUT, call_rx.recv()).await.unwrap(),
         Some(0)
     );
-    assert!(
-        timeout(Duration::from_millis(100), call_rx.recv())
-            .await
-            .is_err(),
-        "a second session must not reach the provider while the first turn is blocked"
-    );
-
-    first_call_gate.add_permits(1);
     assert_eq!(
         timeout(PROGRESS_TIMEOUT, call_rx.recv()).await.unwrap(),
         Some(1)
     );
+    first_call_gate.add_permits(1);
 
     run.abort();
 }
@@ -221,9 +213,12 @@ async fn stop_session_is_observed_while_provider_stream_is_pending() {
         Some(0)
     );
 
+    let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
     control_tx
         .send(RuntimeControlCommand::StopSession {
             session_key: "gui:stop-target".to_string(),
+            request_id: None,
+            reply_tx,
         })
         .unwrap();
 

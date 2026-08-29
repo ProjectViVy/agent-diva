@@ -251,11 +251,7 @@ impl AgentLoop {
         if let Some(tx) = context.event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self.bus.publish_event(
-            context.message.channel.clone(),
-            context.message.chat_id.clone(),
-            event,
-        );
+        super::super::publish_message_event(&self.bus, context.message, event);
 
         let mut force_inline_memory_rules = false;
         let (mut raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
@@ -424,11 +420,7 @@ impl AgentLoop {
         if let Some(tx) = context.event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self.bus.publish_event(
-            context.message.channel.clone(),
-            context.message.chat_id.clone(),
-            event,
-        );
+        super::super::publish_message_event(&self.bus, context.message, event);
 
         let mut stop_after_tool_call = false;
         if !is_error {

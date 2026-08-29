@@ -27,6 +27,7 @@ zip = "0.6"
 chrono = { workspace = true }
 sqlx = { workspace = true }
 reqwest = { workspace = true }
+uuid = { workspace = true }
 
 # Internal dependencies
 agent-diva-core = { path = "../agent-diva-core", version = "0.9.9" }

@@ -2,6 +2,9 @@ use super::AgentLoop;
 use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
+use agent_diva_core::bus::{
+    SessionAdmissionCode, SessionControlAction, SessionControlOutcome, SessionControlTargetState,
+};
 use agent_diva_core::memory::{SessionEndRequest, SystemPromptRefreshRequest};
 use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
@@ -10,6 +13,34 @@ use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{info, warn};
 
 impl AgentLoop {
+    pub(super) async fn finish_pending_session_cleanups(&mut self) {
+        for cleanup in std::mem::take(&mut self.pending_session_cleanups) {
+            match cleanup {
+                super::PendingSessionCleanup::Reset {
+                    session_key,
+                    running_cancelled,
+                    queued_cancelled,
+                    reply_tx,
+                } => {
+                    self.finish_reset_session(
+                        session_key,
+                        running_cancelled,
+                        queued_cancelled,
+                        reply_tx,
+                    )
+                    .await;
+                }
+                super::PendingSessionCleanup::Delete {
+                    session_key,
+                    reply_tx,
+                } => {
+                    let result = self.finish_delete_session(&session_key).await;
+                    let _ = reply_tx.send(result);
+                }
+            }
+        }
+    }
+
     /// Mark the cached machine Skill section for every Session.
     /// Callers use this after an already-committed skill mutation; the next
     /// prompt assembly performs the actual disk read.
@@ -21,6 +52,109 @@ impl AgentLoop {
             "machine skills marked for lazy reload"
         );
         invalidated
+    }
+
+    pub(super) async fn finish_reset_session(
+        &mut self,
+        session_key: String,
+        running_cancelled: bool,
+        queued_cancelled: usize,
+        reply_tx: tokio::sync::oneshot::Sender<SessionControlOutcome>,
+    ) {
+        self.cancel_actmem_session(&session_key).await;
+        if let Err(error) = self
+            .memory_provider
+            .on_session_end(SessionEndRequest {
+                workspace_root: self.workspace.clone(),
+                session_id: Some(session_key.clone()),
+            })
+            .await
+        {
+            warn!(
+                session_id = %session_key,
+                error = %error,
+                "session checkpoint cleanup failed during reset"
+            );
+        }
+        agent_diva_laputa::release_frozen_core_session(&self.persona_root, &session_key);
+        self.context.reset_session_cache(&session_key);
+        self.clear_active_deferred_tools(&session_key);
+        if let Some(planning) = self.tool_config.planning.as_ref() {
+            planning.registry.discard_session(&session_key).await;
+        }
+        if let Err(error) = self.sessions.archive_and_reset(&session_key) {
+            tracing::error!(%error, "failed to archive and reset session");
+        } else {
+            info!(session_key = %session_key, "archived and reset session");
+        }
+        let _ = reply_tx.send(SessionControlOutcome {
+            action: SessionControlAction::Reset,
+            session_key,
+            request_id: None,
+            trace_id: None,
+            code: Some(SessionAdmissionCode::SessionReset),
+            target_state: SessionControlTargetState::Session,
+            running_cancelled,
+            queued_cancelled,
+            cleanup_complete: true,
+        });
+    }
+
+    pub(super) async fn finish_delete_session(
+        &mut self,
+        session_key: &str,
+    ) -> Result<bool, String> {
+        let result = self
+            .sessions
+            .delete(session_key)
+            .map_err(|error| error.to_string());
+        if result.is_ok() {
+            self.cancel_actmem_session(session_key).await;
+            if let Err(error) = self
+                .memory_provider
+                .on_session_end(SessionEndRequest {
+                    workspace_root: self.workspace.clone(),
+                    session_id: Some(session_key.to_string()),
+                })
+                .await
+            {
+                warn!(
+                    session_id = %session_key,
+                    error = %error,
+                    "session checkpoint cleanup failed during delete"
+                );
+            }
+            let store = agent_diva_core::tool_artifact::ToolArtifactStore::new(&self.workspace);
+            let artifact_context = agent_diva_core::tool_artifact::ToolArtifactSecurityContext::new(
+                &self.workspace,
+                session_key,
+            );
+            match tokio::task::spawn_blocking(move || store.delete_session(&artifact_context)).await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => warn!(
+                    error_code = error.code(),
+                    "failed to delete session tool artifacts"
+                ),
+                Err(error) => warn!(%error, "tool artifact deletion task failed"),
+            }
+            agent_diva_laputa::release_frozen_core_session(&self.persona_root, session_key);
+            self.context.end_session_cache(session_key);
+            self.cache_observer.clear_session(session_key);
+            self.clear_active_deferred_tools(session_key);
+            if let Some(planning) = self.tool_config.planning.as_ref() {
+                planning.registry.discard_session(session_key).await;
+            }
+        }
+        match &result {
+            Ok(deleted) => info!(
+                session_key,
+                deleted = *deleted,
+                "runtime delete session completed"
+            ),
+            Err(error) => tracing::error!(session_key, %error, "runtime delete session failed"),
+        }
+        result
     }
 
     pub(super) async fn handle_runtime_control_command(&mut self, cmd: RuntimeControlCommand) {
@@ -76,37 +210,100 @@ impl AgentLoop {
                 self.apply_mcp_config(servers).await;
                 self.rebuild_tools_for_active_phase().await;
             }
-            RuntimeControlCommand::StopSession { session_key } => {
-                self.session_dispatcher.stop_running(&session_key);
-                self.cancelled_sessions.insert(session_key);
+            RuntimeControlCommand::StopSession {
+                session_key,
+                request_id,
+                reply_tx,
+            } => {
+                let target = self
+                    .session_dispatcher
+                    .stop_request(&session_key, request_id.as_deref());
+                let (target_state, identity, running_cancelled, code) = match target {
+                    super::dispatcher::SessionStopTarget::Running(identity) => {
+                        self.cancelled_sessions.insert(session_key.clone());
+                        (
+                            SessionControlTargetState::Running,
+                            Some(identity),
+                            true,
+                            Some(SessionAdmissionCode::SessionTurnCancelled),
+                        )
+                    }
+                    super::dispatcher::SessionStopTarget::QueuedPreserved(identity) => (
+                        SessionControlTargetState::QueuedPreserved,
+                        Some(identity),
+                        false,
+                        None,
+                    ),
+                    super::dispatcher::SessionStopTarget::Absent => {
+                        (SessionControlTargetState::Absent, None, false, None)
+                    }
+                };
+                let _ = reply_tx.send(SessionControlOutcome {
+                    action: SessionControlAction::Stop,
+                    session_key,
+                    request_id: identity
+                        .as_ref()
+                        .map(|identity| identity.request_id.clone()),
+                    trace_id: identity.map(|identity| identity.trace_id),
+                    code,
+                    target_state,
+                    running_cancelled,
+                    queued_cancelled: 0,
+                    cleanup_complete: true,
+                });
             }
-            RuntimeControlCommand::ResetSession { session_key } => {
-                self.session_dispatcher.reset_session(&session_key);
-                self.cancel_actmem_session(&session_key).await;
-                if let Err(error) = self
-                    .memory_provider
-                    .on_session_end(SessionEndRequest {
-                        workspace_root: self.workspace.clone(),
-                        session_id: Some(session_key.clone()),
-                    })
-                    .await
-                {
-                    warn!(
-                        session_id = %session_key,
-                        error = %error,
-                        "session checkpoint cleanup failed during reset"
-                    );
+            RuntimeControlCommand::ResetSession {
+                session_key,
+                reply_tx,
+            } => {
+                let running_cancelled = self.session_dispatcher.stop_running(&session_key);
+                let queued_cancelled = self.session_dispatcher.reset_session(&session_key);
+                if !self.actor_dispatch_enabled {
+                    if self.active_turn_cancellation.is_some() {
+                        self.pending_session_cleanups
+                            .push(super::PendingSessionCleanup::Reset {
+                                session_key,
+                                running_cancelled,
+                                queued_cancelled,
+                                reply_tx,
+                            });
+                        return;
+                    }
+                    self.finish_reset_session(
+                        session_key,
+                        running_cancelled,
+                        queued_cancelled,
+                        reply_tx,
+                    )
+                    .await;
+                    return;
                 }
-                agent_diva_laputa::release_frozen_core_session(&self.persona_root, &session_key);
-                self.context.reset_session_cache(&session_key);
-                self.clear_active_deferred_tools(&session_key);
-                if let Some(planning) = self.tool_config.planning.as_ref() {
-                    planning.registry.discard_session(&session_key).await;
-                }
-                if let Err(e) = self.sessions.archive_and_reset(&session_key) {
-                    tracing::error!("Failed to archive and reset session: {}", e);
-                } else {
-                    info!("Archived and reset session: {}", session_key);
+                let worker_tx = self.session_worker_sender(&session_key);
+                if let Err(error) = worker_tx.send(super::SessionWorkerCommand::Reset {
+                    session_key,
+                    running_cancelled,
+                    queued_cancelled,
+                    reply_tx,
+                }) {
+                    if let super::SessionWorkerCommand::Reset {
+                        session_key,
+                        running_cancelled,
+                        queued_cancelled,
+                        reply_tx,
+                    } = error.0
+                    {
+                        let _ = reply_tx.send(SessionControlOutcome {
+                            action: SessionControlAction::Reset,
+                            session_key,
+                            request_id: None,
+                            trace_id: None,
+                            code: Some(SessionAdmissionCode::SessionWorkerUnavailable),
+                            target_state: SessionControlTargetState::Session,
+                            running_cancelled,
+                            queued_cancelled,
+                            cleanup_complete: false,
+                        });
+                    }
                 }
             }
             RuntimeControlCommand::GetSessions { reply_tx } => {
@@ -125,73 +322,28 @@ impl AgentLoop {
                 reply_tx,
             } => {
                 self.session_dispatcher.reset_session(&session_key);
-                let result = self
-                    .sessions
-                    .delete(&session_key)
-                    .map_err(|e| e.to_string());
-                if result.is_ok() {
-                    self.cancel_actmem_session(&session_key).await;
-                    if let Err(error) = self
-                        .memory_provider
-                        .on_session_end(SessionEndRequest {
-                            workspace_root: self.workspace.clone(),
-                            session_id: Some(session_key.clone()),
-                        })
-                        .await
-                    {
-                        warn!(
-                            session_id = %session_key,
-                            error = %error,
-                            "session checkpoint cleanup failed during delete"
-                        );
+                if !self.actor_dispatch_enabled {
+                    if self.active_turn_cancellation.is_some() {
+                        self.pending_session_cleanups
+                            .push(super::PendingSessionCleanup::Delete {
+                                session_key,
+                                reply_tx,
+                            });
+                        return;
                     }
-                    let store =
-                        agent_diva_core::tool_artifact::ToolArtifactStore::new(&self.workspace);
-                    let artifact_context =
-                        agent_diva_core::tool_artifact::ToolArtifactSecurityContext::new(
-                            &self.workspace,
-                            &session_key,
-                        );
-                    match tokio::task::spawn_blocking(move || {
-                        store.delete_session(&artifact_context)
-                    })
-                    .await
-                    {
-                        Ok(Ok(())) => {}
-                        Ok(Err(error)) => warn!(
-                            error_code = error.code(),
-                            "Failed to delete session tool artifacts"
-                        ),
-                        Err(error) => warn!(%error, "Tool artifact deletion task failed"),
-                    }
-                    agent_diva_laputa::release_frozen_core_session(
-                        &self.persona_root,
-                        &session_key,
-                    );
-                    self.context.end_session_cache(&session_key);
-                    self.cache_observer.clear_session(&session_key);
-                    self.clear_active_deferred_tools(&session_key);
-                    if let Some(planning) = self.tool_config.planning.as_ref() {
-                        planning.registry.discard_session(&session_key).await;
+                    let result = self.finish_delete_session(&session_key).await;
+                    let _ = reply_tx.send(result);
+                    return;
+                }
+                let worker_tx = self.session_worker_sender(&session_key);
+                if let Err(error) = worker_tx.send(super::SessionWorkerCommand::Delete {
+                    session_key,
+                    reply_tx,
+                }) {
+                    if let super::SessionWorkerCommand::Delete { reply_tx, .. } = error.0 {
+                        let _ = reply_tx.send(Err("session worker unavailable".to_string()));
                     }
                 }
-                match &result {
-                    Ok(deleted) => {
-                        info!(
-                            session_key = %session_key,
-                            deleted = *deleted,
-                            "Runtime delete session completed"
-                        );
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            session_key = %session_key,
-                            error = %err,
-                            "Runtime delete session failed"
-                        );
-                    }
-                }
-                let _ = reply_tx.send(result);
             }
             RuntimeControlCommand::UpdateSessionTitle {
                 session_key,
@@ -286,9 +438,7 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        let _ = self
-            .bus
-            .publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+        super::publish_message_event(&self.bus, msg, event);
     }
 
     /// Handle manual `/compact` command: run compaction on the session and

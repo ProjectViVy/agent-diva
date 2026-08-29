@@ -585,6 +585,44 @@ pub struct AgentDefaults {
     /// Optional thinking mode override (auto/on/off)
     #[serde(default)]
     pub thinking_mode: Option<crate::reasoning::ThinkingMode>,
+    /// Per-session bounded turn admission limits.
+    #[serde(default)]
+    pub session_admission: SessionAdmissionConfig,
+}
+
+/// Additive configuration for serial admission within one canonical session.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct SessionAdmissionConfig {
+    /// Maximum accepted waiters. The running turn is not counted.
+    pub max_queue_depth: usize,
+    /// Maximum queue wait, in seconds.
+    pub wait_timeout: u64,
+    /// Fully-idle slot retention, in seconds.
+    pub idle_ttl: u64,
+}
+
+impl Default for SessionAdmissionConfig {
+    fn default() -> Self {
+        Self {
+            max_queue_depth: 2,
+            wait_timeout: 30,
+            idle_ttl: 10 * 60,
+        }
+    }
+}
+
+impl SessionAdmissionConfig {
+    /// Reject values that cannot produce a live timeout/reaper schedule.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.wait_timeout == 0 {
+            return Err("agents.defaults.session_admission.wait_timeout must be > 0".to_string());
+        }
+        if self.idle_ttl == 0 {
+            return Err("agents.defaults.session_admission.idle_ttl must be > 0".to_string());
+        }
+        Ok(())
+    }
 }
 
 impl Default for AgentDefaults {
@@ -598,7 +636,50 @@ impl Default for AgentDefaults {
             max_tool_iterations: 20,
             reasoning_effort: None,
             thinking_mode: None,
+            session_admission: SessionAdmissionConfig::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod session_admission_config_tests {
+    use super::{AgentDefaults, SessionAdmissionConfig};
+
+    #[test]
+    fn missing_session_admission_uses_frozen_defaults() {
+        let defaults: AgentDefaults = serde_json::from_value(serde_json::json!({
+            "workspace": ".",
+            "model": "test",
+            "max_tokens": 1024,
+            "temperature": 0.1,
+            "max_tool_iterations": 3
+        }))
+        .unwrap();
+        assert_eq!(
+            defaults.session_admission,
+            SessionAdmissionConfig::default()
+        );
+    }
+
+    #[test]
+    fn session_admission_accepts_zero_waiters_but_rejects_zero_durations() {
+        let no_waiters = SessionAdmissionConfig {
+            max_queue_depth: 0,
+            ..SessionAdmissionConfig::default()
+        };
+        assert!(no_waiters.validate().is_ok());
+        assert!(SessionAdmissionConfig {
+            wait_timeout: 0,
+            ..SessionAdmissionConfig::default()
+        }
+        .validate()
+        .is_err());
+        assert!(SessionAdmissionConfig {
+            idle_ttl: 0,
+            ..SessionAdmissionConfig::default()
+        }
+        .validate()
+        .is_err());
     }
 }
 

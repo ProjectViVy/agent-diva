@@ -1512,6 +1512,7 @@ pub async fn send_message(
         .post(&url)
         .json(&serde_json::json!({
             "message": message,
+            "request_id": stream_request_id.clone(),
             "channel": channel,
             "chat_id": chat_id,
             "attachments": attachments,
@@ -1536,7 +1537,26 @@ pub async fn send_message(
     while let Some(event) = stream.next().await {
         match event {
             Ok(event) => {
+                if !event.id.is_empty() && event.id != stream_request_id {
+                    debug!(
+                        expected_request_id = %stream_request_id,
+                        received_request_id = %event.id,
+                        "Ignoring stale chat SSE event"
+                    );
+                    continue;
+                }
                 match event.event.as_str() {
+                    "session_admission" => {
+                        if let Ok(data) = serde_json::from_str::<serde_json::Value>(&event.data) {
+                            let _ = window.emit(
+                                "agent-session-admission",
+                                StreamJsonPayload {
+                                    request_id: stream_request_id.clone(),
+                                    data,
+                                },
+                            );
+                        }
+                    }
                     "delta" => {
                         let _ = window.emit(
                             "agent-response-delta",
@@ -2267,12 +2287,14 @@ pub async fn update_execution_todo(
 pub async fn stop_generation(
     channel: Option<String>,
     chat_id: Option<String>,
+    request_id: Option<String>,
     state: State<'_, AgentState>,
 ) -> Result<bool, String> {
     let url = format!("{}/chat/stop", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
-        "chat_id": chat_id
+        "chat_id": chat_id,
+        "request_id": request_id
     });
 
     let response = state

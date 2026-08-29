@@ -1346,6 +1346,9 @@ async fn run_tui(
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to create agent loop: {}", e))?;
+    agent
+        .configure_session_admission(config.agents.defaults.session_admission)
+        .map_err(|error| anyhow::anyhow!("Invalid session admission config: {error}"))?;
 
     let current_session = session.unwrap_or_else(|| "cli:tui".to_string());
     let (request_tx, mut request_rx) = mpsc::unbounded_channel::<(String, String)>();
@@ -1522,8 +1525,12 @@ async fn run_tui(
                         } else if content == "/stop" {
                             let chat_id = chat_id_from_tui_session(&app.session_key);
                             let session_key = format!("cli:{}", chat_id);
-                            let _ = runtime_control_tx
-                                .send(RuntimeControlCommand::StopSession { session_key });
+                            let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
+                            let _ = runtime_control_tx.send(RuntimeControlCommand::StopSession {
+                                session_key,
+                                request_id: None,
+                                reply_tx,
+                            });
                             app.add_line(TimelineKind::System, "stop requested");
                         } else {
                             app.add_line(TimelineKind::User, content.clone());

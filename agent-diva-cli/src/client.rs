@@ -157,7 +157,11 @@ impl ApiClient {
         event_tx: mpsc::UnboundedSender<AgentEvent>,
     ) -> Result<()> {
         let url = format!("{}/chat", self.base_url);
-        let mut payload = serde_json::json!({ "message": message });
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let mut payload = serde_json::json!({
+            "message": message,
+            "request_id": request_id,
+        });
         if let Some(channel) = channel {
             payload["channel"] = serde_json::Value::String(channel.to_string());
         }
@@ -174,83 +178,93 @@ impl ApiClient {
 
         while let Some(event) = stream.next().await {
             match event {
-                Ok(event) => match event.event.as_str() {
-                    "delta" => {
-                        let _ = event_tx.send(AgentEvent::AssistantDelta { text: event.data });
+                Ok(event) => {
+                    if !event.id.is_empty() && event.id != request_id {
+                        continue;
                     }
-                    "final" => {
-                        let _ = event_tx.send(AgentEvent::FinalResponse {
-                            content: event.data,
-                        });
-                    }
-                    "tool_start" => {
-                        if let Ok(data) = serde_json::from_str::<ToolStartEvent>(&event.data) {
-                            let _ = event_tx.send(AgentEvent::ToolCallStarted {
-                                name: data.name,
-                                args_preview: data.args_preview,
-                                call_id: data.id,
+                    match event.event.as_str() {
+                        "session_admission" => {
+                            if let Ok(observation) = serde_json::from_str(&event.data) {
+                                let _ = event_tx.send(AgentEvent::SessionAdmission { observation });
+                            }
+                        }
+                        "delta" => {
+                            let _ = event_tx.send(AgentEvent::AssistantDelta { text: event.data });
+                        }
+                        "final" => {
+                            let _ = event_tx.send(AgentEvent::FinalResponse {
+                                content: event.data,
                             });
                         }
-                    }
-                    "tool_finish" => {
-                        if let Ok(data) = serde_json::from_str::<ToolFinishEvent>(&event.data) {
-                            let _ = event_tx.send(AgentEvent::ToolCallFinished {
-                                name: data.name,
-                                result: data.result,
-                                is_error: data.error,
-                                call_id: data.id,
+                        "tool_start" => {
+                            if let Ok(data) = serde_json::from_str::<ToolStartEvent>(&event.data) {
+                                let _ = event_tx.send(AgentEvent::ToolCallStarted {
+                                    name: data.name,
+                                    args_preview: data.args_preview,
+                                    call_id: data.id,
+                                });
+                            }
+                        }
+                        "tool_finish" => {
+                            if let Ok(data) = serde_json::from_str::<ToolFinishEvent>(&event.data) {
+                                let _ = event_tx.send(AgentEvent::ToolCallFinished {
+                                    name: data.name,
+                                    result: data.result,
+                                    is_error: data.error,
+                                    call_id: data.id,
+                                });
+                            }
+                        }
+                        "tool_delta" => {
+                            if let Ok(data) = serde_json::from_str::<ToolDeltaEvent>(&event.data) {
+                                let _ = event_tx.send(AgentEvent::ToolCallDelta {
+                                    name: Some(data.name),
+                                    args_delta: data.delta,
+                                });
+                            }
+                        }
+                        "error" => {
+                            let _ = event_tx.send(AgentEvent::Error {
+                                message: event.data,
                             });
                         }
-                    }
-                    "tool_delta" => {
-                        if let Ok(data) = serde_json::from_str::<ToolDeltaEvent>(&event.data) {
-                            let _ = event_tx.send(AgentEvent::ToolCallDelta {
-                                name: Some(data.name),
-                                args_delta: data.delta,
-                            });
+                        "turn_plan_updated" => {
+                            if let Ok(args) = serde_json::from_str::<UpdatePlanArgs>(&event.data) {
+                                let _ = event_tx.send(AgentEvent::ChatPlanUpdate { args });
+                            }
                         }
-                    }
-                    "error" => {
-                        let _ = event_tx.send(AgentEvent::Error {
-                            message: event.data,
-                        });
-                    }
-                    "turn_plan_updated" => {
-                        if let Ok(args) = serde_json::from_str::<UpdatePlanArgs>(&event.data) {
-                            let _ = event_tx.send(AgentEvent::ChatPlanUpdate { args });
+                        "context_compaction" => {
+                            if let Ok(data) = serde_json::from_str::<Value>(&event.data) {
+                                let session_id = data
+                                    .get("session_id")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                                    .to_string();
+                                let trigger = data
+                                    .get("trigger")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                                    .to_string();
+                                let phase = data
+                                    .get("phase")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or_default()
+                                    .to_string();
+                                let summary = data
+                                    .get("summary")
+                                    .and_then(Value::as_str)
+                                    .map(str::to_string);
+                                let _ = event_tx.send(AgentEvent::ContextCompaction {
+                                    session_id,
+                                    trigger,
+                                    phase,
+                                    summary,
+                                });
+                            }
                         }
+                        _ => {}
                     }
-                    "context_compaction" => {
-                        if let Ok(data) = serde_json::from_str::<Value>(&event.data) {
-                            let session_id = data
-                                .get("session_id")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string();
-                            let trigger = data
-                                .get("trigger")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string();
-                            let phase = data
-                                .get("phase")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string();
-                            let summary = data
-                                .get("summary")
-                                .and_then(Value::as_str)
-                                .map(str::to_string);
-                            let _ = event_tx.send(AgentEvent::ContextCompaction {
-                                session_id,
-                                trigger,
-                                phase,
-                                summary,
-                            });
-                        }
-                    }
-                    _ => {}
-                },
+                }
                 Err(e) => {
                     let _ = event_tx.send(AgentEvent::Error {
                         message: e.to_string(),

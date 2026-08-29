@@ -68,9 +68,34 @@ impl MessageBus {
         let bus_event = AgentBusEvent {
             channel: channel.into(),
             chat_id: chat_id.into(),
+            session_key: None,
+            request_id: None,
+            trace_id: None,
             event,
         };
         // We ignore the error if there are no receivers
+        let _ = self.event_tx.send(bus_event);
+        Ok(())
+    }
+
+    /// Publish a turn event with exact request/trace/session correlation.
+    pub fn publish_correlated_event(
+        &self,
+        channel: impl Into<String>,
+        chat_id: impl Into<String>,
+        session_key: impl Into<String>,
+        request_id: impl Into<String>,
+        trace_id: impl Into<String>,
+        event: AgentEvent,
+    ) -> crate::Result<()> {
+        let bus_event = AgentBusEvent {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+            session_key: Some(session_key.into()),
+            request_id: Some(request_id.into()),
+            trace_id: Some(trace_id.into()),
+            event,
+        };
         let _ = self.event_tx.send(bus_event);
         Ok(())
     }

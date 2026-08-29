@@ -8,6 +8,8 @@ pub mod queue;
 
 pub use events::{
     AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PlanApprovalResult,
-    PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo, PokeEvent,
+    PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo, PokeEvent, SessionAdmissionCode,
+    SessionAdmissionObservation, SessionAdmissionPhase, SessionControlAction,
+    SessionControlOutcome, SessionControlTargetState,
 };
 pub use queue::MessageBus;

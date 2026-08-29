@@ -24,9 +24,12 @@ pub enum RuntimeControlCommand {
     },
     StopSession {
         session_key: String,
+        request_id: Option<String>,
+        reply_tx: tokio::sync::oneshot::Sender<agent_diva_core::bus::SessionControlOutcome>,
     },
     ResetSession {
         session_key: String,
+        reply_tx: tokio::sync::oneshot::Sender<agent_diva_core::bus::SessionControlOutcome>,
     },
     GetSessions {
         reply_tx: tokio::sync::oneshot::Sender<Vec<agent_diva_core::session::SessionInfo>>,

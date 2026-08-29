@@ -1,29 +1,56 @@
 //! Session-aware turn dispatch built on the core bounded admission kernel.
 //!
-//! HQ-02 deliberately keeps transport consumption serialized until request
-//! correlation reaches every streaming consumer in HQ-03.  This dispatcher is
-//! nevertheless concurrency-safe: callers that own independent turn workers
-//! can submit concurrently, while one canonical session remains FIFO/serial.
+//! Transport consumers may submit concurrently, while one canonical session
+//! remains FIFO/serial behind a bounded queue.
 
 use agent_diva_core::session::{
-    SessionAdmissionCancelReason, SessionAdmissionError, SessionAdmissionKernel,
-    SessionAdmissionLimits,
+    SessionAdmissionAttempt, SessionAdmissionCancelReason, SessionAdmissionError,
+    SessionAdmissionKernel, SessionAdmissionLimits,
 };
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SessionDispatcher {
     kernel: SessionAdmissionKernel,
     running: Arc<Mutex<HashMap<String, RunningTurn>>>,
+    pending: Arc<Mutex<HashMap<String, HashMap<String, String>>>>,
 }
 
 #[derive(Clone, Debug)]
 struct RunningTurn {
     sequence: u64,
+    request_id: String,
+    trace_id: String,
     cancellation: CancellationToken,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SessionRequestIdentity {
+    pub(crate) request_id: String,
+    pub(crate) trace_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SessionDispatchTransition {
+    Queued {
+        queue_depth: usize,
+    },
+    Running {
+        queue_depth: usize,
+        wait_latency: Duration,
+    },
+    Rejected(SessionAdmissionError),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SessionStopTarget {
+    Running(SessionRequestIdentity),
+    QueuedPreserved(SessionRequestIdentity),
+    Absent,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -45,11 +72,13 @@ impl SessionDispatcher {
         Self {
             kernel: SessionAdmissionKernel::new(limits),
             running: Arc::new(Mutex::new(HashMap::new())),
+            pending: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     /// Acquire the per-session lease before constructing or polling the turn.
     /// This ordering is the zero-side-effect boundary for queue rejection.
+    #[cfg(test)]
     pub(crate) async fn dispatch<T, E, F, Fut>(
         &self,
         session_key: String,
@@ -59,11 +88,82 @@ impl SessionDispatcher {
         F: FnOnce(CancellationToken) -> Fut,
         Fut: Future<Output = Result<T, E>>,
     {
+        self.dispatch_observed(
+            session_key,
+            SessionRequestIdentity {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                trace_id: uuid::Uuid::new_v4().to_string(),
+            },
+            Arc::new(|_| {}),
+            execute,
+        )
+        .await
+    }
+
+    pub(crate) async fn dispatch_observed<T, E, F, Fut>(
+        &self,
+        session_key: String,
+        identity: SessionRequestIdentity,
+        observer: Arc<dyn Fn(SessionDispatchTransition) + Send + Sync>,
+        execute: F,
+    ) -> Result<T, SessionDispatchError<E>>
+    where
+        F: FnOnce(CancellationToken) -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+    {
         let request_cancellation = CancellationToken::new();
-        let lease = self
+        {
+            let mut pending = self
+                .pending
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            pending
+                .entry(session_key.clone())
+                .or_default()
+                .insert(identity.request_id.clone(), identity.trace_id.clone());
+        }
+        let mut pending_guard = PendingGuard {
+            dispatcher: self.clone(),
+            session_key: session_key.clone(),
+            request_id: identity.request_id.clone(),
+            active: true,
+        };
+        let queued = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let attempt_observer = Arc::clone(&observer);
+        let queued_flag = Arc::clone(&queued);
+        let lease_result = self
             .kernel
-            .acquire_cancellable(session_key.clone(), request_cancellation.clone())
-            .await?;
+            .acquire_cancellable_observed(
+                session_key.clone(),
+                request_cancellation.clone(),
+                move |attempt| match attempt {
+                    SessionAdmissionAttempt::Immediate { .. } => {}
+                    SessionAdmissionAttempt::Queued { waiting_depth, .. } => {
+                        queued_flag.store(true, std::sync::atomic::Ordering::Release);
+                        attempt_observer(SessionDispatchTransition::Queued {
+                            queue_depth: waiting_depth,
+                        });
+                    }
+                    SessionAdmissionAttempt::Rejected(error) => {
+                        attempt_observer(SessionDispatchTransition::Rejected(error));
+                    }
+                },
+            )
+            .await;
+        let lease = match lease_result {
+            Ok(lease) => lease,
+            Err(error) => {
+                if queued.load(std::sync::atomic::Ordering::Acquire) {
+                    observer(SessionDispatchTransition::Rejected(error.clone()));
+                }
+                return Err(SessionDispatchError::Admission(error));
+            }
+        };
+        observer(SessionDispatchTransition::Running {
+            queue_depth: lease.waiting_depth_at_enqueue(),
+            wait_latency: lease.waited(),
+        });
+        pending_guard.clear();
         let sequence = lease.sequence();
         let turn_cancellation = request_cancellation.child_token();
         {
@@ -72,6 +172,8 @@ impl SessionDispatcher {
                 session_key.clone(),
                 RunningTurn {
                     sequence,
+                    request_id: identity.request_id,
+                    trace_id: identity.trace_id,
                     cancellation: turn_cancellation.clone(),
                 },
             );
@@ -97,6 +199,37 @@ impl SessionDispatcher {
         true
     }
 
+    pub(crate) fn stop_request(
+        &self,
+        session_key: &str,
+        request_id: Option<&str>,
+    ) -> SessionStopTarget {
+        let running = self.running.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(turn) = running.get(session_key) {
+            if request_id.is_none() || request_id == Some(turn.request_id.as_str()) {
+                turn.cancellation.cancel();
+                return SessionStopTarget::Running(SessionRequestIdentity {
+                    request_id: turn.request_id.clone(),
+                    trace_id: turn.trace_id.clone(),
+                });
+            }
+        }
+        drop(running);
+        if let Some(request_id) = request_id {
+            let pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(trace_id) = pending
+                .get(session_key)
+                .and_then(|requests| requests.get(request_id))
+            {
+                return SessionStopTarget::QueuedPreserved(SessionRequestIdentity {
+                    request_id: request_id.to_string(),
+                    trace_id: trace_id.clone(),
+                });
+            }
+        }
+        SessionStopTarget::Absent
+    }
+
     /// Reset/delete cancellation affects the running turn and every waiter.
     pub(crate) fn reset_session(&self, session_key: &str) -> usize {
         self.stop_running(session_key);
@@ -117,6 +250,45 @@ impl SessionDispatcher {
         if running.get(session_key).map(|turn| turn.sequence) == Some(sequence) {
             running.remove(session_key);
         }
+    }
+
+    fn clear_pending(&self, session_key: &str, request_id: &str) {
+        let mut pending = self
+            .pending
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let remove_session = if let Some(requests) = pending.get_mut(session_key) {
+            requests.remove(request_id);
+            requests.is_empty()
+        } else {
+            false
+        };
+        if remove_session {
+            pending.remove(session_key);
+        }
+    }
+}
+
+struct PendingGuard {
+    dispatcher: SessionDispatcher,
+    session_key: String,
+    request_id: String,
+    active: bool,
+}
+
+impl PendingGuard {
+    fn clear(&mut self) {
+        if self.active {
+            self.dispatcher
+                .clear_pending(&self.session_key, &self.request_id);
+            self.active = false;
+        }
+    }
+}
+
+impl Drop for PendingGuard {
+    fn drop(&mut self) {
+        self.clear();
     }
 }
 
@@ -346,6 +518,66 @@ mod tests {
         };
         tokio::task::yield_now().await;
         assert!(dispatcher.stop_running("gui:stop"));
+        first.await.unwrap().unwrap();
+        assert_eq!(waiter.await.unwrap().unwrap(), 7);
+    }
+
+    #[tokio::test]
+    async fn request_scoped_stop_preserves_matching_queued_turn() {
+        let dispatcher = SessionDispatcher::default();
+        let running_started = Arc::new(Barrier::new(2));
+        let first_identity = SessionRequestIdentity {
+            request_id: "request-running".to_string(),
+            trace_id: "trace-running".to_string(),
+        };
+        let queued_identity = SessionRequestIdentity {
+            request_id: "request-queued".to_string(),
+            trace_id: "trace-queued".to_string(),
+        };
+        let first = {
+            let dispatcher = dispatcher.clone();
+            let started = running_started.clone();
+            let identity = first_identity.clone();
+            tokio::spawn(async move {
+                dispatcher
+                    .dispatch_observed(
+                        "gui:scoped-stop".to_string(),
+                        identity,
+                        Arc::new(|_| {}),
+                        move |cancel| async move {
+                            started.wait().await;
+                            cancel.cancelled().await;
+                            Ok::<_, ()>(())
+                        },
+                    )
+                    .await
+            })
+        };
+        running_started.wait().await;
+        let waiter = {
+            let dispatcher = dispatcher.clone();
+            let identity = queued_identity.clone();
+            tokio::spawn(async move {
+                dispatcher
+                    .dispatch_observed(
+                        "gui:scoped-stop".to_string(),
+                        identity,
+                        Arc::new(|_| {}),
+                        |_| async { Ok::<_, ()>(7) },
+                    )
+                    .await
+            })
+        };
+        tokio::task::yield_now().await;
+
+        assert_eq!(
+            dispatcher.stop_request("gui:scoped-stop", Some("request-queued")),
+            SessionStopTarget::QueuedPreserved(queued_identity)
+        );
+        assert_eq!(
+            dispatcher.stop_request("gui:scoped-stop", Some("request-running")),
+            SessionStopTarget::Running(first_identity)
+        );
         first.await.unwrap().unwrap();
         assert_eq!(waiter.await.unwrap().unwrap(), 7);
     }

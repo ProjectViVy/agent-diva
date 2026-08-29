@@ -22,6 +22,12 @@ impl Manager {
         debug!("Processing Chat request via Bus");
         let channel = req.msg.channel.clone();
         let chat_id = req.msg.chat_id.clone();
+        let request_id = req
+            .msg
+            .metadata
+            .get("request_id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
         let event_tx = req.event_tx.clone();
         let event_rx = self.bus.subscribe_events();
 
@@ -33,33 +39,80 @@ impl Manager {
             return;
         }
 
-        tokio::spawn(forward_chat_events(event_rx, event_tx, channel, chat_id));
+        tokio::spawn(forward_chat_events(
+            event_rx, event_tx, channel, chat_id, request_id,
+        ));
     }
 
     pub(super) fn handle_stop_chat(
         &self,
         req: StopChatRequest,
-        reply: oneshot::Sender<Result<bool, String>>,
+        reply: oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,
     ) {
-        self.send_runtime_session_command(
-            req.channel,
-            req.chat_id,
-            |session_key| RuntimeControlCommand::StopSession { session_key },
-            reply,
-        );
+        let channel = req.channel.unwrap_or_else(|| "api".to_string());
+        let chat_id = req.chat_id.unwrap_or_else(|| "default".to_string());
+        let session_key = format!("{channel}:{chat_id}");
+        let response = self
+            .runtime_control_tx
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "runtime control channel is not initialized".to_string());
+        match response {
+            Ok(tx) => {
+                tokio::spawn(async move {
+                    let (reply_tx, reply_rx) = oneshot::channel();
+                    let result = tx
+                        .send(RuntimeControlCommand::StopSession {
+                            session_key,
+                            request_id: req.request_id,
+                            reply_tx,
+                        })
+                        .map_err(|error| {
+                            format!("failed to send runtime control command: {error}")
+                        });
+                    let result = match result {
+                        Ok(()) => reply_rx.await.map_err(|error| {
+                            format!("failed to receive runtime control outcome: {error}")
+                        }),
+                        Err(error) => Err(error),
+                    };
+                    let _ = reply.send(result);
+                });
+            }
+            Err(error) => {
+                let _ = reply.send(Err(error));
+            }
+        }
     }
 
     pub(super) fn handle_reset_session(
         &self,
         req: ResetSessionRequest,
-        reply: oneshot::Sender<Result<bool, String>>,
+        reply: oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,
     ) {
-        self.send_runtime_session_command(
-            req.channel,
-            req.chat_id,
-            |session_key| RuntimeControlCommand::ResetSession { session_key },
-            reply,
-        );
+        let channel = req.channel.unwrap_or_else(|| "api".to_string());
+        let chat_id = req.chat_id.unwrap_or_else(|| "default".to_string());
+        let session_key = format!("{channel}:{chat_id}");
+        let Some(tx) = self.runtime_control_tx.as_ref().cloned() else {
+            let _ = reply.send(Err("runtime control channel is not initialized".to_string()));
+            return;
+        };
+        tokio::spawn(async move {
+            let (reply_tx, reply_rx) = oneshot::channel();
+            let result = tx
+                .send(RuntimeControlCommand::ResetSession {
+                    session_key,
+                    reply_tx,
+                })
+                .map_err(|error| format!("failed to send runtime control command: {error}"));
+            let result = match result {
+                Ok(()) => reply_rx
+                    .await
+                    .map_err(|error| format!("failed to receive runtime control outcome: {error}")),
+                Err(error) => Err(error),
+            };
+            let _ = reply.send(result);
+        });
     }
 
     pub(super) async fn handle_get_sessions(
@@ -539,29 +592,6 @@ impl Manager {
         Ok(())
     }
 
-    fn send_runtime_session_command(
-        &self,
-        channel: Option<String>,
-        chat_id: Option<String>,
-        build: impl FnOnce(String) -> RuntimeControlCommand,
-        reply: oneshot::Sender<Result<bool, String>>,
-    ) {
-        let channel = channel.unwrap_or_else(|| "api".to_string());
-        let chat_id = chat_id.unwrap_or_else(|| "default".to_string());
-        let session_key = format!("{}:{}", channel, chat_id);
-
-        let response = self
-            .runtime_control_tx
-            .as_ref()
-            .ok_or_else(|| "runtime control channel is not initialized".to_string())
-            .and_then(|tx| {
-                tx.send(build(session_key))
-                    .map(|_| true)
-                    .map_err(|e| format!("failed to send runtime control command: {}", e))
-            });
-        let _ = reply.send(response);
-    }
-
     pub(super) async fn with_runtime_control<T, F, Fut>(
         &self,
         f: F,
@@ -590,12 +620,17 @@ async fn forward_chat_events(
     event_tx: tokio::sync::mpsc::UnboundedSender<AgentEvent>,
     channel: String,
     chat_id: String,
+    request_id: Option<String>,
 ) {
     let mut stalled_notified = false;
     loop {
         match tokio::time::timeout(STREAM_IDLE_TIMEOUT, event_rx.recv()).await {
             Ok(Ok(bus_event)) => {
-                if bus_event.channel == channel && bus_event.chat_id == chat_id {
+                let request_matches = match request_id.as_deref() {
+                    Some(expected) => bus_event.request_id.as_deref() == Some(expected),
+                    None => true,
+                };
+                if bus_event.channel == channel && bus_event.chat_id == chat_id && request_matches {
                     let event = bus_event.event;
                     if event_tx.send(event.clone()).is_err() {
                         break;
@@ -690,6 +725,7 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            None,
         ));
 
         // Let the forwarder start polling before advancing the clock.
@@ -720,6 +756,7 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            None,
         ));
 
         bus.publish_event(
@@ -762,6 +799,7 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            None,
         ));
 
         bus.publish_event(
@@ -794,6 +832,72 @@ mod tests {
             AgentEvent::Error { .. }
         ));
 
+        handle.await.unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn forward_chat_events_isolates_concurrent_requests_in_same_chat() {
+        let bus = MessageBus::new();
+        let event_rx = bus.subscribe_events();
+        let (event_tx, mut event_out) = mpsc::unbounded_channel();
+
+        let handle = tokio::spawn(forward_chat_events(
+            event_rx,
+            event_tx,
+            "gui".to_string(),
+            "chat-1".to_string(),
+            Some("request-a".to_string()),
+        ));
+
+        bus.publish_correlated_event(
+            "gui",
+            "chat-1",
+            "gui:chat-1",
+            "request-b",
+            "trace-b",
+            AgentEvent::FinalResponse {
+                content: "foreign".to_string(),
+            },
+        )
+        .unwrap();
+        bus.publish_correlated_event(
+            "gui",
+            "chat-1",
+            "gui:chat-1",
+            "request-a",
+            "trace-a",
+            AgentEvent::AssistantDelta {
+                text: "owned".to_string(),
+            },
+        )
+        .unwrap();
+        bus.publish_correlated_event(
+            "gui",
+            "chat-1",
+            "gui:chat-1",
+            "request-a",
+            "trace-a",
+            AgentEvent::FinalResponse {
+                content: "done".to_string(),
+            },
+        )
+        .unwrap();
+        advance(Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
+
+        let mut seen = Vec::new();
+        while let Ok(event) = event_out.try_recv() {
+            seen.push(event);
+        }
+        assert_eq!(seen.len(), 2);
+        assert!(matches!(
+            &seen[0],
+            AgentEvent::AssistantDelta { text } if text == "owned"
+        ));
+        assert!(matches!(
+            &seen[1],
+            AgentEvent::FinalResponse { content } if content == "done"
+        ));
         handle.await.unwrap();
     }
 
