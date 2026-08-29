@@ -7,12 +7,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `none`
 - Owner: `none`
-- Session/Task: `HARNESS-SESSION-ADMISSION HQ-02 complete`
+- Session/Task: `HARNESS-SESSION-ADMISSION HQ-03 complete`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-08-29T04:47:32+08:00`
-- Last Heartbeat: `2026-08-29T15:39:55+08:00`
-- Expires At: `released`
-- Handoff Notes: `HQ-02 completed as 9302f8e7, b53c619f, and ad2ed4c5. Dispatcher/worker ownership, bounded lease seam, turn-local approval/subagent mask, cancellation mapping, tests, full gates, smoke, TODO, and logs are complete. Production Bus remains compatibility-serial until HQ-03 request correlation.`
+- Last Heartbeat: `2026-08-29T21:17:13+08:00`
+- Expires At: `N/A (released)`
+- Handoff Notes: `HQ-03 completed in 011db1f3. Production per-session actors, typed Stop/Reset outcomes, additive limits, exact request correlation, idle worker eviction, Manager/CLI/GUI projection, full workspace gates, GUI tests/build, and CLI smoke passed. HQ-04 remains the next fault-injection and cross-entry verification stage.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION HQ-03 runtime control, configuration, correlation, and observability` — **RELEASED 2026-08-29T21:17:13+08:00** by `Codex`. Commit `011db1f3`; production per-session actors, typed Stop/Reset outcomes, additive admission limits, request/trace/session correlation, idle worker eviction, Manager/CLI/GUI projection, full workspace gates, GUI tests/build, CLI help smoke, TODO closeout, and iteration logs completed.
 
 - `HARNESS-SESSION-ADMISSION HQ-02 Agent dispatcher and turn wiring` — **RELEASED 2026-08-29T15:39:55+08:00** by `Codex`. Commits `9302f8e7`, `b53c619f`, and `ad2ed4c5`; bounded dispatcher seam, explicit `SessionWorkerState`, turn-local approval/subagent mask, Stop/Reset waiter semantics, six dispatcher tests, full workspace gates, CLI help smoke, TODO closeout, and iteration logs. Production MessageBus consumption intentionally remains serialized pending HQ-03 request/trace correlation.
 

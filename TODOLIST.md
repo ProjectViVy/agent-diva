@@ -126,10 +126,15 @@
     生产 Bus 继续保持兼容串行，待 HQ-03 完成 request/trace 投影后再开放并发。实现提交
     `9302f8e7`、`b53c619f`；验证记录见
     [`v0.3.0-hq02-agent-dispatcher`](docs/logs/2026-08-harness-session-admission/v0.3.0-hq02-agent-dispatcher/verification.md)。
-  - [ ] **HQ-03 Runtime control、配置与可观察合同**（09-10 ～ 09-11，2d）：将
-    Stop/Reset 精确映射到 running/queued request；增加稳定 outcome code、queue depth、
-    wait latency、request/trace/session correlation，并向 Manager/CLI/GUI 现有事件合同投影。
-    不新增全局事件总线，不把小时/天 token 熔断改造成 queue。
+  - [x] **HQ-03 Runtime control、配置与可观察合同**（原排期 09-10 ～ 09-11；08-29 提前完成）：
+    生产 Bus 已切换为持久 per-session actor，同 session 保持有界 FIFO，不同 session 可并发；
+    Stop 可按 request 精确取消 running turn 且保留 queued turn，Reset/Delete 在 turn 静默后清理。
+    `agents.defaults.session_admission` 已提供 `max_queue_depth=2`、`wait_timeout=30s`、
+    `idle_ttl=600s` 的兼容默认值；稳定 outcome code、queue depth、wait latency 与
+    request/trace/session correlation 已投影到 Manager、CLI、GUI 和通用 SSE。实现提交
+    `011db1f3`；验证记录见
+    [`v0.4.0-hq03-runtime-contract`](docs/logs/2026-08-harness-session-admission/v0.4.0-hq03-runtime-contract/verification.md)。
+    MessageBus 仍只承担 transport，小时/天 token 熔断未改造成 queue。
   - [ ] **HQ-04 跨入口验证与故障注入**（09-14 ～ 09-15，2d）：覆盖 Manager API、GUI
     stream、CLI/direct、至少一个 Channel/Bus 入口；注入 provider stall/retry、Stop、Reset、
     timeout 和 queue-full，证明无丢消息、无串 session、无幽灵 lease，且错误对用户可解释。
