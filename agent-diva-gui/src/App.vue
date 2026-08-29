@@ -56,6 +56,10 @@ import {
   findCurrentTurnUpdatePlanToolIndex,
   findLatestStreamingAgentIndex,
 } from "./utils/streamingMessages";
+import {
+  routeSessionAdmission,
+  type SessionAdmissionPayload,
+} from "./utils/sessionAdmission";
 
 const { t } = useI18n();
 const {
@@ -83,6 +87,7 @@ interface Message {
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
   retryStatus?: { attempt: number; maxRetries: number; model?: string };
+  queueStatus?: { depth: number; waitLatencyMs: number };
   stalled?: boolean;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
@@ -119,6 +124,11 @@ interface StreamRetryPayload {
 interface StreamStalledPayload {
   request_id: string;
   model?: string | null;
+}
+
+interface SessionControlOutcome {
+  target_state: 'running' | 'queued_preserved' | 'session' | 'absent';
+  running_cancelled: boolean;
 }
 
 interface StreamContextCompactionPayload {
@@ -1843,11 +1853,21 @@ async function stopMessage() {
       return;
     }
 
-    await invoke("stop_generation", {
+    const outcome = await invoke<SessionControlOutcome>("stop_generation", {
       channel: currentChannel.value,
       chatId: currentChatId.value,
       requestId: activeStreamRequestId.value,
     });
+    if (!outcome.running_cancelled) {
+      showAppToast(
+        outcome.target_state === 'queued_preserved'
+          ? t('chat.stopQueuedPreserved')
+          : t('chat.stopNotRunning'),
+        'error',
+        4000,
+      );
+      return;
+    }
     suppressNextStopError.value = true;
     const hadVisibleResponse = messages.value.some(
       (message) => message.role === 'agent' && message.isStreaming && !!message.content,
@@ -2725,6 +2745,45 @@ onMounted(async () => {
       isTyping.value = false;
       activeStreamRequestId.value = null;
     }
+    syncCurrentSessionListEntry();
+  }));
+
+  // Admission status is scoped to the one active stream request.
+  unlisteners.push(await listen<SessionAdmissionPayload>("agent-session-admission", (event) => {
+    const action = routeSessionAdmission(activeStreamRequestId.value, event.payload);
+    if (action.kind === 'ignore') return;
+    const streamingIndex = findLatestStreamingAgentIndex(messages.value);
+    const streamingMessage = streamingIndex >= 0 ? messages.value[streamingIndex] : null;
+    if (action.kind === 'queued') {
+      if (streamingMessage) {
+        streamingMessage.queueStatus = {
+          depth: action.depth,
+          waitLatencyMs: action.waitLatencyMs,
+        };
+      }
+      return;
+    }
+    if (action.kind === 'running') {
+      if (streamingMessage) streamingMessage.queueStatus = undefined;
+      return;
+    }
+
+    const errorKeys: Record<string, string> = {
+      session_queue_full: 'chat.admissionQueueFull',
+      session_queue_wait_timeout: 'chat.admissionTimeout',
+      session_reset: 'chat.admissionReset',
+      session_worker_unavailable: 'chat.admissionWorkerUnavailable',
+      session_turn_cancelled: 'chat.admissionTurnCancelled',
+    };
+    removeStreamingAssistantPlaceholder();
+    messages.value.push({
+      id: generateMessageId(),
+      role: 'system',
+      content: `${t('app.errorPrefix')}${t(errorKeys[action.code])}`,
+      timestamp: Date.now(),
+    });
+    isTyping.value = false;
+    activeStreamRequestId.value = null;
     syncCurrentSessionListEntry();
   }));
 

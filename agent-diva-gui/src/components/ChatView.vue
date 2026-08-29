@@ -74,6 +74,7 @@ interface Message {
   toolStatus?: 'running' | 'success' | 'error';
   toolCallId?: string;
   retryStatus?: { attempt: number; maxRetries: number; model?: string };
+  queueStatus?: { depth: number; waitLatencyMs: number };
   stalled?: boolean;
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
@@ -1126,7 +1127,13 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
               <!-- Provider status badges on the streaming agent message -->
               <div
-                v-if="msg.isStreaming && msg.retryStatus"
+                v-if="msg.isStreaming && msg.queueStatus"
+                class="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
+              >
+                {{ t('chat.queued', { depth: msg.queueStatus.depth }) }}
+              </div>
+              <div
+                v-else-if="msg.isStreaming && msg.retryStatus"
                 class="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
               >
                 {{ t('chat.retrying', { attempt: msg.retryStatus.attempt, max: msg.retryStatus.maxRetries }) }}

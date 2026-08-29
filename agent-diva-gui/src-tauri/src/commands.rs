@@ -2289,7 +2289,7 @@ pub async fn stop_generation(
     chat_id: Option<String>,
     request_id: Option<String>,
     state: State<'_, AgentState>,
-) -> Result<bool, String> {
+) -> Result<agent_diva_core::bus::SessionControlOutcome, String> {
     let url = format!("{}/chat/stop", state.api_base_url());
     let payload = serde_json::json!({
         "channel": channel,
@@ -2323,10 +2323,56 @@ pub async fn stop_generation(
         return Err(format!("Stop request rejected: {}", message));
     }
 
-    Ok(value
-        .get("stopped")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true))
+    parse_stop_outcome(&value)
+}
+
+fn parse_stop_outcome(
+    value: &serde_json::Value,
+) -> Result<agent_diva_core::bus::SessionControlOutcome, String> {
+    serde_json::from_value(
+        value
+            .get("outcome")
+            .cloned()
+            .ok_or_else(|| "Stop response missing typed outcome".to_string())?,
+    )
+    .map_err(|error| format!("Invalid stop outcome: {error}"))
+}
+
+#[cfg(test)]
+mod stop_outcome_tests {
+    use super::parse_stop_outcome;
+    use agent_diva_core::bus::SessionControlTargetState;
+
+    #[test]
+    fn queued_preserved_outcome_remains_non_terminal() {
+        let outcome = parse_stop_outcome(&serde_json::json!({
+            "status": "ok",
+            "stopped": false,
+            "outcome": {
+                "action": "stop",
+                "session_key": "gui:chat",
+                "request_id": "request-a",
+                "trace_id": "trace-a",
+                "code": null,
+                "target_state": "queued_preserved",
+                "running_cancelled": false,
+                "queued_cancelled": 0,
+                "cleanup_complete": true
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            outcome.target_state,
+            SessionControlTargetState::QueuedPreserved
+        );
+        assert!(!outcome.running_cancelled);
+    }
+
+    #[test]
+    fn missing_typed_outcome_is_rejected() {
+        assert!(parse_stop_outcome(&serde_json::json!({ "status": "ok" })).is_err());
+    }
 }
 
 #[tauri::command]

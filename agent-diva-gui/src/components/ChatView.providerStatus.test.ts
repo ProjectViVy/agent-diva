@@ -7,11 +7,36 @@ vi.mock('vue-i18n', () => ({
     t: (key: string, params?: Record<string, number>) =>
       key === 'chat.retrying'
         ? `未响应，重试 (${params?.attempt}/${params?.max})`
-        : key,
+        : key === 'chat.queued'
+          ? `排队中（队列深度 ${params?.depth}）`
+          : key,
   }),
 }));
 
 describe('ChatView provider status badges', () => {
+  it('renders queued before retry or stalled status', () => {
+    const wrapper = shallowMount(ChatView, {
+      props: {
+        messages: [
+          {
+            id: 'queued',
+            role: 'agent',
+            content: '',
+            isStreaming: true,
+            queueStatus: { depth: 2, waitLatencyMs: 0 },
+            retryStatus: { attempt: 1, maxRetries: 3 },
+            stalled: true,
+          },
+        ],
+        isTyping: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain('排队中（队列深度 2）');
+    expect(wrapper.text()).not.toContain('未响应');
+    expect(wrapper.text()).not.toContain('chat.stalled');
+  });
+
   it('renders the retry badge with attempt/max on a streaming message', () => {
     const wrapper = shallowMount(ChatView, {
       props: {

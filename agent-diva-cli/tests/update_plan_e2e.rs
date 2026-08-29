@@ -3,6 +3,7 @@ use std::time::Duration;
 use agent_diva_agent::AgentEvent;
 use agent_diva_cli::client::ApiClient;
 use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::{SessionAdmissionObservation, SessionAdmissionPhase};
 use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
 use agent_diva_manager::run_server_with_listener;
 use agent_diva_manager::state::{AppState, ManagerCommand};
@@ -58,6 +59,35 @@ async fn update_plan_end_to_end_client_sse() {
     // Mock agent consumer: emits a plan update then finishes the turn.
     tokio::spawn(async move {
         if let Some(ManagerCommand::Chat(req)) = api_rx.recv().await {
+            let request_id = req
+                .msg
+                .metadata
+                .get("request_id")
+                .and_then(serde_json::Value::as_str)
+                .expect("manager chat request should carry request_id")
+                .to_string();
+            let _ = req.event_tx.send(AgentEvent::SessionAdmission {
+                observation: SessionAdmissionObservation {
+                    code: None,
+                    phase: SessionAdmissionPhase::Queued,
+                    session_key: "gui:chat-1".to_string(),
+                    request_id: request_id.clone(),
+                    trace_id: "trace-e2e".to_string(),
+                    queue_depth: 1,
+                    wait_latency_ms: 0,
+                },
+            });
+            let _ = req.event_tx.send(AgentEvent::SessionAdmission {
+                observation: SessionAdmissionObservation {
+                    code: None,
+                    phase: SessionAdmissionPhase::Running,
+                    session_key: "gui:chat-1".to_string(),
+                    request_id,
+                    trace_id: "trace-e2e".to_string(),
+                    queue_depth: 1,
+                    wait_latency_ms: 25,
+                },
+            });
             let _ = req.event_tx.send(AgentEvent::ChatPlanUpdate {
                 args: expected_args_clone,
             });
@@ -108,6 +138,32 @@ async fn update_plan_end_to_end_client_sse() {
     };
 
     match first_event {
+        AgentEvent::SessionAdmission { observation } => {
+            assert_eq!(observation.phase, SessionAdmissionPhase::Queued);
+            assert_eq!(observation.queue_depth, 1);
+            assert!(!observation.request_id.is_empty());
+        }
+        other => panic!("expected queued SessionAdmission, got {:?}", other),
+    }
+
+    let second_event = timeout(Duration::from_secs(5), event_rx.recv())
+        .await
+        .expect("timed out waiting for running admission")
+        .expect("event stream closed before running admission");
+    match second_event {
+        AgentEvent::SessionAdmission { observation } => {
+            assert_eq!(observation.phase, SessionAdmissionPhase::Running);
+            assert_eq!(observation.trace_id, "trace-e2e");
+            assert_eq!(observation.wait_latency_ms, 25);
+        }
+        other => panic!("expected running SessionAdmission, got {:?}", other),
+    }
+
+    let plan_event = timeout(Duration::from_secs(5), event_rx.recv())
+        .await
+        .expect("timed out waiting for plan event")
+        .expect("event stream closed before plan event");
+    match plan_event {
         AgentEvent::ChatPlanUpdate { args } => {
             assert_eq!(args, expected_args);
         }

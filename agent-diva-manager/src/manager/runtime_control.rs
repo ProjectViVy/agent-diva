@@ -855,6 +855,44 @@ mod tests {
             "gui:chat-1",
             "request-b",
             "trace-b",
+            AgentEvent::SessionAdmission {
+                observation: agent_diva_core::bus::SessionAdmissionObservation {
+                    code: None,
+                    phase: agent_diva_core::bus::SessionAdmissionPhase::Queued,
+                    session_key: "gui:chat-1".to_string(),
+                    request_id: "request-b".to_string(),
+                    trace_id: "trace-b".to_string(),
+                    queue_depth: 1,
+                    wait_latency_ms: 0,
+                },
+            },
+        )
+        .unwrap();
+        bus.publish_correlated_event(
+            "gui",
+            "chat-1",
+            "gui:chat-1",
+            "request-a",
+            "trace-a",
+            AgentEvent::SessionAdmission {
+                observation: agent_diva_core::bus::SessionAdmissionObservation {
+                    code: None,
+                    phase: agent_diva_core::bus::SessionAdmissionPhase::Queued,
+                    session_key: "gui:chat-1".to_string(),
+                    request_id: "request-a".to_string(),
+                    trace_id: "trace-a".to_string(),
+                    queue_depth: 1,
+                    wait_latency_ms: 0,
+                },
+            },
+        )
+        .unwrap();
+        bus.publish_correlated_event(
+            "gui",
+            "chat-1",
+            "gui:chat-1",
+            "request-b",
+            "trace-b",
             AgentEvent::FinalResponse {
                 content: "foreign".to_string(),
             },
@@ -889,13 +927,18 @@ mod tests {
         while let Ok(event) = event_out.try_recv() {
             seen.push(event);
         }
-        assert_eq!(seen.len(), 2);
+        assert_eq!(seen.len(), 3);
         assert!(matches!(
             &seen[0],
-            AgentEvent::AssistantDelta { text } if text == "owned"
+            AgentEvent::SessionAdmission { observation }
+                if observation.request_id == "request-a" && observation.trace_id == "trace-a"
         ));
         assert!(matches!(
             &seen[1],
+            AgentEvent::AssistantDelta { text } if text == "owned"
+        ));
+        assert!(matches!(
+            &seen[2],
             AgentEvent::FinalResponse { content } if content == "done"
         ));
         handle.await.unwrap();
