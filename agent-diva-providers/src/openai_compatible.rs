@@ -865,7 +865,9 @@ impl LLMProvider for OpenAiCompatibleClient {
             Self::apply_cache_control(&mut body);
         }
         Self::normalize_assistant_tool_call_content(&mut body);
-        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+        let final_wire_listener = crate::request_observers::current_final_wire_cache_listener()
+            .or_else(|| self.final_wire_cache_listener.lock().unwrap().clone());
+        if let Some(listener) = final_wire_listener {
             let stable_system = body
                 .get("messages")
                 .and_then(Value::as_array)
@@ -903,7 +905,8 @@ impl LLMProvider for OpenAiCompatibleClient {
         );
 
         // Send request with retry on 5xx/network errors + rate limit detection
-        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let retry_listener = crate::request_observers::current_retry_listener()
+            .or_else(|| self.retry_listener.lock().unwrap().clone());
         let response = retry::send_with_retry(&resolved_model, retry_listener.as_ref(), || {
             let req = self.apply_headers(
                 self.client
@@ -972,7 +975,9 @@ impl LLMProvider for OpenAiCompatibleClient {
             Self::apply_cache_control(&mut body);
         }
         Self::normalize_assistant_tool_call_content(&mut body);
-        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+        let final_wire_listener = crate::request_observers::current_final_wire_cache_listener()
+            .or_else(|| self.final_wire_cache_listener.lock().unwrap().clone());
+        if let Some(listener) = final_wire_listener {
             let stable_system = body
                 .get("messages")
                 .and_then(Value::as_array)
@@ -1009,7 +1014,8 @@ impl LLMProvider for OpenAiCompatibleClient {
         );
 
         // Send request with retry on 5xx/network errors + rate limit detection
-        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let retry_listener = crate::request_observers::current_retry_listener()
+            .or_else(|| self.retry_listener.lock().unwrap().clone());
         let response = retry::send_with_retry(&resolved_model, retry_listener.as_ref(), || {
             let req = self.apply_headers(
                 self.client

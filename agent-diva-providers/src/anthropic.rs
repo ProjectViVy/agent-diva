@@ -351,7 +351,9 @@ impl LLMProvider for AnthropicClient {
         )?;
         let api_key = self.require_api_key()?;
         let body_value = serde_json::to_value(&request)?;
-        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+        let final_wire_listener = crate::request_observers::current_final_wire_cache_listener()
+            .or_else(|| self.final_wire_cache_listener.lock().unwrap().clone());
+        if let Some(listener) = final_wire_listener {
             let stable_system = body_value.get("system").cloned().unwrap_or(Value::Null);
             let tools = body_value
                 .get("tools")
@@ -368,7 +370,8 @@ impl LLMProvider for AnthropicClient {
         }
         let body = serde_json::to_string(&body_value)?;
         let url = format!("{}/v1/messages", self.api_base);
-        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let retry_listener = crate::request_observers::current_retry_listener()
+            .or_else(|| self.retry_listener.lock().unwrap().clone());
         let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
             let request = self.apply_headers(self.client.post(&url).body(body.clone()), &api_key);
             async move { request.send().await }
@@ -399,7 +402,9 @@ impl LLMProvider for AnthropicClient {
         )?;
         let api_key = self.require_api_key()?;
         let body_value = serde_json::to_value(&request)?;
-        if let Some(listener) = self.final_wire_cache_listener.lock().unwrap().clone() {
+        let final_wire_listener = crate::request_observers::current_final_wire_cache_listener()
+            .or_else(|| self.final_wire_cache_listener.lock().unwrap().clone());
+        if let Some(listener) = final_wire_listener {
             let stable_system = body_value.get("system").cloned().unwrap_or(Value::Null);
             let tools = body_value
                 .get("tools")
@@ -416,7 +421,8 @@ impl LLMProvider for AnthropicClient {
         }
         let body = serde_json::to_string(&body_value)?;
         let url = format!("{}/v1/messages", self.api_base);
-        let retry_listener = self.retry_listener.lock().unwrap().clone();
+        let retry_listener = crate::request_observers::current_retry_listener()
+            .or_else(|| self.retry_listener.lock().unwrap().clone());
         let response = retry::send_with_retry(&model, retry_listener.as_ref(), || {
             let request = self.apply_headers(self.client.post(&url).body(body.clone()), &api_key);
             async move { request.send().await }

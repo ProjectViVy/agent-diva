@@ -14,6 +14,7 @@ pub mod ollama;
 pub mod openai_compatible;
 pub mod registry;
 pub mod report_narrative;
+pub mod request_observers;
 pub mod retry;
 pub mod tap;
 pub mod transcription;
@@ -39,6 +40,10 @@ pub use ollama::OllamaProvider;
 pub use openai_compatible::OpenAiCompatibleClient;
 pub use registry::{ProviderRegistry, ProviderSpec};
 pub use report_narrative::LlmReportNarrativeGenerator;
+pub use request_observers::{
+    current_final_wire_cache_listener, current_retry_listener, with_provider_request_observers,
+    ProviderRequestObservers,
+};
 
 use async_trait::async_trait;
 use std::sync::{Arc, RwLock};

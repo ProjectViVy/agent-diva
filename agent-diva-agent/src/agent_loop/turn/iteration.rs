@@ -2,7 +2,8 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage};
 use agent_diva_core::session::{ChatMessage, CheckpointTrigger, TokenUsage};
 use agent_diva_providers::retry::{RetryAttempt, RetryListener};
 use agent_diva_providers::{
-    LLMResponse, LLMStreamEvent, Message, ProviderEventStream, ToolChoiceMode,
+    with_provider_request_observers, LLMResponse, LLMStreamEvent, Message, ProviderEventStream,
+    ProviderRequestObservers, ToolChoiceMode,
 };
 use futures::StreamExt;
 use std::sync::{Arc, Mutex};
@@ -287,17 +288,18 @@ impl AgentLoop {
                         },
                     );
                 });
-                self.provider.set_retry_listener(Some(listener));
                 let snapshot_slot = final_wire_snapshot.clone();
-                self.provider
-                    .set_final_wire_cache_listener(Some(Arc::new(move |snapshot| {
-                        if let Ok(mut slot) = snapshot_slot.lock() {
-                            *slot = Some(snapshot);
-                        }
-                    })));
-                let result = self
-                    .provider
-                    .chat_stream(
+                let final_wire_cache = Arc::new(move |snapshot| {
+                    if let Ok(mut slot) = snapshot_slot.lock() {
+                        *slot = Some(snapshot);
+                    }
+                });
+                with_provider_request_observers(
+                    ProviderRequestObservers {
+                        retry: Some(listener),
+                        final_wire_cache: Some(final_wire_cache),
+                    },
+                    self.provider.chat_stream(
                         messages.clone(),
                         tools,
                         if summary_only {
@@ -310,11 +312,9 @@ impl AgentLoop {
                         Some(model.to_string()),
                         requested_max_tokens,
                         0.7,
-                    )
-                    .await;
-                self.provider.set_retry_listener(None);
-                self.provider.set_final_wire_cache_listener(None);
-                result
+                    ),
+                )
+                .await
             };
             let mut snapshot = final_wire_snapshot
                 .lock()

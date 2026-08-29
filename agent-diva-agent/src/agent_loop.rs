@@ -1749,10 +1749,10 @@ mod tests {
     }
     use agent_diva_core::config::MaskConfig;
     use agent_diva_core::planning::update_plan::PlanItemStatus;
-    use agent_diva_providers::retry::{RetryAttempt, RetryListener};
+    use agent_diva_providers::retry::RetryAttempt;
     use agent_diva_providers::{
-        LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient, ProviderError,
-        ProviderEventStream, ProviderResult, ToolCallRequest,
+        current_retry_listener, LLMResponse, LLMStreamEvent, Message, OpenAiCompatibleClient,
+        ProviderError, ProviderEventStream, ProviderResult, ToolCallRequest,
     };
     use async_trait::async_trait;
     use futures::stream;
@@ -1999,16 +1999,10 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct RetryEmittingProvider {
-        captured_listener: Mutex<Option<RetryListener>>,
-    }
+    struct RetryEmittingProvider;
 
     #[async_trait]
     impl LLMProvider for RetryEmittingProvider {
-        fn set_retry_listener(&self, listener: Option<RetryListener>) {
-            *self.captured_listener.lock().unwrap() = listener;
-        }
-
         async fn chat(
             &self,
             _messages: Vec<Message>,
@@ -2032,7 +2026,7 @@ mod tests {
             _max_tokens: i32,
             _temperature: f64,
         ) -> ProviderResult<ProviderEventStream> {
-            if let Some(listener) = self.captured_listener.lock().unwrap().clone() {
+            if let Some(listener) = current_retry_listener() {
                 listener(RetryAttempt {
                     model: "test-model".to_string(),
                     attempt: 1,
@@ -2054,6 +2048,59 @@ mod tests {
 
         fn get_default_model(&self) -> String {
             "test-model".to_string()
+        }
+    }
+
+    struct ConcurrentRetryProvider {
+        barrier: Arc<tokio::sync::Barrier>,
+    }
+
+    #[async_trait]
+    impl LLMProvider for ConcurrentRetryProvider {
+        async fn chat(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<LLMResponse> {
+            Err(ProviderError::ApiError(
+                "chat should not be used".to_string(),
+            ))
+        }
+
+        async fn chat_stream(
+            &self,
+            _messages: Vec<Message>,
+            _tools: Option<Vec<serde_json::Value>>,
+            _tool_choice: ToolChoiceMode,
+            _model: Option<String>,
+            _max_tokens: i32,
+            _temperature: f64,
+        ) -> ProviderResult<ProviderEventStream> {
+            self.barrier.wait().await;
+            current_retry_listener().unwrap()(RetryAttempt {
+                model: "concurrent-fixture".to_string(),
+                attempt: 1,
+                max_retries: 1,
+                delay_ms: 0,
+                reason: "concurrent fixture".to_string(),
+            });
+            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
+                LLMResponse {
+                    content: Some("done".to_string()),
+                    tool_calls: Vec::new(),
+                    finish_reason: "stop".to_string(),
+                    usage: HashMap::new(),
+                    reasoning_content: None,
+                },
+            ))])))
+        }
+
+        fn get_default_model(&self) -> String {
+            "concurrent-fixture".to_string()
         }
     }
 
@@ -2536,6 +2583,56 @@ mod tests {
         assert_eq!(observed.1, 1);
         assert_eq!(observed.2, 3);
         assert_eq!(observed.3, 1000);
+    }
+
+    #[tokio::test]
+    async fn concurrent_sessions_keep_provider_retry_correlation_isolated() {
+        let bus = MessageBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let provider = Arc::new(ConcurrentRetryProvider {
+            barrier: Arc::new(tokio::sync::Barrier::new(2)),
+        });
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(
+            bus.clone(),
+            provider,
+            temp_dir.path().to_path_buf(),
+            None,
+            Some(1),
+        )
+        .await
+        .unwrap();
+        let run = tokio::spawn(async move { agent.run().await.map_err(|error| error.to_string()) });
+
+        for (chat_id, request_id) in [("chat-a", "request-a"), ("chat-b", "request-b")] {
+            let mut message = InboundMessage::new("gui", "user", chat_id, "Hello");
+            message.metadata.insert(
+                REQUEST_ID_METADATA_KEY.to_string(),
+                serde_json::Value::String(request_id.to_string()),
+            );
+            bus.publish_inbound(message).unwrap();
+        }
+
+        let observed = timeout(Duration::from_secs(2), async {
+            let mut retries = HashMap::new();
+            while retries.len() < 2 {
+                let event = event_rx.recv().await.unwrap();
+                if matches!(event.event, AgentEvent::ProviderRetry { .. }) {
+                    retries.insert(
+                        event.chat_id,
+                        (event.request_id.unwrap(), event.trace_id.unwrap()),
+                    );
+                }
+            }
+            retries
+        })
+        .await
+        .expect("timed out waiting for concurrent retry events");
+
+        assert_eq!(observed["chat-a"].0, "request-a");
+        assert_eq!(observed["chat-b"].0, "request-b");
+        assert_ne!(observed["chat-a"].1, observed["chat-b"].1);
+        run.abort();
     }
 
     #[tokio::test]
