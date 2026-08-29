@@ -10,9 +10,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-30T02:18:24+08:00`
+- Last Heartbeat: `2026-08-30T02:36:55+08:00`
 - Expires At: `N/A`
-- Handoff Notes: `HQ-04 completed in commits 2e3553fb, 5176ac18, and 0226571e. Full Rust and GUI gates passed. HQ-05 closeout/release gate is next.`
+- Handoff Notes: `HQ-05 and the Session Admission Epic are complete. Full Rust/GUI gates, focused regressions, CLI/GUI/embedded-Gateway smoke, operator guide, rollback/acceptance records, and backlog archive passed. No remaining Session Admission TODO.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION HQ-05 release gate and Epic closeout` — **RELEASED 2026-08-30T02:36:55+08:00** by `Codex`. Full Rust/GUI gates, focused kernel/dispatcher/cross-entry regressions, CLI help, live Vite page, embedded-Gateway health, operator guide, migration/rollback/acceptance records, and completed-Epic backlog archive passed.
 
 - `HARNESS-SESSION-ADMISSION HQ-04 cross-entry fault injection and observability` — **RELEASED 2026-08-30T02:18:24+08:00** by `Codex`. Commits `2e3553fb`, `5176ac18`, and `0226571e`; request-scoped provider observers, generation-aware worker supervision and panic recovery, cross-entry fault matrix, truthful GUI backpressure/error UX, full workspace gates, 516 GUI tests, and production GUI build passed.
 

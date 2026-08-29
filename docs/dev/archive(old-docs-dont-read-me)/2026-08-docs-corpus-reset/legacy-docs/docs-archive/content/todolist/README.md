@@ -5,6 +5,8 @@
 
 - `snapshot-before-2026-08-13-cleanup.md`：2026-08-13 全量清理前快照，包含完成、
   取消、被取代、重复及当时开放的全部记录。
+- `completed-2026-08-30-harness-session-admission.md`：2026-08-30 每 session 有界串行
+  准入 Epic 完成、发布门禁与活跃待办归档。
 - `completed-2026-08-28-workspace-system-closeout.md`：2026-08-28 WORKSPACE 系统收尾
   正式关闭、成果归档及旧 Workspace 待办移出活跃清单。
 - `completed-2026-08-23-todolist-auto-close.md`：2026-08-23 机械收尾、合同冻结、

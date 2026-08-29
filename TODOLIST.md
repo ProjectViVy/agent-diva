@@ -14,6 +14,11 @@
 > 真实桌面验收、分支/worktree 退休和成果归档均已完成。关闭记录见
 > [`completed-2026-08-28-workspace-system-closeout.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-28-workspace-system-closeout.md)。
 
+> **2026-08-30 正式关闭 HARNESS Session Admission Epic**：HQ-00～HQ-05 的合同、
+> 有界准入内核、per-session worker、runtime control、跨入口故障注入和发布门禁全部完成。
+> 关闭记录见
+> [`completed-2026-08-30-harness-session-admission.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-30-harness-session-admission.md)。
+
 ## L0-WBS：工作台系统与频道全面增强（大型 WBS）
 
 > 这是上一轮决策收敛出的总工作分解。Workbench、PEN、Mirror、Neuro-Link、A2A
@@ -83,84 +88,6 @@
   SQLite 表、默认技能/工具权限、远程出站范围、SSE/Webhook 及多 Agent 是否拆分后续阶段。
 
 ### L1-C：WBS 共用运行时底座
-
-#### WBS-05：每 session 有界串行准入
-
-- [ ] **HARNESS-SESSION-ADMISSION-BOUNDED-QUEUE：每 session 有界串行准入** `sev-P1`
-  当前 `turn/admission.rs` 只有熔断和小时速率拒绝，`MessageBus` inbound/outbound 是
-  unbounded channel；缺少 per-session FIFO、队列深度上限、等待超时、取消和可观察的
-  queue-full 语义。参考 ZeroClaw `SessionActorQueue`，但只接在 Agent Loop admission，
-  不重写 MessageBus，不改变会话历史/Memory 权威。方案与验收见
-  [`diva-adaptation-proposal.md`](docs/research/harness-gap-diva-adaptation-2026-08/diva-adaptation-proposal.md)。
-
-  **立项状态与排期（2026-08-29）**：已进入开发准备，按 1 名主开发、工作日连续投入估算，
-  基线工期 **13 个工程日**，计划窗口 **2026-08-31 ～ 2026-09-16**；预留 2 个工程日风险
-  缓冲，最晚目标 **2026-09-18**。若与其他改动同时触碰 `AgentLoop`、runtime control、
-  Manager chat API 或 `TODOLIST.md`，须使用独立 worktree 并在合并前重跑全套门禁。
-
-  **关键架构闸门**：当前 `AgentLoop::run(&mut self)` 全局串行消费 inbound，turn 期间还持有
-  loop 级可变状态。首阶段必须证明并冻结“dispatcher + per-session worker/lease”的所有权
-  模型；不得用一把全局 mutex 冒充 per-session 并发。若无法在不复制 AgentLoop、重写
-  `MessageBus` 或破坏 Plan/Sandbox/Memory 边界的前提下实现不同 session 并行，停止施工并
-  重新评审，不进入后续接线。
-
-  **开发分解与里程碑**：
-
-  - [x] **HQ-00 合同冻结与并发所有权表征**（08-31 ～ 09-01，2d）：已补齐当前全局串行、
-    session identity、Stop/Reset、直接调用与 Bus 调用的表征测试；冻结 typed outcome/error
-    code、配置位置与默认值（`max_queue_depth=2`、`wait_timeout=30s`、
-    `idle_ttl=10m`），并输出 dispatcher/worker 生命周期与 drop/abort 行为。冻结合同见
-    [`hq00-contract.md`](docs/dev/harness-session-admission/hq00-contract.md)；HQ-01/02 须按该
-    所有权模型证明不改 MessageBus 权威即可让不同 session 独立推进、同 session 严格 FIFO。
-  - [x] **HQ-01 Core admission kernel**（原排期 09-02 ～ 09-04；08-29 提前完成）：已在
-    `agent-diva-core/src/session/admission.rs` 实现有界 FIFO、RAII lease、等待超时、队满、
-    显式取消、关闭排空和 idle slot 回收；时钟可注入、测试可暂停，且所有状态锁均在 await
-    前释放。12 个定向单测覆盖 FIFO、容量边界、跨 session 独立、timeout/cancel race、future/
-    lease drop、任务 abort、idle eviction 与 close drain。实现提交 `5ff59b5c`，验证记录见
-    [`v0.2.0-hq01-core-kernel`](docs/logs/2026-08-harness-session-admission/v0.2.0-hq01-core-kernel/verification.md)。
-  - [x] **HQ-02 Agent dispatcher 与 turn 接线**（原排期 09-07 ～ 09-09；08-29 提前完成）：
-    Bus 与 `process_direct(_stream)` 已统一在 circuit/rate/provider 前经过 HQ-01 lease seam；
-    session 可变字段已收敛进显式 `SessionWorkerState`，approval/tool surface 与 subagent mask
-    改为 turn 快照。6 个 dispatcher 测试证明同 session FIFO/不重入、跨 session 并行、
-    queue-full/timeout 零执行副作用，以及 Stop 与 Reset 的 running/waiter 边界。按 HQ-00 闸门，
-    生产 Bus 继续保持兼容串行，待 HQ-03 完成 request/trace 投影后再开放并发。实现提交
-    `9302f8e7`、`b53c619f`；验证记录见
-    [`v0.3.0-hq02-agent-dispatcher`](docs/logs/2026-08-harness-session-admission/v0.3.0-hq02-agent-dispatcher/verification.md)。
-  - [x] **HQ-03 Runtime control、配置与可观察合同**（原排期 09-10 ～ 09-11；08-29 提前完成）：
-    生产 Bus 已切换为持久 per-session actor，同 session 保持有界 FIFO，不同 session 可并发；
-    Stop 可按 request 精确取消 running turn 且保留 queued turn，Reset/Delete 在 turn 静默后清理。
-    `agents.defaults.session_admission` 已提供 `max_queue_depth=2`、`wait_timeout=30s`、
-    `idle_ttl=600s` 的兼容默认值；稳定 outcome code、queue depth、wait latency 与
-    request/trace/session correlation 已投影到 Manager、CLI、GUI 和通用 SSE。实现提交
-    `011db1f3`；验证记录见
-    [`v0.4.0-hq03-runtime-contract`](docs/logs/2026-08-harness-session-admission/v0.4.0-hq03-runtime-contract/verification.md)。
-    MessageBus 仍只承担 transport，小时/天 token 熔断未改造成 queue。
-  - [x] **HQ-04 跨入口验证与故障注入**（原排期 09-14 ～ 09-15；08-30 提前完成）：
-    provider retry/final-wire 观察器已改为 request-scoped task-local authority，兼容 legacy
-    listener fallback，实际 Bus 并发测试证明同 chat 不同 request/trace 不串流。session worker
-    由 generation-aware supervisor 托管，panic 会精确排空 running/queued 为
-    `session_worker_unavailable`，随后请求可重建 worker；queue-full、wait-timeout 均在 provider
-    副作用前拒绝且不遗留幽灵 lease。Manager SSE、CLI remote/direct、Bus transport 入口与 GUI
-    已覆盖 queued/running/五类终态；GUI 严格按 active request 归属展示排队和可解释错误，
-    Stop 的 `queued_preserved` 不再误报为已停止。实现提交 `2e3553fb`、`5176ac18`、
-    `0226571e`；验证记录见
-    [`v0.5.0-hq04-cross-entry-faults`](docs/logs/2026-08-harness-session-admission/v0.5.0-hq04-cross-entry-faults/verification.md)。
-  - [ ] **HQ-05 收口与发布门禁**（09-16，1d）：运行 `just fmt-check`、`just check`、
-    `just test`、相关 crate 定向测试及 CLI/GUI 最小真实路径 smoke；补齐迭代日志、配置迁移/
-    默认值说明、回滚说明和人工验收步骤。全部通过后才关闭本 Epic。
-
-  **验收门**：同 session 最大并发 turn=1 且 FIFO 可重复证明；不同 session 在阻塞 provider
-  fixture 下确实并行；深度上限不含 running turn 并有边界测试；queue full、wait timeout、
-  cancelled、evicted 使用稳定机器码；Stop/Reset 的 running 与 queued 语义无歧义；所有拒绝
-  均发生在 provider/tool/BML 副作用之前；PlanMode、Sandbox、Approval、会话历史、BML/
-  Persona/Evolution 权威保持不变；MessageBus 继续作为 transport，不承担 session 调度。
-
-  **依赖与风险**：HQ-01 依赖 HQ-00 所有权方案通过；HQ-02 依赖 HQ-01；HQ-03 可在 HQ-02
-  后半段并行准备但须串行合并；HQ-04/05 依赖前述全部完成。主要风险是 AgentLoop 共享
-  `ToolRegistry`、session/context cache、deferred tools、ACTMEM timer 与 cancellation state 的
-  并发拆分，风险缓冲优先用于 race/取消语义，不用于扩张到 EventBus Hook、A2A 或
-  Neuro-Link。计划记录见
-  [`2026-08-harness-session-admission-planning`](docs/logs/2026-08-harness-session-admission-planning/v0.1.0-development-plan/summary.md)。
 
 #### WBS-06：可审计 EventBus Hook 扩展点
 
