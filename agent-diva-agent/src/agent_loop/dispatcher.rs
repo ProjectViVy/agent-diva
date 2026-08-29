@@ -237,6 +237,13 @@ impl SessionDispatcher {
             .cancel_waiters(session_key, SessionAdmissionCancelReason::SessionReset)
     }
 
+    /// A failed actor makes every request already bound to it unavailable.
+    pub(crate) fn worker_unavailable(&self, session_key: &str) -> usize {
+        self.stop_running(session_key);
+        self.kernel
+            .cancel_waiters(session_key, SessionAdmissionCancelReason::WorkerUnavailable)
+    }
+
     pub(crate) fn close(&self) {
         self.kernel.close();
     }

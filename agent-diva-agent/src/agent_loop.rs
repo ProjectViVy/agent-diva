@@ -384,8 +384,7 @@ pub struct AgentLoop {
     session_dispatcher: dispatcher::SessionDispatcher,
     /// Mutable state owned by the currently selected session worker.
     worker: SessionWorkerState,
-    session_workers:
-        Arc<std::sync::Mutex<HashMap<String, mpsc::UnboundedSender<SessionWorkerCommand>>>>,
+    session_workers: Arc<std::sync::Mutex<HashMap<String, SessionWorkerEntry>>>,
     /// True only for the bus-owned root loop. Forked/direct workers keep
     /// session cleanup local so control commands cannot recursively route.
     actor_dispatch_enabled: bool,
@@ -408,6 +407,12 @@ enum SessionWorkerCommand {
         session_key: String,
         reply_tx: tokio::sync::oneshot::Sender<Result<bool, String>>,
     },
+}
+
+#[derive(Clone)]
+struct SessionWorkerEntry {
+    generation: Uuid,
+    sender: mpsc::UnboundedSender<SessionWorkerCommand>,
 }
 
 enum PendingSessionCleanup {
@@ -957,16 +962,17 @@ impl AgentLoop {
             .session_workers
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        if let Some(sender) = workers.get(session_key) {
-            if !sender.is_closed() {
-                return sender.clone();
+        if let Some(entry) = workers.get(session_key) {
+            if !entry.sender.is_closed() {
+                return entry.sender.clone();
             }
         }
 
         let (sender, mut receiver) = mpsc::unbounded_channel();
         let mut worker = self.fork_session_worker();
         let worker_session_key = session_key.to_string();
-        tokio::spawn(async move {
+        let generation = Uuid::new_v4();
+        let worker_task = tokio::spawn(async move {
             while let Some(command) = receiver.recv().await {
                 match command {
                     SessionWorkerCommand::Execute {
@@ -1011,7 +1017,46 @@ impl AgentLoop {
             }
             tracing::debug!(session_key = %worker_session_key, "session worker stopped");
         });
-        workers.insert(session_key.to_string(), sender.clone());
+        workers.insert(
+            session_key.to_string(),
+            SessionWorkerEntry {
+                generation,
+                sender: sender.clone(),
+            },
+        );
+        let registry = self.session_workers.clone();
+        let dispatcher = self.session_dispatcher.clone();
+        let supervised_session_key = session_key.to_string();
+        tokio::spawn(async move {
+            let result = worker_task.await;
+            let removed = {
+                let mut registry = registry.lock().unwrap_or_else(|error| error.into_inner());
+                if registry
+                    .get(&supervised_session_key)
+                    .map(|entry| entry.generation)
+                    == Some(generation)
+                {
+                    registry.remove(&supervised_session_key);
+                    true
+                } else {
+                    false
+                }
+            };
+            if let Err(error) = result {
+                let queued_cancelled = if removed {
+                    dispatcher.worker_unavailable(&supervised_session_key)
+                } else {
+                    0
+                };
+                tracing::error!(
+                    session_key = %supervised_session_key,
+                    %generation,
+                    %error,
+                    queued_cancelled,
+                    "session worker failed"
+                );
+            }
+        });
         sender
     }
 
