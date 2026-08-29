@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `none`
-- Owner: `none`
-- Session/Task: `HARNESS-SESSION-ADMISSION HQ-03 complete`
+- Scope: `None`
+- Owner: `None`
+- Session/Task: `None`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-29T04:47:32+08:00`
-- Last Heartbeat: `2026-08-29T21:17:13+08:00`
-- Expires At: `N/A (released)`
-- Handoff Notes: `HQ-03 completed in 011db1f3. Production per-session actors, typed Stop/Reset outcomes, additive limits, exact request correlation, idle worker eviction, Manager/CLI/GUI projection, full workspace gates, GUI tests/build, and CLI smoke passed. HQ-04 remains the next fault-injection and cross-entry verification stage.`
+- Started At: `N/A`
+- Last Heartbeat: `2026-08-30T02:18:24+08:00`
+- Expires At: `N/A`
+- Handoff Notes: `HQ-04 completed in commits 2e3553fb, 5176ac18, and 0226571e. Full Rust and GUI gates passed. HQ-05 closeout/release gate is next.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `HARNESS-SESSION-ADMISSION HQ-04 cross-entry fault injection and observability` — **RELEASED 2026-08-30T02:18:24+08:00** by `Codex`. Commits `2e3553fb`, `5176ac18`, and `0226571e`; request-scoped provider observers, generation-aware worker supervision and panic recovery, cross-entry fault matrix, truthful GUI backpressure/error UX, full workspace gates, 516 GUI tests, and production GUI build passed.
 
 - `HARNESS-SESSION-ADMISSION HQ-03 runtime control, configuration, correlation, and observability` — **RELEASED 2026-08-29T21:17:13+08:00** by `Codex`. Commit `011db1f3`; production per-session actors, typed Stop/Reset outcomes, additive admission limits, request/trace/session correlation, idle worker eviction, Manager/CLI/GUI projection, full workspace gates, GUI tests/build, CLI help smoke, TODO closeout, and iteration logs completed.
 

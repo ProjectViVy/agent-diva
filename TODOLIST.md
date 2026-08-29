@@ -135,9 +135,16 @@
     `011db1f3`；验证记录见
     [`v0.4.0-hq03-runtime-contract`](docs/logs/2026-08-harness-session-admission/v0.4.0-hq03-runtime-contract/verification.md)。
     MessageBus 仍只承担 transport，小时/天 token 熔断未改造成 queue。
-  - [ ] **HQ-04 跨入口验证与故障注入**（09-14 ～ 09-15，2d）：覆盖 Manager API、GUI
-    stream、CLI/direct、至少一个 Channel/Bus 入口；注入 provider stall/retry、Stop、Reset、
-    timeout 和 queue-full，证明无丢消息、无串 session、无幽灵 lease，且错误对用户可解释。
+  - [x] **HQ-04 跨入口验证与故障注入**（原排期 09-14 ～ 09-15；08-30 提前完成）：
+    provider retry/final-wire 观察器已改为 request-scoped task-local authority，兼容 legacy
+    listener fallback，实际 Bus 并发测试证明同 chat 不同 request/trace 不串流。session worker
+    由 generation-aware supervisor 托管，panic 会精确排空 running/queued 为
+    `session_worker_unavailable`，随后请求可重建 worker；queue-full、wait-timeout 均在 provider
+    副作用前拒绝且不遗留幽灵 lease。Manager SSE、CLI remote/direct、Bus transport 入口与 GUI
+    已覆盖 queued/running/五类终态；GUI 严格按 active request 归属展示排队和可解释错误，
+    Stop 的 `queued_preserved` 不再误报为已停止。实现提交 `2e3553fb`、`5176ac18`、
+    `0226571e`；验证记录见
+    [`v0.5.0-hq04-cross-entry-faults`](docs/logs/2026-08-harness-session-admission/v0.5.0-hq04-cross-entry-faults/verification.md)。
   - [ ] **HQ-05 收口与发布门禁**（09-16，1d）：运行 `just fmt-check`、`just check`、
     `just test`、相关 crate 定向测试及 CLI/GUI 最小真实路径 smoke；补齐迭代日志、配置迁移/
     默认值说明、回滚说明和人工验收步骤。全部通过后才关闭本 Epic。
