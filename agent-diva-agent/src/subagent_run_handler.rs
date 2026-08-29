@@ -114,6 +114,9 @@ fn parse_context(record: &RunRecord) -> SupervisedSubagentContext {
         token_budget_limit: metadata
             .and_then(|m| m.get("token_budget_limit"))
             .and_then(|v| v.as_u64()),
+        mask_config: metadata
+            .and_then(|m| m.get("mask_config"))
+            .and_then(|value| serde_json::from_value(value.clone()).ok()),
     }
 }
 

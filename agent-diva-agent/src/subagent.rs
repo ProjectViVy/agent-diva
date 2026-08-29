@@ -64,6 +64,8 @@ pub struct SupervisedSubagentContext {
     pub trace_id: Option<String>,
     pub parent_run_id: Option<String>,
     pub token_budget_limit: Option<u64>,
+    /// Parent-turn mask captured when the background run was enqueued.
+    pub mask_config: Option<MaskConfig>,
 }
 
 impl SubagentManager {
@@ -215,6 +217,20 @@ impl SubagentManager {
         origin_channel: String,
         origin_chat_id: String,
     ) -> Result<String> {
+        let mask = self.current_mask.read().await.clone();
+        self.spawn_with_mask(task, label, origin_channel, origin_chat_id, mask)
+            .await
+    }
+
+    /// Spawn a subagent with immutable defaults captured from one parent turn.
+    pub async fn spawn_with_mask(
+        &self,
+        task: String,
+        label: Option<String>,
+        origin_channel: String,
+        origin_chat_id: String,
+        mask: Option<MaskConfig>,
+    ) -> Result<String> {
         let task_id = Uuid::new_v4().to_string()[..8].to_string();
         let display_label = Self::display_label(&task, label);
 
@@ -228,7 +244,6 @@ impl SubagentManager {
         let mcp_servers = self.mcp_servers.read().await.clone();
         let memory_provider = Arc::clone(&self.memory_provider);
 
-        let mask = self.current_mask.read().await.clone();
         let model = Self::resolve_model(None, mask.as_ref(), &self.model);
         let max_iterations = Self::resolve_max_iterations(None, mask.as_ref());
 
@@ -294,7 +309,10 @@ impl SubagentManager {
         let network_config = self.network_config.read().await.clone();
         let mcp_servers = self.mcp_servers.read().await.clone();
 
-        let mask = self.current_mask.read().await.clone();
+        let mask = match context.mask_config.clone() {
+            Some(mask) => Some(mask),
+            None => self.current_mask.read().await.clone(),
+        };
         let model = Self::resolve_model(None, mask.as_ref(), &self.model);
         let max_iterations = Self::resolve_max_iterations(None, mask.as_ref());
 

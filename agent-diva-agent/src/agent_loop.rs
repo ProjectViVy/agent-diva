@@ -43,6 +43,7 @@ use crate::tool_config::PlanningConfig;
 use agent_diva_core::ask_user::AskUserCoordinator;
 use agent_diva_sandbox::AskForApproval;
 
+mod dispatcher;
 mod loop_runtime_control;
 mod loop_tools;
 mod loop_turn;
@@ -150,6 +151,10 @@ pub struct AgentLoop {
     actmem_activity_generations: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
     /// One cancellable ACTMEM idle-fold timer per live session.
     actmem_idle_handles: HashMap<String, JoinHandle<()>>,
+    /// Per-session bounded admission and running-turn cancellation authority.
+    session_dispatcher: dispatcher::SessionDispatcher,
+    /// Cancellation token for the turn currently executed by this processor.
+    active_turn_cancellation: Option<tokio_util::sync::CancellationToken>,
 }
 
 pub struct AgentLoopToolSet {
@@ -200,6 +205,7 @@ impl AgentLoopToolSet {
 
 struct SubagentManagerSpawner {
     manager: Arc<SubagentManager>,
+    mask: Option<agent_diva_core::config::schema::MaskConfig>,
 }
 
 #[async_trait::async_trait]
@@ -212,7 +218,7 @@ impl SubagentSpawner for SubagentManagerSpawner {
         chat_id: String,
     ) -> Result<String, ToolError> {
         self.manager
-            .spawn(task, label, channel, chat_id)
+            .spawn_with_mask(task, label, channel, chat_id, self.mask.clone())
             .await
             .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }
@@ -234,6 +240,7 @@ struct ActiveToolSurface {
     plan_phase: Option<PlanPhase>,
     execution_session_id: Option<String>,
     background_task_context: Option<BackgroundTaskContext>,
+    approval_policy_override: Option<AskForApproval>,
 }
 
 /// Resolve the phase that constrains the current tool surface.
@@ -378,20 +385,27 @@ impl AgentLoop {
         session_key: Option<String>,
         background_task_context: Option<BackgroundTaskContext>,
     ) {
+        let approval_policy_override = self.active_tool_surface.approval_policy_override;
         self.active_tool_surface = ActiveToolSurface {
             session_key: session_key.clone(),
             plan_phase: plan_phase.clone(),
             execution_session_id: execution_session_id.clone(),
             background_task_context: background_task_context.clone(),
+            approval_policy_override,
         };
         let active_deferred_tools = session_key
             .as_deref()
             .map(|key| self.active_deferred_tools_for_session(key));
+        let mut turn_tool_config = self.tool_config.clone();
+        if let Some(policy) = approval_policy_override {
+            turn_tool_config.approval_policy = policy;
+        }
         self.tools = build_agent_tools(
             self.workspace.clone(),
-            &self.tool_config,
+            &turn_tool_config,
             Arc::new(SubagentManagerSpawner {
                 manager: self.subagent_manager.clone(),
+                mask: active_mask.map(|mask| mask.frontmatter.clone()),
             }),
             self.file_manager.clone(),
             self.custom_tools.clone(),
@@ -445,11 +459,9 @@ impl AgentLoop {
     /// Accepts either a string ("on-request"/"on-failure"/"unless-trusted"/"never")
     /// or a serialized `AskForApproval` value. Unknown values are ignored so a
     /// stale GUI cannot break the orchestrator.
-    fn apply_approval_policy_from_metadata(&mut self, msg: &InboundMessage) {
-        let Some(raw) = msg.metadata.get("approval_policy") else {
-            return;
-        };
-        let policy: Option<AskForApproval> = match raw {
+    fn approval_policy_from_metadata(msg: &InboundMessage) -> Option<AskForApproval> {
+        let raw = msg.metadata.get("approval_policy")?;
+        match raw {
             serde_json::Value::String(s) => {
                 serde_json::from_value(serde_json::Value::String(s.clone()))
                     .ok()
@@ -464,9 +476,6 @@ impl AgentLoop {
                     })
             }
             _ => None,
-        };
-        if let Some(policy) = policy {
-            self.set_approval_policy(policy);
         }
     }
 
@@ -554,6 +563,8 @@ impl AgentLoop {
             pending_checkpoint_updates: HashMap::new(),
             actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             actmem_idle_handles: HashMap::new(),
+            session_dispatcher: dispatcher::SessionDispatcher::default(),
+            active_turn_cancellation: None,
         })
     }
 
@@ -691,6 +702,7 @@ impl AgentLoop {
         );
         let spawner: Arc<dyn SubagentSpawner> = Arc::new(SubagentManagerSpawner {
             manager: subagent_manager.clone(),
+            mask: None,
         });
         context = context.with_memory_provider(memory_provider.clone());
 
@@ -738,6 +750,8 @@ impl AgentLoop {
             pending_checkpoint_updates: HashMap::new(),
             actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             actmem_idle_handles: HashMap::new(),
+            session_dispatcher: dispatcher::SessionDispatcher::default(),
+            active_turn_cancellation: None,
         };
 
         if let Some(cron_service) = agent.tool_config.cron_service.clone() {
@@ -746,6 +760,7 @@ impl AgentLoop {
                 &agent.tool_config,
                 Arc::new(SubagentManagerSpawner {
                     manager: agent.subagent_manager.clone(),
+                    mask: None,
                 }),
                 agent.file_manager.clone(),
                 agent.custom_tools.clone(),
@@ -839,6 +854,8 @@ impl AgentLoop {
             pending_checkpoint_updates: HashMap::new(),
             actmem_activity_generations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             actmem_idle_handles: HashMap::new(),
+            session_dispatcher: dispatcher::SessionDispatcher::default(),
+            active_turn_cancellation: None,
         })
     }
 
@@ -901,6 +918,9 @@ impl AgentLoop {
 
         info!("Agent loop stopped");
 
+        self.session_dispatcher.close();
+        let _ = self.session_dispatcher.evict_idle();
+
         // Daemon shutdown is not a logical session end. Preserve durable
         // checkpoints and only cancel process-local idle timers.
         for (_, handle) in self.actmem_idle_handles.drain() {
@@ -916,7 +936,6 @@ impl AgentLoop {
 
     async fn handle_inbound(&mut self, msg: InboundMessage) {
         debug!("Received message from {}:{}", msg.channel, msg.chat_id);
-        self.apply_approval_policy_from_metadata(&msg);
         let event_msg = msg.clone();
         match self.process_inbound_message(msg, None).await {
             Ok(Some(response)) => {
@@ -939,6 +958,25 @@ impl AgentLoop {
 
     /// Process a single inbound message
     pub async fn process_inbound_message(
+        &mut self,
+        msg: InboundMessage,
+        event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
+    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+        let session_key = msg.session_key();
+        let dispatcher = self.session_dispatcher.clone();
+        dispatcher
+            .dispatch(session_key, |cancellation| async move {
+                self.active_turn_cancellation = Some(cancellation);
+                let result = self.process_inbound_message_admitted(msg, event_tx).await;
+                self.active_turn_cancellation = None;
+                result
+            })
+            .await
+            .map_err(|error| -> Box<dyn std::error::Error> { error.to_string().into() })
+    }
+
+    /// Execute a turn after the dispatcher has granted exclusive ownership.
+    async fn process_inbound_message_admitted(
         &mut self,
         msg: InboundMessage,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
@@ -1137,6 +1175,19 @@ fn signals_memory_correction(content: &str) -> bool {
 mod tests {
     use super::*;
     use agent_diva_providers::ToolChoiceMode;
+
+    #[test]
+    fn approval_metadata_is_classified_without_mutating_runtime_defaults() {
+        let cautious = InboundMessage::new("gui", "user", "chat", "hello")
+            .with_metadata("approval_policy", "cautious");
+        assert_eq!(
+            AgentLoop::approval_policy_from_metadata(&cautious),
+            Some(AskForApproval::OnRequest)
+        );
+        let unknown = InboundMessage::new("gui", "user", "chat", "hello")
+            .with_metadata("approval_policy", "future-policy");
+        assert_eq!(AgentLoop::approval_policy_from_metadata(&unknown), None);
+    }
 
     #[test]
     fn policy_phase_prioritizes_explicit_plan_mode_and_releases_terminal_plans() {
@@ -2635,6 +2686,7 @@ mod tests {
             trace_id: Some("trace-e7".into()),
             parent_run_id: Some("run-e7".into()),
             token_budget_limit: Some(4_000),
+            mask_config: None,
         };
         agent.rebuild_tools_for_turn(
             None,

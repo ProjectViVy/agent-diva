@@ -4,6 +4,7 @@
 //! supervised run queue. The task is stored in the `supervised_runs` table
 //! and can be claimed and executed by a worker (e.g. SubagentRunHandler).
 
+use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::supervised::{RunKind, RunStore, SupervisedRunSpec};
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
@@ -18,6 +19,8 @@ pub struct BackgroundTaskContext {
     pub trace_id: Option<String>,
     pub parent_run_id: Option<String>,
     pub token_budget_limit: Option<u64>,
+    /// Immutable parent-turn mask inherited by the supervised subagent.
+    pub mask_config: Option<MaskConfig>,
 }
 
 /// Tool for enqueueing background tasks into the supervised run queue.
@@ -155,6 +158,9 @@ impl Tool for EnqueueBackgroundTaskTool {
             .or(self.context.token_budget_limit);
         if let Some(limit) = token_budget_limit {
             metadata.insert("token_budget_limit".to_string(), json!(limit));
+        }
+        if let Some(mask) = self.context.mask_config.as_ref() {
+            metadata.insert("mask_config".to_string(), json!(mask));
         }
 
         if !metadata.is_empty() {
@@ -304,6 +310,7 @@ mod tests {
                 trace_id: Some("trace-1".to_string()),
                 parent_run_id: Some("parent-1".to_string()),
                 token_budget_limit: Some(2048),
+                mask_config: Some(MaskConfig::default()),
             },
         );
 
@@ -328,6 +335,7 @@ mod tests {
         assert_eq!(metadata["trace_id"], "trace-1");
         assert_eq!(metadata["parent_run_id"], "parent-1");
         assert_eq!(metadata["token_budget_limit"], 2048);
+        assert!(metadata["mask_config"].is_object());
     }
 
     #[tokio::test]

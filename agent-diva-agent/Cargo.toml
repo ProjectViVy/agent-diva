@@ -23,6 +23,7 @@ agent-diva-sandbox = { path = "../agent-diva-sandbox", version = "0.9.9" }
 
 # Async runtime
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 futures = { workspace = true }
 async-trait = { workspace = true }
 

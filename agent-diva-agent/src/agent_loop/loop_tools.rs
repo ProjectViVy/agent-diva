@@ -15,6 +15,7 @@ impl AgentLoop {
             &self.tool_config,
             Arc::new(SubagentManagerSpawner {
                 manager: self.subagent_manager.clone(),
+                mask: None,
             }),
             self.file_manager.clone(),
             self.custom_tools.clone(),

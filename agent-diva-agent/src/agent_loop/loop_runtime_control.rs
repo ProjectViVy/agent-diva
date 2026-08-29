@@ -77,9 +77,11 @@ impl AgentLoop {
                 self.rebuild_tools_for_active_phase().await;
             }
             RuntimeControlCommand::StopSession { session_key } => {
+                self.session_dispatcher.stop_running(&session_key);
                 self.cancelled_sessions.insert(session_key);
             }
             RuntimeControlCommand::ResetSession { session_key } => {
+                self.session_dispatcher.reset_session(&session_key);
                 self.cancel_actmem_session(&session_key).await;
                 if let Err(error) = self
                     .memory_provider
@@ -122,6 +124,7 @@ impl AgentLoop {
                 session_key,
                 reply_tx,
             } => {
+                self.session_dispatcher.reset_session(&session_key);
                 let result = self
                     .sessions
                     .delete(&session_key)
@@ -261,6 +264,10 @@ impl AgentLoop {
 
     pub(super) fn is_session_cancelled(&self, session_key: &str) -> bool {
         self.cancelled_sessions.contains(session_key)
+            || self
+                .active_turn_cancellation
+                .as_ref()
+                .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
     }
 
     pub(super) fn clear_session_cancellation(&mut self, session_key: &str) {
