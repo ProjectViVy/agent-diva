@@ -10,9 +10,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-30T04:14:13+08:00`
+- Last Heartbeat: `2026-08-30T07:27:26+08:00`
 - Expires At: `N/A`
-- Handoff Notes: `CHANNEL-EPIC C0 architecture is frozen. Super Channel Fabric, Neuro-Link v1, ChannelAdapter, bounded runtime, Service Bindings, hybrid journal, atomic Clean Break, C0-C6 WBS, and TCK gates are documented. No production code changed. Next batch is C1 in an isolated feat/channel-epic worktree.`
+- Handoff Notes: `CHANNEL-EPIC C1 completed in isolated feat/channel-epic at d7e6a9b2. Contract/schema/TCK/characterization and capacity baseline are ready for later C6 atomic merge; no dev cutover or push was performed.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C1 Super Channel Fabric v1 contracts and characterization` — **RELEASED 2026-08-30T07:27:26+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commit `d7e6a9b2`. Neuro-Link v1 schema, Rust/TypeScript contracts, shared TCK fixtures, legacy characterization, capacity benchmark, C1 logs and TODO bookkeeping completed. No `dev` cutover or push; C6 remains the atomic merge point.
 
 - `CHANNEL-EPIC C0 Super Channel Fabric architecture freeze` — **RELEASED 2026-08-30T04:14:13+08:00** by `Codex`. Unified architecture, C0-C6 WBS, TCK gates, atomic Clean Break, backlog activation, and iteration records completed. Documentation-only; no product code changed.
 
