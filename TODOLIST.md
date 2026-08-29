@@ -118,10 +118,14 @@
     前释放。12 个定向单测覆盖 FIFO、容量边界、跨 session 独立、timeout/cancel race、future/
     lease drop、任务 abort、idle eviction 与 close drain。实现提交 `5ff59b5c`，验证记录见
     [`v0.2.0-hq01-core-kernel`](docs/logs/2026-08-harness-session-admission/v0.2.0-hq01-core-kernel/verification.md)。
-  - [ ] **HQ-02 Agent dispatcher 与 turn 接线**（09-07 ～ 09-09，3d）：在既有
-    `turn/admission.rs` 的 circuit/rate check 之前取得 session lease，将可变 turn 状态收敛到
-    session/turn 所有权；Bus 与 `process_direct(_stream)` 共用同一准入 seam。验证同 session
-    不重入、不同 session 可并行，queue-full/timeout 不触发模型、工具或 Memory 副作用。
+  - [x] **HQ-02 Agent dispatcher 与 turn 接线**（原排期 09-07 ～ 09-09；08-29 提前完成）：
+    Bus 与 `process_direct(_stream)` 已统一在 circuit/rate/provider 前经过 HQ-01 lease seam；
+    session 可变字段已收敛进显式 `SessionWorkerState`，approval/tool surface 与 subagent mask
+    改为 turn 快照。6 个 dispatcher 测试证明同 session FIFO/不重入、跨 session 并行、
+    queue-full/timeout 零执行副作用，以及 Stop 与 Reset 的 running/waiter 边界。按 HQ-00 闸门，
+    生产 Bus 继续保持兼容串行，待 HQ-03 完成 request/trace 投影后再开放并发。实现提交
+    `9302f8e7`、`b53c619f`；验证记录见
+    [`v0.3.0-hq02-agent-dispatcher`](docs/logs/2026-08-harness-session-admission/v0.3.0-hq02-agent-dispatcher/verification.md)。
   - [ ] **HQ-03 Runtime control、配置与可观察合同**（09-10 ～ 09-11，2d）：将
     Stop/Reset 精确映射到 running/queued request；增加稳定 outcome code、queue depth、
     wait latency、request/trace/session correlation，并向 Manager/CLI/GUI 现有事件合同投影。
