@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": "bad-3",
+  "method": "protocol/hello",
+  "params": {
+    "protocol": "neuro-link/v1",
+    "schema_version": 1,
+    "frontend_instance_id": "frontend-1",
+    "capabilities": [],
+    "principal_id": "owner",
+    "device_id": "trusted-device"
+  }
+}

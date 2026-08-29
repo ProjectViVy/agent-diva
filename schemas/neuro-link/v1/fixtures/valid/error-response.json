@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": "hello-2",
+  "error": {
+    "code": "protocol_version_mismatch",
+    "message": "Neuro-Link v1 is required",
+    "data": {
+      "expected": "neuro-link/v1",
+      "received": "neuro-link/v2"
+    }
+  }
+}

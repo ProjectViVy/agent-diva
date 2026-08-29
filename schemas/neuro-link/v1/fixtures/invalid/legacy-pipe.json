@@ -1,0 +1,7 @@
+{
+  "pipe": "msg",
+  "id": "legacy-1",
+  "sender": "user-1",
+  "chat": "chat-1",
+  "content": "legacy payload"
+}

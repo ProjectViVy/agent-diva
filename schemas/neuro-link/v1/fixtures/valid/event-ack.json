@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": "ack-1",
+  "method": "event/ack",
+  "params": {
+    "session_key": "neuro-link:chat-1",
+    "cursor": {
+      "stream": "neuro-link:chat-1",
+      "sequence": 8
+    }
+  }
+}

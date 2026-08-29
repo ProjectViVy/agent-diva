@@ -1,0 +1,18 @@
+{
+  "jsonrpc": "2.0",
+  "id": "bad-4",
+  "method": "turn/start",
+  "params": {
+    "session_key": "neuro-link:chat-1",
+    "parts": [
+      {
+        "kind": "image",
+        "attachment": {
+          "uri": "file:///workspace/image.png",
+          "media_type": "image/png",
+          "size_bytes": 12
+        }
+      }
+    ]
+  }
+}

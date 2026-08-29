@@ -58,9 +58,11 @@
   - [x] **C0：完整架构冻结与 Epic 启动**（2026-08-30）
     已冻结术语、模块边界、消息/能力合同、Neuro-Link v1、Service Binding、混合 journal、
     背压、Clean Break、TCK、迁移 WBS 和十条不变量；本批只改文档。
-  - [ ] **C1：JSON Schema、核心 typed contracts 与表征测试**
-    建立 `ChannelEnvelopeV1`、typed parts、capability/command/event/receipt/error schema，
-    Rust/TypeScript 共用 fixture，并锁定旧路径表征。
+  - [x] **C1：JSON Schema、核心 typed contracts 与表征测试**（2026-08-30）
+    已建立版本化 `neuro-link/v1` JSON Schema、`ChannelEnvelopeV1`、typed parts、
+    capability/command/event/receipt/error 的协议基础，Rust/TypeScript 共用正反 fixture，
+    并以旧 pipe、MessageBus、allowlist 和 loopback guard characterization 锁定旧路径边界。
+    交付记录：[`v0.1.1-neuro-link-contract`](docs/logs/2026-08-channel-epic/v0.1.1-neuro-link-contract/)。
   - [ ] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**
     替代无界 ingress/egress，建立 control/durable/transient/adapter lane、pacing、health、
     panic/exit recovery 和 fault-injection TCK。
@@ -77,6 +79,11 @@
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
     GUI、MSRV、TCK、clean-break 和 release acceptance 后一次性合入 `dev`。
+
+  - [ ] **GUI 依赖安全审计基线** `sev-P2`
+    C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。
+    本项不属于 Neuro-Link 合同实现，且没有运行 `audit fix`；需单独评估升级、兼容性和 pnpm/npm
+    lock 策略后处理。相关文件：`agent-diva-gui/package.json`、`agent-diva-gui/package-lock.json`。
 
 ### L1-B：频道能力与 Agent 互操作
 
