@@ -40,35 +40,51 @@
   **待决策**：第三方模块是否 v1 全部进程外；MVP transport；WorkbenchModule kind；
   Browser/Mate 首个样板；Experience Store 是否成为独立短期权威；专用硬件继续 defer。
 
-#### WBS-02：Neuro-Link 前端超级通道
+#### WBS-02：CHANNEL-EPIC / Super Channel Fabric（已启动）
 
-- [ ] **NEURO-LINK-FRONTEND-FABRIC：完整前端超级通道（待开工）** `sev-P1`
-  用户确认：Neuro-Link 是理论上的超级通道，可彻底作为 agent-diva 的新前端；它不是
-  普通 telegram/qq Channel，也不是 PEN 的专用传输。当前本地 WebSocket pipe 仅是
-  概念胚胎，`channel_statuses` 省略它是有意的，不得补一块 ready/missing_fields 交差。
-  正式 Epic 需要 Frontend/Device Identity、Capability Negotiation、Conversation、
-  Presentation、Control、State Sync、Versioned Service Bindings、有界队列、ACK/取消、
-  重连/快照和 TCK；Mate 的 avatar chat ID/`speak` 特例最终迁移为 Presentation Event。
-  研究与安全门禁：
-  [`neurolink-front-end-fabric.md`](docs/research/diva-workbench-pen-mirror-neurolink-2026-08/neurolink-front-end-fabric.md)。
-  关联 `NeuroLinkConfig`、`agent-diva-channels/src/neuro_link.rs`、`cli_runtime.rs`；
-  原 `NEURO-LINK-HEAVYWEIGHT-CHANNEL` / `CHANNELS-STATUS-COVERAGE` 并入本条。
+- [ ] **CHANNEL-EPIC：超级通道与外部频道统一 Fabric** `sev-P1`
+  2026-08-30 正式启动。Neuro-Link v1 是能够完整承载新前端的 Owner Frontend
+  **超级通道**；Telegram、Discord、Feishu、DingTalk、Email、QQ 是低信任外部
+  `ChannelAdapter`。两者共享 typed envelope、capability、bounded queue、receipt、
+  supervisor、State Sync 和 TCK，但绝不共享 Owner 信任语义。完整冻结架构：
+  [`docs/dev/channel-epic/architecture.md`](docs/dev/channel-epic/architecture.md)。
+
+  硬约束：采用 Octos `5ea9878` 的 Channel/Manager/bounded-bus 形状作为适配主参考；
+  Neuro-Link 测试期无身份限制且固定复用 Manager loopback；WS 实时流 + 原位 HTTP
+  Service Bindings；版本化 JSON Schema 为 wire 权威；混合事件日志；不新增频道配置；
+  C1～C6 在隔离 `feat/channel-epic` worktree 施工，C6 完成后一次性原子合入。最终产品树
+  不允许旧 pipe、旧 DTO、旧 bus、双轨、shim、兼容别名或六个退役频道源码。
+
+  - [x] **C0：完整架构冻结与 Epic 启动**（2026-08-30）
+    已冻结术语、模块边界、消息/能力合同、Neuro-Link v1、Service Binding、混合 journal、
+    背压、Clean Break、TCK、迁移 WBS 和十条不变量；本批只改文档。
+  - [ ] **C1：JSON Schema、核心 typed contracts 与表征测试**
+    建立 `ChannelEnvelopeV1`、typed parts、capability/command/event/receipt/error schema，
+    Rust/TypeScript 共用 fixture，并锁定旧路径表征。
+  - [ ] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**
+    替代无界 ingress/egress，建立 control/durable/transient/adapter lane、pacing、health、
+    panic/exit recovery 和 fault-injection TCK。
+  - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
+    在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
+    Service Binding 登记；不增加 host/port/auth 配置。
+  - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
+    GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
+    GUI tests/build 与真实桌面断线恢复冒烟。
+  - [ ] **C5：六个现役 ChannelAdapter 与 capability TCK**
+    迁移 Telegram、Discord、Feishu、DingTalk、Email、QQ；每个 `true` capability 都有
+    离线 fixture/mock 证明，至少一个真实平台纵向 smoke。
+  - [ ] **C6：Clean Break 删除、全量门禁与原子合并**
+    删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
+    Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
+    GUI、MSRV、TCK、clean-break 和 release acceptance 后一次性合入 `dev`。
 
 ### L1-B：频道能力与 Agent 互操作
 
-#### WBS-03：外部频道能力合同与可靠性基线
+> 原 `CHANNEL-CAPABILITY-CONTRACT-EPIC` 已并入 WBS-02 的 CHANNEL-EPIC C1/C2/C5；
+> 研究包继续作为实现依据：
+> [`channel-capability-reference-2026-08/`](docs/research/channel-capability-reference-2026-08/)。
 
-- [ ] **CHANNEL-CAPABILITY-CONTRACT-EPIC：外部频道能力合同与可靠性基线** `sev-P1`
-  第二批对照研究确认：当前 agent-diva 的 ChannelHandler 与消息 envelope 缺少统一的
-  `message_id/thread_id`、typed attachments、typing/edit/delete/reaction/health、流式
-  finalize、pacing/backpressure 和 supervisor/reconnect 合同；QQ 的群/Guild/媒体能力
-  尤其不足。方案不能直接照搬单一项目：以 Octos 作为结构对照、ZeroClaw 作为能力标杆、
-  OpenFang 作为 Bridge/TCK 参考，并保留 agent-diva 的 Manager/Sandbox/Approval/Laputa/BML
-  治理边界。研究包：[`channel-capability-reference-2026-08/`](docs/research/channel-capability-reference-2026-08/)。
-  **待决策**：是否先冻结统一 envelope/capability matrix/TCK，再按 QQ、Feishu、DingTalk
-  分阶段施工；不得因 Octos 的 Rust 2024/MSRV 1.85 直接升高 agent-diva 当前 MSRV 1.80。
-
-##### WBS-03-L2：既有频道页面能力补齐
+#### WBS-03：既有频道页面能力补齐
 
 - [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
   `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
@@ -181,7 +197,9 @@
 归档目录：
 [`docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/README.md)
 
-- 最新：[`completed-2026-08-28-workspace-system-closeout.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-28-workspace-system-closeout.md)
+- 最新：[`completed-2026-08-30-harness-session-admission.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-30-harness-session-admission.md)
+  （HARNESS Session Admission Epic 正式关闭，HQ-00～HQ-05）
+- [`completed-2026-08-28-workspace-system-closeout.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-28-workspace-system-closeout.md)
   （WORKSPACE 系统收尾正式关闭，WS-00～WS-06 及已合并的 Workspace 旧条目）
 - [`completed-2026-08-23-autodream-diagnostic-logging.md`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/completed-2026-08-23-autodream-diagnostic-logging.md)
   （S3 worker 阶段级结构化日志，1 条）

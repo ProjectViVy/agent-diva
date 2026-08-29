@@ -10,9 +10,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `None`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `N/A`
-- Last Heartbeat: `2026-08-30T02:36:55+08:00`
+- Last Heartbeat: `2026-08-30T04:14:13+08:00`
 - Expires At: `N/A`
-- Handoff Notes: `HQ-05 and the Session Admission Epic are complete. Full Rust/GUI gates, focused regressions, CLI/GUI/embedded-Gateway smoke, operator guide, rollback/acceptance records, and backlog archive passed. No remaining Session Admission TODO.`
+- Handoff Notes: `CHANNEL-EPIC C0 architecture is frozen. Super Channel Fabric, Neuro-Link v1, ChannelAdapter, bounded runtime, Service Bindings, hybrid journal, atomic Clean Break, C0-C6 WBS, and TCK gates are documented. No production code changed. Next batch is C1 in an isolated feat/channel-epic worktree.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C0 Super Channel Fabric architecture freeze` — **RELEASED 2026-08-30T04:14:13+08:00** by `Codex`. Unified architecture, C0-C6 WBS, TCK gates, atomic Clean Break, backlog activation, and iteration records completed. Documentation-only; no product code changed.
 
 - `HARNESS-SESSION-ADMISSION HQ-05 release gate and Epic closeout` — **RELEASED 2026-08-30T02:36:55+08:00** by `Codex`. Full Rust/GUI gates, focused kernel/dispatcher/cross-entry regressions, CLI help, live Vite page, embedded-Gateway health, operator guide, migration/rollback/acceptance records, and completed-Epic backlog archive passed.
 
