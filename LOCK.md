@@ -7,12 +7,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `None`
 - Owner: `None`
-- Session/Task: `None`
-- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `N/A`
-- Last Heartbeat: `2026-08-30T07:27:26+08:00`
-- Expires At: `N/A`
-- Handoff Notes: `CHANNEL-EPIC C1 completed in isolated feat/channel-epic at d7e6a9b2. Contract/schema/TCK/characterization and capacity baseline are ready for later C6 atomic merge; no dev cutover or push was performed.`
+- Session/Task: `CHANNEL-EPIC C3 Neuro-Link v1 Gateway and projection journal`
+- Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
+- Started At: `2026-08-31T00:00:00+08:00`
+- Last Heartbeat: `2026-08-31T05:00:00+08:00`
+- Expires At: `2026-09-02T00:00:00+08:00`
+- Handoff Notes: `C3 released in isolated worktree feat/channel-epic at 03e77d95, 0dabdb48, b14e0d4b, 532ff71c, and 8e4812c. Gateway, journal, typed admission, projection hub, catalog, logs, TODO, and full Rust gates passed. dev remains untouched; do not merge until C6.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C3 Neuro-Link gateway, journal, typed admission, and projection hub` — **RELEASED 2026-08-31T05:00:00+08:00** by `Codex`. Implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commits `03e77d95`, `0dabdb48`, `b14e0d4b`, `532ff71c`, and `8e4812c`. Full `just fmt-check && just check && just test` passed. C4 GUI migration and C6 clean break remain deferred; no merge or push.
 
 - `CHANNEL-EPIC C1 Super Channel Fabric v1 contracts and characterization` — **RELEASED 2026-08-30T07:27:26+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commit `d7e6a9b2`. Neuro-Link v1 schema, Rust/TypeScript contracts, shared TCK fixtures, legacy characterization, capacity benchmark, C1 logs and TODO bookkeeping completed. No `dev` cutover or push; C6 remains the atomic merge point.
 
