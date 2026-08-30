@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `None`
-- Owner: `None`
-- Session/Task: `None`
+- Lock State: `HELD`
+- Scope: `agent-diva-core/src/channel`, `agent-diva-manager/src/neuro_link.rs`, `agent-diva-manager/src/projection_journal.rs`, `agent-diva-manager/src/server.rs`, `agent-diva-manager/src/state.rs`, `agent-diva-manager/Cargo.toml`, `agent-diva-gui/src/protocol/neuro-link-v1.ts`, `schemas/neuro-link/v1/protocol.schema.json`, C3 logs/TODOLIST
+- Owner: `Codex`
+- Session/Task: `CHANNEL-EPIC C3 Gateway/Projection Journal/Service Catalog`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `N/A`
-- Last Heartbeat: `2026-08-30T20:33:21+08:00`
-- Expires At: `N/A`
-- Handoff Notes: `CHANNEL-EPIC C2 completed in isolated feat/channel-epic. C2a commit 3e5647c8 adds the bounded Fabric Kernel; C2b commit 7da8fdb3 adds native Adapter Registry/Supervisor/Pacing. Full Rust gates passed. No production cutover, compatibility bridge, dev merge, or push. Next stage is C3 Gateway/Projection Journal/Service Catalog.`
+- Started At: `2026-08-31T00:00:00+08:00`
+- Last Heartbeat: `2026-08-31T00:00:00+08:00`
+- Expires At: `2026-09-02T00:00:00+08:00`
+- Handoff Notes: `C2 remains released in 3e5647c8/7da8fdb3. C3 is being implemented only in this isolated worktree; no production cutover, compatibility bridge, dev merge, or push.`
 
 ## Lock Rules
 

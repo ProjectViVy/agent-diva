@@ -94,7 +94,7 @@ export interface ChannelEnvelopeV1 {
   extensions: Record<string, unknown>
 }
 
-export type RpcId = string | number
+export type RpcId = string | number | null
 
 export interface RpcRequestV1<Params> {
   jsonrpc: typeof JSON_RPC_VERSION
@@ -126,6 +126,9 @@ export type ProtocolErrorCode =
   | 'unsupported_capability'
   | 'frame_too_large'
   | 'attachment_too_large'
+  | 'busy'
+  | 'idempotency_conflict'
+  | 'service_unavailable'
 
 export interface RpcErrorV1 {
   jsonrpc: typeof JSON_RPC_VERSION
@@ -176,5 +179,74 @@ export interface EventAckParams {
 
 export interface StateResumeParams {
   session_key: string
+  cursor: CursorV1
+}
+
+export type StateSyncModeV1 = 'replay' | 'snapshot' | 'replay_and_snapshot'
+
+export interface ServiceBindingV1 {
+  service_id: string
+  schema_version: number
+  methods: string[]
+  http_base: string
+  required_frontend_capability?: string
+}
+
+export interface EnvelopeNotificationParams {
+  envelope: ChannelEnvelopeV1
+}
+
+export interface SessionOpenedParams {
+  session_key: string
+  cursor: CursorV1
+  catalog_revision: number
+  services: ServiceBindingV1[]
+}
+
+export interface ProjectionEventV1 {
+  method: string
+  cursor: CursorV1
+  envelope: ChannelEnvelopeV1
+}
+
+export interface StateSyncResultV1 {
+  mode: StateSyncModeV1
+  head: CursorV1
+  events: ProjectionEventV1[]
+  snapshot: ProjectionEventV1[]
+}
+
+export interface ServiceListResultV1 {
+  catalog_revision: number
+  services: ServiceBindingV1[]
+}
+
+export interface SessionOpenResultV1 {
+  opened: SessionOpenedParams
+  sync: StateSyncResultV1
+}
+
+export interface SessionAdmissionObservation {
+  code?: string
+  phase: string
+  session_key: string
+  request_id: string
+  trace_id: string
+  queue_depth: number
+  wait_latency_ms: number
+}
+
+export interface TurnStartResultV1 {
+  session_key: string
+  request_id: string
+  trace_id: string
+  admission: SessionAdmissionObservation
+}
+
+export interface TurnCancelResultV1 {
+  outcome: Record<string, unknown>
+}
+
+export interface EventAckResultV1 {
   cursor: CursorV1
 }

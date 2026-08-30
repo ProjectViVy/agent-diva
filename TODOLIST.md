@@ -79,6 +79,19 @@
   - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
     在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
     Service Binding 登记；不增加 host/port/auth 配置。
+    - [x] **C3a：协议结果类型与 Service Catalog**（2026-08-31）
+      Rust/Schema/GUI 类型已同步 catalog revision、state-sync、admission、ACK 和稳定错误码；
+      现有领域 HTTP handler 以 Service Binding 登记，不复制路由。
+    - [x] **C3b：Projection Journal**（2026-08-31）
+      Manager data root 的 `super-channel-events.db` 已支持 cursor、ACK、replay、retention、
+      session 清理和幂等冲突保护。
+    - [x] **C3d：loopback Gateway 与 TCK smoke**（2026-08-31）
+      `/api/neuro-link/v1/ws` 已完成 hello、session/open、turn/cancel、event/ack、state/resume、
+      frame/part/attachment bounds 及真实 WebSocket 冒烟。
+    - [ ] **C3c：AgentLoop/Fabric production runtime wiring**
+      Gateway 已有 typed `NeuroLinkRuntime` 注入 seam；下一批需把生产 AgentLoop/Fabric admission
+      endpoint 安装到 AppState，并把 durable/transient AgentEvent projection 接入 Journal，
+      保持不调用旧 MessageBus/旧 DTO 的目标。
   - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
     GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
     GUI tests/build 与真实桌面断线恢复冒烟。

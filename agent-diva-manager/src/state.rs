@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::OnceCell;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::mcp_service::{McpServerDto, McpServerUpsert};
@@ -92,6 +93,14 @@ pub struct AppState {
     /// Internal AgentLoop control channel for workspace-scoped authority
     /// projection refreshes. It is absent in isolated handler fixtures.
     pub runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    /// Typed Neuro-Link ingress seam.  The gateway never reaches through the
+    /// legacy MessageBus; production wiring can install an AgentLoop/Fabric
+    /// implementation while isolated fixtures leave it unset.
+    pub neuro_link_runtime: Option<Arc<dyn crate::neuro_link::NeuroLinkRuntime>>,
+    /// Lazily opened durable Neuro-Link projection journal.  The lazy cell
+    /// keeps existing isolated handler fixtures lightweight while production
+    /// gateway traffic still shares one profile-local SQLite authority.
+    pub projection_journal: Arc<OnceCell<Arc<crate::projection_journal::ProjectionJournal>>>,
 }
 
 impl AppState {
@@ -151,6 +160,7 @@ impl AppState {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -172,6 +182,7 @@ impl AppState {
             ask_user,
             Some(governance),
             Some(planning_service),
+            None,
             None,
             None,
             None,
@@ -204,6 +215,7 @@ impl AppState {
             Some(runtime_control_tx),
             Some(config_dir.into()),
             Some(memory_home),
+            None,
         )
     }
 
@@ -219,6 +231,7 @@ impl AppState {
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         config_dir: Option<PathBuf>,
         memory_home: Option<MemoryHome>,
+        neuro_link_runtime: Option<Arc<dyn crate::neuro_link::NeuroLinkRuntime>>,
     ) -> anyhow::Result<Self> {
         let workspace_root = workspace_context.root.clone();
         let config_dir = config_dir.unwrap_or_else(|| workspace_root.clone());
@@ -264,6 +277,8 @@ impl AppState {
             governance,
             planning_service,
             runtime_control_tx,
+            neuro_link_runtime,
+            projection_journal: Arc::new(OnceCell::new()),
         };
         match state.autodream.resumable_runs() {
             Ok(runs) if !runs.is_empty() => {
@@ -273,6 +288,35 @@ impl AppState {
             Err(error) => tracing::error!(%error, "failed to recover AutoDream runs at startup"),
         }
         Ok(state)
+    }
+
+    /// Install the typed Neuro-Link runtime seam on an isolated or embedded
+    /// gateway fixture.  This is intentionally additive; existing Manager
+    /// constructors continue to use a service-unavailable default until the
+    /// AgentLoop/Fabric production cutover lands.
+    pub fn with_neuro_link_runtime(
+        mut self,
+        runtime: Arc<dyn crate::neuro_link::NeuroLinkRuntime>,
+    ) -> Self {
+        self.neuro_link_runtime = Some(runtime);
+        self
+    }
+
+    /// Open the profile-local projection journal once and reuse it across all
+    /// WebSocket connections and HTTP lifecycle handlers.
+    pub async fn projection_journal(
+        &self,
+    ) -> Result<Arc<crate::projection_journal::ProjectionJournal>, String> {
+        let data_root = self.config_dir.clone();
+        self.projection_journal
+            .get_or_try_init(|| async move {
+                crate::projection_journal::ProjectionJournal::open(data_root)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|error| -> String { error.to_string() })
+            })
+            .await
+            .map(Clone::clone)
     }
 }
 

@@ -403,6 +403,9 @@ pub enum ChannelContractError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RpcId {
+    /// JSON-RPC uses a null id for parse errors where the request id cannot be
+    /// recovered.  Valid requests still use a string or number id.
+    Null,
     String(String),
     Number(i64),
 }
@@ -461,6 +464,9 @@ pub enum ProtocolErrorCode {
     UnsupportedCapability,
     FrameTooLarge,
     AttachmentTooLarge,
+    Busy,
+    IdempotencyConflict,
+    ServiceUnavailable,
 }
 
 /// A typed JSON-RPC error response.
@@ -575,7 +581,79 @@ pub struct EnvelopeNotificationParams {
 pub struct SessionOpenedParams {
     pub session_key: String,
     pub cursor: CursorV1,
+    pub catalog_revision: u64,
     pub services: Vec<ServiceBindingV1>,
+}
+
+/// Whether a state synchronization response was served from replay, a fresh
+/// authority snapshot, or both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StateSyncModeV1 {
+    Replay,
+    Snapshot,
+    ReplayAndSnapshot,
+}
+
+/// A durable or synthesized notification that can be replayed by a client.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionEventV1 {
+    pub method: String,
+    pub cursor: CursorV1,
+    pub envelope: ChannelEnvelopeV1,
+}
+
+/// State returned for `state/resume` and the initial `session/open` sync.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateSyncResultV1 {
+    pub mode: StateSyncModeV1,
+    pub head: CursorV1,
+    pub events: Vec<ProjectionEventV1>,
+    pub snapshot: Vec<ProjectionEventV1>,
+}
+
+/// Result of the service catalog request.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServiceListResultV1 {
+    pub catalog_revision: u64,
+    pub services: Vec<ServiceBindingV1>,
+}
+
+/// Result returned after a turn has reached the authoritative admission
+/// kernel.  Fabric acceptance alone is intentionally not exposed as a
+/// running/started state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TurnStartResultV1 {
+    pub session_key: String,
+    pub request_id: String,
+    pub trace_id: String,
+    pub admission: crate::bus::SessionAdmissionObservation,
+}
+
+/// Result returned by `turn/cancel`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TurnCancelResultV1 {
+    pub outcome: crate::bus::SessionControlOutcome,
+}
+
+/// Result returned by `event/ack`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventAckResultV1 {
+    pub cursor: CursorV1,
+}
+
+/// Result returned by `session/open`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionOpenResultV1 {
+    pub opened: SessionOpenedParams,
+    pub sync: StateSyncResultV1,
 }
 
 #[cfg(test)]

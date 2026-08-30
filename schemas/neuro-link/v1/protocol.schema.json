@@ -12,7 +12,8 @@
     "rpc_id": {
       "oneOf": [
         { "type": "string", "minLength": 1 },
-        { "type": "integer" }
+        { "type": "integer" },
+        { "type": "null" }
       ]
     },
     "request": {
@@ -162,7 +163,10 @@
             "cursor_invalid",
             "unsupported_capability",
             "frame_too_large",
-            "attachment_too_large"
+            "attachment_too_large",
+            "busy",
+            "idempotency_conflict",
+            "service_unavailable"
           ]
         },
         "message": { "type": "string", "minLength": 1 },
@@ -254,10 +258,11 @@
     "session_opened_params": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_key", "cursor", "services"],
+      "required": ["session_key", "cursor", "catalog_revision", "services"],
       "properties": {
         "session_key": { "type": "string", "minLength": 1 },
         "cursor": { "$ref": "#/$defs/cursor" },
+        "catalog_revision": { "type": "integer", "minimum": 0 },
         "services": {
           "type": "array",
           "items": { "$ref": "#/$defs/service_binding" }
@@ -291,6 +296,88 @@
         "http_base": { "type": "string", "minLength": 1 },
         "required_frontend_capability": { "type": "string", "minLength": 1 }
       }
+    },
+    "service_list_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog_revision", "services"],
+      "properties": {
+        "catalog_revision": { "type": "integer", "minimum": 0 },
+        "services": { "type": "array", "items": { "$ref": "#/$defs/service_binding" } }
+      }
+    },
+    "projection_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "cursor", "envelope"],
+      "properties": {
+        "method": {
+          "enum": [
+            "turn/admission",
+            "conversation/stream",
+            "tool/lifecycle",
+            "approval/required",
+            "question/required",
+            "planning/changed",
+            "presentation/event",
+            "state/gap",
+            "service/changed"
+          ]
+        },
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "envelope": { "$ref": "#/$defs/envelope" }
+      }
+    },
+    "state_sync_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "head", "events", "snapshot"],
+      "properties": {
+        "mode": { "enum": ["replay", "snapshot", "replay_and_snapshot"] },
+        "head": { "$ref": "#/$defs/cursor" },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/projection_event" } },
+        "snapshot": { "type": "array", "items": { "$ref": "#/$defs/projection_event" } }
+      }
+    },
+    "session_open_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opened", "sync"],
+      "properties": {
+        "opened": { "$ref": "#/$defs/session_opened_params" },
+        "sync": { "$ref": "#/$defs/state_sync_result" }
+      }
+    },
+    "admission_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "session_key", "request_id", "trace_id", "queue_depth", "wait_latency_ms"],
+      "properties": {
+        "code": { "type": "string" },
+        "phase": { "type": "string" },
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "queue_depth": { "type": "integer", "minimum": 0 },
+        "wait_latency_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "turn_start_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "request_id", "trace_id", "admission"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "admission": { "$ref": "#/$defs/admission_observation" }
+      }
+    },
+    "event_ack_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cursor"],
+      "properties": { "cursor": { "$ref": "#/$defs/cursor" } }
     },
     "envelope_params": {
       "type": "object",

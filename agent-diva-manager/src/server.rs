@@ -81,6 +81,13 @@ async fn run_server_with_listener_and_signal<F>(
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
+    let listen_addr = listener.local_addr()?;
+    if !listen_addr.ip().is_loopback() {
+        anyhow::bail!(
+            "Neuro-Link gateway is loopback-only; refusing listener {}",
+            listen_addr
+        );
+    }
     let app = build_router(state);
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -94,6 +101,7 @@ where
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .merge(runtime_routes())
+        .merge(crate::neuro_link::routes())
         .merge(crate::handlers::command_approval_routes())
         .merge(crate::handlers::approval_routes())
         .merge(crate::handlers::ask_user_routes())
