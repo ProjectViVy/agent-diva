@@ -12,6 +12,14 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 use uuid::Uuid;
 
+mod fabric;
+
+pub use fabric::{
+    FabricAdmissionError, FabricConsumer, FabricDispatchError, FabricHandle, FabricIngressItem,
+    FabricIngressScheduler, FabricIngressSink, FabricKernel, FabricLane, FabricTransientGap,
+    FabricTransientItem, TransientKey, TransientPublishOutcome,
+};
+
 /// The exact protocol identifier accepted by Neuro-Link v1.
 pub const NEURO_LINK_PROTOCOL_V1: &str = "neuro-link/v1";
 

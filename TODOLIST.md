@@ -66,6 +66,14 @@
   - [ ] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**
     替代无界 ingress/egress，建立 control/durable/transient/adapter lane、pacing、health、
     panic/exit recovery 和 fault-injection TCK。
+    - [x] **C2a：bounded Fabric Kernel 与队列 TCK**（2026-08-30）
+      已建立固定容量 control/ingress/durable/transient lane、deadline/cancel admission、
+      transient coalesce/Gap、request fence、同 session FIFO/跨 session 并行调度和 drain
+      shutdown；未接入旧 MessageBus。交付记录：
+      [`v0.1.2-bounded-fabric-kernel`](docs/logs/2026-08-channel-epic/v0.1.2-bounded-fabric-kernel/)。
+    - [ ] **C2b：Adapter Registry、supervisor、pacing 与故障 TCK**
+      建立新 `ChannelAdapter`、capability/command runtime、独立 adapter egress、Retry-After、
+      panic/exit recovery、部分分片 receipt 和 fake-adapter smoke。
   - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
     在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
     Service Binding 登记；不增加 host/port/auth 配置。
