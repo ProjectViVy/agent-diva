@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `agent-diva-core/src/channel`, `agent-diva-core/src/bus/events.rs`, `agent-diva-agent/src/agent_loop`, `agent-diva-agent/src/runtime_control.rs`, `agent-diva-manager/src/neuro_link.rs`, `agent-diva-manager/src/projection_journal.rs`, `agent-diva-manager/src/runtime/task_runtime.rs`, `agent-diva-manager/src/server.rs`, `agent-diva-manager/src/state.rs`, `agent-diva-manager/Cargo.toml`, `agent-diva-gui/src/protocol/neuro-link-v1.ts`, `schemas/neuro-link/v1/protocol.schema.json`, C3 logs/TODOLIST
-- Owner: `Codex`
+- Lock State: `RELEASED`
+- Scope: `None`
+- Owner: `None`
 - Session/Task: `CHANNEL-EPIC C3 Gateway/Projection Journal/Service Catalog`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T00:00:00+08:00`
-- Last Heartbeat: `2026-08-31T04:00:00+08:00`
+- Last Heartbeat: `2026-08-31T05:00:00+08:00`
 - Expires At: `2026-09-02T00:00:00+08:00`
-- Handoff Notes: `C2 remains released in 3e5647c8/7da8fdb3. C3 is being implemented only in this isolated worktree; no production cutover, compatibility bridge, dev merge, or push.`
+- Handoff Notes: `C3 released in 03e77d95, 0dabdb48, b14e0d4b, and 532ff71c. Gateway, journal, typed admission, projection hub, service catalog, iteration logs, TODOLIST, and full Rust gates completed in this isolated worktree. No production cutover, compatibility bridge, dev merge, or push.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C3 Neuro-Link gateway, journal, typed admission, and projection hub` — **RELEASED 2026-08-31T05:00:00+08:00** by `Codex`. Commits `03e77d95`, `0dabdb48`, `b14e0d4b`, and `532ff71c`; loopback JSON-RPC gateway, profile-local SQLite cursor/ACK/replay/idempotency journal, typed AgentLoop admission, service catalog, process-wide AgentEvent projection hub, durable/transient fan-out, GUI/schema parity, C3 iteration logs, and full `just fmt-check && just check && just test` gates passed. C6 clean break and C4 GUI migration remain deferred. No production cutover, compatibility bridge, `dev` merge, or push.
 
 - `CHANNEL-EPIC C2 bounded Fabric Kernel and Adapter runtime` — **RELEASED 2026-08-30T20:33:21+08:00** by `Codex`. Commits `3e5647c8` and `7da8fdb3`; bounded control/ingress/durable/transient/adapter lanes, per-session ordering, capability contracts, Registry, pacing, listener supervision, fault TCK, fake smoke, iteration logs, and full Rust gates completed. No production cutover, compatibility bridge, `dev` merge, or push.
 
