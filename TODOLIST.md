@@ -76,7 +76,7 @@
       Retry-After、panic/exit recovery、部分分片 receipt 和 fake-adapter smoke；未迁移真实
       平台或切换生产路径。交付记录：
       [`v0.1.3-adapter-runtime`](docs/logs/2026-08-channel-epic/v0.1.3-adapter-runtime/)。
-  - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
+  - [x] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**（2026-08-31）
     在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
     Service Binding 登记；不增加 host/port/auth 配置。
     - [x] **C3a：协议结果类型与 Service Catalog**（2026-08-31）
@@ -92,9 +92,13 @@
       `RuntimeControlCommand::StartChannelTurn` 已通过 bounded per-session dispatcher 接入
       AgentLoop，Manager production bootstrap 安装 `AgentLoopNeuroLinkRuntime`，并保留
       session/request/trace correlation；`turn/cancel` 复用 typed control lane。
-    - [ ] **C3e：AgentEvent → ProjectionEvent stream hub**
-      当前 C3 Gateway 已持久化 admission projection；conversation/tool/presentation 的
-      durable/transient typed event fan-out 仍需独立事件 hub，且 C6 前必须完成旧 bus/DTO clean break。
+    - [x] **C3e：AgentEvent → ProjectionEvent stream hub**（2026-08-31）
+      已建立进程级 Neuro-Link projection hub：消费带 session/request/trace 关联的
+      AgentBusEvent，映射为受限 Fabric envelope，先写入 `super-channel-events.db` 再广播到
+      所有匹配会话的 WebSocket；conversation、reasoning、tool、planning、provider、compaction
+      与 terminal error/final 事件分别标记 durable/transient，瞬时增量不进入断线 replay。
+      `turn/start` 的首个 queued/running admission 仍由 Gateway 响应路径原子写入，避免重复行；
+      C6 仍负责旧 bus/DTO 的最终 clean break。
   - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
     GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
     GUI tests/build 与真实桌面断线恢复冒烟。

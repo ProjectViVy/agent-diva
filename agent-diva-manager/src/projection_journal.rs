@@ -128,7 +128,7 @@ impl ProjectionJournal {
             r#"
             CREATE UNIQUE INDEX IF NOT EXISTS projection_terminal_request
             ON projection_events(stream, request_id)
-            WHERE terminal = 1 AND request_id IS NOT NULL
+            WHERE durable = 1 AND terminal = 1 AND request_id IS NOT NULL
             "#,
         )
         .execute(&self.pool)
@@ -179,7 +179,23 @@ impl ProjectionJournal {
         &self,
         session_key: &str,
         method: impl Into<String>,
+        envelope: ChannelEnvelopeV1,
+        terminal: bool,
+    ) -> Result<ProjectionEventV1, ProjectionJournalError> {
+        self.append_event(session_key, method, envelope, true, terminal)
+            .await
+    }
+
+    /// Append a projection while retaining whether it is safe to replay after
+    /// reconnect.  Transient rows still consume a cursor so live clients can
+    /// observe one total ordering, but `replay` intentionally filters them
+    /// out; authoritative state is rebuilt from durable rows/snapshots.
+    pub async fn append_event(
+        &self,
+        session_key: &str,
+        method: impl Into<String>,
         mut envelope: ChannelEnvelopeV1,
+        durable: bool,
         terminal: bool,
     ) -> Result<ProjectionEventV1, ProjectionJournalError> {
         let method = method.into();
@@ -203,7 +219,7 @@ impl ProjectionJournal {
         envelope.correlation.sequence = Some(sequence);
         let envelope_json = serde_json::to_string(&envelope)?;
         sqlx::query(
-            "INSERT INTO projection_events (stream, sequence, method, envelope_id, request_id, occurred_at, envelope_json, terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO projection_events (stream, sequence, method, envelope_id, request_id, occurred_at, envelope_json, durable, terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(session_key)
         .bind(sequence as i64)
@@ -212,6 +228,7 @@ impl ProjectionJournal {
         .bind(envelope.correlation.request_id.as_deref())
         .bind(envelope.occurred_at.to_rfc3339())
         .bind(envelope_json)
+        .bind(if durable { 1_i64 } else { 0_i64 })
         .bind(if terminal { 1_i64 } else { 0_i64 })
         .execute(&mut *tx)
         .await?;
@@ -266,13 +283,17 @@ impl ProjectionJournal {
                 head,
             });
         }
-        let min_sequence: Option<i64> =
-            sqlx::query_scalar("SELECT MIN(sequence) FROM projection_events WHERE stream = ?")
-                .bind(session_key)
-                .fetch_one(&self.pool)
-                .await?;
+        let min_sequence: Option<i64> = sqlx::query_scalar(
+            "SELECT MIN(sequence) FROM projection_events WHERE stream = ? AND durable = 1",
+        )
+        .bind(session_key)
+        .fetch_one(&self.pool)
+        .await?;
         if let Some(min_sequence) = min_sequence {
-            if cursor.sequence.saturating_add(1) < min_sequence as u64 {
+            // Sequence zero is the well-defined initial cursor.  A transient
+            // row may occupy sequence one, so an initial replay must still be
+            // allowed to reach the first durable row after that gap.
+            if cursor.sequence > 0 && cursor.sequence.saturating_add(1) < min_sequence as u64 {
                 return Err(ProjectionJournalError::CursorOutOfRange {
                     cursor: cursor.clone(),
                     head,
@@ -280,7 +301,7 @@ impl ProjectionJournal {
             }
         }
         let rows = sqlx::query(
-            "SELECT method, sequence, envelope_json FROM projection_events WHERE stream = ? AND sequence > ? ORDER BY sequence ASC",
+            "SELECT method, sequence, envelope_json FROM projection_events WHERE stream = ? AND durable = 1 AND sequence > ? ORDER BY sequence ASC",
         )
         .bind(session_key)
         .bind(cursor.sequence as i64)
@@ -486,6 +507,46 @@ mod tests {
                 .await,
             Err(ProjectionJournalError::CursorInvalid { .. })
         ));
+    }
+
+    #[tokio::test]
+    async fn transient_rows_advance_live_cursor_but_are_not_replayed() {
+        let journal = ProjectionJournal::in_memory().await.unwrap();
+        let transient = journal
+            .append_event(
+                "s",
+                "conversation/stream",
+                envelope("s", "r1", "delta"),
+                false,
+                false,
+            )
+            .await
+            .unwrap();
+        let durable = journal
+            .append_event(
+                "s",
+                "conversation/stream",
+                envelope("s", "r1", "final"),
+                true,
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(transient.cursor.sequence, 1);
+        assert_eq!(durable.cursor.sequence, 2);
+        let sync = journal
+            .replay(
+                "s",
+                Some(&CursorV1 {
+                    stream: "s".to_string(),
+                    sequence: 0,
+                }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(sync.head.sequence, 2);
+        assert_eq!(sync.events.len(), 1);
+        assert_eq!(sync.events[0].cursor.sequence, 2);
     }
 
     #[tokio::test]

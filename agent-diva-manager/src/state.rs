@@ -101,6 +101,9 @@ pub struct AppState {
     /// keeps existing isolated handler fixtures lightweight while production
     /// gateway traffic still shares one profile-local SQLite authority.
     pub projection_journal: Arc<OnceCell<Arc<crate::projection_journal::ProjectionJournal>>>,
+    /// Process-wide AgentEvent projection fan-out shared by all Neuro-Link
+    /// sockets.  The hub owns the only journal writer for live events.
+    pub neuro_link_projection: Arc<crate::neuro_link_projection::NeuroLinkProjectionHub>,
 }
 
 impl AppState {
@@ -259,6 +262,8 @@ impl AppState {
             }
             .with_memory_home(memory_home.clone())
             .with_skill_home(skill_home.clone());
+        let neuro_link_bus = bus.clone();
+        let neuro_link_data_root = config_dir.clone();
         let state = Self {
             api_tx,
             bus,
@@ -279,6 +284,10 @@ impl AppState {
             runtime_control_tx,
             neuro_link_runtime,
             projection_journal: Arc::new(OnceCell::new()),
+            neuro_link_projection: crate::neuro_link_projection::NeuroLinkProjectionHub::new(
+                neuro_link_bus,
+                neuro_link_data_root,
+            ),
         };
         match state.autodream.resumable_runs() {
             Ok(runs) if !runs.is_empty() => {

@@ -604,6 +604,18 @@ pub struct ProjectionEventV1 {
     pub envelope: ChannelEnvelopeV1,
 }
 
+/// Typed event emitted by AgentLoop/Fabric before it is persisted into the
+/// Manager projection journal.  `durable=false` events may be dropped on
+/// reconnect; their authoritative state is rebuilt by a later snapshot.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChannelRuntimeProjectionV1 {
+    pub method: String,
+    pub envelope: ChannelEnvelopeV1,
+    pub durable: bool,
+    pub terminal: bool,
+}
+
 /// State returned for `state/resume` and the initial `session/open` sync.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

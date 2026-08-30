@@ -227,44 +227,79 @@ async fn serve_socket(mut socket: WebSocket, state: AppState) {
         return;
     }
 
-    while let Some(frame) = socket.next().await {
-        let Ok(frame) = frame else {
-            break;
-        };
-        match frame {
-            Message::Text(text) => {
-                if text.len() > MAX_FRAME_BYTES {
-                    let _ = send_error(
-                        &mut socket,
-                        RpcId::Null,
-                        ProtocolErrorCode::FrameTooLarge,
-                        format!("frame exceeds {} bytes", MAX_FRAME_BYTES),
-                        None,
-                    )
-                    .await;
+    // Every live socket subscribes to the one process-wide hub.  The hub
+    // persists rows before broadcasting, so a reconnect can use state/resume
+    // while the current connection receives the same cursor-ordered event.
+    let mut projection_rx = state.neuro_link_projection.subscribe();
+    loop {
+        tokio::select! {
+            frame = socket.next() => {
+                let Some(frame) = frame else {
                     break;
-                }
-                if !dispatch_request(&mut socket, &state, &mut connection, &text).await {
+                };
+                let Ok(frame) = frame else {
                     break;
+                };
+                match frame {
+                    Message::Text(text) => {
+                        if text.len() > MAX_FRAME_BYTES {
+                            let _ = send_error(
+                                &mut socket,
+                                RpcId::Null,
+                                ProtocolErrorCode::FrameTooLarge,
+                                format!("frame exceeds {} bytes", MAX_FRAME_BYTES),
+                                None,
+                            )
+                            .await;
+                            break;
+                        }
+                        if !dispatch_request(&mut socket, &state, &mut connection, &text).await {
+                            break;
+                        }
+                    }
+                    Message::Binary(_) => {
+                        let _ = send_error(
+                            &mut socket,
+                            RpcId::Null,
+                            ProtocolErrorCode::InvalidRequest,
+                            "binary WebSocket frames are not supported".to_string(),
+                            None,
+                        )
+                        .await;
+                    }
+                    Message::Ping(payload) => {
+                        if socket.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Pong(_) => {}
+                    Message::Close(_) => break,
                 }
             }
-            Message::Binary(_) => {
-                let _ = send_error(
-                    &mut socket,
-                    RpcId::Null,
-                    ProtocolErrorCode::InvalidRequest,
-                    "binary WebSocket frames are not supported".to_string(),
-                    None,
-                )
-                .await;
-            }
-            Message::Ping(payload) => {
-                if socket.send(Message::Pong(payload)).await.is_err() {
-                    break;
+            event = projection_rx.recv() => {
+                match event {
+                    Ok(projection) => {
+                        if connection.session_key.as_deref()
+                            == Some(projection.cursor.stream.as_str())
+                            && send_notification(
+                                &mut socket,
+                                &projection.method,
+                                EnvelopeNotificationParams {
+                                    envelope: projection.envelope,
+                                },
+                            )
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(skipped, "Neuro-Link socket lagged on projection hub; use state/resume");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
             }
-            Message::Pong(_) => {}
-            Message::Close(_) => break,
         }
     }
 }
