@@ -6,6 +6,7 @@
 //! mattermost / nextcloud_talk 六个未验证通道默认不编译，源文件保留作
 //! 历史性保留；需要时启用对应 Cargo feature（`channel-slack` 等）恢复。
 
+pub mod adapter;
 pub mod base;
 pub mod common;
 pub mod dingtalk;
@@ -23,12 +24,14 @@ pub mod neuro_link;
 #[cfg(feature = "channel-nextcloud-talk")]
 pub mod nextcloud_talk;
 pub mod qq;
+pub mod runtime;
 #[cfg(feature = "channel-slack")]
 pub mod slack;
 pub mod telegram;
 #[cfg(feature = "channel-whatsapp")]
 pub mod whatsapp;
 
+pub use adapter::{AdapterContext, AdapterError, ChannelAdapter};
 pub use base::{BaseChannel, ChannelError, ChannelHandler, ChannelHandlerPtr, Result};
 pub use dingtalk::DingTalkHandler;
 pub use discord::DiscordHandler;
@@ -45,6 +48,10 @@ pub use neuro_link::NeuroLinkHandler;
 #[cfg(feature = "channel-nextcloud-talk")]
 pub use nextcloud_talk::NextcloudTalkHandler;
 pub use qq::QQHandler;
+pub use runtime::{
+    AdapterPacingHandle, AdapterPacingLane, AdapterRegistry, AdapterRegistryError,
+    AdapterSupervisor, PacingError, SupervisorPolicy,
+};
 #[cfg(feature = "channel-slack")]
 pub use slack::SlackHandler;
 pub use telegram::TelegramHandler;

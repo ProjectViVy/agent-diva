@@ -13,11 +13,16 @@ use thiserror::Error;
 use uuid::Uuid;
 
 mod fabric;
+mod runtime_contract;
 
 pub use fabric::{
     FabricAdmissionError, FabricConsumer, FabricDispatchError, FabricHandle, FabricIngressItem,
     FabricIngressScheduler, FabricIngressSink, FabricKernel, FabricLane, FabricTransientGap,
     FabricTransientItem, TransientKey, TransientPublishOutcome,
+};
+pub use runtime_contract::{
+    ChannelCapabilities, ChannelCapability, ChannelCapabilityProbe, ChannelCommand, ChannelHealth,
+    ChannelId, ChannelLimits, ChannelLimitsProbe,
 };
 
 /// The exact protocol identifier accepted by Neuro-Link v1.

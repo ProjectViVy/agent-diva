@@ -63,7 +63,7 @@
     capability/command/event/receipt/error 的协议基础，Rust/TypeScript 共用正反 fixture，
     并以旧 pipe、MessageBus、allowlist 和 loopback guard characterization 锁定旧路径边界。
     交付记录：[`v0.1.1-neuro-link-contract`](docs/logs/2026-08-channel-epic/v0.1.1-neuro-link-contract/)。
-  - [ ] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**
+  - [x] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**（2026-08-30）
     替代无界 ingress/egress，建立 control/durable/transient/adapter lane、pacing、health、
     panic/exit recovery 和 fault-injection TCK。
     - [x] **C2a：bounded Fabric Kernel 与队列 TCK**（2026-08-30）
@@ -71,9 +71,11 @@
       transient coalesce/Gap、request fence、同 session FIFO/跨 session 并行调度和 drain
       shutdown；未接入旧 MessageBus。交付记录：
       [`v0.1.2-bounded-fabric-kernel`](docs/logs/2026-08-channel-epic/v0.1.2-bounded-fabric-kernel/)。
-    - [ ] **C2b：Adapter Registry、supervisor、pacing 与故障 TCK**
-      建立新 `ChannelAdapter`、capability/command runtime、独立 adapter egress、Retry-After、
-      panic/exit recovery、部分分片 receipt 和 fake-adapter smoke。
+    - [x] **C2b：Adapter Registry、supervisor、pacing 与故障 TCK**（2026-08-30）
+      已建立新 `ChannelAdapter`、capability/command runtime、独立 adapter egress、
+      Retry-After、panic/exit recovery、部分分片 receipt 和 fake-adapter smoke；未迁移真实
+      平台或切换生产路径。交付记录：
+      [`v0.1.3-adapter-runtime`](docs/logs/2026-08-channel-epic/v0.1.3-adapter-runtime/)。
   - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
     在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
     Service Binding 登记；不增加 host/port/auth 配置。

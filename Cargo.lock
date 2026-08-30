@@ -105,6 +105,7 @@ dependencies = [
  "tokio-native-tls",
  "tokio-test",
  "tokio-tungstenite 0.21.0",
+ "tokio-util",
  "tracing",
  "uuid",
 ]
