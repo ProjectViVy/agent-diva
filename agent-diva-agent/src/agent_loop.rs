@@ -105,7 +105,8 @@ fn prepare_turn_message(
 ) -> (InboundMessage, dispatcher::SessionRequestIdentity) {
     let request_id = normalized_request_id(message.metadata.get(REQUEST_ID_METADATA_KEY))
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    let trace_id = Uuid::new_v4().to_string();
+    let trace_id = normalized_request_id(message.metadata.get(TRACE_ID_METADATA_KEY))
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     message.metadata.insert(
         REQUEST_ID_METADATA_KEY.to_string(),
         serde_json::Value::String(request_id.clone()),

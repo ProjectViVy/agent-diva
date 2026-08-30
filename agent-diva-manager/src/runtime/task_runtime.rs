@@ -101,6 +101,9 @@ async fn start_runtime_tasks_inner(
         );
     }
     let runtime_control_tx_for_state = runtime_control_tx.clone();
+    let neuro_link_runtime = Arc::new(crate::neuro_link::AgentLoopNeuroLinkRuntime::new(
+        runtime_control_tx.clone(),
+    ));
     let manager = Manager::new(
         api_rx,
         bus.clone(),
@@ -142,7 +145,8 @@ async fn start_runtime_tasks_inner(
         planning_service,
         runtime_control_tx_for_state,
     )
-    .expect("manager AppState storage services initialize");
+    .expect("manager AppState storage services initialize")
+    .with_neuro_link_runtime(neuro_link_runtime);
     app_state.health.mark_cron_ready();
     let (server_shutdown_tx, server_handle) = match server_runtime {
         ServerRuntime::BoundPort => spawn_server_runtime(port, app_state),

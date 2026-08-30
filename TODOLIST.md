@@ -88,10 +88,13 @@
     - [x] **C3d：loopback Gateway 与 TCK smoke**（2026-08-31）
       `/api/neuro-link/v1/ws` 已完成 hello、session/open、turn/cancel、event/ack、state/resume、
       frame/part/attachment bounds 及真实 WebSocket 冒烟。
-    - [ ] **C3c：AgentLoop/Fabric production runtime wiring**
-      Gateway 已有 typed `NeuroLinkRuntime` 注入 seam；下一批需把生产 AgentLoop/Fabric admission
-      endpoint 安装到 AppState，并把 durable/transient AgentEvent projection 接入 Journal，
-      保持不调用旧 MessageBus/旧 DTO 的目标。
+    - [x] **C3c：AgentLoop typed admission wiring**（2026-08-31）
+      `RuntimeControlCommand::StartChannelTurn` 已通过 bounded per-session dispatcher 接入
+      AgentLoop，Manager production bootstrap 安装 `AgentLoopNeuroLinkRuntime`，并保留
+      session/request/trace correlation；`turn/cancel` 复用 typed control lane。
+    - [ ] **C3e：AgentEvent → ProjectionEvent stream hub**
+      当前 C3 Gateway 已持久化 admission projection；conversation/tool/presentation 的
+      durable/transient typed event fan-out 仍需独立事件 hub，且 C6 前必须完成旧 bus/DTO clean break。
   - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
     GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
     GUI tests/build 与真实桌面断线恢复冒烟。

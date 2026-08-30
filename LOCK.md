@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-core/src/channel`, `agent-diva-manager/src/neuro_link.rs`, `agent-diva-manager/src/projection_journal.rs`, `agent-diva-manager/src/server.rs`, `agent-diva-manager/src/state.rs`, `agent-diva-manager/Cargo.toml`, `agent-diva-gui/src/protocol/neuro-link-v1.ts`, `schemas/neuro-link/v1/protocol.schema.json`, C3 logs/TODOLIST
+- Scope: `agent-diva-core/src/channel`, `agent-diva-core/src/bus/events.rs`, `agent-diva-agent/src/agent_loop`, `agent-diva-agent/src/runtime_control.rs`, `agent-diva-manager/src/neuro_link.rs`, `agent-diva-manager/src/projection_journal.rs`, `agent-diva-manager/src/runtime/task_runtime.rs`, `agent-diva-manager/src/server.rs`, `agent-diva-manager/src/state.rs`, `agent-diva-manager/Cargo.toml`, `agent-diva-gui/src/protocol/neuro-link-v1.ts`, `schemas/neuro-link/v1/protocol.schema.json`, C3 logs/TODOLIST
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C3 Gateway/Projection Journal/Service Catalog`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T00:00:00+08:00`
-- Last Heartbeat: `2026-08-31T00:00:00+08:00`
+- Last Heartbeat: `2026-08-31T04:00:00+08:00`
 - Expires At: `2026-09-02T00:00:00+08:00`
 - Handoff Notes: `C2 remains released in 3e5647c8/7da8fdb3. C3 is being implemented only in this isolated worktree; no production cutover, compatibility bridge, dev merge, or push.`
 

@@ -29,9 +29,10 @@ use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -69,6 +70,8 @@ pub trait NeuroLinkRuntime: Send + Sync {
     }
 }
 
+pub type SharedNeuroLinkRuntime = Arc<dyn NeuroLinkRuntime>;
+
 /// Failure categories mapped to stable Neuro-Link protocol errors.
 #[derive(Debug, Error)]
 pub enum NeuroLinkRuntimeError {
@@ -80,6 +83,97 @@ pub enum NeuroLinkRuntimeError {
     Rejected(String),
     #[error("runtime failed: {0}")]
     Internal(String),
+}
+
+/// Production adapter from the Manager gateway into the AgentLoop's typed
+/// runtime-control lane. It carries only the Fabric envelope and a bounded
+/// admission reply; no HTTP handler or legacy bus object crosses this seam.
+#[derive(Clone)]
+pub struct AgentLoopNeuroLinkRuntime {
+    control_tx: mpsc::UnboundedSender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
+}
+
+impl AgentLoopNeuroLinkRuntime {
+    pub fn new(
+        control_tx: mpsc::UnboundedSender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
+    ) -> Self {
+        Self { control_tx }
+    }
+}
+
+#[async_trait]
+impl NeuroLinkRuntime for AgentLoopNeuroLinkRuntime {
+    async fn start_turn(
+        &self,
+        envelope: ChannelEnvelopeV1,
+    ) -> Result<TurnStartResultV1, NeuroLinkRuntimeError> {
+        let session_key = envelope.correlation.session_key.clone();
+        let request_id = envelope.correlation.request_id.clone().unwrap_or_default();
+        let trace_id = envelope.correlation.trace_id.clone().unwrap_or_default();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.control_tx
+            .send(
+                agent_diva_agent::runtime_control::RuntimeControlCommand::StartChannelTurn {
+                    envelope: Box::new(envelope),
+                    reply_tx,
+                },
+            )
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable("AgentLoop control lane is closed".to_string())
+            })?;
+        let admission = timeout(Duration::from_secs(5), reply_rx)
+            .await
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable("AgentLoop admission timed out".to_string())
+            })?
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable("AgentLoop dropped admission reply".to_string())
+            })?
+            .map_err(NeuroLinkRuntimeError::Rejected)?;
+        if admission.session_key != session_key
+            || admission.request_id != request_id
+            || admission.trace_id != trace_id
+        {
+            return Err(NeuroLinkRuntimeError::Internal(
+                "AgentLoop returned mismatched admission correlation".to_string(),
+            ));
+        }
+        Ok(TurnStartResultV1 {
+            session_key,
+            request_id,
+            trace_id,
+            admission,
+        })
+    }
+
+    async fn cancel_turn(
+        &self,
+        params: TurnCancelParams,
+    ) -> Result<TurnCancelResultV1, NeuroLinkRuntimeError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.control_tx
+            .send(
+                agent_diva_agent::runtime_control::RuntimeControlCommand::StopSession {
+                    session_key: params.session_key,
+                    request_id: Some(params.request_id),
+                    reply_tx,
+                },
+            )
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable("AgentLoop control lane is closed".to_string())
+            })?;
+        let outcome = timeout(Duration::from_secs(5), reply_rx)
+            .await
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable("AgentLoop cancellation timed out".to_string())
+            })?
+            .map_err(|_| {
+                NeuroLinkRuntimeError::Unavailable(
+                    "AgentLoop dropped cancellation reply".to_string(),
+                )
+            })?;
+        Ok(TurnCancelResultV1 { outcome })
+    }
 }
 
 /// Build the loopback-only gateway route.
@@ -1160,6 +1254,62 @@ mod tests {
         assert_eq!(envelope.correlation.request_id.as_deref(), Some("request"));
         assert_eq!(envelope.correlation.trace_id.as_deref(), Some("trace"));
         assert_eq!(envelope.address.sender_id.as_deref(), Some("frontend"));
+    }
+
+    #[tokio::test]
+    async fn agent_loop_runtime_adapter_round_trips_typed_admission() {
+        use agent_diva_core::bus::{SessionAdmissionObservation, SessionAdmissionPhase};
+        use agent_diva_core::channel::{
+            ChannelAddress, ChannelDirection, ChannelOrigin, ChannelPayloadV1, Correlation,
+        };
+        use tokio::sync::mpsc;
+
+        let (control_tx, mut control_rx) = mpsc::unbounded_channel();
+        let adapter = AgentLoopNeuroLinkRuntime::new(control_tx);
+        let mut correlation = Correlation::new("session-1");
+        correlation.request_id = Some("request-1".to_string());
+        correlation.trace_id = Some("trace-1".to_string());
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("neuro-link", "chat-1"),
+            correlation,
+            ChannelOrigin::OwnerFrontend,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: "hello".to_string(),
+                }],
+                subject: None,
+                locale: None,
+            },
+        );
+        let task = tokio::spawn({
+            let adapter = adapter.clone();
+            let envelope = envelope.clone();
+            async move { adapter.start_turn(envelope).await }
+        });
+        let command = control_rx.recv().await.unwrap();
+        let agent_diva_agent::runtime_control::RuntimeControlCommand::StartChannelTurn {
+            envelope,
+            reply_tx,
+        } = command
+        else {
+            panic!("expected typed channel command");
+        };
+        let observation = SessionAdmissionObservation {
+            code: None,
+            phase: SessionAdmissionPhase::Running,
+            session_key: "session-1".to_string(),
+            request_id: "request-1".to_string(),
+            trace_id: "trace-1".to_string(),
+            queue_depth: 0,
+            wait_latency_ms: 1,
+        };
+        assert_eq!(envelope.correlation.session_key, "session-1");
+        reply_tx.send(Ok(observation)).unwrap();
+        let result = task.await.unwrap().unwrap();
+        assert_eq!(result.request_id, "request-1");
+        assert_eq!(result.trace_id, "trace-1");
+        assert_eq!(result.admission.wait_latency_ms, 1);
     }
 
     #[tokio::test]

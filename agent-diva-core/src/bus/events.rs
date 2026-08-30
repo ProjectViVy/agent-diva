@@ -274,6 +274,19 @@ impl InboundMessage {
 
     /// Get the unique session key for this message
     pub fn session_key(&self) -> String {
+        // Typed Fabric ingress carries an authoritative session identity that
+        // may not be expressible as `channel:chat_id` (for example a desktop
+        // frontend can use an opaque profile key).  The internal override is
+        // only written by the AgentLoop typed-envelope adapter; ordinary
+        // channel callers retain the historical derivation below.
+        if let Some(session_key) = self
+            .metadata
+            .get("agent_diva.session_key_override")
+            .and_then(serde_json::Value::as_str)
+            .filter(|session_key| !session_key.trim().is_empty())
+        {
+            return session_key.to_owned();
+        }
         format!("{}:{}", self.channel, self.chat_id)
     }
 

@@ -37,9 +37,7 @@ pub enum ProjectionJournalError {
     #[error("projection envelope session mismatch: expected {expected}, got {actual}")]
     SessionMismatch { expected: String, actual: String },
     #[error("idempotency key {client_message_id} is already bound to different parameters")]
-    IdempotencyConflict {
-        client_message_id: String,
-    },
+    IdempotencyConflict { client_message_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -374,7 +372,10 @@ impl ProjectionJournal {
         result: &Value,
     ) -> Result<(), ProjectionJournalError> {
         let request_hash = stable_hash(request)?;
-        if let Some(existing) = self.lookup_idempotency(session_key, client_message_id).await? {
+        if let Some(existing) = self
+            .lookup_idempotency(session_key, client_message_id)
+            .await?
+        {
             if existing.request_hash != request_hash {
                 return Err(ProjectionJournalError::IdempotencyConflict {
                     client_message_id: client_message_id.to_owned(),
