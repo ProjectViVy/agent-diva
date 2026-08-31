@@ -122,6 +122,10 @@
       先冻结共享 adapter/services seam，再按“一频道一 agent、资源分波”的隔离 worktree
       分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。实现 ownership 与顺序见
       [`agent-task-cards.md`](docs/dev/channel-epic/c5-octos-migration/agent-task-cards.md)。
+      - [x] **C5-I-G1：共享 AdapterServices/AttachmentStore seam 与 TCK 基座**（2026-08-31）
+        已完成 typed attachment、内容寻址 digest 校验、allowlist helper、外部 envelope/
+        receipt/error builders、Gate 1 factory 失败语义及共享 TCK；六个频道构造和 Manager
+        生产装配仍分别留给 Gate 2/C6。
     - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
       每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
       final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从
@@ -130,10 +134,9 @@
       当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
       Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
       group/C2C policy 测试，未完成前保持 `Blocked`，不得以 C2C 测试关闭该项。
-    - [ ] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`
-      `agent-diva-channels/src/base.rs` 与测试表明空 `allow_from` 是 allow-all，但
-      `agent-diva-channels/agents.md` 仍写成 deny-by-default；在 C5-I 前同步说明，避免频道
-      agent 按旧文档实现错误权限策略。
+    - [x] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`（2026-08-31）
+      已更新 `agent-diva-channels/AGENTS.md`：空 `allow_from` 是 allow-all，并明确 C5
+      使用原生 `ChannelAdapter`、共享 Fabric 与 C6-only Manager 装配边界。
   - [ ] **C6：Clean Break 删除、全量门禁与原子合并**
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
@@ -253,6 +256,12 @@
   `agent-diva-agent/src/agent_loop.rs` 的规则加载场景报告 `await_holding_lock`（约 3537～3557
   行）。工作区标准 `just check` 不含 `--all-targets`，本轮未扩张修复；应缩短 guard 生命周期，
   并把 all-targets lint 纳入对应 crate 的稳定门禁。
+
+- [ ] **CHANNEL-ALL-TARGETS-CLIPPY-LEGACY-TESTS** `sev-P3`
+  C5-I Gate 1 的 `cargo clippy -p agent-diva-channels --all-targets -- -D warnings`
+  仍被既有 DingTalk/Email/Feishu/QQ 测试的 `field_reassign_with_default`，以及
+  `qq_reconnect_integration` 的 `useless_conversion`/`collapsible_if` 阻断；本阶段只验证
+  共享库与新 TCK，未改动 legacy 测试。应在独立 lint 清理批次修复并纳入稳定门禁。
 
 - [ ] **AGENT-RETRY-CORRELATION-FLAKE** `sev-P2`
   本轮隔离 worktree 的 `just test` 首次运行在
