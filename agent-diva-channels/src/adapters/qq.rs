@@ -20,7 +20,7 @@ use futures::{SinkExt, StreamExt};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -138,7 +138,6 @@ pub struct QqAdapter {
     token: Arc<AsyncMutex<TokenState>>,
     session: Arc<AsyncMutex<SessionState>>,
     seen: Arc<RwLock<HashSet<String>>>,
-    chats: Arc<Mutex<HashMap<String, ChatKind>>>,
     health: Arc<Mutex<ChannelHealth>>,
     running: Arc<AtomicBool>,
     cancel: CancellationToken,
@@ -167,7 +166,6 @@ impl QqAdapter {
             token: Arc::new(AsyncMutex::new(TokenState::default())),
             session: Arc::new(AsyncMutex::new(SessionState::default())),
             seen: Arc::new(RwLock::new(HashSet::new())),
-            chats: Arc::new(Mutex::new(HashMap::new())),
             health: Arc::new(Mutex::new(ChannelHealth::new(ChannelHealthStatus::Unknown))),
             running: Arc::new(AtomicBool::new(false)),
             cancel: CancellationToken::new(),
@@ -450,9 +448,16 @@ impl QqAdapter {
         &self,
         envelope: ChannelEnvelopeV1,
     ) -> Result<DeliveryReceipt, AdapterError> {
-        let (parts, address, correlation) = match envelope.payload {
+        let kind = chat_kind_from_extensions(&envelope.extensions);
+        let ChannelEnvelopeV1 {
+            payload,
+            address,
+            correlation,
+            ..
+        } = envelope;
+        let parts = match payload {
             ChannelPayloadV1::Message { parts, .. } | ChannelPayloadV1::Stream { parts, .. } => {
-                (parts, envelope.address, envelope.correlation)
+                parts
             }
             _ => {
                 return Err(execution_error(
@@ -493,12 +498,6 @@ impl QqAdapter {
                 false,
             ));
         }
-        let kind = self
-            .chats
-            .lock()
-            .ok()
-            .and_then(|chats| chats.get(&address.chat_id).copied())
-            .unwrap_or(ChatKind::Direct);
         let chunks = split_chunks(&text, MAX_MESSAGE_CHARS);
         let mut last_id = None;
         for (index, chunk) in chunks.iter().enumerate() {
@@ -622,9 +621,6 @@ impl QqAdapter {
         if content.is_empty() {
             self.seen.write().await.insert(message_id);
             return Ok(());
-        }
-        if let Ok(mut chats) = self.chats.lock() {
-            chats.insert(chat_id.clone(), kind);
         }
         let mut address = ChannelAddress::new(CHANNEL, chat_id.clone());
         address.sender_id = Some(sender_id.clone());
@@ -919,6 +915,13 @@ fn event_identity(event: &str, data: &Value) -> Option<(ChatKind, String, String
     Some((ChatKind::Group, chat, sender))
 }
 
+fn chat_kind_from_extensions(extensions: &std::collections::BTreeMap<String, Value>) -> ChatKind {
+    match extensions.get("qq.chat_kind").and_then(Value::as_str) {
+        Some("group") => ChatKind::Group,
+        _ => ChatKind::Direct,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1011,6 +1014,16 @@ mod tests {
         assert_eq!(group.0, ChatKind::Group);
         assert_eq!(group.1, "group-1");
         assert_eq!(group.2, "member-1");
+    }
+
+    #[test]
+    fn outbound_group_selection_requires_explicit_address_extension() {
+        let mut extensions = std::collections::BTreeMap::new();
+        assert_eq!(chat_kind_from_extensions(&extensions), ChatKind::Direct);
+        extensions.insert("qq.chat_kind".to_string(), json!("group"));
+        assert_eq!(chat_kind_from_extensions(&extensions), ChatKind::Group);
+        extensions.insert("qq.chat_kind".to_string(), json!("unknown"));
+        assert_eq!(chat_kind_from_extensions(&extensions), ChatKind::Direct);
     }
 
     #[tokio::test]
