@@ -46,6 +46,7 @@ import type { WorkspaceContextState } from '../composables/useWorkspaceContext';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../composables/useTheme';
 import { showAppToast } from '../utils/appToast';
+import type { NeuroLinkPresentationState } from '../features/neuro-link/projection';
 
 const { t } = useI18n();
 
@@ -118,6 +119,7 @@ interface Props {
   messages: Message[];
   isTyping: boolean;
   connectionStatus?: 'connected' | 'error' | 'connecting';
+  presentation?: NeuroLinkPresentationState;
   currentEmotion?: string;
   config?: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
@@ -1030,6 +1032,7 @@ defineExpose({
             :messages="messages"
             :is-typing="isTyping"
             :current-emotion="currentEmotion"
+            :presentation="presentation"
             :saved-models="savedModels"
             :current-model="config?.model"
             :current-provider="config?.provider"

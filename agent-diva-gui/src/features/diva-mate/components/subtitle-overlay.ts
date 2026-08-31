@@ -11,6 +11,12 @@ export interface SubtitleState {
   position: { x: number; y: number }
 }
 
+interface NeuroLinkPresentationPayload {
+  event: string
+  body?: Record<string, unknown>
+  source?: 'live' | 'replay'
+}
+
 export function useSubtitleOverlay() {
   const subtitle = ref<SubtitleState>({
     visible: false,
@@ -66,12 +72,13 @@ export function useSubtitleOverlay() {
       y: window.innerHeight * 0.88,
     }
 
-    // 通过 Tauri event 接收字幕（从主窗口 TTS 流推送）
-    unlisteners.push(await listen<string>('desktop-mate-subtitle', (event) => {
-      console.log('[SubtitleOverlay] desktop-mate-subtitle event received. payload:', JSON.stringify(event.payload)?.slice(0, 100))
-      if (event.payload) {
-        show(event.payload)
-      } else {
+    // The main window is the sole Neuro-Link client. Desktop Mate receives
+    // the typed semantic presentation envelope through this relay.
+    unlisteners.push(await listen<NeuroLinkPresentationPayload>('neuro-link-presentation', (event) => {
+      const payload = event.payload
+      if (payload?.event === 'subtitle.updated' && typeof payload.body?.text === 'string') {
+        show(payload.body.text)
+      } else if (payload?.event === 'subtitle.cleared') {
         hide()
       }
     }))

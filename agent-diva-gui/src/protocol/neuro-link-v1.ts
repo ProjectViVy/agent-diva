@@ -2,7 +2,8 @@
  * TypeScript view of the Super Channel Fabric Neuro-Link v1 contract.
  *
  * The JSON Schema under `schemas/neuro-link/v1/` is authoritative. These
- * types are intentionally not imported by the current chat UI until C4.
+ * The desktop Neuro-Link client and its projection reducer import these types
+ * directly; the schema remains the wire-level authority.
  */
 
 export const NEURO_LINK_PROTOCOL_V1 = 'neuro-link/v1' as const
@@ -11,6 +12,20 @@ export const JSON_RPC_VERSION = '2.0' as const
 
 export type ChannelDirection = 'ingress' | 'egress' | 'internal_projection'
 export type ChannelOrigin = 'external_user' | 'owner_frontend' | 'runtime'
+export type OwnerTurnIntent = 'agent' | 'plan' | 'ask'
+export type OwnerApprovalPolicy = 'on-request' | 'on-failure' | 'unless-trusted' | 'never'
+
+export interface OwnerExecutionContextV1 {
+  plan_id: string
+  revision: number
+  execution_id?: string
+}
+
+export interface OwnerTurnContextV1 {
+  intent: OwnerTurnIntent
+  approval_policy?: OwnerApprovalPolicy
+  execution?: OwnerExecutionContextV1
+}
 
 export interface ChannelAddress {
   channel: string
@@ -71,7 +86,7 @@ export interface DeliveryReceipt {
 }
 
 export type ChannelPayloadV1 =
-  | { kind: 'message'; parts: ContentPart[]; subject?: string; locale?: string }
+  | { kind: 'message'; parts: ContentPart[]; subject?: string; locale?: string; context?: OwnerTurnContextV1 }
   | { kind: 'typing'; state: TypingState }
   | { kind: 'stream'; phase: StreamPhase; parts: ContentPart[] }
   | { kind: 'reaction'; operation: ReactionOperation; emoji: string }
@@ -162,6 +177,7 @@ export interface TurnStartParams {
   session_key: string
   thread_id?: string
   parts: ContentPart[]
+  context: OwnerTurnContextV1
   client_message_id?: string
   subject?: string
   locale?: string
