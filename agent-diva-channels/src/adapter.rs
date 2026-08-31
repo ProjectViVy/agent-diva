@@ -240,15 +240,13 @@ pub enum AdapterBuildError {
 
 /// Construct configured native adapters without registering or starting them.
 ///
-/// Gate 1 intentionally reports enabled channels as unavailable until their
-/// owner commits land. Returning a typed error prevents a silent empty adapter
-/// or a default-success no-op; the Lead wires real constructors after Gate 2.
+/// C5 assembles native channel objects only. Registration, supervision, and
+/// listener startup remain the responsibility of the C6 runtime cutover.
 pub fn build_active_adapters(
     config: &Config,
     services: AdapterServices,
 ) -> Result<Vec<Arc<dyn ChannelAdapter>>, AdapterBuildError> {
     let mut adapters: Vec<Arc<dyn ChannelAdapter>> = Vec::new();
-    let mut unavailable = Vec::new();
 
     if config.channels.discord.enabled {
         adapters.push(Arc::new(crate::adapters::discord::DiscordAdapter::new(
@@ -274,25 +272,20 @@ pub fn build_active_adapters(
             services.clone(),
         )));
     }
-
-    // The remaining owners have not landed their native modules yet.  Keep a
-    // typed build failure rather than silently dropping an enabled channel.
-    for (channel, enabled) in [
-        ("telegram", config.channels.telegram.enabled),
-        ("qq", config.channels.qq.enabled),
-    ] {
-        if enabled {
-            unavailable.push(channel.to_string());
-        }
+    if config.channels.telegram.enabled {
+        adapters.push(Arc::new(crate::adapters::telegram::TelegramAdapter::new(
+            config.channels.telegram.clone(),
+            services.clone(),
+        )));
+    }
+    if config.channels.qq.enabled {
+        adapters.push(Arc::new(crate::adapters::qq::QqAdapter::new(
+            config.channels.qq.clone(),
+            services.clone(),
+        )));
     }
 
-    if unavailable.is_empty() {
-        Ok(adapters)
-    } else {
-        Err(AdapterBuildError::Unavailable {
-            channels: unavailable,
-        })
-    }
+    Ok(adapters)
 }
 
 /// Build an inbound external-user message without owner context.

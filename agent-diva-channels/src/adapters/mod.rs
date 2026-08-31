@@ -4,7 +4,9 @@
 //! adapter/services contract lands. This module intentionally contains no
 //! placeholder or default-success adapter.
 
-pub mod discord;
 pub mod dingtalk;
+pub mod discord;
 pub mod email;
 pub mod feishu;
+pub mod qq;
+pub mod telegram;

@@ -172,7 +172,7 @@ fn shared_builders_preserve_external_identity_and_truthful_receipts() {
 }
 
 #[test]
-fn factory_never_returns_a_silent_noop_for_enabled_channels() {
+fn factory_returns_one_native_adapter_per_enabled_channel() {
     let services = test_services();
     let disabled = Config::default();
     assert!(build_active_adapters(&disabled, services.clone())
@@ -182,12 +182,11 @@ fn factory_never_returns_a_silent_noop_for_enabled_channels() {
     let mut enabled = Config::default();
     enabled.channels.telegram.enabled = true;
     enabled.channels.qq.enabled = true;
-    let error = match build_active_adapters(&enabled, services) {
-        Ok(_) => panic!("an enabled channel must not produce a silent no-op"),
-        Err(error) => error,
-    };
-    assert_eq!(
-        error.to_string(),
-        "native adapters are not available yet for enabled channel(s): [\"telegram\", \"qq\"]"
-    );
+    let adapters = build_active_adapters(&enabled, services)
+        .expect("enabled channels must be assembled by their native constructors");
+    let names = adapters
+        .iter()
+        .map(|adapter| adapter.name().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(names, vec!["telegram", "qq"]);
 }
