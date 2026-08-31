@@ -43,3 +43,25 @@ Endpoint-level evidence and current-state gaps are in [`email-scan.md`](email-sc
 
 Done means Email no longer depends on legacy metadata for subject/files/threading and every skip in
 the old implementation has become a truthful outcome.
+
+## Gate 2 implementation handoff
+
+The native implementation is `agent-diva-channels/src/adapters/email.rs` and
+does not call `EmailHandler`. It currently declares text/thread/direct ingress,
+typed MIME attachments, text/reply/image/audio/video/file egress, health,
+pacing, and supervised restart. Markdown, group, chunking, Card, typing,
+edit/delete/reaction, heartbeat, resume, and token refresh remain explicitly
+unsupported and must return `UnsupportedCapability` before SMTP/IMAP work.
+
+The adapter preserves DIVA consent, IMAP mailbox/TLS configuration, SMTP
+TLS/SSL configuration, multipart MIME, allowlist and auto-reply policy. Octos
+thread precedence is applied as `References` root, then `In-Reply-To`, then
+`Message-ID`, then normalized subject. Message-ID (or `uid:<uid>` fallback) is
+the dedup key, and the marker plus optional `\\Seen` operation occur only after
+Fabric admission. Blocking IMAP/SMTP calls remain behind `spawn_blocking` and
+are detached rather than aborted when cancellation wins.
+
+Deterministic evidence lives in
+`agent-diva-channels/tests/fixtures/c5/email/` (`plain.eml`, `reply.eml`, and
+`multipart.eml`). The global capability manifest is owned by the C5 lead and
+must reference the native adapter tests and these fixtures after integration.
