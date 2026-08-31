@@ -22,6 +22,34 @@ Endpoint-level evidence and current-state gaps are in [`dingtalk-scan.md`](dingt
 - Cache and refresh the access token with single-flight behavior. Stream heartbeat and health are
   advertised; generic resume is false unless a future protocol fixture proves a stable resume token.
 
+## Gate 2 implementation handoff
+
+The native implementation lives in `agent-diva-channels/src/adapters/dingtalk.rs` as
+`DingTalkAdapter`; it does not call or wrap `DingTalkHandler`. Its production constructor receives
+the shared `AdapterServices` attachment authority and remains crate-private until the C6 factory
+owns Manager registration.
+
+- OAuth calls `POST /v1.0/oauth2/accessToken`, caches `accessToken` with a 60-second safety window,
+  and serializes refreshes through a single-flight lock. A 401/403 invalidates the cache and retries
+  the authenticated request once.
+- Stream registration calls `POST /v1.0/gateway/connections/open`, subscribes to the bot callback
+  topic, and keeps the WebSocket listener observable until cancellation or transport failure. A
+  callback is not ACKed until bounded Fabric admission succeeds; busy/closed admission reconnects
+  without committing the dedup marker.
+- Group sends use `/v1.0/robot/groupMessages/send` with `openConversationId`; direct sends use
+  `/v1.0/robot/oToMessages/batchSend` with `userIds`. Responses preserve a platform message ID when
+  present and otherwise return `Accepted` without fabricating one.
+- Outbound image/audio/video/file parts are read from `ChannelAttachmentStore`, uploaded through
+  `/media/upload`, and then sent with the retained DIVA `sampleImageMsg`/`sampleFileMsg` shapes.
+  Upload or send failure is typed and never silently skipped.
+- The Octos HMAC-SHA256 (`timestamp + "\\n" + secret`) and expiring `sessionWebhook` cache are
+  pure, bounded helpers only; they do not introduce a webhook fallback or bypass DIVA Stream.
+- `Typing`, `Edit`, `Delete`, `React`, `FinalizeStream`, cards, and reply commands remain typed
+  `UnsupportedCapability` before any HTTP call because no stable DingTalk wire proof is frozen.
+
+Fixture inputs and redacted response shapes are under
+[`../../../../../agent-diva-channels/tests/fixtures/c5/dingtalk/`](../../../../../agent-diva-channels/tests/fixtures/c5/dingtalk/).
+
 ## Failure and lifecycle rules
 
 - Stream callback ACK is issued only after bounded ingress admission succeeds within the required
