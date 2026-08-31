@@ -40,7 +40,10 @@ const RECONNECT_BASE: Duration = Duration::from_secs(5);
 const RECONNECT_MAX: Duration = Duration::from_secs(60);
 const INGRESS_ADMISSION_DEADLINE: Duration = Duration::from_secs(2);
 const MIN_SEND_INTERVAL: Duration = Duration::from_millis(100);
-const INTENTS: u32 = (1 << 25) | (1 << 30);
+// Keep DIVA's previously deployed intent mask until D-013 is resolved with
+// an official event-delivery fixture.  The group parser is implemented, but a
+// capability claim cannot silently change the production subscription bits.
+const INTENTS: u32 = (1 << 25) | (1 << 12);
 
 #[derive(Debug, Clone)]
 struct QqEndpoint {
@@ -603,32 +606,8 @@ impl QqAdapter {
                 return Ok(());
             }
         }
-        let (kind, chat_id, sender_id) = if event == "C2C_MESSAGE_CREATE" {
-            let sender = data
-                .get("author")
-                .and_then(|author| author.get("user_openid").or_else(|| author.get("id")))
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_string();
-            (ChatKind::Direct, sender.clone(), sender)
-        } else {
-            let chat = data
-                .get("group_openid")
-                .or_else(|| data.get("group_id"))
-                .or_else(|| data.get("channel_id"))
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            if chat.is_empty() {
-                return Ok(());
-            }
-            let sender = data
-                .get("author")
-                .and_then(|author| author.get("member_openid").or_else(|| author.get("id")))
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_string();
-            (ChatKind::Group, chat, sender)
+        let Some((kind, chat_id, sender_id)) = event_identity(event, &data) else {
+            return Ok(());
         };
         if !is_sender_allowed(&self.config.allow_from, &sender_id) {
             self.seen.write().await.insert(message_id);
@@ -911,11 +890,40 @@ fn message_id_from_response(body: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+fn event_identity(event: &str, data: &Value) -> Option<(ChatKind, String, String)> {
+    if event == "C2C_MESSAGE_CREATE" {
+        let sender = data
+            .get("author")
+            .and_then(|author| author.get("user_openid").or_else(|| author.get("id")))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        return Some((ChatKind::Direct, sender.clone(), sender));
+    }
+    let chat = data
+        .get("group_openid")
+        .or_else(|| data.get("group_id"))
+        .or_else(|| data.get("channel_id"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    if chat.is_empty() {
+        return None;
+    }
+    let sender = data
+        .get("author")
+        .and_then(|author| author.get("member_openid").or_else(|| author.get("id")))
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    Some((ChatKind::Group, chat, sender))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapter::{ChannelAttachmentStore, IngressAttachment, StoredAttachment};
-    use agent_diva_core::channel::AttachmentRef;
+    use agent_diva_core::channel::{AttachmentRef, FabricConsumer, FabricIngressItem};
     use agent_diva_core::config::Config;
     use async_trait::async_trait;
     use std::sync::Arc;
@@ -982,6 +990,57 @@ mod tests {
             Some("m2".into())
         );
         assert_eq!(message_id_from_response(&json!({"code": 0})), None);
+    }
+
+    #[test]
+    fn event_identity_preserves_c2c_and_group_open_ids() {
+        let c2c = event_identity(
+            "C2C_MESSAGE_CREATE",
+            &json!({"author": {"user_openid": "user-1"}}),
+        )
+        .unwrap();
+        assert_eq!(c2c.0, ChatKind::Direct);
+        assert_eq!(c2c.1, "user-1");
+        assert_eq!(c2c.2, "user-1");
+
+        let group = event_identity(
+            "GROUP_AT_MESSAGE_CREATE",
+            &json!({"group_openid": "group-1", "author": {"member_openid": "member-1"}}),
+        )
+        .unwrap();
+        assert_eq!(group.0, ChatKind::Group);
+        assert_eq!(group.1, "group-1");
+        assert_eq!(group.2, "member-1");
+    }
+
+    #[tokio::test]
+    async fn admission_precedes_dedup_commit_for_c2c_event() {
+        let adapter = adapter();
+        let (fabric, mut consumer) = FabricConsumer::new();
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+        let event = json!({
+            "id": "c2c-1",
+            "author": {"user_openid": "user-1"},
+            "content": "hello"
+        });
+        adapter
+            .process_message_event("C2C_MESSAGE_CREATE", event.clone(), &context)
+            .await
+            .unwrap();
+        let first = consumer.recv_ingress().await;
+        assert!(matches!(first, Some(FabricIngressItem::Envelope(_))));
+        adapter
+            .process_message_event("C2C_MESSAGE_CREATE", event, &context)
+            .await
+            .unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), consumer.recv_ingress())
+                .await
+                .is_err()
+        );
     }
 
     #[test]
