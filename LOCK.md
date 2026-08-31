@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `docs/dev/channel-epic/c5-octos-migration/**; docs/logs/2026-08-channel-epic/v0.1.8-octos-capability-migration-plan/**; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T12:46:27+08:00`
-- Last Heartbeat: `2026-08-31T12:46:27+08:00`
+- Last Heartbeat: `2026-08-31T12:57:17+08:00`
 - Expires At: `2026-09-01T12:46:27+08:00`
-- Handoff Notes: `Documentation-only C5-P in the isolated feat/channel-epic worktree. Product code, dev merge, push, and six-adapter implementation are out of scope.`
+- Handoff Notes: `Released after isolated commit c3003254. The 21-document C5-P blueprint and backlog split are frozen; just fmt-check, just check, just test, and document consistency checks passed. C5-I/C5-V, QQ live smoke, product cutover, dev merge, and push remain deferred.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **HELD 2026-08-31T12:46:27+08:00** by `Codex`. Scope is limited to the C5 migration blueprint, v0.1.8 iteration records, TODOLIST bookkeeping, and lock coordination. Implementation remains deferred to receiving agents after the document freeze.
+- `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Isolated commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
 - `CHANNEL-EPIC C4 desktop GUI Neuro-Link client and Presentation migration` — **RELEASED 2026-08-31T06:30:00+08:00** by `Codex`. Scope was limited to the C4 protocol/runtime/GUI/Mate implementation and iteration records in the isolated `feat/channel-epic` worktree. Commits `d48b5f12`, `6c31d15b`, and `38ae000b`; automated workspace/GUI gates passed. Real desktop/Tauri smoke remains pending in the C4 acceptance log; no merge or push.
 
