@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `LOCK.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T13:10:00+08:00`
-- Last Heartbeat: `2026-09-01T01:56:55+08:00`
-- Expires At: `2026-09-01T02:56:55+08:00`
-- Handoff Notes: `Clarify the historical validation wording, then release immediately. No product implementation scope is reopened.`
+- Last Heartbeat: `2026-09-01T01:57:30+08:00`
+- Expires At: `2026-09-01T01:57:30+08:00`
+- Handoff Notes: `Released wording clarification. Initial versus final workspace validation results are now explicit; no product implementation scope is reopened.`
 
 ## Lock Rules
 
@@ -28,7 +28,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 - `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **RELEASED 2026-09-01T01:50:54+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Base contract `48c12669`; implementation commits include `e0b36c02`, `3835f58c`, `f3bdd3ad`, `8088ce58`, `ca3b0cc6`, `42db4e25`, `10563a7a`, `9171e9a4`, `e50ad05a`, `204915d7`, `0e41c915`, `efb50261`, and `5371d517`. Initial `just fmt-check`, `just check`, `just test`, channel all-target tests, and channel lib clippy passed; the later final `just test` rerun exposed the pre-existing Manager loopback flake recorded in the follow-up entry. All-target clippy remains blocked by legacy test lints; MSRV probe remains blocked by cached `base64ct v1.8.3`. No Manager/C6 cutover, merge, or push. C5-V/C5-Q remain open.`
 - `CHANNEL-EPIC C5-I Gate 2 verification follow-up` — **RELEASED 2026-09-01T01:56:02+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope was documentation-only: `TODOLIST.md`, Gate2 `verification.md`, and `LOCK.md`; focused Manager websocket rerun passed after one full-suite failure. No product implementation scope was reopened.
-- `CHANNEL-EPIC C5-I Gate 2 lock wording clarification` — **HELD 2026-09-01T01:56:55+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope is `LOCK.md` only; release after clarifying initial versus final workspace validation results.
+- `CHANNEL-EPIC C5-I Gate 2 lock wording clarification` — **RELEASED 2026-09-01T01:57:30+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope was `LOCK.md` only; initial versus final workspace validation results are explicit.
 
 - `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
