@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `docs/dev/channel-epic/c5-octos-migration/**; docs/logs/2026-08-channel-epic/v0.1.9-octos-channel-deep-scan/**; TODOLIST.md; LOCK.md`
+- Lock State: `HELD`
+- Scope: `agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/**; agent-diva-channels/src/lib.rs; agent-diva-channels/tests/channel_adapter_shared_tck.rs; agent-diva-channels/tests/fixtures/c5/shared/**; agent-diva-channels/agents.md; docs/logs/2026-08-channel-epic/v0.2.0-c5-shared-adapter-services/**; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
-- Session/Task: `CHANNEL-EPIC C5-P2 Octos six-channel deep scan and implementation handoff`
+- Session/Task: `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `2026-08-31T13:15:00+08:00`
-- Last Heartbeat: `2026-08-31T13:54:13+08:00`
-- Expires At: `2026-09-01T13:15:00+08:00`
-- Handoff Notes: `Released after isolated commit 69566e66. Six independent channel scans, endpoint ledger, cross-cutting matrix, decision log, task cards, evidence manifest, retired-channel inventory, and v0.1.9 logs are committed. just fmt-check/check passed; focused retry reruns and second full just test passed. Initial concurrency flake remains tracked in TODOLIST. No product code or C6 cutover.`
+- Started At: `2026-08-31T14:15:45+08:00`
+- Last Heartbeat: `2026-08-31T14:15:45+08:00`
+- Expires At: `2026-09-01T14:15:45+08:00`
+- Handoff Notes: `Implementing only C5-I Gate 1 on the isolated worktree. C0-C4/C5-P2 remain complete. No native platform behavior, Manager production assembly, C6 cleanup, merge, or push.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK` — **HELD 2026-08-31T14:15:45+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; scope is shared adapter contract, attachment seam, factory/test support, allowlist documentation, iteration logs, `TODOLIST.md`, and this lock. No native channel implementation or C6 cutover.
 
 - `CHANNEL-EPIC C5-P2 Octos six-channel deep scan and implementation handoff` — **RELEASED 2026-08-31T13:54:13+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commit `69566e66`. Six independent channel fact packs, endpoint/cross-cutting ledgers, decision/task/evidence handoff docs, retired-channel inventory, and v0.1.9 iteration records completed. `just fmt-check`, `just check`, document checks, focused retry reruns, and second full `just test` passed; initial concurrency flake remains in TODOLIST. No merge, product cutover, or push.
 
