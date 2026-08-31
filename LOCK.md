@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `None`
-- Owner: `None`
-- Session/Task: `CHANNEL-EPIC C3 Neuro-Link v1 Gateway and projection journal`
+- Scope: `agent-diva-core/src/channel/**; agent-diva-agent/src/**; agent-diva-manager/src/neuro_link*.rs; agent-diva-manager/src/projection_journal.rs; agent-diva-gui/src/**; agent-diva-gui/src-tauri/src/**; docs/logs/2026-08-channel-epic/v0.1.7-desktop-neuro-link-client/**; TODOLIST.md`
+- Owner: `Codex`
+- Session/Task: `CHANNEL-EPIC C4 desktop GUI Neuro-Link client and Presentation migration`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T00:00:00+08:00`
-- Last Heartbeat: `2026-08-31T05:00:00+08:00`
-- Expires At: `2026-09-02T00:00:00+08:00`
-- Handoff Notes: `C3 released in isolated worktree feat/channel-epic at 03e77d95, 0dabdb48, b14e0d4b, 532ff71c, and 8e4812c. Gateway, journal, typed admission, projection hub, catalog, logs, TODO, and full Rust gates passed. dev remains untouched; do not merge until C6.`
+- Last Heartbeat: `2026-08-31T06:30:00+08:00`
+- Expires At: `2026-09-02T06:00:00+08:00`
+- Handoff Notes: `C4 implementation and iteration records are complete in the isolated worktree. Commits d48b5f12, 6c31d15b, and 38ae000b are ready for C6 review; root dev remains untouched. Real desktop/Tauri smoke is explicitly pending on a release workstation. No merge or push.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C4 desktop GUI Neuro-Link client and Presentation migration` — **RELEASED 2026-08-31T06:30:00+08:00** by `Codex`. Scope was limited to the C4 protocol/runtime/GUI/Mate implementation and iteration records in the isolated `feat/channel-epic` worktree. Commits `d48b5f12`, `6c31d15b`, and `38ae000b`; automated workspace/GUI gates passed. Real desktop/Tauri smoke remains pending in the C4 acceptance log; no merge or push.
 
 - `CHANNEL-EPIC C3 Neuro-Link gateway, journal, typed admission, and projection hub` — **RELEASED 2026-08-31T05:00:00+08:00** by `Codex`. Implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commits `03e77d95`, `0dabdb48`, `b14e0d4b`, `532ff71c`, and `8e4812c`. Full `just fmt-check && just check && just test` passed. C4 GUI migration and C6 clean break remain deferred; no merge or push.
 
