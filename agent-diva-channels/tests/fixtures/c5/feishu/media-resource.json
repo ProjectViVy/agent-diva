@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/im/v1/messages/om-fixture-message/resources/file-key-fixture",
+    "query": {
+      "type": "image"
+    },
+    "authorization": "Bearer <redacted>"
+  },
+  "response": {
+    "status": 200,
+    "content_type": "image/png",
+    "body": "<deterministic fixture bytes>"
+  },
+  "proof": "Bytes enter ChannelAttachmentStore; no remote URL or absolute path is published."
+}

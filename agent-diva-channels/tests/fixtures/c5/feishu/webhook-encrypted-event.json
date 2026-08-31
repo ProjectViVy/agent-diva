@@ -1,0 +1,9 @@
+{
+  "type": "event",
+  "encrypt": "REDACTED_BASE64_AES_256_CBC_PAYLOAD",
+  "headers": {
+    "X-Lark-Request-Timestamp": "1700000000",
+    "X-Lark-Request-Nonce": "fixture-nonce",
+    "X-Lark-Signature": "REDACTED_SHA256_SIGNATURE"
+  }
+}
