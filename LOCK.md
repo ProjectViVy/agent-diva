@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `docs/dev/channel-epic/c5-octos-migration/**; docs/logs/2026-08-channel-epic/v0.1.8-octos-capability-migration-plan/**; TODOLIST.md; LOCK.md`
+- Lock State: `HELD`
+- Scope: `LEAD: agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/mod.rs; agent-diva-channels/src/lib.rs; agent-diva-channels/Cargo.toml; agent-diva-channels/tests/fixtures/c5/capability-evidence.json; docs/logs/2026-08-channel-epic/v0.2.1-c5-native-adapters/**; TODOLIST.md; LOCK.md | TELEGRAM: agent-diva-channels/src/adapters/telegram.rs; agent-diva-channels/tests/fixtures/c5/telegram/**; docs/dev/channel-epic/c5-octos-migration/platforms/telegram*.md | DISCORD: agent-diva-channels/src/adapters/discord.rs; agent-diva-channels/tests/fixtures/c5/discord/**; docs/dev/channel-epic/c5-octos-migration/platforms/discord*.md | FEISHU: agent-diva-channels/src/adapters/feishu.rs; agent-diva-channels/tests/fixtures/c5/feishu/**; docs/dev/channel-epic/c5-octos-migration/platforms/feishu*.md | DINGTALK: agent-diva-channels/src/adapters/dingtalk.rs; agent-diva-channels/tests/fixtures/c5/dingtalk/**; docs/dev/channel-epic/c5-octos-migration/platforms/dingtalk*.md | EMAIL: agent-diva-channels/src/adapters/email.rs; agent-diva-channels/tests/fixtures/c5/email/**; docs/dev/channel-epic/c5-octos-migration/platforms/email*.md | QQ: agent-diva-channels/src/adapters/qq.rs; agent-diva-channels/tests/fixtures/c5/qq/**; docs/dev/channel-epic/c5-octos-migration/platforms/qq*.md`
 - Owner: `Codex`
-- Session/Task: `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff`
+- Session/Task: `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `2026-08-31T12:46:27+08:00`
-- Last Heartbeat: `2026-08-31T12:57:17+08:00`
-- Expires At: `2026-09-01T12:46:27+08:00`
-- Handoff Notes: `Released after commit c3003254. The 21-document C5-P blueprint and backlog split are frozen; just fmt-check, just check, just test, and document consistency checks passed. C5-I/C5-V, QQ live smoke, product cutover, dev merge, and push remain deferred.`
+- Started At: `2026-08-31T13:10:00+08:00`
+- Last Heartbeat: `2026-08-31T13:10:00+08:00`
+- Expires At: `2026-09-01T13:10:00+08:00`
+- Handoff Notes: `Lead owns shared contract, factory, evidence, logs, TODOLIST, and integration. Six channel scopes are delegated one per worker in two waves from shared Gate 1 baseline 48c12669. No Manager/C6 cutover or push.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **HELD 2026-08-31T13:10:00+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Lead and six non-overlapping channel scopes are registered above. Base contract is `48c12669`; workers must not modify shared files or merge/push. Gate 2 remains open until platform commits, evidence, cross-review, and validation land.
 
 - `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
