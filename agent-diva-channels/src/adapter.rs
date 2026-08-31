@@ -245,24 +245,48 @@ pub enum AdapterBuildError {
 /// or a default-success no-op; the Lead wires real constructors after Gate 2.
 pub fn build_active_adapters(
     config: &Config,
-    _services: AdapterServices,
+    services: AdapterServices,
 ) -> Result<Vec<Arc<dyn ChannelAdapter>>, AdapterBuildError> {
-    let enabled = [
-        ("telegram", config.channels.telegram.enabled),
-        ("discord", config.channels.discord.enabled),
-        ("feishu", config.channels.feishu.enabled),
-        ("dingtalk", config.channels.dingtalk.enabled),
-        ("email", config.channels.email.enabled),
-        ("qq", config.channels.qq.enabled),
-    ]
-    .into_iter()
-    .filter_map(|(channel, enabled)| enabled.then_some(channel.to_string()))
-    .collect::<Vec<_>>();
+    let mut adapters: Vec<Arc<dyn ChannelAdapter>> = Vec::new();
+    let mut unavailable = Vec::new();
 
-    if enabled.is_empty() {
-        Ok(Vec::new())
+    if config.channels.discord.enabled {
+        adapters.push(Arc::new(crate::adapters::discord::DiscordAdapter::new(
+            config.channels.discord.clone(),
+            services.clone(),
+        )));
+    }
+    if config.channels.dingtalk.enabled {
+        adapters.push(Arc::new(crate::adapters::dingtalk::DingTalkAdapter::new(
+            &config.channels.dingtalk,
+            services.clone(),
+        )));
+    }
+    if config.channels.email.enabled {
+        adapters.push(Arc::new(crate::adapters::email::EmailAdapter::new(
+            config.channels.email.clone(),
+            services.clone(),
+        )));
+    }
+
+    // The remaining owners have not landed their native modules yet.  Keep a
+    // typed build failure rather than silently dropping an enabled channel.
+    for (channel, enabled) in [
+        ("telegram", config.channels.telegram.enabled),
+        ("feishu", config.channels.feishu.enabled),
+        ("qq", config.channels.qq.enabled),
+    ] {
+        if enabled {
+            unavailable.push(channel.to_string());
+        }
+    }
+
+    if unavailable.is_empty() {
+        Ok(adapters)
     } else {
-        Err(AdapterBuildError::Unavailable { channels: enabled })
+        Err(AdapterBuildError::Unavailable {
+            channels: unavailable,
+        })
     }
 }
 

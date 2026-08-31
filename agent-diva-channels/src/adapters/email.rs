@@ -1239,6 +1239,7 @@ fn should_skip_self_reply(sender: &str, subject: &str, config: &EmailConfig) -> 
     .any(|value| canonical_email_address(value) == sender)
 }
 
+#[cfg(test)]
 fn message_id_for_fixture(message_id: Option<&str>, uid: &str) -> String {
     message_id
         .filter(|value| !value.trim().is_empty())
