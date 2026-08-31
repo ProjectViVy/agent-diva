@@ -98,6 +98,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "slack-morphism",
  "teloxide",
  "thiserror 1.0.69",

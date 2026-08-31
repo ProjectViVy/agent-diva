@@ -7,6 +7,7 @@
 //! 历史性保留；需要时启用对应 Cargo feature（`channel-slack` 等）恢复。
 
 pub mod adapter;
+pub mod adapters;
 pub mod base;
 pub mod common;
 pub mod dingtalk;
@@ -31,7 +32,12 @@ pub mod telegram;
 #[cfg(feature = "channel-whatsapp")]
 pub mod whatsapp;
 
-pub use adapter::{AdapterContext, AdapterError, ChannelAdapter};
+pub use adapter::{
+    accepted_receipt, build_active_adapters, delivered_receipt, delivery_receipt, execution_error,
+    external_message_envelope, is_sender_allowed, validate_attachment_reference, AdapterBuildError,
+    AdapterContext, AdapterError, AdapterServices, AttachmentStoreError, ChannelAdapter,
+    ChannelAttachmentStore, IngressAttachment, StoredAttachment,
+};
 pub use base::{BaseChannel, ChannelError, ChannelHandler, ChannelHandlerPtr, Result};
 pub use dingtalk::DingTalkHandler;
 pub use discord::DiscordHandler;
