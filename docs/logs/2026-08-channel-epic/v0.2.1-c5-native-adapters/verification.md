@@ -13,7 +13,9 @@
 - `cargo clippy -p agent-diva-channels --lib -- -D warnings`：passed
 - `just fmt-check`：passed
 - `just check`：passed
-- `just test`：workspace 全量通过
+- `just test`：最终复跑在既有 `agent-diva-manager::neuro_link::tests::loopback_websocket_handshake_session_and_turn_smoke`
+  出现一次 `left: Null, right: 1`；未改动 Manager，随后定向复跑该测试 1 passed。该全量 flake
+  与本阶段渠道变更无关，已登记 `MANAGER-NEURO-LINK-LOOPBACK-FLAKE`。
 - `git diff --check`：passed
 
 ## 仍需独立批次处理

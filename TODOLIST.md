@@ -259,6 +259,13 @@
   随后定向连续 3 次均通过，确认是已关闭问题的偶发回归。应隔离 PID/时间/文件系统竞态，
   使陈旧锁恢复测试可重复且不依赖宿主时序；相关代码：`agent-diva-laputa/src/lock.rs`。
 
+- [ ] **MANAGER-NEURO-LINK-LOOPBACK-FLAKE** `sev-P2`
+  2026-09-01 C5-I Gate 2 最终全量 `just test` 在既有
+  `agent-diva-manager::neuro_link::tests::loopback_websocket_handshake_session_and_turn_smoke`
+  偶发失败（断言 `left: Null, right: 1`），随后定向复跑通过。需隔离 loopback websocket
+  测试的并发/通知顺序竞态，连续多次全量与定向通过后再关闭；相关代码：
+  `agent-diva-manager/src/neuro_link.rs:1358`。
+
 - [ ] **AGENT-ALL-TARGETS-CLIPPY-AWAIT-HOLDING-LOCK** `sev-P3`
   `cargo clippy -p agent-diva-agent --all-targets -- -D warnings` 在既有测试
   `agent-diva-agent/src/agent_loop.rs` 的规则加载场景报告 `await_holding_lock`（约 3537～3557
