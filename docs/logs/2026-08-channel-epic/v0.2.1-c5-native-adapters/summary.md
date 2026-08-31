@@ -1,7 +1,7 @@
 # C5-I Gate 2：六频道原生适配器
 
-日期：2026-09-01  
-隔离分支：`feat/channel-epic`  
+日期：2026-09-01
+隔离分支：`feat/channel-epic`
 范围：Telegram、Discord、Feishu、DingTalk、Email、QQ 的 native `ChannelAdapter`，共享
 factory/TCK 接线与 Octos 对照证据。
 
