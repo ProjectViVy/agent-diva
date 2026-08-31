@@ -109,6 +109,18 @@
   - [ ] **C5：六个现役 ChannelAdapter 与 capability TCK**
     迁移 Telegram、Discord、Feishu、DingTalk、Email、QQ；每个 `true` capability 都有
     离线 fixture/mock 证明，至少一个真实平台纵向 smoke。
+    - [x] **C5-P：Octos 能力迁移方案与 agent 交接冻结**（2026-08-31）
+      已固定 Octos `5ea987813de4fd2afdd1d78f2106ad2868f0d923`，完成扫描 playbook、
+      provenance ledger、28×6 capability matrix、共享 ADR、六平台规格、并行 agent WBS、
+      capability TCK/fixture 方案、QQ 真机 runbook 和 C6 边界。详见
+      [`c5-octos-migration`](docs/dev/channel-epic/c5-octos-migration/)。
+    - [ ] **C5-I：六个原生 ChannelAdapter 与 Octos 能力增强**
+      先冻结共享 adapter/services seam，再按 Telegram+Discord、Feishu+DingTalk、Email+QQ
+      的隔离 worktree 分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。
+    - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
+      每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
+      final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从
+      仓库外注入，未执行真机前不得勾选 C5。
   - [ ] **C6：Clean Break 删除、全量门禁与原子合并**
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
