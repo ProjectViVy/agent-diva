@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-core/src/channel/**; agent-diva-agent/src/**; agent-diva-manager/src/neuro_link*.rs; agent-diva-manager/src/projection_journal.rs; agent-diva-gui/src/**; agent-diva-gui/src-tauri/src/**; docs/logs/2026-08-channel-epic/v0.1.7-desktop-neuro-link-client/**; TODOLIST.md`
+- Scope: `docs/dev/channel-epic/c5-octos-migration/**; docs/logs/2026-08-channel-epic/v0.1.8-octos-capability-migration-plan/**; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
-- Session/Task: `CHANNEL-EPIC C4 desktop GUI Neuro-Link client and Presentation migration`
+- Session/Task: `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `2026-08-31T00:00:00+08:00`
-- Last Heartbeat: `2026-08-31T06:30:00+08:00`
-- Expires At: `2026-09-02T06:00:00+08:00`
-- Handoff Notes: `C4 implementation and iteration records are complete in this isolated worktree. Commits d48b5f12, 6c31d15b, and 38ae000b are ready for C6 review; root dev remains untouched. Real desktop/Tauri smoke is explicitly pending on a release workstation. No merge or push.`
+- Started At: `2026-08-31T12:46:27+08:00`
+- Last Heartbeat: `2026-08-31T12:57:17+08:00`
+- Expires At: `2026-09-01T12:46:27+08:00`
+- Handoff Notes: `Released after commit c3003254. The 21-document C5-P blueprint and backlog split are frozen; just fmt-check, just check, just test, and document consistency checks passed. C5-I/C5-V, QQ live smoke, product cutover, dev merge, and push remain deferred.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
 - `CHANNEL-EPIC C4 desktop GUI Neuro-Link client and Presentation migration` — **RELEASED 2026-08-31T06:30:00+08:00** by `Codex`. Scope was limited to the C4 protocol/runtime/GUI/Mate implementation and iteration records in this isolated worktree. Commits `d48b5f12`, `6c31d15b`, and `38ae000b`; automated workspace/GUI gates passed. Real desktop/Tauri smoke remains pending in the C4 acceptance log; no merge or push.
 
