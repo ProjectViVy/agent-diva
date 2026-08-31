@@ -5,7 +5,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/**; agent-diva-channels/src/lib.rs; agent-diva-channels/tests/channel_adapter_shared_tck.rs; agent-diva-channels/tests/fixtures/c5/shared/**; agent-diva-channels/agents.md; docs/logs/2026-08-channel-epic/v0.2.0-c5-shared-adapter-services/**; TODOLIST.md; LOCK.md`
+- Scope: `agent-diva-channels/Cargo.toml; agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/**; agent-diva-channels/src/lib.rs; agent-diva-channels/tests/channel_adapter_shared_tck.rs; agent-diva-channels/tests/fixtures/c5/shared/**; agent-diva-channels/AGENTS.md; docs/logs/2026-08-channel-epic/v0.2.0-c5-shared-adapter-services/**; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
