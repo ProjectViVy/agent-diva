@@ -7,3 +7,4 @@
 pub mod discord;
 pub mod dingtalk;
 pub mod email;
+pub mod feishu;

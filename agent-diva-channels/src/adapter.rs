@@ -268,12 +268,17 @@ pub fn build_active_adapters(
             services.clone(),
         )));
     }
+    if config.channels.feishu.enabled {
+        adapters.push(Arc::new(crate::adapters::feishu::FeishuAdapter::new(
+            config.channels.feishu.clone(),
+            services.clone(),
+        )));
+    }
 
     // The remaining owners have not landed their native modules yet.  Keep a
     // typed build failure rather than silently dropping an enabled channel.
     for (channel, enabled) in [
         ("telegram", config.channels.telegram.enabled),
-        ("feishu", config.channels.feishu.enabled),
         ("qq", config.channels.qq.enabled),
     ] {
         if enabled {
