@@ -133,10 +133,18 @@ pub struct DiscordAdapter {
 
 impl DiscordAdapter {
     pub(crate) fn new(config: DiscordConfig, services: AdapterServices) -> Self {
-        Self::from_endpoint(config.clone(), services, DiscordEndpoint::production(&config))
+        Self::from_endpoint(
+            config.clone(),
+            services,
+            DiscordEndpoint::production(&config),
+        )
     }
 
-    fn from_endpoint(config: DiscordConfig, services: AdapterServices, endpoint: DiscordEndpoint) -> Self {
+    fn from_endpoint(
+        config: DiscordConfig,
+        services: AdapterServices,
+        endpoint: DiscordEndpoint,
+    ) -> Self {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
@@ -209,10 +217,20 @@ impl DiscordAdapter {
 
     fn validate_config(&self) -> Result<(), AdapterError> {
         if !self.config.enabled {
-            return Err(execution_error("not_configured", "Discord channel is disabled", None, false));
+            return Err(execution_error(
+                "not_configured",
+                "Discord channel is disabled",
+                None,
+                false,
+            ));
         }
         if self.config.token.trim().is_empty() {
-            return Err(execution_error("invalid_config", "Discord bot token is empty", None, false));
+            return Err(execution_error(
+                "invalid_config",
+                "Discord bot token is empty",
+                None,
+                false,
+            ));
         }
         Ok(())
     }
@@ -256,10 +274,9 @@ impl DiscordAdapter {
                 response.status().is_server_error(),
             ));
         }
-        let discovered = response
-            .json::<GatewayDiscovery>()
-            .await
-            .map_err(|error| execution_error("gateway_discovery_body", error.to_string(), None, true))?;
+        let discovered = response.json::<GatewayDiscovery>().await.map_err(|error| {
+            execution_error("gateway_discovery_body", error.to_string(), None, true)
+        })?;
         Ok(normalize_gateway_url(&discovered.url))
     }
 
@@ -308,7 +325,11 @@ impl DiscordAdapter {
         }
     }
 
-    async fn consume_gateway<S>(&self, stream: S, context: &AdapterContext) -> Result<(), AdapterError>
+    async fn consume_gateway<S>(
+        &self,
+        stream: S,
+        context: &AdapterContext,
+    ) -> Result<(), AdapterError>
     where
         S: futures::Stream<Item = Result<WsMessage, tokio_tungstenite::tungstenite::Error>>
             + futures::Sink<WsMessage, Error = tokio_tungstenite::tungstenite::Error>
@@ -317,12 +338,31 @@ impl DiscordAdapter {
         let (mut write, mut read) = stream.split();
         let first = timeout(Duration::from_secs(30), read.next())
             .await
-            .map_err(|_| execution_error("gateway_hello_timeout", "Discord Hello timed out", None, true))?
-            .ok_or_else(|| execution_error("gateway_closed", "Discord gateway closed before Hello", None, true))?
+            .map_err(|_| {
+                execution_error(
+                    "gateway_hello_timeout",
+                    "Discord Hello timed out",
+                    None,
+                    true,
+                )
+            })?
+            .ok_or_else(|| {
+                execution_error(
+                    "gateway_closed",
+                    "Discord gateway closed before Hello",
+                    None,
+                    true,
+                )
+            })?
             .map_err(|error| execution_error("gateway_read", error.to_string(), None, true))?;
         let hello = parse_gateway(first)?;
         if hello.op != 10 {
-            return Err(execution_error("gateway_protocol", "first Discord frame was not Hello", None, false));
+            return Err(execution_error(
+                "gateway_protocol",
+                "first Discord frame was not Hello",
+                None,
+                false,
+            ));
         }
         let heartbeat_ms = hello
             .d
@@ -406,7 +446,11 @@ impl DiscordAdapter {
         }
     }
 
-    async fn handle_incoming(&self, message: IncomingMessage, context: &AdapterContext) -> Result<(), AdapterError> {
+    async fn handle_incoming(
+        &self,
+        message: IncomingMessage,
+        context: &AdapterContext,
+    ) -> Result<(), AdapterError> {
         if self.seen.read().await.contains(&message.id) {
             return Ok(());
         }
@@ -422,36 +466,76 @@ impl DiscordAdapter {
             }
         }
         if message.guild_id.is_some() && self.config.mention_only && !message.mentioned_bot {
-            let allowed = self.config.group_reply_allowed_sender_ids.iter().any(|id| id == &message.author_id);
-            if !allowed { return Ok(()); }
+            let allowed = self
+                .config
+                .group_reply_allowed_sender_ids
+                .iter()
+                .any(|id| id == &message.author_id);
+            if !allowed {
+                return Ok(());
+            }
         }
         if message.content.trim().is_empty() && message.attachments.is_empty() {
             return Ok(());
         }
         let mut parts = Vec::new();
         if !message.content.trim().is_empty() {
-            parts.push(ContentPart::Markdown { markdown: message.content.clone() });
+            parts.push(ContentPart::Markdown {
+                markdown: message.content.clone(),
+            });
         }
         for attachment in message.attachments {
-            if attachment.size > MAX_ATTACHMENT_BYTES { continue; }
-            let response = self.http.get(&attachment.url).send().await
-                .map_err(|error| execution_error("attachment_fetch", error.to_string(), None, true))?;
-            let bytes = response.bytes().await
-                .map_err(|error| execution_error("attachment_read", error.to_string(), None, true))?;
-            if bytes.len() as u64 > MAX_ATTACHMENT_BYTES { continue; }
-            let reference = self.services.attachments.put(IngressAttachment {
-                source_channel: CHANNEL.to_string(),
-                platform_message_id: Some(message.id.clone()),
-                sender_id: Some(message.author_id.clone()),
-                file_name: Some(attachment.filename.clone()),
-                declared_mime: attachment.content_type.clone(),
-                bytes: bytes.to_vec(),
-            }).await.map_err(|error| execution_error("attachment_store", error.to_string(), None, false))?;
+            if attachment.size > MAX_ATTACHMENT_BYTES {
+                continue;
+            }
+            let response = self
+                .http
+                .get(&attachment.url)
+                .send()
+                .await
+                .map_err(|error| {
+                    execution_error("attachment_fetch", error.to_string(), None, true)
+                })?;
+            let bytes = response.bytes().await.map_err(|error| {
+                execution_error("attachment_read", error.to_string(), None, true)
+            })?;
+            if bytes.len() as u64 > MAX_ATTACHMENT_BYTES {
+                continue;
+            }
+            let reference = self
+                .services
+                .attachments
+                .put(IngressAttachment {
+                    source_channel: CHANNEL.to_string(),
+                    platform_message_id: Some(message.id.clone()),
+                    sender_id: Some(message.author_id.clone()),
+                    file_name: Some(attachment.filename.clone()),
+                    declared_mime: attachment.content_type.clone(),
+                    bytes: bytes.to_vec(),
+                })
+                .await
+                .map_err(|error| {
+                    execution_error("attachment_store", error.to_string(), None, false)
+                })?;
             let part = attachment.content_type.as_deref().unwrap_or("");
-            parts.push(if part.starts_with("image/") { ContentPart::Image { attachment: reference } }
-                else if part.starts_with("audio/") { ContentPart::Audio { attachment: reference, transcript: None } }
-                else if part.starts_with("video/") { ContentPart::Video { attachment: reference } }
-                else { ContentPart::File { attachment: reference } });
+            parts.push(if part.starts_with("image/") {
+                ContentPart::Image {
+                    attachment: reference,
+                }
+            } else if part.starts_with("audio/") {
+                ContentPart::Audio {
+                    attachment: reference,
+                    transcript: None,
+                }
+            } else if part.starts_with("video/") {
+                ContentPart::Video {
+                    attachment: reference,
+                }
+            } else {
+                ContentPart::File {
+                    attachment: reference,
+                }
+            });
         }
         let mut address = ChannelAddress::new(CHANNEL, message.channel_id.clone());
         address.sender_id = Some(message.author_id.clone());
@@ -460,38 +544,78 @@ impl DiscordAdapter {
         correlation.message_id = Some(message.id.clone());
         correlation.reply_to = message.reply_to;
         let envelope = external_message_envelope(address, correlation, parts, None, None);
-        context.fabric.admit_ingress(envelope, INGRESS_ADMISSION_DEADLINE, &context.cancel)
-            .await.map_err(|error| match error {
-                agent_diva_core::channel::FabricAdmissionError::Busy { retry_after, .. } => execution_error("fabric_busy", error.to_string(), Some(retry_after), true),
+        context
+            .fabric
+            .admit_ingress(envelope, INGRESS_ADMISSION_DEADLINE, &context.cancel)
+            .await
+            .map_err(|error| match error {
+                agent_diva_core::channel::FabricAdmissionError::Busy { retry_after, .. } => {
+                    execution_error("fabric_busy", error.to_string(), Some(retry_after), true)
+                }
                 _ => execution_error("fabric_admission", error.to_string(), None, true),
             })?;
         self.seen.write().await.insert(message.id);
         Ok(())
     }
 
-    async fn send_message(&self, envelope: &agent_diva_core::channel::ChannelEnvelopeV1) -> Result<DeliveryReceipt, AdapterError> {
+    async fn send_message(
+        &self,
+        envelope: &agent_diva_core::channel::ChannelEnvelopeV1,
+    ) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
-        let (address, correlation, parts) = (&envelope.address, &envelope.correlation, match &envelope.payload {
-            ChannelPayloadV1::Message { parts, .. } | ChannelPayloadV1::Stream { parts, .. } => parts,
-            _ => return Err(execution_error("invalid_payload", "Discord send requires message/stream payload", None, false)),
-        });
-        if address.chat_id.trim().is_empty() { return Err(execution_error("invalid_recipient", "Discord channel id is empty", None, false)); }
+        let (address, correlation, parts) = (
+            &envelope.address,
+            &envelope.correlation,
+            match &envelope.payload {
+                ChannelPayloadV1::Message { parts, .. }
+                | ChannelPayloadV1::Stream { parts, .. } => parts,
+                _ => {
+                    return Err(execution_error(
+                        "invalid_payload",
+                        "Discord send requires message/stream payload",
+                        None,
+                        false,
+                    ))
+                }
+            },
+        );
+        if address.chat_id.trim().is_empty() {
+            return Err(execution_error(
+                "invalid_recipient",
+                "Discord channel id is empty",
+                None,
+                false,
+            ));
+        }
         let mut text_parts = Vec::new();
         let mut attachments = Vec::new();
         let mut embed = None;
         for part in parts {
             match part {
-                ContentPart::Text { text } | ContentPart::Markdown { markdown: text } => text_parts.push(text.clone()),
+                ContentPart::Text { text } | ContentPart::Markdown { markdown: text } => {
+                    text_parts.push(text.clone())
+                }
                 ContentPart::Card { body, .. } => embed = Some(discord_embed(body)),
-                ContentPart::Image { attachment } | ContentPart::Audio { attachment, .. }
-                | ContentPart::Video { attachment } | ContentPart::File { attachment } => attachments.push(attachment.clone()),
-                ContentPart::Location { latitude, longitude, .. } => text_parts.push(format!("{latitude},{longitude}")),
+                ContentPart::Image { attachment }
+                | ContentPart::Audio { attachment, .. }
+                | ContentPart::Video { attachment }
+                | ContentPart::File { attachment } => attachments.push(attachment.clone()),
+                ContentPart::Location {
+                    latitude,
+                    longitude,
+                    ..
+                } => text_parts.push(format!("{latitude},{longitude}")),
                 ContentPart::Reference { uri, .. } => text_parts.push(uri.clone()),
             }
         }
         let chunks = split_chunks(&text_parts.join("\n"), MAX_MESSAGE_CHARS);
         if chunks.is_empty() && attachments.is_empty() && embed.is_none() {
-            return Err(execution_error("empty_message", "Discord message has no sendable content", None, false));
+            return Err(execution_error(
+                "empty_message",
+                "Discord message has no sendable content",
+                None,
+                false,
+            ));
         }
         let mut last_id = None;
         for (index, chunk) in chunks.iter().enumerate() {
@@ -501,127 +625,319 @@ impl DiscordAdapter {
                     payload["message_reference"] = json!({"message_id": reply});
                     payload["allowed_mentions"] = json!({"replied_user": false});
                 }
-                if let Some(embed) = &embed { payload["embeds"] = json!([embed]); }
+                if let Some(embed) = &embed {
+                    payload["embeds"] = json!([embed]);
+                }
             }
-            last_id = Some(self.post_json(&format!("{}/channels/{}/messages", self.endpoint.api_base, address.chat_id), &payload).await?);
+            last_id = Some(
+                self.post_json(
+                    &format!(
+                        "{}/channels/{}/messages",
+                        self.endpoint.api_base, address.chat_id
+                    ),
+                    &payload,
+                )
+                .await?,
+            );
         }
         if chunks.is_empty() && (embed.is_some() || !attachments.is_empty()) {
-            let payload = json!({"content": ""});
-            last_id = Some(self.post_json(&format!("{}/channels/{}/messages", self.endpoint.api_base, address.chat_id), &payload).await?);
+            let mut payload = json!({"content": ""});
+            if let Some(embed) = &embed {
+                payload["embeds"] = json!([embed]);
+            }
+            if let Some(reply) = &correlation.reply_to {
+                payload["message_reference"] = json!({"message_id": reply});
+                payload["allowed_mentions"] = json!({"replied_user": false});
+            }
+            last_id = Some(
+                self.post_json(
+                    &format!(
+                        "{}/channels/{}/messages",
+                        self.endpoint.api_base, address.chat_id
+                    ),
+                    &payload,
+                )
+                .await?,
+            );
         }
         if !attachments.is_empty() {
-            let message_id = self.send_attachments(address, correlation, attachments).await?;
+            let message_id = self
+                .send_attachments(address, correlation, attachments)
+                .await?;
             last_id = Some(message_id);
         }
-        Ok(accepted_receipt(CHANNEL, address.chat_id.clone(), last_id, address.thread_id.clone()))
+        Ok(accepted_receipt(
+            CHANNEL,
+            address.chat_id.clone(),
+            last_id,
+            address.thread_id.clone(),
+        ))
     }
 
-    async fn send_attachments(&self, address: &ChannelAddress, correlation: &Correlation, refs: Vec<agent_diva_core::channel::AttachmentRef>) -> Result<String, AdapterError> {
+    async fn send_attachments(
+        &self,
+        address: &ChannelAddress,
+        correlation: &Correlation,
+        refs: Vec<agent_diva_core::channel::AttachmentRef>,
+    ) -> Result<String, AdapterError> {
         let mut form = Form::new().text("payload_json", json!({"content":""}).to_string());
         for (index, reference) in refs.iter().enumerate() {
-            let stored = self.services.attachments.get(reference).await
-                .map_err(|error| execution_error("attachment_read", error.to_string(), None, false))?;
-            let part = Part::bytes(stored.bytes).file_name(reference.file_name.clone().unwrap_or_else(|| format!("attachment-{index}")));
+            let stored = self
+                .services
+                .attachments
+                .get(reference)
+                .await
+                .map_err(|error| {
+                    execution_error("attachment_read", error.to_string(), None, false)
+                })?;
+            let part = Part::bytes(stored.bytes).file_name(
+                reference
+                    .file_name
+                    .clone()
+                    .unwrap_or_else(|| format!("attachment-{index}")),
+            );
             form = form.part(format!("files[{index}]"), part);
         }
-        let mut request = self.http.post(format!("{}/channels/{}/messages", self.endpoint.api_base, address.chat_id))
+        let mut request = self
+            .http
+            .post(format!(
+                "{}/channels/{}/messages",
+                self.endpoint.api_base, address.chat_id
+            ))
             .header("Authorization", format!("Bot {}", self.config.token))
             .multipart(form);
-        if let Some(reply) = &correlation.reply_to { request = request.header("X-Reply-To", reply); }
-        let response = request.send().await.map_err(|error| execution_error("attachment_send", error.to_string(), None, true))?;
+        if let Some(reply) = &correlation.reply_to {
+            request = request.header("X-Reply-To", reply);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|error| execution_error("attachment_send", error.to_string(), None, true))?;
         self.parse_response(response).await
     }
 
     async fn post_json(&self, url: &str, payload: &Value) -> Result<String, AdapterError> {
-        let response = self.http.post(url).header("Authorization", format!("Bot {}", self.config.token)).json(payload).send().await
+        let response = self
+            .http
+            .post(url)
+            .header("Authorization", format!("Bot {}", self.config.token))
+            .json(payload)
+            .send()
+            .await
             .map_err(|error| execution_error("http_send", error.to_string(), None, true))?;
         self.parse_response(response).await
     }
 
     async fn parse_response(&self, response: reqwest::Response) -> Result<String, AdapterError> {
         if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            let retry_header = response.headers().get("retry-after").and_then(|value| value.to_str().ok()).and_then(parse_retry_after);
-            let body = response.json::<RateLimitBody>().await.ok().and_then(|body| body.retry_after).and_then(seconds_to_duration);
+            let retry_header = response
+                .headers()
+                .get("retry-after")
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_retry_after);
+            let body = response
+                .json::<RateLimitBody>()
+                .await
+                .ok()
+                .and_then(|body| body.retry_after)
+                .and_then(seconds_to_duration);
             let retry = body.or(retry_header).unwrap_or(Duration::from_secs(1));
             return Err(AdapterError::RateLimited { retry_after: retry });
         }
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(execution_error("discord_http", format!("Discord HTTP {status}: {}", truncate(&body, 256)), None, status.is_server_error()));
+            return Err(execution_error(
+                "discord_http",
+                format!("Discord HTTP {status}: {}", truncate(&body, 256)),
+                None,
+                status.is_server_error(),
+            ));
         }
-        let body = response.json::<CreateMessageResponse>().await
+        let body = response
+            .json::<CreateMessageResponse>()
+            .await
             .map_err(|error| execution_error("discord_response", error.to_string(), None, true))?;
         Ok(body.id)
     }
 
-    async fn execute_edit(&self, address: ChannelAddress, target: String, parts: Vec<ContentPart>) -> Result<DeliveryReceipt, AdapterError> {
+    async fn execute_edit(
+        &self,
+        address: ChannelAddress,
+        target: String,
+        parts: Vec<ContentPart>,
+    ) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
         let text = content_to_text(&parts);
         let payload = json!({"content": truncate(&text, MAX_MESSAGE_CHARS)});
-        let id = self.http.patch(format!("{}/channels/{}/messages/{}", self.endpoint.api_base, address.chat_id, target))
-            .header("Authorization", format!("Bot {}", self.config.token)).json(&payload).send().await
+        let id = self
+            .http
+            .patch(format!(
+                "{}/channels/{}/messages/{}",
+                self.endpoint.api_base, address.chat_id, target
+            ))
+            .header("Authorization", format!("Bot {}", self.config.token))
+            .json(&payload)
+            .send()
+            .await
             .map_err(|error| execution_error("edit_send", error.to_string(), None, true))?;
         let id = self.parse_response(id).await?;
-        Ok(accepted_receipt(CHANNEL, address.chat_id, Some(id), address.thread_id))
+        Ok(accepted_receipt(
+            CHANNEL,
+            address.chat_id,
+            Some(id),
+            address.thread_id,
+        ))
     }
 
-    async fn execute_delete(&self, address: ChannelAddress, target: String) -> Result<DeliveryReceipt, AdapterError> {
+    async fn execute_delete(
+        &self,
+        address: ChannelAddress,
+        target: String,
+    ) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
-        let response = self.http.delete(format!("{}/channels/{}/messages/{}", self.endpoint.api_base, address.chat_id, target))
-            .header("Authorization", format!("Bot {}", self.config.token)).send().await
+        let response = self
+            .http
+            .delete(format!(
+                "{}/channels/{}/messages/{}",
+                self.endpoint.api_base, address.chat_id, target
+            ))
+            .header("Authorization", format!("Bot {}", self.config.token))
+            .send()
+            .await
             .map_err(|error| execution_error("delete_send", error.to_string(), None, true))?;
-        if !response.status().is_success() { return Err(execution_error("delete_http", format!("Discord HTTP {}", response.status()), None, response.status().is_server_error())); }
-        Ok(accepted_receipt(CHANNEL, address.chat_id, Some(target), address.thread_id))
+        if !response.status().is_success() {
+            return Err(execution_error(
+                "delete_http",
+                format!("Discord HTTP {}", response.status()),
+                None,
+                response.status().is_server_error(),
+            ));
+        }
+        Ok(accepted_receipt(
+            CHANNEL,
+            address.chat_id,
+            Some(target),
+            address.thread_id,
+        ))
     }
 
-    async fn execute_reaction(&self, address: ChannelAddress, target: String, operation: ReactionOperation, emoji: String) -> Result<DeliveryReceipt, AdapterError> {
+    async fn execute_reaction(
+        &self,
+        address: ChannelAddress,
+        target: String,
+        operation: ReactionOperation,
+        emoji: String,
+    ) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
         let encoded = percent_encode(&emoji);
-        let url = format!("{}/channels/{}/messages/{}/reactions/{}/@me", self.endpoint.api_base, address.chat_id, target, encoded);
+        let url = format!(
+            "{}/channels/{}/messages/{}/reactions/{}/@me",
+            self.endpoint.api_base, address.chat_id, target, encoded
+        );
         let response = match operation {
             ReactionOperation::Add => self.http.put(url),
             ReactionOperation::Remove => self.http.delete(url),
-        }.header("Authorization", format!("Bot {}", self.config.token)).send().await
-            .map_err(|error| execution_error("reaction_send", error.to_string(), None, true))?;
-        if !response.status().is_success() { return Err(execution_error("reaction_http", format!("Discord HTTP {}", response.status()), None, response.status().is_server_error())); }
-        Ok(accepted_receipt(CHANNEL, address.chat_id, Some(target), address.thread_id))
+        }
+        .header("Authorization", format!("Bot {}", self.config.token))
+        .send()
+        .await
+        .map_err(|error| execution_error("reaction_send", error.to_string(), None, true))?;
+        if !response.status().is_success() {
+            return Err(execution_error(
+                "reaction_http",
+                format!("Discord HTTP {}", response.status()),
+                None,
+                response.status().is_server_error(),
+            ));
+        }
+        Ok(accepted_receipt(
+            CHANNEL,
+            address.chat_id,
+            Some(target),
+            address.thread_id,
+        ))
     }
 
-    async fn execute_typing(&self, address: ChannelAddress) -> Result<DeliveryReceipt, AdapterError> {
+    async fn execute_typing(
+        &self,
+        address: ChannelAddress,
+    ) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
-        let response = self.http.post(format!("{}/channels/{}/typing", self.endpoint.api_base, address.chat_id))
-            .header("Authorization", format!("Bot {}", self.config.token)).send().await
+        let response = self
+            .http
+            .post(format!(
+                "{}/channels/{}/typing",
+                self.endpoint.api_base, address.chat_id
+            ))
+            .header("Authorization", format!("Bot {}", self.config.token))
+            .send()
+            .await
             .map_err(|error| execution_error("typing_send", error.to_string(), None, true))?;
-        if !response.status().is_success() { return Err(execution_error("typing_http", format!("Discord HTTP {}", response.status()), None, response.status().is_server_error())); }
-        Ok(accepted_receipt(CHANNEL, address.chat_id, None, address.thread_id))
+        if !response.status().is_success() {
+            return Err(execution_error(
+                "typing_http",
+                format!("Discord HTTP {}", response.status()),
+                None,
+                response.status().is_server_error(),
+            ));
+        }
+        Ok(accepted_receipt(
+            CHANNEL,
+            address.chat_id,
+            None,
+            address.thread_id,
+        ))
     }
 
     async fn probe_health(&self) -> Result<DeliveryReceipt, AdapterError> {
         self.validate_config()?;
-        let response = self.http.get(format!("{}/gateway/bot", self.endpoint.api_base))
-            .header("Authorization", format!("Bot {}", self.config.token)).send().await
+        let response = self
+            .http
+            .get(format!("{}/gateway/bot", self.endpoint.api_base))
+            .header("Authorization", format!("Bot {}", self.config.token))
+            .send()
+            .await
             .map_err(|error| execution_error("health_probe", error.to_string(), None, true))?;
         if response.status().is_success() {
             self.set_health(ChannelHealthStatus::Healthy, None);
             Ok(accepted_receipt(CHANNEL, "health", None, None))
         } else {
-            self.set_health(ChannelHealthStatus::Degraded, Some(format!("Discord health HTTP {}", response.status())));
-            Err(execution_error("health_http", format!("Discord HTTP {}", response.status()), None, response.status().is_server_error()))
+            self.set_health(
+                ChannelHealthStatus::Degraded,
+                Some(format!("Discord health HTTP {}", response.status())),
+            );
+            Err(execution_error(
+                "health_http",
+                format!("Discord HTTP {}", response.status()),
+                None,
+                response.status().is_server_error(),
+            ))
         }
     }
 }
 
 #[async_trait]
 impl ChannelAdapter for DiscordAdapter {
-    fn name(&self) -> ChannelId { ChannelId::new(CHANNEL).expect("constant Discord channel id") }
+    fn name(&self) -> ChannelId {
+        ChannelId::new(CHANNEL).expect("constant Discord channel id")
+    }
 
-    fn capabilities(&self) -> ChannelCapabilities { Self::static_capabilities() }
+    fn capabilities(&self) -> ChannelCapabilities {
+        Self::static_capabilities()
+    }
 
     async fn start(&self, context: AdapterContext) -> Result<(), AdapterError> {
-        if context.cancel.is_cancelled() { return Ok(()); }
+        if context.cancel.is_cancelled() {
+            return Ok(());
+        }
         if self.running.swap(true, Ordering::AcqRel) {
-            return Err(execution_error("already_running", "Discord adapter is already running", None, false));
+            return Err(execution_error(
+                "already_running",
+                "Discord adapter is already running",
+                None,
+                false,
+            ));
         }
         let result = self.run_gateway(&context).await;
         self.running.store(false, Ordering::Release);
@@ -634,26 +950,77 @@ impl ChannelAdapter for DiscordAdapter {
             ChannelCommand::Send { envelope, .. } => self.send_message(&envelope).await,
             ChannelCommand::Typing { address, state, .. } => match state {
                 TypingState::Started => self.execute_typing(address).await,
-                TypingState::Stopped => Ok(accepted_receipt(CHANNEL, address.chat_id, None, address.thread_id)),
-                TypingState::Listening => Err(AdapterError::UnsupportedCapability { capability: ChannelCapability::InteractionListening }),
+                TypingState::Stopped => Ok(accepted_receipt(
+                    CHANNEL,
+                    address.chat_id,
+                    None,
+                    address.thread_id,
+                )),
+                TypingState::Listening => Err(AdapterError::UnsupportedCapability {
+                    capability: ChannelCapability::InteractionListening,
+                }),
             },
-            ChannelCommand::Edit { address, target_message_id, parts, .. } => self.execute_edit(address, target_message_id, parts).await,
-            ChannelCommand::Delete { address, target_message_id, .. } => self.execute_delete(address, target_message_id).await,
-            ChannelCommand::React { address, target_message_id, operation, emoji, .. } => self.execute_reaction(address, target_message_id, operation, emoji).await,
-            ChannelCommand::FinalizeStream { address, correlation, parts, .. } => {
-                if let Some(target) = correlation.message_id { self.execute_edit(address, target, parts).await }
-                else { self.send_message(&agent_diva_core::channel::ChannelEnvelopeV1::new(agent_diva_core::channel::ChannelDirection::Egress, address, correlation, agent_diva_core::channel::ChannelOrigin::Runtime, ChannelPayloadV1::Stream { phase: agent_diva_core::channel::StreamPhase::Finalized, parts })).await }
+            ChannelCommand::Edit {
+                address,
+                target_message_id,
+                parts,
+                ..
+            } => self.execute_edit(address, target_message_id, parts).await,
+            ChannelCommand::Delete {
+                address,
+                target_message_id,
+                ..
+            } => self.execute_delete(address, target_message_id).await,
+            ChannelCommand::React {
+                address,
+                target_message_id,
+                operation,
+                emoji,
+                ..
+            } => {
+                self.execute_reaction(address, target_message_id, operation, emoji)
+                    .await
+            }
+            ChannelCommand::FinalizeStream {
+                address,
+                correlation,
+                parts,
+                ..
+            } => {
+                if let Some(target) = correlation.message_id {
+                    self.execute_edit(address, target, parts).await
+                } else {
+                    self.send_message(&agent_diva_core::channel::ChannelEnvelopeV1::new(
+                        agent_diva_core::channel::ChannelDirection::Egress,
+                        address,
+                        correlation,
+                        agent_diva_core::channel::ChannelOrigin::Runtime,
+                        ChannelPayloadV1::Stream {
+                            phase: agent_diva_core::channel::StreamPhase::Finalized,
+                            parts,
+                        },
+                    ))
+                    .await
+                }
             }
             ChannelCommand::ProbeHealth { .. } => self.probe_health().await,
         }
     }
 
-    fn health(&self) -> ChannelHealth { self.health.lock().map(|health| health.clone()).unwrap_or_else(|_| ChannelHealth::new(ChannelHealthStatus::Unknown)) }
+    fn health(&self) -> ChannelHealth {
+        self.health
+            .lock()
+            .map(|health| health.clone())
+            .unwrap_or_else(|_| ChannelHealth::new(ChannelHealthStatus::Unknown))
+    }
 
     async fn stop(&self) -> Result<(), AdapterError> {
         self.cancel.cancel();
         self.running.store(false, Ordering::Release);
-        self.set_health(ChannelHealthStatus::Down, Some("Discord adapter stopped".to_string()));
+        self.set_health(
+            ChannelHealthStatus::Down,
+            Some("Discord adapter stopped".to_string()),
+        );
         Ok(())
     }
 }
@@ -661,12 +1028,35 @@ impl ChannelAdapter for DiscordAdapter {
 fn parse_gateway(message: WsMessage) -> Result<GatewayEnvelope, AdapterError> {
     let text = match message {
         WsMessage::Text(text) => text,
-        WsMessage::Binary(bytes) => String::from_utf8(bytes).map_err(|error| execution_error("gateway_utf8", error.to_string(), None, false))?,
-        WsMessage::Ping(_) | WsMessage::Pong(_) => return Err(execution_error("gateway_protocol", "unexpected ping/pong before JSON gateway frame", None, true)),
-        WsMessage::Close(_) => return Err(execution_error("gateway_closed", "Discord gateway closed", None, true)),
-        WsMessage::Frame(_) => return Err(execution_error("gateway_protocol", "raw Discord frame is unsupported", None, false)),
+        WsMessage::Binary(bytes) => String::from_utf8(bytes)
+            .map_err(|error| execution_error("gateway_utf8", error.to_string(), None, false))?,
+        WsMessage::Ping(_) | WsMessage::Pong(_) => {
+            return Err(execution_error(
+                "gateway_protocol",
+                "unexpected ping/pong before JSON gateway frame",
+                None,
+                true,
+            ))
+        }
+        WsMessage::Close(_) => {
+            return Err(execution_error(
+                "gateway_closed",
+                "Discord gateway closed",
+                None,
+                true,
+            ))
+        }
+        WsMessage::Frame(_) => {
+            return Err(execution_error(
+                "gateway_protocol",
+                "raw Discord frame is unsupported",
+                None,
+                false,
+            ))
+        }
     };
-    serde_json::from_str(&text).map_err(|error| execution_error("gateway_json", error.to_string(), None, false))
+    serde_json::from_str(&text)
+        .map_err(|error| execution_error("gateway_json", error.to_string(), None, false))
 }
 
 fn parse_incoming_message(value: &Value) -> Option<IncomingMessage> {
@@ -674,49 +1064,125 @@ fn parse_incoming_message(value: &Value) -> Option<IncomingMessage> {
     let channel_id = value.get("channel_id")?.as_str()?.to_string();
     let author = value.get("author")?;
     let author_id = author.get("id")?.as_str()?.to_string();
-    let guild_id = value.get("guild_id").and_then(Value::as_str).map(str::to_string);
-    let thread_id = value.get("thread").and_then(|thread| thread.get("id")).and_then(Value::as_str)
-        .or_else(|| value.get("channel_type").and_then(|_| value.get("channel_id")).and_then(Value::as_str)).map(str::to_string);
-    let reply_to = value.get("message_reference").and_then(|reference| reference.get("message_id")).and_then(Value::as_str).map(str::to_string);
-    let content = value.get("content").and_then(Value::as_str).unwrap_or_default().to_string();
-    let attachments = value.get("attachments").and_then(Value::as_array).map(|items| items.iter().filter_map(|item| Some(IncomingAttachment {
-        filename: item.get("filename")?.as_str()?.to_string(),
-        content_type: item.get("content_type").and_then(Value::as_str).map(str::to_string),
-        size: item.get("size").and_then(Value::as_u64).unwrap_or_default(),
-        url: item.get("url")?.as_str()?.to_string(),
-    })).collect()).unwrap_or_default();
-    let mentioned_bot = value.get("mentions").and_then(Value::as_array).is_some_and(|mentions| mentions.iter().any(|mention| mention.get("bot").and_then(Value::as_bool).unwrap_or(false)));
-    Some(IncomingMessage { id, channel_id, guild_id, thread_id, author_id, author_bot: author.get("bot").and_then(Value::as_bool).unwrap_or(false), content, reply_to, attachments, mentioned_bot })
+    let guild_id = value
+        .get("guild_id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let thread_id = value
+        .get("thread")
+        .and_then(|thread| thread.get("id"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            value
+                .get("type")
+                .and_then(Value::as_u64)
+                .filter(|kind| (10..=12).contains(kind))
+                .map(|_| channel_id.as_str())
+        })
+        .map(str::to_string);
+    let reply_to = value
+        .get("message_reference")
+        .and_then(|reference| reference.get("message_id"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let content = value
+        .get("content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let attachments = value
+        .get("attachments")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    Some(IncomingAttachment {
+                        filename: item.get("filename")?.as_str()?.to_string(),
+                        content_type: item
+                            .get("content_type")
+                            .and_then(Value::as_str)
+                            .map(str::to_string),
+                        size: item.get("size").and_then(Value::as_u64).unwrap_or_default(),
+                        url: item.get("url")?.as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let mentioned_bot = value
+        .get("mentions")
+        .and_then(Value::as_array)
+        .is_some_and(|mentions| {
+            mentions
+                .iter()
+                .any(|mention| mention.get("bot").and_then(Value::as_bool).unwrap_or(false))
+        });
+    Some(IncomingMessage {
+        id,
+        channel_id,
+        guild_id,
+        thread_id,
+        author_id,
+        author_bot: author.get("bot").and_then(Value::as_bool).unwrap_or(false),
+        content,
+        reply_to,
+        attachments,
+        mentioned_bot,
+    })
 }
 
 fn normalize_gateway_url(base: &str) -> String {
     let mut url = base.trim_end_matches('/').to_string();
-    if !url.contains("?") { url.push_str("?v=10&encoding=json"); }
+    if !url.contains("?") {
+        url.push_str("?v=10&encoding=json");
+    }
     url
 }
 
 fn split_chunks(text: &str, limit: usize) -> Vec<String> {
-    if text.is_empty() { return Vec::new(); }
+    if text.is_empty() {
+        return Vec::new();
+    }
     let chars: Vec<char> = text.chars().collect();
-    chars.chunks(limit).map(|chunk| chunk.iter().collect()).collect()
+    chars
+        .chunks(limit)
+        .map(|chunk| chunk.iter().collect())
+        .collect()
 }
 
 fn content_to_text(parts: &[ContentPart]) -> String {
-    parts.iter().filter_map(|part| match part {
-        ContentPart::Text { text } => Some(text.as_str()),
-        ContentPart::Markdown { markdown } => Some(markdown.as_str()),
-        ContentPart::Location { .. } => Some("location"),
-        ContentPart::Reference { uri, .. } => Some(uri.as_str()),
-        ContentPart::Card { .. } | ContentPart::Image { .. } | ContentPart::Audio { .. } | ContentPart::Video { .. } | ContentPart::File { .. } => None,
-    }).collect::<Vec<_>>().join("\n")
+    parts
+        .iter()
+        .filter_map(|part| match part {
+            ContentPart::Text { text } => Some(text.as_str()),
+            ContentPart::Markdown { markdown } => Some(markdown.as_str()),
+            ContentPart::Location { .. } => Some("location"),
+            ContentPart::Reference { uri, .. } => Some(uri.as_str()),
+            ContentPart::Card { .. }
+            | ContentPart::Image { .. }
+            | ContentPart::Audio { .. }
+            | ContentPart::Video { .. }
+            | ContentPart::File { .. } => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn discord_embed(body: &Value) -> Value {
     let mut embed = json!({});
-    if let Some(title) = body.get("title").and_then(Value::as_str) { embed["title"] = json!(truncate(title, 256)); }
-    if let Some(description) = body.get("description").and_then(Value::as_str) { embed["description"] = json!(truncate(description, 4096)); }
-    if let Some(color) = body.get("color").and_then(Value::as_u64) { embed["color"] = json!(color.min(0xFF_FFFF)); }
-    if let Some(fields) = body.get("fields").and_then(Value::as_array) { embed["fields"] = json!(fields.iter().take(25).cloned().collect::<Vec<_>>()); }
+    if let Some(title) = body.get("title").and_then(Value::as_str) {
+        embed["title"] = json!(truncate(title, 256));
+    }
+    if let Some(description) = body.get("description").and_then(Value::as_str) {
+        embed["description"] = json!(truncate(description, 4096));
+    }
+    if let Some(color) = body.get("color").and_then(Value::as_u64) {
+        embed["color"] = json!(color.min(0xFF_FFFF));
+    }
+    if let Some(fields) = body.get("fields").and_then(Value::as_array) {
+        embed["fields"] = json!(fields.iter().take(25).cloned().collect::<Vec<_>>());
+    }
     embed
 }
 
@@ -725,11 +1191,17 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
 }
 
 fn seconds_to_duration(seconds: f64) -> Option<Duration> {
-    if seconds.is_sign_negative() || !seconds.is_finite() { return None; }
+    if seconds.is_sign_negative() || !seconds.is_finite() {
+        return None;
+    }
     Some(Duration::from_secs_f64(seconds))
 }
 
-async fn sleep_or_cancel(duration: Duration, context: &AdapterContext, local_cancel: &CancellationToken) -> bool {
+async fn sleep_or_cancel(
+    duration: Duration,
+    context: &AdapterContext,
+    local_cancel: &CancellationToken,
+) -> bool {
     tokio::select! {
         _ = context.cancel.cancelled() => false,
         _ = local_cancel.cancelled() => false,
@@ -756,9 +1228,9 @@ fn truncate(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::StoredAttachment;
     use crate::adapter::{AdapterServices, ChannelAttachmentStore};
     use agent_diva_core::channel::AttachmentRef;
-    use crate::adapter::StoredAttachment;
     use agent_diva_core::config::Config;
     use async_trait::async_trait;
     use sha2::Digest;
@@ -768,12 +1240,29 @@ mod tests {
 
     #[async_trait]
     impl ChannelAttachmentStore for Store {
-        async fn put(&self, input: IngressAttachment) -> Result<AttachmentRef, crate::adapter::AttachmentStoreError> {
+        async fn put(
+            &self,
+            input: IngressAttachment,
+        ) -> Result<AttachmentRef, crate::adapter::AttachmentStoreError> {
             let digest = format!("{:x}", sha2::Sha256::digest(&input.bytes));
-            Ok(AttachmentRef { uri: format!("sha256:{digest}"), media_type: input.declared_mime.unwrap_or_else(|| "application/octet-stream".into()), size_bytes: input.bytes.len() as u64, sha256: digest, file_name: input.file_name })
+            Ok(AttachmentRef {
+                uri: format!("sha256:{digest}"),
+                media_type: input
+                    .declared_mime
+                    .unwrap_or_else(|| "application/octet-stream".into()),
+                size_bytes: input.bytes.len() as u64,
+                sha256: digest,
+                file_name: input.file_name,
+            })
         }
-        async fn get(&self, reference: &AttachmentRef) -> Result<StoredAttachment, crate::adapter::AttachmentStoreError> {
-            Ok(StoredAttachment { reference: reference.clone(), bytes: Vec::new() })
+        async fn get(
+            &self,
+            reference: &AttachmentRef,
+        ) -> Result<StoredAttachment, crate::adapter::AttachmentStoreError> {
+            Ok(StoredAttachment {
+                reference: reference.clone(),
+                bytes: Vec::new(),
+            })
         }
     }
 
@@ -781,7 +1270,11 @@ mod tests {
         let mut config = Config::default().channels.discord;
         config.enabled = true;
         config.token = "token".to_string();
-        DiscordAdapter::with_test_endpoint(config, AdapterServices::new(Arc::new(Store)), "http://127.0.0.1:1")
+        DiscordAdapter::with_test_endpoint(
+            config,
+            AdapterServices::new(Arc::new(Store)),
+            "http://127.0.0.1:1",
+        )
     }
 
     #[test]
@@ -795,8 +1288,14 @@ mod tests {
 
     #[test]
     fn gateway_url_is_normalized() {
-        assert_eq!(normalize_gateway_url("wss://gateway.discord.gg"), "wss://gateway.discord.gg?v=10&encoding=json");
-        assert_eq!(normalize_gateway_url("wss://gateway.discord.gg/?v=10"), "wss://gateway.discord.gg/?v=10");
+        assert_eq!(
+            normalize_gateway_url("wss://gateway.discord.gg"),
+            "wss://gateway.discord.gg?v=10&encoding=json"
+        );
+        assert_eq!(
+            normalize_gateway_url("wss://gateway.discord.gg/?v=10"),
+            "wss://gateway.discord.gg/?v=10"
+        );
     }
 
     #[test]
@@ -811,9 +1310,27 @@ mod tests {
             "id":"m1", "channel_id":"c1", "guild_id":"g1", "content":"hi",
             "author":{"id":"u1","bot":false}, "thread":{"id":"t1"},
             "message_reference":{"message_id":"root"}, "mentions":[]
-        })).unwrap();
+        }))
+        .unwrap();
         assert_eq!(message.thread_id.as_deref(), Some("t1"));
         assert_eq!(message.reply_to.as_deref(), Some("root"));
+    }
+
+    #[test]
+    fn channel_thread_types_use_channel_id_without_marking_dms_as_threads() {
+        let thread = parse_incoming_message(&json!({
+            "id":"m2", "channel_id":"thread-c", "type":11, "content":"hi",
+            "author":{"id":"u1"}, "attachments":[]
+        }))
+        .unwrap();
+        assert_eq!(thread.thread_id.as_deref(), Some("thread-c"));
+
+        let dm = parse_incoming_message(&json!({
+            "id":"m3", "channel_id":"dm-c", "type":1, "content":"hi",
+            "author":{"id":"u1"}, "attachments":[]
+        }))
+        .unwrap();
+        assert_eq!(dm.thread_id, None);
     }
 
     #[test]
