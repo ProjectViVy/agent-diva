@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `LEAD: agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/mod.rs; agent-diva-channels/src/lib.rs; agent-diva-channels/Cargo.toml; agent-diva-channels/tests/fixtures/c5/capability-evidence.json; docs/logs/2026-08-channel-epic/v0.2.1-c5-native-adapters/**; TODOLIST.md; LOCK.md | TELEGRAM: agent-diva-channels/src/adapters/telegram.rs; agent-diva-channels/tests/fixtures/c5/telegram/**; docs/dev/channel-epic/c5-octos-migration/platforms/telegram*.md | DISCORD: agent-diva-channels/src/adapters/discord.rs; agent-diva-channels/tests/fixtures/c5/discord/**; docs/dev/channel-epic/c5-octos-migration/platforms/discord*.md | FEISHU: agent-diva-channels/src/adapters/feishu.rs; agent-diva-channels/tests/fixtures/c5/feishu/**; docs/dev/channel-epic/c5-octos-migration/platforms/feishu*.md | DINGTALK: agent-diva-channels/src/adapters/dingtalk.rs; agent-diva-channels/tests/fixtures/c5/dingtalk/**; docs/dev/channel-epic/c5-octos-migration/platforms/dingtalk*.md | EMAIL: agent-diva-channels/src/adapters/email.rs; agent-diva-channels/tests/fixtures/c5/email/**; docs/dev/channel-epic/c5-octos-migration/platforms/email*.md | QQ: agent-diva-channels/src/adapters/qq.rs; agent-diva-channels/tests/fixtures/c5/qq/**; docs/dev/channel-epic/c5-octos-migration/platforms/qq*.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T13:10:00+08:00`
-- Last Heartbeat: `2026-08-31T13:10:00+08:00`
-- Expires At: `2026-09-01T13:10:00+08:00`
-- Handoff Notes: `Lead owns shared contract, factory, evidence, logs, TODOLIST, and integration. Six channel scopes are delegated one per worker in two waves from shared Gate 1 baseline 48c12669. No Manager/C6 cutover or push.`
+- Last Heartbeat: `2026-09-01T01:50:54+08:00`
+- Expires At: `2026-09-01T01:50:54+08:00`
+- Handoff Notes: `Released after C5-I Gate 2 implementation and validation. Branch feat/channel-epic remains isolated; no Manager/C6 cutover, merge, or push. C5-V and C5-Q remain open.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **HELD 2026-08-31T13:10:00+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Lead and six non-overlapping channel scopes are registered above. Base contract is `48c12669`; workers must not modify shared files or merge/push. Gate 2 remains open until platform commits, evidence, cross-review, and validation land.
+- `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **RELEASED 2026-09-01T01:50:54+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Base contract `48c12669`; implementation commits include `e0b36c02`, `3835f58c`, `f3bdd3ad`, `8088ce58`, `ca3b0cc6`, `42db4e25`, `10563a7a`, `9171e9a4`, `e50ad05a`, `204915d7`, `0e41c915`, `efb50261`, and `5371d517`. `just fmt-check`, `just check`, `just test`, channel all-target tests, and channel lib clippy passed. All-target clippy remains blocked by legacy test lints; MSRV probe remains blocked by cached `base64ct v1.8.3`. No Manager/C6 cutover, merge, or push. C5-V/C5-Q remain open.`
 
 - `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
@@ -106,6 +106,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `Workspace 与 AGENTS.md 全研发周期（Wave A-D backend）` — **STALE/TAKEN OVER 2026-08-26T00:00:00+08:00** by `Codex` for backlog consolidation only. Original lock expired `2026-08-24T04:00:00+08:00`; implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-workspace-agents`, branch `feat/workspace-agents-impl`, commits `8ccc82b2` → `d1264f3d`, unmerged and not pushed. Product code remains untouched in this planning iteration.
 
 ## Handoff Notes
+
+- `2026-09-01T01:50:54+08:00`: C5-I Gate 2 released from this isolated worktree. Six native adapters and factory/TCK are implemented; verification logs are current at 126 channel library tests plus full workspace `just test`. Receiving agent starts at C5-V and must retain QQ D-013/D-014 as blocked until official wire evidence exists.
 
 - `2026-08-24T01:00:00+08:00`: Released GUI-STYLE-UNIFICATION-PHASE-2 (Qoder). Merged `feat/gui-style-phase2` into `dev` as `6d71086b` (TODOLIST conflict resolved manually). 8 commits: token extension + settings/persona/conv-sidebar/cards/console/mate/tk-* batches + residual fix. ~490 color/spacing tokenizations across ~30 files; 127-line ConversationSidebar scoped override section deleted; 13 --conv-* + 4 --*-strong + 3 --identity-* + 8 --mate-* tokens added. Gates: vitest 68/487 + vue-tsc/vite build. Worktree removed, branch deleted. Not pushed.
 

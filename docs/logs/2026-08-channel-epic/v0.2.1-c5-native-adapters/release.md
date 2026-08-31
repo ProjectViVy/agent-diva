@@ -8,6 +8,8 @@
 - `42db4e25`：Discord thread/embed 修正与格式化；
 - `10563a7a`：Telegram、QQ、native factory 与 shared TCK 接线；
 - `9171e9a4`：QQ event identity/admission 证据测试；
+- `efb50261`：QQ `AT_MESSAGE_CREATE` 不再以 `channel_id` 冒充群聊；
+- `5371d517`：刷新全量验证结果（126 个渠道库测试与 workspace `just test`）；
 - 前序 worker commits：Email `e0b36c02`、DingTalk `f3bdd3ad`、Feishu `8088ce58`。
 
 接手 agent 必须先读取 `docs/dev/channel-epic/c5-octos-migration/README.md`、六份 scan 与
