@@ -99,9 +99,13 @@
       与 terminal error/final 事件分别标记 durable/transient，瞬时增量不进入断线 replay。
       `turn/start` 的首个 queued/running admission 仍由 Gateway 响应路径原子写入，避免重复行；
       C6 仍负责旧 bus/DTO 的最终 clean break。
-  - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
-    GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
-    GUI tests/build 与真实桌面断线恢复冒烟。
+  - [x] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**（2026-08-31）
+    GUI 实时链路已迁移到 typed Neuro-Link v1；Mate 删除 avatar chat ID/`speak` 特例，改用
+    semantic Presentation；GUI tests/build、Rust workspace 门禁和协议/TCK 回归均通过。详见
+    [`v0.1.7-desktop-neuro-link-client`](docs/logs/2026-08-channel-epic/v0.1.7-desktop-neuro-link-client/)。
+    - [ ] 发布工作站真实 Tauri/桌面断线恢复冒烟：当前环境缺少 agent-browser/可用浏览器二进制，
+      待现场确认发送、排队取消、计划继续、WS 重连回放与 Mate TTS 后关闭；不阻塞 C4 代码审阅，
+      但在 C6 原子合入前必须完成。
   - [ ] **C5：六个现役 ChannelAdapter 与 capability TCK**
     迁移 Telegram、Discord、Feishu、DingTalk、Email、QQ；每个 `true` capability 都有
     离线 fixture/mock 证明，至少一个真实平台纵向 smoke。
