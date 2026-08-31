@@ -899,7 +899,6 @@ fn event_identity(event: &str, data: &Value) -> Option<(ChatKind, String, String
     let chat = data
         .get("group_openid")
         .or_else(|| data.get("group_id"))
-        .or_else(|| data.get("channel_id"))
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
@@ -1014,6 +1013,20 @@ mod tests {
         assert_eq!(group.0, ChatKind::Group);
         assert_eq!(group.1, "group-1");
         assert_eq!(group.2, "member-1");
+    }
+
+    #[test]
+    fn guild_at_event_without_group_open_id_is_not_misclassified_as_group() {
+        assert_eq!(
+            event_identity(
+                "AT_MESSAGE_CREATE",
+                &json!({
+                    "channel_id": "guild-channel",
+                    "author": {"id": "member-1"}
+                })
+            ),
+            None
+        );
     }
 
     #[test]
