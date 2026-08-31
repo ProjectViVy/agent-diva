@@ -958,6 +958,7 @@ fn make_turn_envelope(
             parts: params.parts.clone(),
             subject: params.subject.clone(),
             locale: params.locale.clone(),
+            context: Some(params.context.clone()),
         },
     )
 }
@@ -1280,6 +1281,11 @@ mod tests {
             parts: vec![ContentPart::Text {
                 text: "hello".to_string(),
             }],
+            context: agent_diva_core::channel::OwnerTurnContextV1 {
+                intent: agent_diva_core::channel::OwnerTurnIntent::Agent,
+                approval_policy: None,
+                execution: None,
+            },
             client_message_id: Some("client".to_string()),
             subject: None,
             locale: None,
@@ -1315,6 +1321,7 @@ mod tests {
                 }],
                 subject: None,
                 locale: None,
+                context: None,
             },
         );
         let task = tokio::spawn({
@@ -1429,7 +1436,8 @@ mod tests {
                     "params": {
                         "session_key": "smoke-session",
                         "client_message_id": "client-1",
-                        "parts": [{"kind": "text", "text": "hello"}]
+                        "parts": [{"kind": "text", "text": "hello"}],
+                        "context": {"intent": "agent"}
                     }
                 })
                 .to_string(),

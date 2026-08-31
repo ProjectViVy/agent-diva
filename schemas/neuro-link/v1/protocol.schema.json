@@ -77,8 +77,12 @@
           "enum": [
             "session/opened",
             "turn/admission",
+            "turn/iteration",
             "conversation/stream",
+            "conversation/reasoning",
             "tool/lifecycle",
+            "provider/status",
+            "context/compaction",
             "approval/required",
             "question/required",
             "planning/changed",
@@ -107,6 +111,14 @@
           "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
         },
         {
+          "if": { "properties": { "method": { "const": "turn/iteration" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "conversation/reasoning" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
           "if": { "properties": { "method": { "const": "tool/lifecycle" } } },
           "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
         },
@@ -120,6 +132,14 @@
         },
         {
           "if": { "properties": { "method": { "const": "planning/changed" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "provider/status" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "context/compaction" } } },
           "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
         },
         {
@@ -205,7 +225,7 @@
     "turn_start_params": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_key", "parts"],
+      "required": ["session_key", "parts", "context"],
       "properties": {
         "session_key": { "type": "string", "minLength": 1 },
         "thread_id": { "type": "string", "minLength": 1 },
@@ -216,7 +236,28 @@
         },
         "client_message_id": { "type": "string", "minLength": 1 },
         "subject": { "type": "string", "minLength": 1 },
-        "locale": { "type": "string", "minLength": 1 }
+        "locale": { "type": "string", "minLength": 1 },
+        "context": { "$ref": "#/$defs/owner_turn_context" }
+      }
+    },
+    "owner_turn_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent"],
+      "properties": {
+        "intent": { "enum": ["agent", "plan", "ask"] },
+        "approval_policy": { "enum": ["on-request", "on-failure", "unless-trusted", "never"] },
+        "execution": { "$ref": "#/$defs/owner_execution_context" }
+      }
+    },
+    "owner_execution_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "revision"],
+      "properties": {
+        "plan_id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer" },
+        "execution_id": { "type": "string", "minLength": 1 }
       }
     },
     "turn_cancel_params": {
@@ -314,8 +355,12 @@
         "method": {
           "enum": [
             "turn/admission",
+            "turn/iteration",
             "conversation/stream",
+            "conversation/reasoning",
             "tool/lifecycle",
+            "provider/status",
+            "context/compaction",
             "approval/required",
             "question/required",
             "planning/changed",

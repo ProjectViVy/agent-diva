@@ -15,6 +15,7 @@ use agent_diva_core::channel::{
 };
 use agent_diva_core::planning::PlanReportDetail;
 use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Handle;
@@ -90,10 +91,14 @@ async fn run_projection_pump(
             return;
         }
     };
+    let mut presentation_state = PresentationState::default();
     loop {
         tokio::select! {
             result = bus_rx.recv() => match result {
                 Ok(event) => {
+                    for projection in project_presentation_events(&event, &mut presentation_state) {
+                        persist_and_broadcast(&journal, &events_tx, projection).await;
+                    }
                     if let Some(projection) = project_bus_event(event) {
                         persist_and_broadcast(&journal, &events_tx, projection).await;
                     }
@@ -108,6 +113,239 @@ async fn run_projection_pump(
                 None => break,
             },
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct PresentationState {
+    turns: HashMap<(String, String), TurnPresentationState>,
+}
+
+#[derive(Debug, Default)]
+struct TurnPresentationState {
+    thinking: bool,
+    speaking: bool,
+    tools: HashSet<String>,
+}
+
+impl PresentationState {
+    fn turn_mut(&mut self, event: &AgentBusEvent) -> Option<&mut TurnPresentationState> {
+        let session_key = event.session_key.as_deref()?.trim();
+        let request_id = event.request_id.as_deref()?.trim();
+        if session_key.is_empty() || request_id.is_empty() {
+            return None;
+        }
+        Some(
+            self.turns
+                .entry((session_key.to_string(), request_id.to_string()))
+                .or_default(),
+        )
+    }
+
+    fn clear_turn(&mut self, event: &AgentBusEvent) {
+        if let (Some(session_key), Some(request_id)) =
+            (event.session_key.as_deref(), event.request_id.as_deref())
+        {
+            self.turns
+                .remove(&(session_key.to_string(), request_id.to_string()));
+        }
+    }
+}
+
+fn project_presentation_events(
+    event: &AgentBusEvent,
+    state: &mut PresentationState,
+) -> Vec<ChannelRuntimeProjectionV1> {
+    if event.channel != "neuro-link"
+        || event
+            .session_key
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+        || event
+            .request_id
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+        || event
+            .trace_id
+            .as_deref()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+    {
+        return Vec::new();
+    }
+    let mut output = Vec::new();
+    let Some(turn) = state.turn_mut(event) else {
+        return output;
+    };
+    let emit = |event_name: &str, body: Value, durable: bool, terminal: bool| {
+        presentation_projection(event, event_name, body, durable, terminal)
+    };
+    let mut finish_thinking = |output: &mut Vec<ChannelRuntimeProjectionV1>| {
+        if turn.thinking {
+            output.push(emit(
+                "assistant.thinking.completed",
+                json!({}),
+                false,
+                false,
+            ));
+            turn.thinking = false;
+        }
+    };
+    let mut finish_speaking = |output: &mut Vec<ChannelRuntimeProjectionV1>| {
+        if turn.speaking {
+            output.push(emit(
+                "assistant.speaking.completed",
+                json!({}),
+                false,
+                false,
+            ));
+            turn.speaking = false;
+        }
+    };
+    match &event.event {
+        AgentEvent::SessionAdmission { observation }
+            if matches!(
+                observation.phase,
+                agent_diva_core::bus::SessionAdmissionPhase::Queued
+                    | agent_diva_core::bus::SessionAdmissionPhase::Running
+            ) =>
+        {
+            output.push(emit("subtitle.cleared", json!({}), false, false));
+        }
+        AgentEvent::ReasoningDelta { .. } => {
+            if !turn.thinking {
+                output.push(emit("assistant.thinking.started", json!({}), false, false));
+                turn.thinking = true;
+            }
+        }
+        AgentEvent::AssistantDelta { .. } => {
+            finish_thinking(&mut output);
+            if !turn.speaking {
+                output.push(emit("assistant.speaking.started", json!({}), false, false));
+                turn.speaking = true;
+            }
+        }
+        AgentEvent::ToolCallStarted { name, call_id, .. } => {
+            finish_thinking(&mut output);
+            finish_speaking(&mut output);
+            if turn.tools.insert(call_id.clone()) {
+                output.push(emit(
+                    "assistant.tool.started",
+                    json!({ "name": bounded(name, MAX_PREVIEW_CHARS), "call_id": bounded(call_id, MAX_PREVIEW_CHARS) }),
+                    false,
+                    false,
+                ));
+            }
+        }
+        AgentEvent::ToolCallFinished {
+            name,
+            call_id,
+            is_error,
+            ..
+        } => {
+            if turn.tools.remove(call_id) {
+                output.push(emit(
+                    "assistant.tool.completed",
+                    json!({ "name": bounded(name, MAX_PREVIEW_CHARS), "call_id": bounded(call_id, MAX_PREVIEW_CHARS), "is_error": is_error }),
+                    false,
+                    false,
+                ));
+            }
+        }
+        AgentEvent::PlanReadyForApproval { plan } => {
+            finish_thinking(&mut output);
+            finish_speaking(&mut output);
+            output.push(emit(
+                "assistant.waiting_for_approval",
+                json!({ "kind": "plan", "plan_id": plan.plan_id, "revision": plan.revision }),
+                true,
+                false,
+            ));
+        }
+        AgentEvent::PlanReportReadyForApproval { report } => {
+            finish_thinking(&mut output);
+            finish_speaking(&mut output);
+            output.push(emit(
+                "assistant.waiting_for_approval",
+                json!({ "kind": "plan_report", "report_id": report.report.id, "revision": report.revision.revision }),
+                true,
+                false,
+            ));
+        }
+        AgentEvent::FinalResponse { content } => {
+            finish_thinking(&mut output);
+            finish_speaking(&mut output);
+            for call_id in std::mem::take(&mut turn.tools) {
+                output.push(emit(
+                    "assistant.tool.completed",
+                    json!({ "call_id": bounded(&call_id, MAX_PREVIEW_CHARS), "is_error": true }),
+                    false,
+                    false,
+                ));
+            }
+            output.push(emit(
+                "subtitle.updated",
+                json!({ "text": bounded(content, MAX_TEXT_CHARS) }),
+                true,
+                false,
+            ));
+            state.clear_turn(event);
+        }
+        AgentEvent::Error { .. }
+        | AgentEvent::SessionAdmission {
+            observation:
+                agent_diva_core::bus::SessionAdmissionObservation {
+                    phase:
+                        agent_diva_core::bus::SessionAdmissionPhase::Rejected
+                        | agent_diva_core::bus::SessionAdmissionPhase::Cancelled
+                        | agent_diva_core::bus::SessionAdmissionPhase::Reset
+                        | agent_diva_core::bus::SessionAdmissionPhase::Unavailable
+                        | agent_diva_core::bus::SessionAdmissionPhase::Evicted,
+                    ..
+                },
+        } => {
+            finish_thinking(&mut output);
+            finish_speaking(&mut output);
+            turn.tools.clear();
+            output.push(emit("subtitle.cleared", json!({}), false, false));
+            if matches!(event.event, AgentEvent::Error { .. }) {
+                state.clear_turn(event);
+            }
+        }
+        _ => {}
+    }
+    output
+}
+
+fn presentation_projection(
+    event: &AgentBusEvent,
+    event_name: &str,
+    body: Value,
+    durable: bool,
+    terminal: bool,
+) -> ChannelRuntimeProjectionV1 {
+    let session_key = event.session_key.clone().unwrap_or_default();
+    let request_id = event.request_id.clone().unwrap_or_default();
+    let trace_id = event.trace_id.clone().unwrap_or_default();
+    let mut correlation = Correlation::new(session_key);
+    correlation.request_id = Some(request_id);
+    correlation.trace_id = Some(trace_id);
+    ChannelRuntimeProjectionV1 {
+        method: "presentation/event".to_string(),
+        envelope: ChannelEnvelopeV1::new(
+            ChannelDirection::InternalProjection,
+            ChannelAddress::new("neuro-link", event.chat_id.clone()),
+            correlation,
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Presentation {
+                event: event_name.to_string(),
+                body,
+            },
+        ),
+        durable,
+        terminal,
     }
 }
 
@@ -509,6 +747,85 @@ mod tests {
         assert!(projection.terminal);
     }
 
+    #[test]
+    fn presentation_lifecycle_is_semantic_and_ordered() {
+        let mut state = PresentationState::default();
+
+        let thinking = project_presentation_events(
+            &bus_event(AgentEvent::ReasoningDelta {
+                text: "considering".to_string(),
+            }),
+            &mut state,
+        );
+        assert_eq!(thinking.len(), 1);
+        assert_presentation_event(&thinking[0], "assistant.thinking.started");
+
+        let duplicate_thinking = project_presentation_events(
+            &bus_event(AgentEvent::ReasoningDelta {
+                text: "more".to_string(),
+            }),
+            &mut state,
+        );
+        assert!(duplicate_thinking.is_empty());
+
+        let speaking = project_presentation_events(
+            &bus_event(AgentEvent::AssistantDelta {
+                text: "answer".to_string(),
+            }),
+            &mut state,
+        );
+        assert_eq!(speaking.len(), 2);
+        assert_presentation_event(&speaking[0], "assistant.thinking.completed");
+        assert_presentation_event(&speaking[1], "assistant.speaking.started");
+
+        let terminal = project_presentation_events(
+            &bus_event(AgentEvent::FinalResponse {
+                content: "final answer".to_string(),
+            }),
+            &mut state,
+        );
+        assert_eq!(terminal.len(), 2);
+        assert_presentation_event(&terminal[0], "assistant.speaking.completed");
+        assert_presentation_event(&terminal[1], "subtitle.updated");
+        assert!(!terminal[0].durable);
+        assert!(terminal[1].durable);
+        assert!(matches!(
+            &terminal[1].envelope.payload,
+            ChannelPayloadV1::Presentation { body, .. }
+                if body.get("text").and_then(Value::as_str) == Some("final answer")
+        ));
+    }
+
+    #[test]
+    fn accepted_admission_clears_previous_subtitle() {
+        let mut state = PresentationState::default();
+        let projections = project_presentation_events(
+            &bus_event(AgentEvent::SessionAdmission {
+                observation: SessionAdmissionObservation {
+                    code: None,
+                    phase: SessionAdmissionPhase::Running,
+                    session_key: "session-1".to_string(),
+                    request_id: "request-1".to_string(),
+                    trace_id: "trace-1".to_string(),
+                    queue_depth: 0,
+                    wait_latency_ms: 0,
+                },
+            }),
+            &mut state,
+        );
+        assert_eq!(projections.len(), 1);
+        assert_presentation_event(&projections[0], "subtitle.cleared");
+        assert!(!projections[0].durable);
+    }
+
+    fn assert_presentation_event(projection: &ChannelRuntimeProjectionV1, expected: &str) {
+        assert_eq!(projection.method, "presentation/event");
+        assert!(matches!(
+            &projection.envelope.payload,
+            ChannelPayloadV1::Presentation { event, .. } if event == expected
+        ));
+    }
+
     #[tokio::test]
     async fn bus_events_are_persisted_once_and_broadcast_to_live_subscribers() {
         let temp = tempfile::tempdir().unwrap();
@@ -527,11 +844,12 @@ mod tests {
         )
         .unwrap();
 
-        let live = tokio::time::timeout(std::time::Duration::from_secs(1), events.recv())
+        let live = tokio::time::timeout(std::time::Duration::from_secs(3), events.recv())
             .await
             .unwrap()
             .unwrap();
         assert_eq!(live.cursor.sequence, 1);
+        assert_eq!(live.method, "presentation/event");
         assert!(live.envelope.correlation.sequence.is_some());
 
         let journal = ProjectionJournal::open(temp.path()).await.unwrap();
@@ -545,7 +863,8 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(sync.events.len(), 1);
-        assert_eq!(sync.events[0].method, "conversation/stream");
+        assert_eq!(sync.events.len(), 2);
+        assert_eq!(sync.events[0].method, "presentation/event");
+        assert_eq!(sync.events[1].method, "conversation/stream");
     }
 }

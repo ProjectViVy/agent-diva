@@ -5,7 +5,9 @@ use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
 use agent_diva_core::bus::{
     SessionAdmissionCode, SessionControlAction, SessionControlOutcome, SessionControlTargetState,
 };
-use agent_diva_core::channel::{ChannelEnvelopeV1, ChannelPayloadV1, ContentPart};
+use agent_diva_core::channel::{
+    ChannelEnvelopeV1, ChannelPayloadV1, ContentPart, OwnerApprovalPolicy, OwnerTurnIntent,
+};
 use agent_diva_core::memory::{SessionEndRequest, SystemPromptRefreshRequest};
 use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
@@ -774,6 +776,7 @@ fn channel_envelope_to_inbound(envelope: ChannelEnvelopeV1) -> Result<InboundMes
         parts,
         subject,
         locale,
+        context,
     } = envelope.payload
     else {
         return Err("typed channel turn requires a message payload".to_string());
@@ -870,6 +873,48 @@ fn channel_envelope_to_inbound(envelope: ChannelEnvelopeV1) -> Result<InboundMes
             .metadata
             .insert("locale".to_string(), serde_json::Value::String(locale));
     }
+    let context = context
+        .ok_or_else(|| "owner frontend turn is missing typed execution context".to_string())?;
+    let exec_mode = match context.intent {
+        OwnerTurnIntent::Agent => "agent",
+        OwnerTurnIntent::Plan => "plan",
+        OwnerTurnIntent::Ask => "ask",
+    };
+    message.metadata.insert(
+        "exec_mode".to_string(),
+        serde_json::Value::String(exec_mode.to_string()),
+    );
+    if let Some(policy) = context.approval_policy {
+        let value = match policy {
+            OwnerApprovalPolicy::OnRequest => "on-request",
+            OwnerApprovalPolicy::OnFailure => "on-failure",
+            OwnerApprovalPolicy::UnlessTrusted => "unless-trusted",
+            OwnerApprovalPolicy::Never => "never",
+        };
+        message.metadata.insert(
+            "approval_policy".to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
+    }
+    if let Some(execution) = context.execution {
+        message
+            .metadata
+            .insert("execution_start".to_string(), serde_json::Value::Bool(true));
+        message.metadata.insert(
+            "plan_id".to_string(),
+            serde_json::Value::String(execution.plan_id),
+        );
+        message.metadata.insert(
+            "plan_revision".to_string(),
+            serde_json::Value::Number(execution.revision.into()),
+        );
+        if let Some(execution_id) = execution.execution_id {
+            message.metadata.insert(
+                "execution_id".to_string(),
+                serde_json::Value::String(execution_id),
+            );
+        }
+    }
     Ok(message)
 }
 
@@ -902,6 +947,15 @@ mod typed_channel_tests {
                 ],
                 subject: Some("subject".to_string()),
                 locale: Some("zh-CN".to_string()),
+                context: Some(agent_diva_core::channel::OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: Some(agent_diva_core::channel::OwnerApprovalPolicy::OnFailure),
+                    execution: Some(agent_diva_core::channel::OwnerExecutionContextV1 {
+                        plan_id: "plan-1".to_string(),
+                        revision: 3,
+                        execution_id: Some("execution-1".to_string()),
+                    }),
+                }),
             },
         );
         let message = channel_envelope_to_inbound(envelope).unwrap();
@@ -918,6 +972,39 @@ mod typed_channel_tests {
         assert_eq!(
             message.metadata.get("locale").and_then(Value::as_str),
             Some("zh-CN")
+        );
+        assert_eq!(
+            message.metadata.get("exec_mode").and_then(Value::as_str),
+            Some("agent")
+        );
+        assert_eq!(
+            message
+                .metadata
+                .get("approval_policy")
+                .and_then(Value::as_str),
+            Some("on-failure")
+        );
+        assert_eq!(
+            message
+                .metadata
+                .get("execution_start")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            message.metadata.get("plan_id").and_then(Value::as_str),
+            Some("plan-1")
+        );
+        assert_eq!(
+            message
+                .metadata
+                .get("plan_revision")
+                .and_then(Value::as_i64),
+            Some(3)
+        );
+        assert_eq!(
+            message.metadata.get("execution_id").and_then(Value::as_str),
+            Some("execution-1")
         );
     }
 

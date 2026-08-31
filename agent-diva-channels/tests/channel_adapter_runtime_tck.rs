@@ -152,6 +152,7 @@ fn send_command(channel: &str, text: &str, idempotent: bool) -> ChannelCommand {
                 }],
                 subject: None,
                 locale: None,
+                context: None,
             },
         ),
         idempotency_key: idempotent.then(|| format!("idempotency-{text}")),
@@ -449,6 +450,7 @@ async fn markdown_degrades_to_text_before_adapter_execution() {
         }],
         subject: None,
         locale: None,
+        context: None,
     };
     lane.handle()
         .submit(

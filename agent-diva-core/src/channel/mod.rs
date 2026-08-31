@@ -249,6 +249,8 @@ pub enum ChannelPayloadV1 {
         subject: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         locale: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        context: Option<OwnerTurnContextV1>,
     },
     Typing {
         state: TypingState,
@@ -516,6 +518,49 @@ pub struct SessionOpenParams {
     pub durable_cursor: Option<CursorV1>,
 }
 
+/// Execution intent selected by the owner frontend for one turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OwnerTurnIntent {
+    Agent,
+    Plan,
+    Ask,
+}
+
+/// Canonical approval policy selected for one owner turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OwnerApprovalPolicy {
+    #[serde(rename = "on-request")]
+    OnRequest,
+    #[serde(rename = "on-failure")]
+    OnFailure,
+    #[serde(rename = "unless-trusted")]
+    UnlessTrusted,
+    Never,
+}
+
+/// Approved-plan execution identity used when continuing a plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OwnerExecutionContextV1 {
+    pub plan_id: String,
+    pub revision: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_id: Option<String>,
+}
+
+/// Typed owner-frontend context. This is the only supported way for the
+/// desktop client to select a turn mode or approval policy on Neuro-Link.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OwnerTurnContextV1 {
+    pub intent: OwnerTurnIntent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_policy: Option<OwnerApprovalPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<OwnerExecutionContextV1>,
+}
+
 /// `turn/start` parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -524,6 +569,7 @@ pub struct TurnStartParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread_id: Option<String>,
     pub parts: Vec<ContentPart>,
+    pub context: OwnerTurnContextV1,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_message_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -689,6 +735,7 @@ mod tests {
                 }],
                 subject: None,
                 locale: None,
+                context: None,
             },
         );
 

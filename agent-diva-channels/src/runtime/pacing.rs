@@ -426,6 +426,7 @@ fn split_send(
         parts,
         subject,
         locale,
+        context,
     } = &envelope.payload
     else {
         return Ok(vec![ChannelCommand::Send {
@@ -478,6 +479,7 @@ fn split_send(
                 parts: vec![part],
                 subject: if index == 0 { subject.clone() } else { None },
                 locale: locale.clone(),
+                context: context.clone(),
             };
             chunk_envelope
                 .extensions

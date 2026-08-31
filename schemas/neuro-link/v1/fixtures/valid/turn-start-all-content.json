@@ -8,6 +8,10 @@
     "client_message_id": "client-message-1",
     "subject": "Contract test",
     "locale": "zh-CN",
+    "context": {
+      "intent": "agent",
+      "approval_policy": "on-failure"
+    },
     "parts": [
       { "kind": "text", "text": "hello" },
       { "kind": "markdown", "markdown": "**hello**" },
