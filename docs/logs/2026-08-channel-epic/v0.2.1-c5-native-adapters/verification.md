@@ -6,11 +6,14 @@
 ## 已通过
 
 - `cargo check -p agent-diva-channels`
-- `cargo test -p agent-diva-channels --lib`：122 tests passed
+- `cargo test -p agent-diva-channels --lib`：126 tests passed
 - `cargo test -p agent-diva-channels --all-targets`：lib、runtime/shared/characterization TCK
-  与 QQ reconnect integration 全部通过（共 122 + 11 + 5 + 5 + 6 项）
+  与 QQ reconnect integration 全部通过（共 126 + 11 + 5 + 5 + 6 项）
 - `cargo test -p agent-diva-channels --test channel_adapter_shared_tck -- --nocapture`：5 passed
 - `cargo clippy -p agent-diva-channels --lib -- -D warnings`：passed
+- `just fmt-check`：passed
+- `just check`：passed
+- `just test`：workspace 全量通过
 - `git diff --check`：passed
 
 ## 仍需独立批次处理
