@@ -1,0 +1,5 @@
+{
+  "get_file": {"ok": true, "result": {"file_path": "documents/report.pdf"}},
+  "send_message": {"ok": true, "result": {"message_id": 93}},
+  "rate_limited": {"ok": false, "error_code": 429, "description": "Too Many Requests", "parameters": {"retry_after": 2}}
+}

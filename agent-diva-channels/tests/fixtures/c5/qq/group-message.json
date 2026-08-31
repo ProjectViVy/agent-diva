@@ -1,0 +1,6 @@
+{
+  "id": "group-message-1",
+  "group_openid": "group-openid-1",
+  "author": {"member_openid": "member-openid-1"},
+  "content": "@bot hello from group"
+}

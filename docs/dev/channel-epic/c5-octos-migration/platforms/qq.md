@@ -27,6 +27,16 @@ Endpoint-level evidence and current-state gaps are in [`qq-scan.md`](qq-scan.md)
 - Token refresh is single-flight and retries an auth-expired safe command once. Heartbeat ACK and
   health state are explicit.
 
+## Gate 2 status (2026-09-01)
+
+`src/adapters/qq.rs` now supplies the native C5 seam and implements the text-only portion of this
+contract: C2C/group event parsing, allowlist, admission-after-policy, dedup-after-admission,
+`msg_seq`, reply IDs, `/gateway` discovery, heartbeat/resume and reconnect state. It intentionally
+does not claim typed media or interaction operations. The production Identify mask remains DIVA's
+previous `(1<<25)|(1<<12)` until D-013 has an official event-delivery fixture; D-014 keeps media
+unsupported until a reviewed QQ file-upload request/response fixture exists. The matrix rows stay
+`partial`/`blocked` in `evidence-manifest.md`, so this implementation is not a C5-V closeout.
+
 ## Failure and lifecycle rules
 
 - Never infer C2C/group target from the most recent inbound message. The `ChannelAddress` and

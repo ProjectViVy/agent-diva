@@ -124,8 +124,16 @@
       [`agent-task-cards.md`](docs/dev/channel-epic/c5-octos-migration/agent-task-cards.md)。
       - [x] **C5-I-G1：共享 AdapterServices/AttachmentStore seam 与 TCK 基座**（2026-08-31）
         已完成 typed attachment、内容寻址 digest 校验、allowlist helper、外部 envelope/
-        receipt/error builders、Gate 1 factory 失败语义及共享 TCK；六个频道构造和 Manager
-        生产装配仍分别留给 Gate 2/C6。
+        receipt/error builders、Gate 1 factory 失败语义及共享 TCK；Manager 生产装配仍留给
+        C6。
+      - [x] **C5-I-G2：六个 native adapter 与 C5 factory 接线**（2026-09-01）
+        已在隔离 `feat/channel-epic` worktree 实现 Telegram、Discord、Feishu、DingTalk、
+        Email、QQ 六个 `ChannelAdapter`，各自保留 Octos/DIVA wire 行为并统一 typed envelope、
+        AttachmentStore、dedup、health、receipt、unsupported 零副作用；factory 现在只负责
+        构造，不启动 listener，也未切 Manager 生产路径。QQ Identify intents/media 仍按 C5-Q
+        保持 `partial/blocked`，不把未验证能力伪装为完成。实现证据见
+        [`platforms/*-gate2.md`](docs/dev/channel-epic/c5-octos-migration/platforms/README.md)
+        与 [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)。
     - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
       每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
       final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从

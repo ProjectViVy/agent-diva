@@ -1,0 +1,9 @@
+{
+  "update_id": 70001,
+  "message": {
+    "message_id": 91,
+    "from": {"id": 42, "username": "alice"},
+    "chat": {"id": 42, "kind": "private"},
+    "text": "hello from telegram"
+  }
+}

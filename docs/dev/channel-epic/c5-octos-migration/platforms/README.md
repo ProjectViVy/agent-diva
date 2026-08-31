@@ -23,6 +23,18 @@ fact packs define the evidence behind each endpoint and migration decision:
 - [`email-scan.md`](email-scan.md)
 - [`qq-scan.md`](qq-scan.md)
 
+## C5-I Gate 2 implementation evidence
+
+These notes map the native adapter commits to the frozen scan and record which
+capabilities are implemented versus still awaiting C5-V wire proof:
+
+- [`telegram-gate2.md`](telegram-gate2.md)
+- [`discord-gate2.md`](discord-gate2.md)
+- [`feishu-gate2.md`](feishu-gate2.md)
+- [`dingtalk-gate2.md`](dingtalk-gate2.md)
+- [`email-gate2.md`](email-gate2.md)
+- [`qq-gate2.md`](qq-gate2.md)
+
 An implementation worker must read both files for its channel. A target capability may not be
 claimed from the specification alone; it needs the scan row plus an evidence fixture.
 

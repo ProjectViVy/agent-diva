@@ -1,0 +1,13 @@
+{
+  "update_id": 70002,
+  "message": {
+    "message_id": 92,
+    "from": {"id": 43, "username": "bob"},
+    "chat": {"id": -1001234, "kind": "supergroup"},
+    "message_thread_id": 17,
+    "reply_to_message": {"message_id": 88, "chat": {"id": -1001234, "kind": "supergroup"}},
+    "caption": "photo caption",
+    "photo": [{"file_id": "photo-small", "file_size": 128}, {"file_id": "photo-large", "file_size": 4096}],
+    "document": {"file_id": "doc-1", "file_name": "report.pdf", "file_size": 8192, "mime_type": "application/pdf"}
+  }
+}

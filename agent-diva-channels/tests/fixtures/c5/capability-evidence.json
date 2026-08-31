@@ -1,0 +1,55 @@
+{
+  "schema": "c5-capability-evidence/v1",
+  "octos_sha": "5ea987813de4fd2afdd1d78f2106ad2868f0d923",
+  "status_semantics": {
+    "implemented_partial": "native code and deterministic unit evidence exist; C5-V wire transcript remains",
+    "blocked_unsupported": "adapter rejects before transport until an approved endpoint fixture exists",
+    "verified": "reserved for complete fixture, request/response, receipt/error and lifecycle proof"
+  },
+  "channels": {
+    "telegram": {
+      "commit": "10563a7a",
+      "module": "src/adapters/telegram.rs",
+      "implemented_partial": ["IngressText", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["IngressMarkdown", "EgressCard", "InteractionReaction", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
+      "tests": ["adapters::telegram::tests::capabilities_match_frozen_matrix", "adapters::telegram::tests::chunk_and_caption_limits_are_unicode_safe", "adapters::telegram::tests::unsupported_reaction_is_rejected_before_transport"]
+    },
+    "discord": {
+      "commit": "42db4e25",
+      "module": "src/adapters/discord.rs",
+      "implemented_partial": ["IngressText", "IngressMarkdown", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "EgressCard", "InteractionTyping", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["InteractionListening", "ReliabilityResume", "ReliabilityTokenRefresh"],
+      "tests": ["adapters::discord::tests::capabilities_match_frozen_matrix", "adapters::discord::tests::incoming_message_preserves_thread_and_reply", "adapters::discord::tests::channel_thread_types_use_channel_id_without_marking_dms_as_threads"]
+    },
+    "feishu": {
+      "commit": "8088ce58",
+      "module": "src/adapters/feishu.rs",
+      "implemented_partial": ["IngressText", "IngressMarkdown", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressReply", "EgressImage", "EgressFile", "EgressCard", "InteractionEdit", "InteractionDelete", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["EgressChunking", "EgressAudio", "EgressVideo", "InteractionTyping", "InteractionListening", "InteractionReaction", "ReliabilityResume"],
+      "tests": ["adapters::feishu::tests::capabilities_match_frozen_feishu_matrix", "adapters::feishu::tests::duplicate_events_are_not_admitted_twice", "adapters::feishu::tests::media_fixture_is_stored_as_typed_attachment_after_authentication"]
+    },
+    "dingtalk": {
+      "commit": "f3bdd3ad",
+      "module": "src/adapters/dingtalk.rs",
+      "implemented_partial": ["IngressText", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["IngressMarkdown", "IngressThread", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
+      "tests": ["adapters::dingtalk::tests::capability_snapshot_keeps_stream_media_and_rejects_interactions", "adapters::dingtalk::tests::parser_applies_allowlist_before_media_url_resolution", "adapters::dingtalk::tests::signature_matches_octos_shape_and_fails_closed"]
+    },
+    "email": {
+      "commit": "e0b36c02",
+      "module": "src/adapters/email.rs",
+      "implemented_partial": ["IngressText", "IngressThread", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["IngressMarkdown", "IngressGroup", "EgressMarkdown", "EgressChunking", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
+      "tests": ["adapters::email::tests::multipart_fixture_extracts_typed_attachment", "adapters::email::tests::octos_thread_precedence_and_subject_normalization_are_preserved", "adapters::email::tests::unsupported_commands_return_without_network_or_smtp_side_effect"]
+    },
+    "qq": {
+      "commit": "10563a7a",
+      "supplemental_commit": "9171e9a4",
+      "module": "src/adapters/qq.rs",
+      "implemented_partial": ["IngressText", "IngressGroup", "IngressDirect", "IngressDedupId", "EgressText", "EgressChunking", "EgressReply", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["IngressMarkdown", "IngressThread", "IngressTypedAttachments", "EgressMarkdown", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize"],
+      "blocked_decisions": ["D-013", "D-014"],
+      "tests": ["adapters::qq::tests::event_identity_preserves_c2c_and_group_open_ids", "adapters::qq::tests::admission_precedes_dedup_commit_for_c2c_event", "adapters::qq::tests::unsupported_media_fails_before_transport"]
+    }
+  }
+}
