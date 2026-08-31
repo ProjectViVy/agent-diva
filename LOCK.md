@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `Cargo.lock; agent-diva-channels/Cargo.toml; agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/**; agent-diva-channels/src/lib.rs; agent-diva-channels/tests/channel_adapter_shared_tck.rs; agent-diva-channels/tests/fixtures/c5/shared/**; agent-diva-channels/AGENTS.md; docs/logs/2026-08-channel-epic/v0.2.0-c5-shared-adapter-services/**; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-08-31T14:15:45+08:00`
-- Last Heartbeat: `2026-08-31T14:15:45+08:00`
+- Last Heartbeat: `2026-08-31T14:32:28+08:00`
 - Expires At: `2026-09-01T14:15:45+08:00`
-- Handoff Notes: `Implementing only C5-I Gate 1 on the isolated worktree. C0-C4/C5-P2 remain complete. No native platform behavior, Manager production assembly, C6 cleanup, merge, or push.`
+- Handoff Notes: `Released after isolated commits da7e0410, 87e7ff20, and 48c12669. Gate 1 shared AdapterServices/AttachmentStore seam, digest and allowlist helpers, truthful factory, shared TCK, TODO and v0.2.0 logs completed. just fmt-check/check/test passed; focused lib/new-TCK clippy passed. Rust 1.80 probe and channel all-targets clippy remain pre-existing TODOs. No native platform behavior, Manager production assembly, C6 cleanup, merge, or push.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK` — **HELD 2026-08-31T14:15:45+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; scope is shared adapter contract, attachment seam, factory/test support, allowlist documentation, iteration logs, `TODOLIST.md`, and this lock. No native channel implementation or C6 cutover.
+- `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK` — **RELEASED 2026-08-31T14:32:28+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commits `da7e0410`, `87e7ff20`, and `48c12669`. Shared AdapterServices/AttachmentStore, digest and allowlist helpers, truthful factory, five-case shared TCK, TODO and v0.2.0 iteration records completed. `just fmt-check`, `just check`, `just test`, focused new-TCK tests and library clippy passed; Rust 1.80 probe and legacy all-targets clippy remain tracked. No native channel implementation or C6 cutover.
 
 - `CHANNEL-EPIC C5-P2 Octos six-channel deep scan and implementation handoff` — **RELEASED 2026-08-31T13:54:13+08:00** by `Codex`. Isolated worktree `C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic` on `feat/channel-epic`; commit `69566e66`. Six independent channel fact packs, endpoint/cross-cutting ledgers, decision/task/evidence handoff docs, retired-channel inventory, and v0.1.9 iteration records completed. `just fmt-check`, `just check`, document checks, focused retry reruns, and second full `just test` passed; initial concurrency flake remains in TODOLIST. No merge, product cutover, or push.
 
