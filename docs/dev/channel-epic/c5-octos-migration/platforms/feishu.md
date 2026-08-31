@@ -1,5 +1,7 @@
 # Feishu adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`feishu-scan.md`](feishu-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/feishu.rs`; retain tenant token cache, Protobuf WebSocket,

@@ -114,13 +114,26 @@
       provenance ledger、28×6 capability matrix、共享 ADR、六平台规格、并行 agent WBS、
       capability TCK/fixture 方案、QQ 真机 runbook 和 C6 边界。详见
       [`c5-octos-migration`](docs/dev/channel-epic/c5-octos-migration/)。
+    - [x] **C5-P2：六频道 Octos 端点深扫与实施交接补强**（2026-08-31）
+      已由 Telegram、Discord、Feishu、DingTalk、Email、QQ 六个独立频道任务完成深扫，
+      新增 endpoint ledger、跨频道 gap matrix、decision log、agent task cards、evidence
+      manifest 和六份端点级报告。QQ intents/media 仍按 Blocked 交接，未伪造完成能力。
     - [ ] **C5-I：六个原生 ChannelAdapter 与 Octos 能力增强**
-      先冻结共享 adapter/services seam，再按 Telegram+Discord、Feishu+DingTalk、Email+QQ
-      的隔离 worktree 分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。
+      先冻结共享 adapter/services seam，再按“一频道一 agent、资源分波”的隔离 worktree
+      分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。实现 ownership 与顺序见
+      [`agent-task-cards.md`](docs/dev/channel-epic/c5-octos-migration/agent-task-cards.md)。
     - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
       每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
       final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从
       仓库外注入，未执行真机前不得勾选 C5。
+    - [ ] **C5-Q：QQ intents、group send 与 media 官方 wire 证据** `sev-P1`
+      当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
+      Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
+      group/C2C policy 测试，未完成前保持 `Blocked`，不得以 C2C 测试关闭该项。
+    - [ ] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`
+      `agent-diva-channels/src/base.rs` 与测试表明空 `allow_from` 是 allow-all，但
+      `agent-diva-channels/agents.md` 仍写成 deny-by-default；在 C5-I 前同步说明，避免频道
+      agent 按旧文档实现错误权限策略。
   - [ ] **C6：Clean Break 删除、全量门禁与原子合并**
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
@@ -240,6 +253,12 @@
   `agent-diva-agent/src/agent_loop.rs` 的规则加载场景报告 `await_holding_lock`（约 3537～3557
   行）。工作区标准 `just check` 不含 `--all-targets`，本轮未扩张修复；应缩短 guard 生命周期，
   并把 all-targets lint 纳入对应 crate 的稳定门禁。
+
+- [ ] **AGENT-RETRY-CORRELATION-FLAKE** `sev-P2`
+  本轮隔离 worktree 的 `just test` 首次运行在
+  `agent_loop::tests::concurrent_sessions_keep_provider_retry_correlation_isolated` 超时，
+  其余 432 个测试通过；该测试与 C5 文档变更无直接关系。需单独复现并修复并发 retry event
+  的等待/相关性竞态，连续通过后再关闭；相关代码：`agent-diva-agent/src/agent_loop.rs`。
 
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
   工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立

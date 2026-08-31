@@ -11,5 +11,20 @@ matrix changes go through `../decision-requests.md` and the Lead.
 - [`email.md`](email.md)
 - [`qq.md`](qq.md)
 
+## C5-P2 evidence scans
+
+The specification files above define the target contract. The following independently scanned
+fact packs define the evidence behind each endpoint and migration decision:
+
+- [`telegram-scan.md`](telegram-scan.md)
+- [`discord-scan.md`](discord-scan.md)
+- [`feishu-scan.md`](feishu-scan.md)
+- [`dingtalk-scan.md`](dingtalk-scan.md)
+- [`email-scan.md`](email-scan.md)
+- [`qq-scan.md`](qq-scan.md)
+
+An implementation worker must read both files for its channel. A target capability may not be
+claimed from the specification alone; it needs the scan row plus an evidence fixture.
+
 All workers must preserve explicit correlation, bounded admission, truthful receipts, typed
 unsupported behavior, secret redaction, and cancellation-aware listener shutdown.

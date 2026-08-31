@@ -1,5 +1,7 @@
 # Email adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`email-scan.md`](email-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/email.rs`; retain explicit consent, IMAP mailbox/SSL,

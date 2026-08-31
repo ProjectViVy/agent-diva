@@ -1,5 +1,7 @@
 # QQ adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`qq-scan.md`](qq-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/qq.rs` and

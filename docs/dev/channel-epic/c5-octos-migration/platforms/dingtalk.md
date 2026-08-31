@@ -1,5 +1,7 @@
 # DingTalk adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`dingtalk-scan.md`](dingtalk-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/dingtalk.rs`; retain Stream connection registration,

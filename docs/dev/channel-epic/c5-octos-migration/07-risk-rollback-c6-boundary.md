@@ -46,3 +46,19 @@ path or merge partial dual-stack state into `dev`.
 - Six adapters and offline evidence pass, QQ credentials unavailable: C5-I complete, C5-V open.
 - QQ live smoke and all gates pass: C5 complete on the isolated branch; still no `dev` merge.
 - C6 clean break plus desktop acceptance pass: eligible for atomic merge and release acceptance.
+
+## C5-P2 deep-scan stop conditions
+
+- The Octos working tree is not at the frozen SHA, or an endpoint/function claim has no stable source
+  anchor.
+- A target capability has no implementable wire path, no deterministic fixture, or only a silent
+  fallback/no-op implementation.
+- QQ intents, group send, or media behavior is inferred rather than proven by official protocol
+  evidence.
+- DingTalk work would delete or bypass the DIVA Stream/media path.
+- Permission, approval, attachment, or message correlation would require trusting external payload
+  fields as owner context.
+
+When one of these occurs, mark the capability `Blocked`, add a row to `decision-log.md` and
+`decision-requests.md` when a shared contract is affected, and leave C5-I/V open. Do not roll back
+or overwrite another platform's evidence.

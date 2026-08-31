@@ -60,3 +60,20 @@ constraints.
 
 In any stop condition, record a concise request in `decision-requests.md`, notify the Lead, and do
 not continue by inventing a compatibility shim.
+
+## C5-P2 scan handoff status
+
+The six independent evidence reports are now required reading and are linked from
+`platforms/README.md`:
+
+- `telegram-scan.md`
+- `discord-scan.md`
+- `feishu-scan.md`
+- `dingtalk-scan.md`
+- `email-scan.md`
+- `qq-scan.md`
+
+They describe the legacy handlers as `Partial`/`Missing` where the wire path, typed envelope,
+receipt, or admission evidence is incomplete. In particular, QQ group/media and the Identify
+intent discrepancy remain blocked until official protocol evidence is captured. These documents
+are a documentation handoff only; no C5-I product adapter or C6 Manager cutover has started.

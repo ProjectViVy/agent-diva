@@ -53,3 +53,21 @@ fixtures, and evidence manifest in the same focused commit.
 Each adapter declares `max_text_chars`, `max_attachment_bytes`, supported MIME types, and an
 optional rate-limit hint. These are code/runtime-probe values, never user capability toggles. The
 platform spec names the source; tests assert boundary-1, boundary, and boundary+1 behavior.
+
+## C5-P2 current-vs-target interpretation
+
+The matrix above is the frozen C5 target commitment; it is not a claim about the current legacy
+handlers. Before C5-I, the coordinator must keep the following current-state interpretation next
+to every target row:
+
+| Current legacy state | Meaning for implementation |
+| --- | --- |
+| Telegram/Discord text and basic attachment paths | `Partial`: wire path exists, but typed envelope, failure, receipt and admission evidence are incomplete |
+| Feishu WS/token/card/image marker/reaction | `Partial` or `Retain-DIVA`: preserve stronger behavior while adding region/webhook/upload/edit/delete evidence |
+| DingTalk Stream/group/private/media | `Retain-DIVA`: never replace with Octos text-only webhook |
+| Email consent/TLS/polling/multipart | `Retain-DIVA`: add Octos thread/self-reply/mark-seen ordering and health evidence |
+| QQ C2C/reconnect/resume | `Partial`: current tests do not prove group, media or response message ID |
+| QQ group/media | `Missing`/`Blocked`: no target claim until official wire path and fixture exist |
+
+Any target `T` without a corresponding `verified` record in `evidence-manifest.md` remains an
+implementation obligation. It must not be used as a release or product-support statement.

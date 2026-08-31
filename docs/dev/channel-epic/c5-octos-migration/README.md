@@ -5,6 +5,10 @@ documentation freeze (`C5-P`), native adapter implementation (`C5-I`), and evide
 live validation (`C5-V`). No implementation agent may start from a platform file before
 reading the architecture and capability matrix.
 
+The C5-P2 deep-scan extension adds one independently verified Octos-to-Diva fact pack per active
+channel. The fact packs are the only source for endpoint-level migration claims; summaries must
+link to their evidence rows, fixtures, and decisions rather than restating unverified capability.
+
 ## Authorities
 
 - Agent Diva target architecture: [`../architecture.md`](../architecture.md)
@@ -24,13 +28,18 @@ reading the architecture and capability matrix.
 4. [`03-capability-gap-matrix.md`](03-capability-gap-matrix.md)
 5. [`04-target-architecture-and-adr.md`](04-target-architecture-and-adr.md)
 6. The assigned file under [`platforms/`](platforms/)
-7. [`05-agent-wbs-and-merge-order.md`](05-agent-wbs-and-merge-order.md)
-8. [`06-tck-fixture-and-live-smoke.md`](06-tck-fixture-and-live-smoke.md)
-9. [`07-risk-rollback-c6-boundary.md`](07-risk-rollback-c6-boundary.md)
+7. The assigned `platforms/*-scan.md` fact pack
+8. [`endpoint-ledger.md`](endpoint-ledger.md), [`cross-cutting-gap-matrix.md`](cross-cutting-gap-matrix.md),
+   and [`decision-log.md`](decision-log.md)
+9. [`agent-task-cards.md`](agent-task-cards.md) and [`05-agent-wbs-and-merge-order.md`](05-agent-wbs-and-merge-order.md)
+10. [`06-tck-fixture-and-live-smoke.md`](06-tck-fixture-and-live-smoke.md)
+11. [`evidence-manifest.md`](evidence-manifest.md) and [`07-risk-rollback-c6-boundary.md`](07-risk-rollback-c6-boundary.md)
 
 [`decision-requests.md`](decision-requests.md) is an exception queue. It must be empty before
 parallel implementation begins. Workers must add a request there instead of editing shared
 contracts ad hoc.
+
+Retired channels are inventory-only; see [`retired-channel-clean-break.md`](retired-channel-clean-break.md).
 
 ## Freeze rule
 
@@ -39,6 +48,10 @@ real request/response path and an offline fixture or mock test are both identifi
 operations return `AdapterError::UnsupportedCapability`; method presence or a silent no-op is not
 evidence. QQ group/C2C, typed media, message identity, resume/dedup, and real receipts are mandatory
 and cannot be removed to make the gate pass.
+
+For C5-P2, the six `platforms/*-scan.md` reports and `endpoint-ledger.md` are the source of truth
+for external API claims. `evidence-manifest.md` is the source of truth for whether a target row has
+actually been proven; a specification or capability declaration alone never closes a gap.
 
 ## C5/C6 boundary
 

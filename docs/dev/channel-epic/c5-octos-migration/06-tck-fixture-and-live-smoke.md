@@ -79,3 +79,15 @@ unavailable, document the blocked command and leave C5-V/TODOLIST open.
 
 Record commands, counts, failures/reruns, live environment class, and observation points in the C5
 verification log. A passing method-existence test is never sufficient evidence.
+
+## C5-P2 scan-to-fixture traceability
+
+Before implementation starts, the Lead copies the endpoint IDs from `endpoint-ledger.md` and the
+cross-cutting rows from `cross-cutting-gap-matrix.md` into
+`evidence-manifest.md`. Each of the six channel workers then adds fixtures under its own directory
+and changes only its manifest rows from `planned` to `verified` after the corresponding test passes.
+
+The minimum cross-channel fixture set must include image recognition handoff, group mention/policy,
+approval identity/expiry, permission-before-media, dedup-after-admission, rate-limit mapping and
+cancel-during-I/O. If a platform cannot express a capability, the fixture must prove
+`UnsupportedCapability` with zero transport calls rather than silently omitting the row.

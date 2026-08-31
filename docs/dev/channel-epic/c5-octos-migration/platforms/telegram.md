@@ -1,5 +1,7 @@
 # Telegram adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`telegram-scan.md`](telegram-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/telegram.rs`; preserve Bot API polling, commands,

@@ -1,5 +1,7 @@
 # Discord adapter specification
 
+Endpoint-level evidence and current-state gaps are in [`discord-scan.md`](discord-scan.md).
+
 ## Sources and invariants
 
 - Diva source: `agent-diva-channels/src/discord.rs`; preserve the current direct HTTP/Gateway

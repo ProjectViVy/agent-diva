@@ -1,10 +1,14 @@
 # Agent WBS, ownership, and merge order
 
-## Gate 0 — documentation freeze
+## Gate 0 — C5-P2 documentation and scan freeze
 
-The Lead owns this package, v0.1.8 logs, TODOLIST, and locks. Before product edits, a read-only
-reviewer verifies the Octos pin, matrix completeness, shared ADRs, platform specs, and lack of open
-decision requests. Commit the freeze separately from implementation.
+The Lead owns this package, v0.1.9 logs, TODOLIST, and locks. Six independent channel agents first
+complete the `platforms/*-scan.md` reports. A read-only reviewer then verifies the Octos pin, every
+endpoint/function row, matrix completeness, cross-cutting gaps, shared ADRs, platform specs, and
+decision queue. Commit the documentation freeze separately from implementation.
+
+Resource schedule is two waves of three agents (Telegram/Discord/Feishu, then
+DingTalk/Email/QQ); ownership remains one channel per agent even when slots are limited.
 
 ## Gate 1 — shared implementation
 
@@ -20,15 +24,18 @@ Deliver `AdapterServices`, `ChannelAttachmentStore`, access-policy helper, envel
 builders, test endpoint/fake-service conventions, and `build_active_adapters`. Run focused compile,
 unit tests, clippy, and MSRV before creating worker branches. Commit as one shared-contract concern.
 
-## Gate 2 — platform worktrees
+## Gate 2 — shared implementation then six platform worktrees
 
-Create three branches from the exact Gate 1 commit:
+After Gate 1, create one branch/worktree per channel from the exact shared commit:
 
 | Worker | Owned product files | Owned tests/fixtures | Forbidden shared files |
 | --- | --- | --- | --- |
-| A | `adapters/telegram.rs`, `adapters/discord.rs` | only Telegram/Discord fixtures and tests | adapter contract, mod/lib, Cargo, global manifest |
-| B | `adapters/feishu.rs`, `adapters/dingtalk.rs` | only Feishu/DingTalk fixtures and tests | same |
-| C | `adapters/email.rs`, `adapters/qq.rs` | only Email/QQ fixtures, tests, live QQ harness | same |
+| Telegram agent | `adapters/telegram.rs` | Telegram fixtures/tests and `platforms/telegram*.md` | adapter contract, mod/lib, Cargo, global manifest, other platforms |
+| Discord agent | `adapters/discord.rs` | Discord fixtures/tests and `platforms/discord*.md` | same |
+| Feishu agent | `adapters/feishu.rs` | Feishu fixtures/tests and `platforms/feishu*.md` | same |
+| DingTalk agent | `adapters/dingtalk.rs` | DingTalk fixtures/tests and `platforms/dingtalk*.md` | same |
+| Email agent | `adapters/email.rs` | Email fixtures/tests and `platforms/email*.md` | same |
+| QQ agent | `adapters/qq.rs` | QQ fixtures/tests/live harness and `platforms/qq*.md` | same |
 
 The Lead pre-registers these non-overlapping scopes in root `LOCK.md` with branch/worktree, owner,
 heartbeat, and expiry before workers write. Each worker reads both repository rules and this package,
@@ -59,9 +66,9 @@ and `git diff --check`. Reject a commit that changes an unowned platform or lega
 
 After workers finish, reassign them read-only:
 
-- A reviews Feishu/DingTalk for no-op capability or ACK/dedup errors.
-- B reviews Email/QQ for blocking, resume, attachment, and receipt errors.
-- C reviews Telegram/Discord for thread, rate-limit, and lifecycle errors.
+- Telegram agent reviews Feishu/DingTalk for no-op capability or ACK/dedup errors.
+- Discord agent reviews Email/QQ for blocking, resume, attachment, and receipt errors.
+- Feishu agent reviews Telegram/Discord for thread, rate-limit, and lifecycle errors.
 - Lead audits shared contracts, evidence completeness, public API docs, and C6 compatibility.
 
 Findings are fixed by the owning worker in a new focused commit. Reviewers do not patch another

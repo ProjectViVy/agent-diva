@@ -100,3 +100,26 @@ Users cannot force a capability true in config. `Unknown` health is not proof of
 - Prefer existing teloxide, reqwest, tokio-tungstenite, lettre/imap, prost, and native-TLS paths.
 - New dev dependencies must be workspace-managed where available and justified by a fixture.
 - Any non-trivial Octos-derived code records Apache-2.0 provenance in the ledger and commit.
+
+## C5-P2 cross-cutting implementation contract
+
+The deep-scan reports establish four additional invariants before any platform worker writes code:
+
+1. **Multimodal ingress**: authorization and bounded Fabric admission precede remote media fetch;
+   fetched bytes enter the content-addressed attachment seam, then context assembly decides whether
+   the configured provider can perform image recognition. A URL, absolute path, marker, or empty
+   placeholder is not an image capability proof.
+2. **Group identity**: `chat_type`, group/chat ID, sender ID, mention state, thread/reply ID and
+   platform message ID are explicit in every group event. The adapter never infers an outbound group
+   destination from the last inbound message.
+3. **Approval**: Manager/Sandbox/Ask User remains the authority. Channel cards, keyboards or text
+   commands only transport a signed/expiring decision reference; a platform sender cannot assert
+   owner context. Unsupported approval UI is an explicit typed outcome.
+4. **Permission order**: empty `allow_from` retains the executable DIVA allow-all behavior; a
+   populated list and platform-specific DM/group/mention policy are evaluated before media,
+   admission, approval and tools. The stale `agent-diva-channels/agents.md` deny-by-default claim
+   must be corrected during documentation review.
+
+These are documentation-frozen target rules. If `agent-diva-core/src/channel/**` or
+`agent-diva-channels/src/adapter.rs` is absent in the worker's base commit, the worker must first
+complete the shared Gate 1 contract; it must not create a wrapper around the legacy handler.

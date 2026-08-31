@@ -66,3 +66,42 @@ The scan is complete only when the provenance ledger and all six platform specif
 file/symbol/test references, the capability matrix has no `TBD`, and every mandatory enhancement
 has an implementable wire path. Missing optional evidence means `false`; missing mandatory evidence
 is a blocker.
+
+## 5. C5-P2 deep-scan output contract
+
+The six independent reports under `platforms/*-scan.md` are the endpoint-level source for the
+implementation handoff. A worker must not infer a capability from a trait method or a README. For
+each operation, copy this record shape into the channel report and then link it from
+`endpoint-ledger.md`:
+
+| Field | Required content |
+| --- | --- |
+| Octos symbol | Fixed-SHA path, module, function/type, line or stable code anchor |
+| Diva symbol | Current path, function/type, line or stable code anchor |
+| Wire operation | HTTP method/path, WS opcode/frame, or IMAP/SMTP command |
+| Auth | Header/query/body credential shape and redaction rule |
+| Request | JSON/form/multipart fields, content type, limits |
+| Success | Status/body fields, platform ID, receipt state |
+| Failure | Status/body, retryability, Retry-After, timeout and backoff |
+| Identity | sender/chat/thread/message/reply IDs and origin |
+| Policy | allowlist, DM/group/mention checks and order relative to media |
+| Decision | `Port`, `Adapt`, `Retain-DIVA`, `Reject`, or `Blocked` with owner |
+| Proof | fixture/mock/transcript, Rust test name, expected request/response |
+
+The report must scan source code, configuration/registration, docs, and tests on both sides. It
+must explicitly classify “implemented but unproven” as `Partial`, not `Implemented`. The current
+root C5 target files (`agent-diva-core/src/channel/**`, `agent-diva-channels/src/adapter.rs`) are
+planned contracts in this branch; if absent, record that fact and do not describe them as existing.
+
+## 6. Mandatory cross-cutting pass
+
+After the per-channel scan, the coordinator must update `cross-cutting-gap-matrix.md` for:
+
+- typed image/file/audio attachments and provider vision capability;
+- group chat identity, mention, thread and policy behavior;
+- approval routing through Manager/Sandbox/Ask User with owner-proof and expiry;
+- `allow_from` and platform-specific permission order;
+- dedup after bounded admission, backpressure, pacing and cancellation;
+- real message-ID receipts, edit/delete/reaction and unsupported zero-side-effect behavior.
+
+Any item without a wire path and fixture remains `Missing` or `Blocked` in the evidence manifest.
