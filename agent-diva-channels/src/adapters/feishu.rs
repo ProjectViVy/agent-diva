@@ -407,6 +407,20 @@ impl FeishuAdapter {
     }
 
     fn ensure_supported(&self, command: &ChannelCommand) -> Result<(), AdapterError> {
+        let target = command
+            .target_channel()
+            .map_err(|error| execution_error("invalid_target", error.to_string(), None, false))?;
+        if target.as_str() != FEISHU_CHANNEL {
+            return Err(execution_error(
+                "wrong_channel",
+                format!(
+                    "command targets {}, adapter is {FEISHU_CHANNEL}",
+                    target.as_str()
+                ),
+                None,
+                false,
+            ));
+        }
         for capability in command.required_capabilities() {
             if !Self::static_capabilities().supports(capability) {
                 return Err(AdapterError::UnsupportedCapability { capability });
@@ -2594,6 +2608,59 @@ mod tests {
         assert!(requests[2].starts_with("POST /im/v1/messages/om-fixture-parent/reply"));
     }
 
+    #[tokio::test]
+    async fn send_retries_once_after_401_and_reuses_cached_token() {
+        let (base, server) = spawn_http_fixture_with_status(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                200,
+                r#"{"code":0,"tenant_access_token":"token-first","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages?receive_id_type=open_id",
+                401,
+                r#"{"code":99991663,"msg":"token invalid"}"#,
+            ),
+            (
+                "/auth/v3/tenant_access_token/internal",
+                200,
+                r#"{"code":0,"tenant_access_token":"token-second","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages?receive_id_type=open_id",
+                200,
+                r#"{"code":0,"data":{"message_id":"om-retried"}}"#,
+            ),
+        ])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new(FEISHU_CHANNEL, "ou_fixture_user"),
+                    Correlation::new("feishu:ou_fixture_user"),
+                    vec![ContentPart::Text {
+                        text: "retry fixture".to_string(),
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: Some("retry-fixture".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(receipt.platform_message_id.as_deref(), Some("om-retried"));
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 4);
+        assert!(requests[1]
+            .to_ascii_lowercase()
+            .contains("authorization: bearer token-first"));
+        assert!(requests[3]
+            .to_ascii_lowercase()
+            .contains("authorization: bearer token-second"));
+    }
+
     #[test]
     fn protocol_and_webhook_fixtures_are_parseable() {
         let event_fixture: Value = serde_json::from_str(include_str!(
@@ -2646,11 +2713,23 @@ mod tests {
     async fn spawn_http_fixture(
         responses: Vec<(&'static str, &'static str)>,
     ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        spawn_http_fixture_with_status(
+            responses
+                .into_iter()
+                .map(|(path, body)| (path, 200, body))
+                .collect(),
+        )
+        .await
+    }
+
+    async fn spawn_http_fixture_with_status(
+        responses: Vec<(&'static str, u16, &'static str)>,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let handle = tokio::spawn(async move {
             let mut requests = Vec::new();
-            for (expected_path, body) in responses {
+            for (expected_path, status, body) in responses {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buffer = vec![0_u8; 16 * 1024];
                 let size = socket.read(&mut buffer).await.unwrap();
@@ -2660,7 +2739,7 @@ mod tests {
                     .next()
                     .unwrap_or_default()
                     .contains(expected_path));
-                requests.push(request.lines().next().unwrap_or_default().to_string());
+                requests.push(request);
                 let content_type = if expected_path.contains("type=image") {
                     "image/png"
                 } else if expected_path.contains("type=audio") {
@@ -2670,8 +2749,14 @@ mod tests {
                 } else {
                     "application/json"
                 };
+                let reason = match status {
+                    200 => "OK",
+                    401 => "Unauthorized",
+                    429 => "Too Many Requests",
+                    _ => "Fixture",
+                };
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),
                     body
                 );
