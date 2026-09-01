@@ -21,6 +21,21 @@
 | D-015 | resolved | 成功发送默认 `Accepted`；只有平台明确确认才称 `Delivered` | DIVA receipt ADR | 返回真实 message ID；没有 ID 不伪造 |
 | D-016 | resolved | 共享 endpoint 只能通过 adapter 私有 test injection；禁止产品级全局环境覆盖 | 并行测试和安全要求 | 每个 mock server 私有、可并发 |
 
+## C5-V audit record (2026-09-02)
+
+- Six native adapters now have channel-owned wire fixtures/tests and Gate 3 evidence pages;
+  the shared TCK freezes the capability snapshots and checks unsupported commands before any
+  platform transport call.
+- `capability-evidence.json` contains 29 machine-auditable rows. Only rows with complete
+  fixture, test, request, response and receipt/error evidence are `verified`; the remaining
+  implemented rows stay `partial`.
+- QQ C2C/group wire behavior, deduplication, heartbeat and truthful outbound IDs have local
+  evidence, but D-013 (official intents delivery proof) and D-014 (official media wire path)
+  remain `blocked`. The ignored live harness is present but no external credentials or platform
+  permission were available in this worktree.
+- No shared protocol field, channel configuration key, global endpoint override, Manager
+  production assembly or C6 clean-break change was introduced. C5-V/C5-Q therefore remain open.
+
 ## blocked 项的处理协议
 
 QQ 的 D-013/D-014 不阻塞其它频道实施。QQ agent 必须提供：官方文档/源码证据、mock gateway 或

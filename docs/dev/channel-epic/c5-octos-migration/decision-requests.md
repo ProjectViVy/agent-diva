@@ -6,6 +6,13 @@ Implementation begins only while this file has no open request.
 
 None.
 
+## C5-V review (2026-09-02)
+
+No new shared-contract decision request was opened. The local wire evidence is confined to
+adapter-owned transports and fixtures. QQ D-013 and D-014 remain the explicit blocked decisions;
+their resolution still requires official delivery/media evidence and cannot be replaced by a
+local mock or an inferred endpoint.
+
 ## Request format
 
 - Status: `open` or `resolved`

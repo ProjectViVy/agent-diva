@@ -138,6 +138,14 @@
       每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
       final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从
       仓库外注入，未执行真机前不得勾选 C5。
+      - [ ] **C5-V-QQ-LIVE-BLOCKED** `sev-P1`
+        已加入显式 `#[ignore]` 的 `qq_live_harness`，覆盖 C2C、群 @、重放、final-only、
+        receipt、resume/reconnect 和 stop；真实运行命令为
+        `cargo test -p agent-diva-channels --test qq_live_harness -- --ignored --nocapture`。
+        当前 worktree 没有仓库外 QQ 凭据或平台权限，故 live smoke 未执行，C5-V 不能关闭。
+      - [ ] **C5-V-FULL-GATE-DEBT** `sev-P1`
+        频道 all-target clippy 已在 `c6b0a756` 清理并验证；workspace MSRV、全量 fmt/check/test
+        与既有 Manager loopback flake 仍须在本轮最终门禁中复跑并记录，不能以频道定向通过替代。
     - [ ] **C5-Q：QQ intents、group send 与 media 官方 wire 证据** `sev-P1`
       当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
       Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
@@ -272,11 +280,10 @@
   行）。工作区标准 `just check` 不含 `--all-targets`，本轮未扩张修复；应缩短 guard 生命周期，
   并把 all-targets lint 纳入对应 crate 的稳定门禁。
 
-- [ ] **CHANNEL-ALL-TARGETS-CLIPPY-LEGACY-TESTS** `sev-P3`
-  C5-I Gate 1 的 `cargo clippy -p agent-diva-channels --all-targets -- -D warnings`
-  仍被既有 DingTalk/Email/Feishu/QQ 测试的 `field_reassign_with_default`，以及
-  `qq_reconnect_integration` 的 `useless_conversion`/`collapsible_if` 阻断；本阶段只验证
-  共享库与新 TCK，未改动 legacy 测试。应在独立 lint 清理批次修复并纳入稳定门禁。
+ - [x] **CHANNEL-ALL-TARGETS-CLIPPY-LEGACY-TESTS** `sev-P3`
+  已在 C5-V 频道 lint 清理批次完成：`c6b0a756` 修复 QQ integration 的冗余转换/条件，
+  并对 DingTalk/Email/Feishu/QQ legacy test-only fixtures 增加局部 lint 例外；
+  `cargo clippy -p agent-diva-channels --all-targets -- -D warnings` 已通过。
 
 - [ ] **AGENT-RETRY-CORRELATION-FLAKE** `sev-P2`
   本轮隔离 worktree 的 `just test` 首次运行在
