@@ -2,54 +2,90 @@
   "schema": "c5-capability-evidence/v1",
   "octos_sha": "5ea987813de4fd2afdd1d78f2106ad2868f0d923",
   "status_semantics": {
-    "implemented_partial": "native code and deterministic unit evidence exist; C5-V wire transcript remains",
+    "implemented_partial": "native code and deterministic wire-shaped evidence exist; the capability group still lacks one or more required lifecycle or platform proofs",
     "blocked_unsupported": "adapter rejects before transport until an approved endpoint fixture exists",
-    "verified": "reserved for complete fixture, request/response, receipt/error and lifecycle proof"
+    "verified": "the listed narrow capability evidence has a fixture, exact request/response or Fabric result, and the required lifecycle assertion"
   },
   "channels": {
     "telegram": {
-      "commit": "10563a7a",
+      "commits": ["92cd9257", "8ba1d3b3"],
       "module": "src/adapters/telegram.rs",
-      "implemented_partial": ["IngressText", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "verified": ["IngressText"],
+      "implemented_partial": ["IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
       "blocked_unsupported": ["IngressMarkdown", "EgressCard", "InteractionReaction", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
-      "tests": ["adapters::telegram::tests::capabilities_match_frozen_matrix", "adapters::telegram::tests::chunk_and_caption_limits_are_unicode_safe", "adapters::telegram::tests::unsupported_reaction_is_rejected_before_transport"]
+      "tests": ["adapters::telegram::tests::wire_telegram_ingress_preserves_identity_media_and_callback_ack", "adapters::telegram::tests::wire_telegram_egress_uses_html_reply_real_id_and_plain_fallback", "adapters::telegram::tests::wire_telegram_multipart_and_rate_limit_are_truthful"]
     },
     "discord": {
-      "commit": "42db4e25",
+      "commits": ["9945a231", "8ba1d3b3"],
       "module": "src/adapters/discord.rs",
-      "implemented_partial": ["IngressText", "IngressMarkdown", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "EgressCard", "InteractionTyping", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "verified": ["EgressCard", "InteractionEdit", "InteractionDelete", "InteractionReaction"],
+      "implemented_partial": ["IngressText", "IngressMarkdown", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "InteractionTyping", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
       "blocked_unsupported": ["InteractionListening", "ReliabilityResume", "ReliabilityTokenRefresh"],
-      "tests": ["adapters::discord::tests::capabilities_match_frozen_matrix", "adapters::discord::tests::incoming_message_preserves_thread_and_reply", "adapters::discord::tests::channel_thread_types_use_channel_id_without_marking_dms_as_threads"]
+      "tests": ["adapters::discord::tests::wire_discord_gateway_handles_hello_identify_ready_heartbeat_and_cancel", "adapters::discord::tests::wire_discord_rest_preserves_reply_embed_and_attachment_receipts", "adapters::discord::tests::wire_discord_rate_limit_and_unsupported_listening_are_explicit"]
     },
     "feishu": {
-      "commit": "8088ce58",
+      "commits": ["b527f1e6", "8ba1d3b3"],
       "module": "src/adapters/feishu.rs",
+      "verified": [],
       "implemented_partial": ["IngressText", "IngressMarkdown", "IngressThread", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressReply", "EgressImage", "EgressFile", "EgressCard", "InteractionEdit", "InteractionDelete", "InteractionStreamFinalize", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
       "blocked_unsupported": ["EgressChunking", "EgressAudio", "EgressVideo", "InteractionTyping", "InteractionListening", "InteractionReaction", "ReliabilityResume"],
-      "tests": ["adapters::feishu::tests::capabilities_match_frozen_feishu_matrix", "adapters::feishu::tests::duplicate_events_are_not_admitted_twice", "adapters::feishu::tests::media_fixture_is_stored_as_typed_attachment_after_authentication"]
+      "tests": ["adapters::feishu::tests::protocol_and_webhook_fixtures_are_parseable", "adapters::feishu::tests::media_fixture_is_stored_as_typed_attachment_after_authentication", "adapters::feishu::tests::send_retries_once_after_401_and_reuses_cached_token"]
     },
     "dingtalk": {
-      "commit": "f3bdd3ad",
+      "commits": ["a0150837", "8ba1d3b3"],
       "module": "src/adapters/dingtalk.rs",
-      "implemented_partial": ["IngressText", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
-      "blocked_unsupported": ["IngressMarkdown", "IngressThread", "EgressMarkdown", "EgressChunking", "EgressReply", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
-      "tests": ["adapters::dingtalk::tests::capability_snapshot_keeps_stream_media_and_rejects_interactions", "adapters::dingtalk::tests::parser_applies_allowlist_before_media_url_resolution", "adapters::dingtalk::tests::signature_matches_octos_shape_and_fails_closed"]
+      "verified": [],
+      "implemented_partial": ["IngressText", "IngressMarkdown", "IngressGroup", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressMarkdown", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "blocked_unsupported": ["IngressThread", "EgressChunking", "EgressReply", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityResume"],
+      "tests": ["adapters::dingtalk::tests::stream_register_callback_ack_cancel_and_dedup_are_wire_bound", "adapters::dingtalk::tests::media_ingress_downloads_after_policy_and_admits_typed_attachment", "adapters::dingtalk::tests::media_upload_and_send_preserve_typed_part_and_partial_failure"]
     },
     "email": {
-      "commit": "e0b36c02",
+      "commits": ["0c77d9db", "8ba1d3b3"],
       "module": "src/adapters/email.rs",
-      "implemented_partial": ["IngressText", "IngressThread", "IngressDirect", "IngressTypedAttachments", "IngressDedupId", "EgressText", "EgressReply", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "verified": ["IngressThread", "IngressTypedAttachments", "IngressDedupId", "EgressReply"],
+      "implemented_partial": ["IngressText", "IngressDirect", "EgressText", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "ReliabilityHealth", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
       "blocked_unsupported": ["IngressMarkdown", "IngressGroup", "EgressMarkdown", "EgressChunking", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh"],
-      "tests": ["adapters::email::tests::multipart_fixture_extracts_typed_attachment", "adapters::email::tests::octos_thread_precedence_and_subject_normalization_are_preserved", "adapters::email::tests::unsupported_commands_return_without_network_or_smtp_side_effect"]
+      "tests": ["adapters::email::tests::fake_imap_poll_admits_before_store_seen_and_deduplicates_uid", "adapters::email::tests::fake_smtp_receives_reply_headers_multipart_and_real_receipt_id", "adapters::email::tests::unsupported_commands_return_without_network_or_smtp_side_effect"]
     },
     "qq": {
-      "commit": "10563a7a",
-      "supplemental_commit": "9171e9a4",
+      "commits": ["39ded197", "168f3bb2", "8ba1d3b3"],
       "module": "src/adapters/qq.rs",
-      "implemented_partial": ["IngressText", "IngressGroup", "IngressDirect", "IngressDedupId", "EgressText", "EgressChunking", "EgressReply", "ReliabilityHealth", "ReliabilityHeartbeat", "ReliabilityResume", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
+      "verified": ["IngressGroup", "IngressDirect", "IngressDedupId", "EgressReply", "ReliabilityHeartbeat"],
+      "implemented_partial": ["IngressText", "EgressText", "EgressChunking", "ReliabilityHealth", "ReliabilityResume", "ReliabilityTokenRefresh", "ReliabilityPacing", "ReliabilitySupervisedRestart"],
       "blocked_unsupported": ["IngressMarkdown", "IngressThread", "IngressTypedAttachments", "EgressMarkdown", "EgressImage", "EgressAudio", "EgressVideo", "EgressFile", "EgressCard", "InteractionTyping", "InteractionListening", "InteractionEdit", "InteractionDelete", "InteractionReaction", "InteractionStreamFinalize"],
       "blocked_decisions": ["D-013", "D-014"],
-      "tests": ["adapters::qq::tests::event_identity_preserves_c2c_and_group_open_ids", "adapters::qq::tests::admission_precedes_dedup_commit_for_c2c_event", "adapters::qq::tests::unsupported_media_fails_before_transport"]
+      "tests": ["adapters::qq::tests::wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat", "adapters::qq::tests::wire_qq_outbound_routes_c2c_and_group_with_seq_reply_and_real_ids", "qq_live_vertical_smoke (ignored; requires external credentials)"]
     }
-  }
+  },
+  "evidence": [
+    {"id": "TG-01", "status": "verified", "symbol": "TelegramAdapter::process_update/process_message", "fixture": "tests/fixtures/c5/telegram/inbound-text.json", "tests": ["wire_telegram_ingress_preserves_identity_media_and_callback_ack"], "request": "fixture Telegram update is parsed into a Fabric ingress envelope", "response": "chat/sender/thread/reply/message identity is preserved"},
+    {"id": "TG-02", "status": "partial", "symbol": "TelegramAdapter::process_message", "fixture": "inbound-group-media.json", "tests": ["wire_telegram_ingress_preserves_identity_media_and_callback_ack"], "request": "group update and reply fields are parsed", "response": "typed envelope is admitted", "missing": "full command and mention matrix plus long-poll policy transcript"},
+    {"id": "TG-03", "status": "partial", "symbol": "TelegramAdapter::fetch_attachment/execute_send", "fixture": "inbound-group-media.json; api-responses.json", "tests": ["wire_telegram_ingress_preserves_identity_media_and_callback_ack", "wire_telegram_multipart_and_rate_limit_are_truthful"], "request": "getFile then bounded file download; sendPhoto multipart", "response": "typed AttachmentRef and real message ID", "missing": "all voice/audio/video/document lifecycle variants"},
+    {"id": "TG-04", "status": "partial", "symbol": "TelegramAdapter::process_callback", "fixture": "callback-query.json", "tests": ["wire_telegram_ingress_preserves_identity_media_and_callback_ack"], "request": "answerCallbackQuery with callback ID", "response": "callback data enters typed envelope", "missing": "keyboard outbound transcript"},
+    {"id": "TG-05", "status": "partial", "symbol": "send_text_message/execute_send/call_multipart", "fixture": "api-responses.json", "tests": ["wire_telegram_egress_uses_html_reply_real_id_and_plain_fallback", "wire_telegram_multipart_and_rate_limit_are_truthful"], "request": "HTML send with reply parameters; plain fallback; multipart caption", "response": "real message ID or RateLimited", "missing": "edit/delete/typing/finalize combination"},
+    {"id": "TG-06", "status": "partial", "symbol": "start/get_updates/probe_health", "fixture": "api-responses.json", "tests": ["unsupported_reaction_is_rejected_before_transport"], "request": "unsupported command is checked before HTTP", "response": "UnsupportedCapability", "missing": "getUpdates offset/timeout/cancel, dedup and getMe health transcript"},
+    {"id": "DC-01", "status": "partial", "symbol": "discover_gateway/run_gateway/consume_gateway", "fixture": "discord/gateway-frames.json", "tests": ["wire_discord_gateway_handles_hello_identify_ready_heartbeat_and_cancel"], "request": "HELLO → IDENTIFY; heartbeat op 1", "response": "READY and heartbeat ACK op 11", "missing": "RESUME/RECONNECT/INVALID_SESSION scripted path"},
+    {"id": "DC-02", "status": "partial", "symbol": "handle_incoming/parse_incoming_message", "fixture": "discord/gateway-frames.json", "tests": ["incoming_message_preserves_thread_and_reply", "wire_discord_gateway_handles_hello_identify_ready_heartbeat_and_cancel"], "request": "MESSAGE_CREATE with thread and message_reference", "response": "typed identity/correlation", "missing": "DM/guild/mention/bot-filter matrix"},
+    {"id": "DC-03", "status": "partial", "symbol": "send_attachments", "fixture": "discord/rest-responses.json", "tests": ["wire_discord_rest_preserves_reply_embed_and_attachment_receipts"], "request": "multipart attachment-only POST", "response": "snowflake receipt", "missing": "all media kinds/download and content-addressed ingress"},
+    {"id": "DC-04", "status": "verified", "symbol": "execute_edit/execute_delete/execute_reaction/send_message", "fixture": "discord/rest-responses.json", "tests": ["wire_discord_rest_preserves_reply_embed_and_attachment_receipts"], "request": "POST embed/reply, PATCH, DELETE, reaction and typing exact paths", "response": "success status and real IDs; no empty attachment text"},
+    {"id": "DC-05", "status": "partial", "symbol": "parse_response/probe_health", "fixture": "discord/rest-responses.json", "tests": ["wire_discord_rate_limit_and_unsupported_listening_are_explicit"], "request": "429 body retry_after=1.25 and header=9", "response": "RateLimited 1250ms; listening UnsupportedCapability", "missing": "health and permission response transcript"},
+    {"id": "FS-01", "status": "partial", "symbol": "get_access_token/run_websocket/ack_frame", "fixture": "protobuf-frame.json; region-endpoints.json", "tests": ["protocol_and_webhook_fixtures_are_parseable", "send_retries_once_after_401_and_reuses_cached_token"], "request": "tenant token and protobuf event frame", "response": "ACK biz_rt=0 and cached token", "missing": "full WS heartbeat/reconnect transcript"},
+    {"id": "FS-02", "status": "verified", "symbol": "verify_webhook_signature/decrypt_webhook_payload/parse_webhook_event", "fixture": "webhook-url-verification.json; webhook-encrypted-event.json", "tests": ["webhook_signature_is_fail_closed", "aes256_decrypt_round_trip_and_bad_padding_fail_closed"], "request": "signed URL challenge/encrypted payload", "response": "valid accepted; missing/bad signature/base64/padding rejected"},
+    {"id": "FS-03", "status": "partial", "symbol": "fetch_and_store_media/build_inbound_parts", "fixture": "media-resource.json", "tests": ["media_fixture_is_stored_as_typed_attachment_after_authentication"], "request": "authenticated resource GET", "response": "bounded MIME-labelled AttachmentRef", "missing": "file/audio/video/timeout/corruption variants"},
+    {"id": "FS-04", "status": "partial", "symbol": "build_outbound_payload/send_parts/execute_edit/execute_delete", "fixture": "send-responses.json", "tests": ["send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint"], "request": "send and /messages/{parent}/reply", "response": "real message IDs", "missing": "edit/delete/upload/429/malformed response transcript"},
+    {"id": "FS-05", "status": "partial", "symbol": "reserve_dedup/commit_dedup/add_seen_reaction", "fixture": "protobuf-event.json", "tests": ["duplicate_events_are_not_admitted_twice"], "request": "same event twice", "response": "one Fabric admission", "missing": "explicit reaction side-effect and failure isolation transcript"},
+    {"id": "DT-01", "status": "partial", "symbol": "register_stream/run_stream_once/handle_stream_message", "fixture": "dingtalk/stream-callback.json; token-response.json", "tests": ["stream_register_callback_ack_cancel_and_dedup_are_wire_bound"], "request": "register then WS callback", "response": "two code=200 ACKs and clean cancel", "missing": "reconnect/backoff fault transcript"},
+    {"id": "DT-02", "status": "verified", "symbol": "policy_allows/parse_event/admit_event", "fixture": "dingtalk/stream-callback.json", "tests": ["parser_applies_allowlist_before_media_url_resolution", "media_ingress_downloads_after_policy_and_admits_typed_attachment"], "request": "policy check before media URL and Fabric", "response": "denied sender has zero media access; allowed group yields typed envelope"},
+    {"id": "DT-03", "status": "partial", "symbol": "authenticated_multipart/send_attachment", "fixture": "media-upload-response.json; group-send-response.json", "tests": ["media_upload_and_send_preserve_typed_part_and_partial_failure"], "request": "multipart media upload then send", "response": "media ID receipt or RateLimited", "missing": "audio/video/file variants"},
+    {"id": "DT-04", "status": "partial", "symbol": "dingtalk_signature/verify_dingtalk_signature/cache_session_webhook", "fixture": "stream-callback.json", "tests": ["signature_matches_octos_shape_and_fails_closed"], "request": "valid/bad signature", "response": "boolean fail-closed", "missing": "TTL and signed callback transcript"},
+    {"id": "EM-01", "status": "verified", "symbol": "parse_email_bytes/ParsedEmail::dedup_key/email_thread_topic", "fixture": "plain.eml; reply.eml", "tests": ["parser_uses_message_id_and_uid_fallback_and_utf8_safe_limit", "fake_imap_poll_admits_before_store_seen_and_deduplicates_uid"], "request": "fake IMAP returns RFC822 with and without Message-ID", "response": "Message-ID precedence, UID fallback, References/In-Reply-To thread and one admission"},
+    {"id": "EM-02", "status": "partial", "symbol": "email_sender_allowed/should_skip_self_reply/execute_send", "fixture": "plain.eml; reply.eml", "tests": ["self_reply_and_allowlist_are_fail_closed", "unsupported_commands_return_without_network_or_smtp_side_effect"], "request": "allowlist/self-reply/unsupported checks", "response": "typed rejection before SMTP", "missing": "consent/empty-recipient/TLS matrix"},
+    {"id": "EM-03", "status": "partial", "symbol": "process_email/outbound_attachments/EmailTransport::send", "fixture": "multipart.eml", "tests": ["multipart_fixture_extracts_typed_attachment", "fake_smtp_receives_reply_headers_multipart_and_real_receipt_id"], "request": "fake SMTP receives multipart input", "response": "attachment MIME/name/bytes and Accepted ID", "missing": "all MIME/size rejection variants and raw SMTP wire"},
+    {"id": "EM-04", "status": "partial", "symbol": "mark_seen_after_admission/poll_once/run_poll_loop", "fixture": "reply.eml", "tests": ["fake_imap_poll_admits_before_store_seen_and_deduplicates_uid"], "request": "fake IMAP fetch then STORE marker", "response": "seen only after Fabric admission", "missing": "blocking cancellation/reconnect/real health probe"},
+    {"id": "QQ-01", "status": "partial", "symbol": "access_token/fetch_gateway_url/run_connection", "fixture": "qq/token-response.json; gateway-response.json; official-intents.json", "tests": ["wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat"], "request": "token POST and Bearer GET /gateway; Hello → Identify", "response": "gateway events admitted", "missing": "D-013 official event-delivery proof"},
+    {"id": "QQ-02", "status": "partial", "symbol": "run_connection/start/stop", "fixture": "qq/gateway-frames.json", "tests": ["wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat"], "request": "heartbeat op 1", "response": "op 11 ACK and cancellation cleanly stops listener", "missing": "RESUME/INVALID_SESSION cooldown/reconnect"},
+    {"id": "QQ-03", "status": "verified", "symbol": "event_identity/process_message_event/send_envelope/post_message", "fixture": "qq/c2c-message.json; send-responses.json", "tests": ["wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat", "wire_qq_outbound_routes_c2c_and_group_with_seq_reply_and_real_ids"], "request": "C2C event; POST /v2/users/{openid}/messages with msg_type/msg_seq/msg_id", "response": "one Fabric envelope and real C2C response ID"},
+    {"id": "QQ-04", "status": "verified", "symbol": "event_identity/send_envelope/post_message", "fixture": "qq/group-message.json; send-responses.json", "tests": ["wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat", "wire_qq_outbound_routes_c2c_and_group_with_seq_reply_and_real_ids"], "request": "GROUP_AT event; explicit qq.chat_kind=group POST /v2/groups/{openid}/messages", "response": "group/member identity and real group response ID"},
+    {"id": "QQ-05", "status": "blocked/unsupported", "symbol": "static_capabilities/ensure_supported", "fixture": "qq/official-intents.json", "tests": ["unsupported_media_fails_before_transport"], "request": "media/card command", "response": "UnsupportedCapability before HTTP", "missing": "D-014 official media endpoint and wire proof"}
+  ]
 }

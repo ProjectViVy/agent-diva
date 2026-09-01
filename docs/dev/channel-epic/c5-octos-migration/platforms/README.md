@@ -35,6 +35,19 @@ capabilities are implemented versus still awaiting C5-V wire proof:
 - [`email-gate2.md`](email-gate2.md)
 - [`qq-gate2.md`](qq-gate2.md)
 
+## C5-V Gate 3 capability evidence
+
+These notes are the auditable fixture/mock, request/response, receipt/error and
+lifecycle index. They intentionally distinguish completed narrow evidence from
+remaining partial or blocked capability groups:
+
+- [`telegram-gate3.md`](telegram-gate3.md)
+- [`discord-gate3.md`](discord-gate3.md)
+- [`feishu-gate3.md`](feishu-gate3.md)
+- [`dingtalk-gate3.md`](dingtalk-gate3.md)
+- [`email-gate3.md`](email-gate3.md)
+- [`qq-gate3.md`](qq-gate3.md)
+
 An implementation worker must read both files for its channel. A target capability may not be
 claimed from the specification alone; it needs the scan row plus an evidence fixture.
 

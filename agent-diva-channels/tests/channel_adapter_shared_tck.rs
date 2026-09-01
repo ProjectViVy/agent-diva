@@ -456,3 +456,39 @@ fn every_channel_fixture_directory_contains_parseable_contract_data() {
         }
     }
 }
+
+#[test]
+fn capability_evidence_manifest_is_machine_auditable() {
+    let manifest: Value =
+        serde_json::from_str(include_str!("fixtures/c5/capability-evidence.json"))
+            .expect("capability evidence JSON must remain valid");
+    assert_eq!(
+        manifest["octos_sha"],
+        "5ea987813de4fd2afdd1d78f2106ad2868f0d923"
+    );
+    let rows = manifest["evidence"].as_array().expect("evidence rows");
+    assert_eq!(rows.len(), 29);
+    let mut ids = BTreeSet::new();
+    for row in rows {
+        let id = row["id"].as_str().expect("evidence row ID");
+        assert!(ids.insert(id), "duplicate evidence row {id}");
+        if row["status"] == "verified" {
+            assert!(row["fixture"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+            assert!(row["tests"]
+                .as_array()
+                .is_some_and(|value| !value.is_empty()));
+            assert!(row["request"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+            assert!(row["response"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty()));
+        }
+    }
+    assert_eq!(
+        manifest["channels"]["qq"]["blocked_decisions"],
+        serde_json::json!(["D-013", "D-014"])
+    );
+}
