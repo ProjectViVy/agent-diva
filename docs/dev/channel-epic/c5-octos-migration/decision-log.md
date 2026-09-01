@@ -35,6 +35,8 @@
   permission were available in this worktree.
 - No shared protocol field, channel configuration key, global endpoint override, Manager
   production assembly or C6 clean-break change was introduced. C5-V/C5-Q therefore remain open.
+- To make the required Rust 1.80 channel probe reproducible, `348d42a1` pins compatible
+  resolutions in `Cargo.lock` only; no `Cargo.toml` dependency constraint or MSRV was changed.
 
 ## blocked 项的处理协议
 

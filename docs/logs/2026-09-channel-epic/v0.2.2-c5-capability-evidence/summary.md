@@ -1,7 +1,7 @@
 # C5-V/C5-Q：能力证据与 QQ 纵向验证
 
-日期：2026-09-02  
-分支：`feat/channel-epic`  
+日期：2026-09-02
+分支：`feat/channel-epic`
 交接基线：`03385c8d`  
 Octos 参考：`5ea987813de4fd2afdd1d78f2106ad2868f0d923`
 
@@ -18,6 +18,8 @@ Octos 参考：`5ea987813de4fd2afdd1d78f2106ad2868f0d923`
   本地 wire 证据冒充真机证据。
 - 已处理频道 all-target clippy 的 test-only 债务；没有修改公共协议、频道配置、全局
   endpoint、Manager 生产装配或 C6 clean break。
+- Rust 1.80 channel probe 与完整 workspace 门禁均已记录在 `verification.md`；为保持
+  channel probe 可复现，仅 pin 了 `Cargo.lock` 中的兼容解析版本，没有提高 MSRV。
 
 ## 未关闭项
 
@@ -38,3 +40,4 @@ wire path）仍为 `blocked`；真实 QQ 凭据/平台权限未注入，因此 l
 - `168f3bb2` QQ live harness
 - `c6b0a756` channel all-target clippy cleanup
 - `67ba5cb2` Gate 3 evidence manifest and audit pages
+- `348d42a1` Rust 1.80-compatible Cargo.lock pins

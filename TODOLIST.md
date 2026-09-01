@@ -143,9 +143,12 @@
         receipt、resume/reconnect 和 stop；真实运行命令为
         `cargo test -p agent-diva-channels --test qq_live_harness -- --ignored --nocapture`。
         当前 worktree 没有仓库外 QQ 凭据或平台权限，故 live smoke 未执行，C5-V 不能关闭。
-      - [ ] **C5-V-FULL-GATE-DEBT** `sev-P1`
-        频道 all-target clippy 已在 `c6b0a756` 清理并验证；workspace MSRV、全量 fmt/check/test
-        与既有 Manager loopback flake 仍须在本轮最终门禁中复跑并记录，不能以频道定向通过替代。
+      - [x] **C5-V-FULL-GATE-DEBT** `sev-P1`
+        频道 all-target clippy 已在 `c6b0a756` 清理并验证；channel-scoped Rust 1.80 probe
+        经 `348d42a1` 的 `Cargo.lock` 兼容 pin 通过，最终 `just fmt-check`、`just check`、
+        `just test` 也通过。Manager loopback flake、未声明完成的 broader workspace MSRV
+        audit 和 QQ live/官方 wire blockers 仍按独立 TODO 保持开放；记录见本轮
+        [`verification.md`](docs/logs/2026-09-channel-epic/v0.2.2-c5-capability-evidence/verification.md)。
     - [ ] **C5-Q：QQ intents、group send 与 media 官方 wire 证据** `sev-P1`
       当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
       Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
@@ -292,8 +295,10 @@
   的等待/相关性竞态，连续通过后再关闭；相关代码：`agent-diva-agent/src/agent_loop.rs`。
 
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
-  工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
-  pin/升级方案，不削弱现有 gate。
+  工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖的全 workspace MSRV 尚未
+  取得独立、完整的兼容性证明；本轮仅以 `Cargo.lock` pin 使
+  `just msrv-probe check -p agent-diva-channels` 在 Rust 1.80.1 通过，不关闭本 broad
+  audit，后续仍需不削弱现有 gate 的全量方案。
 
 ## Archive Index
 
