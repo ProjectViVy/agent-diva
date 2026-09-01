@@ -108,11 +108,7 @@ impl MockQQGateway {
 
                 let mut pong_seen = false;
                 if session.send_ping_first {
-                    if write
-                        .send(WsMessage::Ping(vec![1, 2, 3].into()))
-                        .await
-                        .is_err()
-                    {
+                    if write.send(WsMessage::Ping(vec![1, 2, 3])).await.is_err() {
                         return;
                     }
                     let pong = match timeout(Duration::from_secs(2), read.next()).await {
@@ -237,16 +233,14 @@ impl MockQQGateway {
                                 Ok(value) => value,
                                 Err(_) => continue,
                             };
-                            if parsed.get("op") == Some(&json!(1)) {
-                                if !session.suppress_heartbeat_ack {
-                                    if write
-                                        .send(WsMessage::Text(json!({"op": 11}).to_string()))
-                                        .await
-                                        .is_err()
-                                    {
-                                        return;
-                                    }
-                                }
+                            if parsed.get("op") == Some(&json!(1))
+                                && !session.suppress_heartbeat_ack
+                                && write
+                                    .send(WsMessage::Text(json!({"op": 11}).to_string()))
+                                    .await
+                                    .is_err()
+                            {
+                                return;
                             }
                         }
                         WsMessage::Pong(payload) => {
