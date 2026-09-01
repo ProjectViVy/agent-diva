@@ -81,6 +81,7 @@ struct SessionState {
     session_id: Option<String>,
     sequence: Option<u64>,
     heartbeat_interval: Option<Duration>,
+    awaiting_heartbeat_ack: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -309,35 +310,50 @@ impl QqAdapter {
         let result = match request {
             Ok(response) => {
                 let status = response.status();
-                match response.json::<TokenResponse>().await {
-                    Ok(parsed) if status.is_success() && !parsed.access_token.trim().is_empty() => {
-                        let expires_in = parsed
-                            .expires_in
-                            .as_ref()
-                            .and_then(FlexibleU64::value)
-                            .unwrap_or(7_200);
-                        let safe_expiry = Duration::from_secs(
-                            expires_in.saturating_sub(TOKEN_REFRESH_MARGIN.as_secs()),
-                        );
-                        let token = parsed.access_token;
-                        let mut state = self.token.lock().await;
-                        state.token = Some(token.clone());
-                        state.expires_at = Some(Instant::now() + safe_expiry);
-                        state.refreshing = false;
-                        Ok(token)
+                if status == StatusCode::TOO_MANY_REQUESTS {
+                    let retry_after = response
+                        .headers()
+                        .get("retry-after")
+                        .and_then(|value| value.to_str().ok())
+                        .and_then(|value| value.parse::<u64>().ok())
+                        .unwrap_or(1);
+                    let _ = response.bytes().await;
+                    Err(AdapterError::RateLimited {
+                        retry_after: Duration::from_secs(retry_after),
+                    })
+                } else {
+                    match response.json::<TokenResponse>().await {
+                        Ok(parsed)
+                            if status.is_success() && !parsed.access_token.trim().is_empty() =>
+                        {
+                            let expires_in = parsed
+                                .expires_in
+                                .as_ref()
+                                .and_then(FlexibleU64::value)
+                                .unwrap_or(7_200);
+                            let safe_expiry = Duration::from_secs(
+                                expires_in.saturating_sub(TOKEN_REFRESH_MARGIN.as_secs()),
+                            );
+                            let token = parsed.access_token;
+                            let mut state = self.token.lock().await;
+                            state.token = Some(token.clone());
+                            state.expires_at = Some(Instant::now() + safe_expiry);
+                            state.refreshing = false;
+                            Ok(token)
+                        }
+                        Ok(_) => Err(execution_error(
+                            "token_refresh",
+                            format!("QQ token endpoint returned {status}"),
+                            None,
+                            status.is_server_error(),
+                        )),
+                        Err(error) => Err(execution_error(
+                            "token_response",
+                            error.to_string(),
+                            None,
+                            true,
+                        )),
                     }
-                    Ok(_) => Err(execution_error(
-                        "token_refresh",
-                        format!("QQ token endpoint returned {status}"),
-                        None,
-                        status.is_server_error(),
-                    )),
-                    Err(error) => Err(execution_error(
-                        "token_response",
-                        error.to_string(),
-                        None,
-                        true,
-                    )),
                 }
             }
             Err(error) => Err(execution_error(
@@ -504,10 +520,15 @@ impl QqAdapter {
             let reply = (index == 0)
                 .then_some(correlation.reply_to.as_deref())
                 .flatten();
-            last_id = self
+            let response_id = self
                 .post_message(kind, &address.chat_id, chunk, reply)
-                .await?
-                .or(last_id);
+                .await?;
+            // Do not reuse an earlier chunk's identifier when the platform
+            // omits the current response ID. A receipt must remain truthful.
+            last_id = match response_id {
+                Some(id) => Some(id),
+                None => None,
+            };
         }
         Ok(accepted_receipt(
             CHANNEL,
@@ -663,13 +684,26 @@ impl QqAdapter {
         let (mut write, mut read) = socket.split();
         let mut heartbeat_interval = HEARTBEAT_FALLBACK;
         let mut heartbeat = tokio::time::interval(heartbeat_interval);
+        heartbeat.tick().await;
         loop {
             if context.cancel.is_cancelled() || self.cancel.is_cancelled() {
                 return Ok(());
             }
             tokio::select! {
                 _ = heartbeat.tick() => {
-                    let sequence = self.session.lock().await.sequence.unwrap_or(0);
+                    let sequence = {
+                        let mut session = self.session.lock().await;
+                        if session.awaiting_heartbeat_ack {
+                            return Err(execution_error(
+                                "gateway_heartbeat_timeout",
+                                "QQ gateway heartbeat acknowledgement was not received",
+                                None,
+                                true,
+                            ));
+                        }
+                        session.awaiting_heartbeat_ack = true;
+                        session.sequence.unwrap_or(0)
+                    };
                     write.send(WsMessage::Text(json!({"op": 1, "d": sequence}).to_string())).await.map_err(|error| execution_error("gateway_heartbeat", error.to_string(), None, true))?;
                 }
                 message = read.next() => {
@@ -690,6 +724,7 @@ impl QqAdapter {
                                 drop(session);
                                 write.send(WsMessage::Text(payload.to_string())).await.map_err(|error| execution_error("gateway_identify", error.to_string(), None, true))?;
                             } else if frame.op == 11 {
+                                self.session.lock().await.awaiting_heartbeat_ack = false;
                                 self.set_health(ChannelHealthStatus::Healthy, None);
                             } else {
                                 self.process_frame(frame, context).await?;
@@ -759,12 +794,16 @@ impl ChannelAdapter for QqAdapter {
             if context.cancel.is_cancelled() || self.cancel.is_cancelled() {
                 break Ok(());
             }
-            let connection = async {
-                let token = self.access_token().await?;
-                let gateway = self.fetch_gateway_url(&token).await?;
-                self.run_connection(&gateway, &context).await
-            }
-            .await;
+            let connection = tokio::select! {
+                biased;
+                _ = context.cancel.cancelled() => break Ok(()),
+                _ = self.cancel.cancelled() => break Ok(()),
+                result = async {
+                    let token = self.access_token().await?;
+                    let gateway = self.fetch_gateway_url(&token).await?;
+                    self.run_connection(&gateway, &context).await
+                } => result,
+            };
             match connection {
                 Ok(()) => break Ok(()),
                 Err(error) => {
@@ -929,6 +968,9 @@ mod tests {
     use agent_diva_core::config::Config;
     use async_trait::async_trait;
     use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio_tungstenite::accept_async;
 
     #[derive(Default)]
     struct Store;
@@ -1069,6 +1111,158 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat() {
+        let (gateway_url, gateway) = spawn_gateway_fixture().await;
+        let (base, discovery) = spawn_http_fixture(vec![
+            fixture_response(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+            ),
+            fixture_response(
+                "/gateway",
+                200,
+                "application/json",
+                format!(r#"{{"url":"{gateway_url}"}}"#).as_bytes(),
+            ),
+        ])
+        .await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, mut consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = adapter.clone();
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        let first = tokio::time::timeout(Duration::from_secs(2), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap()
+            .envelope()
+            .clone();
+        let second = tokio::time::timeout(Duration::from_secs(2), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap()
+            .envelope()
+            .clone();
+
+        assert_eq!(first.address.chat_id, "user-openid-1");
+        assert_eq!(first.address.sender_id.as_deref(), Some("user-openid-1"));
+        assert_eq!(first.extensions["qq.chat_kind"], json!("direct"));
+        assert_eq!(
+            first.correlation.message_id.as_deref(),
+            Some("c2c-message-1")
+        );
+        assert_eq!(second.address.chat_id, "group-openid-1");
+        assert_eq!(second.address.sender_id.as_deref(), Some("member-openid-1"));
+        assert_eq!(second.extensions["qq.chat_kind"], json!("group"));
+        assert_eq!(
+            second.correlation.message_id.as_deref(),
+            Some("group-message-1")
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), consumer.recv_ingress())
+                .await
+                .is_err(),
+            "the replayed C2C event must not be admitted twice"
+        );
+
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        cancel.cancel();
+        assert!(task.await.unwrap().is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 2);
+        let frames = gateway.await.unwrap();
+        assert!(frames.iter().any(|frame| frame["op"] == 2));
+        assert!(frames.iter().any(|frame| frame["op"] == 1));
+    }
+
+    #[tokio::test]
+    async fn wire_qq_outbound_routes_c2c_and_group_with_seq_reply_and_real_ids() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+            ),
+            fixture_response(
+                "/v2/users/user-openid-1/messages",
+                200,
+                "application/json",
+                br#"{"id":"c2c-out-1"}"#,
+            ),
+            fixture_response(
+                "/v2/groups/group-openid-1/messages",
+                200,
+                "application/json",
+                br#"{"message_id":"group-out-1"}"#,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+
+        let mut c2c_correlation = Correlation::new("qq:user-openid-1");
+        c2c_correlation.reply_to = Some("c2c-message-1".to_string());
+        let c2c_receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new(CHANNEL, "user-openid-1"),
+                    c2c_correlation,
+                    vec![ContentPart::Text {
+                        text: "reply to c2c".to_string(),
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: Some("qq-c2c-1".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            c2c_receipt.platform_message_id.as_deref(),
+            Some("c2c-out-1")
+        );
+
+        let group_address = ChannelAddress::new(CHANNEL, "group-openid-1");
+        let mut group_envelope = external_message_envelope(
+            group_address,
+            Correlation::new("qq:group-openid-1"),
+            vec![ContentPart::Text {
+                text: "group reply".to_string(),
+            }],
+            None,
+            None,
+        );
+        group_envelope
+            .extensions
+            .insert("qq.chat_kind".to_string(), json!("group"));
+        let group_receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: group_envelope,
+                idempotency_key: Some("qq-group-1".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            group_receipt.platform_message_id.as_deref(),
+            Some("group-out-1")
+        );
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(requests[0].contains("clientSecret"));
+        assert!(requests[1].contains("\"msg_type\":0"));
+        assert!(requests[1].contains("\"msg_id\":\"c2c-message-1\""));
+        assert!(requests[1].contains("\"msg_seq\":1"));
+        assert!(requests[2].contains("\"msg_type\":0"));
+        assert!(requests[2].contains("\"msg_seq\":2"));
+    }
+
     #[test]
     fn chunks_are_unicode_safe_at_qq_limit() {
         let chunks = split_chunks(&"你".repeat(MAX_MESSAGE_CHARS + 1), MAX_MESSAGE_CHARS);
@@ -1104,5 +1298,184 @@ mod tests {
                 capability: ChannelCapability::EgressCard
             })
         ));
+    }
+
+    fn adapter_at(base: &str) -> QqAdapter {
+        let mut config = Config::default().channels.qq;
+        config.enabled = true;
+        config.app_id = "app".into();
+        config.secret = "secret".into();
+        QqAdapter::with_test_endpoint(config, AdapterServices::new(Arc::new(Store)), base)
+    }
+
+    struct HttpFixtureResponse {
+        expected_path: String,
+        status: u16,
+        content_type: String,
+        body: Vec<u8>,
+    }
+
+    fn fixture_response(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+    ) -> HttpFixtureResponse {
+        HttpFixtureResponse {
+            expected_path: expected_path.to_string(),
+            status,
+            content_type: content_type.to_string(),
+            body: body.to_vec(),
+        }
+    }
+
+    async fn spawn_http_fixture(
+        responses: Vec<HttpFixtureResponse>,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for expected in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await;
+                let request_text = String::from_utf8_lossy(&request).to_string();
+                assert!(
+                    request_text
+                        .lines()
+                        .next()
+                        .unwrap_or_default()
+                        .contains(&expected.expected_path),
+                    "request did not contain expected path: {}",
+                    expected.expected_path
+                );
+                requests.push(request_text);
+                let reason = match expected.status {
+                    200 => "OK",
+                    204 => "No Content",
+                    429 => "Too Many Requests",
+                    _ => "Fixture",
+                };
+                let header = format!(
+                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    expected.status,
+                    expected.content_type,
+                    expected.body.len()
+                );
+                socket.write_all(header.as_bytes()).await.unwrap();
+                socket.write_all(&expected.body).await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    async fn read_http_request(socket: &mut TcpStream) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let read = socket.read(&mut chunk).await.unwrap();
+            assert!(read > 0, "fixture client closed before sending headers");
+            bytes.extend_from_slice(&chunk[..read]);
+            let Some(header_end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+            let header_end = header_end + 4;
+            let headers = String::from_utf8_lossy(&bytes[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            while bytes.len() < header_end + content_length {
+                let read = socket.read(&mut chunk).await.unwrap();
+                assert!(read > 0, "fixture client closed before sending body");
+                bytes.extend_from_slice(&chunk[..read]);
+            }
+            return bytes;
+        }
+    }
+
+    async fn spawn_gateway_fixture() -> (String, tokio::task::JoinHandle<Vec<Value>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let url = format!("ws://{address}");
+        let handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket
+                .send(WsMessage::Text(
+                    json!({"op":10,"d":{"heartbeat_interval":40}}).to_string(),
+                ))
+                .await
+                .unwrap();
+            let mut frames = Vec::new();
+            while let Ok(Some(Ok(message))) =
+                tokio::time::timeout(Duration::from_secs(3), socket.next()).await
+            {
+                let WsMessage::Text(text) = message else {
+                    continue;
+                };
+                let frame: Value = serde_json::from_str(&text).unwrap();
+                let opcode = frame["op"].as_u64().unwrap_or_default();
+                frames.push(frame.clone());
+                match opcode {
+                    1 => {
+                        socket
+                            .send(WsMessage::Text(json!({"op":11,"d":null}).to_string()))
+                            .await
+                            .unwrap();
+                    }
+                    2 => {
+                        socket
+                            .send(WsMessage::Text(
+                                json!({
+                                    "op":0,
+                                    "s":1,
+                                    "t":"READY",
+                                    "d":{"session_id":"session-1"}
+                                })
+                                .to_string(),
+                            ))
+                            .await
+                            .unwrap();
+                        let c2c: Value = serde_json::from_str(include_str!(
+                            "../../tests/fixtures/c5/qq/c2c-message.json"
+                        ))
+                        .unwrap();
+                        socket
+                            .send(WsMessage::Text(
+                                json!({"op":0,"s":2,"t":"C2C_MESSAGE_CREATE","d":c2c}).to_string(),
+                            ))
+                            .await
+                            .unwrap();
+                        socket
+                            .send(WsMessage::Text(
+                                json!({"op":0,"s":3,"t":"C2C_MESSAGE_CREATE","d":c2c}).to_string(),
+                            ))
+                            .await
+                            .unwrap();
+                        let group: Value = serde_json::from_str(include_str!(
+                            "../../tests/fixtures/c5/qq/group-message.json"
+                        ))
+                        .unwrap();
+                        socket
+                            .send(WsMessage::Text(
+                                json!({"op":0,"s":4,"t":"GROUP_AT_MESSAGE_CREATE","d":group})
+                                    .to_string(),
+                            ))
+                            .await
+                            .unwrap();
+                    }
+                    _ => {}
+                }
+            }
+            frames
+        });
+        (url, handle)
     }
 }
