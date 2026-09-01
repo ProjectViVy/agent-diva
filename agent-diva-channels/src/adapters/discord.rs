@@ -403,7 +403,19 @@ impl DiscordAdapter {
                 _ = context.cancel.cancelled() => return Ok(()),
                 _ = self.cancel.cancelled() => return Ok(()),
                 _ = heartbeat.tick() => {
-                    let seq = self.state.lock().await.sequence;
+                    let seq = {
+                        let mut state = self.state.lock().await;
+                        if state.awaiting_heartbeat_ack {
+                            return Err(execution_error(
+                                "heartbeat_ack_timeout",
+                                "Discord heartbeat acknowledgement was not received",
+                                None,
+                                true,
+                            ));
+                        }
+                        state.awaiting_heartbeat_ack = true;
+                        state.sequence
+                    };
                     write.send(WsMessage::Text(json!({"op": 1, "d": seq}).to_string())).await
                         .map_err(|error| execution_error("heartbeat_write", error.to_string(), None, true))?;
                 }
@@ -640,7 +652,7 @@ impl DiscordAdapter {
                 .await?,
             );
         }
-        if chunks.is_empty() && (embed.is_some() || !attachments.is_empty()) {
+        if chunks.is_empty() && embed.is_some() {
             let mut payload = json!({"content": ""});
             if let Some(embed) = &embed {
                 payload["embeds"] = json!([embed]);
@@ -1135,6 +1147,12 @@ fn parse_incoming_message(value: &Value) -> Option<IncomingMessage> {
 fn normalize_gateway_url(base: &str) -> String {
     let mut url = base.trim_end_matches('/').to_string();
     if !url.contains("?") {
+        if url
+            .split_once("://")
+            .is_some_and(|(_, authority_and_path)| !authority_and_path.contains('/'))
+        {
+            url.push('/');
+        }
         url.push_str("?v=10&encoding=json");
     }
     url
@@ -1230,10 +1248,13 @@ mod tests {
     use super::*;
     use crate::adapter::StoredAttachment;
     use crate::adapter::{AdapterServices, ChannelAttachmentStore};
-    use agent_diva_core::channel::AttachmentRef;
+    use agent_diva_core::channel::{AttachmentRef, FabricKernel};
     use agent_diva_core::config::Config;
     use async_trait::async_trait;
     use sha2::Digest;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio_tungstenite::accept_async;
 
     #[derive(Default)]
     struct Store;
@@ -1267,14 +1288,14 @@ mod tests {
     }
 
     fn adapter() -> DiscordAdapter {
+        adapter_at("http://127.0.0.1:1")
+    }
+
+    fn adapter_at(base: &str) -> DiscordAdapter {
         let mut config = Config::default().channels.discord;
         config.enabled = true;
         config.token = "token".to_string();
-        DiscordAdapter::with_test_endpoint(
-            config,
-            AdapterServices::new(Arc::new(Store)),
-            "http://127.0.0.1:1",
-        )
+        DiscordAdapter::with_test_endpoint(config, AdapterServices::new(Arc::new(Store)), base)
     }
 
     #[test]
@@ -1290,7 +1311,7 @@ mod tests {
     fn gateway_url_is_normalized() {
         assert_eq!(
             normalize_gateway_url("wss://gateway.discord.gg"),
-            "wss://gateway.discord.gg?v=10&encoding=json"
+            "wss://gateway.discord.gg/?v=10&encoding=json"
         );
         assert_eq!(
             normalize_gateway_url("wss://gateway.discord.gg/?v=10"),
@@ -1336,5 +1357,414 @@ mod tests {
     #[test]
     fn frozen_default_config_keeps_channel_disabled() {
         assert!(!Config::default().channels.discord.enabled);
+    }
+
+    #[tokio::test]
+    async fn wire_discord_rest_preserves_reply_embed_and_attachment_receipts() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response(
+                "/channels/channel-1/messages",
+                200,
+                "application/json",
+                br#"{"id":"snowflake-1"}"#,
+            ),
+            fixture_response(
+                "/channels/channel-1/messages/snowflake-1",
+                200,
+                "application/json",
+                br#"{"id":"snowflake-2"}"#,
+            ),
+            fixture_response("/channels/channel-1/messages/snowflake-2", 204, "", b""),
+            fixture_response(
+                "/channels/channel-1/messages/snowflake-2/reactions/%F0%9F%91%8D/@me",
+                204,
+                "",
+                b"",
+            ),
+            fixture_response("/channels/channel-1/typing", 204, "", b""),
+            fixture_response(
+                "/channels/channel-1/messages",
+                200,
+                "application/json",
+                br#"{"id":"snowflake-attachment"}"#,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+
+        let mut correlation = Correlation::new("discord:channel-1");
+        correlation.reply_to = Some("snowflake-parent".to_string());
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new(CHANNEL, "channel-1"),
+                    correlation.clone(),
+                    vec![
+                        ContentPart::Markdown {
+                            markdown: "**hello**".to_string(),
+                        },
+                        ContentPart::Card {
+                            schema: "discord.embed".to_string(),
+                            body: json!({"title":"fixture card"}),
+                        },
+                    ],
+                    None,
+                    None,
+                ),
+                idempotency_key: Some("discord-send-1".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(receipt.platform_message_id.as_deref(), Some("snowflake-1"));
+
+        let address = ChannelAddress::new(CHANNEL, "channel-1");
+        let edit = adapter
+            .execute(ChannelCommand::Edit {
+                address: address.clone(),
+                correlation: correlation.clone(),
+                target_message_id: "snowflake-1".to_string(),
+                parts: vec![ContentPart::Text {
+                    text: "edited".to_string(),
+                }],
+                idempotency_key: Some("discord-edit-1".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(edit.platform_message_id.as_deref(), Some("snowflake-2"));
+        adapter
+            .execute(ChannelCommand::Delete {
+                address: address.clone(),
+                correlation: correlation.clone(),
+                target_message_id: "snowflake-2".to_string(),
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+        adapter
+            .execute(ChannelCommand::React {
+                address: address.clone(),
+                correlation: correlation.clone(),
+                target_message_id: "snowflake-2".to_string(),
+                operation: agent_diva_core::channel::ReactionOperation::Add,
+                emoji: "👍".to_string(),
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+        adapter
+            .execute(ChannelCommand::Typing {
+                address,
+                correlation,
+                state: TypingState::Started,
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+
+        let attachment = AttachmentRef {
+            uri: "sha256:fixture".to_string(),
+            media_type: "image/png".to_string(),
+            size_bytes: 0,
+            sha256: "fixture".to_string(),
+            file_name: Some("image.png".to_string()),
+        };
+        let attachment_receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new(CHANNEL, "channel-1"),
+                    Correlation::new("discord:channel-1"),
+                    vec![ContentPart::Image { attachment }],
+                    None,
+                    None,
+                ),
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            attachment_receipt.platform_message_id.as_deref(),
+            Some("snowflake-attachment")
+        );
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 6);
+        assert!(requests[0].contains("\"message_reference\":{\"message_id\":\"snowflake-parent\"}"));
+        assert!(requests[0].contains("\"embeds\":["));
+        assert!(requests[1].contains("\"content\":\"edited\""));
+        assert!(requests[5].contains("image.png"));
+        assert!(requests[5].contains("files[0]"));
+    }
+
+    #[tokio::test]
+    async fn wire_discord_rate_limit_and_unsupported_listening_are_explicit() {
+        let (base, server) = spawn_http_fixture(vec![fixture_response_with_headers(
+            "/channels/channel-1/messages",
+            429,
+            "application/json",
+            br#"{"retry_after":1.25}"#,
+            "retry-after: 9\r\n",
+        )])
+        .await;
+        let adapter = adapter_at(&base);
+        let result = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new(CHANNEL, "channel-1"),
+                    Correlation::new("discord:channel-1"),
+                    vec![ContentPart::Text {
+                        text: "rate limit".to_string(),
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: None,
+            })
+            .await;
+        assert!(matches!(
+            result,
+            Err(AdapterError::RateLimited { retry_after })
+                if retry_after == Duration::from_millis(1_250)
+        ));
+        let address = ChannelAddress::new(CHANNEL, "channel-1");
+        let result = adapter
+            .execute(ChannelCommand::Typing {
+                address,
+                correlation: Correlation::new("discord:channel-1"),
+                state: TypingState::Listening,
+                idempotency_key: None,
+            })
+            .await;
+        assert!(matches!(
+            result,
+            Err(AdapterError::UnsupportedCapability {
+                capability: ChannelCapability::InteractionListening
+            })
+        ));
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn wire_discord_gateway_handles_hello_identify_ready_heartbeat_and_cancel() {
+        let (gateway_url, gateway) = spawn_gateway_fixture().await;
+        let (base, discovery) = spawn_http_fixture(vec![fixture_response(
+            "/gateway/bot",
+            200,
+            "application/json",
+            format!(r#"{{"url":"{gateway_url}"}}"#).as_bytes(),
+        )])
+        .await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        let cancel = CancellationToken::new();
+        let task_adapter = adapter.clone();
+        let task_cancel = cancel.clone();
+        let task = tokio::spawn(async move {
+            task_adapter
+                .start(AdapterContext {
+                    fabric,
+                    cancel: task_cancel,
+                })
+                .await
+        });
+        let envelope = tokio::time::timeout(Duration::from_secs(2), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap()
+            .envelope()
+            .clone();
+        assert_eq!(envelope.address.chat_id, "channel-1");
+        assert_eq!(envelope.address.thread_id.as_deref(), Some("thread-1"));
+        assert_eq!(
+            envelope.correlation.message_id.as_deref(),
+            Some("snowflake-in")
+        );
+        assert_eq!(
+            envelope.correlation.reply_to.as_deref(),
+            Some("snowflake-root")
+        );
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        cancel.cancel();
+        assert!(task.await.unwrap().is_ok());
+        let discovery_requests = discovery.await.unwrap();
+        assert_eq!(discovery_requests.len(), 1);
+        let gateway_frames = gateway.await.unwrap();
+        assert!(gateway_frames.iter().any(|frame| frame["op"] == 2));
+        assert!(gateway_frames.iter().any(|frame| frame["op"] == 1));
+    }
+
+    struct HttpFixtureResponse {
+        expected_path: String,
+        status: u16,
+        content_type: String,
+        extra_headers: String,
+        body: Vec<u8>,
+    }
+
+    fn fixture_response(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+    ) -> HttpFixtureResponse {
+        fixture_response_with_headers(expected_path, status, content_type, body, "")
+    }
+
+    fn fixture_response_with_headers(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+        extra_headers: &str,
+    ) -> HttpFixtureResponse {
+        HttpFixtureResponse {
+            expected_path: expected_path.to_string(),
+            status,
+            content_type: content_type.to_string(),
+            extra_headers: extra_headers.to_string(),
+            body: body.to_vec(),
+        }
+    }
+
+    async fn spawn_http_fixture(
+        responses: Vec<HttpFixtureResponse>,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for expected in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await;
+                let request_text = String::from_utf8_lossy(&request).to_string();
+                assert!(
+                    request_text
+                        .lines()
+                        .next()
+                        .unwrap_or_default()
+                        .contains(&expected.expected_path),
+                    "request did not contain expected path: {}",
+                    expected.expected_path
+                );
+                requests.push(request_text);
+                let reason = match expected.status {
+                    200 => "OK",
+                    204 => "No Content",
+                    429 => "Too Many Requests",
+                    _ => "Fixture",
+                };
+                let header = format!(
+                    "HTTP/1.1 {} {reason}\r\n{}Content-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    expected.status,
+                    expected.extra_headers,
+                    expected.content_type,
+                    expected.body.len()
+                );
+                socket.write_all(header.as_bytes()).await.unwrap();
+                socket.write_all(&expected.body).await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    async fn read_http_request(socket: &mut TcpStream) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let read = socket.read(&mut chunk).await.unwrap();
+            assert!(read > 0, "fixture client closed before sending headers");
+            bytes.extend_from_slice(&chunk[..read]);
+            let Some(header_end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+            let header_end = header_end + 4;
+            let headers = String::from_utf8_lossy(&bytes[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            while bytes.len() < header_end + content_length {
+                let read = socket.read(&mut chunk).await.unwrap();
+                assert!(read > 0, "fixture client closed before sending body");
+                bytes.extend_from_slice(&chunk[..read]);
+            }
+            return bytes;
+        }
+    }
+
+    async fn spawn_gateway_fixture() -> (String, tokio::task::JoinHandle<Vec<Value>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let url = format!("ws://{address}");
+        let handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket
+                .send(WsMessage::Text(
+                    json!({"op":10,"d":{"heartbeat_interval":50}}).to_string(),
+                ))
+                .await
+                .unwrap();
+            let mut frames = Vec::new();
+            while let Ok(Some(Ok(message))) =
+                tokio::time::timeout(Duration::from_secs(3), socket.next()).await
+            {
+                let WsMessage::Text(text) = message else {
+                    continue;
+                };
+                let frame: Value = serde_json::from_str(&text).unwrap();
+                let opcode = frame["op"].as_u64().unwrap_or_default();
+                frames.push(frame.clone());
+                if opcode == 2 {
+                    socket
+                        .send(WsMessage::Text(
+                            json!({
+                                "op":0,
+                                "s":1,
+                                "t":"READY",
+                                "d":{"session_id":"session-1"}
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                        .unwrap();
+                    socket
+                        .send(WsMessage::Text(
+                            json!({
+                                "op":0,
+                                "s":2,
+                                "t":"MESSAGE_CREATE",
+                                "d":{
+                                    "id":"snowflake-in",
+                                    "channel_id":"channel-1",
+                                    "guild_id":"guild-1",
+                                    "content":"hello from discord",
+                                    "author":{"id":"user-1","bot":false},
+                                    "thread":{"id":"thread-1"},
+                                    "message_reference":{"message_id":"snowflake-root"},
+                                    "mentions":[{"id":"bot-1","bot":true}],
+                                    "attachments":[]
+                                }
+                            })
+                            .to_string(),
+                        ))
+                        .await
+                        .unwrap();
+                } else if opcode == 1 {
+                    socket
+                        .send(WsMessage::Text(json!({"op":11,"d":null}).to_string()))
+                        .await
+                        .unwrap();
+                }
+            }
+            frames
+        });
+        (url, handle)
     }
 }
