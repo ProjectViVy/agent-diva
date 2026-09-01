@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `agent-diva-channels/src/adapters/**; agent-diva-channels/tests/fixtures/c5/**; agent-diva-channels/tests/*tck*.rs; agent-diva-channels/Cargo.toml; Cargo.lock (MSRV pin investigation); docs/dev/channel-epic/c5-octos-migration/platforms/**; docs/logs/2026-09-channel-epic/v0.2.2-c5-capability-evidence/**; agent-diva-channels/tests/fixtures/c5/capability-evidence.json; TODOLIST.md; LOCK.md`
 - Owner: `Codex`
 - Session/Task: `CHANNEL-EPIC C5-V/C5-Q capability evidence, full TCK, and QQ vertical validation`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
 - Started At: `2026-09-02T00:00:00+08:00`
-- Last Heartbeat: `2026-09-02T00:42:00+08:00`
+- Last Heartbeat: `2026-09-02T07:46:24+08:00`
 - Expires At: `2026-09-03T00:00:00+08:00`
-- Handoff Notes: `Took over the expired 2026-08-31 Gate 2 lock after verifying its 2026-09-01 expiry and released handoff. Lead now owns all six adapter/fixture/TCK scopes because the delegated worktrees have no current heartbeat. Base is 03385c8d and no Manager/C6 cutover or push is authorized.`
+- Handoff Notes: `Released after completing the C5-V offline evidence/TCK batch and recording all final gates. Channel-scoped Rust 1.80 probe and full workspace just test passed; QQ live smoke was not run because external credentials/permission were unavailable, and D-013/D-014 remain blocked. Base is 03385c8d; no Manager/C6 cutover, dev merge, or push was performed.`
 
 ## Lock Rules
 
@@ -29,6 +29,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **RELEASED 2026-09-01T01:50:54+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Base contract `48c12669`; implementation commits include `e0b36c02`, `3835f58c`, `f3bdd3ad`, `8088ce58`, `ca3b0cc6`, `42db4e25`, `10563a7a`, `9171e9a4`, `e50ad05a`, `204915d7`, `0e41c915`, `efb50261`, and `5371d517`. Initial `just fmt-check`, `just check`, `just test`, channel all-target tests, and channel lib clippy passed; the later final `just test` rerun exposed the pre-existing Manager loopback flake recorded in the follow-up entry. All-target clippy remains blocked by legacy test lints; MSRV probe remains blocked by cached `base64ct v1.8.3`. No Manager/C6 cutover, merge, or push. C5-V/C5-Q remain open.`
 - `CHANNEL-EPIC C5-I Gate 2 verification follow-up` — **RELEASED 2026-09-01T01:56:02+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope was documentation-only: `TODOLIST.md`, Gate2 `verification.md`, and `LOCK.md`; focused Manager websocket rerun passed after one full-suite failure. No product implementation scope was reopened.
 - `CHANNEL-EPIC C5-I Gate 2 lock wording clarification` — **RELEASED 2026-09-01T01:57:30+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope was `LOCK.md` only; initial versus final workspace validation results are explicit.
+
+- `CHANNEL-EPIC C5-V/C5-Q capability evidence, full TCK, and QQ vertical validation` — **RELEASED 2026-09-02T07:46:24+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Offline six-channel wire evidence, shared capability TCK, Gate 3 records, channel-scoped Rust 1.80 probe, and full workspace gates were completed. QQ live harness remains ignored without external credentials/permission; D-013/D-014 and incomplete capability rows remain blocked/partial. Commits `92cd9257`, `9945a231`, `39ded197`, `b527f1e6`, `a0150837`, `0c77d9db`, `8ba1d3b3`, `168f3bb2`, `c6b0a756`, `67ba5cb2`, `348d42a1`, and `6e3c4395`. No Manager/C6 cutover, `dev` merge, or push.`
 
 - `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
