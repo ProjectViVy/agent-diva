@@ -362,8 +362,15 @@ impl TelegramAdapter {
                     ),
                 });
             }
+            let code = if parsed.error_code == Some(400)
+                && diagnosis.to_ascii_lowercase().contains("parse")
+            {
+                "telegram_parse_error"
+            } else {
+                "telegram_api"
+            };
             return Err(execution_error(
-                "telegram_api",
+                code,
                 diagnosis,
                 None,
                 status.is_server_error(),
@@ -639,6 +646,15 @@ impl TelegramAdapter {
             self.http.get(url).send().await.map_err(|error| {
                 execution_error("telegram_media", error.to_string(), None, true)
             })?;
+        if !response.status().is_success() {
+            let status = response.status();
+            return Err(execution_error(
+                "telegram_media_http",
+                format!("Telegram media download returned {status}"),
+                None,
+                status.is_server_error(),
+            ));
+        }
         let bytes = response
             .bytes()
             .await
@@ -678,6 +694,24 @@ impl TelegramAdapter {
                 attachment: reference,
             },
         }))
+    }
+
+    async fn send_text_message(&self, mut body: Value) -> Result<SentMessage, AdapterError> {
+        let fallback_text = body.get("text").and_then(Value::as_str).map(html_to_plain);
+        match self.call_json("sendMessage", body.clone()).await {
+            Err(AdapterError::Execution { code, .. })
+                if code == "telegram_parse_error" && body.get("parse_mode").is_some() =>
+            {
+                if let Some(object) = body.as_object_mut() {
+                    object.remove("parse_mode");
+                    if let Some(fallback_text) = fallback_text {
+                        object.insert("text".to_string(), Value::String(fallback_text));
+                    }
+                }
+                self.call_json("sendMessage", body).await
+            }
+            result => result,
+        }
     }
 
     async fn execute_send(
@@ -720,20 +754,39 @@ impl TelegramAdapter {
             })
             .collect::<Vec<_>>()
             .join("\n");
+        let has_media = parts.iter().any(|part| {
+            matches!(
+                part,
+                ContentPart::Image { .. }
+                    | ContentPart::Audio { .. }
+                    | ContentPart::Video { .. }
+                    | ContentPart::File { .. }
+            )
+        });
+        let plain_caption = html_to_plain(&text);
+        let caption = truncate(&plain_caption, MAX_CAPTION_CHARS);
+        let caption_remainder = plain_caption
+            .chars()
+            .skip(MAX_CAPTION_CHARS)
+            .collect::<String>();
         let mut last_id = None;
-        for (index, chunk) in split_chunks(&text, MAX_MESSAGE_CHARS)
-            .into_iter()
-            .enumerate()
-        {
-            let mut body = json!({"chat_id": address.chat_id, "text": chunk, "parse_mode": "HTML"});
-            if index == 0 {
-                if let Some(reply) = &correlation.reply_to {
-                    body["reply_parameters"] = json!({"message_id": reply});
+        if !has_media {
+            for (index, chunk) in split_chunks(&text, MAX_MESSAGE_CHARS)
+                .into_iter()
+                .enumerate()
+            {
+                let mut body =
+                    json!({"chat_id": address.chat_id, "text": chunk, "parse_mode": "HTML"});
+                if index == 0 {
+                    if let Some(reply) = &correlation.reply_to {
+                        body["reply_parameters"] = json!({"message_id": reply});
+                    }
                 }
+                let sent: SentMessage = self.send_text_message(body).await?;
+                last_id = Some(sent.message_id.to_string());
             }
-            let sent: SentMessage = self.call_json("sendMessage", body).await?;
-            last_id = Some(sent.message_id.to_string());
         }
+        let mut media_index = 0;
         for part in parts {
             let (method, field, reference) = match part {
                 ContentPart::Image { attachment } => ("sendPhoto", "photo", attachment),
@@ -758,11 +811,28 @@ impl TelegramAdapter {
                         .unwrap_or_else(|| "attachment.bin".to_string()),
                 ),
             );
-            if let Some(reply) = &correlation.reply_to {
-                form = form.text("reply_parameters", json!({"message_id": reply}).to_string());
+            if media_index == 0 {
+                if let Some(reply) = &correlation.reply_to {
+                    form = form.text("reply_parameters", json!({"message_id": reply}).to_string());
+                }
+                if !caption.is_empty() {
+                    form = form.text("caption", caption.clone());
+                }
             }
             let sent = self.call_multipart(method, form).await?;
             last_id = Some(sent.message_id.to_string());
+            media_index += 1;
+        }
+        if has_media && !caption_remainder.is_empty() {
+            for chunk in split_chunks(&caption_remainder, MAX_MESSAGE_CHARS) {
+                let sent: SentMessage = self
+                    .send_text_message(json!({
+                        "chat_id": address.chat_id,
+                        "text": chunk,
+                    }))
+                    .await?;
+                last_id = Some(sent.message_id.to_string());
+            }
         }
         if last_id.is_none() {
             return Err(execution_error(
@@ -879,7 +949,13 @@ impl ChannelAdapter for TelegramAdapter {
             if context.cancel.is_cancelled() || self.cancel.is_cancelled() {
                 break;
             }
-            match self.get_updates().await {
+            let updates = tokio::select! {
+                biased;
+                _ = context.cancel.cancelled() => break,
+                _ = self.cancel.cancelled() => break,
+                result = self.get_updates() => result,
+            };
+            match updates {
                 Ok(updates) => {
                     self.set_health(ChannelHealthStatus::Healthy, None);
                     for update in updates {
@@ -1031,14 +1107,35 @@ fn markdown_to_html(markdown: &str) -> String {
     value
 }
 
+fn html_to_plain(html: &str) -> String {
+    let mut output = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for character in html.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => output.push(character),
+            _ => {}
+        }
+    }
+    output
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapter::{ChannelAttachmentStore, StoredAttachment};
-    use agent_diva_core::channel::AttachmentRef;
+    use agent_diva_core::channel::{AttachmentRef, FabricKernel};
     use agent_diva_core::config::Config;
     use async_trait::async_trait;
     use sha2::Digest;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
 
     #[derive(Default)]
     struct Store;
@@ -1070,14 +1167,14 @@ mod tests {
         }
     }
     fn adapter() -> TelegramAdapter {
+        adapter_at("http://127.0.0.1:1")
+    }
+
+    fn adapter_at(base: &str) -> TelegramAdapter {
         let mut config = Config::default().channels.telegram;
         config.enabled = true;
         config.token = "test-token".into();
-        TelegramAdapter::with_test_endpoint(
-            config,
-            AdapterServices::new(Arc::new(Store)),
-            "http://127.0.0.1:1",
-        )
+        TelegramAdapter::with_test_endpoint(config, AdapterServices::new(Arc::new(Store)), base)
     }
 
     #[test]
@@ -1115,5 +1212,320 @@ mod tests {
                 capability: ChannelCapability::InteractionReaction
             })
         ));
+    }
+
+    #[tokio::test]
+    async fn wire_telegram_ingress_preserves_identity_media_and_callback_ack() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response(
+                "/bottest-token/getFile",
+                200,
+                "application/json",
+                br#"{"ok":true,"result":{"file_path":"photos/photo.png"}}"#,
+            ),
+            fixture_response(
+                "/file/bottest-token/photos/photo.png",
+                200,
+                "image/png",
+                b"fixture-photo",
+            ),
+            fixture_response(
+                "/bottest-token/getFile",
+                200,
+                "application/json",
+                br#"{"ok":true,"result":{"file_path":"documents/report.pdf"}}"#,
+            ),
+            fixture_response(
+                "/file/bottest-token/documents/report.pdf",
+                200,
+                "application/pdf",
+                b"fixture-document",
+            ),
+            fixture_response(
+                "/bottest-token/answerCallbackQuery",
+                200,
+                "application/json",
+                br#"{"ok":true,"result":true}"#,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+
+        let text: TelegramUpdate = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/telegram/inbound-text.json"
+        ))
+        .unwrap();
+        adapter.process_update(text, &context).await.unwrap();
+        let text_envelope = consumer.recv_ingress().await.unwrap().envelope().clone();
+        assert_eq!(text_envelope.address.chat_id, "42");
+        assert_eq!(text_envelope.correlation.message_id.as_deref(), Some("91"));
+        assert!(matches!(
+            text_envelope.payload,
+            ChannelPayloadV1::Message { ref parts, .. }
+                if matches!(parts.first(), Some(ContentPart::Text { text }) if text == "hello from telegram")
+        ));
+
+        let media: TelegramUpdate = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/telegram/inbound-group-media.json"
+        ))
+        .unwrap();
+        adapter.process_update(media, &context).await.unwrap();
+        let media_envelope = consumer.recv_ingress().await.unwrap().envelope().clone();
+        assert_eq!(media_envelope.address.chat_id, "-1001234");
+        assert_eq!(media_envelope.address.thread_id.as_deref(), Some("17"));
+        assert_eq!(media_envelope.correlation.reply_to.as_deref(), Some("88"));
+        assert!(matches!(
+            media_envelope.payload,
+            ChannelPayloadV1::Message { ref parts, .. }
+                if parts.len() == 3
+                    && matches!(&parts[1], ContentPart::Image { attachment } if attachment.media_type == "application/octet-stream")
+                    && matches!(&parts[2], ContentPart::File { attachment } if attachment.file_name.as_deref() == Some("report.pdf"))
+        ));
+
+        let callback: TelegramUpdate = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/telegram/callback-query.json"
+        ))
+        .unwrap();
+        adapter.process_update(callback, &context).await.unwrap();
+        let callback_envelope = consumer.recv_ingress().await.unwrap().envelope().clone();
+        assert_eq!(
+            callback_envelope.extensions["telegram.callback_id"],
+            json!("callback-9")
+        );
+        assert_eq!(
+            callback_envelope.extensions["telegram.callback_data"],
+            json!("approve:request-9")
+        );
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 5);
+        assert!(requests[0].starts_with("POST /bottest-token/getFile"));
+        assert!(requests[1].starts_with("GET /file/bottest-token/photos/photo.png"));
+        assert!(requests[2].starts_with("POST /bottest-token/getFile"));
+        assert!(requests[3].starts_with("GET /file/bottest-token/documents/report.pdf"));
+        assert!(requests[4].starts_with("POST /bottest-token/answerCallbackQuery"));
+    }
+
+    #[tokio::test]
+    async fn wire_telegram_egress_uses_html_reply_real_id_and_plain_fallback() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response(
+                "/bottest-token/sendMessage",
+                400,
+                "application/json",
+                br#"{"ok":false,"error_code":400,"description":"can't parse entities"}"#,
+            ),
+            fixture_response(
+                "/bottest-token/sendMessage",
+                200,
+                "application/json",
+                br#"{"ok":true,"result":{"message_id":93}}"#,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        let address = ChannelAddress::new(CHANNEL, "42");
+        let mut correlation = Correlation::new("telegram:42");
+        correlation.reply_to = Some("91".to_string());
+        let envelope = external_message_envelope(
+            address,
+            correlation,
+            vec![ContentPart::Markdown {
+                markdown: "**hello**".to_string(),
+            }],
+            None,
+            None,
+        );
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: Some("telegram-send-1".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.status,
+            agent_diva_core::channel::DeliveryStatus::Accepted
+        );
+        assert_eq!(receipt.platform_message_id.as_deref(), Some("93"));
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].contains("\"parse_mode\":\"HTML\""));
+        assert!(requests[0].contains("\"reply_parameters\":{\"message_id\":\"91\"}"));
+        assert!(!requests[1].contains("parse_mode"));
+        assert!(requests[1].contains("\"text\":\"hello\""));
+    }
+
+    #[tokio::test]
+    async fn wire_telegram_multipart_and_rate_limit_are_truthful() {
+        let (base, server) = spawn_http_fixture(vec![fixture_response(
+            "/bottest-token/sendPhoto",
+            200,
+            "application/json",
+            br#"{"ok":true,"result":{"message_id":94}}"#,
+        )])
+        .await;
+        let adapter = adapter_at(&base);
+        let envelope = external_message_envelope(
+            ChannelAddress::new(CHANNEL, "42"),
+            Correlation::new("telegram:42"),
+            vec![
+                ContentPart::Text {
+                    text: "caption".to_string(),
+                },
+                ContentPart::Image {
+                    attachment: AttachmentRef {
+                        uri: "sha256:fixture".to_string(),
+                        media_type: "image/png".to_string(),
+                        size_bytes: 14,
+                        sha256: "fixture".to_string(),
+                        file_name: Some("photo.png".to_string()),
+                    },
+                },
+            ],
+            None,
+            None,
+        );
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(receipt.platform_message_id.as_deref(), Some("94"));
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("POST /bottest-token/sendPhoto"));
+        assert!(requests[0].contains("photo.png"));
+        assert!(requests[0].contains("name=\"caption\""));
+        assert!(requests[0].matches("caption").count() >= 2);
+
+        let (base, server) = spawn_http_fixture(vec![fixture_response(
+            "/bottest-token/sendMessage",
+            429,
+            "application/json",
+            br#"{"ok":false,"error_code":429,"description":"Too Many Requests","parameters":{"retry_after":2}}"#,
+        )])
+        .await;
+        let adapter = adapter_at(&base);
+        let envelope = external_message_envelope(
+            ChannelAddress::new(CHANNEL, "42"),
+            Correlation::new("telegram:42"),
+            vec![ContentPart::Text {
+                text: "rate limited probe".to_string(),
+            }],
+            None,
+            None,
+        );
+        let result = adapter
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: None,
+            })
+            .await;
+        assert!(matches!(
+            result,
+            Err(AdapterError::RateLimited { retry_after })
+                if retry_after == Duration::from_secs(2)
+        ));
+        let _ = server.await.unwrap();
+    }
+
+    struct HttpFixtureResponse {
+        expected_path: String,
+        status: u16,
+        content_type: String,
+        body: Vec<u8>,
+    }
+
+    fn fixture_response(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+    ) -> HttpFixtureResponse {
+        HttpFixtureResponse {
+            expected_path: expected_path.to_string(),
+            status,
+            content_type: content_type.to_string(),
+            body: body.to_vec(),
+        }
+    }
+
+    async fn spawn_http_fixture(
+        responses: Vec<HttpFixtureResponse>,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for expected in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await;
+                let request_text = String::from_utf8_lossy(&request).to_string();
+                assert!(
+                    request_text
+                        .lines()
+                        .next()
+                        .unwrap_or_default()
+                        .contains(&expected.expected_path),
+                    "request did not contain expected path: {}",
+                    expected.expected_path
+                );
+                requests.push(request_text);
+                let reason = match expected.status {
+                    200 => "OK",
+                    400 => "Bad Request",
+                    429 => "Too Many Requests",
+                    _ => "Fixture",
+                };
+                let header = format!(
+                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    expected.status,
+                    expected.content_type,
+                    expected.body.len()
+                );
+                socket.write_all(header.as_bytes()).await.unwrap();
+                socket.write_all(&expected.body).await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    async fn read_http_request(socket: &mut TcpStream) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let read = socket.read(&mut chunk).await.unwrap();
+            assert!(read > 0, "fixture client closed before sending headers");
+            bytes.extend_from_slice(&chunk[..read]);
+            let Some(header_end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+            let header_end = header_end + 4;
+            let headers = String::from_utf8_lossy(&bytes[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            while bytes.len() < header_end + content_length {
+                let read = socket.read(&mut chunk).await.unwrap();
+                assert!(read > 0, "fixture client closed before sending body");
+                bytes.extend_from_slice(&chunk[..read]);
+            }
+            return bytes;
+        }
     }
 }
