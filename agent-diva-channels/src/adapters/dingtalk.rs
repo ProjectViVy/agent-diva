@@ -1958,16 +1958,20 @@ mod tests {
             receipt.platform_message_id.as_deref(),
             Some("media-message-1")
         );
-        let uploads = fake.multipart_calls.lock().unwrap();
-        assert_eq!(uploads.len(), 1);
-        assert_eq!(uploads[0].0, DINGTALK_MEDIA_UPLOAD_PATH);
-        assert_eq!(uploads[0].2, "image");
-        assert_eq!(uploads[0].3.filename, "fixture.png");
-        assert_eq!(uploads[0].3.bytes, vec![1, 2, 3]);
-        let calls = fake.json_calls.lock().unwrap();
-        assert_eq!(calls[1].0, DINGTALK_PRIVATE_SEND_PATH);
-        assert_eq!(calls[1].2["msgKey"], "sampleImageMsg");
-        assert!(calls[1].2["msgParam"].as_str().unwrap().contains("media-1"));
+        {
+            let uploads = fake.multipart_calls.lock().unwrap();
+            assert_eq!(uploads.len(), 1);
+            assert_eq!(uploads[0].0, DINGTALK_MEDIA_UPLOAD_PATH);
+            assert_eq!(uploads[0].2, "image");
+            assert_eq!(uploads[0].3.filename, "fixture.png");
+            assert_eq!(uploads[0].3.bytes, vec![1, 2, 3]);
+        }
+        {
+            let calls = fake.json_calls.lock().unwrap();
+            assert_eq!(calls[1].0, DINGTALK_PRIVATE_SEND_PATH);
+            assert_eq!(calls[1].2["msgKey"], "sampleImageMsg");
+            assert!(calls[1].2["msgParam"].as_str().unwrap().contains("media-1"));
+        }
 
         let failed = Arc::new(FakeHttp::default());
         failed.json_responses.lock().unwrap().extend([
@@ -2027,11 +2031,12 @@ mod tests {
         let adapter = Arc::new(adapter(fake.clone()));
         let (registered_endpoint, ticket) = adapter.register_stream().await.unwrap();
         assert_eq!(ticket, "ticket-fixture");
-        let register_calls = fake.json_calls.lock().unwrap();
-        assert_eq!(register_calls.len(), 1);
-        assert_eq!(register_calls[0].0, DINGTALK_STREAM_REGISTER_PATH);
-        assert_eq!(register_calls[0].2["clientId"], "client");
-        drop(register_calls);
+        {
+            let register_calls = fake.json_calls.lock().unwrap();
+            assert_eq!(register_calls.len(), 1);
+            assert_eq!(register_calls[0].0, DINGTALK_STREAM_REGISTER_PATH);
+            assert_eq!(register_calls[0].2["clientId"], "client");
+        }
 
         let (fabric, mut consumer) = FabricConsumer::new();
         let cancel = CancellationToken::new();

@@ -525,10 +525,7 @@ impl QqAdapter {
                 .await?;
             // Do not reuse an earlier chunk's identifier when the platform
             // omits the current response ID. A receipt must remain truthful.
-            last_id = match response_id {
-                Some(id) => Some(id),
-                None => None,
-            };
+            last_id = response_id;
         }
         Ok(accepted_receipt(
             CHANNEL,
