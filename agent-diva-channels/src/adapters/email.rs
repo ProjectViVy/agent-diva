@@ -79,18 +79,65 @@ impl ParsedEmail {
 pub struct EmailAdapter {
     config: EmailConfig,
     services: AdapterServices,
+    transport: Arc<dyn EmailTransport>,
     processed: Arc<Mutex<HashSet<String>>>,
     shutdown: CancellationToken,
     health: Arc<StdRwLock<ChannelHealth>>,
     next_message_id: AtomicU64,
 }
 
+/// Blocking IMAP/SMTP operations are isolated behind this private seam. The
+/// production implementation keeps the existing libraries, while tests can
+/// run a deterministic fake IMAP/SMTP transcript without touching a network.
+trait EmailTransport: Send + Sync + 'static {
+    fn fetch_messages(
+        &self,
+        config: &EmailConfig,
+        mailbox: &str,
+        processed: &HashSet<String>,
+    ) -> Result<Vec<ParsedEmail>, String>;
+
+    fn mark_seen(&self, config: &EmailConfig, mailbox: &str, uid: &str) -> Result<(), String>;
+
+    fn send(&self, config: &EmailConfig, message: SmtpMessage) -> Result<String, String>;
+}
+
+struct SystemEmailTransport;
+
+impl EmailTransport for SystemEmailTransport {
+    fn fetch_messages(
+        &self,
+        config: &EmailConfig,
+        mailbox: &str,
+        processed: &HashSet<String>,
+    ) -> Result<Vec<ParsedEmail>, String> {
+        fetch_messages_blocking(config, mailbox, processed)
+    }
+
+    fn mark_seen(&self, config: &EmailConfig, mailbox: &str, uid: &str) -> Result<(), String> {
+        mark_seen_blocking(config, mailbox, uid)
+    }
+
+    fn send(&self, config: &EmailConfig, message: SmtpMessage) -> Result<String, String> {
+        smtp_send_blocking(config, message)
+    }
+}
+
 impl EmailAdapter {
     /// Construct a native adapter without registering or starting it.
     pub(crate) fn new(config: EmailConfig, services: AdapterServices) -> Self {
+        Self::with_transport(config, services, Arc::new(SystemEmailTransport))
+    }
+
+    fn with_transport(
+        config: EmailConfig,
+        services: AdapterServices,
+        transport: Arc<dyn EmailTransport>,
+    ) -> Self {
         Self {
             config,
             services,
+            transport,
             processed: Arc::new(Mutex::new(HashSet::new())),
             shutdown: CancellationToken::new(),
             health: Arc::new(StdRwLock::new(ChannelHealth::new(
@@ -336,8 +383,9 @@ impl EmailAdapter {
     async fn mark_seen_after_admission(&self, uid: String) {
         let config = self.config.clone();
         let mailbox = self.mailbox().to_string();
+        let transport = self.transport.clone();
         let handle =
-            tokio::task::spawn_blocking(move || mark_seen_blocking(&config, &mailbox, &uid));
+            tokio::task::spawn_blocking(move || transport.mark_seen(&config, &mailbox, &uid));
 
         tokio::select! {
             result = handle => match result {
@@ -363,9 +411,10 @@ impl EmailAdapter {
         let processed = self.processed.lock().await.clone();
         let config = self.config.clone();
         let mailbox = self.mailbox().to_string();
+        let transport = self.transport.clone();
         let fetch_task: JoinHandle<Result<Vec<ParsedEmail>, String>> =
             tokio::task::spawn_blocking(move || {
-                fetch_messages_blocking(&config, &mailbox, &processed)
+                transport.fetch_messages(&config, &mailbox, &processed)
             });
 
         let messages = tokio::select! {
@@ -548,8 +597,8 @@ impl EmailAdapter {
             attachments,
             message_id: generated_for_task,
         };
-        let send_task =
-            tokio::task::spawn_blocking(move || smtp_send_blocking(&config, smtp_message));
+        let transport = self.transport.clone();
+        let send_task = tokio::task::spawn_blocking(move || transport.send(&config, smtp_message));
 
         let result = tokio::select! {
             biased;
@@ -753,6 +802,7 @@ struct OutboundAttachment {
     bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
 struct SmtpMessage {
     from: String,
     to: String,
@@ -1251,11 +1301,15 @@ fn message_id_for_fixture(message_id: Option<&str>, uid: &str) -> String {
 mod tests {
     use super::*;
     use crate::adapter::{ChannelAttachmentStore, StoredAttachment};
-    use agent_diva_core::channel::{ChannelDirection, ChannelOrigin, FabricKernel};
+    use agent_diva_core::channel::{
+        ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
+        ContentPart, Correlation, FabricKernel,
+    };
     use agent_diva_core::config::schema::EmailConfig;
     use async_trait::async_trait;
     use sha2::Digest;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, VecDeque};
+    use std::sync::Mutex as StdMutex;
 
     #[derive(Default)]
     struct MemoryAttachments {
@@ -1302,6 +1356,48 @@ mod tests {
                 .ok_or_else(|| crate::adapter::AttachmentStoreError::NotFound {
                     uri: reference.uri.clone(),
                 })
+        }
+    }
+
+    #[derive(Default)]
+    struct FakeEmailTransport {
+        fetches: StdMutex<VecDeque<Result<Vec<ParsedEmail>, String>>>,
+        seen: StdMutex<Vec<String>>,
+        sent: StdMutex<Vec<SmtpMessage>>,
+    }
+
+    impl EmailTransport for FakeEmailTransport {
+        fn fetch_messages(
+            &self,
+            _config: &EmailConfig,
+            _mailbox: &str,
+            _processed: &HashSet<String>,
+        ) -> Result<Vec<ParsedEmail>, String> {
+            self.fetches
+                .lock()
+                .expect("fake fetch lock")
+                .pop_front()
+                .unwrap_or_else(|| Ok(Vec::new()))
+        }
+
+        fn mark_seen(
+            &self,
+            _config: &EmailConfig,
+            _mailbox: &str,
+            uid: &str,
+        ) -> Result<(), String> {
+            self.seen
+                .lock()
+                .expect("fake seen lock")
+                .push(uid.to_string());
+            Ok(())
+        }
+
+        fn send(&self, _config: &EmailConfig, message: SmtpMessage) -> Result<String, String> {
+            let mut sent = self.sent.lock().expect("fake SMTP lock");
+            let id = format!("smtp-fixture-{}", sent.len() + 1);
+            sent.push(message);
+            Ok(id)
         }
     }
 
@@ -1454,6 +1550,112 @@ mod tests {
             envelope.correlation.reply_to.as_deref(),
             Some("parent@example.test")
         );
+    }
+
+    #[tokio::test]
+    async fn fake_imap_poll_admits_before_store_seen_and_deduplicates_uid() {
+        let fake = Arc::new(FakeEmailTransport::default());
+        let email =
+            parse_email_bytes(&fixture("reply"), "uid-reply".to_string(), 12000).expect("fixture");
+        fake.fetches
+            .lock()
+            .unwrap()
+            .extend([Ok(vec![email.clone()]), Ok(vec![email])]);
+        let mut cfg = config();
+        cfg.mark_seen = true;
+        let adapter = EmailAdapter::with_transport(
+            cfg,
+            AdapterServices::new(Arc::new(MemoryAttachments::default())),
+            fake.clone(),
+        );
+        let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+        assert_eq!(adapter.poll_once(&context).await.unwrap(), 1);
+        assert!(adapter
+            .processed
+            .lock()
+            .await
+            .contains("reply@example.test"));
+        assert_eq!(fake.seen.lock().unwrap().as_slice(), ["uid-reply"]);
+        assert!(consumer.recv_ingress().await.is_some());
+        assert_eq!(adapter.poll_once(&context).await.unwrap(), 0);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), consumer.recv_ingress())
+                .await
+                .is_err()
+        );
+        assert_eq!(fake.seen.lock().unwrap().as_slice(), ["uid-reply"]);
+    }
+
+    #[tokio::test]
+    async fn fake_smtp_receives_reply_headers_multipart_and_real_receipt_id() {
+        let fake = Arc::new(FakeEmailTransport::default());
+        let store = Arc::new(MemoryAttachments::default());
+        let attachment = store
+            .put(IngressAttachment {
+                source_channel: "email".to_string(),
+                platform_message_id: Some("fixture".to_string()),
+                sender_id: Some("user@example.test".to_string()),
+                file_name: Some("pixel.png".to_string()),
+                declared_mime: Some("image/png".to_string()),
+                bytes: vec![0, 1, 2, 3],
+            })
+            .await
+            .unwrap();
+        let adapter =
+            EmailAdapter::with_transport(config(), AdapterServices::new(store), fake.clone());
+        let mut correlation = Correlation::new("email:recipient@example.test");
+        correlation.reply_to = Some("<parent@example.test>".to_string());
+        let mut envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            ChannelAddress::new("email", "recipient@example.test"),
+            correlation,
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![
+                    ContentPart::Text {
+                        text: "reply body".to_string(),
+                    },
+                    ContentPart::Image { attachment },
+                ],
+                subject: Some("Quarterly plan".to_string()),
+                locale: None,
+                context: None,
+            },
+        );
+        envelope.extensions.insert(
+            "email.references".to_string(),
+            json!("<root@example.test> <parent@example.test>"),
+        );
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: Some("smtp-fixture".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.platform_message_id.as_deref(),
+            Some("smtp-fixture-1")
+        );
+        let sent = fake.sent.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].to, "recipient@example.test");
+        assert_eq!(sent[0].subject, "Quarterly plan");
+        assert_eq!(
+            sent[0].in_reply_to.as_deref(),
+            Some("<parent@example.test>")
+        );
+        assert_eq!(
+            sent[0].references.as_deref(),
+            Some("<root@example.test> <parent@example.test>")
+        );
+        assert_eq!(sent[0].attachments[0].file_name, "pixel.png");
+        assert_eq!(sent[0].attachments[0].media_type, "image/png");
+        assert_eq!(sent[0].attachments[0].bytes, vec![0, 1, 2, 3]);
     }
 
     #[tokio::test]
