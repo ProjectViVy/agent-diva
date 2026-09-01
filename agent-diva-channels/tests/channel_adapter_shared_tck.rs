@@ -4,12 +4,14 @@ use agent_diva_channels::{
     ChannelAttachmentStore, IngressAttachment, StoredAttachment,
 };
 use agent_diva_core::channel::{
-    AttachmentRef, ChannelAddress, ChannelOrigin, ContentPart, Correlation, DeliveryStatus,
+    AttachmentRef, ChannelAddress, ChannelCapability, ChannelCommand, ChannelOrigin, ContentPart,
+    Correlation, DeliveryStatus, TypingState,
 };
 use agent_diva_core::config::Config;
 use async_trait::async_trait;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
 const TEST_MAX_ATTACHMENT_BYTES: u64 = 16;
@@ -189,4 +191,268 @@ fn factory_returns_one_native_adapter_per_enabled_channel() {
         .map(|adapter| adapter.name().to_string())
         .collect::<Vec<_>>();
     assert_eq!(names, vec!["telegram", "qq"]);
+}
+
+fn capability_set(values: &[ChannelCapability]) -> BTreeSet<ChannelCapability> {
+    values.iter().copied().collect()
+}
+
+fn frozen_capabilities(channel: &str) -> BTreeSet<ChannelCapability> {
+    use ChannelCapability::*;
+    match channel {
+        "telegram" => capability_set(&[
+            IngressText,
+            IngressThread,
+            IngressGroup,
+            IngressDirect,
+            IngressTypedAttachments,
+            IngressDedupId,
+            EgressText,
+            EgressMarkdown,
+            EgressChunking,
+            EgressReply,
+            EgressImage,
+            EgressAudio,
+            EgressVideo,
+            EgressFile,
+            InteractionTyping,
+            InteractionListening,
+            InteractionEdit,
+            InteractionDelete,
+            InteractionStreamFinalize,
+            ReliabilityHealth,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        "discord" => capability_set(&[
+            IngressText,
+            IngressMarkdown,
+            IngressThread,
+            IngressGroup,
+            IngressDirect,
+            IngressTypedAttachments,
+            IngressDedupId,
+            EgressText,
+            EgressMarkdown,
+            EgressChunking,
+            EgressReply,
+            EgressImage,
+            EgressAudio,
+            EgressVideo,
+            EgressFile,
+            EgressCard,
+            InteractionTyping,
+            InteractionEdit,
+            InteractionDelete,
+            InteractionReaction,
+            InteractionStreamFinalize,
+            ReliabilityHealth,
+            ReliabilityHeartbeat,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        "feishu" => capability_set(&[
+            IngressText,
+            IngressMarkdown,
+            IngressThread,
+            IngressGroup,
+            IngressDirect,
+            IngressTypedAttachments,
+            IngressDedupId,
+            EgressText,
+            EgressMarkdown,
+            EgressReply,
+            EgressImage,
+            EgressFile,
+            EgressCard,
+            InteractionEdit,
+            InteractionDelete,
+            InteractionStreamFinalize,
+            ReliabilityHealth,
+            ReliabilityHeartbeat,
+            ReliabilityTokenRefresh,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        "dingtalk" => capability_set(&[
+            IngressText,
+            IngressMarkdown,
+            IngressGroup,
+            IngressDirect,
+            IngressTypedAttachments,
+            IngressDedupId,
+            EgressText,
+            EgressMarkdown,
+            EgressImage,
+            EgressAudio,
+            EgressVideo,
+            EgressFile,
+            ReliabilityHealth,
+            ReliabilityHeartbeat,
+            ReliabilityTokenRefresh,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        "email" => capability_set(&[
+            IngressText,
+            IngressThread,
+            IngressDirect,
+            IngressTypedAttachments,
+            IngressDedupId,
+            EgressText,
+            EgressReply,
+            EgressImage,
+            EgressAudio,
+            EgressVideo,
+            EgressFile,
+            ReliabilityHealth,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        "qq" => capability_set(&[
+            IngressText,
+            IngressGroup,
+            IngressDirect,
+            IngressDedupId,
+            EgressText,
+            EgressChunking,
+            EgressReply,
+            ReliabilityHealth,
+            ReliabilityHeartbeat,
+            ReliabilityResume,
+            ReliabilityTokenRefresh,
+            ReliabilityPacing,
+            ReliabilitySupervisedRestart,
+        ]),
+        other => panic!("unknown frozen channel {other}"),
+    }
+}
+
+#[test]
+fn all_six_native_capability_snapshots_equal_the_frozen_matrix() {
+    let mut config = Config::default();
+    config.channels.telegram.enabled = true;
+    config.channels.discord.enabled = true;
+    config.channels.feishu.enabled = true;
+    config.channels.dingtalk.enabled = true;
+    config.channels.email.enabled = true;
+    config.channels.qq.enabled = true;
+    let adapters = build_active_adapters(&config, test_services()).unwrap();
+    assert_eq!(adapters.len(), 6);
+    for adapter in adapters {
+        let channel = adapter.name().to_string();
+        assert_eq!(
+            adapter.capabilities().supported,
+            frozen_capabilities(&channel),
+            "capability snapshot drifted for {channel}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn representative_false_capabilities_fail_before_any_platform_request() {
+    let mut config = Config::default();
+    config.channels.telegram.enabled = true;
+    config.channels.discord.enabled = true;
+    config.channels.feishu.enabled = true;
+    config.channels.dingtalk.enabled = true;
+    config.channels.email.enabled = true;
+    config.channels.qq.enabled = true;
+    let adapters = build_active_adapters(&config, test_services()).unwrap();
+    for adapter in adapters {
+        let channel = adapter.name().to_string();
+        let command = match channel.as_str() {
+            "telegram" => ChannelCommand::React {
+                address: ChannelAddress::new("telegram", "chat"),
+                correlation: Correlation::new("telegram:chat"),
+                target_message_id: "message".to_string(),
+                operation: agent_diva_core::channel::ReactionOperation::Add,
+                emoji: "thumbsup".to_string(),
+                idempotency_key: None,
+            },
+            "discord" => ChannelCommand::Typing {
+                address: ChannelAddress::new("discord", "chat"),
+                correlation: Correlation::new("discord:chat"),
+                state: TypingState::Listening,
+                idempotency_key: None,
+            },
+            "feishu" => ChannelCommand::React {
+                address: ChannelAddress::new("feishu", "chat"),
+                correlation: Correlation::new("feishu:chat"),
+                target_message_id: "message".to_string(),
+                operation: agent_diva_core::channel::ReactionOperation::Add,
+                emoji: "THUMBSUP".to_string(),
+                idempotency_key: None,
+            },
+            "dingtalk" => ChannelCommand::Edit {
+                address: ChannelAddress::new("dingtalk", "chat"),
+                correlation: Correlation::new("dingtalk:chat"),
+                target_message_id: "message".to_string(),
+                parts: vec![ContentPart::Text {
+                    text: "edited".to_string(),
+                }],
+                idempotency_key: None,
+            },
+            "email" => ChannelCommand::Typing {
+                address: ChannelAddress::new("email", "chat@example.test"),
+                correlation: Correlation::new("email:chat@example.test"),
+                state: TypingState::Started,
+                idempotency_key: None,
+            },
+            "qq" => ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    ChannelAddress::new("qq", "chat"),
+                    Correlation::new("qq:chat"),
+                    vec![ContentPart::Card {
+                        schema: "c5.card".to_string(),
+                        body: serde_json::json!({"title":"unsupported"}),
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: None,
+            },
+            _ => unreachable!(),
+        };
+        let result = adapter.execute(command).await;
+        assert!(
+            matches!(
+                result,
+                Err(agent_diva_channels::AdapterError::UnsupportedCapability { .. })
+            ),
+            "{channel} did not reject unsupported command before transport: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn every_channel_fixture_directory_contains_parseable_contract_data() {
+    let fixtures = [
+        (
+            "telegram",
+            include_str!("fixtures/c5/telegram/inbound-text.json"),
+        ),
+        (
+            "discord",
+            include_str!("fixtures/c5/discord/gateway-frames.json"),
+        ),
+        (
+            "feishu",
+            include_str!("fixtures/c5/feishu/protobuf-frame.json"),
+        ),
+        (
+            "dingtalk",
+            include_str!("fixtures/c5/dingtalk/stream-callback.json"),
+        ),
+        ("email", include_str!("fixtures/c5/email/plain.eml")),
+        ("qq", include_str!("fixtures/c5/qq/c2c-message.json")),
+    ];
+    for (channel, fixture) in fixtures {
+        if channel == "email" {
+            assert!(fixture.contains("Message-ID:"));
+        } else {
+            serde_json::from_str::<Value>(fixture)
+                .unwrap_or_else(|error| panic!("{channel} fixture is not JSON: {error}"));
+        }
+    }
 }

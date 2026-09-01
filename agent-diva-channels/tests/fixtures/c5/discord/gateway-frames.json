@@ -1,0 +1,9 @@
+[
+  {"op": 10, "d": {"heartbeat_interval": 50}},
+  {"op": 2, "d": {"intents": 32768, "properties": {"os": "linux", "browser": "agent-diva", "device": "agent-diva"}}},
+  {"op": 0, "s": 1, "t": "READY", "d": {"session_id": "session-redacted"}},
+  {"op": 1, "d": 1},
+  {"op": 11, "d": null},
+  {"op": 7, "d": null},
+  {"op": 9, "d": false}
+]

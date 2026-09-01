@@ -1,0 +1,6 @@
+{
+  "send": {"id": "snowflake-redacted"},
+  "edit": {"id": "snowflake-edited"},
+  "rate_limited": {"retry_after": 1.25},
+  "permission_error": {"code": 50013, "message": "Missing Permissions"}
+}
