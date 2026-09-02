@@ -17,4 +17,15 @@
 
 ## Current state
 
-Not yet accepted; implementation is pending.
+Offline maintainer acceptance is complete for the repaired implementation: all six adapters have
+channel-owned fixtures/tests/Gate3 evidence, shared TCK and all listed local gates pass, and the
+manifest is synchronized at `11 verified / 17 partial / 1 blocked/unsupported`. The following
+items are intentionally not accepted or closed by offline work:
+
+- QQ real-credential vertical smoke, D-013 official intents delivery, and D-014 official media
+  wire proof;
+- live platform delivery/permission/supervisor evidence for the remaining partial rows;
+- Telegram keyboard/reply markup, which remains `UnsupportedCapability` under the frozen contract.
+
+No public contract/configuration/Manager change, `dev` merge, push, or C6 cutover occurred. The
+worktree can be handed off after the repair LOCK release is recorded.

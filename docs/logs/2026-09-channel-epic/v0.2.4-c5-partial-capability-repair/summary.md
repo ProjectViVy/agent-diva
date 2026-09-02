@@ -14,4 +14,14 @@ The implementation scope is limited to native channel adapters, deterministic wi
 
 ## Status
 
-Implementation and evidence integration are in progress. Rows are promoted to `verified` only after source symbol, fixture, test, exact request/response or typed error, receipt, and lifecycle evidence all agree.
+The six repair lanes and Lead shared TCK are implemented and integrated. The machine-auditable
+disposition is `11 verified / 17 partial / 1 blocked/unsupported` across 29 rows. Feishu FS-01,
+FS-03, FS-04, and FS-05 were promoted only after deterministic wire/store/lifecycle evidence
+closed their local requirements; all other repaired rows remain conservative where live platform,
+supervisor, or external decision evidence is still absent.
+
+The repair commits are `d22f82c1` (QQ), `17c3749c` (DingTalk), `e0ff3f9a` (Feishu), `981a4884`
+(Telegram), `b82b80c5` (Email), `760564b1` (Discord), `73c0359c` (shared TCK), `f6cedfdb`
+(typed Email MIME error), `9579e577` (all-target clippy cleanup), and `6c06a069` (QQ live
+prerequisite wording). The branch remains isolated; C5-V/C5-Q are not closed because QQ live,
+D-013/D-014, Telegram keyboard boundary, and the remaining external evidence gates remain open.
