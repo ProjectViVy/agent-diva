@@ -31,7 +31,7 @@ fixtures, and evidence manifest in the same focused commit.
 | `InteractionStreamFinalize` | T | T | T | F | F | F |
 | `ReliabilityHealth` | T | T | T | T | T | T |
 | `ReliabilityHeartbeat` | F | T | T | T | F | T |
-| `ReliabilityResume` | F | T | F | F | F | T |
+| `ReliabilityResume` | F | F | F | F | F | F |
 | `ReliabilityTokenRefresh` | F | F | T | T | F | T |
 | `ReliabilityPacing` | T | T | T | T | T | T |
 | `ReliabilitySupervisedRestart` | T | T | T | T | T | T |
@@ -66,7 +66,7 @@ to every target row:
 | Feishu WS/token/card/image marker/reaction | `Partial` or `Retain-DIVA`: preserve stronger behavior while adding region/webhook/upload/edit/delete evidence |
 | DingTalk Stream/group/private/media | `Retain-DIVA`: never replace with Octos text-only webhook |
 | Email consent/TLS/polling/multipart | `Retain-DIVA`: add Octos thread/self-reply/mark-seen ordering and health evidence |
-| QQ C2C/reconnect/resume | `Partial`: current tests do not prove group, media or response message ID |
+| QQ C2C/reconnect/resume | `Partial`: C2C/group IDs and recovery wire are locally tested, but official intents delivery and a truthful resume capability claim remain unproven |
 | QQ group/media | `Missing`/`Blocked`: no target claim until official wire path and fixture exist |
 
 Any target `T` without a corresponding `verified` record in `evidence-manifest.md` remains an

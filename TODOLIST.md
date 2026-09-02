@@ -135,9 +135,9 @@
         [`platforms/*-gate2.md`](docs/dev/channel-epic/c5-octos-migration/platforms/README.md)
         与 [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)。
     - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
-      每个 target-true 能力必须有 wire fixture/mock；QQ 需完成 C2C/群 @ 入站、去重、
-      final-only 流降级、真实 message ID receipt、resume/reconnect 和 stop 验证。凭据只从
-      仓库外注入，未执行真机前不得勾选 C5。
+      六频道 target-true 能力的本地 wire/fixture/TCK 已补齐并逐行审计；QQ 已有 C2C/群 @、
+      admission-before-dedup、final-only、真实 message ID、recovery/stop 的离线证据，但
+      凭据只从仓库外注入，未完成 QQ 真机、D-013/D-014 与其余 partial 的外部证据前不得勾选 C5。
       - [ ] **C5-V-QQ-LIVE-BLOCKED** `sev-P1`
         已加入显式 `#[ignore]` 的 `qq_live_harness`，覆盖 C2C、群 @、重放、final-only、
         receipt、resume/reconnect 和 stop；真实运行命令为
@@ -150,17 +150,18 @@
         audit 和 QQ live/官方 wire blockers 仍按独立 TODO 保持开放；记录见本轮
         [`verification.md`](docs/logs/2026-09-channel-epic/v0.2.2-c5-capability-evidence/verification.md)。
     - [ ] **C5-Q：QQ intents、group send 与 media 官方 wire 证据** `sev-P1`
-      当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
-      Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
-      group/C2C policy 测试，未完成前保持 `Blocked`，不得以 C2C 测试关闭该项。
+      当前 DIVA 的 C2C/group outbound 与本地 recovery 已有 wire-shaped fixture，但 DIVA 使用
+      `(1<<25)|(1<<12)`、Octos 使用 `(1<<25)|(1<<30)`，官方事件投递仍未证实；D-014 也没有
+      官方 media endpoint+wire proof。必须补官方证据后才能调整状态，不能以离线 fixture 关闭。
     - [ ] **C5-V-PARTIAL-AUDIT-FINDINGS：21 条 partial 的实现与证据缺口** `sev-P1`
-      2026-09-02 已逐项对照固定 Octos SHA 完成审计，但没有升级任何状态。实现层必须继续
-      处理：Telegram 群 mention/reply/command 门控、超限下载与 callback keyboard/ACK；
-      Discord DM/mention/dedup、下载状态/reply reference 与 403 分类；Feishu 删除响应
-      JSON error code；DingTalk 主动 heartbeat、multipart token refresh/idempotency；
-      Email `imap_use_ssl`、invalid MIME、真实 health/mark-seen retry；QQ 重连 heartbeat
-      状态复位与 invalid-session cooldown。逐类媒体、异常 opcode、429/permission、取消、
-      重连、health、receipt 和 raw transport transcript 等证据缺口见
+      2026-09-02 已逐项对照固定 Octos SHA 完成修复审计；本地状态为 `11 verified / 17
+      partial / 1 blocked/unsupported`，不是所有 partial 都能凭本地 mock 升级。剩余缺口是：
+      Telegram TG-02～TG-06 的 live 群权限/CDN/送达/C6 supervisor 与 keyboard 边界；Discord
+      DC-01/02/03/05 的 live Gateway、guild/CDN/permission/retry/supervisor；DingTalk DT-01/
+      03/04 的 live Stream、媒体权限/receipt、官方签名 callback；Email EM-02/03/04 的真实
+      IMAP/SMTP TLS/auth/delivery/UID Seen；QQ QQ-01/02 的 live Gateway 与 D-013。Feishu
+      FS-01/03/04/05 仅在本地 deterministic wire/store 范围升级 verified，远端真实性与长时
+      soak 仍不等同于 live proof。逐行 evidence、receipt/error 和生命周期结果见
       [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)
       及六份 `platforms/*-gate3.md`；在实现或证据闭合前不得关闭 C5-V。
     - [x] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`（2026-08-31）

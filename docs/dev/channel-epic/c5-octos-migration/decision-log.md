@@ -60,6 +60,24 @@
   provenance metadata; it did not change adapters, fixtures, tests, Cargo files, Manager assembly,
   C6, `dev`, or push anything. No compile, test, or live-network command was run.
 
+## C5-V partial capability repair record (2026-09-02)
+
+- The six channel repair lanes were integrated from isolated worktrees after review against the
+  pinned Octos SHA: Telegram `72b964ea`, Discord `f95f7cdf`, Feishu `b693e787`, DingTalk
+  `b1b2e196`, Email `9b03571a`, and QQ `1977d4fa`. Lead-owned shared TCK/evidence work is
+  `73c0359c`; the typed Email MIME diagnosis fix is `f6cedfdb`; final all-target clippy cleanup
+  is `9579e577`.
+- Deterministic evidence now disposes the 29 rows as `11 verified / 17 partial /
+  1 blocked/unsupported`. Only Feishu FS-01/FS-03/FS-04/FS-05 were promoted; the remaining
+  repaired local paths stay `partial` where live/platform or supervisor proof is still required.
+  QQ-05 remains explicitly `blocked/unsupported`.
+- Telegram keyboard/reply markup remains unsupported under the frozen public contract. QQ D-013
+  (official intents delivery) and D-014 (official media wire) remain blocked; local fixtures and
+  recovery tests do not resolve either decision, and the ignored QQ live harness remains an
+  operator-only gate.
+- No public protocol field, `ContentPart`, `ChannelCommand`, configuration key, global endpoint
+  override, Manager production assembly, C6 clean-break change, `dev` merge, or push was made.
+
 ## blocked 项的处理协议
 
 QQ 的 D-013/D-014 不阻塞其它频道实施。QQ agent 必须提供：官方文档/源码证据、mock gateway 或
