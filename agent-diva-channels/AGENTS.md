@@ -2,19 +2,25 @@
 
 ## OVERVIEW
 
-Chat platform adapters for Agent Diva. Each platform is a handler module behind the `ChannelHandler` trait, coordinated by `ChannelManager`.
+Chat platform adapters for Agent Diva. Legacy platform handlers remain available only until the
+atomic CHANNEL-EPIC C6 cutover; new C5 work uses native `ChannelAdapter` implementations behind
+the bounded Super Channel Fabric runtime.
 
 ## STRUCTURE
 
-Flat module layout under `src/`: one file per channel plus `common/` for shared helpers.
+Legacy modules remain flat under `src/`. Native C5 adapters live under `src/adapters/`, while
+`src/runtime/` owns the shared Registry, pacing, and supervisor.
 
 ## WHERE TO LOOK
 
 | File / Directory | Purpose |
 |---|---|
 | `src/lib.rs` | Module declarations and public re-exports. |
+| `src/adapter.rs` | Native `ChannelAdapter`, services, and typed adapter errors. |
+| `src/adapters/` | C5 native Telegram/Discord/Feishu/DingTalk/Email/QQ adapters. |
 | `src/base.rs` | `ChannelHandler` trait, `BaseChannel`, `ChannelError`, `ChannelHandlerPtr`. |
 | `src/manager.rs` | `ChannelManager`: validation, initialization, start/stop, runtime updates. |
+| `src/runtime/` | Native adapter Registry, pacing, and supervised listener lifecycle. |
 | `src/common/` | Shared HTTP client and media download helpers. |
 | `src/telegram.rs` | Telegram Bot API handler. |
 | `src/discord.rs` | Discord gateway handler. |
@@ -32,12 +38,19 @@ Flat module layout under `src/`: one file per channel plus `common/` for shared 
 
 ## CONVENTIONS
 
-- Add a new channel by creating `src/<channel>.rs` and exporting it from `src/lib.rs`.
-- Name the concrete type `{Platform}Handler` and implement `ChannelHandler`.
-- Use `BaseChannel` for allow-list checks and inbound message routing.
-- Register required fields in `manager.rs` `channel_validation` and `build_updated_handler`.
-- Keep platform SDK imports and transport code inside the channel module.
-- Re-export the handler in `src/lib.rs`.
+- Legacy-only changes add `src/<channel>.rs`, name the concrete type `{Platform}Handler`, and
+  implement `ChannelHandler`; this path is not used for C5 migration work.
+- C5 work creates `src/adapters/<platform>.rs`, names the concrete type `{Platform}Adapter`, and
+  implements `ChannelAdapter` without calling or wrapping a legacy handler.
+- Native adapters receive `AdapterServices` at construction, use the shared bounded Fabric,
+  Registry, pacing, supervisor, receipt, and capability contracts, and keep platform transport
+  code inside their own module.
+- Keep `allow_from` executable semantics consistent: an empty list allows all senders; a populated
+  list restricts senders. Platform-specific DM/group/mention policy is evaluated before media
+  download and Fabric admission.
+- Registering native adapters in Manager and deleting legacy handlers are C6-only operations.
+- Re-export public native contracts and adapters from `src/lib.rs` only through focused shared/owner
+  commits.
 - Retired-channel injection points in `manager.rs` (imports, validation arms,
   `configured_channel_names` entries, `build_updated_handler` arms, startup blocks)
   carry `#[cfg(feature = "channel-*")]` gates marked `RETIRED 2026-08-18`; keep the
@@ -52,7 +65,9 @@ Flat module layout under `src/`: one file per channel plus `common/` for shared 
 
 ## NOTES
 
-- `BaseChannel::new` defaults to `deny_by_default = true`; an empty `allow_from` denies all senders.
+- `BaseChannel` legacy documentation may mention historical defaults, but the executable channel
+  contract is authoritative: an empty `allow_from` allows all senders and a populated list filters
+  them.
 - `neuro-link` binding is restricted to `127.0.0.1`/`localhost` via `validate_neurolink_host`.
 - QQ uses a separate `reqwest_qq` dependency because `bots.qq.com` needs native TLS on Windows.
 - **Retired channels (2026-08-18, user decision)**: `slack`, `whatsapp`, `matrix`,

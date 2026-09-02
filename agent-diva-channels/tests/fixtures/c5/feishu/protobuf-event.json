@@ -1,0 +1,23 @@
+{
+  "header": {
+    "event_type": "im.message.receive_v1",
+    "event_id": "evt-fixture-001"
+  },
+  "event": {
+    "sender": {
+      "sender_id": {
+        "open_id": "ou-fixture-user"
+      },
+      "sender_type": "user"
+    },
+    "message": {
+      "message_id": "om-fixture-message",
+      "chat_id": "oc-fixture-group",
+      "chat_type": "group",
+      "message_type": "text",
+      "content": "{\"text\":\"fixture text\"}",
+      "root_id": "om-fixture-root",
+      "parent_id": "om-fixture-parent"
+    }
+  }
+}

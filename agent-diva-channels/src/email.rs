@@ -694,6 +694,7 @@ impl ChannelHandler for EmailHandler {
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use agent_diva_core::config::schema::Config;

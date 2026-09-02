@@ -1,0 +1,732 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-diva.dev/schemas/neuro-link/v1/protocol.schema.json",
+  "title": "Agent Diva Neuro-Link v1 protocol",
+  "description": "The single wire contract for the Super Channel Fabric Neuro-Link v1 transport.",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/notification" },
+    { "$ref": "#/$defs/response" }
+  ],
+  "$defs": {
+    "rpc_id": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "integer" },
+        { "type": "null" }
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jsonrpc", "id", "method", "params"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/rpc_id" },
+        "method": {
+          "enum": [
+            "protocol/hello",
+            "service/list",
+            "session/open",
+            "turn/start",
+            "turn/cancel",
+            "event/ack",
+            "state/resume"
+          ]
+        },
+        "params": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "method": { "const": "protocol/hello" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/hello_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "service/list" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/empty_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "session/open" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/session_open_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "turn/start" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/turn_start_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "turn/cancel" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/turn_cancel_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "event/ack" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/event_ack_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "state/resume" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/state_resume_params" } } }
+        }
+      ]
+    },
+    "notification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jsonrpc", "method", "params"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "method": {
+          "enum": [
+            "session/opened",
+            "turn/admission",
+            "turn/iteration",
+            "conversation/stream",
+            "conversation/reasoning",
+            "tool/lifecycle",
+            "provider/status",
+            "context/compaction",
+            "approval/required",
+            "question/required",
+            "planning/changed",
+            "presentation/event",
+            "state/gap",
+            "service/changed"
+          ]
+        },
+        "params": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "method": { "const": "session/opened" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/session_opened_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "service/changed" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/service_changed_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "turn/admission" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "conversation/stream" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "turn/iteration" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "conversation/reasoning" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "tool/lifecycle" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "approval/required" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "question/required" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "planning/changed" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "provider/status" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "context/compaction" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "presentation/event" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        },
+        {
+          "if": { "properties": { "method": { "const": "state/gap" } } },
+          "then": { "properties": { "params": { "$ref": "#/$defs/envelope_params" } } }
+        }
+      ]
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jsonrpc", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/rpc_id" },
+        "result": { "type": "object" },
+        "error": { "$ref": "#/$defs/error" }
+      },
+      "oneOf": [
+        { "required": ["result"], "not": { "required": ["error"] } },
+        { "required": ["error"], "not": { "required": ["result"] } }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_request",
+            "invalid_params",
+            "method_not_found",
+            "internal_error",
+            "protocol_version_mismatch",
+            "cursor_out_of_range",
+            "cursor_invalid",
+            "unsupported_capability",
+            "frame_too_large",
+            "attachment_too_large",
+            "busy",
+            "idempotency_conflict",
+            "service_unavailable"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 },
+        "data": { "type": "object" }
+      }
+    },
+    "empty_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 0
+    },
+    "hello_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "schema_version", "frontend_instance_id", "capabilities"],
+      "properties": {
+        "protocol": { "const": "neuro-link/v1" },
+        "schema_version": { "const": 1 },
+        "frontend_instance_id": { "type": "string", "minLength": 1 },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "session_open_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "durable_cursor": { "$ref": "#/$defs/cursor" }
+      }
+    },
+    "turn_start_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "parts", "context"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "thread_id": { "type": "string", "minLength": 1 },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/content_part" }
+        },
+        "client_message_id": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string", "minLength": 1 },
+        "locale": { "type": "string", "minLength": 1 },
+        "context": { "$ref": "#/$defs/owner_turn_context" }
+      }
+    },
+    "owner_turn_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent"],
+      "properties": {
+        "intent": { "enum": ["agent", "plan", "ask"] },
+        "approval_policy": { "enum": ["on-request", "on-failure", "unless-trusted", "never"] },
+        "execution": { "$ref": "#/$defs/owner_execution_context" }
+      }
+    },
+    "owner_execution_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "revision"],
+      "properties": {
+        "plan_id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer" },
+        "execution_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "turn_cancel_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "request_id"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "event_ack_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "cursor"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "cursor": { "$ref": "#/$defs/cursor" }
+      }
+    },
+    "state_resume_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "cursor"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "cursor": { "$ref": "#/$defs/cursor" }
+      }
+    },
+    "cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stream", "sequence"],
+      "properties": {
+        "stream": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "session_opened_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "cursor", "catalog_revision", "services"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "catalog_revision": { "type": "integer", "minimum": 0 },
+        "services": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/service_binding" }
+        }
+      }
+    },
+    "service_changed_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["services"],
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/service_binding" }
+        }
+      }
+    },
+    "service_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service_id", "schema_version", "methods", "http_base"],
+      "properties": {
+        "service_id": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "methods": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "http_base": { "type": "string", "minLength": 1 },
+        "required_frontend_capability": { "type": "string", "minLength": 1 }
+      }
+    },
+    "service_list_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog_revision", "services"],
+      "properties": {
+        "catalog_revision": { "type": "integer", "minimum": 0 },
+        "services": { "type": "array", "items": { "$ref": "#/$defs/service_binding" } }
+      }
+    },
+    "projection_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "cursor", "envelope"],
+      "properties": {
+        "method": {
+          "enum": [
+            "turn/admission",
+            "turn/iteration",
+            "conversation/stream",
+            "conversation/reasoning",
+            "tool/lifecycle",
+            "provider/status",
+            "context/compaction",
+            "approval/required",
+            "question/required",
+            "planning/changed",
+            "presentation/event",
+            "state/gap",
+            "service/changed"
+          ]
+        },
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "envelope": { "$ref": "#/$defs/envelope" }
+      }
+    },
+    "state_sync_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "head", "events", "snapshot"],
+      "properties": {
+        "mode": { "enum": ["replay", "snapshot", "replay_and_snapshot"] },
+        "head": { "$ref": "#/$defs/cursor" },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/projection_event" } },
+        "snapshot": { "type": "array", "items": { "$ref": "#/$defs/projection_event" } }
+      }
+    },
+    "session_open_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opened", "sync"],
+      "properties": {
+        "opened": { "$ref": "#/$defs/session_opened_params" },
+        "sync": { "$ref": "#/$defs/state_sync_result" }
+      }
+    },
+    "admission_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "session_key", "request_id", "trace_id", "queue_depth", "wait_latency_ms"],
+      "properties": {
+        "code": { "type": "string" },
+        "phase": { "type": "string" },
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "queue_depth": { "type": "integer", "minimum": 0 },
+        "wait_latency_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "turn_start_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key", "request_id", "trace_id", "admission"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "admission": { "$ref": "#/$defs/admission_observation" }
+      }
+    },
+    "event_ack_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cursor"],
+      "properties": { "cursor": { "$ref": "#/$defs/cursor" } }
+    },
+    "envelope_params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["envelope"],
+      "properties": {
+        "envelope": { "$ref": "#/$defs/envelope" }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "envelope_id",
+        "occurred_at",
+        "direction",
+        "address",
+        "correlation",
+        "origin",
+        "payload",
+        "extensions"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "envelope_id": { "type": "string", "format": "uuid" },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "direction": { "enum": ["ingress", "egress", "internal_projection"] },
+        "address": { "$ref": "#/$defs/address" },
+        "correlation": { "$ref": "#/$defs/correlation" },
+        "origin": { "enum": ["external_user", "owner_frontend", "runtime"] },
+        "payload": { "$ref": "#/$defs/payload" },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]*\\.[a-zA-Z0-9_.-]+$"
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "address": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "chat_id"],
+      "properties": {
+        "channel": { "type": "string", "minLength": 1 },
+        "account_id": { "type": "string", "minLength": 1 },
+        "sender_id": { "type": "string", "minLength": 1 },
+        "chat_id": { "type": "string", "minLength": 1 },
+        "thread_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_key"],
+      "properties": {
+        "session_key": { "type": "string", "minLength": 1 },
+        "request_id": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 },
+        "message_id": { "type": "string", "minLength": 1 },
+        "reply_to": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "content_part": {
+      "oneOf": [
+        { "$ref": "#/$defs/text_part" },
+        { "$ref": "#/$defs/markdown_part" },
+        { "$ref": "#/$defs/image_part" },
+        { "$ref": "#/$defs/audio_part" },
+        { "$ref": "#/$defs/video_part" },
+        { "$ref": "#/$defs/file_part" },
+        { "$ref": "#/$defs/location_part" },
+        { "$ref": "#/$defs/card_part" },
+        { "$ref": "#/$defs/reference_part" }
+      ]
+    },
+    "text_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": { "const": "text" },
+        "text": { "type": "string" }
+      }
+    },
+    "markdown_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "markdown"],
+      "properties": {
+        "kind": { "const": "markdown" },
+        "markdown": { "type": "string" }
+      }
+    },
+    "image_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "attachment"],
+      "properties": {
+        "kind": { "const": "image" },
+        "attachment": { "$ref": "#/$defs/attachment" }
+      }
+    },
+    "audio_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "attachment"],
+      "properties": {
+        "kind": { "const": "audio" },
+        "attachment": { "$ref": "#/$defs/attachment" },
+        "transcript": { "type": "string" }
+      }
+    },
+    "video_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "attachment"],
+      "properties": {
+        "kind": { "const": "video" },
+        "attachment": { "$ref": "#/$defs/attachment" }
+      }
+    },
+    "file_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "attachment"],
+      "properties": {
+        "kind": { "const": "file" },
+        "attachment": { "$ref": "#/$defs/attachment" }
+      }
+    },
+    "location_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "latitude", "longitude"],
+      "properties": {
+        "kind": { "const": "location" },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "label": { "type": "string" }
+      }
+    },
+    "card_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schema", "body"],
+      "properties": {
+        "kind": { "const": "card" },
+        "schema": { "type": "string", "minLength": 1 },
+        "body": { "type": "object" }
+      }
+    },
+    "reference_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "uri"],
+      "properties": {
+        "kind": { "const": "reference" },
+        "uri": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "media_type": { "type": "string", "minLength": 1 }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "media_type", "size_bytes", "sha256"],
+      "properties": {
+        "uri": { "type": "string", "minLength": 1 },
+        "media_type": { "type": "string", "minLength": 1 },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+        "file_name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "payload": {
+      "oneOf": [
+        { "$ref": "#/$defs/message_payload" },
+        { "$ref": "#/$defs/typing_payload" },
+        { "$ref": "#/$defs/stream_payload" },
+        { "$ref": "#/$defs/reaction_payload" },
+        { "$ref": "#/$defs/delete_payload" },
+        { "$ref": "#/$defs/delivery_payload" },
+        { "$ref": "#/$defs/health_payload" },
+        { "$ref": "#/$defs/control_payload" },
+        { "$ref": "#/$defs/presentation_payload" },
+        { "$ref": "#/$defs/gap_payload" }
+      ]
+    },
+    "message_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "parts"],
+      "properties": {
+        "kind": { "const": "message" },
+        "parts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/content_part" } },
+        "subject": { "type": "string" },
+        "locale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "typing_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "state"],
+      "properties": {
+        "kind": { "const": "typing" },
+        "state": { "enum": ["started", "stopped", "listening"] }
+      }
+    },
+    "stream_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "phase", "parts"],
+      "properties": {
+        "kind": { "const": "stream" },
+        "phase": { "enum": ["started", "delta", "finalized", "cancelled", "failed"] },
+        "parts": { "type": "array", "items": { "$ref": "#/$defs/content_part" } }
+      }
+    },
+    "reaction_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "operation", "emoji"],
+      "properties": {
+        "kind": { "const": "reaction" },
+        "operation": { "enum": ["add", "remove"] },
+        "emoji": { "type": "string", "minLength": 1 }
+      }
+    },
+    "delete_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "target_message_id"],
+      "properties": {
+        "kind": { "const": "delete" },
+        "target_message_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "delivery_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "receipt"],
+      "properties": {
+        "kind": { "const": "delivery" },
+        "receipt": { "$ref": "#/$defs/delivery_receipt" }
+      }
+    },
+    "health_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "status"],
+      "properties": {
+        "kind": { "const": "health" },
+        "status": { "enum": ["healthy", "degraded", "down", "unknown"] },
+        "diagnosis": { "type": "string" }
+      }
+    },
+    "control_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "operation", "body"],
+      "properties": {
+        "kind": { "const": "control" },
+        "operation": { "type": "string", "minLength": 1 },
+        "body": { "type": "object" }
+      }
+    },
+    "presentation_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "event", "body"],
+      "properties": {
+        "kind": { "const": "presentation" },
+        "event": { "type": "string", "minLength": 1 },
+        "body": { "type": "object" }
+      }
+    },
+    "gap_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": { "const": "gap" },
+        "last_durable_cursor": { "$ref": "#/$defs/cursor" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "delivery_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "channel", "chat_id"],
+      "properties": {
+        "status": { "enum": ["accepted", "delivered", "rejected", "failed", "unsupported"] },
+        "channel": { "type": "string", "minLength": 1 },
+        "chat_id": { "type": "string", "minLength": 1 },
+        "platform_message_id": { "type": "string", "minLength": 1 },
+        "thread_id": { "type": "string", "minLength": 1 },
+        "retry_after_ms": { "type": "integer", "minimum": 0 },
+        "error_code": { "type": "string", "minLength": 1 },
+        "diagnosis": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

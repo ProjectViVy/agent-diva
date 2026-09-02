@@ -1,0 +1,18 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: Attachment
+Message-ID: <attachment@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="c5-boundary"
+
+--c5-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attached fixture.
+--c5-boundary
+Content-Type: image/png; name="pixel.png"
+Content-Disposition: attachment; filename="pixel.png"
+Content-Transfer-Encoding: base64
+
+AAECAw==
+--c5-boundary--

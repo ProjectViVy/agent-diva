@@ -1,0 +1,11 @@
+{
+  "source": "QQ Bot Open Platform event intent names used by the C5 review",
+  "events": {
+    "GROUP_AND_C2C_EVENT": {"bit": 25, "mask": 33554432},
+    "DIRECT_MESSAGE": {"bit": 12, "mask": 4096},
+    "PUBLIC_GUILD_MESSAGES": {"bit": 30, "mask": 1073741824}
+  },
+  "adapter_intents": 33558528,
+  "status": "blocked_pending_official_delivery",
+  "reason": "The current mask intentionally retains the deployed group/C2C and direct-message bits. Public guild delivery is not enabled until an official delivery transcript proves the intended event contract."
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "update_id": 71001,
+    "message": {
+      "message_id": 101,
+      "from": {"id": 42, "username": "alice"},
+      "chat": {"id": 42, "kind": "private"},
+      "text": "direct message"
+    }
+  },
+  {
+    "update_id": 71002,
+    "message": {
+      "message_id": 102,
+      "from": {"id": 43, "username": "bob"},
+      "chat": {"id": -1001234, "kind": "supergroup"},
+      "text": "ordinary group chatter"
+    }
+  },
+  {
+    "update_id": 71003,
+    "message": {
+      "message_id": 103,
+      "from": {"id": 43, "username": "bob"},
+      "chat": {"id": -1001234, "kind": "supergroup"},
+      "reply_to_message": {
+        "message_id": 88,
+        "from": {"id": 1, "username": "testbot", "is_bot": true},
+        "chat": {"id": -1001234, "kind": "supergroup"}
+      },
+      "text": "reply to the bot"
+    }
+  },
+  {
+    "update_id": 71004,
+    "message": {
+      "message_id": 104,
+      "from": {"id": 44, "username": "carol"},
+      "chat": {"id": -1001234, "kind": "group"},
+      "text": "@testbot please summarize"
+    }
+  },
+  {
+    "update_id": 71005,
+    "message": {
+      "message_id": 105,
+      "from": {"id": 45, "username": "dave"},
+      "chat": {"id": -1001234, "kind": "supergroup"},
+      "text": "/status now"
+    }
+  }
+]

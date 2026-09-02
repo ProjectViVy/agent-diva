@@ -1,0 +1,18 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: Invalid MIME
+Message-ID: <invalid-mime@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="invalid-boundary"
+
+--invalid-boundary
+Content-Type: text/plain; charset=utf-8
+
+This part should not be admitted.
+--invalid-boundary
+Content-Type: image; name="broken.bin"
+Content-Disposition: attachment; filename="broken.bin"
+Content-Transfer-Encoding: base64
+
+AAECAw==
+--invalid-boundary--

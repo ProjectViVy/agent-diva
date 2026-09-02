@@ -25,6 +25,7 @@ agent-diva-providers = { path = "../agent-diva-providers", version = "0.9.9" }
 
 # Async runtime
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 
@@ -53,6 +54,7 @@ chrono = { workspace = true }
 dirs = { workspace = true }
 uuid = { workspace = true }
 mime_guess = "2.0"
+sha2 = { workspace = true }
 
 # TLS support
 native-tls = "0.2"

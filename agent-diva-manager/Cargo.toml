@@ -11,7 +11,7 @@ rust-version = "1.80.0"
 [dependencies]
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-axum = { version = "0.7", features = ["macros", "multipart"] }
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -28,6 +28,8 @@ chrono = { workspace = true }
 sqlx = { workspace = true }
 reqwest = { workspace = true }
 uuid = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
 
 # Internal dependencies
 agent-diva-core = { path = "../agent-diva-core", version = "0.9.9" }
@@ -48,3 +50,4 @@ tempfile = { workspace = true }
 tower = { version = "0.5", features = ["util"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 wiremock = { workspace = true }
+tokio-tungstenite = "0.24"

@@ -1,0 +1,28 @@
+{
+  "register": {
+    "success": [
+      {
+        "endpoint": "wss://fixture.dingtalk.example/v1.0/gateway",
+        "ticket": "ticket-first"
+      },
+      {
+        "endpoint": "wss://fixture.dingtalk.example/v1.0/gateway",
+        "ticket": "ticket-second"
+      }
+    ],
+    "failure": {
+      "status": 503,
+      "body": {
+        "message": "temporarily unavailable"
+      }
+    }
+  },
+  "backoff": {
+    "initial_ms": 20,
+    "max_ms": 60
+  },
+  "health": ["degraded", "healthy", "down"],
+  "stop": {
+    "operation": "cancel"
+  }
+}

@@ -1,0 +1,8 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: Plain question
+Message-ID: <plain@example.test>
+Date: Mon, 01 Jan 2024 00:00:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+Hello from the plain fixture.

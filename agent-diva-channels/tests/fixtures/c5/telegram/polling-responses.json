@@ -1,0 +1,19 @@
+{
+  "get_me": {"ok": true, "result": {"id": 1, "is_bot": true, "username": "testbot"}},
+  "empty_batch": {"ok": true, "result": []},
+  "message_batch": {
+    "ok": true,
+    "result": [
+      {
+        "update_id": 73001,
+        "message": {
+          "message_id": 301,
+          "from": {"id": 61, "username": "poll-user"},
+          "chat": {"id": 61, "kind": "private"},
+          "text": "polling message"
+        }
+      }
+    ]
+  },
+  "unauthorized": {"ok": false, "error_code": 401, "description": "Unauthorized"}
+}

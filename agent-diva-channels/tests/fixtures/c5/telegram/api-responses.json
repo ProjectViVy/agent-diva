@@ -1,0 +1,16 @@
+{
+  "get_me": {"ok": true, "result": {"id": 1, "is_bot": true, "username": "testbot"}},
+  "get_file": {"ok": true, "result": {"file_path": "documents/report.pdf"}},
+  "get_file_missing_path": {"ok": true, "result": {}},
+  "send_message": {"ok": true, "result": {"message_id": 93}},
+  "send_voice": {"ok": true, "result": {"message_id": 95}},
+  "send_audio": {"ok": true, "result": {"message_id": 96}},
+  "send_video": {"ok": true, "result": {"message_id": 97}},
+  "send_document": {"ok": true, "result": {"message_id": 98}},
+  "edit_message": {"ok": true, "result": {"message_id": 93}},
+  "delete_message": {"ok": true, "result": true},
+  "chat_action": {"ok": true, "result": true},
+  "callback_ack": {"ok": true, "result": true},
+  "empty_updates": {"ok": true, "result": []},
+  "rate_limited": {"ok": false, "error_code": 429, "description": "Too Many Requests", "parameters": {"retry_after": 2}}
+}

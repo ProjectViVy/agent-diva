@@ -27,8 +27,10 @@ export function useVoicePlayer(options: {
   messages: Ref<MateMessage[]>
   isTyping?: Ref<boolean>
   ttsConfig: Ref<TTSVoiceConfig>
+  autoSpeakMessages?: boolean
 }) {
   const { messages, isTyping, ttsConfig } = options
+  const autoSpeakMessages = options.autoSpeakMessages ?? true
   const typingState = isTyping ?? ref(false)
 
   const isSpeaking = ref(false)
@@ -82,6 +84,7 @@ export function useVoicePlayer(options: {
   watch(
     messages,
     (currentMessages: MateMessage[]) => {
+      if (!autoSpeakMessages) return
       if (currentMessages.length <= lastMessageCount) {
         lastMessageCount = currentMessages.length
         return
@@ -127,6 +130,7 @@ export function useVoicePlayer(options: {
   watch(
     typingState,
     (current, previous) => {
+      if (!autoSpeakMessages) return
       if (previous !== true || current !== false) {
         return
       }

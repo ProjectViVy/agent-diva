@@ -1,0 +1,7 @@
+{
+  "kind": "card",
+  "schema": "telegram.inline_keyboard",
+  "body": {
+    "inline_keyboard": [[{"text": "Approve", "callback_data": "approve:9"}]]
+  }
+}

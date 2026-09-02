@@ -1,0 +1,4 @@
+{
+  "access_token": "fixture-expiring-token",
+  "expires_in": "1"
+}

@@ -286,7 +286,13 @@ describe('DesktopMateOverlay', () => {
     mockConfig.value.vrmExpressionEnabled = true
     await nextTick()
 
-    registeredListeners.get('desktop-mate-emotion')?.({ payload: 'happy' })
+    registeredListeners.get('neuro-link-presentation')?.({
+      payload: {
+        event: 'persona.expression_hint',
+        body: { expression: 'happy' },
+        source: 'live',
+      },
+    })
     await nextTick()
 
     const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })
@@ -304,7 +310,13 @@ describe('DesktopMateOverlay', () => {
     mockConfig.value.vrmExpressionEnabled = false
     await nextTick()
 
-    registeredListeners.get('desktop-mate-emotion')?.({ payload: 'happy' })
+    registeredListeners.get('neuro-link-presentation')?.({
+      payload: {
+        event: 'persona.expression_hint',
+        body: { expression: 'happy' },
+        source: 'live',
+      },
+    })
     await nextTick()
 
     const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })

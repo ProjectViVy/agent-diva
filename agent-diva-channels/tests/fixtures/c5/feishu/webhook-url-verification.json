@@ -1,0 +1,5 @@
+{
+  "type": "url_verification",
+  "challenge": "fixture-challenge",
+  "token": "fixture-verification-token"
+}

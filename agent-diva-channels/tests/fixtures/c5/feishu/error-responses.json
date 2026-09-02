@@ -1,0 +1,23 @@
+{
+  "token_rate_limited": {
+    "status": 429,
+    "headers": {"Retry-After": "7"},
+    "body": {"code": 99991400, "msg": "rate limit"}
+  },
+  "ws_endpoint_malformed": {
+    "status": 200,
+    "body": {"code": 0, "data": {}}
+  },
+  "delete_rejected": {
+    "status": 200,
+    "body": {"code": 230099, "msg": "message not found"}
+  },
+  "delete_malformed": {
+    "status": 200,
+    "body": "not-json"
+  },
+  "seen_reaction_failure": {
+    "status": 503,
+    "body": {"code": 230099, "msg": "reaction unavailable"}
+  }
+}

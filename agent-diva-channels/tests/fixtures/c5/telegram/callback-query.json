@@ -1,0 +1,9 @@
+{
+  "update_id": 70003,
+  "callback_query": {
+    "id": "callback-9",
+    "from": {"id": 42, "username": "alice"},
+    "message": {"message_id": 91, "chat": {"id": 42, "kind": "private"}},
+    "data": "approve:request-9"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "jsonrpc": "2.0",
+  "method": "conversation/stream",
+  "params": {
+    "envelope": {
+      "schema_version": 1,
+      "envelope_id": "00000000-0000-4000-8000-000000000001",
+      "occurred_at": "2026-08-30T06:00:00Z",
+      "direction": "egress",
+      "address": {
+        "channel": "neuro-link",
+        "sender_id": "frontend-1",
+        "chat_id": "chat-1",
+        "thread_id": "thread-1"
+      },
+      "correlation": {
+        "session_key": "neuro-link:chat-1",
+        "request_id": "request-1",
+        "trace_id": "trace-1",
+        "message_id": "assistant-message-1",
+        "sequence": 8
+      },
+      "origin": "runtime",
+      "payload": {
+        "kind": "stream",
+        "phase": "delta",
+        "parts": [{ "kind": "text", "text": "world" }]
+      },
+      "extensions": {
+        "neuro-link.frontend_instance_id": "frontend-1"
+      }
+    }
+  }
+}

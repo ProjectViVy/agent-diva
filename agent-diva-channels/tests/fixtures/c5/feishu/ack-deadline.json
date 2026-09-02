@@ -1,0 +1,14 @@
+{
+  "admission_deadline_ms": 2000,
+  "heartbeat_timeout_seconds": 300,
+  "reconnect_backoff_ms": {
+    "initial": 250,
+    "max": 30000
+  },
+  "invariants": [
+    "authorization precedes media fetch",
+    "dedup commits only after Fabric admission",
+    "cancellation interrupts websocket read, heartbeat, token wait and reconnect",
+    "event ACK carries biz_rt=0"
+  ]
+}

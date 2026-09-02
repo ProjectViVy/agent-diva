@@ -1,0 +1,9 @@
+{
+  "jsonrpc": "2.0",
+  "id": "cancel-1",
+  "method": "turn/cancel",
+  "params": {
+    "session_key": "neuro-link:chat-1",
+    "request_id": "request-1"
+  }
+}

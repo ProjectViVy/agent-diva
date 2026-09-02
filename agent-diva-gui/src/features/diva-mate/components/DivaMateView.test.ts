@@ -3,8 +3,9 @@ import { mount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import type { MateConfig, MateMessage } from '../types'
 import { DEFAULT_MATE_CONFIG } from '../types'
+import type { NeuroLinkPresentationState } from '../../neuro-link/projection'
 
-const { mockVoiceSetEnabled, mockVoiceState, mockSpeakText, mockGetDesktopMateEmotionSignal } = vi.hoisted(() => {
+const { mockVoiceSetEnabled, mockVoiceState, mockSpeakText } = vi.hoisted(() => {
   const mockVoiceState = {
     isEnabled: { value: false },
     isListening: { value: false },
@@ -18,7 +19,6 @@ const { mockVoiceSetEnabled, mockVoiceState, mockSpeakText, mockGetDesktopMateEm
     }),
     mockVoiceState,
     mockSpeakText: vi.fn(),
-    mockGetDesktopMateEmotionSignal: vi.fn<() => { signature: string; mood: string } | null>(() => null),
   }
 })
 
@@ -109,10 +109,6 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 
-vi.mock('../../../utils/desktop-mate-emotion', () => ({
-  getDesktopMateEmotionSignal: mockGetDesktopMateEmotionSignal,
-}))
-
 vi.mock('../utils/vrm-model', () => ({
   resolveVrmModelPath: vi.fn(() => '/mock/path/model.vrm'),
 }))
@@ -168,7 +164,11 @@ function makeMockMateConfig(): MateConfig {
   } as MateConfig
 }
 
-async function setup(props: { isTyping?: boolean; messages?: MateMessage[] } = {}) {
+async function setup(props: {
+  isTyping?: boolean
+  messages?: MateMessage[]
+  presentation?: NeuroLinkPresentationState
+} = {}) {
   mockConfig.value = makeMockMateConfig()
   mockVoiceSetEnabled.mockClear()
   mockVoiceState.isEnabled.value = false
@@ -176,8 +176,6 @@ async function setup(props: { isTyping?: boolean; messages?: MateMessage[] } = {
   mockVoiceState.isProcessing.value = false
   mockVoiceState.error.value = null
   mockSpeakText.mockClear()
-  mockGetDesktopMateEmotionSignal.mockReset()
-  mockGetDesktopMateEmotionSignal.mockReturnValue(null)
   const { default: DivaMateView } = await import('./DivaMateView.vue')
 
   const wrapper = mount(DivaMateView, {
@@ -186,6 +184,7 @@ async function setup(props: { isTyping?: boolean; messages?: MateMessage[] } = {
       isTyping: props.isTyping ?? false,
       currentEmotion: undefined,
       desktopMateActive: false,
+      presentation: props.presentation,
     },
   })
 
@@ -288,7 +287,6 @@ describe('DivaMateView scene picker', () => {
   })
 
   it('does not show the mood badge when the latest mood resolves to neutral', async () => {
-    mockGetDesktopMateEmotionSignal.mockReturnValue(null)
     const { wrapper } = await setup({
       messages: [
         { role: 'agent', content: 'I am happy to help.', timestamp: 1 },
@@ -303,8 +301,19 @@ describe('DivaMateView scene picker', () => {
     vi.useFakeTimers()
     const messages: MateMessage[] = [{ role: 'agent', content: 'I am happy to help.', timestamp: 1 }]
     const { wrapper } = await setup({ messages: [] })
-    mockGetDesktopMateEmotionSignal.mockReturnValue({ signature: '1:I am happy to help.', mood: 'happy' })
-    await wrapper.setProps({ messages: [...messages] })
+    await wrapper.setProps({
+      messages: [...messages],
+      presentation: {
+        thinking: false,
+        speaking: false,
+        tools: {},
+        waitingForApproval: null,
+        subtitle: '',
+        expressionHint: 'happy',
+        lastEvent: 'persona.expression_hint',
+        shouldSpeak: false,
+      },
+    })
     await nextTick()
 
     let embedded = wrapper.getComponent({ name: 'EmbeddedMateFrame' })
@@ -319,7 +328,6 @@ describe('DivaMateView scene picker', () => {
   })
 
   it('does not replay a historical happy message on mount', async () => {
-    mockGetDesktopMateEmotionSignal.mockReturnValue({ signature: '1:I am happy to help.', mood: 'happy' })
     const { wrapper } = await setup({
       messages: [{ role: 'agent', content: 'I am happy to help.', timestamp: 1 }],
     })

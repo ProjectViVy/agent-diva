@@ -1,0 +1,17 @@
+{
+  "method": 1,
+  "service": 42,
+  "headers": {
+    "type": "event",
+    "message_id": "frame-fixture-001",
+    "sum": "1",
+    "seq": "0"
+  },
+  "ack": {
+    "payload": "{\"code\":200,\"headers\":{},\"data\":[]}",
+    "header": {
+      "key": "biz_rt",
+      "value": "0"
+    }
+  }
+}

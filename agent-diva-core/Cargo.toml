@@ -63,7 +63,12 @@ tokio-test = { workspace = true }
 tempfile = { workspace = true }
 criterion = "0.5"
 filetime = "0.2"
+jsonschema = { version = "0.18.3", default-features = false, features = ["draft202012"] }
 
 [[bench]]
 name = "performance"
+harness = false
+
+[[bench]]
+name = "channel_capacity"
 harness = false

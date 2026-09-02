@@ -1,0 +1,11 @@
+{
+  "specVersion": "1.0",
+  "type": "CALLBACK",
+  "headers": {
+    "messageId": "stream-message-redacted",
+    "topic": "/v1.0/im/bot/messages/get",
+    "contentType": "application/json",
+    "time": "1700000000000"
+  },
+  "data": "{\"msgId\":\"message-redacted\",\"senderStaffId\":\"sender-redacted\",\"senderNick\":\"Example\",\"conversationId\":\"cid-redacted\",\"conversationType\":\"2\",\"msgtype\":\"text\",\"text\":{\"content\":\"hello\"},\"sessionWebhook\":\"https://oapi.dingtalk.com/robot/sendBySession?session=redacted\"}"
+}

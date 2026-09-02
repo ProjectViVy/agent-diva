@@ -1,0 +1,23 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: RFC822 attachment
+Message-ID: <rfc822@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="rfc822-boundary"
+
+--rfc822-boundary
+Content-Type: text/plain; charset=utf-8
+
+The attached message is a typed RFC822 part.
+--rfc822-boundary
+Content-Type: message/rfc822; name="nested.eml"
+Content-Disposition: attachment; filename="nested.eml"
+
+From: Nested <nested@example.test>
+To: bot@example.test
+Subject: Nested message
+Message-ID: <nested@example.test>
+Content-Type: text/plain; charset=utf-8
+
+Nested RFC822 body.
+--rfc822-boundary--

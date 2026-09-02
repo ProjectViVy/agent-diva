@@ -25,6 +25,12 @@ interface DivaVrmAvatarHandle {
   getScale(): number
 }
 
+interface NeuroLinkPresentationPayload {
+  event: string
+  body?: Record<string, unknown>
+  source?: 'live' | 'replay'
+}
+
 const { config: mateConfig } = useMateConfig()
 const { subtitle, startDrag: startSubtitleDrag, onDrag: onSubtitleDrag, endDrag: endSubtitleDrag } = useSubtitleOverlay()
 
@@ -84,6 +90,7 @@ const isRenderActive = ref(true)
 const vrmAvatarRef = ref<DivaVrmAvatarHandle | null>(null)
 const subtitleRef = ref<HTMLDivElement | null>(null)
 const activeMood = ref<VrmMood>('neutral')
+const isSpeaking = ref(false)
 let moodResetTimeoutId: ReturnType<typeof setTimeout> | null = null
 
 // ── PTT (Push-To-Talk) ──────────────────────────────────────────
@@ -446,30 +453,16 @@ watch(
   { deep: true, immediate: true },
 )
 
-/**
- * TTS auto-play for desktop mate subtitles.
- *
- * When a non-empty subtitle appears, preprocess the text (strip markdown,
- * split into sentences) and speak each sentence sequentially.  A newer
- * subtitle cancels any in-progress speech from the previous one.
- * TTS errors are silently ignored so subtitle display is never blocked.
- */
 let subtitleTtsId = 0
-watch(
-  () => ({ visible: subtitle.value.visible, text: subtitle.value.text }),
-  ({ visible, text }) => {
-    console.log('[DesktopMate] Subtitle watcher fired. visible:', visible, 'text length:', text?.length ?? 0, 'ttsEnabled:', voiceConfig.value.enabled)
-    if (!visible || !text || !voiceConfig.value.enabled) {
-      return
-    }
-
-    const cancelId = ++subtitleTtsId
-    const segments = splitIntoSentences(filterPunctuation(stripMarkdown(text)))
-    console.log('[DesktopMate] TTS auto-play: speaking', segments.length, 'segments')
-
-    void (async () => {
+function playLiveSubtitle(text: string): void {
+  if (!text.trim() || !voiceConfig.value.enabled) return
+  const cancelId = ++subtitleTtsId
+  const segments = splitIntoSentences(filterPunctuation(stripMarkdown(text)))
+  if (segments.length === 0) return
+  isSpeaking.value = true
+  void (async () => {
+    try {
       for (const segment of segments) {
-        // Bail out if a newer subtitle arrived while we were speaking
         if (cancelId !== subtitleTtsId) return
         try {
           await ttsService.speakText(segment.text, voiceConfig.value)
@@ -477,9 +470,11 @@ watch(
           console.error('[DesktopMate] TTS segment failed:', err)
         }
       }
-    })()
-  },
-)
+    } finally {
+      if (cancelId === subtitleTtsId) isSpeaking.value = false
+    }
+  })()
+}
 
 // ── Lifecycle ──────────────────────────────────────────────────
 
@@ -494,15 +489,22 @@ onMounted(async () => {
   }
   isAlwaysOnTop.value = mateConfig.value.desktopMateAlwaysOnTop ?? true
 
-  unlisteners.push(await listen<string>('desktop-mate-emotion', (event) => {
-    if (!isVrmExpressionEnabled.value) {
-      activeMood.value = 'neutral'
-      scheduleMoodReset('neutral')
-      return
+  unlisteners.push(await listen<NeuroLinkPresentationPayload>('neuro-link-presentation', (event) => {
+    const payload = event.payload
+    if (!payload) return
+    if (payload.event === 'subtitle.updated' && typeof payload.body?.text === 'string') {
+      if (payload.source === 'live') playLiveSubtitle(payload.body.text)
+    } else if (payload.event === 'subtitle.cleared') {
+      subtitleTtsId += 1
+      isSpeaking.value = false
+      ttsService.stopPlayback()
+    } else if (payload.event === 'persona.expression_hint') {
+      const mood = isVrmExpressionEnabled.value ? normalizeMood(
+        typeof payload.body?.expression === 'string' ? payload.body.expression : null,
+      ) : 'neutral'
+      activeMood.value = mood
+      scheduleMoodReset(mood)
     }
-    const mood = normalizeMood(event.payload)
-    activeMood.value = mood
-    scheduleMoodReset(mood)
   }))
   unlisteners.push(await listen('desktop-mate-close-request', closeMate))
   unlisteners.push(await listen('desktop-mate-render-pause', () => {
@@ -553,7 +555,7 @@ onUnmounted(() => {
       ref="vrmAvatarRef"
       :model-path="vrmModelPath"
       :mood="effectiveMood"
-      :is-speaking="false"
+      :is-speaking="isSpeaking"
       :desktop-mate="true"
       :active="isRenderActive"
       :background-scene="backgroundSceneId"

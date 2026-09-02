@@ -58,25 +58,124 @@
   - [x] **C0：完整架构冻结与 Epic 启动**（2026-08-30）
     已冻结术语、模块边界、消息/能力合同、Neuro-Link v1、Service Binding、混合 journal、
     背压、Clean Break、TCK、迁移 WBS 和十条不变量；本批只改文档。
-  - [ ] **C1：JSON Schema、核心 typed contracts 与表征测试**
-    建立 `ChannelEnvelopeV1`、typed parts、capability/command/event/receipt/error schema，
-    Rust/TypeScript 共用 fixture，并锁定旧路径表征。
-  - [ ] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**
+  - [x] **C1：JSON Schema、核心 typed contracts 与表征测试**（2026-08-30）
+    已建立版本化 `neuro-link/v1` JSON Schema、`ChannelEnvelopeV1`、typed parts、
+    capability/command/event/receipt/error 的协议基础，Rust/TypeScript 共用正反 fixture，
+    并以旧 pipe、MessageBus、allowlist 和 loopback guard characterization 锁定旧路径边界。
+    交付记录：[`v0.1.1-neuro-link-contract`](docs/logs/2026-08-channel-epic/v0.1.1-neuro-link-contract/)。
+  - [x] **C2：bounded Fabric Kernel、Adapter Registry 与 supervisor**（2026-08-30）
     替代无界 ingress/egress，建立 control/durable/transient/adapter lane、pacing、health、
     panic/exit recovery 和 fault-injection TCK。
-  - [ ] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**
+    - [x] **C2a：bounded Fabric Kernel 与队列 TCK**（2026-08-30）
+      已建立固定容量 control/ingress/durable/transient lane、deadline/cancel admission、
+      transient coalesce/Gap、request fence、同 session FIFO/跨 session 并行调度和 drain
+      shutdown；未接入旧 MessageBus。交付记录：
+      [`v0.1.2-bounded-fabric-kernel`](docs/logs/2026-08-channel-epic/v0.1.2-bounded-fabric-kernel/)。
+    - [x] **C2b：Adapter Registry、supervisor、pacing 与故障 TCK**（2026-08-30）
+      已建立新 `ChannelAdapter`、capability/command runtime、独立 adapter egress、
+      Retry-After、panic/exit recovery、部分分片 receipt 和 fake-adapter smoke；未迁移真实
+      平台或切换生产路径。交付记录：
+      [`v0.1.3-adapter-runtime`](docs/logs/2026-08-channel-epic/v0.1.3-adapter-runtime/)。
+  - [x] **C3：Neuro-Link v1 Gateway、Projection Journal 与 Service Catalog**（2026-08-31）
     在 Manager loopback 提供 JSON-RPC WebSocket、ACK/resume/snapshot 和原位 HTTP
     Service Binding 登记；不增加 host/port/auth 配置。
-  - [ ] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**
-    GUI 完整迁移实时链路；Mate 删除 avatar chat ID/`speak` 特例，改用语义事件；完成
-    GUI tests/build 与真实桌面断线恢复冒烟。
+    - [x] **C3a：协议结果类型与 Service Catalog**（2026-08-31）
+      Rust/Schema/GUI 类型已同步 catalog revision、state-sync、admission、ACK 和稳定错误码；
+      现有领域 HTTP handler 以 Service Binding 登记，不复制路由。
+    - [x] **C3b：Projection Journal**（2026-08-31）
+      Manager data root 的 `super-channel-events.db` 已支持 cursor、ACK、replay、retention、
+      session 清理和幂等冲突保护。
+    - [x] **C3d：loopback Gateway 与 TCK smoke**（2026-08-31）
+      `/api/neuro-link/v1/ws` 已完成 hello、session/open、turn/cancel、event/ack、state/resume、
+      frame/part/attachment bounds 及真实 WebSocket 冒烟。
+    - [x] **C3c：AgentLoop typed admission wiring**（2026-08-31）
+      `RuntimeControlCommand::StartChannelTurn` 已通过 bounded per-session dispatcher 接入
+      AgentLoop，Manager production bootstrap 安装 `AgentLoopNeuroLinkRuntime`，并保留
+      session/request/trace correlation；`turn/cancel` 复用 typed control lane。
+    - [x] **C3e：AgentEvent → ProjectionEvent stream hub**（2026-08-31）
+      已建立进程级 Neuro-Link projection hub：消费带 session/request/trace 关联的
+      AgentBusEvent，映射为受限 Fabric envelope，先写入 `super-channel-events.db` 再广播到
+      所有匹配会话的 WebSocket；conversation、reasoning、tool、planning、provider、compaction
+      与 terminal error/final 事件分别标记 durable/transient，瞬时增量不进入断线 replay。
+      `turn/start` 的首个 queued/running admission 仍由 Gateway 响应路径原子写入，避免重复行；
+      C6 仍负责旧 bus/DTO 的最终 clean break。
+  - [x] **C4：桌面 GUI 首个 Neuro-Link 客户端与 Presentation 迁移**（2026-08-31）
+    GUI 实时链路已迁移到 typed Neuro-Link v1；Mate 删除 avatar chat ID/`speak` 特例，改用
+    semantic Presentation；GUI tests/build、Rust workspace 门禁和协议/TCK 回归均通过。详见
+    [`v0.1.7-desktop-neuro-link-client`](docs/logs/2026-08-channel-epic/v0.1.7-desktop-neuro-link-client/)。
+    - [ ] 发布工作站真实 Tauri/桌面断线恢复冒烟：当前环境缺少 agent-browser/可用浏览器二进制，
+      待现场确认发送、排队取消、计划继续、WS 重连回放与 Mate TTS 后关闭；不阻塞 C4 代码审阅，
+      但在 C6 原子合入前必须完成。
   - [ ] **C5：六个现役 ChannelAdapter 与 capability TCK**
     迁移 Telegram、Discord、Feishu、DingTalk、Email、QQ；每个 `true` capability 都有
     离线 fixture/mock 证明，至少一个真实平台纵向 smoke。
+    - [x] **C5-P：Octos 能力迁移方案与 agent 交接冻结**（2026-08-31）
+      已固定 Octos `5ea987813de4fd2afdd1d78f2106ad2868f0d923`，完成扫描 playbook、
+      provenance ledger、28×6 capability matrix、共享 ADR、六平台规格、并行 agent WBS、
+      capability TCK/fixture 方案、QQ 真机 runbook 和 C6 边界。详见
+      [`c5-octos-migration`](docs/dev/channel-epic/c5-octos-migration/)。
+    - [x] **C5-P2：六频道 Octos 端点深扫与实施交接补强**（2026-08-31）
+      已由 Telegram、Discord、Feishu、DingTalk、Email、QQ 六个独立频道任务完成深扫，
+      新增 endpoint ledger、跨频道 gap matrix、decision log、agent task cards、evidence
+      manifest 和六份端点级报告。QQ intents/media 仍按 Blocked 交接，未伪造完成能力。
+    - [ ] **C5-I：六个原生 ChannelAdapter 与 Octos 能力增强**
+      先冻结共享 adapter/services seam，再按“一频道一 agent、资源分波”的隔离 worktree
+      分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。实现 ownership 与顺序见
+      [`agent-task-cards.md`](docs/dev/channel-epic/c5-octos-migration/agent-task-cards.md)。
+      - [x] **C5-I-G1：共享 AdapterServices/AttachmentStore seam 与 TCK 基座**（2026-08-31）
+        已完成 typed attachment、内容寻址 digest 校验、allowlist helper、外部 envelope/
+        receipt/error builders、Gate 1 factory 失败语义及共享 TCK；Manager 生产装配仍留给
+        C6。
+      - [x] **C5-I-G2：六个 native adapter 与 C5 factory 接线**（2026-09-01）
+        已在隔离 `feat/channel-epic` worktree 实现 Telegram、Discord、Feishu、DingTalk、
+        Email、QQ 六个 `ChannelAdapter`，各自保留 Octos/DIVA wire 行为并统一 typed envelope、
+        AttachmentStore、dedup、health、receipt、unsupported 零副作用；factory 现在只负责
+        构造，不启动 listener，也未切 Manager 生产路径。QQ Identify intents/media 仍按 C5-Q
+        保持 `partial/blocked`，不把未验证能力伪装为完成。实现证据见
+        [`platforms/*-gate2.md`](docs/dev/channel-epic/c5-octos-migration/platforms/README.md)
+        与 [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)。
+    - [ ] **C5-V：capability evidence、全量门禁与 QQ 真实纵向 smoke**
+      六频道 target-true 能力的本地 wire/fixture/TCK 已补齐并逐行审计；QQ 已有 C2C/群 @、
+      admission-before-dedup、final-only、真实 message ID、recovery/stop 的离线证据，但
+      凭据只从仓库外注入，未完成 QQ 真机、D-013/D-014 与其余 partial 的外部证据前不得勾选 C5。
+      - [ ] **C5-V-QQ-LIVE-BLOCKED** `sev-P1`
+        已加入显式 `#[ignore]` 的 `qq_live_harness`，覆盖 C2C、群 @、重放、final-only、
+        receipt、resume/reconnect 和 stop；真实运行命令为
+        `cargo test -p agent-diva-channels --test qq_live_harness -- --ignored --nocapture`。
+        当前 worktree 没有仓库外 QQ 凭据或平台权限，故 live smoke 未执行，C5-V 不能关闭。
+      - [x] **C5-V-FULL-GATE-DEBT** `sev-P1`
+        频道 all-target clippy 已在 `c6b0a756` 清理并验证；channel-scoped Rust 1.80 probe
+        经 `348d42a1` 的 `Cargo.lock` 兼容 pin 通过，最终 `just fmt-check`、`just check`、
+        `just test` 也通过。Manager loopback flake、未声明完成的 broader workspace MSRV
+        audit 和 QQ live/官方 wire blockers 仍按独立 TODO 保持开放；记录见本轮
+        [`verification.md`](docs/logs/2026-09-channel-epic/v0.2.2-c5-capability-evidence/verification.md)。
+    - [ ] **C5-Q：QQ intents、group send 与 media 官方 wire 证据** `sev-P1`
+      当前 DIVA 的 C2C/group outbound 与本地 recovery 已有 wire-shaped fixture，但 DIVA 使用
+      `(1<<25)|(1<<12)`、Octos 使用 `(1<<25)|(1<<30)`，官方事件投递仍未证实；D-014 也没有
+      官方 media endpoint+wire proof。必须补官方证据后才能调整状态，不能以离线 fixture 关闭。
+    - [ ] **C5-V-PARTIAL-AUDIT-FINDINGS：21 条 partial 的实现与证据缺口** `sev-P1`
+      2026-09-02 已逐项对照固定 Octos SHA 完成修复审计；本地状态为 `11 verified / 17
+      partial / 1 blocked/unsupported`，不是所有 partial 都能凭本地 mock 升级。剩余缺口是：
+      Telegram TG-02～TG-06 的 live 群权限/CDN/送达/C6 supervisor 与 keyboard 边界；Discord
+      DC-01/02/03/05 的 live Gateway、guild/CDN/permission/retry/supervisor；DingTalk DT-01/
+      03/04 的 live Stream、媒体权限/receipt、官方签名 callback；Email EM-02/03/04 的真实
+      IMAP/SMTP TLS/auth/delivery/UID Seen；QQ QQ-01/02 的 live Gateway 与 D-013。Feishu
+      FS-01/03/04/05 仅在本地 deterministic wire/store 范围升级 verified，远端真实性与长时
+      soak 仍不等同于 live proof。逐行 evidence、receipt/error 和生命周期结果见
+      [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)
+      及六份 `platforms/*-gate3.md`；在实现或证据闭合前不得关闭 C5-V。
+    - [x] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`（2026-08-31）
+      已更新 `agent-diva-channels/AGENTS.md`：空 `allow_from` 是 allow-all，并明确 C5
+      使用原生 `ChannelAdapter`、共享 Fabric 与 C6-only Manager 装配边界。
   - [ ] **C6：Clean Break 删除、全量门禁与原子合并**
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
     GUI、MSRV、TCK、clean-break 和 release acceptance 后一次性合入 `dev`。
+
+  - [ ] **GUI 依赖安全审计基线** `sev-P2`
+    C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。
+    本项不属于 Neuro-Link 合同实现，且没有运行 `audit fix`；需单独评估升级、兼容性和 pnpm/npm
+    lock 策略后处理。相关文件：`agent-diva-gui/package.json`、`agent-diva-gui/package-lock.json`。
 
 ### L1-B：频道能力与 Agent 互操作
 
@@ -182,15 +281,35 @@
   随后定向连续 3 次均通过，确认是已关闭问题的偶发回归。应隔离 PID/时间/文件系统竞态，
   使陈旧锁恢复测试可重复且不依赖宿主时序；相关代码：`agent-diva-laputa/src/lock.rs`。
 
+- [ ] **MANAGER-NEURO-LINK-LOOPBACK-FLAKE** `sev-P2`
+  2026-09-01 C5-I Gate 2 最终全量 `just test` 在既有
+  `agent-diva-manager::neuro_link::tests::loopback_websocket_handshake_session_and_turn_smoke`
+  偶发失败（断言 `left: Null, right: 1`），随后定向复跑通过。需隔离 loopback websocket
+  测试的并发/通知顺序竞态，连续多次全量与定向通过后再关闭；相关代码：
+  `agent-diva-manager/src/neuro_link.rs:1358`。
+
 - [ ] **AGENT-ALL-TARGETS-CLIPPY-AWAIT-HOLDING-LOCK** `sev-P3`
   `cargo clippy -p agent-diva-agent --all-targets -- -D warnings` 在既有测试
   `agent-diva-agent/src/agent_loop.rs` 的规则加载场景报告 `await_holding_lock`（约 3537～3557
   行）。工作区标准 `just check` 不含 `--all-targets`，本轮未扩张修复；应缩短 guard 生命周期，
   并把 all-targets lint 纳入对应 crate 的稳定门禁。
 
+ - [x] **CHANNEL-ALL-TARGETS-CLIPPY-LEGACY-TESTS** `sev-P3`
+  已在 C5-V 频道 lint 清理批次完成：`c6b0a756` 修复 QQ integration 的冗余转换/条件，
+  并对 DingTalk/Email/Feishu/QQ legacy test-only fixtures 增加局部 lint 例外；
+  `cargo clippy -p agent-diva-channels --all-targets -- -D warnings` 已通过。
+
+- [ ] **AGENT-RETRY-CORRELATION-FLAKE** `sev-P2`
+  本轮隔离 worktree 的 `just test` 首次运行在
+  `agent_loop::tests::concurrent_sessions_keep_provider_retry_correlation_isolated` 超时，
+  其余 432 个测试通过；该测试与 C5 文档变更无直接关系。需单独复现并修复并发 retry event
+  的等待/相关性竞态，连续通过后再关闭；相关代码：`agent-diva-agent/src/agent_loop.rs`。
+
 - [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
-  工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
-  pin/升级方案，不削弱现有 gate。
+  工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖的全 workspace MSRV 尚未
+  取得独立、完整的兼容性证明；本轮仅以 `Cargo.lock` pin 使
+  `just msrv-probe check -p agent-diva-channels` 在 Rust 1.80.1 通过，不关闭本 broad
+  audit，后续仍需不削弱现有 gate 的全量方案。
 
 ## Archive Index
 

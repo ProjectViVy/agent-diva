@@ -1,0 +1,9 @@
+[
+  {"op": 10, "d": {"heartbeat_interval": 41250}},
+  {"op": 0, "s": 12, "t": "READY", "d": {"session_id": "session-1"}},
+  {"op": 11, "d": null},
+  {"op": 0, "s": 13, "t": "RESUMED", "d": null},
+  {"op": 7, "d": null},
+  {"op": 9, "d": true},
+  {"op": 9, "d": false}
+]

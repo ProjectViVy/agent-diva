@@ -9,6 +9,7 @@ pub mod audit;
 pub mod audit_parse;
 pub mod audit_sink;
 pub mod bus;
+pub mod channel;
 pub mod config;
 pub mod cron;
 pub mod error;

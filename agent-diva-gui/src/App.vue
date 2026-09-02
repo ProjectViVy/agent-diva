@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo, listen, UnlistenFn } from "@tauri-apps/api/event";
 import type { AskUserQuestionView, CompactionStatus } from './components/ChatView.vue';
 import NormalMode from "./components/NormalMode.vue";
 import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
@@ -17,14 +17,12 @@ import {
   returnActivePlanToDraft,
   switchWorkspace as switchWorkspaceApi,
   FileAttachmentDto,
-  ChecklistItem,
   type WorkspaceSwitchRequest,
 } from "./api/desktop";
 import {
   planReportValidationIssues,
   type PlanDetail,
   type PlanRuntimeState,
-  type PlanStreamEvent,
 } from "./api/planning";
 import type { ToolsConfigShape } from "./types/toolsConfig";
 import { useWorkspaceContext } from "./composables/useWorkspaceContext";
@@ -54,12 +52,21 @@ import {
 import {
   completeLatestStreamingAgent,
   findCurrentTurnUpdatePlanToolIndex,
-  findLatestStreamingAgentIndex,
 } from "./utils/streamingMessages";
+import { useNeuroLinkSession } from "./features/neuro-link/useNeuroLinkSession";
+import type { ProjectionEnvelopeEvent } from "./features/neuro-link/client";
 import {
-  routeSessionAdmission,
-  type SessionAdmissionPayload,
-} from "./utils/sessionAdmission";
+  createNeuroLinkProjectionState,
+  type NeuroLinkPresentationState,
+  type NeuroLinkProjectionState,
+} from "./features/neuro-link/projection";
+import type {
+  ContentPart,
+  OwnerApprovalPolicy,
+  OwnerExecutionContextV1,
+  OwnerTurnContextV1,
+  OwnerTurnIntent,
+} from "./protocol/neuro-link-v1";
 
 const { t } = useI18n();
 const {
@@ -94,77 +101,9 @@ interface Message {
   attachments?: string[];
 }
 
-interface ToolStartPayload {
-  name: string;
-  args_preview?: string;
-  call_id?: string | null;
-}
-
-interface ToolFinishPayload {
-  name: string;
-  result: string;
-  is_error?: boolean;
-  call_id?: string | null;
-}
-
-interface StreamTextPayload {
-  request_id: string;
-  data: string;
-}
-
-interface StreamRetryPayload {
-  request_id: string;
-  model: string;
-  attempt: number;
-  max_retries: number;
-  delay_ms: number;
-  reason: string;
-}
-
-interface StreamStalledPayload {
-  request_id: string;
-  model?: string | null;
-}
-
 interface SessionControlOutcome {
   target_state: 'running' | 'queued_preserved' | 'session' | 'absent';
   running_cancelled: boolean;
-}
-
-interface StreamContextCompactionPayload {
-  request_id: string;
-  data: {
-    session_id: string;
-    trigger: string;
-    phase: string;
-    summary?: string | null;
-  };
-}
-
-interface StreamToolStartPayload extends ToolStartPayload {
-  request_id: string;
-}
-
-interface StreamToolFinishPayload extends ToolFinishPayload {
-  request_id: string;
-}
-
-interface StreamPlanPayload {
-  request_id: string;
-  data: PlanStreamEvent;
-}
-
-interface StreamJsonPayload {
-  request_id: string;
-  data: unknown;
-}
-
-interface StreamTurnPlanPayload {
-  request_id: string;
-  data: {
-    explanation?: string;
-    plan: ChecklistItem[];
-  };
 }
 
 interface SavedModel {
@@ -285,9 +224,12 @@ const messages = ref<Message[]>([
 ]);
 const isTyping = ref(false);
 const connectionStatus = ref<'connected' | 'error' | 'connecting'>('connected');
+const neuroLinkPresentation = ref<NeuroLinkPresentationState>(
+  createNeuroLinkProjectionState().presentation,
+);
+const neuroLinkStarted = ref(false);
 const currentEmotion = ref('happy');
 const suppressNextStopError = ref(false);
-const currentChannel = ref('gui');
 const currentChatId = ref(generateChatId());
 const currentSessionKey = ref(`gui:${currentChatId.value}`);
 const compactionStatus = ref<CompactionStatus | null>(null);
@@ -956,16 +898,6 @@ function hasValue(value: unknown): boolean {
   return true;
 }
 
-function isChecklistCardContent(content: string): boolean {
-  if (!content) return false;
-  try {
-    const parsed = JSON.parse(content) as { kind?: string; plan_items?: unknown };
-    return parsed.kind === 'checklist' && Array.isArray(parsed.plan_items);
-  } catch {
-    return false;
-  }
-}
-
 function extractToolName(
   role: string,
   name?: string | null,
@@ -1283,6 +1215,273 @@ function syncPlanRuntime(plan: PlanRuntimeState | null) {
   activePlanRuntime.value = normalized;
 }
 
+function neuroLinkControlBody(event: ProjectionEnvelopeEvent): Record<string, unknown> {
+  const payload = event.envelope.payload;
+  return payload.kind === 'control' && payload.body && typeof payload.body === 'object'
+    ? payload.body as Record<string, unknown>
+    : {};
+}
+
+function neuroLinkControlOperation(event: ProjectionEnvelopeEvent): string | undefined {
+  const payload = event.envelope.payload;
+  return payload.kind === 'control' ? payload.operation : undefined;
+}
+
+function neuroLinkStreamText(event: ProjectionEnvelopeEvent): string {
+  const payload = event.envelope.payload;
+  if (payload.kind !== 'stream') return '';
+  return payload.parts.map((part) => {
+    if (part.kind === 'text') return part.text;
+    if (part.kind === 'markdown') return part.markdown;
+    if (part.kind === 'audio') return part.transcript || '';
+    return '';
+  }).join('');
+}
+
+function neuroLinkRequestMatches(event: ProjectionEnvelopeEvent): boolean {
+  const requestId = event.envelope.correlation.request_id;
+  return Boolean(requestId && requestId === activeStreamRequestId.value);
+}
+
+async function handleNeuroLinkProjection(
+  event: ProjectionEnvelopeEvent,
+  projection: NeuroLinkProjectionState,
+): Promise<void> {
+  neuroLinkPresentation.value = projection.presentation;
+  if (event.method === 'presentation/event' && event.envelope.payload.kind === 'presentation') {
+    const relay = {
+      event: event.envelope.payload.event,
+      body: event.envelope.payload.body,
+      source: event.source,
+    };
+    if (isTauri()) {
+      void emitTo('desktop-mate', 'neuro-link-presentation', relay).catch(() => undefined);
+    }
+    const expression = event.envelope.payload.event === 'persona.expression_hint'
+      ? event.envelope.payload.body.expression
+      : undefined;
+    if (typeof expression === 'string' && expression.trim()) currentEmotion.value = expression;
+  }
+  // History is already hydrated by the authoritative session service. Replay
+  // normally only restores reducer/Presentation state and must not duplicate
+  // messages or fire TTS. If a reconnect resumes the turn that was already
+  // streaming in this window, however, terminal/control replay must settle the
+  // existing placeholder without appending another chat message.
+  const replay = event.source === 'replay';
+  if (!neuroLinkRequestMatches(event)) return;
+
+  const requestId = event.envelope.correlation.request_id;
+  if (!requestId) return;
+  const latestAgent = () => [...messages.value].reverse().find(
+    (message) => message.role === 'agent' && message.isStreaming,
+  );
+
+  if (event.method === 'conversation/reasoning') {
+    const message = latestAgent();
+    if (message) {
+      message.reasoning = `${message.reasoning || ''}${neuroLinkStreamText(event)}`;
+      message.isThinking = true;
+    }
+    return;
+  }
+  if (event.method === 'conversation/stream') {
+    const payload = event.envelope.payload;
+    if (payload.kind !== 'stream') return;
+    const text = neuroLinkStreamText(event);
+    const message = latestAgent();
+    if (payload.phase === 'delta' || payload.phase === 'started') {
+      if (message) {
+        message.content += text;
+        message.isThinking = false;
+      }
+      return;
+    }
+    if (payload.phase === 'finalized') {
+      const completedIndex = completeLatestStreamingAgent(messages.value, text);
+      if (completedIndex === -1 && text && !replay) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'agent',
+          content: text,
+          isStreaming: false,
+          isThinking: false,
+          timestamp: Date.now(),
+          emotion: currentEmotion.value,
+        });
+      }
+      isTyping.value = false;
+      suppressNextStopError.value = false;
+      void restoreActivePlanRuntime().finally(() => {
+        if (activeStreamRequestId.value === requestId) activeStreamRequestId.value = null;
+      });
+      syncCurrentSessionListEntry();
+      void maybeGenerateCurrentSessionTitle();
+      return;
+    }
+    if (payload.phase === 'failed' || payload.phase === 'cancelled') {
+      removeStreamingAssistantPlaceholder();
+      if (!replay) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'system',
+          content: `${t('app.errorPrefix')}${text || t('app.stoppedMessage')}`,
+          timestamp: Date.now(),
+        });
+      }
+      isTyping.value = false;
+      activeStreamRequestId.value = null;
+      syncCurrentSessionListEntry();
+    }
+    return;
+  }
+  if (event.method === 'turn/admission') {
+    const body = neuroLinkControlBody(event);
+    const phase = typeof body.phase === 'string' ? body.phase : '';
+    const message = latestAgent();
+    if (phase === 'queued' && message) {
+      message.queueStatus = {
+        depth: typeof body.queue_depth === 'number' ? body.queue_depth : 0,
+        waitLatencyMs: typeof body.wait_latency_ms === 'number' ? body.wait_latency_ms : 0,
+      };
+    } else if (phase === 'running' && message) {
+      message.queueStatus = undefined;
+    } else if (phase && phase !== 'running' && phase !== 'queued') {
+      removeStreamingAssistantPlaceholder();
+      if (!replay) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'system',
+          content: `${t('app.errorPrefix')}${String(body.code || phase)}`,
+          timestamp: Date.now(),
+        });
+      }
+      isTyping.value = false;
+      activeStreamRequestId.value = null;
+    }
+    return;
+  }
+  if (event.method === 'tool/lifecycle') {
+    const operation = neuroLinkControlOperation(event);
+    const body = neuroLinkControlBody(event);
+    if (operation === 'tool/started') {
+      closeStreamingPlaceholder(true);
+      messages.value.push({
+        id: generateMessageId(),
+        role: 'tool',
+        content: t('app.toolRunning'),
+        timestamp: Date.now(),
+        toolName: typeof body.name === 'string' ? body.name : t('app.unknownTool'),
+        toolArgs: typeof body.args_preview === 'string' ? body.args_preview : '',
+        toolStatus: 'running',
+        toolCallId: typeof body.call_id === 'string' ? body.call_id : undefined,
+      });
+    } else if (operation === 'tool/finished') {
+      const callId = typeof body.call_id === 'string' ? body.call_id : undefined;
+      const index = callId
+        ? messages.value.findIndex((message) => message.role === 'tool' && message.toolCallId === callId)
+        : -1;
+      if (index >= 0) {
+        const target = messages.value[index];
+        const isError = body.is_error === true;
+        target.toolStatus = isError ? 'error' : 'success';
+        target.content = isError ? t('app.toolError') : t('app.toolSuccess');
+        target.toolName = typeof body.name === 'string' ? body.name : target.toolName;
+      }
+      if (!latestAgent()) {
+        messages.value.push({
+          id: generateMessageId(),
+          role: 'agent',
+          content: '',
+          isStreaming: true,
+          timestamp: Date.now(),
+          emotion: currentEmotion.value,
+        });
+      }
+    }
+    syncCurrentSessionListEntry();
+    return;
+  }
+  if (event.method === 'planning/changed') {
+    const operation = neuroLinkControlOperation(event);
+    const body = neuroLinkControlBody(event);
+    if (operation === 'chat_plan/changed' && Array.isArray(body.plan)) {
+      const card = {
+        id: generateMessageId(),
+        kind: 'checklist' as const,
+        explanation: typeof body.explanation === 'string' ? body.explanation : undefined,
+        plan_items: body.plan,
+        status: 'updated',
+        title: 'Task Checklist',
+        summary: '',
+        body_markdown: '',
+        actions: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const existingIndex = findCurrentTurnUpdatePlanToolIndex(messages.value);
+      const checklistMessage: Message = {
+        id: card.id,
+        role: 'tool',
+        content: JSON.stringify(card),
+        timestamp: Date.now(),
+        toolName: 'update_plan',
+        toolStatus: 'success',
+      };
+      if (existingIndex >= 0) messages.value[existingIndex] = checklistMessage;
+      else messages.value.push(checklistMessage);
+    } else {
+      void restoreActivePlanRuntime();
+    }
+    syncCurrentSessionListEntry();
+    return;
+  }
+  if (event.method === 'provider/status') {
+    const body = neuroLinkControlBody(event);
+    const message = latestAgent();
+    if (message && neuroLinkControlOperation(event) === 'provider/retry') {
+      message.retryStatus = {
+        attempt: Number(body.attempt || 0),
+        maxRetries: Number(body.max_retries || 0),
+        model: typeof body.model === 'string' ? body.model : undefined,
+      };
+    } else if (message && neuroLinkControlOperation(event) === 'provider/stalled') {
+      message.stalled = true;
+    }
+    return;
+  }
+  if (event.method === 'context/compaction') {
+    const body = neuroLinkControlBody(event);
+    if (body.session_id === currentSessionKey.value) {
+      compactionStatus.value = {
+        trigger: body.trigger === 'reactive' ? 'reactive' : 'auto',
+        phase: body.phase === 'completed' || body.phase === 'failed' ? body.phase : 'started',
+        summary: typeof body.summary === 'string' ? body.summary : null,
+      };
+    }
+  }
+}
+
+const neuroLink = useNeuroLinkSession({
+  workspaceRoot: () => workspace.value?.root || '',
+  onProjection: handleNeuroLinkProjection,
+  onStatusChange: (status) => {
+    connectionStatus.value = status === 'connected'
+      ? 'connected'
+      : status === 'connecting'
+        ? 'connecting'
+        : 'error';
+  },
+});
+
+watch(
+  [currentSessionKey, () => workspace.value?.root || ''],
+  ([sessionKey], previous) => {
+    if (!neuroLinkStarted.value || !isTauri() || !sessionKey) return;
+    if (sessionKey === previous[0] && workspace.value?.root === previous[1]) return;
+    void neuroLink.open(sessionKey);
+  },
+);
+
 function sanitizePlanText(value: string | null | undefined): string {
   if (!value) return '';
   // Drop UTF-8 replacement chars (common "计��报告" corruption) and trim.
@@ -1398,17 +1597,6 @@ function planRuntimeFromReportPayload(payload: unknown): PlanRuntimeState | null
   };
 }
 
-function sessionRoute(sessionKey: string): { channel: string; chatId: string } {
-  const separator = sessionKey.indexOf(':');
-  if (separator > 0 && separator < sessionKey.length - 1) {
-    return {
-      channel: sessionKey.slice(0, separator),
-      chatId: sessionKey.slice(separator + 1),
-    };
-  }
-  return { channel: currentChannel.value, chatId: extractChatId(sessionKey) };
-}
-
 type PlanApprovalTarget = {
   plan: PlanRuntimeState;
   sessionKey: string;
@@ -1515,10 +1703,6 @@ async function continueApprovedPlanExecution(
   if (isTyping.value) {
     throw new Error('Another response is already streaming.');
   }
-  if (!isTauri()) {
-    return;
-  }
-
   isTyping.value = true;
   suppressNextStopError.value = false;
   closeStreamingPlaceholder(true);
@@ -1534,15 +1718,27 @@ async function continueApprovedPlanExecution(
   });
 
   try {
-    const route = sessionRoute(targetSessionKey);
-    await invoke('continue_approved_plan_execution', {
-      channel: route.channel,
-      chatId: route.chatId,
-      streamRequestId,
-      planId,
-      revision,
-      executionId,
+    if (neuroLink.currentSessionKey.value !== targetSessionKey || neuroLink.connectionStatus.value !== 'connected') {
+      await neuroLink.open(targetSessionKey);
+    }
+    if (revision == null || !planId) {
+      throw new Error('Approved plan execution context is incomplete.');
+    }
+    const context: OwnerTurnContextV1 = {
+      intent: 'agent',
+      execution: {
+        plan_id: planId,
+        revision,
+        ...(executionId ? { execution_id: executionId } : {}),
+      },
+    };
+    const result = await neuroLink.startTurn({
+      session_key: targetSessionKey,
+      parts: [{ kind: 'text', text: 'Continue the approved plan execution from its persisted plan and execution context.' }],
+      client_message_id: streamRequestId,
+      context,
     });
+    activeStreamRequestId.value = result.request_id;
   } catch (error) {
     activeStreamRequestId.value = null;
     removeStreamingAssistantPlaceholder();
@@ -1656,6 +1852,58 @@ async function revokePlanExecution(feedback = '') {
   }
 }
 
+function attachmentContentPart(attachment: FileAttachmentDto): ContentPart {
+  const mediaType = attachment.mime_type?.trim() || 'application/octet-stream';
+  const rawHash = attachment.file_id.startsWith('sha256:')
+    ? attachment.file_id.slice('sha256:'.length)
+    : attachment.file_id;
+  const sha256 = /^[a-f0-9]{64}$/i.test(rawHash) ? rawHash : '0'.repeat(64);
+  const reference = {
+    uri: attachment.file_id,
+    media_type: mediaType,
+    size_bytes: attachment.size,
+    sha256,
+    file_name: attachment.filename,
+  };
+  if (mediaType.startsWith('image/')) return { kind: 'image', attachment: reference };
+  if (mediaType.startsWith('audio/')) return { kind: 'audio', attachment: reference };
+  if (mediaType.startsWith('video/')) return { kind: 'video', attachment: reference };
+  return { kind: 'file', attachment: reference };
+}
+
+function attachmentIdContentPart(fileId: string): ContentPart {
+  return {
+    kind: 'file',
+    attachment: {
+      uri: fileId,
+      media_type: 'application/octet-stream',
+      size_bytes: 0,
+      sha256: '0'.repeat(64),
+      file_name: fileId,
+    },
+  };
+}
+
+function ownerApprovalPolicy(permissionMode?: 'cautious' | 'smart' | 'trusted'): OwnerApprovalPolicy | undefined {
+  if (permissionMode === 'cautious') return 'on-request';
+  if (permissionMode === 'smart') return 'on-failure';
+  if (permissionMode === 'trusted') return 'unless-trusted';
+  return undefined;
+}
+
+function ownerTurnContext(
+  mode: ExecMode,
+  permissionMode?: 'cautious' | 'smart' | 'trusted',
+  execution?: OwnerExecutionContextV1,
+): OwnerTurnContextV1 {
+  const intent: OwnerTurnIntent = mode;
+  return {
+    intent,
+    approval_policy: ownerApprovalPolicy(permissionMode),
+    ...(execution ? { execution } : {}),
+  };
+}
+
 async function sendMessage(content: string, attachments?: FileAttachmentDto[], mode: ExecMode = 'agent', permissionMode?: 'cautious' | 'smart' | 'trusted') {
   if (workspaceSwitching.value) {
     showAppToast('工作区切换进行中，请稍候。', 'error', 4000);
@@ -1716,23 +1964,20 @@ async function sendMessage(content: string, attachments?: FileAttachmentDto[], m
         return;
     }
 
-    const approvalPolicy =
-      permissionMode === 'cautious'
-        ? 'on-request'
-        : permissionMode === 'trusted'
-          ? 'unless-trusted'
-          : permissionMode === 'smart'
-            ? 'on-failure'
-            : undefined;
-    await invoke("send_message", {
-      message: content,
-      channel: currentChannel.value,
-      chatId: currentChatId.value,
-      attachments: attachmentFileIds,
-      mode,
-      streamRequestId,
-      approvalPolicy,
+    if (neuroLink.currentSessionKey.value !== currentSessionKey.value || neuroLink.connectionStatus.value !== 'connected') {
+      await neuroLink.open(currentSessionKey.value);
+    }
+    const parts: ContentPart[] = [];
+    if (content) parts.push({ kind: 'text', text: content });
+    for (const attachment of attachments ?? []) parts.push(attachmentContentPart(attachment));
+    const result = await neuroLink.startTurn({
+      session_key: currentSessionKey.value,
+      thread_id: currentChatId.value,
+      parts,
+      client_message_id: streamRequestId,
+      context: ownerTurnContext(mode, permissionMode),
     });
+    activeStreamRequestId.value = result.request_id;
   } catch (error) {
     console.error("Failed to send message:", error);
     activeStreamRequestId.value = null;
@@ -1808,14 +2053,19 @@ async function regenerateMessage(messageId: string) {
       return;
     }
 
-    await invoke("send_message", {
-      message: userMsg.content,
-      channel: currentChannel.value,
-      chatId: currentChatId.value,
-      attachments: userMsg.attachments,
-      mode: 'agent',
-      streamRequestId,
+    if (neuroLink.currentSessionKey.value !== currentSessionKey.value || neuroLink.connectionStatus.value !== 'connected') {
+      await neuroLink.open(currentSessionKey.value);
+    }
+    const parts: ContentPart[] = [{ kind: 'text', text: userMsg.content }];
+    for (const fileId of userMsg.attachments ?? []) parts.push(attachmentIdContentPart(fileId));
+    const result = await neuroLink.startTurn({
+      session_key: currentSessionKey.value,
+      thread_id: currentChatId.value,
+      parts,
+      client_message_id: streamRequestId,
+      context: ownerTurnContext('agent'),
     });
+    activeStreamRequestId.value = result.request_id;
   } catch (error) {
     console.error("Failed to regenerate message:", error);
     activeStreamRequestId.value = null;
@@ -1853,12 +2103,15 @@ async function stopMessage() {
       return;
     }
 
-    const outcome = await invoke<SessionControlOutcome>("stop_generation", {
-      channel: currentChannel.value,
-      chatId: currentChatId.value,
-      requestId: activeStreamRequestId.value,
+    const requestId = activeStreamRequestId.value;
+    if (!requestId) return;
+    const cancellation = await neuroLink.cancelTurn({
+      session_key: currentSessionKey.value,
+      request_id: requestId,
     });
-    if (!outcome.running_cancelled) {
+    const outcome = cancellation.outcome as unknown as SessionControlOutcome;
+    const runningCancelled = outcome.running_cancelled === true;
+    if (!runningCancelled) {
       showAppToast(
         outcome.target_state === 'queued_preserved'
           ? t('chat.stopQueuedPreserved')
@@ -2321,17 +2574,17 @@ async function checkHealth() {
   
   try {
     const isHealthy = await invoke<boolean>("check_health");
-    const recovered = isHealthy && connectionStatus.value !== 'connected';
-    connectionStatus.value = isHealthy ? 'connected' : 'error';
+    if (!neuroLinkStarted.value) {
+      const recovered = isHealthy && connectionStatus.value !== 'connected';
+      connectionStatus.value = isHealthy ? 'connected' : 'error';
+      if (recovered) await refreshSessions();
+    }
     // The gateway can become ready after the GUI has already completed its one-time
     // startup load. Reload sessions on recovery so a failed initial request does not
     // leave the sidebar permanently empty.
-    if (recovered) {
-      await refreshSessions();
-    }
   } catch (e) {
     console.error("Health check failed:", e);
-    connectionStatus.value = 'error';
+    if (!neuroLinkStarted.value) connectionStatus.value = 'error';
   }
 }
 
@@ -2449,382 +2702,13 @@ onMounted(async () => {
     await refreshSessions();
     await restoreLatestGuiChatOnStartup();
     await restoreActivePlanRuntime();
+    neuroLinkStarted.value = true;
+    void neuroLink.open(currentSessionKey.value);
 
     // Register cleanup
     onUnmounted(() => {
       clearInterval(healthInterval);
     });
-
-    // Listen for streaming text delta
-      unlisteners.push(await listen<StreamTextPayload>("agent-response-delta", (event) => {
-      if (event.payload.request_id !== activeStreamRequestId.value) {
-        return;
-      }
-      const lastMsg = messages.value[messages.value.length - 1];
-      if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-        lastMsg.content += event.payload.data;
-      }
-    }));
-
-    // Listen for reasoning delta
-    unlisteners.push(await listen<StreamTextPayload>("agent-reasoning-delta", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      if (!lastMsg.reasoning) {
-        lastMsg.reasoning = "";
-      }
-      lastMsg.reasoning += event.payload.data;
-      lastMsg.isThinking = true;
-    }
-  }));
-
-  // Listen for completion
-  unlisteners.push(await listen<StreamTextPayload>("agent-response-complete", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    suppressNextStopError.value = false;
-    const completedIndex = completeLatestStreamingAgent(messages.value, event.payload.data);
-    if (completedIndex === -1 && event.payload.data) {
-      messages.value.push({
-        id: generateMessageId(),
-        role: 'agent',
-        content: event.payload.data,
-        isStreaming: false,
-        isThinking: false,
-        timestamp: Date.now(),
-        emotion: currentEmotion.value,
-      });
-    }
-    isTyping.value = false;
-    // Refresh plan state before clearing the stream id so a late
-    // plan-report-ready for this request can still be accepted, and so
-    // restore can re-hydrate the approval card after the turn.
-    void restoreActivePlanRuntime().finally(() => {
-      if (activeStreamRequestId.value === event.payload.request_id) {
-        activeStreamRequestId.value = null;
-      }
-    });
-    syncCurrentSessionListEntry();
-    if (isTauri()) {
-      void maybeGenerateCurrentSessionTitle();
-    }
-  }));
-
-  // Listen for tool usage
-  unlisteners.push(await listen<StreamTextPayload>("agent-tool-delta", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    // Optional: show tool usage in UI
-  }));
-
-  unlisteners.push(await listen<StreamToolStartPayload>("agent-tool-start", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    closeStreamingPlaceholder(true);
-
-    const payload = event.payload || ({} as StreamToolStartPayload);
-    const toolName = payload.name || t('app.unknownTool');
-    const toolArgs = payload.args_preview || '';
-
-    messages.value.push({ 
-      id: generateMessageId(),
-      role: 'tool', 
-      content: t('app.toolRunning'), 
-      timestamp: Date.now(),
-      toolName,
-      toolArgs,
-      toolStatus: 'running',
-      toolCallId: payload.call_id || undefined
-    });
-    
-    syncCurrentSessionListEntry();
-  }));
-
-  unlisteners.push(await listen<StreamToolFinishPayload>("agent-tool-end", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.content === '' && lastMsg.isStreaming) {
-      messages.value.pop();
-    }
-
-    const payload = event.payload || ({} as StreamToolFinishPayload);
-
-    // Prefer matching by call_id to avoid cross-updates when multiple tools run.
-    let toolMsgIndex = -1;
-    if (payload.call_id) {
-      toolMsgIndex = messages.value.findIndex(
-        (msg) => msg.role === 'tool' && msg.toolStatus === 'running' && msg.toolCallId === payload.call_id
-      );
-    }
-    if (toolMsgIndex === -1) {
-      for (let i = messages.value.length - 1; i >= 0; i--) {
-          if (messages.value[i].role === 'tool' && messages.value[i].toolStatus === 'running') {
-              toolMsgIndex = i;
-              break;
-          }
-      }
-    }
-
-    if (toolMsgIndex !== -1) {
-        const isError = payload.is_error === true || payload.result?.startsWith('Error');
-        const existing = messages.value[toolMsgIndex];
-        const preserveCard = isChecklistCardContent(existing.content);
-        existing.toolStatus = isError ? 'error' : 'success';
-        if (!preserveCard) {
-          existing.content = isError ? t('app.toolError') : t('app.toolSuccess');
-        }
-        if (payload.name) {
-          existing.toolName = payload.name;
-        }
-        existing.toolResult = payload.result || '';
-    } else {
-        // If no matching start message found, add a new entry.
-        messages.value.push({
-          id: generateMessageId(),
-          role: 'tool',
-          content: payload.is_error ? t('app.toolError') : t('app.toolSuccess'),
-          timestamp: Date.now(),
-          toolName: payload.name || t('app.unknownTool'),
-          toolResult: payload.result || '',
-          toolStatus: payload.is_error ? 'error' : 'success',
-          toolCallId: payload.call_id || undefined
-        });
-    }
-
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'agent',
-      content: '',
-      isStreaming: true,
-      timestamp: Date.now(),
-      emotion: currentEmotion.value
-    });
-  }));
-
-  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-created", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(event.payload.data.plan);
-  }));
-
-  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-updated", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(event.payload.data.plan);
-  }));
-
-  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-completed", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(event.payload.data.plan);
-  }));
-
-  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-todo-cancelled", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(event.payload.data.plan);
-  }));
-
-  unlisteners.push(await listen<StreamPlanPayload>("agent-plan-ready", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) return;
-    syncPlanRuntime(event.payload.data.plan);
-  }));
-
-  unlisteners.push(await listen<StreamJsonPayload>("agent-plan-report-ready", (event) => {
-    // Accept while the stream is active. Also accept a late event after
-    // complete if the payload is a valid report (restore may race).
-    const active = activeStreamRequestId.value;
-    if (active && event.payload.request_id !== active) return;
-    const plan = planRuntimeFromReportPayload(event.payload.data);
-    if (plan) {
-      const root = event.payload.data as { report?: { report?: { session_key?: unknown } } };
-      const sessionKey = root.report?.report?.session_key;
-      pendingApprovalSessionKey.value = typeof sessionKey === 'string' ? sessionKey : null;
-      syncPlanRuntime(plan);
-    }
-  }));
-
-  // Listen for normal-chat TODO/checklist updates from update_plan.
-  unlisteners.push(await listen<StreamTurnPlanPayload>("agent-turn-plan-updated", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    const { explanation, plan } = event.payload.data;
-    const card = {
-      id: generateMessageId(),
-      kind: 'checklist' as const,
-      explanation: explanation || undefined,
-      plan_items: plan || [],
-      status: 'updated',
-      title: 'Task Checklist',
-      summary: '',
-      body_markdown: '',
-      actions: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Update the current turn's tool row even if transport delivery races
-    // with tool_finish. Never reuse a checklist from an earlier user turn.
-    const existingIndex = findCurrentTurnUpdatePlanToolIndex(messages.value);
-    if (existingIndex !== -1) {
-      messages.value[existingIndex].content = JSON.stringify(card);
-    } else {
-      const checklistMessage: Message = {
-        id: generateMessageId(),
-        role: 'tool',
-        content: JSON.stringify(card),
-        timestamp: Date.now(),
-        toolName: 'update_plan',
-        toolStatus: 'success',
-      };
-      const streamingIndex = findLatestStreamingAgentIndex(messages.value);
-      if (streamingIndex === -1) {
-        messages.value.push(checklistMessage);
-      } else {
-        messages.value.splice(streamingIndex, 0, checklistMessage);
-      }
-    }
-    syncCurrentSessionListEntry();
-  }));
-
-  // Listen for errors
-  unlisteners.push(await listen<unknown>("agent-error", (event) => {
-    const payload = event.payload;
-    const isStreamPayload =
-      typeof payload === 'object'
-      && payload !== null
-      && 'request_id' in payload
-      && 'data' in payload;
-    const requestId = isStreamPayload ? String((payload as StreamTextPayload).request_id) : null;
-    const errorMessage = isStreamPayload
-      ? String((payload as StreamTextPayload).data)
-      : String(payload ?? '');
-
-    if (requestId && requestId !== activeStreamRequestId.value) {
-      return;
-    }
-
-    if (suppressNextStopError.value && errorMessage === "Generation stopped by user.") {
-      suppressNextStopError.value = false;
-      if (requestId && requestId === activeStreamRequestId.value) {
-        activeStreamRequestId.value = null;
-      }
-      return;
-    }
-    
-    // Check if the last message is a duplicate error message to debounce
-    if (messages.value.length > 0) {
-        const lastMsg = messages.value[messages.value.length - 1];
-        
-        // Remove streaming placeholder if exists
-        if (lastMsg.role === 'agent' && lastMsg.isStreaming) {
-            messages.value.pop();
-        }
-        
-        // Re-check last message after pop
-        if (messages.value.length > 0) {
-            const newLastMsg = messages.value[messages.value.length - 1];
-            if (newLastMsg.role === 'system' && newLastMsg.content === `${t('app.errorPrefix')}${errorMessage}`) {
-                return; // Skip duplicate
-            }
-        }
-    }
-
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'system', 
-      content: `${t('app.errorPrefix')}${errorMessage}`, 
-      timestamp: Date.now() 
-    });
-    if (requestId && requestId === activeStreamRequestId.value) {
-      isTyping.value = false;
-      activeStreamRequestId.value = null;
-    }
-    syncCurrentSessionListEntry();
-  }));
-
-  // Admission status is scoped to the one active stream request.
-  unlisteners.push(await listen<SessionAdmissionPayload>("agent-session-admission", (event) => {
-    const action = routeSessionAdmission(activeStreamRequestId.value, event.payload);
-    if (action.kind === 'ignore') return;
-    const streamingIndex = findLatestStreamingAgentIndex(messages.value);
-    const streamingMessage = streamingIndex >= 0 ? messages.value[streamingIndex] : null;
-    if (action.kind === 'queued') {
-      if (streamingMessage) {
-        streamingMessage.queueStatus = {
-          depth: action.depth,
-          waitLatencyMs: action.waitLatencyMs,
-        };
-      }
-      return;
-    }
-    if (action.kind === 'running') {
-      if (streamingMessage) streamingMessage.queueStatus = undefined;
-      return;
-    }
-
-    const errorKeys: Record<string, string> = {
-      session_queue_full: 'chat.admissionQueueFull',
-      session_queue_wait_timeout: 'chat.admissionTimeout',
-      session_reset: 'chat.admissionReset',
-      session_worker_unavailable: 'chat.admissionWorkerUnavailable',
-      session_turn_cancelled: 'chat.admissionTurnCancelled',
-    };
-    removeStreamingAssistantPlaceholder();
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'system',
-      content: `${t('app.errorPrefix')}${t(errorKeys[action.code])}`,
-      timestamp: Date.now(),
-    });
-    isTyping.value = false;
-    activeStreamRequestId.value = null;
-    syncCurrentSessionListEntry();
-  }));
-
-  // Listen for provider retry progress (shown on the streaming message)
-  unlisteners.push(await listen<StreamRetryPayload>("agent-provider-retry", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      lastMsg.retryStatus = {
-        attempt: event.payload.attempt,
-        maxRetries: event.payload.max_retries,
-        model: event.payload.model,
-      };
-    }
-  }));
-
-  // Listen for provider stall hints (long idle without a terminal event)
-  unlisteners.push(await listen<StreamStalledPayload>("agent-provider-stalled", (event) => {
-    if (event.payload.request_id !== activeStreamRequestId.value) {
-      return;
-    }
-    const lastMsg = messages.value[messages.value.length - 1];
-    if (lastMsg && lastMsg.role === 'agent' && lastMsg.isStreaming) {
-      lastMsg.stalled = true;
-    }
-  }));
-
-  // Listen for automatic/reactive context compaction progress.
-  unlisteners.push(await listen<StreamContextCompactionPayload>('agent-context-compaction', (event) => {
-    const payload = event.payload?.data;
-    if (!payload || payload.session_id !== currentSessionKey.value) return;
-    if (payload.trigger !== 'auto' && payload.trigger !== 'reactive') return;
-    if (payload.phase !== 'started' && payload.phase !== 'completed' && payload.phase !== 'failed') return;
-    compactionStatus.value = {
-      trigger: payload.trigger,
-      phase: payload.phase,
-      summary: payload.summary,
-    };
-  }));
 
   // Listen for external hook messages
   unlisteners.push(await listen<string>("external-message", (event) => {
@@ -2873,6 +2757,7 @@ onUnmounted(() => {
       :messages="messages"
       :is-typing="isTyping"
       :connection-status="connectionStatus"
+      :presentation="neuroLinkPresentation"
       :current-emotion="currentEmotion"
       :config="config"
       :provider-configs="providerConfigs"

@@ -1,0 +1,5 @@
+{
+  "c2c": {"id": "c2c-out-1"},
+  "group": {"message_id": "group-out-1"},
+  "rate_limited": {"code": 429, "message": "too many requests"}
+}

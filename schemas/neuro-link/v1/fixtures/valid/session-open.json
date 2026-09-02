@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "id": "session-1",
+  "method": "session/open",
+  "params": {
+    "session_key": "neuro-link:chat-1",
+    "durable_cursor": {
+      "stream": "neuro-link:chat-1",
+      "sequence": 7
+    }
+  }
+}

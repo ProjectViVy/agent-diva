@@ -1,0 +1,7 @@
+S: * OK fixture IMAP service ready
+C: LOGIN bot@example.test ********
+C: SELECT INBOX
+C: UID SEARCH UNSEEN
+C: UID FETCH (BODY.PEEK[] UID)
+C: UID STORE <uid> +FLAGS (\Seen)
+S: OK UID STORE completed

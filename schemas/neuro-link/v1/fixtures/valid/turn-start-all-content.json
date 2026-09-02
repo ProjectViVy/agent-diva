@@ -1,0 +1,75 @@
+{
+  "jsonrpc": "2.0",
+  "id": "turn-1",
+  "method": "turn/start",
+  "params": {
+    "session_key": "neuro-link:chat-1",
+    "thread_id": "thread-1",
+    "client_message_id": "client-message-1",
+    "subject": "Contract test",
+    "locale": "zh-CN",
+    "context": {
+      "intent": "agent",
+      "approval_policy": "on-failure"
+    },
+    "parts": [
+      { "kind": "text", "text": "hello" },
+      { "kind": "markdown", "markdown": "**hello**" },
+      {
+        "kind": "image",
+        "attachment": {
+          "uri": "file:///workspace/image.png",
+          "media_type": "image/png",
+          "size_bytes": 12,
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "file_name": "image.png"
+        }
+      },
+      {
+        "kind": "audio",
+        "attachment": {
+          "uri": "file:///workspace/audio.wav",
+          "media_type": "audio/wav",
+          "size_bytes": 24,
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "transcript": "hello audio"
+      },
+      {
+        "kind": "video",
+        "attachment": {
+          "uri": "file:///workspace/video.mp4",
+          "media_type": "video/mp4",
+          "size_bytes": 48,
+          "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      },
+      {
+        "kind": "file",
+        "attachment": {
+          "uri": "file:///workspace/file.txt",
+          "media_type": "text/plain",
+          "size_bytes": 5,
+          "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      },
+      {
+        "kind": "location",
+        "latitude": 31.2304,
+        "longitude": 121.4737,
+        "label": "Shanghai"
+      },
+      {
+        "kind": "card",
+        "schema": "agent-diva.card/v1",
+        "body": { "title": "Contract test", "actions": [] }
+      },
+      {
+        "kind": "reference",
+        "uri": "https://example.invalid/reference",
+        "title": "Reference",
+        "media_type": "text/html"
+      }
+    ]
+  }
+}

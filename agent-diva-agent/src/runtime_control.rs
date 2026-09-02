@@ -1,9 +1,19 @@
 use crate::tool_config::network::NetworkToolConfig;
+use agent_diva_core::channel::ChannelEnvelopeV1;
 use agent_diva_core::config::MCPServerConfig;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum RuntimeControlCommand {
+    /// Submit a typed Neuro-Link envelope to the bounded AgentLoop admission
+    /// dispatcher.  The reply is sent at the first authoritative queued or
+    /// running transition; turn execution continues on the session worker.
+    StartChannelTurn {
+        envelope: Box<ChannelEnvelopeV1>,
+        reply_tx: tokio::sync::oneshot::Sender<
+            Result<agent_diva_core::bus::SessionAdmissionObservation, String>,
+        >,
+    },
     /// Invalidate the machine Skill section for every cached Session. The
     /// next prompt assembly reloads the on-disk catalog; this is an internal
     /// control-plane event and never a user-visible Session message.

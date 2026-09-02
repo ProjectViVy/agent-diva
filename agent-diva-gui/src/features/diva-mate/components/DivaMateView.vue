@@ -10,7 +10,8 @@ import { useVoicePlayer } from '../voice/composables/useVoicePlayer'
 import { useVoiceInput } from '../voice/composables/useVoiceInput'
 import { useMateConfig } from '../services/mate-config'
 import { getTtsApiKey, type MateMessage, type VrmMood, type GaussSceneId } from '../types'
-import { getDesktopMateEmotionSignal } from '../../../utils/desktop-mate-emotion'
+import type { NeuroLinkPresentationState } from '../../neuro-link/projection'
+import { normalizeMood } from '../utils/mood'
 import { resolveVrmModelPath } from '../utils/vrm-model'
 import { resolveAppearance } from '../utils/default-appearance'
 import { resolveGaussSceneUrl } from '../utils/gauss-scene'
@@ -85,6 +86,7 @@ interface Props {
   currentModel?: string
   currentProvider?: string
   connectionStatus?: 'connected' | 'error' | 'connecting'
+  presentation?: NeuroLinkPresentationState
 }
 const props = withDefaults(defineProps<Props>(), {
   messages: () => [],
@@ -127,7 +129,16 @@ const { isSpeaking, speakText, stopSpeaking } = useVoicePlayer({
   messages: computed(() => props.messages),
   isTyping: computed(() => props.isTyping),
   ttsConfig: voiceConfig,
+  autoSpeakMessages: false,
 })
+
+watch(
+  () => [props.presentation?.subtitle, props.presentation?.shouldSpeak] as const,
+  ([subtitle, shouldSpeak]) => {
+    if (!shouldSpeak || !subtitle?.trim()) return
+    speakText(subtitle)
+  },
+)
 
 const voiceInput = useVoiceInput({
   isSuspended: computed(() => isSpeaking.value),
@@ -174,14 +185,13 @@ function scheduleMoodReset(mood: VrmMood) {
 }
 
 watch(
-  () => getDesktopMateEmotionSignal(props.messages),
-  (signal) => {
-    if (!signal) return
-    if (signal.signature === lastMoodSignature.value) return
-
-    lastMoodSignature.value = signal.signature
-    currentMood.value = signal.mood as VrmMood
-    scheduleMoodReset(currentMood.value)
+  () => props.presentation?.expressionHint,
+  (expression) => {
+    const mood = normalizeMood(expression)
+    if (mood === currentMood.value && lastMoodSignature.value === expression) return
+    lastMoodSignature.value = expression ?? null
+    currentMood.value = mood
+    scheduleMoodReset(mood)
   },
 )
 

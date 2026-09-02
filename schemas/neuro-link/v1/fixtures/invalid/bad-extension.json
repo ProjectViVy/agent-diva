@@ -1,0 +1,27 @@
+{
+  "jsonrpc": "2.0",
+  "method": "conversation/stream",
+  "params": {
+    "envelope": {
+      "schema_version": 1,
+      "envelope_id": "00000000-0000-4000-8000-000000000002",
+      "occurred_at": "2026-08-30T06:00:00Z",
+      "direction": "egress",
+      "address": {
+        "channel": "neuro-link",
+        "chat_id": "chat-1"
+      },
+      "correlation": {
+        "session_key": "neuro-link:chat-1"
+      },
+      "origin": "runtime",
+      "payload": {
+        "kind": "typing",
+        "state": "started"
+      },
+      "extensions": {
+        "raw": "must be namespaced"
+      }
+    }
+  }
+}

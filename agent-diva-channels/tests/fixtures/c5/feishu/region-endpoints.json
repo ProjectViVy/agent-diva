@@ -1,0 +1,15 @@
+{
+  "china": {
+    "api": "https://open.feishu.cn/open-apis",
+    "ws_domain": "https://open.feishu.cn"
+  },
+  "global": {
+    "api": "https://open.larksuite.com/open-apis",
+    "ws_domain": "https://open.larksuite.com"
+  },
+  "lark": {
+    "api": "https://open.larksuite.com/open-apis",
+    "ws_domain": "https://open.larksuite.com"
+  },
+  "default_from_current_schema": "china"
+}

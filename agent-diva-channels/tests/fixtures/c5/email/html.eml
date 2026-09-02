@@ -1,0 +1,8 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: HTML only
+Message-ID: <html@example.test>
+Date: Wed, 03 Jan 2024 00:00:00 +0000
+Content-Type: text/html; charset=utf-8
+
+<html><body><h1>Hello &amp; welcome</h1><p>This is the HTML fixture.</p></body></html>
