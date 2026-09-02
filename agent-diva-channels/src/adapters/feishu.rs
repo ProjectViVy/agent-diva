@@ -8,8 +8,8 @@
 
 use crate::adapter::{
     accepted_receipt, delivered_receipt, execution_error, external_message_envelope,
-    is_sender_allowed, AdapterContext, AdapterError, AdapterServices, ChannelAdapter,
-    IngressAttachment,
+    is_sender_allowed, validate_attachment_reference, AdapterContext, AdapterError,
+    AdapterServices, ChannelAdapter, IngressAttachment,
 };
 use agent_diva_core::channel::{
     ChannelAddress, ChannelCapabilities, ChannelCapability, ChannelCommand, ChannelHealth,
@@ -26,6 +26,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
@@ -255,6 +256,13 @@ impl FeishuAdapter {
     }
 
     async fn get_access_token(&self) -> Result<String, AdapterError> {
+        self.get_access_token_with_cancel(None).await
+    }
+
+    async fn get_access_token_with_cancel(
+        &self,
+        cancel: Option<&CancellationToken>,
+    ) -> Result<String, AdapterError> {
         self.validate_config()?;
         {
             let cached = self.token.read().await;
@@ -265,7 +273,16 @@ impl FeishuAdapter {
             }
         }
 
-        let _guard = self.token_refresh.lock().await;
+        let _guard = match cancel {
+            Some(cancel) => {
+                tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => return Err(cancellation_error()),
+                    guard = self.token_refresh.lock() => guard,
+                }
+            }
+            None => self.token_refresh.lock().await,
+        };
         {
             let cached = self.token.read().await;
             if let Some(cache) = cached.as_ref() {
@@ -279,35 +296,40 @@ impl FeishuAdapter {
             "{}/auth/v3/tenant_access_token/internal",
             self.endpoint.api_base
         );
-        let response = self
-            .http_client
-            .post(url)
-            .json(&json!({
-                "app_id": self.config.app_id,
-                "app_secret": self.config.app_secret,
-            }))
-            .send()
-            .await
-            .map_err(|error| {
-                execution_error(
-                    "token_transport",
-                    format!("Feishu tenant token request failed: {error}"),
-                    None,
-                    true,
-                )
-            })?;
+        let response = await_with_cancel(cancel, async {
+            self.http_client
+                .post(url)
+                .json(&json!({
+                    "app_id": self.config.app_id,
+                    "app_secret": self.config.app_secret,
+                }))
+                .send()
+                .await
+                .map_err(|error| {
+                    execution_error(
+                        "token_transport",
+                        format!("Feishu tenant token request failed: {error}"),
+                        None,
+                        true,
+                    )
+                })
+        })
+        .await?;
 
         if !response.status().is_success() {
             return Err(map_http_error(response, "token request").await);
         }
-        let token_response: TokenResponse = response.json().await.map_err(|error| {
-            execution_error(
-                "token_malformed",
-                format!("Feishu tenant token response was malformed: {error}"),
-                None,
-                false,
-            )
-        })?;
+        let token_response: TokenResponse = await_with_cancel(cancel, async {
+            response.json().await.map_err(|error| {
+                execution_error(
+                    "token_malformed",
+                    format!("Feishu tenant token response was malformed: {error}"),
+                    None,
+                    false,
+                )
+            })
+        })
+        .await?;
         if token_response.code != 0 {
             return Err(execution_error(
                 "token_rejected",
@@ -345,37 +367,50 @@ impl FeishuAdapter {
         self.token.write().await.take();
     }
 
+    #[allow(dead_code)]
     async fn get_websocket_url(&self) -> Result<(String, WsClientConfig), AdapterError> {
+        self.get_websocket_url_with_cancel(None).await
+    }
+
+    async fn get_websocket_url_with_cancel(
+        &self,
+        cancel: Option<&CancellationToken>,
+    ) -> Result<(String, WsClientConfig), AdapterError> {
         self.validate_config()?;
         let url = format!("{}/callback/ws/endpoint", self.endpoint.ws_base);
-        let response = self
-            .http_client
-            .post(url)
-            .json(&json!({
-                "AppID": self.config.app_id,
-                "AppSecret": self.config.app_secret,
-            }))
-            .send()
-            .await
-            .map_err(|error| {
-                execution_error(
-                    "ws_endpoint_transport",
-                    format!("Feishu WebSocket endpoint request failed: {error}"),
-                    None,
-                    true,
-                )
-            })?;
+        let response = await_with_cancel(cancel, async {
+            self.http_client
+                .post(url)
+                .json(&json!({
+                    "AppID": self.config.app_id,
+                    "AppSecret": self.config.app_secret,
+                }))
+                .send()
+                .await
+                .map_err(|error| {
+                    execution_error(
+                        "ws_endpoint_transport",
+                        format!("Feishu WebSocket endpoint request failed: {error}"),
+                        None,
+                        true,
+                    )
+                })
+        })
+        .await?;
         if !response.status().is_success() {
             return Err(map_http_error(response, "WebSocket endpoint request").await);
         }
-        let endpoint: WsEndpointResponse = response.json().await.map_err(|error| {
-            execution_error(
-                "ws_endpoint_malformed",
-                format!("Feishu WebSocket endpoint response was malformed: {error}"),
-                None,
-                false,
-            )
-        })?;
+        let endpoint: WsEndpointResponse = await_with_cancel(cancel, async {
+            response.json().await.map_err(|error| {
+                execution_error(
+                    "ws_endpoint_malformed",
+                    format!("Feishu WebSocket endpoint response was malformed: {error}"),
+                    None,
+                    false,
+                )
+            })
+        })
+        .await?;
         if endpoint.code != 0 {
             return Err(execution_error(
                 "ws_endpoint_rejected",
@@ -654,6 +689,14 @@ impl FeishuAdapter {
                             false,
                         )
                     })?;
+                stored.validate().map_err(|error| {
+                    execution_error(
+                        "attachment_corrupt",
+                        format!("Feishu image attachment readback was corrupt: {error}"),
+                        None,
+                        false,
+                    )
+                })?;
                 let image_key = self
                     .upload_image(&stored.bytes, attachment.file_name.as_deref())
                     .await?;
@@ -676,6 +719,14 @@ impl FeishuAdapter {
                             false,
                         )
                     })?;
+                stored.validate().map_err(|error| {
+                    execution_error(
+                        "attachment_corrupt",
+                        format!("Feishu file attachment readback was corrupt: {error}"),
+                        None,
+                        false,
+                    )
+                })?;
                 let file_key = self
                     .upload_file(
                         &stored.bytes,
@@ -708,16 +759,17 @@ impl FeishuAdapter {
         file_name: Option<&str>,
     ) -> Result<String, AdapterError> {
         let token = self.get_access_token().await?;
-        let part =
-            Part::bytes(bytes.to_vec()).file_name(file_name.unwrap_or("image.bin").to_string());
-        let part = match file_name.and_then(|name| mime_guess::from_path(name).first_raw()) {
-            Some(mime) => match part.mime_str(mime) {
-                Ok(candidate) => candidate,
-                Err(_) => Part::bytes(bytes.to_vec())
-                    .file_name(file_name.unwrap_or("image.bin").to_string()),
-            },
-            None => part,
-        };
+        let part = Part::bytes(bytes.to_vec())
+            .file_name(file_name.unwrap_or("image.bin").to_string())
+            .mime_str("application/octet-stream")
+            .map_err(|error| {
+                execution_error(
+                    "image_upload_malformed",
+                    format!("Feishu image upload MIME was invalid: {error}"),
+                    None,
+                    false,
+                )
+            })?;
         let form = Form::new()
             .text("image_type", "message")
             .part("image", part);
@@ -771,7 +823,17 @@ impl FeishuAdapter {
 
     async fn upload_file(&self, bytes: &[u8], file_name: &str) -> Result<String, AdapterError> {
         let token = self.get_access_token().await?;
-        let part = Part::bytes(bytes.to_vec()).file_name(file_name.to_string());
+        let part = Part::bytes(bytes.to_vec())
+            .file_name(file_name.to_string())
+            .mime_str("application/octet-stream")
+            .map_err(|error| {
+                execution_error(
+                    "file_upload_malformed",
+                    format!("Feishu file upload MIME was invalid: {error}"),
+                    None,
+                    false,
+                )
+            })?;
         let form = Form::new()
             .text("file_type", "stream")
             .text("file_name", file_name.to_string())
@@ -939,6 +1001,22 @@ impl FeishuAdapter {
         if !response.status().is_success() {
             return Err(map_http_error(response, "Feishu delete").await);
         }
+        let result: MessageResponse = response.json().await.map_err(|error| {
+            execution_error(
+                "delete_malformed",
+                format!("Feishu delete response was malformed: {error}"),
+                None,
+                false,
+            )
+        })?;
+        if result.code != 0 {
+            return Err(execution_error(
+                "delete_rejected",
+                format!("Feishu delete rejected with code {}", result.code),
+                None,
+                true,
+            ));
+        }
         Ok(delivered_receipt(
             FEISHU_CHANNEL,
             address.chat_id,
@@ -948,14 +1026,22 @@ impl FeishuAdapter {
     }
 
     async fn probe_health(&self) -> Result<DeliveryReceipt, AdapterError> {
-        let token = self.get_access_token().await?;
+        let token = match self.get_access_token().await {
+            Ok(token) => token,
+            Err(error) => {
+                self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
+                return Err(error);
+            }
+        };
         if token.trim().is_empty() {
-            return Err(execution_error(
+            let error = execution_error(
                 "health_auth",
                 "Feishu health probe received an empty token",
                 None,
                 false,
-            ));
+            );
+            self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
+            return Err(error);
         }
         self.set_health(ChannelHealthStatus::Healthy, None);
         Ok(accepted_receipt(FEISHU_CHANNEL, "", None, None))
@@ -966,13 +1052,28 @@ impl FeishuAdapter {
         context: AdapterContext,
         listener_cancel: CancellationToken,
     ) -> Result<(), AdapterError> {
-        self.get_access_token().await?;
         let mut reconnect_delay = Duration::from_millis(250);
         loop {
             if context.cancel.is_cancelled() || listener_cancel.is_cancelled() {
                 return Ok(());
             }
-            let (ws_url, client_config) = self.get_websocket_url().await?;
+            if let Err(error) = self
+                .get_access_token_with_cancel(Some(&listener_cancel))
+                .await
+            {
+                if error.code() == "cancelled" {
+                    return Ok(());
+                }
+                return Err(error);
+            }
+            let (ws_url, client_config) = match self
+                .get_websocket_url_with_cancel(Some(&listener_cancel))
+                .await
+            {
+                Ok(endpoint) => endpoint,
+                Err(error) if error.code() == "cancelled" => return Ok(()),
+                Err(error) => return Err(error),
+            };
             match self
                 .run_websocket(&ws_url, client_config, &context, &listener_cancel)
                 .await
@@ -985,6 +1086,7 @@ impl FeishuAdapter {
                         ChannelHealthStatus::Degraded,
                         Some("Feishu WebSocket ended; reconnecting".to_string()),
                     );
+                    reconnect_delay = Duration::from_millis(250);
                 }
                 Err(error) => {
                     self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
@@ -1108,6 +1210,9 @@ impl FeishuAdapter {
         payload: &[u8],
         context: &AdapterContext,
     ) -> Result<(), AdapterError> {
+        if context.cancel.is_cancelled() {
+            return Err(cancellation_error());
+        }
         let event: LarkEvent = serde_json::from_slice(payload).map_err(|error| {
             execution_error(
                 "event_malformed",
@@ -1146,12 +1251,19 @@ impl FeishuAdapter {
         if !reserved {
             return Ok(());
         }
-        let permit = match tokio::time::timeout(
-            INGRESS_ADMISSION_DEADLINE,
-            self.admission.clone().acquire_owned(),
-        )
-        .await
-        {
+        let permit = match tokio::select! {
+            biased;
+            _ = context.cancel.cancelled() => {
+                if let Some(key) = dedup_key.as_deref() {
+                    self.release_dedup(key).await;
+                }
+                return Err(cancellation_error());
+            }
+            result = tokio::time::timeout(
+                INGRESS_ADMISSION_DEADLINE,
+                self.admission.clone().acquire_owned(),
+            ) => result,
+        } {
             Ok(Ok(permit)) => permit,
             Ok(Err(_)) | Err(_) => {
                 if let Some(key) = dedup_key.as_deref() {
@@ -1165,7 +1277,10 @@ impl FeishuAdapter {
                 ));
             }
         };
-        let result = match self.build_inbound_parts(&received.message, sender_id).await {
+        let result = match self
+            .build_inbound_parts_with_cancel(&received.message, sender_id, Some(&context.cancel))
+            .await
+        {
             Ok(parts) => {
                 let address = ChannelAddress {
                     channel: FEISHU_CHANNEL.to_string(),
@@ -1213,7 +1328,10 @@ impl FeishuAdapter {
                 // generic InteractionReaction capability and never inbound failure.
                 let _ = tokio::time::timeout(
                     Duration::from_millis(100),
-                    self.add_seen_reaction(&received.message.message_id),
+                    self.add_seen_reaction_with_cancel(
+                        &received.message.message_id,
+                        Some(&context.cancel),
+                    ),
                 )
                 .await;
                 Ok(())
@@ -1227,10 +1345,21 @@ impl FeishuAdapter {
         }
     }
 
+    #[allow(dead_code)]
     async fn build_inbound_parts(
         &self,
         message: &LarkMessage,
         sender_id: &str,
+    ) -> Result<Vec<ContentPart>, AdapterError> {
+        self.build_inbound_parts_with_cancel(message, sender_id, None)
+            .await
+    }
+
+    async fn build_inbound_parts_with_cancel(
+        &self,
+        message: &LarkMessage,
+        sender_id: &str,
+        cancel: Option<&CancellationToken>,
     ) -> Result<Vec<ContentPart>, AdapterError> {
         let message_type = message.message_type.as_str();
         match message_type {
@@ -1242,23 +1371,23 @@ impl FeishuAdapter {
             }]),
             "image" => Ok(vec![ContentPart::Image {
                 attachment: self
-                    .fetch_and_store_media(message, sender_id, "image")
+                    .fetch_and_store_media_with_cancel(message, sender_id, "image", cancel)
                     .await?,
             }]),
             "file" | "sticker" => Ok(vec![ContentPart::File {
                 attachment: self
-                    .fetch_and_store_media(message, sender_id, "file")
+                    .fetch_and_store_media_with_cancel(message, sender_id, "file", cancel)
                     .await?,
             }]),
             "audio" => Ok(vec![ContentPart::Audio {
                 attachment: self
-                    .fetch_and_store_media(message, sender_id, "audio")
+                    .fetch_and_store_media_with_cancel(message, sender_id, "audio", cancel)
                     .await?,
                 transcript: None,
             }]),
             "media" | "video" => Ok(vec![ContentPart::Video {
                 attachment: self
-                    .fetch_and_store_media(message, sender_id, "video")
+                    .fetch_and_store_media_with_cancel(message, sender_id, "video", cancel)
                     .await?,
             }]),
             _ => Ok(vec![ContentPart::Text {
@@ -1267,11 +1396,23 @@ impl FeishuAdapter {
         }
     }
 
+    #[allow(dead_code)]
     async fn fetch_and_store_media(
         &self,
         message: &LarkMessage,
         sender_id: &str,
         media_kind: &str,
+    ) -> Result<agent_diva_core::channel::AttachmentRef, AdapterError> {
+        self.fetch_and_store_media_with_cancel(message, sender_id, media_kind, None)
+            .await
+    }
+
+    async fn fetch_and_store_media_with_cancel(
+        &self,
+        message: &LarkMessage,
+        sender_id: &str,
+        media_kind: &str,
+        cancel: Option<&CancellationToken>,
     ) -> Result<agent_diva_core::channel::AttachmentRef, AdapterError> {
         let key = extract_media_key(&message.content).ok_or_else(|| {
             execution_error(
@@ -1289,36 +1430,39 @@ impl FeishuAdapter {
                 false,
             ));
         }
-        let token = self.get_access_token().await?;
+        let token = self.get_access_token_with_cancel(cancel).await?;
         let url = format!(
             "{}/im/v1/messages/{}/resources/{}",
             self.endpoint.api_base, message.message_id, key
         );
-        let response = tokio::time::timeout(
-            MEDIA_REQUEST_TIMEOUT,
-            self.http_client
-                .get(url)
-                .query(&[("type", media_kind)])
-                .bearer_auth(token)
-                .send(),
-        )
-        .await
-        .map_err(|_| {
-            execution_error(
-                "media_timeout",
-                "Feishu media download exceeded the bounded timeout",
-                None,
-                true,
+        let response = await_with_cancel(cancel, async {
+            tokio::time::timeout(
+                MEDIA_REQUEST_TIMEOUT,
+                self.http_client
+                    .get(url)
+                    .query(&[("type", media_kind)])
+                    .bearer_auth(token)
+                    .send(),
             )
-        })?
-        .map_err(|error| {
-            execution_error(
-                "media_transport",
-                format!("Feishu media download failed: {error}"),
-                None,
-                true,
-            )
-        })?;
+            .await
+            .map_err(|_| {
+                execution_error(
+                    "media_timeout",
+                    "Feishu media download exceeded the bounded timeout",
+                    None,
+                    true,
+                )
+            })?
+            .map_err(|error| {
+                execution_error(
+                    "media_transport",
+                    format!("Feishu media download failed: {error}"),
+                    None,
+                    true,
+                )
+            })
+        })
+        .await?;
         if !response.status().is_success() {
             return Err(map_http_error(response, "Feishu media download").await);
         }
@@ -1359,14 +1503,32 @@ impl FeishuAdapter {
                 false,
             ));
         }
-        let bytes = response.bytes().await.map_err(|error| {
-            execution_error(
-                "media_read",
-                format!("Feishu media body could not be read: {error}"),
-                None,
-                true,
-            )
-        })?;
+        let mut body = response.bytes_stream();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = await_with_cancel(cancel, async {
+            body.next().await.map_or(Ok(None), |chunk| {
+                chunk.map(Some).map_err(|error| {
+                    execution_error(
+                        "media_read",
+                        format!("Feishu media body could not be read: {error}"),
+                        None,
+                        true,
+                    )
+                })
+            })
+        })
+        .await?
+        {
+            if bytes.len().saturating_add(chunk.len()) as u64 > MAX_ATTACHMENT_BYTES {
+                return Err(execution_error(
+                    "media_too_large",
+                    "Feishu media exceeds the bounded attachment limit",
+                    None,
+                    false,
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
         if bytes.is_empty() {
             return Err(execution_error(
                 "media_empty",
@@ -1375,60 +1537,107 @@ impl FeishuAdapter {
                 false,
             ));
         }
-        if bytes.len() as u64 > MAX_ATTACHMENT_BYTES {
+        let input = IngressAttachment {
+            source_channel: FEISHU_CHANNEL.to_string(),
+            platform_message_id: Some(message.message_id.clone()),
+            sender_id: Some(sender_id.to_string()),
+            file_name: extract_file_name(&message.content),
+            declared_mime: Some(content_type),
+            bytes,
+        };
+        let reference = await_with_cancel(cancel, async {
+            self.services
+                .attachments
+                .put(input.clone())
+                .await
+                .map_err(|error| {
+                    execution_error(
+                        "attachment_store",
+                        format!("Feishu attachment storage failed: {error}"),
+                        None,
+                        false,
+                    )
+                })
+        })
+        .await?;
+        validate_attachment_reference(&reference, &input.bytes).map_err(|error| {
+            execution_error(
+                "attachment_reference_invalid",
+                format!("Feishu attachment reference was invalid: {error}"),
+                None,
+                false,
+            )
+        })?;
+        let stored = await_with_cancel(cancel, async {
+            self.services
+                .attachments
+                .get(&reference)
+                .await
+                .map_err(|error| {
+                    execution_error(
+                        "attachment_readback",
+                        format!("Feishu attachment readback failed: {error}"),
+                        None,
+                        false,
+                    )
+                })
+        })
+        .await?;
+        stored.validate().map_err(|error| {
+            execution_error(
+                "attachment_corrupt",
+                format!("Feishu attachment readback was corrupt: {error}"),
+                None,
+                false,
+            )
+        })?;
+        if stored.reference != reference || stored.bytes.as_slice() != input.bytes.as_slice() {
             return Err(execution_error(
-                "media_too_large",
-                "Feishu media exceeds the bounded attachment limit",
+                "attachment_readback_mismatch",
+                "Feishu attachment readback did not match the stored bytes",
                 None,
                 false,
             ));
         }
-        self.services
-            .attachments
-            .put(IngressAttachment {
-                source_channel: FEISHU_CHANNEL.to_string(),
-                platform_message_id: Some(message.message_id.clone()),
-                sender_id: Some(sender_id.to_string()),
-                file_name: extract_file_name(&message.content),
-                declared_mime: Some(content_type),
-                bytes: bytes.to_vec(),
-            })
-            .await
-            .map_err(|error| {
-                execution_error(
-                    "attachment_store",
-                    format!("Feishu attachment storage failed: {error}"),
-                    None,
-                    false,
-                )
-            })
+        Ok(reference)
     }
 
+    #[allow(dead_code)]
     async fn add_seen_reaction(&self, message_id: &str) -> Result<(), AdapterError> {
+        self.add_seen_reaction_with_cancel(message_id, None).await
+    }
+
+    async fn add_seen_reaction_with_cancel(
+        &self,
+        message_id: &str,
+        cancel: Option<&CancellationToken>,
+    ) -> Result<(), AdapterError> {
         if !valid_path_segment(message_id) {
             return Ok(());
         }
-        let token = self.get_access_token().await?;
-        let response = self
-            .http_client
-            .post(format!(
-                "{}/im/v1/messages/{message_id}/reactions",
-                self.endpoint.api_base
-            ))
-            .bearer_auth(token)
-            .json(&json!({
-                "reaction_type": { "emoji_type": "THUMBSUP" }
-            }))
-            .send()
-            .await
-            .map_err(|error| {
-                execution_error(
-                    "seen_reaction_transport",
-                    format!("Feishu seen reaction failed: {error}"),
-                    None,
-                    true,
-                )
-            })?;
+        let token = self.get_access_token_with_cancel(cancel).await?;
+        let response = await_with_cancel(cancel, async {
+            self.http_client
+                .post(format!(
+                    "{}/im/v1/messages/{message_id}/reactions",
+                    self.endpoint.api_base
+                ))
+                .bearer_auth(token)
+                .json(&json!({
+                    "reaction_type": { "emoji_type": "THUMBSUP" }
+                }))
+                .send()
+                .await
+                .map_err(|error| {
+                    execution_error(
+                        "seen_reaction_transport",
+                        format!("Feishu seen reaction failed: {error}"),
+                        None,
+                        true,
+                    )
+                })
+        })
+        .await?;
         if !response.status().is_success() {
             let _ = response.bytes().await;
         }
@@ -1618,15 +1827,15 @@ struct WsEndpointResponse {
 
 #[derive(Debug, Deserialize)]
 struct WsEndpointData {
-    #[serde(rename = "URL")]
+    #[serde(rename = "URL", alias = "url")]
     url: String,
-    #[serde(rename = "ClientConfig")]
+    #[serde(rename = "ClientConfig", alias = "client_config")]
     client_config: Option<WsClientConfig>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
 struct WsClientConfig {
-    #[serde(rename = "PingInterval")]
+    #[serde(rename = "PingInterval", alias = "ping_interval")]
     ping_interval: Option<u64>,
 }
 
@@ -1806,15 +2015,15 @@ fn valid_path_segment(value: &str) -> bool {
 }
 
 fn dedup_key(event_id: Option<&str>, message_id: Option<&str>) -> Option<String> {
-    event_id
+    message_id
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|value| format!("event:{value}"))
+        .map(|value| format!("message:{value}"))
         .or_else(|| {
-            message_id
+            event_id
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                .map(|value| format!("message:{value}"))
+                .map(|value| format!("event:{value}"))
         })
 }
 
@@ -1961,6 +2170,29 @@ fn parse_markdown_table(table: &str) -> Option<Value> {
         "columns": columns,
         "rows": row_objects,
     }))
+}
+
+fn cancellation_error() -> AdapterError {
+    execution_error("cancelled", "Feishu operation was cancelled", None, false)
+}
+
+async fn await_with_cancel<T, F>(
+    cancel: Option<&CancellationToken>,
+    future: F,
+) -> Result<T, AdapterError>
+where
+    F: Future<Output = Result<T, AdapterError>>,
+{
+    match cancel {
+        Some(cancel) => {
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => Err(cancellation_error()),
+                result = future => result,
+            }
+        }
+        None => future.await,
+    }
 }
 
 async fn map_http_error(response: reqwest::Response, operation: &str) -> AdapterError {
@@ -2318,15 +2550,29 @@ fn aes_rcon(round: usize) -> u8 {
 mod tests {
     use super::*;
     use crate::{ChannelAttachmentStore, StoredAttachment};
-    use agent_diva_core::channel::{AttachmentRef, FabricKernel, ReactionOperation, TypingState};
+    use agent_diva_core::channel::{
+        AttachmentRef, DeliveryStatus, FabricKernel, ReactionOperation, TypingState,
+    };
     use async_trait::async_trait;
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+    use tokio::sync::oneshot;
+    use tokio::time::timeout;
+
+    type FixtureResponse = (
+        &'static str,
+        u16,
+        &'static str,
+        Vec<(&'static str, &'static str)>,
+    );
 
     #[derive(Default)]
     struct MemoryStore {
         puts: AtomicUsize,
+        records: StdMutex<HashMap<String, StoredAttachment>>,
+        corrupt_readback: AtomicBool,
     }
 
     #[async_trait]
@@ -2336,8 +2582,9 @@ mod tests {
             input: IngressAttachment,
         ) -> Result<AttachmentRef, crate::AttachmentStoreError> {
             self.puts.fetch_add(1, Ordering::SeqCst);
+            input.validate()?;
             let digest = format!("{:x}", Sha256::digest(&input.bytes));
-            Ok(AttachmentRef {
+            let reference = AttachmentRef {
                 uri: format!("sha256:{digest}"),
                 media_type: input
                     .declared_mime
@@ -2345,16 +2592,39 @@ mod tests {
                 size_bytes: input.bytes.len() as u64,
                 sha256: digest,
                 file_name: input.file_name,
-            })
+            };
+            let stored = StoredAttachment {
+                reference: reference.clone(),
+                bytes: input.bytes,
+            };
+            self.records
+                .lock()
+                .map_err(|_| crate::AttachmentStoreError::Backend {
+                    diagnosis: "test attachment store lock poisoned".to_string(),
+                })?
+                .insert(reference.uri.clone(), stored);
+            Ok(reference)
         }
 
         async fn get(
             &self,
             reference: &AttachmentRef,
         ) -> Result<StoredAttachment, crate::AttachmentStoreError> {
-            Err(crate::AttachmentStoreError::NotFound {
-                uri: reference.uri.clone(),
-            })
+            let mut stored = self
+                .records
+                .lock()
+                .map_err(|_| crate::AttachmentStoreError::Backend {
+                    diagnosis: "test attachment store lock poisoned".to_string(),
+                })?
+                .get(&reference.uri)
+                .cloned()
+                .ok_or_else(|| crate::AttachmentStoreError::NotFound {
+                    uri: reference.uri.clone(),
+                })?;
+            if self.corrupt_readback.swap(false, Ordering::SeqCst) && !stored.bytes.is_empty() {
+                stored.bytes[0] ^= 0xff;
+            }
+            Ok(stored)
         }
     }
 
@@ -2531,6 +2801,22 @@ mod tests {
             ChannelPayloadV1::Message { ref parts, .. }
                 if matches!(parts.first(), Some(ContentPart::Image { .. }))
         ));
+        let attachment = match &envelope.payload {
+            ChannelPayloadV1::Message { parts, .. } => match parts.first() {
+                Some(ContentPart::Image { attachment }) => attachment.clone(),
+                other => panic!("expected image attachment, got {other:?}"),
+            },
+            other => panic!("expected message payload, got {other:?}"),
+        };
+        let stored = store.get(&attachment).await.unwrap();
+        stored.validate().unwrap();
+        assert_eq!(stored.bytes, b"fixture-image-bytes");
+        assert_eq!(attachment.media_type, "image/png");
+        assert_eq!(attachment.size_bytes, stored.bytes.len() as u64);
+        assert_eq!(
+            attachment.sha256,
+            format!("{:x}", Sha256::digest(&stored.bytes))
+        );
         assert_eq!(store.puts.load(Ordering::SeqCst), 1);
         let requests = server.await.unwrap();
         assert_eq!(requests.len(), 3);
@@ -2661,6 +2947,894 @@ mod tests {
             .contains("authorization: bearer token-second"));
     }
 
+    #[tokio::test]
+    async fn token_refresh_is_single_flight_under_concurrent_demand() {
+        let (base, server, accepted) = spawn_delayed_token_fixture().await;
+        let adapter = Arc::new(FeishuAdapter::with_test_endpoint(
+            config(),
+            services(),
+            &base,
+            FeishuRegion::China,
+        ));
+        let first_adapter = adapter.clone();
+        let first = tokio::spawn(async move { first_adapter.get_access_token().await });
+        timeout(Duration::from_secs(1), accepted)
+            .await
+            .unwrap()
+            .unwrap();
+        let second_adapter = adapter.clone();
+        let second = tokio::spawn(async move { second_adapter.get_access_token().await });
+        let (first, second) = tokio::join!(first, second);
+        assert_eq!(first.unwrap().unwrap(), "token-single-flight");
+        assert_eq!(second.unwrap().unwrap(), "token-single-flight");
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0]
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .contains("POST /auth/v3/tenant_access_token/internal"));
+    }
+
+    #[tokio::test]
+    async fn token_and_ws_endpoint_requests_honor_cancellation() {
+        let (base, server, accepted) = spawn_hanging_http_fixture().await;
+        let adapter = Arc::new(FeishuAdapter::with_test_endpoint(
+            config(),
+            services(),
+            &base,
+            FeishuRegion::China,
+        ));
+        let cancel = CancellationToken::new();
+        let task_adapter = adapter.clone();
+        let task_cancel = cancel.clone();
+        let token_task = tokio::spawn(async move {
+            task_adapter
+                .get_access_token_with_cancel(Some(&task_cancel))
+                .await
+        });
+        timeout(Duration::from_secs(1), accepted)
+            .await
+            .unwrap()
+            .unwrap();
+        cancel.cancel();
+        let token_error = timeout(Duration::from_secs(1), token_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(token_error.code(), "cancelled");
+        server.abort();
+
+        let (base, server, accepted) = spawn_hanging_http_fixture().await;
+        let adapter = Arc::new(FeishuAdapter::with_test_endpoint(
+            config(),
+            services(),
+            &base,
+            FeishuRegion::Global,
+        ));
+        let cancel = CancellationToken::new();
+        let task_adapter = adapter.clone();
+        let task_cancel = cancel.clone();
+        let endpoint_task = tokio::spawn(async move {
+            task_adapter
+                .get_websocket_url_with_cancel(Some(&task_cancel))
+                .await
+        });
+        timeout(Duration::from_secs(1), accepted)
+            .await
+            .unwrap()
+            .unwrap();
+        cancel.cancel();
+        let endpoint_error = timeout(Duration::from_secs(1), endpoint_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(endpoint_error.code(), "cancelled");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn token_and_ws_endpoint_failures_preserve_typed_429_and_malformed_errors() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/feishu/error-responses.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["token_rate_limited"]["headers"]["Retry-After"], "7");
+
+        let (base, server) = spawn_http_fixture_with_headers(vec![(
+            "/auth/v3/tenant_access_token/internal",
+            429,
+            r#"{"code":99991400,"msg":"rate limit"}"#,
+            vec![("Retry-After", "7")],
+        )])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        assert!(matches!(
+            adapter.get_access_token().await,
+            Err(AdapterError::RateLimited { retry_after }) if retry_after == Duration::from_secs(7)
+        ));
+        assert_eq!(server.await.unwrap().len(), 1);
+
+        let (base, server) =
+            spawn_http_fixture(vec![("/auth/v3/tenant_access_token/internal", "not-json")]).await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let error = adapter.get_access_token().await.unwrap_err();
+        assert_eq!(error.code(), "token_malformed");
+        assert_eq!(server.await.unwrap().len(), 1);
+
+        let (base, server) =
+            spawn_http_fixture(vec![("/callback/ws/endpoint", r#"{"code":0,"data":{}}"#)]).await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::Global);
+        let error = adapter.get_websocket_url().await.unwrap_err();
+        assert_eq!(error.code(), "ws_endpoint_malformed");
+        assert_eq!(server.await.unwrap().len(), 1);
+
+        let (base, server) = spawn_http_fixture_with_headers(vec![(
+            "/callback/ws/endpoint",
+            429,
+            r#"{"code":99991400,"msg":"rate limit"}"#,
+            vec![("Retry-After", "9")],
+        )])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::Global);
+        assert!(matches!(
+            adapter.get_websocket_url().await,
+            Err(AdapterError::RateLimited { retry_after }) if retry_after == Duration::from_secs(9)
+        ));
+        assert_eq!(server.await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn health_probe_uses_token_wire_and_records_health_transition() {
+        let (base, server) = spawn_http_fixture(vec![(
+            "/auth/v3/tenant_access_token/internal",
+            r#"{"code":0,"tenant_access_token":"token-health","expire":7200}"#,
+        )])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let receipt = adapter.probe_health().await.unwrap();
+        assert_eq!(receipt.status, DeliveryStatus::Accepted);
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Healthy);
+        assert_eq!(server.await.unwrap().len(), 1);
+
+        let (base, server) =
+            spawn_http_fixture(vec![("/auth/v3/tenant_access_token/internal", "not-json")]).await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        assert_eq!(
+            adapter.probe_health().await.unwrap_err().code(),
+            "token_malformed"
+        );
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Degraded);
+        assert_eq!(server.await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn websocket_fixture_covers_ping_event_ack_health_and_stop_lifecycle() {
+        use futures::{SinkExt, StreamExt};
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/feishu/ws-lifecycle.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["endpoint_request"]["body"]["AppID"], "app-fixture");
+        assert_eq!(fixture["ack"]["header"]["value"], "0");
+
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_address = ws_listener.local_addr().unwrap();
+        let (ack_sent, ack_received) = oneshot::channel();
+        let (release_server, release_server_rx) = oneshot::channel();
+        let ws_task = tokio::spawn(async move {
+            let (socket, _) = ws_listener.accept().await.unwrap();
+            let mut stream = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let first = stream.next().await.unwrap().unwrap();
+            let WsMessage::Binary(first_bytes) = first else {
+                panic!("expected Feishu binary ping frame");
+            };
+            let ping = PbFrame::decode(first_bytes.as_slice()).unwrap();
+            assert_eq!(ping.method, 0);
+            assert_eq!(ping.service, 42);
+            assert_eq!(ping.header_value("type"), "ping");
+
+            let event_frame = PbFrame {
+                seq_id: 7,
+                log_id: 8,
+                service: 42,
+                method: 1,
+                headers: vec![
+                    PbHeader {
+                        key: "type".to_string(),
+                        value: "event".to_string(),
+                    },
+                    PbHeader {
+                        key: "message_id".to_string(),
+                        value: "frame-fixture-event".to_string(),
+                    },
+                    PbHeader {
+                        key: "sum".to_string(),
+                        value: "1".to_string(),
+                    },
+                    PbHeader {
+                        key: "seq".to_string(),
+                        value: "0".to_string(),
+                    },
+                ],
+                payload: Some(event(
+                    "evt-ws-fixture",
+                    "om-ws-fixture",
+                    "text",
+                    r#"{"text":"websocket fixture"}"#,
+                )),
+            };
+            stream
+                .send(WsMessage::Binary(event_frame.encode_to_vec()))
+                .await
+                .unwrap();
+            let ack = loop {
+                let message = stream.next().await.unwrap().unwrap();
+                if let WsMessage::Binary(bytes) = message {
+                    let frame = PbFrame::decode(bytes.as_slice()).unwrap();
+                    if frame.header_value("biz_rt") == "0" {
+                        break frame;
+                    }
+                }
+            };
+            assert_eq!(ack.header_value("type"), "event");
+            assert_eq!(ack.header_value("biz_rt"), "0");
+            assert_eq!(
+                ack.payload.as_deref(),
+                Some(br#"{"code":200,"headers":{},"data":[]}"#.as_slice())
+            );
+            ack_sent.send(()).unwrap();
+            let _ = release_server_rx.await;
+        });
+
+        let (base, http_task) = spawn_ws_lifecycle_http_fixture(ws_address).await;
+        let adapter = Arc::new(FeishuAdapter::with_test_endpoint(
+            config(),
+            services(),
+            &base,
+            FeishuRegion::China,
+        ));
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        let start_adapter = adapter.clone();
+        let start_task = tokio::spawn(async move { start_adapter.start(context).await });
+        let inbound = timeout(Duration::from_secs(2), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            inbound.envelope().correlation.message_id.as_deref(),
+            Some("om-ws-fixture")
+        );
+        timeout(Duration::from_secs(2), ack_received)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Healthy);
+
+        adapter.stop().await.unwrap();
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Down);
+        release_server.send(()).unwrap();
+        assert!(timeout(Duration::from_secs(2), start_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        ws_task.await.unwrap();
+        assert_eq!(http_task.await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn media_variants_are_typed_and_read_back_with_sha() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/feishu/media-types.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["resources"].as_array().unwrap().len(), 4);
+        assert!(fixture["integrity_proof"]
+            .as_str()
+            .unwrap()
+            .contains("local"));
+
+        let (base, server) = spawn_http_fixture(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                r#"{"code":0,"tenant_access_token":"token-media-types","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages/om-fixture-image/resources/img-key?type=image",
+                "fixture-image-bytes",
+            ),
+            (
+                "/im/v1/messages/om-fixture-image/reactions",
+                r#"{"code":0}"#,
+            ),
+            (
+                "/im/v1/messages/om-fixture-file/resources/file-key?type=file",
+                "fixture-file-bytes",
+            ),
+            ("/im/v1/messages/om-fixture-file/reactions", r#"{"code":0}"#),
+            (
+                "/im/v1/messages/om-fixture-audio/resources/audio-key?type=audio",
+                "fixture-audio-bytes",
+            ),
+            (
+                "/im/v1/messages/om-fixture-audio/reactions",
+                r#"{"code":0}"#,
+            ),
+            (
+                "/im/v1/messages/om-fixture-video/resources/video-key?type=video",
+                "fixture-video-bytes",
+            ),
+            (
+                "/im/v1/messages/om-fixture-video/reactions",
+                r#"{"code":0}"#,
+            ),
+        ])
+        .await;
+        let store = Arc::new(MemoryStore::default());
+        let adapter = FeishuAdapter::with_test_endpoint(
+            config(),
+            AdapterServices::new(store.clone()),
+            &base,
+            FeishuRegion::China,
+        );
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        let cases = [
+            (
+                "om-fixture-image",
+                "image",
+                r#"{"image_key":"img-key"}"#,
+                "image/png",
+            ),
+            (
+                "om-fixture-file",
+                "file",
+                r#"{"file_key":"file-key","file_name":"report.pdf"}"#,
+                "application/pdf",
+            ),
+            (
+                "om-fixture-audio",
+                "audio",
+                r#"{"file_key":"audio-key","file_name":"voice.mp3"}"#,
+                "audio/mpeg",
+            ),
+            (
+                "om-fixture-video",
+                "media",
+                r#"{"file_key":"video-key","file_name":"clip.mp4"}"#,
+                "video/mp4",
+            ),
+        ];
+        for (message_id, message_type, content, expected_mime) in cases {
+            adapter
+                .handle_event_payload(
+                    &event("evt-variant", message_id, message_type, content),
+                    &context,
+                )
+                .await
+                .unwrap();
+            let envelope = timeout(Duration::from_secs(1), consumer.recv_ingress())
+                .await
+                .unwrap()
+                .unwrap()
+                .envelope()
+                .clone();
+            let attachment = match envelope.payload {
+                ChannelPayloadV1::Message { parts, .. } => match parts.first() {
+                    Some(ContentPart::Image { attachment })
+                    | Some(ContentPart::Audio { attachment, .. })
+                    | Some(ContentPart::Video { attachment })
+                    | Some(ContentPart::File { attachment }) => attachment.clone(),
+                    other => panic!("expected typed attachment, got {other:?}"),
+                },
+                other => panic!("expected message payload, got {other:?}"),
+            };
+            let stored = store.get(&attachment).await.unwrap();
+            stored.validate().unwrap();
+            assert_eq!(stored.reference, attachment);
+            assert_eq!(stored.reference.media_type, expected_mime);
+            assert_eq!(
+                stored.reference.sha256,
+                format!("{:x}", Sha256::digest(&stored.bytes))
+            );
+        }
+        assert_eq!(store.puts.load(Ordering::SeqCst), 4);
+        assert_eq!(server.await.unwrap().len(), 9);
+    }
+
+    #[tokio::test]
+    async fn corrupt_attachment_readback_is_typed_and_releases_dedup() {
+        let (base, server) = spawn_http_fixture(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                r#"{"code":0,"tenant_access_token":"token-corrupt","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages/om-corrupt/resources/file-key?type=image",
+                "corrupt-me",
+            ),
+        ])
+        .await;
+        let store = Arc::new(MemoryStore::default());
+        store.corrupt_readback.store(true, Ordering::SeqCst);
+        let adapter = FeishuAdapter::with_test_endpoint(
+            config(),
+            AdapterServices::new(store.clone()),
+            &base,
+            FeishuRegion::China,
+        );
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        let error = adapter
+            .handle_event_payload(
+                &event(
+                    "evt-corrupt",
+                    "om-corrupt",
+                    "image",
+                    r#"{"image_key":"file-key"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "attachment_corrupt");
+        assert!(timeout(Duration::from_millis(50), consumer.recv_ingress())
+            .await
+            .is_err());
+        assert_eq!(server.await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn media_content_length_overflow_is_typed_before_body_read() {
+        let (base, server) = spawn_http_fixture_with_headers(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                200,
+                r#"{"code":0,"tenant_access_token":"token-large","expire":7200}"#,
+                Vec::new(),
+            ),
+            (
+                "/im/v1/messages/om-large/resources/file-key?type=image",
+                200,
+                "short body",
+                vec![
+                    ("Content-Length", "20971521"),
+                    ("Content-Type", "image/png"),
+                ],
+            ),
+        ])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let kernel = FabricKernel::new();
+        let (handle, _consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        let error = adapter
+            .handle_event_payload(
+                &event(
+                    "evt-large",
+                    "om-large",
+                    "image",
+                    r#"{"image_key":"file-key"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "media_too_large");
+        assert_eq!(server.await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn media_download_cancellation_interrupts_read_and_releases_dedup() {
+        let (base, server, accepted) = spawn_hanging_media_fixture().await;
+        let adapter = Arc::new(FeishuAdapter::with_test_endpoint(
+            config(),
+            services(),
+            &base,
+            FeishuRegion::China,
+        ));
+        adapter.token.write().await.replace(TokenCache {
+            value: "token-media-cancel".to_string(),
+            expires_at: Instant::now() + Duration::from_secs(60),
+        });
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let cancel = CancellationToken::new();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: cancel.clone(),
+        };
+        let task_adapter = adapter.clone();
+        let task = tokio::spawn(async move {
+            task_adapter
+                .handle_event_payload(
+                    &event(
+                        "evt-media-cancel",
+                        "om-media-cancel",
+                        "image",
+                        r#"{"image_key":"file-key"}"#,
+                    ),
+                    &context,
+                )
+                .await
+        });
+        timeout(Duration::from_secs(1), accepted)
+            .await
+            .unwrap()
+            .unwrap();
+        cancel.cancel();
+        let error = timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.code(), "cancelled");
+        assert!(timeout(Duration::from_millis(50), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .is_none());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn outbound_media_multipart_and_edit_delete_json_are_truthful() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/feishu/send-responses.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["image_upload"]["response"]["code"], 0);
+        assert_eq!(fixture["file_upload"]["response"]["code"], 0);
+        assert_eq!(fixture["delete"]["response"]["code"], 0);
+
+        let (base, server) = spawn_http_fixture(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                r#"{"code":0,"tenant_access_token":"token-egress","expire":7200}"#,
+            ),
+            (
+                "/im/v1/images",
+                r#"{"code":0,"data":{"image_key":"img-fixture-uploaded"}}"#,
+            ),
+            (
+                "/im/v1/messages?receive_id_type=chat_id",
+                r#"{"code":0,"data":{"message_id":"om-image-sent"}}"#,
+            ),
+            (
+                "/im/v1/files",
+                r#"{"code":0,"data":{"file_key":"file-fixture-uploaded"}}"#,
+            ),
+            (
+                "/im/v1/messages?receive_id_type=chat_id",
+                r#"{"code":0,"data":{"message_id":"om-file-sent"}}"#,
+            ),
+            ("/im/v1/messages/om-image-sent", r#"{"code":0,"data":{}}"#),
+            ("/im/v1/messages/om-image-sent", r#"{"code":0,"data":{}}"#),
+        ])
+        .await;
+        let store = Arc::new(MemoryStore::default());
+        let image_reference = store
+            .put(IngressAttachment {
+                source_channel: FEISHU_CHANNEL.to_string(),
+                platform_message_id: None,
+                sender_id: None,
+                file_name: Some("diagram.png".to_string()),
+                declared_mime: Some("image/png".to_string()),
+                bytes: b"image-upload-bytes".to_vec(),
+            })
+            .await
+            .unwrap();
+        let file_reference = store
+            .put(IngressAttachment {
+                source_channel: FEISHU_CHANNEL.to_string(),
+                platform_message_id: None,
+                sender_id: None,
+                file_name: Some("report.pdf".to_string()),
+                declared_mime: Some("application/pdf".to_string()),
+                bytes: b"file-upload-bytes".to_vec(),
+            })
+            .await
+            .unwrap();
+        let adapter = FeishuAdapter::with_test_endpoint(
+            config(),
+            AdapterServices::new(store),
+            &base,
+            FeishuRegion::China,
+        );
+        let address = ChannelAddress::new(FEISHU_CHANNEL, "oc_egress");
+        let image_receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    address.clone(),
+                    Correlation::new("feishu:oc-egress:image"),
+                    vec![ContentPart::Image {
+                        attachment: image_reference,
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: Some("egress-image".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            image_receipt.platform_message_id.as_deref(),
+            Some("om-image-sent")
+        );
+        let file_receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: external_message_envelope(
+                    address.clone(),
+                    Correlation::new("feishu:oc-egress:file"),
+                    vec![ContentPart::File {
+                        attachment: file_reference,
+                    }],
+                    None,
+                    None,
+                ),
+                idempotency_key: Some("egress-file".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            file_receipt.platform_message_id.as_deref(),
+            Some("om-file-sent")
+        );
+        let edit_receipt = adapter
+            .execute(ChannelCommand::Edit {
+                address: address.clone(),
+                correlation: Correlation::new("feishu:oc-egress:edit"),
+                target_message_id: "om-image-sent".to_string(),
+                parts: vec![ContentPart::Text {
+                    text: "edited".to_string(),
+                }],
+                idempotency_key: Some("egress-edit".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            edit_receipt.platform_message_id.as_deref(),
+            Some("om-image-sent")
+        );
+        let delete_receipt = adapter
+            .execute(ChannelCommand::Delete {
+                address,
+                correlation: Correlation::new("feishu:oc-egress:delete"),
+                target_message_id: "om-image-sent".to_string(),
+                idempotency_key: Some("egress-delete".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(delete_receipt.status, DeliveryStatus::Delivered);
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 7);
+        let image_upload = requests[1].to_ascii_lowercase();
+        assert!(image_upload.contains("name=\"image\""));
+        assert!(image_upload.contains("filename=\"diagram.png\""));
+        assert!(image_upload.contains("name=\"image_type\"\r\n\r\nmessage"));
+        assert!(image_upload.contains("content-type: application/octet-stream"));
+        assert!(image_upload.contains("image-upload-bytes"));
+        let file_upload = requests[3].to_ascii_lowercase();
+        assert!(file_upload.contains("name=\"file\""));
+        assert!(file_upload.contains("filename=\"report.pdf\""));
+        assert!(file_upload.contains("name=\"file_type\"\r\n\r\nstream"));
+        assert!(file_upload.contains("name=\"file_name\"\r\n\r\nreport.pdf"));
+        assert!(file_upload.contains("content-type: application/octet-stream"));
+        assert!(file_upload.contains("file-upload-bytes"));
+        assert!(requests[2].contains("\"msg_type\":\"image\""));
+        assert!(requests[4].contains("\"msg_type\":\"file\""));
+        assert!(requests[5].contains("edited"));
+        assert!(requests[6]
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .contains("DELETE /im/v1/messages/om-image-sent"));
+    }
+
+    #[tokio::test]
+    async fn execute_delete_rejects_nonzero_and_malformed_json_codes() {
+        let (base, server) = spawn_http_fixture(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                r#"{"code":0,"tenant_access_token":"token-delete-error","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages/om-delete-rejected",
+                r#"{"code":230099,"msg":"message not found"}"#,
+            ),
+            ("/im/v1/messages/om-delete-malformed", "not-json"),
+        ])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let rejected = adapter
+            .execute(ChannelCommand::Delete {
+                address: ChannelAddress::new(FEISHU_CHANNEL, "oc-delete"),
+                correlation: Correlation::new("feishu:oc-delete:rejected"),
+                target_message_id: "om-delete-rejected".to_string(),
+                idempotency_key: Some("delete-rejected".to_string()),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(rejected.code(), "delete_rejected");
+        let malformed = adapter
+            .execute(ChannelCommand::Delete {
+                address: ChannelAddress::new(FEISHU_CHANNEL, "oc-delete"),
+                correlation: Correlation::new("feishu:oc-delete:malformed"),
+                target_message_id: "om-delete-malformed".to_string(),
+                idempotency_key: Some("delete-malformed".to_string()),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(malformed.code(), "delete_malformed");
+        assert_eq!(server.await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn seen_reaction_failure_is_isolated_from_ingress_and_message_dedup() {
+        let (base, server) = spawn_reaction_isolation_fixture().await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        adapter
+            .handle_event_payload(
+                &event(
+                    "evt-reaction-one",
+                    "om-reaction-isolated",
+                    "text",
+                    r#"{"text":"hello"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap();
+        let first = timeout(Duration::from_secs(1), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            first.envelope().correlation.message_id.as_deref(),
+            Some("om-reaction-isolated")
+        );
+
+        // Feishu may replay the same message with a new event_id.  The marker
+        // endpoint must not turn that replay into a second Fabric admission.
+        adapter
+            .handle_event_payload(
+                &event(
+                    "evt-reaction-replay",
+                    "om-reaction-isolated",
+                    "text",
+                    r#"{"text":"hello"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap();
+        assert!(timeout(Duration::from_millis(50), consumer.recv_ingress())
+            .await
+            .is_err());
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[1]
+            .to_ascii_lowercase()
+            .contains("/im/v1/messages/om-reaction-isolated/reactions"));
+        assert!(requests[1].contains("THUMBSUP"));
+    }
+
+    #[tokio::test]
+    async fn failed_media_admission_releases_message_dedup_for_retry() {
+        let (base, server) = spawn_http_fixture_with_status(vec![
+            (
+                "/auth/v3/tenant_access_token/internal",
+                200,
+                r#"{"code":0,"tenant_access_token":"token-media-retry","expire":7200}"#,
+            ),
+            (
+                "/im/v1/messages/om-media-retry/resources/file-key?type=image",
+                503,
+                r#"{"code":230099,"msg":"temporary media failure"}"#,
+            ),
+            (
+                "/im/v1/messages/om-media-retry/resources/file-key?type=image",
+                200,
+                "retry-media-bytes",
+            ),
+            (
+                "/im/v1/messages/om-media-retry/reactions",
+                200,
+                r#"{"code":0}"#,
+            ),
+        ])
+        .await;
+        let adapter =
+            FeishuAdapter::with_test_endpoint(config(), services(), &base, FeishuRegion::China);
+        let kernel = FabricKernel::new();
+        let (handle, mut consumer) = kernel.into_parts();
+        let context = AdapterContext {
+            fabric: handle,
+            cancel: CancellationToken::new(),
+        };
+        let first_error = adapter
+            .handle_event_payload(
+                &event(
+                    "evt-media-failed",
+                    "om-media-retry",
+                    "image",
+                    r#"{"image_key":"file-key"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(first_error.code(), "http_503");
+        adapter
+            .handle_event_payload(
+                &event(
+                    "evt-media-retry",
+                    "om-media-retry",
+                    "image",
+                    r#"{"image_key":"file-key"}"#,
+                ),
+                &context,
+            )
+            .await
+            .unwrap();
+        let second = timeout(Duration::from_secs(1), consumer.recv_ingress())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            second.envelope().payload,
+            ChannelPayloadV1::Message { ref parts, .. }
+                if matches!(parts.first(), Some(ContentPart::Image { .. }))
+        ));
+        assert_eq!(server.await.unwrap().len(), 4);
+    }
+
+    #[test]
+    fn dedup_uses_stable_message_id_before_event_id_fallback() {
+        assert_eq!(
+            dedup_key(Some("event-one"), Some("message-one")),
+            Some("message:message-one".to_string())
+        );
+        assert_eq!(
+            dedup_key(Some("event-one"), None),
+            Some("event:event-one".to_string())
+        );
+        assert_eq!(dedup_key(Some(" "), Some(" ")), None);
+    }
+
     #[test]
     fn protocol_and_webhook_fixtures_are_parseable() {
         let event_fixture: Value = serde_json::from_str(include_str!(
@@ -2725,38 +3899,155 @@ mod tests {
     async fn spawn_http_fixture_with_status(
         responses: Vec<(&'static str, u16, &'static str)>,
     ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        spawn_http_fixture_with_headers(
+            responses
+                .into_iter()
+                .map(|(path, status, body)| (path, status, body, Vec::new()))
+                .collect(),
+        )
+        .await
+    }
+
+    async fn spawn_http_fixture_with_headers(
+        responses: Vec<FixtureResponse>,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let handle = tokio::spawn(async move {
             let mut requests = Vec::new();
-            for (expected_path, status, body) in responses {
+            for (expected_path, status, body, headers) in responses {
                 let (mut socket, _) = listener.accept().await.unwrap();
-                let mut buffer = vec![0_u8; 16 * 1024];
-                let size = socket.read(&mut buffer).await.unwrap();
-                let request = String::from_utf8_lossy(&buffer[..size]).to_string();
+                let request = read_http_request(&mut socket).await.unwrap();
                 assert!(request
                     .lines()
                     .next()
                     .unwrap_or_default()
                     .contains(expected_path));
                 requests.push(request);
-                let content_type = if expected_path.contains("type=image") {
-                    "image/png"
-                } else if expected_path.contains("type=audio") {
-                    "audio/mpeg"
-                } else if expected_path.contains("type=video") {
-                    "video/mp4"
-                } else {
-                    "application/json"
-                };
+                let content_type = headers
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case("Content-Type"))
+                    .map(|(_, value)| *value)
+                    .unwrap_or_else(|| fixture_content_type(expected_path));
+                let content_length = headers
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case("Content-Length"))
+                    .map(|(_, value)| (*value).to_string())
+                    .unwrap_or_else(|| body.len().to_string());
                 let reason = match status {
                     200 => "OK",
                     401 => "Unauthorized",
                     429 => "Too Many Requests",
                     _ => "Fixture",
                 };
+                let mut response = format!(
+                    "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {content_length}\r\n"
+                );
+                for (name, value) in headers {
+                    if !name.eq_ignore_ascii_case("Content-Type")
+                        && !name.eq_ignore_ascii_case("Content-Length")
+                    {
+                        response.push_str(&format!("{name}: {value}\r\n"));
+                    }
+                }
+                response.push_str(&format!("Connection: close\r\n\r\n{body}"));
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    async fn spawn_delayed_token_fixture() -> (
+        String,
+        tokio::task::JoinHandle<Vec<String>>,
+        oneshot::Receiver<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (accepted_tx, accepted_rx) = oneshot::channel();
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let request = read_http_request(&mut socket).await.unwrap();
+            accepted_tx.send(()).unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let body = r#"{"code":0,"tenant_access_token":"token-single-flight","expire":7200}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            vec![request]
+        });
+        (format!("http://{address}"), handle, accepted_rx)
+    }
+
+    async fn spawn_hanging_http_fixture(
+    ) -> (String, tokio::task::JoinHandle<()>, oneshot::Receiver<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (accepted_tx, accepted_rx) = oneshot::channel();
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let _ = read_http_request(&mut socket).await;
+            let _ = accepted_tx.send(());
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        (format!("http://{address}"), handle, accepted_rx)
+    }
+
+    async fn spawn_hanging_media_fixture(
+    ) -> (String, tokio::task::JoinHandle<()>, oneshot::Receiver<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (accepted_tx, accepted_rx) = oneshot::channel();
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let _ = read_http_request(&mut socket).await;
+            let _ = accepted_tx.send(());
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        (format!("http://{address}"), handle, accepted_rx)
+    }
+
+    async fn spawn_ws_lifecycle_http_fixture(
+        ws_address: std::net::SocketAddr,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let ws_url = format!("ws://{ws_address}/callback/ws?service_id=42");
+        let handle = tokio::spawn(async move {
+            let expected = [
+                "/auth/v3/tenant_access_token/internal",
+                "/callback/ws/endpoint",
+                "/im/v1/messages/om-ws-fixture/reactions",
+            ];
+            let mut requests = Vec::new();
+            for (index, expected_path) in expected.into_iter().enumerate() {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await.unwrap();
+                assert!(request
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .contains(expected_path));
+                requests.push(request);
+                let body = match index {
+                    0 => r#"{"code":0,"tenant_access_token":"token-ws-lifecycle","expire":7200}"#
+                        .to_string(),
+                    1 => json!({
+                        "code": 0,
+                        "data": {
+                            "URL": ws_url,
+                            "ClientConfig": { "PingInterval": 120 }
+                        }
+                    })
+                    .to_string(),
+                    _ => r#"{"code":0}"#.to_string(),
+                };
                 let response = format!(
-                    "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),
                     body
                 );
@@ -2765,6 +4056,122 @@ mod tests {
             requests
         });
         (format!("http://{address}"), handle)
+    }
+
+    async fn spawn_reaction_isolation_fixture() -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            let expected = [
+                (
+                    "/auth/v3/tenant_access_token/internal",
+                    200,
+                    r#"{"code":0,"tenant_access_token":"token-reaction","expire":7200}"#,
+                ),
+                (
+                    "/im/v1/messages/om-reaction-isolated/reactions",
+                    503,
+                    r#"{"code":230099,"msg":"reaction unavailable"}"#,
+                ),
+            ];
+            for (expected_path, status, body) in expected {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut socket).await.unwrap();
+                assert!(request
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .contains(expected_path));
+                requests.push(request);
+                let reason = if status == 503 {
+                    "Service Unavailable"
+                } else {
+                    "OK"
+                };
+                let response = format!(
+                    "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            let deadline = Instant::now() + Duration::from_millis(200);
+            loop {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                let accepted = timeout(remaining, listener.accept()).await;
+                let Ok(Ok((mut socket, _))) = accepted else {
+                    break;
+                };
+                let request = read_http_request(&mut socket).await.unwrap();
+                requests.push(request);
+                let body = r#"{"code":230099,"msg":"reaction unavailable"}"#;
+                let response = format!(
+                    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    fn fixture_content_type(path: &str) -> &'static str {
+        if path.contains("type=image") {
+            "image/png"
+        } else if path.contains("type=audio") {
+            "audio/mpeg"
+        } else if path.contains("type=video") {
+            "video/mp4"
+        } else if path.contains("type=file") {
+            "application/pdf"
+        } else {
+            "application/json"
+        }
+    }
+
+    async fn read_http_request(socket: &mut tokio::net::TcpStream) -> std::io::Result<String> {
+        let mut buffer = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        let header_end = loop {
+            let read = socket.read(&mut chunk).await?;
+            if read == 0 {
+                break None;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+            if let Some(position) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
+                break Some(position + 4);
+            }
+            if buffer.len() > 128 * 1024 {
+                break None;
+            }
+        };
+        let Some(header_end) = header_end else {
+            return Ok(String::from_utf8_lossy(&buffer).to_string());
+        };
+        let headers = String::from_utf8_lossy(&buffer[..header_end]);
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .unwrap_or(0);
+        while buffer.len() < header_end.saturating_add(content_length) {
+            let read = socket.read(&mut chunk).await?;
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+        }
+        Ok(String::from_utf8_lossy(&buffer).to_string())
     }
 
     #[test]

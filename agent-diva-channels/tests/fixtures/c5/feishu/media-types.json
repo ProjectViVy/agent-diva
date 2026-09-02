@@ -1,0 +1,25 @@
+{
+  "resources": [
+    {
+      "message_type": "image",
+      "request": "GET /im/v1/messages/om-fixture-image/resources/img-key?type=image",
+      "response": {"status": 200, "content_type": "image/png", "body": "deterministic local image bytes"}
+    },
+    {
+      "message_type": "file",
+      "request": "GET /im/v1/messages/om-fixture-file/resources/file-key?type=file",
+      "response": {"status": 200, "content_type": "application/pdf", "body": "deterministic local file bytes"}
+    },
+    {
+      "message_type": "audio",
+      "request": "GET /im/v1/messages/om-fixture-audio/resources/audio-key?type=audio",
+      "response": {"status": 200, "content_type": "audio/mpeg", "body": "deterministic local audio bytes"}
+    },
+    {
+      "message_type": "media",
+      "request": "GET /im/v1/messages/om-fixture-video/resources/video-key?type=video",
+      "response": {"status": 200, "content_type": "video/mp4", "body": "deterministic local video bytes"}
+    }
+  ],
+  "integrity_proof": "Only AttachmentStore SHA-256 validation and local readback prove the stored bytes; Feishu resource responses do not provide a comparable digest."
+}

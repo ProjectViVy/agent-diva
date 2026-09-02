@@ -1,27 +1,31 @@
 # Feishu/Lark C5-V Gate 3 evidence
 
-状态：`partial`。China/global/Lark endpoint 是 adapter 私有 region mapping；没有新增配置
+状态：`verified`（本地 deterministic wire/store evidence；真机凭据与远端平台执行仍是
+外部 gap）。China/global/Lark endpoint 是 adapter 私有 region mapping；没有新增配置
 键，也没有 webhook fallback。
 
 | 目标 | 源码 symbol / endpoint | fixture 与 Rust 测试 | 精确证据 | 生命周期/剩余项 |
 | --- | --- | --- | --- | --- |
-| protobuf WS/ACK/dedup | `run_websocket`, `ack_frame`, `handle_event_payload`; callback WS endpoint | `protobuf-frame.json`, `protobuf-event.json`, `ack-deadline.json`; `protocol_and_webhook_fixtures_are_parseable`, `duplicate_events_are_not_admitted_twice` | protobuf frame 解码；ACK `biz_rt=0` 与 `{"code":200...}`；event/message dedup 只入 Fabric 一次 | local WS connect/reconnect/heartbeat deadline 仍需完整 server transcript |
-| token/cache/401 | `get_access_token`, `invalidate_token`, `send_parts`; `/auth/v3/tenant_access_token/internal` | `send-responses.json`; `send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint`, `send_retries_once_after_401_and_reuses_cached_token` | 缓存命中只发一次 token；401 后丢缓存、刷新一次并以新 Bearer 重试；成功 ID 为 `om-retried` | 并发 single-flight 压力与 429 Retry-After 仍 partial |
+| protobuf WS/ACK/dedup | `run_websocket`, `ack_frame`, `handle_event_payload`; callback WS endpoint | `protobuf-frame.json`, `protobuf-event.json`, `ack-deadline.json`, `ws-lifecycle.json`; `protocol_and_webhook_fixtures_are_parseable`, `websocket_fixture_covers_ping_event_ack_health_and_stop_lifecycle`, `duplicate_events_are_not_admitted_twice` | local socket 证明 endpoint 返回 `service_id=42`、初始 method=0 ping、event admission、ACK `biz_rt=0` 与 `{"code":200...}`；stable message ID replay 只入 Fabric 一次 | 本地 fixture 覆盖 stop/health；真 Feishu reconnect/网络行为仍需外部执行 |
+| token/cache/401 | `get_access_token_with_cancel`, `get_websocket_url_with_cancel`, `invalidate_token`, `send_parts`; `/auth/v3/tenant_access_token/internal` | `send-responses.json`, `error-responses.json`, `ws-lifecycle.json`; `token_refresh_is_single_flight_under_concurrent_demand`, `token_and_ws_endpoint_requests_honor_cancellation`, `token_and_ws_endpoint_failures_preserve_typed_429_and_malformed_errors`, `send_retries_once_after_401_and_reuses_cached_token` | 并发 demand 只发一次 token；token/WS endpoint hang 在 cancel 后返回 typed `cancelled`；429 保留 `Retry-After`；malformed JSON 保留 typed error；401 后丢缓存并以新 Bearer 重试 | 真机 endpoint/凭据未执行；没有新增 region 配置键 |
 | webhook security | `verify_webhook_signature`, `decrypt_webhook_payload`, `parse_webhook_event` | `webhook-url-verification.json`, `webhook-encrypted-event.json`; `webhook_signature_is_fail_closed`, `aes256_decrypt_round_trip_and_bad_padding_fail_closed` | 缺 timestamp/nonce/signature、bad signature、bad base64/padding 均 fail-closed typed error；URL challenge 只走 token 校验 | 完整 HTTP ingress handler transcript 未引入，保持无 fallback |
-| typed media | `fetch_and_store_media`, `build_inbound_parts`; resource GET | `media-resource.json`; `media_fixture_is_stored_as_typed_attachment_after_authentication` | token 后 GET message resource；content-type/size bounded；AttachmentStore 返回 typed Image ref | file/audio/video、损坏 bytes 与下载 timeout 仍需逐类 fixture |
-| send/reply/edit/delete/card | `build_outbound_payload`, `send_parts`, `execute_edit`, `execute_delete`; `/im/v1/messages...` | `send-responses.json`; `send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint` | send 用 `receive_id_type=chat_id`；reply 用 `/messages/{parent}/reply`；真实 message ID | edit/delete exact response、multipart upload、429/malformed response 需补 wire 记录 |
-| unsupported/lifecycle | `ensure_supported`, `stop`, listener cancellation | `region-endpoints.json`; `capabilities_match_frozen_feishu_matrix`, `unsupported_typing_and_reaction_have_zero_transport_side_effects`, `region_defaults_are_explicit_and_distinct` | false typing/reaction 在 transport 前 typed reject；region mapping 无全局 endpoint 覆盖 | WS stop/heartbeat 端到端仍 partial；seen reaction 是内部 best-effort marker，不是通用 reaction capability |
+| typed media | `fetch_and_store_media_with_cancel`, `build_inbound_parts_with_cancel`; resource GET | `media-resource.json`, `media-types.json`, `error-responses.json`; `media_fixture_is_stored_as_typed_attachment_after_authentication`, `media_variants_are_typed_and_read_back_with_sha`, `media_content_length_overflow_is_typed_before_body_read`, `media_download_cancellation_interrupts_read_and_releases_dedup`, `corrupt_attachment_readback_is_typed_and_releases_dedup` | image/file/audio/video 真实 MIME shape 均生成 typed `ContentPart`；20 MiB header/stream bound、cancel、empty/status/path errors、`AttachmentRef` SHA validation + local `get` readback；腐化 readback 返回 typed error | Feishu wire 未提供可验证远端 digest，故只证明本地写入/读回一致性，不宣称远端真实性 |
+| send/reply/edit/delete/card | `build_outbound_payload`, `send_parts`, `upload_image`, `upload_file`, `execute_edit`, `execute_delete`; `/im/v1/messages...`, `/im/v1/images`, `/im/v1/files` | `send-responses.json`, `error-responses.json`; `send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint`, `outbound_media_multipart_and_edit_delete_json_are_truthful`, `execute_delete_rejects_nonzero_and_malformed_json_codes`, `send_retries_once_after_401_and_reuses_cached_token` | send/reply 使用准确 query/path 与真实 message ID；multipart 字段、filename、Octos MIME 和 bytes 有 request assertion；edit/delete 解析 JSON code；delete non-zero/malformed 是 typed error；401 retry 有 wire assertion | 本地 HTTP fixture 未替代真平台；audio/video 仍按冻结矩阵在 transport 前 typed unsupported |
+| unsupported/lifecycle | `ensure_supported`, `stop`, `run_listener`, listener cancellation | `region-endpoints.json`, `ws-lifecycle.json`, `error-responses.json`; `capabilities_match_frozen_feishu_matrix`, `unsupported_typing_and_reaction_have_zero_transport_side_effects`, `region_defaults_are_explicit_and_distinct`, `websocket_fixture_covers_ping_event_ack_health_and_stop_lifecycle` | generic typing/reaction 在 transport 前 typed reject；内部 seen marker 为 best-effort；WS stop、health transition、cancel、admission deadline 与 reconnect reset 均由源码/fixture 覆盖 | 通用 `InteractionReaction` 仍明确 unsupported；真机网络、重连时序和平台配额需外部执行 |
 
 敏感信息：app secret/token 只使用 fixture 值；webhook 测试不记录原文或密钥。
 
 ## Fixed-SHA audit addendum
 
-本 addendum 是对上表四个分配行的逐项审计。DIVA 基线为
+本 addendum 是对上表四个分配行的逐项审计，并由本次 Feishu repair closure
+supersede 原先的 partial 结论。DIVA 基线为
 c5-audit-feishu HEAD 2b3ef682c48427387b6c0e36a96d6796996bd499。Octos 基线为
 C:\Users\Administrator\Desktop\morediva\.workspace\octos，SHA
 5ea987813de4fd2afdd1d78f2106ad2868f0d923（v2.0.3-rc.9）。Octos 路径以下均
-相对于该 checkout，行号是该 SHA 的稳定锚点。既有日志记录 Feishu adapter tests
-10 passed；本 addendum 没有重新运行测试。
+相对于该 checkout，行号是该 SHA 的稳定锚点。本次 focused validation 为
+`cargo test -p agent-diva-channels --lib feishu`：33 passed；另执行
+`cargo check -p agent-diva-channels`、`cargo fmt --all -- --check` 与
+`git diff --check`。
 
 ### FS-01 — region/token/WS
 
@@ -51,52 +55,64 @@ Octos/DIVA symbol 对照：
 - DIVA agent-diva-channels/src/adapters/feishu.rs:L50-L75、
   L131-L183：FeishuRegion::{api_base,ws_base} 和默认 China/显式 Global/Lark；
   当前 shared config 没有 region 字段。
-- DIVA L257-L342：FeishuAdapter::get_access_token 以读缓存加 token_refresh mutex
-  实现 single-flight，按 expire 并提前 300 秒刷新。请求为
+- DIVA L258-L338：FeishuAdapter::get_access_token_with_cancel 以读缓存加
+  token_refresh mutex 实现 single-flight，按 expire 并提前 300 秒刷新；等待
+  refresh mutex、HTTP send 和 JSON read 都可被 CancellationToken 打断。请求为
   POST {api_base}/auth/v3/tenant_access_token/internal，body
   {"app_id":...,"app_secret":...}，要求 code=0 和非空 token，失败映射为
   token_malformed、token_rejected 或 HTTP typed error。
-- DIVA L348-L407：get_websocket_url 发 POST {ws_base}/callback/ws/endpoint，
-  body {"AppID":...,"AppSecret":...}，要求 HTTP success、code=0、非空 data.URL，
-  并读取 PingInterval。
-- DIVA L964-L1104：run_listener/run_websocket 采用 250 ms 到 30 s backoff；connect、
+- DIVA L371-L445：get_websocket_url_with_cancel 发 POST
+  {ws_base}/callback/ws/endpoint，body {"AppID":...,"AppSecret":...}，要求
+  HTTP success、code=0、非空 data.URL/data.url，并读取 PingInterval；HTTP send
+  和 JSON read 可被 CancellationToken 打断。
+- DIVA L1050-L1205：run_listener/run_websocket 采用 250 ms 到 30 s backoff；connect、
   read、heartbeat tick、reconnect sleep 选中 context/listener cancellation；event
-  admission deadline 为 2 秒，完成 admission 后才发 ACK。heartbeat timeout 为
-  300 秒，默认 ping 为 120 秒且不少于 10 秒；ACK payload 为
+  admission deadline 为 2 秒，完成 admission 后才发 ACK，并在成功连接后重置
+  reconnect delay。heartbeat timeout 为 300 秒，默认 ping 为 120 秒且不少于 10
+  秒；ACK payload 为
   {"code":200,"headers":{},"data":[]}，并追加 biz_rt=0。
-- DIVA L249-L255、L950-L962、L1527-L1532、L1584-L1593：health 在连接/health
-  probe、断开/错误、stop 时更新 Healthy/Degraded/Down；probe_health 只取 token，
-  不做 API/WS round trip。
+- DIVA L250-L255、L1028-L1046、L1080-L1095、L1128-L1130、L1732-L1799：health
+  在 token health probe、WS connect、断开/错误、stop 时更新
+  Healthy/Degraded/Down；probe_health 只取 token，不做额外 API/WS round trip。
 
 Fixture/test/精确结果：
 
 - agent-diva-channels/tests/fixtures/c5/feishu/region-endpoints.json、
-  protobuf-frame.json、ack-deadline.json；后者只是策略数据，包含 admission
-  2000 ms、heartbeat timeout 300 s、backoff 250/30000 ms 和 biz_rt=0 invariant。
-- protocol_and_webhook_fixtures_are_parseable（feishu.rs:L2664-L2711）只解析
-  frame/event/fixture shape 并断言 ack payload/header；没有 WS socket transcript。
-- capabilities_match_frozen_feishu_matrix（L2393-L2417）和
-  region_defaults_are_explicit_and_distinct（L2875-L2893）断言 capability/
-  region；send_retries_once_after_401_and_reuses_cached_token（L2611-L2662）
-  断言 token-first → 401 → token-second → successful message response，最终
-  receipt ID 为 om-retried。
+  protobuf-frame.json、ack-deadline.json、ws-lifecycle.json；后者记录 endpoint
+  request/response、service_id=42、PingInterval、初始 ping、event、ACK 和
+  health/stop 观察点；ack-deadline.json 包含 admission 2000 ms、heartbeat
+  timeout 300 s、backoff 250/30000 ms 和 biz_rt=0 invariant。
+- protocol_and_webhook_fixtures_are_parseable（feishu.rs:L3832-L3877）解析
+  frame/event fixture 并断言 ACK payload/header；
+  websocket_fixture_covers_ping_event_ack_health_and_stop_lifecycle
+  （L3113-L3231）运行本地 WebSocket server，断言 endpoint 后的初始 ping、event
+  admission、ACK、Healthy 与 stop；没有使用远端 Feishu 网络。
+- capabilities_match_frozen_feishu_matrix（L2657-L2680）和
+  region_defaults_are_explicit_and_distinct（L4281-L4298）断言 capability/
+  region；token_refresh_is_single_flight_under_concurrent_demand（L2944-L2971）
+  断言并发 demand 只有一个 token request；
+  token_and_ws_endpoint_requests_honor_cancellation（L2973-L3030）断言 token/
+  endpoint hang 在 cancel 后及时返回 `cancelled`；
+  token_and_ws_endpoint_failures_preserve_typed_429_and_malformed_errors
+  （L3032-L3085）断言 429 Retry-After 7/9 与 malformed typed errors；
+  send_retries_once_after_401_and_reuses_cached_token（L2891-L2942）断言
+  token-first → 401 → token-second → successful message response，最终 receipt
+  ID 为 om-retried。
 
 生命周期结论：
 
-- 已有实现路径覆盖 endpoint mapping、token cache/expiry/mutex、protobuf
-  event/ping/ACK、2 s admission、300 s receive timeout、连接/读取/重连 sleep
-  cancellation 与 health state transitions。
-- evidence_gap：没有 WS local server 逐帧证明 endpoint response、service_id、
-  初始 ping、heartbeat/pong、event ACK、断线 backoff、stop；没有并发
-  single-flight 压力、token/WS endpoint 429/malformed、health probe wire 证据。
-- implementation_gap：get_access_token/get_websocket_url 不接收 cancellation
-  token，初始 token/endpoint 请求或等待 refresh mutex 的取消只依赖 HTTP client
-  timeout；run_listener 也没有在成功连接后显式 reset backoff。两项预期都还没有
-  被生命周期测试固定。
-- blocked/unsupported：无。
+- 已闭合：endpoint mapping、token cache/expiry/mutex single-flight、token/WS
+  request cancellation、protobuf event/ping/ACK、2 s admission、300 s receive
+  timeout、连接/读取/重连 sleep cancellation、successful connection backoff
+  reset、429/malformed typed errors 与 Healthy/Degraded/Down transitions。
+- evidence boundary：WS lifecycle、429/malformed、single-flight 和 health wire
+  证据来自 deterministic local fixtures；没有真 Feishu 凭据、真实网络、平台
+  quota 或长时间 heartbeat/reconnect soak。
+- blocked/unsupported：无 FS-01 blocked 项；generic InteractionReaction 仍按
+  冻结 capability matrix unsupported，内部 seen marker 不改变该结论。
 
-最终 disposition：partial。实现路径存在，但 WS lifecycle、取消期间 token wait、
-single-flight 和 health wire 证据不完整，不能升级 verified。
+最终 disposition：verified（local deterministic evidence）；真机/长时网络验证
+由 Lead 或发布前环境完成。
 
 ### FS-03 — typed image/file/audio/media ingress
 
@@ -118,16 +134,18 @@ Octos/DIVA symbol 对照：
   max_media_bytes/download_media_with_cap 默认 50 MiB；Content-Length 或流式
   body 超限拒绝，成功写本地路径；没有 Feishu MIME family、digest 或
   AttachmentStore 校验。
-- DIVA agent-diva-channels/src/adapters/feishu.rs:L1230-L1267：
-  build_inbound_parts 映射 text→Text、post→Markdown、image→Image、
+- DIVA agent-diva-channels/src/adapters/feishu.rs:L1349-L1398：
+  build_inbound_parts_with_cancel 映射 text→Text、post→Markdown、image→Image、
   file|sticker→File、audio→Audio、media|video→Video。
-- DIVA L1270-L1405：fetch_and_store_media 在 sender/bot/allowlist 和 admission
-  permit 之后取 token，再发
+- DIVA L1400-L1603：fetch_and_store_media_with_cancel 在 sender/bot/allowlist 和
+  admission permit 之后取 token，再发
   GET {api_base}/im/v1/messages/{message_id}/resources/{key}，query
   type=image|file|audio|video。MEDIA_REQUEST_TIMEOUT=20 s；HTTP status、20 MiB
-  Content-Length/body 上限、empty body、typed MIME family 和 path segment 均有
-  typed error；成功调用 AdapterServices.attachments.put，传递 source channel、
-  message ID、sender、filename、declared MIME、bytes。
+-  Content-Length/body 上限、empty body、typed MIME family 和 path segment 均有
+  typed error；stream read、store put/get 都可被 CancellationToken 打断。成功调用
+  AdapterServices.attachments.put，传递 source channel、message ID、sender、
+  filename、declared MIME、bytes，并通过 validate_attachment_reference、
+  StoredAttachment::validate 和 byte-for-byte readback 后才发布 ContentPart。
 - DIVA agent-diva-channels/src/adapter.rs:L44-L120、L140-L188：
   IngressAttachment、StoredAttachment 和 validate_attachment_reference 提供
   sha256:<hex>、size、MIME、leaf filename 校验；这是共享 store 合同，不是
@@ -135,34 +153,40 @@ Octos/DIVA symbol 对照：
 
 Fixture/test/精确结果：
 
-- agent-diva-channels/tests/fixtures/c5/feishu/media-resource.json 只覆盖
-  GET /im/v1/messages/om-fixture-message/resources/file-key-fixture?type=image，
-  200 image/png，body 为脱敏 deterministic placeholder，Authorization 为
-  Bearer <redacted>。
+- agent-diva-channels/tests/fixtures/c5/feishu/media-resource.json、
+  media-types.json、error-responses.json 覆盖 image/file/audio/video 的 Feishu
+  resource path/query、MIME 和脱敏 deterministic bytes；media-types 明确不含
+  远端 digest。
 - media_fixture_is_stored_as_typed_attachment_after_authentication
-  （feishu.rs:L2487-L2541）按 token → resource GET → seen-reaction 三请求顺序，
-  断言 Fabric envelope 的 ContentPart::Image 和一次 store put。
-- attachment_store_is_content_addressed_and_round_trips
-  （channel_adapter_shared_tck.rs:L96-L117）只证明通用 store 的 digest/round-trip；
-  没有 Feishu file/audio/video 逐类执行。
+  （feishu.rs:L2750-L2821）按 token → resource GET → local store put/get →
+  seen-reaction 顺序，断言 Fabric `ContentPart::Image`、reference SHA、size、
+  MIME 与 readback bytes。
+- media_variants_are_typed_and_read_back_with_sha（L3233-L3355）逐类断言
+  image/file/audio/video ContentPart、Feishu MIME、`sha256:<hex>` ref 和本地
+  `ChannelAttachmentStore::get` readback；
+  corrupt_attachment_readback_is_typed_and_releases_dedup（L3357-L3401）断言
+  corrupt readback 返回 `attachment_corrupt` 且不发布；
+  media_content_length_overflow_is_typed_before_body_read（L3403-L3445）断言
+  Content-Length 超 20 MiB；media_download_cancellation_interrupts_read_and_releases_dedup
+  （L3447-L3497）断言挂起 body 在 cancel 后返回 `cancelled` 且 pending dedup
+  可重用；failed_media_admission_releases_message_dedup_for_retry
+  （L3749-L3817）断言 media HTTP failure 后同一 message 可重试。
 
 生命周期结论：
 
-- 已有实现路径覆盖 allowlist/bot filter 在 media 前、admission permit 在 media
-  前、Bearer 在 resource GET 前、四类 typed ContentPart、20 MiB/MIME/empty/read/
-  path error，以及 media/build/Fabric failure release pending dedup；不会把远端
-  URL/path 发布为 envelope attachment。
-- evidence_gap：没有 file、audio、video/media、sticker fixture 和 typed envelope；
-  没有 Content-Length/stream 超限、MIME mismatch、empty/HTTP failure、read timeout/
-  cancel、filename、SHA-256 读回或损坏 fixture。Feishu test store 只计数和生成摘要，
-  不执行 get round-trip。
-- implementation_gap：Feishu resource response 没有平台 digest/signature 可比对；
-  fetch_and_store_media 只能检查 size/MIME/non-empty。共享 store digest 只能证明
-  存储引用与已收到 bytes 一致，不能证明远端内容真实性。
-- blocked/unsupported：无；不能把证据不足的四类 ingress media 改标为 unsupported。
+- 已闭合：allowlist/bot filter 与 admission permit 在 media 前、Bearer 在 resource
+  GET 前、四类 typed ContentPart、20 MiB Content-Length/stream bound、MIME/
+  empty/status/path errors、read cancellation、store put/get readback，以及
+  media/build/Fabric failure release pending dedup；不会把远端 URL/path 发布为
+  envelope attachment。
+- integrity boundary：Feishu resource response 没有平台 digest/signature 可比对。
+  本实现和 fixture 只以本地 AttachmentStore SHA/reference/readback 证明“写入的
+  bytes 与读回 bytes 一致”，没有凭空添加或宣称远端媒体真实性 digest。
+- blocked/unsupported：无 FS-03 blocked 项；sticker 沿用 file 形状，未宣称额外
+  平台能力。
 
-最终 disposition：partial。image 主路径有实现和局部证据，其他媒体类型、下载
-边界、取消和内容完整性尚未闭合。
+最终 disposition：verified（local store integrity boundary）；远端媒体真实性与
+  真机平台行为仍需 Lead/发布前环境完成。
 
 ### FS-04 — upload/send/reply/edit/delete
 
@@ -189,51 +213,59 @@ Octos/DIVA symbol 对照：
 - Octos crates/octos-bus/src/feishu_channel.rs:L1582-L1647：
   edit_message/delete_message 使用 PATCH/DELETE /im/v1/messages/{message_id}；
   JSON code != 0 只 warn 仍 Ok，属于 legacy silent-success。
-- DIVA agent-diva-channels/src/adapters/feishu.rs:L486-L604：
+- DIVA agent-diva-channels/src/adapters/feishu.rs:L521-L604：
   send_parts 的 Text 为 msg_type=text、{"text":text}，Markdown/Card 为 interactive；
   普通 send 是 POST {api_base}/im/v1/messages?receive_id_type=chat_id|open_id，
   reply 是 POST {api_base}/im/v1/messages/{reply_to}/reply。code rejection、
   malformed JSON、HTTP failure 为 typed send_rejected/send_malformed/HTTP error；
   成功解析 data.message_id 并返回 accepted_receipt。带 idempotency key 时，401
   清 token、刷新并最多重试一次。
-- DIVA L606-L825：build_outbound_payload/upload_image/upload_file 从
+- DIVA L606-L878：build_outbound_payload/upload_image/upload_file 从
   content-addressed store 读 bytes，multipart 目标分别为 /im/v1/images 和
   /im/v1/files；image_type=message，file_type=stream、file_name；成功解析
   image_key/file_key，HTTP/malformed/rejected 是 typed error。audio/video 在
-  transport 前返回 UnsupportedCapability。
-- DIVA L827-L948：execute_edit 发 PATCH 并解析 MessageResponse，返回带目标 ID
-  的 accepted_receipt；execute_delete 发 DELETE，当前只检查 HTTP status 后返回
-  delivered_receipt，不解析 Feishu JSON code。
-- DIVA L1966-L1987：map_http_error 将 429 和 Retry-After 秒数映射到
-  AdapterError::RateLimited（无 header 时 1 s），没有自动 429 retry。
+  transport 前返回 UnsupportedCapability；store readback 先做
+  StoredAttachment::validate，避免上传损坏数据。
+- DIVA L889-L1025：execute_edit 发 PATCH 并解析 MessageResponse，返回带目标 ID
+  的 accepted_receipt；execute_delete 发 DELETE 后同样解析 MessageResponse，要求
+  JSON code=0 才返回 delivered_receipt，malformed/non-zero code 映射为 typed
+  delete_malformed/delete_rejected。
+- DIVA L2199-L2220：map_http_error 将 429 和 Retry-After 秒数映射到
+  AdapterError::RateLimited（无 header 时 1 s），没有自动 429 retry。send 的
+  idempotency-safe 401 retry 保持最多一次。
 
 Fixture/test/精确结果：
 
-- agent-diva-channels/tests/fixtures/c5/feishu/send-responses.json 和
-  send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint
-  （feishu.rs:L2543-L2609）只证明普通 send receipt om-fixture-sent、reply receipt
-  om-fixture-reply，以及 exact POST paths。fixture 的 edit/delete/upload 只有请求
-  字符串，没有 response body。
-- send_retries_once_after_401_and_reuses_cached_token（L2611-L2662）只证明一次
-  401 token refresh；没有 upload multipart body、edit/delete 或 429 response
-  断言。
+- agent-diva-channels/tests/fixtures/c5/feishu/send-responses.json 记录 send、
+  reply、upload、edit、delete 的 Feishu-shaped request/response/receipt；
+  outbound_media_multipart_and_edit_delete_json_are_truthful
+  （feishu.rs:L3499-L3651）执行 image/file send、edit、delete，断言 multipart
+  field names、filename、Octos `application/octet-stream`、bytes、message IDs、
+  edit request 与 delete path/receipt。
+- send_fixture_returns_real_message_id_and_reply_uses_bound_endpoint
+  （L2823-L2889）证明普通 send receipt `om-fixture-sent`、reply receipt
+  `om-fixture-reply` 与 exact POST paths；
+  send_retries_once_after_401_and_reuses_cached_token（L2891-L2942）证明一次
+  idempotency-safe 401 token refresh；
+  execute_delete_rejects_nonzero_and_malformed_json_codes（L3653-L3690）证明
+  HTTP 200 但 code 非 0 或 JSON malformed 都返回 typed error；
+  token_and_ws_endpoint_failures_preserve_typed_429_and_malformed_errors
+  （L3032-L3085）证明 HTTP 429/Retry-After 保留为 typed RateLimited。
 
 生命周期结论：
 
-- 已有实现路径覆盖 receive ID type/reply endpoint、真实 message ID、image/file
-  multipart 构造、edit response parsing、invalid media combination、unsupported
-  audio/video pre-transport reject、带 key 的一次 401 retry、429 typed mapping。
-- evidence_gap：没有 multipart body/MIME/name、upload response、edit response、
-  delete response、429 header/body、malformed JSON、Feishu code != 0、partial
-  failure、stream-finalize edit/new-message、REST timeout/cancel 或幂等重试 wire
-  transcript。
-- implementation_gap：execute_delete 对 HTTP 200 但 JSON code != 0 会直接返回
-  Delivered，没有 typed rejection，和 truthful receipt/error 合同不一致。
-- blocked/unsupported：FS-04 不 blocked；audio/video 是冻结矩阵之外的明确
-  unsupported，且已在首次 transport 前返回 typed error。
+- 已闭合：receive ID type/reply endpoint、真实 message ID、image/file multipart
+  构造与响应解析、store corruption rejection、edit response parsing、delete
+  JSON code parsing、invalid media combination、unsupported audio/video
+  pre-transport reject、带 key 的一次 401 retry、429 typed mapping。
+- evidence boundary：本地 HTTP fixture 证明 request/response parsing 和 receipt/error
+  语义；没有真 Feishu endpoint、平台 partial failure 或长时 REST soak。冻结矩阵
+  外 audio/video 仍明确 typed unsupported，未添加 webhook fallback。
+- blocked/unsupported：无 FS-04 blocked 项；`InteractionStreamFinalize` 沿用
+  adapter 既有 edit/finalize 路径，未凭 fixture 宣称额外平台 API。
 
-最终 disposition：partial。send/reply/401 主路径已证明，但 upload/edit/delete、
-429/malformed/partial failure 和 finalize 生命周期没有完整证据。
+最终 disposition：verified（local wire evidence）；真机 endpoint 与平台配额/网络
+行为仍由 Lead/发布前环境完成。
 
 ### FS-05 — reaction seen/dedup
 
@@ -252,55 +284,64 @@ Octos/DIVA symbol 对照：
   Feishu reaction 实现。最近的共享锚点是
   crates/octos-bus/src/channel.rs:L202-L210 的 Channel::react_to_message 默认
   no-op；不能从 Octos 推导 Feishu reaction wire capability。
-- DIVA agent-diva-channels/src/adapters/feishu.rs:L107-L112、L1808-L1819：
-  DedupState 的 seen/pending/last_cleanup，dedup_key 优先 event ID、缺失时回退
-  message ID；TTL 600 s、cleanup 300 s。
-- DIVA L1110-L1227：handle_event_payload 先做 bot/allowlist，再 reserve pending；
+- DIVA agent-diva-channels/src/adapters/feishu.rs:L107-L112、L2017-L2031：
+  DedupState 的 seen/pending/last_cleanup，dedup_key 优先稳定 message ID、缺失
+  时回退 event ID；TTL 600 s、cleanup 300 s。
+- DIVA L1208-L1347：handle_event_payload 先做 bot/allowlist，再 reserve pending；
   admission busy 在 2 s 内返回 fabric_admission_busy 并 release；media/build/Fabric
-  failure release；只有 Fabric admission 成功后 commit_dedup，随后才调用 marker。
-- DIVA L1407-L1436：add_seen_reaction 在成功入站后发
+  failure/cancel release；只有 Fabric admission 成功后 commit_dedup，随后才调用
+  marker。
+- DIVA L1606-L1645：add_seen_reaction_with_cancel 在成功入站后发
   POST {api_base}/im/v1/messages/{message_id}/reactions，Bearer token，body
   {"reaction_type":{"emoji_type":"THUMBSUP"}}。非 2xx body 被消费后仍 Ok，调用方
-  对 transport error 使用 100 ms timeout 并忽略，所以 marker 不会让已 admission
-  的 ingress 失败。
+  对 transport/token/cancel error 使用 100 ms timeout 并忽略，所以 marker 不会让
+  已 admission 的 ingress 失败。
 - DIVA L1535-L1558 与 L185-L218：ChannelCommand::React 在 capability check 后返回
   UnsupportedCapability(InteractionReaction)，无 HTTP side effect；这是 generic
   React 路径，不等于内部 marker。
 
 Fixture/test/精确结果：
 
-- agent-diva-channels/tests/fixtures/c5/feishu/protobuf-event.json；
-  duplicate_events_are_not_admitted_twice（feishu.rs:L2452-L2484）断言同一
-  event/message 第二次没有 Fabric envelope。
+- agent-diva-channels/tests/fixtures/c5/feishu/protobuf-event.json、
+  error-responses.json；duplicate_events_are_not_admitted_twice
+  （feishu.rs:L2716-L2748）断言同一 event/message 第二次没有 Fabric envelope；
+  dedup_uses_stable_message_id_before_event_id_fallback（L3819-L3830）断言
+  message ID 优先且缺失时回退 event ID。
 - unsupported_typing_and_reaction_have_zero_transport_side_effects
   （L2420-L2449）断言 generic React 的 pre-transport typed reject。
 - media_fixture_is_stored_as_typed_attachment_after_authentication
-  （L2487-L2541）只把 reaction endpoint 放入 fixture 顺序，没有 reaction failure
-  或 response status 断言。
+  （L2750-L2821）将 reaction endpoint 纳入真实请求顺序；
+  seen_reaction_failure_is_isolated_from_ingress_and_message_dedup
+  （L3692-L3747）用 503 reaction wire fixture 断言 ingress 仍成功、marker failure
+  不产生 typed ingress failure，且新 event ID 的同 message replay 不再触发
+  Fabric admission 或第二个 reaction。
 
 生命周期结论：
 
-- 已有实现路径覆盖 pending 与 committed dedup 分离、busy/media/Fabric failure
-  release、Fabric success 后 commit、commit 后 100 ms best-effort marker，以及
-  generic React 的 false-capability typed error。marker 不生成 DeliveryReceipt。
-- evidence_gap：没有 reaction transport spy 来证明 non-2xx、transport error、token
-  error、timeout 不影响 ingress；没有并发 pending、Fabric busy、admission cancel、
-  TTL expiry、missing IDs、event/message collision 或 reconnect replay 测试。现有
-  duplicate test 使用默认构造器，没有隔离 reaction endpoint 的 wire transcript。
-- implementation_gap：generic InteractionReaction 不在冻结目标且明确 unsupported，
-  不是缺陷；marker 非 2xx 即吞掉是有意的 best-effort 语义，不能作为 reaction
-  receipt。dedup_key 在 event ID 存在时不同时使用 message ID，跨 event-ID replay
-  语义尚未由测试固定。
+- 已闭合：pending 与 committed dedup 分离、stable message ID 优先、busy/media/
+  Fabric/cancel failure release、Fabric success 后 commit、commit 后 100 ms
+  best-effort marker，以及 generic React 的 false-capability typed error。marker
+  不生成 DeliveryReceipt，non-2xx/transport/token/cancel failure 不会撤销已入站
+  admission。
+- evidence boundary：fixture 覆盖 reaction 503 与 event-ID replay；没有宣称 TTL
+  expiry、跨进程 dedup、真实 Feishu reaction quota 或 reconnect soak。
+- implementation boundary：generic InteractionReaction 不在冻结目标且明确
+  unsupported，不是缺陷；marker 非 2xx 即吞掉是有意的 best-effort 语义，不能
+  作为 reaction receipt。跨 event-ID replay 现以 stable message ID dedup，并由
+  独立 fixture 固定。
 - blocked/unsupported：InteractionReaction 明确 unsupported，且首次 transport
   前返回 typed error；FS-05 行本身不转为 blocked，因为 ingress dedup 有实现路径。
 
-最终 disposition：partial。admission/commit/release 主路径存在，但 seen-reaction
-failure isolation 和 dedup 边界没有独立 wire/lifecycle 证据。
+最终 disposition：verified（local dedup/reaction-isolation evidence）；真机平台
+配额与长时 replay 行为仍由 Lead/发布前环境完成。
 
 ## Audit handoff
 
-- FS-01、FS-03、FS-04、FS-05 均保持 partial，未升级 verified。
-- 本 worker 只编辑本页；没有修改 adapter、fixture、test、public contract、
-  Cargo 文件、manifest、JSON、TODO 或 LOCK。
-- 本 worker 未执行 compilation、build、cargo test、clippy、workspace gate 或
-  live network；文中测试结果均来自现有源码和既有验证日志。
+- FS-01、FS-03、FS-04、FS-05 均升级为 `verified`，边界为本地 deterministic
+  wire/store evidence。
+- 本 worker 修改 Feishu adapter、Feishu C5 fixture 与本页 Gate3；没有修改公共
+  contract、Cargo 文件、manifest、shared TCK、TODO、LOCK、Manager 或其他频道。
+- 本 worker 执行 `cargo test -p agent-diva-channels --lib feishu`（33 passed）、
+  `cargo check -p agent-diva-channels`、`cargo fmt --all -- --check` 与
+  `git diff --check`；没有执行 live network。真机凭据、平台 quota、长时
+  heartbeat/reconnect soak 留给 Lead/发布前环境。

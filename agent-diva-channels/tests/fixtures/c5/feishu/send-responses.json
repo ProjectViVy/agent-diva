@@ -20,7 +20,34 @@
     "receipt": "Accepted + om-fixture-reply"
   },
   "edit": "PATCH /im/v1/messages/om-fixture-sent",
-  "delete": "DELETE /im/v1/messages/om-fixture-sent",
-  "image_upload": "POST /im/v1/images multipart image_type=message",
-  "file_upload": "POST /im/v1/files multipart file_type=stream"
+  "delete": {
+    "request": "DELETE /im/v1/messages/om-fixture-sent",
+    "response": {
+      "code": 0,
+      "data": {}
+    },
+    "receipt": "Delivered + om-fixture-sent"
+  },
+  "image_upload": {
+    "request": "POST /im/v1/images multipart image_type=message; image",
+    "response": {
+      "code": 0,
+      "data": {
+        "image_key": "img-fixture-uploaded"
+      }
+    }
+  },
+  "file_upload": {
+    "request": "POST /im/v1/files multipart file_type=stream; file_name; file",
+    "response": {
+      "code": 0,
+      "data": {
+        "file_key": "file-fixture-uploaded"
+      }
+    }
+  },
+  "edit_response": {
+    "code": 0,
+    "data": {}
+  }
 }
