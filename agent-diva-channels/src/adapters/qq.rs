@@ -17,14 +17,14 @@ use agent_diva_core::channel::{
 use agent_diva_core::config::schema::QQConfig;
 use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
-use reqwest::StatusCode;
+use reqwest_qq::{Client as QqHttpClient, StatusCode};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex as AsyncMutex, RwLock};
+use tokio::sync::{Mutex as AsyncMutex, Notify, RwLock};
 use tokio::time::sleep;
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 use tokio_util::sync::CancellationToken;
@@ -38,6 +38,15 @@ const TOKEN_REFRESH_MARGIN: Duration = Duration::from_secs(60);
 const HEARTBEAT_FALLBACK: Duration = Duration::from_secs(41);
 const RECONNECT_BASE: Duration = Duration::from_secs(5);
 const RECONNECT_MAX: Duration = Duration::from_secs(60);
+const INVALID_SESSION_COOLDOWN_THRESHOLD: u32 = 5;
+const INVALID_SESSION_COOLDOWN: Duration = Duration::from_secs(300);
+const INVALID_SESSION_BACKOFFS: [Duration; 4] = [
+    Duration::from_secs(5),
+    Duration::from_secs(15),
+    Duration::from_secs(30),
+    Duration::from_secs(60),
+];
+const MAX_RECONNECT_ATTEMPTS: u32 = 100;
 const INGRESS_ADMISSION_DEADLINE: Duration = Duration::from_secs(2);
 const MIN_SEND_INTERVAL: Duration = Duration::from_millis(100);
 // Keep DIVA's previously deployed intent mask until D-013 is resolved with
@@ -73,7 +82,74 @@ impl QqEndpoint {
 struct TokenState {
     token: Option<String>,
     expires_at: Option<Instant>,
-    refreshing: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RetryPolicy {
+    reconnect_base: Duration,
+    reconnect_max: Duration,
+    invalid_session_backoffs: [Duration; 4],
+    invalid_session_threshold: u32,
+    invalid_session_cooldown: Duration,
+    max_reconnect_attempts: u32,
+}
+
+impl RetryPolicy {
+    fn production() -> Self {
+        Self {
+            reconnect_base: RECONNECT_BASE,
+            reconnect_max: RECONNECT_MAX,
+            invalid_session_backoffs: INVALID_SESSION_BACKOFFS,
+            invalid_session_threshold: INVALID_SESSION_COOLDOWN_THRESHOLD,
+            invalid_session_cooldown: INVALID_SESSION_COOLDOWN,
+            max_reconnect_attempts: MAX_RECONNECT_ATTEMPTS,
+        }
+    }
+
+    #[cfg(test)]
+    fn test() -> Self {
+        Self {
+            reconnect_base: Duration::from_millis(20),
+            reconnect_max: Duration::from_millis(100),
+            invalid_session_backoffs: [
+                Duration::from_millis(20),
+                Duration::from_millis(40),
+                Duration::from_millis(60),
+                Duration::from_millis(80),
+            ],
+            invalid_session_threshold: 3,
+            invalid_session_cooldown: Duration::from_millis(150),
+            max_reconnect_attempts: 8,
+        }
+    }
+
+    fn reconnect_delay(self, attempt: u32) -> Duration {
+        let shift = attempt.saturating_sub(1).min(4);
+        self.reconnect_base
+            .saturating_mul(1_u32 << shift)
+            .min(self.reconnect_max)
+    }
+
+    fn invalid_session_delay(self, streak: u32) -> Duration {
+        let index = streak.saturating_sub(1) as usize;
+        self.invalid_session_backoffs
+            .get(index)
+            .copied()
+            .or_else(|| self.invalid_session_backoffs.last().copied())
+            .unwrap_or(self.reconnect_max)
+    }
+}
+
+struct TokenRefreshGuard {
+    refreshing: Arc<AtomicBool>,
+    notify: Arc<Notify>,
+}
+
+impl Drop for TokenRefreshGuard {
+    fn drop(&mut self) {
+        self.refreshing.store(false, Ordering::Release);
+        self.notify.notify_waiters();
+    }
 }
 
 #[derive(Debug, Default)]
@@ -135,8 +211,10 @@ struct GatewayFrame {
 pub struct QqAdapter {
     config: QQConfig,
     endpoint: QqEndpoint,
-    http: reqwest::Client,
+    http: QqHttpClient,
     token: Arc<AsyncMutex<TokenState>>,
+    token_refreshing: Arc<AtomicBool>,
+    token_refresh_notify: Arc<Notify>,
     session: Arc<AsyncMutex<SessionState>>,
     seen: Arc<RwLock<HashSet<String>>>,
     health: Arc<Mutex<ChannelHealth>>,
@@ -144,6 +222,7 @@ pub struct QqAdapter {
     cancel: CancellationToken,
     next_sequence: AtomicU64,
     last_send: AsyncMutex<Option<Instant>>,
+    retry_policy: RetryPolicy,
 }
 
 impl QqAdapter {
@@ -156,15 +235,17 @@ impl QqAdapter {
         // file-upload request/response fixture is landed. Keep the common
         // service seam in the constructor for C6 assembly compatibility.
         let _ = services;
-        let http = reqwest::Client::builder()
+        let http = QqHttpClient::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .unwrap_or_else(|_| QqHttpClient::new());
         Self {
             config,
             endpoint,
             http,
             token: Arc::new(AsyncMutex::new(TokenState::default())),
+            token_refreshing: Arc::new(AtomicBool::new(false)),
+            token_refresh_notify: Arc::new(Notify::new()),
             session: Arc::new(AsyncMutex::new(SessionState::default())),
             seen: Arc::new(RwLock::new(HashSet::new())),
             health: Arc::new(Mutex::new(ChannelHealth::new(ChannelHealthStatus::Unknown))),
@@ -172,12 +253,15 @@ impl QqAdapter {
             cancel: CancellationToken::new(),
             next_sequence: AtomicU64::new(1),
             last_send: AsyncMutex::new(None),
+            retry_policy: RetryPolicy::production(),
         }
     }
 
     #[cfg(test)]
     fn with_test_endpoint(config: QQConfig, services: AdapterServices, base: &str) -> Self {
-        Self::from_endpoint(config, services, QqEndpoint::test(base))
+        let mut adapter = Self::from_endpoint(config, services, QqEndpoint::test(base));
+        adapter.retry_policy = RetryPolicy::test();
+        adapter
     }
 
     fn static_capabilities() -> ChannelCapabilities {
@@ -191,7 +275,6 @@ impl QqAdapter {
             ChannelCapability::EgressReply,
             ChannelCapability::ReliabilityHealth,
             ChannelCapability::ReliabilityHeartbeat,
-            ChannelCapability::ReliabilityResume,
             ChannelCapability::ReliabilityTokenRefresh,
             ChannelCapability::ReliabilityPacing,
             ChannelCapability::ReliabilitySupervisedRestart,
@@ -261,128 +344,143 @@ impl QqAdapter {
     }
 
     async fn access_token(&self) -> Result<String, AdapterError> {
-        {
-            let state = self.token.lock().await;
-            if let (Some(token), Some(expires_at)) = (&state.token, state.expires_at) {
-                if expires_at > Instant::now() + TOKEN_REFRESH_MARGIN {
-                    return Ok(token.clone());
-                }
-            }
-            if state.refreshing {
-                drop(state);
-                for _ in 0..50 {
-                    sleep(Duration::from_millis(20)).await;
-                    let state = self.token.lock().await;
-                    if let Some(token) = &state.token {
-                        if state
-                            .expires_at
-                            .is_some_and(|expiry| expiry > Instant::now())
-                        {
-                            return Ok(token.clone());
-                        }
-                    }
-                }
-                return Err(execution_error(
-                    "token_refresh_timeout",
-                    "QQ token refresh did not complete",
-                    None,
-                    true,
-                ));
-            }
-        }
-
-        {
-            let mut state = self.token.lock().await;
-            if let (Some(token), Some(expires_at)) = (&state.token, state.expires_at) {
-                if expires_at > Instant::now() + TOKEN_REFRESH_MARGIN {
-                    return Ok(token.clone());
-                }
-            }
-            state.refreshing = true;
-        }
-
-        let request = self
-            .http
-            .post(&self.endpoint.token_url)
-            .json(&json!({"appId": self.config.app_id, "clientSecret": self.config.secret}))
-            .send()
-            .await;
-        let result = match request {
-            Ok(response) => {
-                let status = response.status();
-                if status == StatusCode::TOO_MANY_REQUESTS {
-                    let retry_after = response
-                        .headers()
-                        .get("retry-after")
-                        .and_then(|value| value.to_str().ok())
-                        .and_then(|value| value.parse::<u64>().ok())
-                        .unwrap_or(1);
-                    let _ = response.bytes().await;
-                    Err(AdapterError::RateLimited {
-                        retry_after: Duration::from_secs(retry_after),
-                    })
-                } else {
-                    match response.json::<TokenResponse>().await {
-                        Ok(parsed)
-                            if status.is_success() && !parsed.access_token.trim().is_empty() =>
-                        {
-                            let expires_in = parsed
-                                .expires_in
-                                .as_ref()
-                                .and_then(FlexibleU64::value)
-                                .unwrap_or(7_200);
-                            let safe_expiry = Duration::from_secs(
-                                expires_in.saturating_sub(TOKEN_REFRESH_MARGIN.as_secs()),
-                            );
-                            let token = parsed.access_token;
-                            let mut state = self.token.lock().await;
-                            state.token = Some(token.clone());
-                            state.expires_at = Some(Instant::now() + safe_expiry);
-                            state.refreshing = false;
-                            Ok(token)
-                        }
-                        Ok(_) => Err(execution_error(
-                            "token_refresh",
-                            format!("QQ token endpoint returned {status}"),
-                            None,
-                            status.is_server_error(),
-                        )),
-                        Err(error) => Err(execution_error(
-                            "token_response",
-                            error.to_string(),
-                            None,
-                            true,
-                        )),
-                    }
-                }
-            }
-            Err(error) => Err(execution_error(
-                "token_transport",
-                error.to_string(),
-                None,
-                true,
-            )),
-        };
-        if result.is_err() {
-            self.token.lock().await.refreshing = false;
-        }
-        result
+        self.access_token_with_cancel(&self.cancel).await
     }
 
-    async fn fetch_gateway_url(&self, token: &str) -> Result<String, AdapterError> {
-        let response = self
-            .http
-            .get(format!("{}{}", self.endpoint.api_base, GATEWAY_PATH))
-            .header("Authorization", format!("Bearer {token}"))
-            .send()
-            .await
-            .map_err(|error| execution_error("gateway_discovery", error.to_string(), None, true))?;
+    async fn access_token_with_cancel(
+        &self,
+        context_cancel: &CancellationToken,
+    ) -> Result<String, AdapterError> {
+        loop {
+            {
+                let state = self.token.lock().await;
+                if let (Some(token), Some(expires_at)) = (&state.token, state.expires_at) {
+                    if expires_at > Instant::now() + TOKEN_REFRESH_MARGIN {
+                        return Ok(token.clone());
+                    }
+                }
+            }
+
+            let notified = self.token_refresh_notify.notified();
+            if self
+                .token_refreshing
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                let _guard = TokenRefreshGuard {
+                    refreshing: Arc::clone(&self.token_refreshing),
+                    notify: Arc::clone(&self.token_refresh_notify),
+                };
+                let response = tokio::select! {
+                    _ = context_cancel.cancelled() => return Err(AdapterError::Stopped),
+                    _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                    result = self.http
+                        .post(&self.endpoint.token_url)
+                        .json(&json!({"appId": self.config.app_id, "clientSecret": self.config.secret}))
+                        .send() => result.map_err(|error| {
+                            execution_error("token_transport", error.to_string(), None, true)
+                        }),
+                }?;
+                let status = response.status();
+                let retry_after = response
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.parse::<u64>().ok());
+                let bytes = tokio::select! {
+                    _ = context_cancel.cancelled() => return Err(AdapterError::Stopped),
+                    _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                    result = response.bytes() => result.map_err(|error| {
+                        execution_error("token_response", error.to_string(), None, true)
+                    }),
+                }?;
+                if status == StatusCode::TOO_MANY_REQUESTS {
+                    return Err(AdapterError::RateLimited {
+                        retry_after: Duration::from_secs(retry_after.unwrap_or(1)),
+                    });
+                }
+                let parsed = serde_json::from_slice::<TokenResponse>(&bytes).map_err(|error| {
+                    execution_error("token_response", error.to_string(), None, true)
+                })?;
+                if !status.is_success() || parsed.access_token.trim().is_empty() {
+                    return Err(execution_error(
+                        "token_refresh",
+                        format!("QQ token endpoint returned {status}"),
+                        None,
+                        status.is_server_error(),
+                    ));
+                }
+                let expires_in = parsed
+                    .expires_in
+                    .as_ref()
+                    .and_then(FlexibleU64::value)
+                    .unwrap_or(7_200);
+                let token = parsed.access_token;
+                let mut state = self.token.lock().await;
+                state.token = Some(token.clone());
+                state.expires_at = Some(Instant::now() + Duration::from_secs(expires_in));
+                return Ok(token);
+            }
+
+            tokio::select! {
+                _ = context_cancel.cancelled() => return Err(AdapterError::Stopped),
+                _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                _ = notified => {}
+            }
+        }
+    }
+
+    async fn invalidate_token(&self, token: &str) {
+        let mut state = self.token.lock().await;
+        if state.token.as_deref() == Some(token) {
+            state.token = None;
+            state.expires_at = None;
+        }
+    }
+
+    async fn fetch_gateway_url_with_cancel(
+        &self,
+        token: &str,
+        context_cancel: &CancellationToken,
+    ) -> Result<String, AdapterError> {
+        let response = tokio::select! {
+            _ = context_cancel.cancelled() => return Err(AdapterError::Stopped),
+            _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+            result = self
+                .http
+                .get(format!("{}{}", self.endpoint.api_base, GATEWAY_PATH))
+                .header("Authorization", format!("Bearer {token}"))
+                .send() => result.map_err(|error| {
+                    execution_error("gateway_discovery", error.to_string(), None, true)
+                }),
+        }?;
         let status = response.status();
-        let body = response
-            .json::<GatewayResponse>()
-            .await
-            .map_err(|error| execution_error("gateway_response", error.to_string(), None, true))?;
-        if !status.is_success() || body.url.trim().is_empty() {
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok());
+        let bytes = tokio::select! {
+            _ = context_cancel.cancelled() => return Err(AdapterError::Stopped),
+            _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+            result = response.bytes() => result.map_err(|error| {
+                execution_error("gateway_response", error.to_string(), None, true)
+            }),
+        }?;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            return Err(AdapterError::RateLimited {
+                retry_after: Duration::from_secs(retry_after.unwrap_or(1)),
+            });
+        }
+        if status == StatusCode::UNAUTHORIZED {
+            return Err(execution_error(
+                "gateway_unauthorized",
+                "QQ gateway rejected the bearer token",
+                None,
+                true,
+            ));
+        }
+        if !status.is_success() {
             return Err(execution_error(
                 "gateway_discovery",
                 format!("QQ gateway returned {status}"),
@@ -390,18 +488,54 @@ impl QqAdapter {
                 status.is_server_error(),
             ));
         }
+        let body = serde_json::from_slice::<GatewayResponse>(&bytes)
+            .map_err(|error| execution_error("gateway_response", error.to_string(), None, true))?;
+        if body.url.trim().is_empty() {
+            return Err(execution_error(
+                "gateway_discovery",
+                "QQ gateway returned an empty URL",
+                None,
+                false,
+            ));
+        }
         Ok(body.url)
     }
 
-    async fn pace(&self) {
+    async fn discover_gateway_with_cancel(
+        &self,
+        context_cancel: &CancellationToken,
+    ) -> Result<String, AdapterError> {
+        let token = self.access_token_with_cancel(context_cancel).await?;
+        match self
+            .fetch_gateway_url_with_cancel(&token, context_cancel)
+            .await
+        {
+            Err(error) if error.code() == "gateway_unauthorized" => {
+                self.invalidate_token(&token).await;
+                let refreshed = self.access_token_with_cancel(context_cancel).await?;
+                self.fetch_gateway_url_with_cancel(&refreshed, context_cancel)
+                    .await
+            }
+            result => result,
+        }
+    }
+
+    async fn pace(&self) -> Result<(), AdapterError> {
+        if self.cancel.is_cancelled() {
+            return Err(AdapterError::Stopped);
+        }
         let mut last_send = self.last_send.lock().await;
         if let Some(previous) = *last_send {
             let elapsed = previous.elapsed();
             if elapsed < MIN_SEND_INTERVAL {
-                sleep(MIN_SEND_INTERVAL - elapsed).await;
+                tokio::select! {
+                    _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                    _ = sleep(MIN_SEND_INTERVAL - elapsed) => {}
+                }
             }
         }
         *last_send = Some(Instant::now());
+        Ok(())
     }
 
     async fn post_message(
@@ -411,12 +545,11 @@ impl QqAdapter {
         content: &str,
         reply_to: Option<&str>,
     ) -> Result<Option<String>, AdapterError> {
-        let token = self.access_token().await?;
+        let mut token = self.access_token().await?;
         let endpoint = match kind {
             ChatKind::Direct => format!("{}/v2/users/{chat_id}/messages", self.endpoint.api_base),
             ChatKind::Group => format!("{}/v2/groups/{chat_id}/messages", self.endpoint.api_base),
         };
-        self.pace().await;
         let mut body = json!({
             "content": content,
             "msg_type": 0,
@@ -425,39 +558,59 @@ impl QqAdapter {
         if let Some(message_id) = reply_to {
             body["msg_id"] = json!(message_id);
         }
-        let response = self
-            .http
-            .post(endpoint)
-            .header("Authorization", format!("QQBot {token}"))
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| execution_error("qq_transport", error.to_string(), None, true))?;
-        let status = response.status();
-        if status == StatusCode::TOO_MANY_REQUESTS {
+        for auth_attempt in 0..2 {
+            self.pace().await?;
+            let response = tokio::select! {
+                _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                result = self
+                    .http
+                    .post(&endpoint)
+                    .header("Authorization", format!("QQBot {token}"))
+                    .json(&body)
+                    .send() => result.map_err(|error| {
+                        execution_error("qq_transport", error.to_string(), None, true)
+                    }),
+            }?;
+            let status = response.status();
             let retry_after = response
                 .headers()
                 .get("retry-after")
                 .and_then(|value| value.to_str().ok())
-                .and_then(|value| value.parse::<u64>().ok())
-                .unwrap_or(1);
-            return Err(AdapterError::RateLimited {
-                retry_after: Duration::from_secs(retry_after),
-            });
+                .and_then(|value| value.parse::<u64>().ok());
+            if status == StatusCode::UNAUTHORIZED && auth_attempt == 0 {
+                self.invalidate_token(&token).await;
+                token = self.access_token().await?;
+                continue;
+            }
+            let bytes = tokio::select! {
+                _ = self.cancel.cancelled() => return Err(AdapterError::Stopped),
+                result = response.bytes() => result.map_err(|error| {
+                    execution_error("qq_response", error.to_string(), None, true)
+                }),
+            }?;
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                return Err(AdapterError::RateLimited {
+                    retry_after: Duration::from_secs(retry_after.unwrap_or(1)),
+                });
+            }
+            let response_body = serde_json::from_slice::<Value>(&bytes)
+                .map_err(|error| execution_error("qq_response", error.to_string(), None, true))?;
+            if !status.is_success() {
+                return Err(execution_error(
+                    "qq_api",
+                    response_body.to_string(),
+                    None,
+                    status.is_server_error(),
+                ));
+            }
+            return Ok(message_id_from_response(&response_body));
         }
-        let body = response
-            .json::<Value>()
-            .await
-            .map_err(|error| execution_error("qq_response", error.to_string(), None, true))?;
-        if !status.is_success() {
-            return Err(execution_error(
-                "qq_api",
-                body.to_string(),
-                None,
-                status.is_server_error(),
-            ));
-        }
-        Ok(message_id_from_response(&body))
+        Err(execution_error(
+            "qq_auth_retry",
+            "QQ authorization retry was exhausted",
+            None,
+            true,
+        ))
     }
 
     async fn send_envelope(
@@ -552,7 +705,14 @@ impl QqAdapter {
                     .and_then(Value::as_u64)
                     .map(Duration::from_millis)
                     .unwrap_or(HEARTBEAT_FALLBACK);
-                self.session.lock().await.heartbeat_interval = Some(interval);
+                let mut session = self.session.lock().await;
+                session.heartbeat_interval = Some(interval);
+                session.awaiting_heartbeat_ack = false;
+            }
+            11 => {
+                let mut session = self.session.lock().await;
+                session.awaiting_heartbeat_ack = false;
+                self.set_health(ChannelHealthStatus::Healthy, None);
             }
             0 => {
                 let event = frame.t.as_deref().unwrap_or_default();
@@ -578,17 +738,19 @@ impl QqAdapter {
                 }
             }
             7 => {
+                self.session.lock().await.awaiting_heartbeat_ack = false;
                 return Err(execution_error(
                     "gateway_reconnect",
                     "QQ gateway requested reconnect",
                     None,
                     true,
-                ))
+                ));
             }
             9 => {
                 let resumable = frame.d.and_then(|value| value.as_bool()).unwrap_or(false);
+                let mut session = self.session.lock().await;
+                session.awaiting_heartbeat_ack = false;
                 if !resumable {
-                    let mut session = self.session.lock().await;
                     session.session_id = None;
                     session.sequence = None;
                 }
@@ -675,12 +837,22 @@ impl QqAdapter {
         gateway_url: &str,
         context: &AdapterContext,
     ) -> Result<(), AdapterError> {
-        let (socket, _) = connect_async(gateway_url)
-            .await
-            .map_err(|error| execution_error("gateway_connect", error.to_string(), None, true))?;
+        {
+            let mut session = self.session.lock().await;
+            // A heartbeat ACK belongs to one socket. Never carry a pending ACK
+            // across a reconnect, otherwise the first new tick is a false timeout.
+            session.awaiting_heartbeat_ack = false;
+        }
+        let (socket, _) = tokio::select! {
+            _ = context.cancel.cancelled() => return Ok(()),
+            _ = self.cancel.cancelled() => return Ok(()),
+            result = connect_async(gateway_url) => result
+                .map_err(|error| execution_error("gateway_connect", error.to_string(), None, true)),
+        }?;
         let (mut write, mut read) = socket.split();
         let mut heartbeat_interval = HEARTBEAT_FALLBACK;
         let mut heartbeat = tokio::time::interval(heartbeat_interval);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         heartbeat.tick().await;
         loop {
             if context.cancel.is_cancelled() || self.cancel.is_cancelled() {
@@ -711,7 +883,10 @@ impl QqAdapter {
                             if frame.op == 10 {
                                 heartbeat_interval = frame.d.as_ref().and_then(|value| value.get("heartbeat_interval")).and_then(Value::as_u64).map(Duration::from_millis).unwrap_or(HEARTBEAT_FALLBACK);
                                 heartbeat = tokio::time::interval(heartbeat_interval);
-                                let token = self.access_token().await?;
+                                heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                                heartbeat.tick().await;
+                                self.session.lock().await.awaiting_heartbeat_ack = false;
+                                let token = self.access_token_with_cancel(&context.cancel).await?;
                                 let session = self.session.lock().await;
                                 let payload = if let Some(session_id) = &session.session_id {
                                     json!({"op": 6, "d": {"token": format!("QQBot {token}"), "session_id": session_id, "seq": session.sequence.unwrap_or(0)}})
@@ -721,8 +896,7 @@ impl QqAdapter {
                                 drop(session);
                                 write.send(WsMessage::Text(payload.to_string())).await.map_err(|error| execution_error("gateway_identify", error.to_string(), None, true))?;
                             } else if frame.op == 11 {
-                                self.session.lock().await.awaiting_heartbeat_ack = false;
-                                self.set_health(ChannelHealthStatus::Healthy, None);
+                                self.process_frame(frame, context).await?;
                             } else {
                                 self.process_frame(frame, context).await?;
                             }
@@ -737,29 +911,28 @@ impl QqAdapter {
     }
 
     async fn probe_health(&self) -> Result<DeliveryReceipt, AdapterError> {
-        let token = self.access_token().await?;
-        let response = self
-            .http
-            .get(format!("{}{}", self.endpoint.api_base, GATEWAY_PATH))
-            .header("Authorization", format!("Bearer {token}"))
-            .send()
-            .await
-            .map_err(|error| execution_error("health_transport", error.to_string(), None, true))?;
-        if response.status().is_success() {
-            self.set_health(ChannelHealthStatus::Healthy, None);
-            Ok(accepted_receipt(CHANNEL, "health", None, None))
-        } else {
-            let status = response.status();
-            self.set_health(
-                ChannelHealthStatus::Degraded,
-                Some(format!("QQ gateway returned {status}")),
-            );
-            Err(execution_error(
-                "health_probe",
-                format!("QQ gateway returned {status}"),
-                None,
-                status.is_server_error(),
-            ))
+        match self.discover_gateway_with_cancel(&self.cancel).await {
+            Ok(_) => {
+                self.set_health(ChannelHealthStatus::Healthy, None);
+                Ok(accepted_receipt(CHANNEL, "health", None, None))
+            }
+            Err(AdapterError::RateLimited { retry_after }) => {
+                self.set_health(
+                    ChannelHealthStatus::Degraded,
+                    Some("QQ gateway health probe was rate limited".to_string()),
+                );
+                Err(AdapterError::RateLimited { retry_after })
+            }
+            Err(AdapterError::Stopped) => Err(AdapterError::Stopped),
+            Err(error) => {
+                self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
+                Err(execution_error(
+                    "health_probe",
+                    error.to_string(),
+                    error.retry_after(),
+                    error.is_retryable(),
+                ))
+            }
         }
     }
 }
@@ -787,29 +960,50 @@ impl ChannelAdapter for QqAdapter {
             ));
         }
         let mut attempt = 0u32;
+        let mut invalid_session_streak = 0u32;
+        let mut cooldown_until: Option<Instant> = None;
         let result = loop {
             if context.cancel.is_cancelled() || self.cancel.is_cancelled() {
                 break Ok(());
             }
-            let connection = tokio::select! {
-                biased;
-                _ = context.cancel.cancelled() => break Ok(()),
-                _ = self.cancel.cancelled() => break Ok(()),
-                result = async {
-                    let token = self.access_token().await?;
-                    let gateway = self.fetch_gateway_url(&token).await?;
-                    self.run_connection(&gateway, &context).await
-                } => result,
-            };
+            if let Some(until) = cooldown_until {
+                if until > Instant::now() {
+                    let remaining = until.duration_since(Instant::now());
+                    if !sleep_or_cancel(remaining, &context, &self.cancel).await {
+                        break Ok(());
+                    }
+                }
+                cooldown_until = None;
+                invalid_session_streak = 0;
+                attempt = 0;
+            }
+            let connection = async {
+                let gateway = self.discover_gateway_with_cancel(&context.cancel).await?;
+                self.run_connection(&gateway, &context).await
+            }
+            .await;
             match connection {
-                Ok(()) => break Ok(()),
+                Ok(()) | Err(AdapterError::Stopped) => break Ok(()),
                 Err(error) => {
-                    attempt = attempt.saturating_add(1);
                     self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
-                    let shift = attempt.saturating_sub(1).min(4);
-                    let delay = RECONNECT_BASE
-                        .saturating_mul(1u32 << shift)
-                        .min(RECONNECT_MAX);
+                    let delay = if error.code() == "gateway_invalid_session" {
+                        invalid_session_streak = invalid_session_streak.saturating_add(1);
+                        attempt = 0;
+                        if invalid_session_streak >= self.retry_policy.invalid_session_threshold {
+                            cooldown_until =
+                                Some(Instant::now() + self.retry_policy.invalid_session_cooldown);
+                            continue;
+                        }
+                        self.retry_policy
+                            .invalid_session_delay(invalid_session_streak)
+                    } else {
+                        invalid_session_streak = 0;
+                        attempt = attempt.saturating_add(1);
+                        if attempt > self.retry_policy.max_reconnect_attempts {
+                            break Err(error);
+                        }
+                        self.retry_policy.reconnect_delay(attempt)
+                    };
                     if !sleep_or_cancel(delay, &context, &self.cancel).await {
                         break Ok(());
                     }
@@ -1014,7 +1208,7 @@ mod tests {
     fn capabilities_keep_unsupported_media_explicit() {
         let capabilities = adapter().capabilities();
         assert!(capabilities.supports(ChannelCapability::IngressGroup));
-        assert!(capabilities.supports(ChannelCapability::ReliabilityResume));
+        assert!(!capabilities.supports(ChannelCapability::ReliabilityResume));
         assert!(capabilities.supports(ChannelCapability::ReliabilityTokenRefresh));
         assert!(!capabilities.supports(ChannelCapability::EgressImage));
         assert!(!capabilities.supports(ChannelCapability::InteractionReaction));
@@ -1110,19 +1304,26 @@ mod tests {
 
     #[tokio::test]
     async fn wire_qq_gateway_admits_c2c_and_group_once_and_handles_heartbeat() {
+        let auth_wire: Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/c5/qq/auth-wire.json"))
+                .unwrap();
         let (gateway_url, gateway) = spawn_gateway_fixture().await;
         let (base, discovery) = spawn_http_fixture(vec![
-            fixture_response(
+            fixture_response_with_request(
                 "/app/getAppAccessToken",
                 200,
                 "application/json",
                 include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+                Vec::new(),
+                Some(auth_wire["token_request"]["body"].clone()),
             ),
-            fixture_response(
+            fixture_response_with_request(
                 "/gateway",
                 200,
                 "application/json",
                 format!(r#"{{"url":"{gateway_url}"}}"#).as_bytes(),
+                vec![("authorization", "Bearer fixture-access-token")],
+                None,
             ),
         ])
         .await;
@@ -1174,8 +1375,473 @@ mod tests {
         assert!(task.await.unwrap().is_ok());
         assert_eq!(discovery.await.unwrap().len(), 2);
         let frames = gateway.await.unwrap();
-        assert!(frames.iter().any(|frame| frame["op"] == 2));
+        let identify = frames
+            .iter()
+            .find(|frame| frame["op"] == 2)
+            .expect("Identify frame");
+        assert_eq!(identify["d"]["token"], auth_wire["identify"]["d"]["token"]);
+        assert_eq!(
+            identify["d"]["intents"],
+            auth_wire["identify"]["d"]["intents"]
+        );
+        assert_eq!(identify["d"]["shard"], auth_wire["identify"]["d"]["shard"]);
         assert!(frames.iter().any(|frame| frame["op"] == 1));
+    }
+
+    #[tokio::test]
+    async fn wire_qq_token_expiry_refreshes() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-expired-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-refreshed-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        assert_eq!(
+            adapter.access_token().await.unwrap(),
+            "fixture-expiring-token"
+        );
+        assert_eq!(
+            adapter.access_token().await.unwrap(),
+            "fixture-refreshed-token"
+        );
+        assert_eq!(server.await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn wire_qq_token_refresh_is_single_flight() {
+        let (base, server) = spawn_http_fixture(vec![fixture_response_with_request(
+            "/app/getAppAccessToken",
+            200,
+            "application/json",
+            include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+            Vec::new(),
+            Some(json!({"appId": "app", "clientSecret": "secret"})),
+        )])
+        .await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (first, second) = tokio::join!(adapter.access_token(), adapter.access_token());
+        assert_eq!(first.unwrap(), "fixture-access-token");
+        assert_eq!(second.unwrap(), "fixture-access-token");
+        assert_eq!(server.await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn wire_qq_token_429_is_typed_and_next_refresh_can_proceed() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response_with_request_and_response_headers(
+                "/app/getAppAccessToken",
+                429,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-rate-limit-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+                "Retry-After: 7\r\n",
+            ),
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-refreshed-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        assert!(matches!(
+            adapter.access_token().await,
+            Err(AdapterError::RateLimited { retry_after })
+                if retry_after == Duration::from_secs(7)
+        ));
+        assert_eq!(
+            adapter.access_token().await.unwrap(),
+            "fixture-refreshed-token"
+        );
+        assert_eq!(server.await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn wire_qq_gateway_refreshes_once_after_bearer_expiry() {
+        let gateway_url = "ws://127.0.0.1:9";
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+            fixture_response_with_request(
+                "/gateway",
+                401,
+                "application/json",
+                br#"{"code":401,"message":"expired token"}"#,
+                vec![("authorization", "Bearer fixture-access-token")],
+                None,
+            ),
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-refreshed-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+            fixture_response_with_request(
+                "/gateway",
+                200,
+                "application/json",
+                format!(r#"{{"url":"{gateway_url}"}}"#).as_bytes(),
+                vec![("authorization", "Bearer fixture-refreshed-token")],
+                None,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        let gateway = adapter
+            .discover_gateway_with_cancel(&CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(gateway, gateway_url);
+        assert_eq!(server.await.unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn wire_qq_gateway_resumes_after_reconnect_and_receives_resumed() {
+        let (gateway_url, observations, gateway_task) = spawn_lifecycle_gateway_fixture(vec![
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("ready"), gateway_frame("reconnect")],
+                acknowledge_heartbeats: true,
+            },
+            GatewayScript {
+                expected_client_op: 6,
+                frames: vec![gateway_frame("resumed")],
+                acknowledge_heartbeats: true,
+            },
+        ])
+        .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 2)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 2).await;
+        wait_for_observation_opcode(&observations, 1, 6).await;
+        let second_frames = observation_frames(&observations, 1).await;
+        let resume = second_frames
+            .iter()
+            .find(|frame| frame["op"] == 6)
+            .expect("Resume frame");
+        assert_eq!(resume["d"]["token"], "QQBot fixture-access-token");
+        assert_eq!(resume["d"]["session_id"], "session-1");
+        assert_eq!(resume["d"]["seq"], 12);
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 3);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_resumable_invalid_session_preserves_resume_state() {
+        let (gateway_url, observations, gateway_task) = spawn_lifecycle_gateway_fixture(vec![
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("ready"), gateway_frame("invalid_resumable")],
+                acknowledge_heartbeats: true,
+            },
+            GatewayScript {
+                expected_client_op: 6,
+                frames: vec![gateway_frame("resumed")],
+                acknowledge_heartbeats: true,
+            },
+        ])
+        .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 2)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 2).await;
+        wait_for_observation_opcode(&observations, 1, 6).await;
+        let frames = observation_frames(&observations, 1).await;
+        assert_eq!(frames[0]["op"], 6);
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 3);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_non_resumable_invalid_session_identifies_again() {
+        let (gateway_url, observations, gateway_task) = spawn_lifecycle_gateway_fixture(vec![
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("invalid_non_resumable")],
+                acknowledge_heartbeats: true,
+            },
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("ready")],
+                acknowledge_heartbeats: true,
+            },
+        ])
+        .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 2)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 2).await;
+        wait_for_observation_opcode(&observations, 1, 2).await;
+        let second_frames = observation_frames(&observations, 1).await;
+        assert_eq!(second_frames[0]["op"], 2);
+        assert!(!second_frames.iter().any(|frame| frame["op"] == 6));
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 3);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_heartbeat_timeout_reconnect_resets_pending_ack() {
+        let (gateway_url, observations, gateway_task) = spawn_lifecycle_gateway_fixture(vec![
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("ready")],
+                acknowledge_heartbeats: false,
+            },
+            GatewayScript {
+                expected_client_op: 6,
+                frames: vec![gateway_frame("resumed")],
+                acknowledge_heartbeats: true,
+            },
+        ])
+        .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 2)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 2).await;
+        wait_for_observation_opcode(&observations, 1, 1).await;
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 3);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_invalid_session_backoff_enters_bounded_cooldown() {
+        let (gateway_url, observations, gateway_task) = spawn_lifecycle_gateway_fixture(vec![
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("invalid_non_resumable")],
+                acknowledge_heartbeats: true,
+            },
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("invalid_non_resumable")],
+                acknowledge_heartbeats: true,
+            },
+            GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("invalid_non_resumable")],
+                acknowledge_heartbeats: true,
+            },
+        ])
+        .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 3)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 3).await;
+        let records = observations.lock().await;
+        let first_gap = records[1]
+            .connected_at
+            .duration_since(records[0].connected_at);
+        let second_gap = records[2]
+            .connected_at
+            .duration_since(records[1].connected_at);
+        assert!(first_gap >= Duration::from_millis(10));
+        assert!(second_gap >= Duration::from_millis(25));
+        drop(records);
+        tokio::time::sleep(Duration::from_millis(70)).await;
+        assert_eq!(observations.lock().await.len(), 3);
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(discovery.await.unwrap().len(), 4);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_stop_interrupts_pending_reconnect_backoff() {
+        let (gateway_url, observations, gateway_task) =
+            spawn_lifecycle_gateway_fixture(vec![GatewayScript {
+                expected_client_op: 2,
+                frames: vec![gateway_frame("reconnect")],
+                acknowledge_heartbeats: true,
+            }])
+            .await;
+        let (base, discovery) =
+            spawn_http_fixture(gateway_discovery_responses(&gateway_url, 1)).await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        wait_for_gateway_connections(&observations, 1).await;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        adapter.stop().await.unwrap();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        assert_eq!(observations.lock().await.len(), 1);
+        assert_eq!(discovery.await.unwrap().len(), 2);
+        assert!(tokio::time::timeout(Duration::from_secs(1), gateway_task)
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn wire_qq_token_wait_cancels_without_leaking_refresh_state() {
+        let (base, server) = spawn_stalled_http_fixture().await;
+        let adapter = Arc::new(adapter_at(&base));
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = Arc::clone(&adapter);
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        cancel.cancel();
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok());
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn wire_qq_health_probe_returns_receipt_after_bearer_gateway_check() {
+        let (base, server) = spawn_http_fixture(vec![
+            fixture_response_with_request(
+                "/app/getAppAccessToken",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+                Vec::new(),
+                Some(json!({"appId": "app", "clientSecret": "secret"})),
+            ),
+            fixture_response_with_request(
+                "/gateway",
+                200,
+                "application/json",
+                include_bytes!("../../tests/fixtures/c5/qq/gateway-response.json"),
+                vec![("authorization", "Bearer fixture-access-token")],
+                None,
+            ),
+        ])
+        .await;
+        let adapter = adapter_at(&base);
+        let receipt = adapter
+            .execute(ChannelCommand::ProbeHealth {
+                channel: ChannelId::new(CHANNEL).unwrap(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.status,
+            agent_diva_core::channel::DeliveryStatus::Accepted
+        );
+        assert_eq!(receipt.chat_id, "health");
+        assert_eq!(receipt.platform_message_id, None);
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Healthy);
+        assert_eq!(server.await.unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -1309,6 +1975,9 @@ mod tests {
         expected_path: String,
         status: u16,
         content_type: String,
+        expected_headers: Vec<(String, String)>,
+        expected_body: Option<Value>,
+        response_headers: String,
         body: Vec<u8>,
     }
 
@@ -1318,10 +1987,47 @@ mod tests {
         content_type: &str,
         body: &[u8],
     ) -> HttpFixtureResponse {
+        fixture_response_with_request(expected_path, status, content_type, body, Vec::new(), None)
+    }
+
+    fn fixture_response_with_request(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+        expected_headers: Vec<(&str, &str)>,
+        expected_body: Option<Value>,
+    ) -> HttpFixtureResponse {
+        fixture_response_with_request_and_response_headers(
+            expected_path,
+            status,
+            content_type,
+            body,
+            expected_headers,
+            expected_body,
+            "",
+        )
+    }
+
+    fn fixture_response_with_request_and_response_headers(
+        expected_path: &str,
+        status: u16,
+        content_type: &str,
+        body: &[u8],
+        expected_headers: Vec<(&str, &str)>,
+        expected_body: Option<Value>,
+        response_headers: &str,
+    ) -> HttpFixtureResponse {
         HttpFixtureResponse {
             expected_path: expected_path.to_string(),
             status,
             content_type: content_type.to_string(),
+            expected_headers: expected_headers
+                .into_iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
+            expected_body,
+            response_headers: response_headers.to_string(),
             body: body.to_vec(),
         }
     }
@@ -1346,6 +2052,23 @@ mod tests {
                     "request did not contain expected path: {}",
                     expected.expected_path
                 );
+                for (name, value) in &expected.expected_headers {
+                    assert_eq!(
+                        request_header(&request, name).as_deref(),
+                        Some(value.as_str()),
+                        "request header did not match {name}"
+                    );
+                }
+                if let Some(expected_body) = expected.expected_body {
+                    let body_start = request
+                        .windows(4)
+                        .position(|window| window == b"\r\n\r\n")
+                        .map(|index| index + 4)
+                        .expect("request body separator");
+                    let actual_body: Value =
+                        serde_json::from_slice(&request[body_start..]).expect("request JSON body");
+                    assert_eq!(actual_body, expected_body);
+                }
                 requests.push(request_text);
                 let reason = match expected.status {
                     200 => "OK",
@@ -1354,8 +2077,9 @@ mod tests {
                     _ => "Fixture",
                 };
                 let header = format!(
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    "HTTP/1.1 {} {reason}\r\n{}Content-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                     expected.status,
+                    expected.response_headers,
                     expected.content_type,
                     expected.body.len()
                 );
@@ -1395,6 +2119,252 @@ mod tests {
             }
             return bytes;
         }
+    }
+
+    fn request_header(request: &[u8], name: &str) -> Option<String> {
+        let header_end = request
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")?;
+        String::from_utf8_lossy(&request[..header_end])
+            .lines()
+            .skip(1)
+            .find_map(|line| {
+                let (header_name, value) = line.split_once(':')?;
+                header_name
+                    .eq_ignore_ascii_case(name)
+                    .then(|| value.trim().to_string())
+            })
+    }
+
+    #[derive(Debug, Clone)]
+    struct GatewayScript {
+        expected_client_op: u64,
+        frames: Vec<Value>,
+        acknowledge_heartbeats: bool,
+    }
+
+    #[derive(Debug)]
+    struct GatewayObservation {
+        connected_at: Instant,
+        client_frames: Arc<tokio::sync::Mutex<Vec<Value>>>,
+    }
+
+    fn gateway_frame(name: &str) -> Value {
+        serde_json::from_str::<Value>(include_str!(
+            "../../tests/fixtures/c5/qq/gateway-lifecycle.json"
+        ))
+        .unwrap()[name]
+            .clone()
+    }
+
+    fn gateway_discovery_responses(
+        gateway_url: &str,
+        connection_count: usize,
+    ) -> Vec<HttpFixtureResponse> {
+        let mut responses = vec![fixture_response_with_request(
+            "/app/getAppAccessToken",
+            200,
+            "application/json",
+            include_bytes!("../../tests/fixtures/c5/qq/token-response.json"),
+            Vec::new(),
+            Some(json!({"appId": "app", "clientSecret": "secret"})),
+        )];
+        for _ in 0..connection_count {
+            let body = format!(r#"{{"url":"{gateway_url}"}}"#);
+            responses.push(fixture_response_with_request(
+                "/gateway",
+                200,
+                "application/json",
+                body.as_bytes(),
+                vec![("authorization", "Bearer fixture-access-token")],
+                None,
+            ));
+        }
+        responses
+    }
+
+    async fn spawn_lifecycle_gateway_fixture(
+        scripts: Vec<GatewayScript>,
+    ) -> (
+        String,
+        Arc<tokio::sync::Mutex<Vec<GatewayObservation>>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let observations = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let task_observations = Arc::clone(&observations);
+        let handle = tokio::spawn(async move {
+            for script in scripts {
+                let accepted =
+                    tokio::time::timeout(Duration::from_secs(2), listener.accept()).await;
+                let Ok(Ok((stream, _))) = accepted else {
+                    break;
+                };
+                let mut socket = match accept_async(stream).await {
+                    Ok(socket) => socket,
+                    Err(_) => break,
+                };
+                let client_frames = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+                task_observations.lock().await.push(GatewayObservation {
+                    connected_at: Instant::now(),
+                    client_frames: Arc::clone(&client_frames),
+                });
+                let hello = gateway_frame("hello");
+                if socket
+                    .send(WsMessage::Text(hello.to_string()))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+
+                let client_op = loop {
+                    let next = tokio::time::timeout(Duration::from_secs(2), socket.next()).await;
+                    let Ok(Some(Ok(message))) = next else {
+                        break None;
+                    };
+                    match message {
+                        WsMessage::Text(text) => {
+                            let Ok(frame) = serde_json::from_str::<Value>(&text) else {
+                                continue;
+                            };
+                            let opcode = frame["op"].as_u64().unwrap_or_default();
+                            client_frames.lock().await.push(frame);
+                            if opcode == 1 {
+                                if script.acknowledge_heartbeats
+                                    && socket
+                                        .send(WsMessage::Text(
+                                            gateway_frame("heartbeat_ack").to_string(),
+                                        ))
+                                        .await
+                                        .is_err()
+                                {
+                                    break None;
+                                }
+                                continue;
+                            }
+                            if opcode == 2 || opcode == 6 {
+                                break Some(opcode);
+                            }
+                        }
+                        WsMessage::Ping(payload) => {
+                            if socket.send(WsMessage::Pong(payload)).await.is_err() {
+                                break None;
+                            }
+                        }
+                        WsMessage::Close(_) => break None,
+                        _ => {}
+                    }
+                };
+                assert_eq!(client_op, Some(script.expected_client_op));
+                for frame in script.frames {
+                    if socket
+                        .send(WsMessage::Text(frame.to_string()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+
+                loop {
+                    let next =
+                        tokio::time::timeout(Duration::from_millis(250), socket.next()).await;
+                    let Ok(Some(Ok(message))) = next else {
+                        break;
+                    };
+                    match message {
+                        WsMessage::Text(text) => {
+                            let Ok(frame) = serde_json::from_str::<Value>(&text) else {
+                                continue;
+                            };
+                            let opcode = frame["op"].as_u64().unwrap_or_default();
+                            client_frames.lock().await.push(frame);
+                            if opcode == 1
+                                && script.acknowledge_heartbeats
+                                && socket
+                                    .send(WsMessage::Text(
+                                        gateway_frame("heartbeat_ack").to_string(),
+                                    ))
+                                    .await
+                                    .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        WsMessage::Ping(payload) => {
+                            if socket.send(WsMessage::Pong(payload)).await.is_err() {
+                                break;
+                            }
+                        }
+                        WsMessage::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+        (format!("ws://{address}"), observations, handle)
+    }
+
+    async fn wait_for_gateway_connections(
+        observations: &Arc<tokio::sync::Mutex<Vec<GatewayObservation>>>,
+        expected: usize,
+    ) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if observations.lock().await.len() >= expected {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("gateway connection observation");
+    }
+
+    async fn observation_frames(
+        observations: &Arc<tokio::sync::Mutex<Vec<GatewayObservation>>>,
+        index: usize,
+    ) -> Vec<Value> {
+        let frames = observations.lock().await[index].client_frames.clone();
+        let snapshot = frames.lock().await.clone();
+        snapshot
+    }
+
+    async fn wait_for_observation_opcode(
+        observations: &Arc<tokio::sync::Mutex<Vec<GatewayObservation>>>,
+        index: usize,
+        opcode: u64,
+    ) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if observation_frames(observations, index)
+                    .await
+                    .iter()
+                    .any(|frame| frame["op"] == opcode)
+                {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("gateway opcode observation");
+    }
+
+    async fn spawn_stalled_http_fixture() -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let _ = read_http_request(&mut socket).await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        });
+        (format!("http://{address}"), handle)
     }
 
     async fn spawn_gateway_fixture() -> (String, tokio::task::JoinHandle<Vec<Value>>) {

@@ -1,0 +1,10 @@
+{
+  "hello": {"op": 10, "d": {"heartbeat_interval": 20}},
+  "ready": {"op": 0, "s": 12, "t": "READY", "d": {"session_id": "session-1"}},
+  "heartbeat": {"op": 1, "d": 12},
+  "heartbeat_ack": {"op": 11, "d": null},
+  "resumed": {"op": 0, "s": 13, "t": "RESUMED", "d": null},
+  "reconnect": {"op": 7, "d": null},
+  "invalid_resumable": {"op": 9, "d": true},
+  "invalid_non_resumable": {"op": 9, "d": false}
+}
