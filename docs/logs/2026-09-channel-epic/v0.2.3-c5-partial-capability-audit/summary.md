@@ -22,6 +22,22 @@ DingTalk DT-01、DT-03～DT-04；Email EM-02～EM-04；QQ QQ-01～QQ-02。
 
 ## 阶段结论
 
-待六个 agent 完成固定 SHA 对照和交叉复核后填写。任何缺少实现、fixture、精确
-request/response、receipt/error 或生命周期证据的行继续保持 `partial`；QQ D-013/D-014
-不得凭 Octos 代码推断为 resolved。
+六个 agent 已完成固定 SHA 对照，三组交叉复核也确认主判断成立。21 条 `partial` 全部
+保持 `partial`，没有一条因“源码存在”或历史测试记录而升级；全量清单仍为 7 条
+`verified`、21 条 `partial`、1 条 `blocked/unsupported`。Gate3 页面、manifest 和 JSON
+均保留相同 ID/状态。
+
+审计提交为：Telegram `fc1f5a40`、Discord `1a9e1065`、Feishu `e1009c40`、DingTalk
+`d9fc146d`、Email `c2851602`、QQ `0c5d2b8e`。每页均记录了当前 DIVA symbol、固定
+Octos 源码对照、已有 fixture/test 证据、精确请求或 typed 结果，以及逐项 disposition。
+
+本轮确认的代码层缺口包括：Telegram 群响应门控与超限下载语义；Discord DM/mention/
+dedup/下载/reply 语义及 403 分类；Feishu 删除响应 JSON 错误码；DingTalk 主动 heartbeat、
+multipart token refresh/idempotency；Email `imap_use_ssl`、MIME 校验和 health/mark-seen
+语义；QQ 重连时 heartbeat 状态复位和 invalid-session cooldown。其余未闭合项属于缺少
+逐类 wire/lifecycle transcript 的证据缺口，均已在 manifest 和各 Gate3 页展开。
+
+Octos 的 webhook、共享 media/dedup helper 只作为固定参考，未被当作 DIVA 另一条 transport
+的实现或证据。D-013/D-014 仍保持 blocked；QQ live smoke 仍需仓库外凭据和平台权限。
+本轮不修改 adapter、fixture、测试、公共契约或 Cargo，不编译、不跑测试、不访问外网，
+也不合并 `dev` 或进入 C6。

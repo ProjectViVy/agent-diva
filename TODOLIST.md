@@ -153,6 +153,16 @@
       当前 DIVA 使用 `(1<<25)|(1<<12)`，Octos 使用 `(1<<25)|(1<<30)`；DIVA 拒绝群事件，
       Octos 也没有完整 media 路径。必须先补官方证据、mock fixture、response message ID 和
       group/C2C policy 测试，未完成前保持 `Blocked`，不得以 C2C 测试关闭该项。
+    - [ ] **C5-V-PARTIAL-AUDIT-FINDINGS：21 条 partial 的实现与证据缺口** `sev-P1`
+      2026-09-02 已逐项对照固定 Octos SHA 完成审计，但没有升级任何状态。实现层必须继续
+      处理：Telegram 群 mention/reply/command 门控、超限下载与 callback keyboard/ACK；
+      Discord DM/mention/dedup、下载状态/reply reference 与 403 分类；Feishu 删除响应
+      JSON error code；DingTalk 主动 heartbeat、multipart token refresh/idempotency；
+      Email `imap_use_ssl`、invalid MIME、真实 health/mark-seen retry；QQ 重连 heartbeat
+      状态复位与 invalid-session cooldown。逐类媒体、异常 opcode、429/permission、取消、
+      重连、health、receipt 和 raw transport transcript 等证据缺口见
+      [`evidence-manifest.md`](docs/dev/channel-epic/c5-octos-migration/evidence-manifest.md)
+      及六份 `platforms/*-gate3.md`；在实现或证据闭合前不得关闭 C5-V。
     - [x] **C5-DOC：修正 BaseChannel allow_from 语义说明** `sev-P2`（2026-08-31）
       已更新 `agent-diva-channels/AGENTS.md`：空 `allow_from` 是 allow-all，并明确 C5
       使用原生 `ChannelAdapter`、共享 Fabric 与 C6-only Manager 装配边界。

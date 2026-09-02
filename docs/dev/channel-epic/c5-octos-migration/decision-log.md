@@ -38,6 +38,28 @@
 - To make the required Rust 1.80 channel probe reproducible, `348d42a1` pins compatible
   resolutions in `Cargo.lock` only; no `Cargo.toml` dependency constraint or MSRV was changed.
 
+## C5-V partial capability audit record (2026-09-02)
+
+- The 21 rows that were `partial` in the previous manifest were audited one by one against the
+  current DIVA adapter, its Gate3 page, and Octos
+  `5ea987813de4fd2afdd1d78f2106ad2868f0d923`. The six channel audit commits are `fc1f5a40`
+  (Telegram), `1a9e1065` (Discord), `e1009c40` (Feishu), `d9fc146d` (DingTalk), `c2851602`
+  (Email), and `0c5d2b8e` (QQ).
+- No row was upgraded: the manifest remains 7 `verified`, 21 `partial`, and 1
+  `blocked/unsupported`. Each Gate3 page now distinguishes `[implementation_gap]` from
+  `[evidence_gap]` and records when an Octos path is only a reference rather than DIVA proof.
+- Confirmed implementation gaps include Telegram group response gating and oversized-download
+  semantics, Discord DM/mention/dedup/download/reply semantics, Feishu JSON error validation,
+  DingTalk active heartbeat plus multipart token-refresh/idempotency behavior, Email IMAP SSL/MIME/
+  health semantics, and QQ heartbeat reset/invalid-session cooldown behavior. The complete row-level
+  disposition remains in `evidence-manifest.md` and `capability-evidence.json`.
+- Feishu admission-before-dedup and DingTalk permission-before-media are confirmed code paths, but
+  the corresponding platform wire/lifecycle evidence is still incomplete. Octos webhook, shared
+  media, and shared dedup helpers are not counted as proof for a different DIVA transport path.
+- No shared contract/configuration request was opened. This audit changed only documentation and
+  provenance metadata; it did not change adapters, fixtures, tests, Cargo files, Manager assembly,
+  C6, `dev`, or push anything. No compile, test, or live-network command was run.
+
 ## blocked 项的处理协议
 
 QQ 的 D-013/D-014 不阻塞其它频道实施。QQ agent 必须提供：官方文档/源码证据、mock gateway 或

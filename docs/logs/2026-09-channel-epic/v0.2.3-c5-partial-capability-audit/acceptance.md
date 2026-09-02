@@ -10,3 +10,8 @@
 5. Gate3 页面、`evidence-manifest.md`、`capability-evidence.json` 三处状态一致；
    不修改冻结 capability matrix。
 6. 本轮无编译、无测试执行、无外网/live smoke；最终只做文档静态一致性与差异检查。
+
+本轮实际结果：六个 Gate3 页面已分别以当前 DIVA 源码和固定 Octos SHA 完成复核；共享
+manifest/JSON 记录 7 条 `verified`、21 条 `partial`、1 条 `blocked/unsupported`，且
+21 条均补充了 `[implementation_gap]` / `[evidence_gap]` / `[intentional_boundary]`
+disposition。发现的实现缺口已登记到根 `TODOLIST.md`，本轮不在审计范围内修复。
