@@ -1,0 +1,30 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: Rich multipart
+Message-ID: <rich@example.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="rich-boundary"
+
+--rich-boundary
+Content-Type: text/plain; charset=utf-8
+
+Rich multipart body.
+--rich-boundary
+Content-Type: audio/wav; name="tone.wav"
+Content-Disposition: attachment; filename="tone.wav"
+Content-Transfer-Encoding: base64
+
+UklGRg==
+--rich-boundary
+Content-Type: video/mp4; name="clip.mp4"
+Content-Disposition: attachment; filename="clip.mp4"
+Content-Transfer-Encoding: base64
+
+AAAA
+--rich-boundary
+Content-Type: application/pdf; name="report.pdf"
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERg==
+--rich-boundary--

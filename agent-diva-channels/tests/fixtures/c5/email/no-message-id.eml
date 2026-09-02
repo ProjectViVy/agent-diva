@@ -1,0 +1,7 @@
+From: User <user@example.test>
+To: bot@example.test
+Subject: UID fallback
+Date: Thu, 04 Jan 2024 00:00:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+This message intentionally has no Message-ID header.

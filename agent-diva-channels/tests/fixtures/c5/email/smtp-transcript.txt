@@ -1,0 +1,8 @@
+C: EHLO agent-diva.test
+C: MAIL FROM:<bot@example.test>
+C: RCPT TO:<recipient@example.test>
+C: DATA
+C: Message-ID: <agent-diva-generated@example.test>
+C: In-Reply-To: <parent@example.test>
+C: References: <root@example.test> <parent@example.test>
+S: 250 2.0.0 queued as smtp-fixture-1
