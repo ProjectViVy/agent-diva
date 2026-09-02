@@ -8,7 +8,7 @@
 
 use crate::adapter::{
     accepted_receipt, external_message_envelope, is_sender_allowed, AdapterContext, AdapterError,
-    AdapterServices, ChannelAdapter, IngressAttachment,
+    AdapterServices, AttachmentStoreError, ChannelAdapter, IngressAttachment,
 };
 use agent_diva_core::channel::{
     ChannelAddress, ChannelCapabilities, ChannelCapability, ChannelCommand, ChannelHealth,
@@ -902,11 +902,21 @@ impl EmailAdapter {
                     retry_after: None,
                     retryable: false,
                 })?;
-            stored.validate().map_err(|error| AdapterError::Execution {
-                code: "attachment_invalid".to_string(),
-                diagnosis: error.to_string(),
-                retry_after: None,
-                retryable: false,
+            stored.validate().map_err(|error| {
+                let code = match &error {
+                    AttachmentStoreError::InvalidReference { diagnosis }
+                        if diagnosis.contains("media_type") =>
+                    {
+                        "invalid_mime"
+                    }
+                    _ => "attachment_invalid",
+                };
+                AdapterError::Execution {
+                    code: code.to_string(),
+                    diagnosis: error.to_string(),
+                    retry_after: None,
+                    retryable: false,
+                }
             })?;
             let media_type = validate_attachment_metadata(
                 reference.file_name.as_deref(),
