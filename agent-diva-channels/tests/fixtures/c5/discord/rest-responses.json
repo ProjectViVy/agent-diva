@@ -1,6 +1,8 @@
 {
-  "send": {"id": "snowflake-redacted"},
-  "edit": {"id": "snowflake-edited"},
-  "rate_limited": {"retry_after": 1.25},
-  "permission_error": {"code": 50013, "message": "Missing Permissions"}
+  "send": {"id": "snowflake-redacted", "channel_id": "channel-redacted", "content": "<redacted>"},
+  "edit": {"id": "snowflake-edited", "channel_id": "channel-redacted", "content": "<redacted>"},
+  "rate_limited": {"message": "You are being rate limited.", "retry_after": 1.25, "global": false},
+  "permission_error": {"code": 50013, "message": "Missing Permissions"},
+  "health": {"url": "wss://gateway.discord.gg"},
+  "multipart": {"payload_json": {"content": "<redacted>", "message_reference": {"message_id": "parent-redacted"}}, "files": ["files[0]", "files[1]"]}
 }

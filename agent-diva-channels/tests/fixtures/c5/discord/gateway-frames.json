@@ -1,9 +1,12 @@
 [
-  {"op": 10, "d": {"heartbeat_interval": 50}},
-  {"op": 2, "d": {"intents": 32768, "properties": {"os": "linux", "browser": "agent-diva", "device": "agent-diva"}}},
-  {"op": 0, "s": 1, "t": "READY", "d": {"session_id": "session-redacted"}},
-  {"op": 1, "d": 1},
+  {"op": 10, "d": {"heartbeat_interval": 41250}},
+  {"op": 2, "d": {"token": "<redacted>", "intents": 37377, "properties": {"os": "agent-diva", "browser": "agent-diva", "device": "agent-diva"}}},
+  {"op": 0, "s": 1, "t": "READY", "d": {"v": 10, "user": {"id": "bot-redacted", "username": "c5-bot", "bot": true}, "session_id": "session-redacted", "resume_gateway_url": "wss://gateway.discord.gg"}},
+  {"op": 0, "s": 2, "t": "MESSAGE_CREATE", "d": {"id": "message-redacted", "channel_id": "channel-redacted", "guild_id": "guild-redacted", "content": "<redacted>", "author": {"id": "user-redacted", "bot": false}, "message_reference": {"message_id": "parent-redacted"}, "mentions": [{"id": "bot-redacted", "bot": true}], "attachments": []}},
+  {"op": 1, "d": 2},
   {"op": 11, "d": null},
+  {"op": 6, "d": {"token": "<redacted>", "session_id": "session-redacted", "seq": 2}},
+  {"op": 0, "t": "RESUMED", "d": {}},
   {"op": 7, "d": null},
   {"op": 9, "d": false}
 ]
