@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `none (released)`
-- Owner: `Codex / six parallel channel audit agents`
-- Session/Task: `CHANNEL-EPIC C5-V audit of 21 partial capability rows against pinned Octos source`
+- Lock State: `HELD`
+- Scope: `agent-diva-channels/src/adapters/{telegram,discord,feishu,dingtalk,email,qq}.rs; agent-diva-channels/tests/fixtures/c5/**; channel adapter tests; six Gate3 pages; shared C5-V evidence, logs, TODO, decision records, and LOCK.md`
+- Owner: `Codex / C5-V partial capability repair with six parallel channel agents`
+- Session/Task: `CHANNEL-EPIC C5-V repair of 21 partial capability rows against pinned Octos source`
 - Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `2026-09-02T08:46:16+08:00`
-- Last Heartbeat: `2026-09-02T09:23:37+08:00`
-- Expires At: `-`
-- Handoff Notes: `Released audit-only pass. Six Gate3 pages and shared C5-V evidence records were audited against pinned Octos SHA; 21 partial rows remain open. No adapter/fixture/test implementation changes, builds, compiles, live network, Manager/C6 cutover, dev merge, or push.`
+- Started At: `2026-09-02T21:01:43+08:00`
+- Last Heartbeat: `2026-09-02T21:01:43+08:00`
+- Expires At: `2026-09-03T21:01:43+08:00`
+- Handoff Notes: `Repair scope is implementation plus deterministic fixture/TCK evidence only. Public ChannelCommand/ContentPart/config/Manager assembly remain frozen. Telegram keyboard stays UnsupportedCapability; QQ D-013/D-014 and live credentials remain external blockers. Six agents use fresh isolated worktrees; Lead owns shared TCK and evidence integration. No dev merge, push, Manager/C6 cutover.`
 
 ## Lock Rules
 
@@ -35,6 +35,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `CHANNEL-EPIC C5-V audit of 21 partial capability rows against pinned Octos source` — **HELD 2026-09-02T08:46:16+08:00** by `Codex / six parallel channel audit agents` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`, based at `2b3ef682`. Audit-only documentation scope; no compilation, tests, live network, adapter behavior, or public contract changes authorized. Fresh agent worktrees are required; old `c5-g2-*` worktrees are historical and not evidence sources.
 
 - `CHANNEL-EPIC C5-V audit of 21 partial capability rows against pinned Octos source` — **RELEASED 2026-09-02T09:23:37+08:00** by `Codex / six parallel channel audit agents` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Six Gate3 audit commits `fc1f5a40`, `1a9e1065`, `e1009c40`, `d9fc146d`, `c2851602`, `0c5d2b8e` were integrated; shared disposition and TODO/log updates were recorded in `30062ede`. Static checks passed: JSON parse, 29-row status count `7 verified / 21 partial / 1 blocked/unsupported`, 21/21 audit IDs, six pinned-SHA pages, and `git diff --check`. No compilation, tests, live network, Manager/C6 cutover, `dev` merge, or push. C5-V/C5-Q remain open.`
+- `CHANNEL-EPIC C5-V partial capability repair` — **HELD 2026-09-02T21:01:43+08:00** by `Codex / C5-V partial capability repair with six parallel channel agents` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`, based at `997391e3`. Scope covers six native adapters, channel-owned fixtures/tests/Gate3 pages, Lead-owned shared TCK/evidence records, and v0.2.4 iteration logs. All source changes must be checked against pinned Octos SHA `5ea987813de4fd2afdd1d78f2106ad2868f0d923`; public contracts/config/Manager assembly stay frozen. QQ live/D-013/D-014 and Telegram keyboard remain blocked or partial unless independently proven.`
 
 - `CHANNEL-EPIC C5-P Octos capability migration documentation and handoff` — **RELEASED 2026-08-31T12:57:17+08:00** by `Codex`. Commit `c3003254`; the C5 migration blueprint, v0.1.8 iteration records, and TODOLIST split are complete. Full workspace and document consistency gates passed. Implementation remains deferred to receiving agents; no product cutover, `dev` merge, or push.
 
