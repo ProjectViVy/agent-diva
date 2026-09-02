@@ -131,6 +131,49 @@ async fn attachment_store_rejects_paths_and_unbounded_input() {
             max_bytes: TEST_MAX_ATTACHMENT_BYTES
         })
     ));
+
+    let mut invalid_mime = ingress(Some("image.png"), b"x");
+    invalid_mime.declared_mime = Some("image".to_string());
+    assert!(matches!(
+        store.put(invalid_mime).await,
+        Err(AttachmentStoreError::InvalidInput {
+            field: "declared_mime"
+        })
+    ));
+}
+
+#[test]
+fn attachment_reference_rejects_mime_size_and_filename_tampering() {
+    let digest = format!("{:x}", Sha256::digest(b"hello"));
+    let reference = AttachmentRef {
+        uri: format!("sha256:{digest}"),
+        media_type: "text/plain; charset=utf-8".to_string(),
+        size_bytes: 5,
+        sha256: digest,
+        file_name: Some("hello.txt".to_string()),
+    };
+    assert!(validate_attachment_reference(&reference, b"hello").is_ok());
+
+    let mut invalid_mime = reference.clone();
+    invalid_mime.media_type = "text".to_string();
+    assert!(matches!(
+        validate_attachment_reference(&invalid_mime, b"hello"),
+        Err(AttachmentStoreError::InvalidReference { .. })
+    ));
+
+    let mut invalid_size = reference.clone();
+    invalid_size.size_bytes = 4;
+    assert!(matches!(
+        validate_attachment_reference(&invalid_size, b"hello"),
+        Err(AttachmentStoreError::InvalidReference { .. })
+    ));
+
+    let mut invalid_name = reference;
+    invalid_name.file_name = Some("..\\hello.txt".to_string());
+    assert!(matches!(
+        validate_attachment_reference(&invalid_name, b"hello"),
+        Err(AttachmentStoreError::InvalidReference { .. })
+    ));
 }
 
 #[test]
@@ -319,7 +362,6 @@ fn frozen_capabilities(channel: &str) -> BTreeSet<ChannelCapability> {
             EgressReply,
             ReliabilityHealth,
             ReliabilityHeartbeat,
-            ReliabilityResume,
             ReliabilityTokenRefresh,
             ReliabilityPacing,
             ReliabilitySupervisedRestart,

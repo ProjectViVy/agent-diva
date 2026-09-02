@@ -6,7 +6,7 @@ use agent_diva_core::channel::{
     capacity, ChannelAddress, ChannelCapabilities, ChannelCapability, ChannelCommand,
     ChannelDirection, ChannelEnvelopeV1, ChannelHealth, ChannelHealthStatus, ChannelId,
     ChannelOrigin, ChannelPayloadV1, ContentPart, Correlation, DeliveryReceipt, DeliveryStatus,
-    FabricIngressItem, FabricKernel, TypingState,
+    FabricIngressItem, FabricKernel, ReactionOperation, TypingState,
 };
 use async_trait::async_trait;
 use std::collections::VecDeque;
@@ -159,6 +159,24 @@ fn send_command(channel: &str, text: &str, idempotent: bool) -> ChannelCommand {
     }
 }
 
+fn send_part_command(channel: &str, part: ContentPart) -> ChannelCommand {
+    ChannelCommand::Send {
+        envelope: ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            ChannelAddress::new(channel, "chat"),
+            Correlation::new(format!("{channel}:chat")),
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![part],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        ),
+        idempotency_key: None,
+    }
+}
+
 fn failed_receipt(command: &ChannelCommand, retry_after_ms: Option<u64>) -> DeliveryReceipt {
     let mut receipt = delivered_receipt(command);
     receipt.status = DeliveryStatus::Failed;
@@ -276,6 +294,120 @@ async fn unsupported_capability_never_calls_adapter_execute() {
         })
     ));
     assert_eq!(adapter.execute_count.load(Ordering::Acquire), 0);
+}
+
+#[tokio::test]
+async fn every_unsupported_command_is_rejected_before_transport() {
+    let registry = AdapterRegistry::new();
+    let adapter = Arc::new(FakeAdapter::new(
+        "unsupported",
+        capabilities([ChannelCapability::EgressText]),
+    ));
+    registry.register(adapter.clone()).await.unwrap();
+
+    let address = ChannelAddress::new("unsupported", "chat");
+    let correlation = Correlation::new("unsupported:chat");
+    let commands = vec![
+        ChannelCommand::Typing {
+            address: address.clone(),
+            correlation: correlation.clone(),
+            state: TypingState::Started,
+            idempotency_key: None,
+        },
+        ChannelCommand::Edit {
+            address: address.clone(),
+            correlation: correlation.clone(),
+            target_message_id: "message".to_string(),
+            parts: vec![ContentPart::Text {
+                text: "edited".to_string(),
+            }],
+            idempotency_key: None,
+        },
+        ChannelCommand::Delete {
+            address: address.clone(),
+            correlation: correlation.clone(),
+            target_message_id: "message".to_string(),
+            idempotency_key: None,
+        },
+        ChannelCommand::React {
+            address: address.clone(),
+            correlation: correlation.clone(),
+            target_message_id: "message".to_string(),
+            operation: ReactionOperation::Add,
+            emoji: "thumbsup".to_string(),
+            idempotency_key: None,
+        },
+        ChannelCommand::FinalizeStream {
+            address: address.clone(),
+            correlation: correlation.clone(),
+            parts: vec![ContentPart::Text {
+                text: "final".to_string(),
+            }],
+            idempotency_key: None,
+        },
+        send_part_command(
+            "unsupported",
+            ContentPart::Markdown {
+                markdown: "**markdown**".to_string(),
+            },
+        ),
+        send_part_command(
+            "unsupported",
+            ContentPart::Image {
+                attachment: test_attachment("image/png"),
+            },
+        ),
+        send_part_command(
+            "unsupported",
+            ContentPart::Audio {
+                attachment: test_attachment("audio/ogg"),
+                transcript: None,
+            },
+        ),
+        send_part_command(
+            "unsupported",
+            ContentPart::Video {
+                attachment: test_attachment("video/mp4"),
+            },
+        ),
+        send_part_command(
+            "unsupported",
+            ContentPart::File {
+                attachment: test_attachment("application/pdf"),
+            },
+        ),
+        send_part_command(
+            "unsupported",
+            ContentPart::Card {
+                schema: "c5.card".to_string(),
+                body: serde_json::json!({"title": "unsupported"}),
+            },
+        ),
+    ];
+
+    for command in commands {
+        let before = adapter.execute_count.load(Ordering::Acquire);
+        let error = registry.execute_direct(command).await.unwrap_err();
+        assert!(matches!(
+            error,
+            AdapterRegistryError::Adapter(AdapterError::UnsupportedCapability { .. })
+        ));
+        assert_eq!(
+            adapter.execute_count.load(Ordering::Acquire),
+            before,
+            "unsupported command reached the adapter transport"
+        );
+    }
+}
+
+fn test_attachment(media_type: &str) -> agent_diva_core::channel::AttachmentRef {
+    agent_diva_core::channel::AttachmentRef {
+        uri: "sha256:fixture".to_string(),
+        media_type: media_type.to_string(),
+        size_bytes: 7,
+        sha256: "fixture".to_string(),
+        file_name: Some("fixture.bin".to_string()),
+    }
 }
 
 #[tokio::test(start_paused = true)]

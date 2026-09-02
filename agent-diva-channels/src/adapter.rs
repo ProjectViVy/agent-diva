@@ -94,7 +94,7 @@ impl IngressAttachment {
         if self
             .declared_mime
             .as_deref()
-            .is_some_and(|value| value.trim().is_empty())
+            .is_some_and(|value| !is_valid_media_type(value))
         {
             return Err(AttachmentStoreError::InvalidInput {
                 field: "declared_mime",
@@ -155,9 +155,9 @@ pub fn validate_attachment_reference(
     reference: &AttachmentRef,
     bytes: &[u8],
 ) -> Result<(), AttachmentStoreError> {
-    if reference.media_type.trim().is_empty() {
+    if !is_valid_media_type(&reference.media_type) {
         return Err(AttachmentStoreError::InvalidReference {
-            diagnosis: "media_type is empty".to_string(),
+            diagnosis: "media_type is not a valid MIME essence".to_string(),
         });
     }
     if reference.size_bytes != bytes.len() as u64 {
@@ -186,6 +186,24 @@ pub fn validate_attachment_reference(
         });
     }
     Ok(())
+}
+
+fn is_valid_media_type(value: &str) -> bool {
+    let essence = value.split(';').next().map(str::trim).unwrap_or_default();
+    let mut components = essence.split('/');
+    let Some(kind) = components.next() else {
+        return false;
+    };
+    let Some(subtype) = components.next() else {
+        return false;
+    };
+    !kind.is_empty()
+        && !subtype.is_empty()
+        && components.next().is_none()
+        && !kind.chars().any(char::is_whitespace)
+        && !subtype.chars().any(char::is_whitespace)
+        && !kind.chars().any(char::is_control)
+        && !subtype.chars().any(char::is_control)
 }
 
 /// Apply the executable DIVA allowlist contract to a sender identifier.
