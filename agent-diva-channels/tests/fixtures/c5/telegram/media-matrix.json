@@ -1,0 +1,38 @@
+[
+  {
+    "update_id": 72001,
+    "message": {
+      "message_id": 201,
+      "from": {"id": 51, "username": "voice-user"},
+      "chat": {"id": 51, "kind": "private"},
+      "voice": {"file_id": "voice-1", "file_size": 3, "mime_type": "audio/ogg"}
+    }
+  },
+  {
+    "update_id": 72002,
+    "message": {
+      "message_id": 202,
+      "from": {"id": 52, "username": "audio-user"},
+      "chat": {"id": 52, "kind": "private"},
+      "audio": {"file_id": "audio-1", "file_name": "track.mp3", "file_size": 3, "mime_type": "audio/mpeg"}
+    }
+  },
+  {
+    "update_id": 72003,
+    "message": {
+      "message_id": 203,
+      "from": {"id": 53, "username": "video-user"},
+      "chat": {"id": 53, "kind": "private"},
+      "video": {"file_id": "video-1", "file_name": "clip.mp4", "file_size": 3, "mime_type": "video/mp4"}
+    }
+  },
+  {
+    "update_id": 72004,
+    "message": {
+      "message_id": 204,
+      "from": {"id": 54, "username": "document-user"},
+      "chat": {"id": 54, "kind": "private"},
+      "document": {"file_id": "document-1", "file_name": "report.pdf", "file_size": 3, "mime_type": "application/pdf"}
+    }
+  }
+]
