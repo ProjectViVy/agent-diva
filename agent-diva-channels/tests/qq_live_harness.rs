@@ -49,7 +49,7 @@ impl ChannelAttachmentStore for UnusedAttachmentStore {
 }
 
 /// Run manually with `cargo test -p agent-diva-channels --test qq_live_harness
-/// -- --ignored --nocapture` after exporting all five `AGENT_DIVA_LIVE_QQ_*`
+/// -- --ignored --nocapture` after exporting all four `AGENT_DIVA_LIVE_QQ_*`
 /// variables. Missing credentials are reported as a blocked gate and do not
 /// attempt network access.
 #[tokio::test]
