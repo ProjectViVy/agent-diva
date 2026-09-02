@@ -1,0 +1,15 @@
+{
+  "protocol": "websocket-transport",
+  "server_to_client": {
+    "ping": {
+      "kind": "ping",
+      "payload": "dingtalk-ping-fixture"
+    }
+  },
+  "expected_client_to_server": {
+    "pong": {
+      "kind": "pong",
+      "payload": "dingtalk-ping-fixture"
+    }
+  }
+}

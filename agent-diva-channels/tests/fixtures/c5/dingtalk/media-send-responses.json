@@ -1,0 +1,19 @@
+{
+  "uploads": [
+    {"media_id": "media-image-redacted"},
+    {"media_id": "media-voice-redacted"},
+    {"media_id": "media-video-redacted"},
+    {"media_id": "media-file-redacted"}
+  ],
+  "sends": [
+    {"messageId": "message-image-redacted"},
+    {"messageId": "message-voice-redacted"},
+    {"messageId": "message-video-redacted"},
+    {"messageId": "message-file-redacted"}
+  ],
+  "partial_failure": {
+    "status": 429,
+    "body": {"message": "rate limited"},
+    "retry_after_seconds": 7
+  }
+}

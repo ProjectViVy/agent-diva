@@ -1,0 +1,56 @@
+{
+  "events": [
+    {
+      "msgId": "image-message-redacted",
+      "senderStaffId": "sender-redacted",
+      "conversationId": "cid-redacted",
+      "conversationType": "2",
+      "content": {
+        "image": {
+          "downloadUrl": "https://oapi.dingtalk.com/media/image-redacted",
+          "fileName": "fixture.png",
+          "mimeType": "image/png"
+        }
+      }
+    },
+    {
+      "msgId": "audio-message-redacted",
+      "senderStaffId": "sender-redacted",
+      "conversationId": "cid-redacted",
+      "conversationType": "2",
+      "content": {
+        "audio": {
+          "downloadUrl": "https://oapi.dingtalk.com/media/audio-redacted",
+          "fileName": "fixture.mp3",
+          "mimeType": "audio/mpeg"
+        }
+      }
+    },
+    {
+      "msgId": "video-message-redacted",
+      "senderStaffId": "sender-redacted",
+      "conversationId": "cid-redacted",
+      "conversationType": "2",
+      "content": {
+        "video": {
+          "downloadUrl": "https://oapi.dingtalk.com/media/video-redacted",
+          "fileName": "fixture.mp4",
+          "mimeType": "video/mp4"
+        }
+      }
+    },
+    {
+      "msgId": "file-message-redacted",
+      "senderStaffId": "sender-redacted",
+      "conversationId": "cid-redacted",
+      "conversationType": "2",
+      "content": {
+        "file": {
+          "downloadUrl": "https://oapi.dingtalk.com/media/file-redacted",
+          "fileName": "fixture.bin",
+          "mimeType": "application/octet-stream"
+        }
+      }
+    }
+  ]
+}

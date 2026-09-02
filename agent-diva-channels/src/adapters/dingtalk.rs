@@ -43,6 +43,7 @@ const MAX_ATTACHMENT_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_DEDUP_ENTRIES: usize = 1_000;
 const TOKEN_SAFETY_WINDOW: Duration = Duration::from_secs(60);
 const STREAM_ADMISSION_DEADLINE: Duration = Duration::from_secs(2);
+const INITIAL_RECONNECT_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_RECONNECT_BACKOFF: Duration = Duration::from_secs(60);
 const MAX_SESSION_WEBHOOKS: usize = 1_000;
 
@@ -51,6 +52,13 @@ const MAX_SESSION_WEBHOOKS: usize = 1_000;
 struct HttpResponse {
     status: u16,
     body: Value,
+    retry_after: Option<Duration>,
+}
+
+#[derive(Debug, Clone)]
+struct BytesResponse {
+    status: u16,
+    bytes: Vec<u8>,
     retry_after: Option<Duration>,
 }
 
@@ -94,7 +102,7 @@ trait DingTalkHttp: Send + Sync {
         &self,
         url: &str,
         access_token: Option<&str>,
-    ) -> Result<Vec<u8>, TransportError>;
+    ) -> Result<BytesResponse, TransportError>;
 }
 
 #[allow(dead_code)]
@@ -193,7 +201,7 @@ impl DingTalkHttp for ReqwestDingTalkHttp {
         &self,
         url: &str,
         access_token: Option<&str>,
-    ) -> Result<Vec<u8>, TransportError> {
+    ) -> Result<BytesResponse, TransportError> {
         let mut request = self.client.get(url);
         if let Some(token) = access_token {
             request = request.header("x-acs-dingtalk-access-token", token);
@@ -202,17 +210,23 @@ impl DingTalkHttp for ReqwestDingTalkHttp {
             .send()
             .await
             .map_err(|error| TransportError::Request(error.to_string()))?;
-        if !response.status().is_success() {
-            return Err(TransportError::Request(format!(
-                "media download returned HTTP {}",
-                response.status()
-            )));
-        }
-        response
+        let status = response.status().as_u16();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .map(Duration::from_secs);
+        let bytes = response
             .bytes()
             .await
             .map(|bytes| bytes.to_vec())
-            .map_err(|error| TransportError::Request(error.to_string()))
+            .map_err(|error| TransportError::Request(error.to_string()))?;
+        Ok(BytesResponse {
+            status,
+            bytes,
+            retry_after,
+        })
     }
 }
 
@@ -338,6 +352,7 @@ pub struct DingTalkAdapter {
     session_webhooks: Arc<Mutex<HashMap<String, CachedSessionWebhook>>>,
     health: Arc<Mutex<ChannelHealth>>,
     stopped: CancellationToken,
+    reconnect_base: Duration,
 }
 
 impl DingTalkAdapter {
@@ -368,6 +383,7 @@ impl DingTalkAdapter {
             session_webhooks: Arc::new(Mutex::new(HashMap::new())),
             health: Arc::new(Mutex::new(ChannelHealth::new(ChannelHealthStatus::Unknown))),
             stopped: CancellationToken::new(),
+            reconnect_base: INITIAL_RECONNECT_BACKOFF,
         }
     }
 
@@ -387,11 +403,13 @@ impl DingTalkAdapter {
         } else {
             &self.config.dm_policy
         };
-        if policy.eq_ignore_ascii_case("allowlist") {
-            is_sender_allowed(&self.config.allow_from, sender_id)
-                || is_sender_allowed(&self.config.allow_from, conversation_id)
-        } else {
-            is_sender_allowed(&self.config.allow_from, sender_id)
+        match policy.trim().to_ascii_lowercase().as_str() {
+            "deny" | "closed" | "disabled" => false,
+            "allowlist" => {
+                is_sender_allowed(&self.config.allow_from, sender_id)
+                    || is_sender_allowed(&self.config.allow_from, conversation_id)
+            }
+            _ => is_sender_allowed(&self.config.allow_from, sender_id),
         }
     }
 
@@ -553,11 +571,22 @@ impl DingTalkAdapter {
         part: UploadPart,
     ) -> Result<HttpResponse, AdapterError> {
         let token = self.access_token().await?;
-        let response = self
+        let mut response = self
             .http
-            .post_multipart(DINGTALK_MEDIA_UPLOAD_PATH, &token, media_kind, part)
+            .post_multipart(DINGTALK_MEDIA_UPLOAD_PATH, &token, media_kind, part.clone())
             .await
             .map_err(|error| execution_error("media_transport", error.to_string(), None, true))?;
+        if response.status == 401 || response.status == 403 {
+            self.invalidate_token();
+            let refreshed = self.access_token().await?;
+            response = self
+                .http
+                .post_multipart(DINGTALK_MEDIA_UPLOAD_PATH, &refreshed, media_kind, part)
+                .await
+                .map_err(|error| {
+                    execution_error("media_transport", error.to_string(), None, true)
+                })?;
+        }
         if response.status == 429 {
             return Err(AdapterError::RateLimited {
                 retry_after: response.retry_after.unwrap_or(Duration::from_secs(1)),
@@ -567,6 +596,40 @@ impl DingTalkAdapter {
             return Err(map_http_failure("media_upload", response));
         }
         Ok(response)
+    }
+
+    async fn authenticated_bytes(&self, url: &str) -> Result<Vec<u8>, AdapterError> {
+        let token = self.access_token().await?;
+        let mut response = self
+            .http
+            .get_bytes(url, Some(&token))
+            .await
+            .map_err(|error| execution_error("media_transport", error.to_string(), None, true))?;
+        if response.status == 401 || response.status == 403 {
+            self.invalidate_token();
+            let refreshed = self.access_token().await?;
+            response = self
+                .http
+                .get_bytes(url, Some(&refreshed))
+                .await
+                .map_err(|error| {
+                    execution_error("media_transport", error.to_string(), None, true)
+                })?;
+        }
+        if response.status == 429 {
+            return Err(AdapterError::RateLimited {
+                retry_after: response.retry_after.unwrap_or(Duration::from_secs(1)),
+            });
+        }
+        if response.status < 200 || response.status >= 300 {
+            return Err(execution_error(
+                format!("media_download_http_{}", response.status),
+                format!("DingTalk media download returned HTTP {}", response.status),
+                response.retry_after,
+                response.status >= 500,
+            ));
+        }
+        Ok(response.bytes)
     }
 
     async fn register_stream(&self) -> Result<(String, String), AdapterError> {
@@ -719,21 +782,15 @@ impl DingTalkAdapter {
             Some(self.access_token().await?)
         };
         for attachment in event.attachments {
-            let Some(token) = token.as_deref() else {
+            if token.is_none() {
                 return Err(execution_error(
                     "media_auth_missing",
                     "DingTalk media requires an access token",
                     None,
                     true,
                 ));
-            };
-            let bytes = self
-                .http
-                .get_bytes(&attachment.url, Some(token))
-                .await
-                .map_err(|error| {
-                    execution_error("media_download", error.to_string(), None, true)
-                })?;
+            }
+            let bytes = self.authenticated_bytes(&attachment.url).await?;
             if bytes.len() as u64 > MAX_ATTACHMENT_BYTES {
                 return Err(execution_error(
                     "attachment_too_large",
@@ -797,8 +854,8 @@ impl DingTalkAdapter {
                 .extensions
                 .insert("dingtalk.sender_name".to_string(), json!(name));
         }
-        if let Some(url) = event.session_webhook {
-            self.cache_session_webhook(&event.conversation_id, &url);
+        let session_webhook = event.session_webhook.clone();
+        if let Some(url) = session_webhook.as_deref() {
             envelope
                 .extensions
                 .insert("dingtalk.session_webhook".to_string(), json!(url));
@@ -808,6 +865,9 @@ impl DingTalkAdapter {
             .admit_ingress(envelope, STREAM_ADMISSION_DEADLINE, &context.cancel)
             .await
             .map_err(|error| map_admission_failure(error, update_message_id))?;
+        if let Some(url) = session_webhook {
+            self.cache_session_webhook(&chat_id, &url);
+        }
         self.mark_processed(update_message_id);
         Ok(())
     }
@@ -827,6 +887,10 @@ impl DingTalkAdapter {
     }
 
     fn cache_session_webhook(&self, conversation_id: &str, url: &str) {
+        self.cache_session_webhook_with_ttl(conversation_id, url, Duration::from_secs(3_600));
+    }
+
+    fn cache_session_webhook_with_ttl(&self, conversation_id: &str, url: &str, ttl: Duration) {
         if conversation_id.is_empty() || !is_trusted_dingtalk_url(url) {
             return;
         }
@@ -843,7 +907,7 @@ impl DingTalkAdapter {
             conversation_id.to_string(),
             CachedSessionWebhook {
                 url: url.to_string(),
-                expires_at: Instant::now() + Duration::from_secs(3_600),
+                expires_at: Instant::now() + ttl,
             },
         );
     }
@@ -1062,46 +1126,58 @@ impl DingTalkAdapter {
                 ContentPart::Image { attachment } => {
                     if !text_parts.is_empty() {
                         let text = text_parts.join("\n");
-                        self.send_text(&address, &correlation, &text).await?;
+                        let sent = self.send_text(&address, &correlation, &text).await;
+                        let sent = sent.map_err(|error| map_partial_send_error(&receipt, error))?;
+                        receipt = Some(sent);
                         text_parts.clear();
                     }
-                    receipt = Some(
-                        self.send_attachment(&address, &attachment, AttachmentKind::Image)
-                            .await?,
-                    );
+                    let sent = self
+                        .send_attachment(&address, &attachment, AttachmentKind::Image)
+                        .await
+                        .map_err(|error| map_partial_send_error(&receipt, error))?;
+                    receipt = Some(sent);
                 }
                 ContentPart::Audio { attachment, .. } => {
                     if !text_parts.is_empty() {
                         let text = text_parts.join("\n");
-                        self.send_text(&address, &correlation, &text).await?;
+                        let sent = self.send_text(&address, &correlation, &text).await;
+                        let sent = sent.map_err(|error| map_partial_send_error(&receipt, error))?;
+                        receipt = Some(sent);
                         text_parts.clear();
                     }
-                    receipt = Some(
-                        self.send_attachment(&address, &attachment, AttachmentKind::Audio)
-                            .await?,
-                    );
+                    let sent = self
+                        .send_attachment(&address, &attachment, AttachmentKind::Audio)
+                        .await
+                        .map_err(|error| map_partial_send_error(&receipt, error))?;
+                    receipt = Some(sent);
                 }
                 ContentPart::Video { attachment } => {
                     if !text_parts.is_empty() {
                         let text = text_parts.join("\n");
-                        self.send_text(&address, &correlation, &text).await?;
+                        let sent = self.send_text(&address, &correlation, &text).await;
+                        let sent = sent.map_err(|error| map_partial_send_error(&receipt, error))?;
+                        receipt = Some(sent);
                         text_parts.clear();
                     }
-                    receipt = Some(
-                        self.send_attachment(&address, &attachment, AttachmentKind::Video)
-                            .await?,
-                    );
+                    let sent = self
+                        .send_attachment(&address, &attachment, AttachmentKind::Video)
+                        .await
+                        .map_err(|error| map_partial_send_error(&receipt, error))?;
+                    receipt = Some(sent);
                 }
                 ContentPart::File { attachment } => {
                     if !text_parts.is_empty() {
                         let text = text_parts.join("\n");
-                        self.send_text(&address, &correlation, &text).await?;
+                        let sent = self.send_text(&address, &correlation, &text).await;
+                        let sent = sent.map_err(|error| map_partial_send_error(&receipt, error))?;
+                        receipt = Some(sent);
                         text_parts.clear();
                     }
-                    receipt = Some(
-                        self.send_attachment(&address, &attachment, AttachmentKind::File)
-                            .await?,
-                    );
+                    let sent = self
+                        .send_attachment(&address, &attachment, AttachmentKind::File)
+                        .await
+                        .map_err(|error| map_partial_send_error(&receipt, error))?;
+                    receipt = Some(sent);
                 }
                 ContentPart::Card { .. } => {
                     return Err(AdapterError::UnsupportedCapability {
@@ -1111,10 +1187,11 @@ impl DingTalkAdapter {
             }
         }
         if !text_parts.is_empty() {
-            receipt = Some(
-                self.send_text(&address, &correlation, &text_parts.join("\n"))
-                    .await?,
-            );
+            let sent = self
+                .send_text(&address, &correlation, &text_parts.join("\n"))
+                .await
+                .map_err(|error| map_partial_send_error(&receipt, error))?;
+            receipt = Some(sent);
         }
         receipt.ok_or_else(|| {
             execution_error(
@@ -1165,14 +1242,15 @@ impl DingTalkAdapter {
     ) -> Result<(), AdapterError> {
         let separator = if endpoint.contains('?') { '&' } else { '?' };
         let ws_url = format!("{endpoint}{separator}ticket={}", percent_encode(&ticket));
-        let (socket, _) = connect_async(&ws_url).await.map_err(|error| {
-            execution_error(
-                "stream_connect",
-                error.to_string(),
-                Some(Duration::from_secs(5)),
-                true,
-            )
-        })?;
+        let connected = tokio::select! {
+            biased;
+            _ = context.cancel.cancelled() => return Ok(()),
+            _ = self.stopped.cancelled() => return Ok(()),
+            result = connect_async(&ws_url) => result,
+        };
+        let (socket, _) = connected
+            .map_err(|error| execution_error("stream_connect", error.to_string(), None, true))?;
+        self.set_health(ChannelHealthStatus::Healthy, None);
         let (mut writer, mut reader) = socket.split();
         loop {
             let incoming = tokio::select! {
@@ -1185,18 +1263,13 @@ impl DingTalkAdapter {
                 return Err(execution_error(
                     "stream_closed",
                     "DingTalk Stream closed",
-                    Some(Duration::from_secs(5)),
+                    None,
                     true,
                 ));
             };
-            match incoming.map_err(|error| {
-                execution_error(
-                    "stream_read",
-                    error.to_string(),
-                    Some(Duration::from_secs(5)),
-                    true,
-                )
-            })? {
+            match incoming
+                .map_err(|error| execution_error("stream_read", error.to_string(), None, true))?
+            {
                 WsMessage::Text(text) => {
                     let parsed: StreamMessage = serde_json::from_str(&text).map_err(|error| {
                         execution_error("malformed_stream_frame", error.to_string(), None, false)
@@ -1222,7 +1295,7 @@ impl DingTalkAdapter {
                                     execution_error(
                                         "stream_ack_send",
                                         error.to_string(),
-                                        Some(Duration::from_secs(5)),
+                                        None,
                                         true,
                                     )
                                 })?;
@@ -1235,19 +1308,14 @@ impl DingTalkAdapter {
                         .send(WsMessage::Pong(payload))
                         .await
                         .map_err(|error| {
-                            execution_error(
-                                "stream_pong",
-                                error.to_string(),
-                                Some(Duration::from_secs(5)),
-                                true,
-                            )
+                            execution_error("stream_pong", error.to_string(), None, true)
                         })?;
                 }
                 WsMessage::Close(_) => {
                     return Err(execution_error(
                         "stream_closed",
                         "DingTalk requested close",
-                        Some(Duration::from_secs(5)),
+                        None,
                         true,
                     ));
                 }
@@ -1315,14 +1383,22 @@ impl ChannelAdapter for DingTalkAdapter {
     }
 
     async fn start(&self, context: AdapterContext) -> Result<(), AdapterError> {
-        let mut backoff = Duration::from_secs(5);
+        let mut backoff = self.reconnect_base;
         loop {
             if context.cancel.is_cancelled() || self.stopped.is_cancelled() {
                 return Ok(());
             }
-            let registration = self.register_stream().await;
+            let registration = tokio::select! {
+                biased;
+                _ = context.cancel.cancelled() => return Ok(()),
+                _ = self.stopped.cancelled() => return Ok(()),
+                result = self.register_stream() => result,
+            };
             let (endpoint, ticket) = match registration {
-                Ok(value) => value,
+                Ok(value) => {
+                    backoff = self.reconnect_base;
+                    value
+                }
                 Err(error) => {
                     self.set_health(ChannelHealthStatus::Degraded, Some(error.to_string()));
                     let wait = error
@@ -1338,7 +1414,9 @@ impl ChannelAdapter for DingTalkAdapter {
             };
             match self.run_stream_once(endpoint, ticket, &context).await {
                 Ok(()) => {
-                    self.set_health(ChannelHealthStatus::Healthy, None);
+                    if !self.stopped.is_cancelled() {
+                        self.set_health(ChannelHealthStatus::Healthy, None);
+                    }
                     return Ok(());
                 }
                 Err(error) => {
@@ -1384,7 +1462,17 @@ impl ChannelAdapter for DingTalkAdapter {
             }
         }
         match command {
-            ChannelCommand::Send { envelope, .. } => self.execute_send(envelope).await,
+            ChannelCommand::Send {
+                envelope,
+                idempotency_key,
+            } => {
+                // DingTalk exposes no documented idempotency field or header for
+                // these endpoints. Keep the runtime key local and do not claim
+                // that an outbound retry is safe; only an auth refresh retry is
+                // performed after a 401/403 response.
+                let _ = idempotency_key;
+                self.execute_send(envelope).await
+            }
             ChannelCommand::ProbeHealth { channel } => {
                 if channel != Self::channel_id() {
                     return Err(execution_error(
@@ -1429,8 +1517,24 @@ impl ChannelAdapter for DingTalkAdapter {
 
     async fn stop(&self) -> Result<(), AdapterError> {
         self.stopped.cancel();
+        self.set_health(
+            ChannelHealthStatus::Down,
+            Some("DingTalk adapter stopped".to_string()),
+        );
         Ok(())
     }
+}
+
+fn map_partial_send_error(previous: &Option<DeliveryReceipt>, error: AdapterError) -> AdapterError {
+    if previous.is_none() {
+        return error;
+    }
+    execution_error(
+        "partial_delivery",
+        format!("DingTalk send stopped after an earlier part was accepted: {error}"),
+        error.retry_after(),
+        error.is_retryable(),
+    )
 }
 
 fn map_http_failure(operation: &str, response: HttpResponse) -> AdapterError {
@@ -1667,6 +1771,7 @@ mod tests {
     use futures::{SinkExt, StreamExt};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::net::TcpListener;
+    use tokio::sync::oneshot;
     use tokio_tungstenite::accept_async;
 
     #[derive(Default)]
@@ -1710,7 +1815,9 @@ mod tests {
         json_calls: Mutex<Vec<(String, Option<String>, Value)>>,
         multipart_calls: Mutex<Vec<(String, String, String, UploadPart)>>,
         json_responses: Mutex<VecDeque<HttpResponse>>,
-        downloads: Mutex<VecDeque<Vec<u8>>>,
+        downloads: Mutex<VecDeque<BytesResponse>>,
+        download_calls: Mutex<Vec<(String, Option<String>)>>,
+        json_call_times: Mutex<Vec<(String, Instant)>>,
     }
 
     #[async_trait]
@@ -1721,6 +1828,10 @@ mod tests {
             access_token: Option<&str>,
             body: Value,
         ) -> Result<HttpResponse, TransportError> {
+            self.json_call_times
+                .lock()
+                .unwrap()
+                .push((path.to_string(), Instant::now()));
             self.json_calls.lock().unwrap().push((
                 path.to_string(),
                 access_token.map(ToOwned::to_owned),
@@ -1755,9 +1866,13 @@ mod tests {
 
         async fn get_bytes(
             &self,
-            _url: &str,
-            _access_token: Option<&str>,
-        ) -> Result<Vec<u8>, TransportError> {
+            url: &str,
+            access_token: Option<&str>,
+        ) -> Result<BytesResponse, TransportError> {
+            self.download_calls
+                .lock()
+                .unwrap()
+                .push((url.to_string(), access_token.map(ToOwned::to_owned)));
             self.downloads
                 .lock()
                 .unwrap()
@@ -1816,6 +1931,51 @@ mod tests {
         }
     }
 
+    fn fixture_attachment_with(media_type: &str, file_name: &str) -> AttachmentRef {
+        let mut attachment = fixture_attachment();
+        attachment.media_type = media_type.to_string();
+        attachment.file_name = Some(file_name.to_string());
+        attachment
+    }
+
+    fn fixture_value(path: &str) -> Value {
+        match path {
+            "token-response.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/token-response.json"
+            ))
+            .unwrap(),
+            "group-send-response.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/group-send-response.json"
+            ))
+            .unwrap(),
+            "media-upload-response.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/media-upload-response.json"
+            ))
+            .unwrap(),
+            "media-send-responses.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/media-send-responses.json"
+            ))
+            .unwrap(),
+            "inbound-media.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/inbound-media.json"
+            ))
+            .unwrap(),
+            "stream-reconnect.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/stream-reconnect.json"
+            ))
+            .unwrap(),
+            "stream-transport.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/stream-transport.json"
+            ))
+            .unwrap(),
+            "hmac-session-webhook.json" => serde_json::from_str(include_str!(
+                "../../tests/fixtures/c5/dingtalk/hmac-session-webhook.json"
+            ))
+            .unwrap(),
+            _ => panic!("unknown DingTalk test fixture: {path}"),
+        }
+    }
+
     #[test]
     fn signature_matches_octos_shape_and_fails_closed() {
         let signature = dingtalk_signature("1700000000000", "secret");
@@ -1826,6 +1986,35 @@ mod tests {
         ));
         assert!(!verify_dingtalk_signature("secret", "1700000000000", "bad"));
         assert!(!verify_dingtalk_signature("secret", "", &signature));
+    }
+
+    #[tokio::test]
+    async fn hmac_fixture_and_session_webhook_cache_are_bounded_and_fail_closed() {
+        let fixture = fixture_value("hmac-session-webhook.json");
+        let timestamp = fixture["timestamp"].as_str().unwrap();
+        let secret = fixture["secret"].as_str().unwrap();
+        let signature = fixture["sign"].as_str().unwrap();
+        assert_eq!(dingtalk_signature(timestamp, secret), signature);
+        assert!(verify_dingtalk_signature(secret, timestamp, signature));
+        assert!(!verify_dingtalk_signature(secret, timestamp, "short"));
+        assert!(!verify_dingtalk_signature(secret, "", signature));
+
+        let adapter = adapter(Arc::new(FakeHttp::default()));
+        let trusted = fixture["sessionWebhook"].as_str().unwrap();
+        let untrusted = fixture["untrustedSessionWebhook"].as_str().unwrap();
+        adapter.cache_session_webhook("cid-cache", trusted);
+        adapter.cache_session_webhook("cid-cache", untrusted);
+        assert_eq!(
+            adapter.cached_session_webhook("cid-cache").as_deref(),
+            Some(trusted)
+        );
+
+        adapter.cache_session_webhook_with_ttl("cid-expiring", trusted, Duration::from_millis(1));
+        assert!(adapter.cached_session_webhook("cid-expiring").is_some());
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        assert!(adapter.cached_session_webhook("cid-expiring").is_none());
+        assert!(is_trusted_dingtalk_url(trusted));
+        assert!(!is_trusted_dingtalk_url(untrusted));
     }
 
     #[test]
@@ -1846,12 +2035,17 @@ mod tests {
         fake.json_responses.lock().unwrap().extend([
             HttpResponse {
                 status: 200,
-                body: json!({"accessToken":"token", "expireIn":3600}),
+                body: fixture_value("token-response.json"),
                 retry_after: None,
             },
             HttpResponse {
                 status: 200,
-                body: json!({"messageId":"message-1"}),
+                body: fixture_value("group-send-response.json"),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"messageId":"message-2"}),
                 retry_after: None,
             },
         ]);
@@ -1863,12 +2057,29 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(receipt.platform_message_id.as_deref(), Some("message-1"));
+        assert_eq!(
+            receipt.platform_message_id.as_deref(),
+            Some("dingtalk-message-redacted")
+        );
+        let second_receipt = sender_adapter
+            .execute(ChannelCommand::Send {
+                envelope: text_envelope("cid-group", "cached token"),
+                idempotency_key: Some("idempotent-2".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            second_receipt.platform_message_id.as_deref(),
+            Some("message-2")
+        );
         let calls = fake.json_calls.lock().unwrap();
+        assert_eq!(calls.len(), 3);
         assert_eq!(calls[0].0, DINGTALK_TOKEN_PATH);
         assert_eq!(calls[1].0, DINGTALK_GROUP_SEND_PATH);
-        assert_eq!(calls[1].1.as_deref(), Some("token"));
+        assert_eq!(calls[1].1.as_deref(), Some("redacted-token"));
         assert_eq!(calls[1].2["openConversationId"], "cid-group");
+        assert_eq!(calls[2].0, DINGTALK_GROUP_SEND_PATH);
+        assert_eq!(calls[2].1.as_deref(), Some("redacted-token"));
     }
 
     #[tokio::test]
@@ -1912,6 +2123,60 @@ mod tests {
         assert_eq!(calls.len(), 4);
         assert_eq!(calls[1].1.as_deref(), Some("token-first"));
         assert_eq!(calls[3].1.as_deref(), Some("token-second"));
+        assert!(calls
+            .iter()
+            .all(|(_, _, body)| !body.to_string().contains("retry-key")));
+    }
+
+    #[tokio::test]
+    async fn oauth_cache_expiry_and_single_flight_are_observable() {
+        let fake = Arc::new(FakeHttp::default());
+        let mut short_lived = fixture_value("token-response.json");
+        short_lived["accessToken"] = json!("token-first");
+        short_lived["expireIn"] = json!(1);
+        fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: short_lived,
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"accessToken":"token-after-expiry", "expireIn":3600}),
+                retry_after: None,
+            },
+        ]);
+        let adapter = Arc::new(adapter(fake.clone()));
+        let tasks = (0..8)
+            .map(|_| {
+                let adapter = adapter.clone();
+                tokio::spawn(async move { adapter.access_token().await })
+            })
+            .collect::<Vec<_>>();
+        for task in tasks {
+            assert_eq!(task.await.unwrap().unwrap(), "token-first");
+        }
+        assert_eq!(
+            fake.json_calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|call| call.0 == DINGTALK_TOKEN_PATH)
+                .count(),
+            1
+        );
+
+        tokio::time::sleep(Duration::from_millis(1_100)).await;
+        assert_eq!(adapter.access_token().await.unwrap(), "token-after-expiry");
+        assert_eq!(
+            fake.json_calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|call| call.0 == DINGTALK_TOKEN_PATH)
+                .count(),
+            2
+        );
     }
 
     #[tokio::test]
@@ -2020,6 +2285,282 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn media_upload_refreshes_oauth_once_after_401() {
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: json!({"accessToken":"token-upload-first", "expireIn":3600}),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 401,
+                body: json!({"message":"expired"}),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"accessToken":"token-upload-second", "expireIn":3600}),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: fixture_value("media-upload-response.json"),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: fixture_value("group-send-response.json"),
+                retry_after: None,
+            },
+        ]);
+        let adapter = adapter(fake.clone());
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope: ChannelEnvelopeV1::new(
+                    ChannelDirection::Egress,
+                    ChannelAddress::new("dingtalk", "cid-group"),
+                    Correlation::new("dingtalk:cid-group"),
+                    ChannelOrigin::Runtime,
+                    ChannelPayloadV1::Message {
+                        parts: vec![ContentPart::Image {
+                            attachment: fixture_attachment(),
+                        }],
+                        subject: None,
+                        locale: None,
+                        context: None,
+                    },
+                ),
+                idempotency_key: Some("upload-retry-key".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.platform_message_id.as_deref(),
+            Some("dingtalk-message-redacted")
+        );
+        let uploads = fake.multipart_calls.lock().unwrap();
+        assert_eq!(uploads.len(), 2);
+        assert_eq!(uploads[0].1, "token-upload-first");
+        assert_eq!(uploads[1].1, "token-upload-second");
+        assert_eq!(uploads[0].2, "image");
+        assert_eq!(uploads[1].3.bytes, vec![1, 2, 3]);
+        let calls = fake.json_calls.lock().unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| call.0 == DINGTALK_TOKEN_PATH)
+                .count(),
+            2
+        );
+        assert!(calls
+            .iter()
+            .all(|(_, _, body)| !body.to_string().contains("upload-retry-key")));
+    }
+
+    #[tokio::test]
+    async fn media_image_audio_video_file_use_typed_group_wire_shapes() {
+        let fixture = fixture_value("media-send-responses.json");
+        let uploads = fixture["uploads"].as_array().unwrap();
+        let sends = fixture["sends"].as_array().unwrap();
+        assert_eq!(uploads.len(), 4);
+        assert_eq!(sends.len(), 4);
+
+        let fake = Arc::new(FakeHttp::default());
+        let mut responses = fake.json_responses.lock().unwrap();
+        responses.push_back(HttpResponse {
+            status: 200,
+            body: fixture_value("token-response.json"),
+            retry_after: None,
+        });
+        for (upload, send) in uploads.iter().zip(sends.iter()) {
+            responses.push_back(HttpResponse {
+                status: 200,
+                body: upload.clone(),
+                retry_after: None,
+            });
+            responses.push_back(HttpResponse {
+                status: 200,
+                body: send.clone(),
+                retry_after: None,
+            });
+        }
+        drop(responses);
+
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            ChannelAddress::new("dingtalk", "cid-group"),
+            Correlation::new("dingtalk:cid-group"),
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![
+                    ContentPart::Image {
+                        attachment: fixture_attachment_with("image/png", "fixture.png"),
+                    },
+                    ContentPart::Audio {
+                        attachment: fixture_attachment_with("audio/mpeg", "fixture.mp3"),
+                        transcript: None,
+                    },
+                    ContentPart::Video {
+                        attachment: fixture_attachment_with("video/mp4", "fixture.mp4"),
+                    },
+                    ContentPart::File {
+                        attachment: fixture_attachment_with(
+                            "application/octet-stream",
+                            "fixture.bin",
+                        ),
+                    },
+                ],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        let adapter = adapter(fake.clone());
+        let receipt = adapter
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: Some("platform-key-not-forwarded".to_string()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.platform_message_id.as_deref(),
+            Some("message-file-redacted")
+        );
+
+        let uploads = fake.multipart_calls.lock().unwrap();
+        assert_eq!(uploads.len(), 4);
+        assert_eq!(
+            uploads
+                .iter()
+                .map(|call| call.2.as_str())
+                .collect::<Vec<_>>(),
+            ["image", "voice", "file", "file"]
+        );
+        assert_eq!(uploads[0].3.media_type.as_deref(), Some("image/png"));
+        assert_eq!(uploads[1].3.media_type.as_deref(), Some("audio/mpeg"));
+        assert_eq!(uploads[2].3.media_type.as_deref(), Some("video/mp4"));
+        assert_eq!(
+            uploads[3].3.media_type.as_deref(),
+            Some("application/octet-stream")
+        );
+        assert_eq!(
+            uploads
+                .iter()
+                .map(|call| call.3.filename.as_str())
+                .collect::<Vec<_>>(),
+            ["fixture.png", "fixture.mp3", "fixture.mp4", "fixture.bin"]
+        );
+        drop(uploads);
+
+        let calls = fake.json_calls.lock().unwrap();
+        let sends = calls
+            .iter()
+            .filter(|call| call.0 == DINGTALK_GROUP_SEND_PATH)
+            .collect::<Vec<_>>();
+        assert_eq!(sends.len(), 4);
+        let expected = [
+            ("sampleImageMsg", "photoURL", "media-image-redacted"),
+            ("sampleFileMsg", "fileType", "voice"),
+            ("sampleFileMsg", "fileType", "video"),
+            ("sampleFileMsg", "fileType", "file"),
+        ];
+        for (call, (msg_key, parameter, value)) in sends.iter().zip(expected) {
+            assert_eq!(call.2["openConversationId"], "cid-group");
+            assert_eq!(call.2["msgKey"], msg_key);
+            let params: Value = serde_json::from_str(call.2["msgParam"].as_str().unwrap()).unwrap();
+            assert_eq!(params[parameter], value);
+        }
+        assert!(calls
+            .iter()
+            .all(|(_, _, body)| !body.to_string().contains("platform-key-not-forwarded")));
+    }
+
+    #[tokio::test]
+    async fn media_multi_part_failure_is_typed_and_never_claims_retry_safe() {
+        let fixture = fixture_value("media-send-responses.json");
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: fixture_value("token-response.json"),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: fixture["uploads"][0].clone(),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: fixture["sends"][0].clone(),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: fixture["uploads"][1].clone(),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: fixture["partial_failure"]["status"].as_u64().unwrap() as u16,
+                body: fixture["partial_failure"]["body"].clone(),
+                retry_after: Some(Duration::from_secs(
+                    fixture["partial_failure"]["retry_after_seconds"]
+                        .as_u64()
+                        .unwrap(),
+                )),
+            },
+        ]);
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            ChannelAddress::new("dingtalk", "cid-group"),
+            Correlation::new("dingtalk:cid-group"),
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![
+                    ContentPart::Image {
+                        attachment: fixture_attachment_with("image/png", "first.png"),
+                    },
+                    ContentPart::File {
+                        attachment: fixture_attachment_with(
+                            "application/octet-stream",
+                            "second.bin",
+                        ),
+                    },
+                ],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        let error = adapter(fake.clone())
+            .execute(ChannelCommand::Send {
+                envelope,
+                idempotency_key: Some("unsafe-retry-key".to_string()),
+            })
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            AdapterError::Execution {
+                ref code,
+                retry_after: Some(after),
+                retryable: true,
+                ..
+            } if code == "partial_delivery" && after == Duration::from_secs(7)
+        ));
+        assert_eq!(fake.multipart_calls.lock().unwrap().len(), 2);
+        assert_eq!(fake.json_calls.lock().unwrap().len(), 3);
+        assert!(fake
+            .json_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, _, body)| !body.to_string().contains("unsafe-retry-key")));
+    }
+
+    #[tokio::test]
     async fn stream_register_callback_ack_cancel_and_dedup_are_wire_bound() {
         let (endpoint, server) = spawn_stream_fixture().await;
         let fake = Arc::new(FakeHttp::default());
@@ -2059,11 +2600,14 @@ mod tests {
             .unwrap()
             .envelope()
             .clone();
-        assert_eq!(envelope.address.chat_id, "user-1");
-        assert_eq!(envelope.address.sender_id.as_deref(), Some("sender"));
+        assert_eq!(envelope.address.chat_id, "cid-redacted");
+        assert_eq!(
+            envelope.address.sender_id.as_deref(),
+            Some("sender-redacted")
+        );
         assert_eq!(
             envelope.correlation.message_id.as_deref(),
-            Some("dingtalk-message-1")
+            Some("message-redacted")
         );
         assert!(
             tokio::time::timeout(Duration::from_millis(50), consumer.recv_ingress())
@@ -2075,9 +2619,232 @@ mod tests {
         assert!(task.await.unwrap().is_ok());
         let responses = server.await.unwrap();
         assert!(responses.iter().any(|response| {
-            response["code"] == 200 && response["headers"]["messageId"] == "update-1"
+            response["code"] == 200 && response["headers"]["messageId"] == "stream-message-redacted"
         }));
         assert_eq!(responses.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn stream_server_ping_gets_transport_pong_without_active_heartbeat() {
+        let fixture = fixture_value("stream-transport.json");
+        let payload = fixture["server_to_client"]["ping"]["payload"]
+            .as_str()
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        let (endpoint, server) = spawn_stream_ping_fixture(payload.clone()).await;
+        let adapter = adapter(Arc::new(FakeHttp::default()));
+        let context = AdapterContext {
+            fabric: FabricConsumer::new().0,
+            cancel: CancellationToken::new(),
+        };
+        let result = adapter
+            .run_stream_once(endpoint, "ticket-fixture".to_string(), &context)
+            .await;
+        assert!(matches!(
+            result,
+            Err(AdapterError::Execution { ref code, .. }) if code == "stream_closed"
+        ));
+        assert_eq!(server.await.unwrap(), payload);
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    async fn stream_admission_failure_is_typed_and_does_not_commit_ack_state() {
+        let adapter = adapter(Arc::new(FakeHttp::default()));
+        let (fabric, consumer) = FabricConsumer::new();
+        drop(consumer);
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+        let message: StreamMessage = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c5/dingtalk/stream-callback.json"
+        ))
+        .unwrap();
+        let error = adapter
+            .handle_stream_message(message, &context)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            AdapterError::Execution { ref code, retryable: true, .. }
+                if code == "fabric_closed"
+        ));
+        assert!(!adapter.is_processed("stream-message-redacted"));
+        assert!(!adapter.is_processed("message-redacted"));
+        assert!(adapter.cached_session_webhook("cid-redacted").is_none());
+    }
+
+    #[tokio::test]
+    async fn start_reconnects_with_backoff_and_transitions_health() {
+        let fixture = fixture_value("stream-reconnect.json");
+        let first_ticket = fixture["register"]["success"][0]["ticket"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let second_ticket = fixture["register"]["success"][1]["ticket"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let (endpoint, first_closed, second_ready, server) = spawn_stream_reconnect_fixture().await;
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: json!({"endpoint":endpoint,"ticket":first_ticket}),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"endpoint":endpoint,"ticket":second_ticket}),
+                retry_after: None,
+            },
+        ]);
+        let mut native = adapter(fake.clone());
+        native.reconnect_base =
+            Duration::from_millis(fixture["backoff"]["initial_ms"].as_u64().unwrap());
+        let adapter = Arc::new(native);
+        let (fabric, _consumer) = FabricConsumer::new();
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn({
+            let adapter = adapter.clone();
+            let cancel = cancel.clone();
+            async move { adapter.start(AdapterContext { fabric, cancel }).await }
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), first_closed)
+            .await
+            .unwrap()
+            .unwrap();
+        for _ in 0..100 {
+            if adapter.health().status == ChannelHealthStatus::Degraded {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Degraded);
+
+        tokio::time::timeout(Duration::from_secs(2), second_ready)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Healthy);
+        let register_times = fake
+            .json_call_times
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(path, _)| path == DINGTALK_STREAM_REGISTER_PATH)
+            .map(|(_, at)| *at)
+            .collect::<Vec<_>>();
+        assert_eq!(register_times.len(), 2);
+        assert!(register_times[1].duration_since(register_times[0]) >= Duration::from_millis(15));
+
+        cancel.cancel();
+        assert!(task.await.unwrap().is_ok());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn stop_interrupts_reconnect_backoff_and_marks_health_down() {
+        let fixture = fixture_value("stream-reconnect.json");
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().push_back(HttpResponse {
+            status: fixture["register"]["failure"]["status"].as_u64().unwrap() as u16,
+            body: fixture["register"]["failure"]["body"].clone(),
+            retry_after: None,
+        });
+        let mut native = adapter(fake.clone());
+        native.reconnect_base = Duration::from_secs(60);
+        let adapter = Arc::new(native);
+        let (fabric, _consumer) = FabricConsumer::new();
+        let task = tokio::spawn({
+            let adapter = adapter.clone();
+            async move {
+                adapter
+                    .start(AdapterContext {
+                        fabric,
+                        cancel: CancellationToken::new(),
+                    })
+                    .await
+            }
+        });
+        for _ in 0..100 {
+            if fake.json_calls.lock().unwrap().len() == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(fake.json_calls.lock().unwrap().len(), 1);
+        adapter.stop().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(adapter.health().status, ChannelHealthStatus::Down);
+        assert_eq!(
+            adapter.health().diagnosis.as_deref(),
+            Some("DingTalk adapter stopped")
+        );
+    }
+
+    #[tokio::test]
+    async fn health_probe_returns_receipt_and_typed_down_failure() {
+        let healthy_fake = Arc::new(FakeHttp::default());
+        healthy_fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: fixture_value("token-response.json"),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"status":"ok"}),
+                retry_after: None,
+            },
+        ]);
+        let healthy = adapter(healthy_fake.clone());
+        let receipt = healthy
+            .execute(ChannelCommand::ProbeHealth {
+                channel: DingTalkAdapter::channel_id(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            receipt.status,
+            agent_diva_core::channel::DeliveryStatus::Accepted
+        );
+        assert_eq!(healthy.health().status, ChannelHealthStatus::Healthy);
+        assert_eq!(
+            healthy_fake.json_calls.lock().unwrap()[1].0,
+            "/v1.0/robot/info"
+        );
+
+        let failed_fake = Arc::new(FakeHttp::default());
+        failed_fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: fixture_value("token-response.json"),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 503,
+                body: json!({"message":"robot unavailable"}),
+                retry_after: None,
+            },
+        ]);
+        let failed = adapter(failed_fake);
+        let error = failed
+            .execute(ChannelCommand::ProbeHealth {
+                channel: DingTalkAdapter::channel_id(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(failed.health().status, ChannelHealthStatus::Down);
+        assert!(error.is_retryable());
+        assert!(error.code().contains("robot/info_http_503"));
     }
 
     #[tokio::test]
@@ -2088,7 +2855,11 @@ mod tests {
             body: json!({"accessToken":"token", "expireIn":3600}),
             retry_after: None,
         });
-        fake.downloads.lock().unwrap().push_back(vec![9, 8, 7]);
+        fake.downloads.lock().unwrap().push_back(BytesResponse {
+            status: 200,
+            bytes: vec![9, 8, 7],
+            retry_after: None,
+        });
         let store = Arc::new(TestStore::default());
         let adapter = DingTalkAdapter::with_http(
             &config(),
@@ -2138,6 +2909,150 @@ mod tests {
         assert!(fake.downloads.lock().unwrap().is_empty());
     }
 
+    #[tokio::test]
+    async fn fixture_media_events_download_and_admit_all_four_typed_parts() {
+        let fixture = fixture_value("inbound-media.json");
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().push_back(HttpResponse {
+            status: 200,
+            body: fixture_value("token-response.json"),
+            retry_after: None,
+        });
+        fake.downloads
+            .lock()
+            .unwrap()
+            .extend((0..4).map(|_| BytesResponse {
+                status: 200,
+                bytes: vec![9, 8, 7],
+                retry_after: None,
+            }));
+        let store = Arc::new(TestStore::default());
+        let adapter = DingTalkAdapter::with_http(
+            &config(),
+            AdapterServices::new(store.clone()),
+            fake.clone(),
+        );
+        let (fabric, mut consumer) = FabricConsumer::new();
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+        for (index, event) in fixture["events"].as_array().unwrap().iter().enumerate() {
+            let message = StreamMessage {
+                spec_version: "1.0".to_string(),
+                msg_type: "CALLBACK".to_string(),
+                headers: StreamHeaders {
+                    message_id: format!("media-update-{index}"),
+                    topic: "/v1.0/im/bot/messages/get".to_string(),
+                    content_type: "application/json".to_string(),
+                    time: "fixture".to_string(),
+                    app_id: None,
+                },
+                data: event.to_string(),
+            };
+            assert!(matches!(
+                adapter.handle_stream_message(message, &context).await,
+                Ok(StreamOutcome::Ack)
+            ));
+            let envelope = consumer.recv_ingress().await.unwrap().envelope().clone();
+            let ChannelPayloadV1::Message { parts, .. } = envelope.payload else {
+                panic!("expected message payload");
+            };
+            assert_eq!(parts.len(), 1);
+            match (index, &parts[0]) {
+                (0, ContentPart::Image { attachment }) => {
+                    assert_eq!(attachment.media_type, "image/png")
+                }
+                (1, ContentPart::Audio { attachment, .. }) => {
+                    assert_eq!(attachment.media_type, "audio/mpeg")
+                }
+                (2, ContentPart::Video { attachment }) => {
+                    assert_eq!(attachment.media_type, "video/mp4")
+                }
+                (3, ContentPart::File { attachment }) => {
+                    assert_eq!(attachment.media_type, "application/octet-stream")
+                }
+                _ => panic!("unexpected DingTalk typed media part at index {index}"),
+            }
+        }
+        assert_eq!(store.puts.load(Ordering::Acquire), 4);
+        assert_eq!(fake.download_calls.lock().unwrap().len(), 4);
+        assert!(fake.downloads.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn media_download_refreshes_oauth_once_after_401() {
+        let fake = Arc::new(FakeHttp::default());
+        fake.json_responses.lock().unwrap().extend([
+            HttpResponse {
+                status: 200,
+                body: json!({"accessToken":"token-download-first", "expireIn":3600}),
+                retry_after: None,
+            },
+            HttpResponse {
+                status: 200,
+                body: json!({"accessToken":"token-download-second", "expireIn":3600}),
+                retry_after: None,
+            },
+        ]);
+        fake.downloads.lock().unwrap().extend([
+            BytesResponse {
+                status: 401,
+                bytes: Vec::new(),
+                retry_after: None,
+            },
+            BytesResponse {
+                status: 200,
+                bytes: vec![9, 8, 7],
+                retry_after: None,
+            },
+        ]);
+        let store = Arc::new(TestStore::default());
+        let adapter = DingTalkAdapter::with_http(
+            &config(),
+            AdapterServices::new(store.clone()),
+            fake.clone(),
+        );
+        let (fabric, mut consumer) = FabricConsumer::new();
+        let context = AdapterContext {
+            fabric,
+            cancel: CancellationToken::new(),
+        };
+        let message = StreamMessage {
+            spec_version: "1.0".to_string(),
+            msg_type: "CALLBACK".to_string(),
+            headers: StreamHeaders {
+                message_id: "download-update".to_string(),
+                topic: "/v1.0/im/bot/messages/get".to_string(),
+                content_type: "application/json".to_string(),
+                time: "fixture".to_string(),
+                app_id: None,
+            },
+            data: json!({
+                "msgId":"download-message",
+                "senderStaffId":"sender",
+                "conversationId":"cid-group",
+                "conversationType":"2",
+                "content":{"image":{
+                    "downloadUrl":"https://oapi.dingtalk.com/media/fixture",
+                    "fileName":"fixture.png",
+                    "mimeType":"image/png"
+                }}
+            })
+            .to_string(),
+        };
+        assert!(matches!(
+            adapter.handle_stream_message(message, &context).await,
+            Ok(StreamOutcome::Ack)
+        ));
+        assert!(consumer.recv_ingress().await.is_some());
+        let calls = fake.download_calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].1.as_deref(), Some("token-download-first"));
+        assert_eq!(calls[1].1.as_deref(), Some("token-download-second"));
+        assert_eq!(store.puts.load(Ordering::Acquire), 1);
+    }
+
     #[test]
     fn shipped_stream_and_media_fixtures_are_parseable() {
         let stream: StreamMessage = serde_json::from_str(include_str!(
@@ -2156,6 +3071,25 @@ mod tests {
         ))
         .unwrap();
         assert!(media.get("media_id").is_some());
+        let transport = fixture_value("stream-transport.json");
+        assert_eq!(transport["server_to_client"]["ping"]["kind"], "ping");
+        assert_eq!(
+            transport["expected_client_to_server"]["pong"]["kind"],
+            "pong"
+        );
+        let reconnect = fixture_value("stream-reconnect.json");
+        assert_eq!(
+            reconnect["register"]["success"].as_array().unwrap().len(),
+            2
+        );
+        assert_eq!(reconnect["register"]["failure"]["status"], 503);
+        let media_responses = fixture_value("media-send-responses.json");
+        assert_eq!(media_responses["uploads"].as_array().unwrap().len(), 4);
+        assert_eq!(media_responses["sends"].as_array().unwrap().len(), 4);
+        let inbound_media = fixture_value("inbound-media.json");
+        assert_eq!(inbound_media["events"].as_array().unwrap().len(), 4);
+        let hmac = fixture_value("hmac-session-webhook.json");
+        assert_eq!(hmac["header_names"].as_array().unwrap().len(), 2);
     }
 
     #[tokio::test]
@@ -2184,10 +3118,12 @@ mod tests {
     fn parser_applies_allowlist_before_media_url_resolution() {
         let mut restricted = config();
         restricted.allow_from = vec!["allowed".to_string()];
+        let fake = Arc::new(FakeHttp::default());
+        let store = Arc::new(TestStore::default());
         let adapter = DingTalkAdapter::with_http(
             &restricted,
-            AdapterServices::new(Arc::new(TestStore::default())),
-            Arc::new(FakeHttp::default()),
+            AdapterServices::new(store.clone()),
+            fake.clone(),
         );
         let message = StreamMessage {
             spec_version: "1.0".to_string(),
@@ -2209,6 +3145,43 @@ mod tests {
             .to_string(),
         };
         assert!(adapter.parse_event(&message).unwrap().is_none());
+        assert!(fake.downloads.lock().unwrap().is_empty());
+        assert!(fake.json_calls.lock().unwrap().is_empty());
+        assert_eq!(store.puts.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn deny_group_policy_blocks_media_before_url_validation() {
+        let mut restricted = config();
+        restricted.group_policy = "deny".to_string();
+        let fake = Arc::new(FakeHttp::default());
+        let adapter = DingTalkAdapter::with_http(
+            &restricted,
+            AdapterServices::new(Arc::new(TestStore::default())),
+            fake.clone(),
+        );
+        let message = StreamMessage {
+            spec_version: "1.0".to_string(),
+            msg_type: "CALLBACK".to_string(),
+            headers: StreamHeaders {
+                message_id: "stream-denied".to_string(),
+                topic: "/v1.0/im/bot/messages/get".to_string(),
+                content_type: "application/json".to_string(),
+                time: "now".to_string(),
+                app_id: None,
+            },
+            data: json!({
+                "msgId":"message-denied",
+                "senderStaffId":"sender",
+                "conversationId":"cid-group",
+                "conversationType":"2",
+                "content":{"image":{"downloadUrl":"not-a-trusted-url"}}
+            })
+            .to_string(),
+        };
+        assert!(adapter.parse_event(&message).unwrap().is_none());
+        assert!(fake.downloads.lock().unwrap().is_empty());
+        assert!(fake.json_calls.lock().unwrap().is_empty());
     }
 
     async fn spawn_stream_fixture() -> (String, tokio::task::JoinHandle<Vec<Value>>) {
@@ -2218,26 +3191,8 @@ mod tests {
         let handle = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let mut socket = accept_async(stream).await.unwrap();
-            let data = json!({
-                "msgId": "dingtalk-message-1",
-                "senderStaffId": "sender",
-                "conversationId": "user-1",
-                "conversationType": "1",
-                "content": {"text": "hello from DingTalk"}
-            })
-            .to_string();
-            let callback = json!({
-                "specVersion": "1.0",
-                "type": "CALLBACK",
-                "headers": {
-                    "messageId": "update-1",
-                    "topic": "/v1.0/im/bot/messages/get",
-                    "contentType": "application/json",
-                    "time": "fixture"
-                },
-                "data": data
-            })
-            .to_string();
+            let callback =
+                include_str!("../../tests/fixtures/c5/dingtalk/stream-callback.json").to_string();
             socket
                 .send(WsMessage::Text(callback.clone()))
                 .await
@@ -2255,5 +3210,65 @@ mod tests {
             responses
         });
         (endpoint, handle)
+    }
+
+    async fn spawn_stream_ping_fixture(
+        payload: Vec<u8>,
+    ) -> (String, tokio::task::JoinHandle<Vec<u8>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let endpoint = format!("ws://{address}/stream");
+        let handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket.send(WsMessage::Ping(payload.clone())).await.unwrap();
+            let response = tokio::time::timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let pong = match response {
+                WsMessage::Pong(pong) => pong,
+                other => panic!("expected Pong after Ping, got {other:?}"),
+            };
+            socket.close(None).await.unwrap();
+            pong
+        });
+        (endpoint, handle)
+    }
+
+    async fn spawn_stream_reconnect_fixture() -> (
+        String,
+        oneshot::Receiver<()>,
+        oneshot::Receiver<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let endpoint = format!("ws://{address}/stream");
+        let (first_closed_tx, first_closed_rx) = oneshot::channel();
+        let (second_ready_tx, second_ready_rx) = oneshot::channel();
+        let handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket.close(None).await.unwrap();
+            let _ = first_closed_tx.send(());
+
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(stream).await.unwrap();
+            socket
+                .send(WsMessage::Ping(b"reconnect-ping".to_vec()))
+                .await
+                .unwrap();
+            let response = tokio::time::timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert!(matches!(response, WsMessage::Pong(payload) if payload == b"reconnect-ping"));
+            let _ = second_ready_tx.send(());
+            let _ = tokio::time::timeout(Duration::from_secs(2), socket.next()).await;
+        });
+        (endpoint, first_closed_rx, second_ready_rx, handle)
     }
 }

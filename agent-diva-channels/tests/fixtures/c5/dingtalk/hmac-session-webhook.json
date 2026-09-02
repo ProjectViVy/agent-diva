@@ -1,0 +1,8 @@
+{
+  "timestamp": "1700000000000",
+  "secret": "fixture-only-secret",
+  "sign": "ReqJ8wPWD1idy7/oFW167iveMbk9pFAosdestpSbh/Y=",
+  "sessionWebhook": "https://oapi.dingtalk.com/robot/sendBySession?session=redacted",
+  "untrustedSessionWebhook": "https://example.invalid/robot/sendBySession?session=redacted",
+  "header_names": ["sign", "signature"]
+}
