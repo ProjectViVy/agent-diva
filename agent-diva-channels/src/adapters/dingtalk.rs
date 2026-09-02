@@ -2367,25 +2367,26 @@ mod tests {
         assert_eq!(sends.len(), 4);
 
         let fake = Arc::new(FakeHttp::default());
-        let mut responses = fake.json_responses.lock().unwrap();
-        responses.push_back(HttpResponse {
-            status: 200,
-            body: fixture_value("token-response.json"),
-            retry_after: None,
-        });
-        for (upload, send) in uploads.iter().zip(sends.iter()) {
+        {
+            let mut responses = fake.json_responses.lock().unwrap();
             responses.push_back(HttpResponse {
                 status: 200,
-                body: upload.clone(),
+                body: fixture_value("token-response.json"),
                 retry_after: None,
             });
-            responses.push_back(HttpResponse {
-                status: 200,
-                body: send.clone(),
-                retry_after: None,
-            });
+            for (upload, send) in uploads.iter().zip(sends.iter()) {
+                responses.push_back(HttpResponse {
+                    status: 200,
+                    body: upload.clone(),
+                    retry_after: None,
+                });
+                responses.push_back(HttpResponse {
+                    status: 200,
+                    body: send.clone(),
+                    retry_after: None,
+                });
+            }
         }
-        drop(responses);
 
         let envelope = ChannelEnvelopeV1::new(
             ChannelDirection::Egress,

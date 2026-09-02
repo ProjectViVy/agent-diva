@@ -895,8 +895,6 @@ impl QqAdapter {
                                 };
                                 drop(session);
                                 write.send(WsMessage::Text(payload.to_string())).await.map_err(|error| execution_error("gateway_identify", error.to_string(), None, true))?;
-                            } else if frame.op == 11 {
-                                self.process_frame(frame, context).await?;
                             } else {
                                 self.process_frame(frame, context).await?;
                             }
