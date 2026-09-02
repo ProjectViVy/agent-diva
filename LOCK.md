@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `Cargo.lock; agent-diva-channels/Cargo.toml; agent-diva-channels/src/adapter.rs; agent-diva-channels/src/adapters/**; agent-diva-channels/src/lib.rs; agent-diva-channels/tests/channel_adapter_shared_tck.rs; agent-diva-channels/tests/fixtures/c5/shared/**; agent-diva-channels/AGENTS.md; docs/logs/2026-08-channel-epic/v0.2.0-c5-shared-adapter-services/**; TODOLIST.md; LOCK.md`
-- Owner: `Codex`
-- Session/Task: `CHANNEL-EPIC C5-I Gate 1 shared adapter/services seam and TCK`
-- Branch/Worktree: `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`
-- Started At: `2026-08-31T14:15:45+08:00`
-- Last Heartbeat: `2026-08-31T14:32:28+08:00`
-- Expires At: `2026-09-01T14:15:45+08:00`
-- Handoff Notes: `Released after isolated commits da7e0410, 87e7ff20, and 48c12669. Gate 1 shared AdapterServices/AttachmentStore seam, digest and allowlist helpers, truthful factory, shared TCK, TODO and v0.2.0 logs completed. just fmt-check/check/test passed; focused lib/new-TCK clippy passed. Rust 1.80 probe and channel all-targets clippy remain pre-existing TODOs. No native platform behavior, Manager production assembly, C6 cleanup, merge, or push.`
+- Lock State: `HELD`
+- Scope: `dev branch merge of feat/channel-epic; merge conflict resolution; post-merge validation; LOCK.md`
+- Owner: `Codex / C5-V merge after QQ compatibility smoke`
+- Session/Task: `CHANNEL-EPIC merge feat/channel-epic into dev`
+- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `2026-09-03T04:00:13+08:00`
+- Last Heartbeat: `2026-09-03T04:00:13+08:00`
+- Expires At: `2026-09-03T05:00:13+08:00`
+- Handoff Notes: `User explicitly authorized merging the tested feat/channel-epic branch back into dev. Both worktrees were checked clean; merge-tree reports a LOCK.md-only content conflict because each branch carries its own lock history. Preserve both histories, resolve LOCK.md to the post-merge state, run the required channel and workspace validation, and release this merge lock. Do not push or cut over Manager/C6.`
 
 ## Lock Rules
 
