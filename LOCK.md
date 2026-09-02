@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `dev branch merge of feat/channel-epic; merge conflict resolution; post-merge validation; LOCK.md`
+- Lock State: `RELEASED`
+- Scope: `none (C5 dev merge completed; see handoff notes)`
 - Owner: `Codex / C5-V merge after QQ compatibility smoke`
 - Session/Task: `CHANNEL-EPIC merge feat/channel-epic into dev`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-09-03T04:00:13+08:00`
-- Last Heartbeat: `2026-09-03T04:00:13+08:00`
-- Expires At: `2026-09-03T05:00:13+08:00`
-- Handoff Notes: `User explicitly authorized merging the tested feat/channel-epic branch back into dev. Both worktrees were checked clean; merge-tree reports a LOCK.md-only content conflict because each branch carries its own lock history. Preserve both histories, resolve LOCK.md to the post-merge state, run the required channel and workspace validation, and release this merge lock. Do not push or cut over Manager/C6.`
+- Last Heartbeat: `2026-09-03T04:22:23+08:00`
+- Expires At: `—`
+- Handoff Notes: `Released after merge commit ecb32705fcdc12b65406e49845ab420639c5f34f integrated feat/channel-epic into dev. The only merge conflict was LOCK.md and both lock histories were preserved. Post-merge cargo test -p agent-diva-channels --all-targets, cargo clippy -p agent-diva-channels --all-targets -- -D warnings, just fmt-check, just check, just test, just msrv-probe check -p agent-diva-channels, and git diff --check passed; just test was rerun after cargo clean because the first attempt hit a 276.5 GiB generated-target disk exhaustion. User-confirmed QQ compatibility smoke is recorded; the ignored QQ live harness still requires external credentials and was not run. No push, Manager cutover, or C6.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC merge feat/channel-epic into dev` — **RELEASED 2026-09-03T04:22:23+08:00** by `Codex / C5-V merge after QQ compatibility smoke`. Merge commit `ecb32705fcdc12b65406e49845ab420639c5f34f` integrated `feat/channel-epic` at `edc8accf` into `dev` at `ad0f87c1`; the only conflict was `LOCK.md`, resolved while preserving both histories. Post-merge channel tests, channel all-target Clippy, `just fmt-check`, `just check`, `just test`, Rust 1.80 MSRV probe, and `git diff --check` passed. User-confirmed QQ compatibility smoke is not a substitute for the ignored credential-gated QQ live harness or official D-013/D-014 evidence. No push, Manager/C6 cutover, or production assembly change.
 
 - `CHANNEL-EPIC C5-I Gate 2 native channel adapter migration` — **RELEASED 2026-09-01T01:50:54+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Base contract `48c12669`; implementation commits include `e0b36c02`, `3835f58c`, `f3bdd3ad`, `8088ce58`, `ca3b0cc6`, `42db4e25`, `10563a7a`, `9171e9a4`, `e50ad05a`, `204915d7`, `0e41c915`, `efb50261`, and `5371d517`. Initial `just fmt-check`, `just check`, `just test`, channel all-target tests, and channel lib clippy passed; the later final `just test` rerun exposed the pre-existing Manager loopback flake recorded in the follow-up entry. All-target clippy remains blocked by legacy test lints; MSRV probe remains blocked by cached `base64ct v1.8.3`. No Manager/C6 cutover, merge, or push. C5-V/C5-Q remain open.`
 - `CHANNEL-EPIC C5-I Gate 2 verification follow-up` — **RELEASED 2026-09-01T01:56:02+08:00** by `Codex` on `feat/channel-epic / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic`. Scope was documentation-only: `TODOLIST.md`, Gate2 `verification.md`, and `LOCK.md`; focused Manager websocket rerun passed after one full-suite failure. No product implementation scope was reopened.
