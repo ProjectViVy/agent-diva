@@ -155,7 +155,10 @@ async fn image_attachment_is_forwarded_as_structured_multimodal_user_message() {
         )
         .await
         .unwrap();
-    assert!(response.is_some());
+    assert!(
+        response.is_none(),
+        "OwnerFrontend image turns must project through AgentEvents without adapter egress"
+    );
 
     let captured = provider.captured_messages.lock().unwrap();
     let first_call = captured.first().expect("provider should capture a request");
