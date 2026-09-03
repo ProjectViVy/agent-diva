@@ -47,6 +47,7 @@ tracing = { workspace = true }
 # Utilities
 which = { workspace = true }
 anyhow = { workspace = true }
+uuid = { workspace = true }
 mime_guess = "2.0"
 dirs = { workspace = true }
 

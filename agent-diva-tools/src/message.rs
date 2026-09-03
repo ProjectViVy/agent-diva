@@ -1,16 +1,19 @@
 //! Message forwarding tool
 
-use agent_diva_core::bus::OutboundMessage;
+use agent_diva_core::channel::{
+    ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
+    ChannelPayloadV1, ContentPart, Correlation,
+};
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// Callback type for sending outbound messages
+/// Callback type for sending typed adapter commands.
 type SendCallback = Arc<
     dyn Fn(
-            OutboundMessage,
+            ChannelCommand,
         )
             -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>>
         + Send
@@ -52,7 +55,7 @@ impl MessageTool {
     /// Set the callback for sending messages
     pub fn set_send_callback<F, Fut>(&mut self, callback: F)
     where
-        F: Fn(OutboundMessage) -> Fut + Send + Sync + 'static,
+        F: Fn(ChannelCommand) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<(), String>> + Send + 'static,
     {
         self.send_callback = Some(Arc::new(move |msg| Box::pin(callback(msg))));
@@ -91,10 +94,13 @@ impl Tool for MessageTool {
                     "type": "string",
                     "description": "Optional: target chat/user ID"
                 },
-                "media": {
+                "attachments": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Optional: list of file paths to attach (images, audio, documents)"
+                    "items": {
+                        "type": "object",
+                        "description": "AttachmentRef resolved by the shared file authority"
+                    },
+                    "description": "Optional typed AttachmentRef values"
                 }
             },
             "required": ["content"]
@@ -120,12 +126,16 @@ impl Tool for MessageTool {
             self.default_chat_id.lock().await.clone()
         };
 
-        let media = if let Some(m) = params.get("media").and_then(|v| v.as_array()) {
+        let attachments = if let Some(m) = params.get("attachments").and_then(|v| v.as_array()) {
             m.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                .collect()
+                .map(|value| {
+                    serde_json::from_value(value.clone()).map_err(|error| {
+                        ToolError::InvalidParams(format!("Invalid typed attachment: {error}"))
+                    })
+                })
+                .collect::<Result<Vec<agent_diva_core::channel::AttachmentRef>, _>>()?
         } else {
-            Vec::new()
+            Vec::<agent_diva_core::channel::AttachmentRef>::new()
         };
 
         // Validate channel and chat_id
@@ -138,15 +148,40 @@ impl Tool for MessageTool {
             ToolError::ExecutionFailed("Message sending not configured".to_string())
         })?;
 
-        // Create outbound message
-        let mut msg = OutboundMessage::new(channel.clone(), chat_id.clone(), content);
-        msg.media = media.clone();
+        let mut parts = vec![ContentPart::Text { text: content }];
+        parts.extend(attachments.iter().cloned().map(|attachment| {
+            ContentPart::File { attachment }
+        }));
+        let address = ChannelAddress {
+            channel: channel.clone(),
+            account_id: None,
+            sender_id: None,
+            chat_id: chat_id.clone(),
+            thread_id: None,
+        };
+        let correlation = Correlation::new(format!("{channel}:{chat_id}"));
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            address,
+            correlation,
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts,
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        let command = ChannelCommand::Send {
+            envelope,
+            idempotency_key: Some(uuid::Uuid::new_v4().to_string()),
+        };
 
         // Send message
-        match callback(msg).await {
+        match callback(command).await {
             Ok(_) => {
-                let media_info = if !media.is_empty() {
-                    format!(" with {} attachments", media.len())
+                let media_info = if !attachments.is_empty() {
+                    format!(" with {} attachments", attachments.len())
                 } else {
                     String::new()
                 };
