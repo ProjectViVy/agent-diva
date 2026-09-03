@@ -488,9 +488,7 @@ fn render_content_part(part: &ContentPart) -> String {
             Some(label) => format!("Location: {latitude:.6}, {longitude:.6} ({label})"),
             None => format!("Location: {latitude:.6}, {longitude:.6}"),
         },
-        ContentPart::Card { schema, body } => {
-            format!("Card ({schema}): {}", body.to_string())
-        }
+        ContentPart::Card { schema, body } => format!("Card ({schema}): {body}"),
         ContentPart::Reference {
             uri,
             title,
