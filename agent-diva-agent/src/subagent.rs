@@ -1191,6 +1191,9 @@ fn accumulate_usage(total_usage: &mut HashMap<String, i64>, delta: &HashMap<Stri
 #[cfg(test)]
 mod tests {
     use super::{accumulate_usage, extract_token_usage, SubagentManager};
+    use agent_diva_core::channel::{
+        ChannelDirection, ChannelOrigin, ChannelPayloadV1, FabricKernel,
+    };
     use agent_diva_core::config::schema::{
         BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults, TokenUsage,
     };
@@ -1469,6 +1472,55 @@ mod tests {
         );
         assert!(result.tool_trace.is_some());
         assert_eq!(result.tool_trace.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn subagent_result_is_injected_as_a_typed_runtime_envelope() {
+        let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        SubagentManager::announce_result(
+            "task-1",
+            "research",
+            "inspect the logs",
+            "found the relevant entry",
+            "telegram",
+            "chat-1",
+            "ok",
+            &fabric,
+        )
+        .await;
+
+        let item = tokio::time::timeout(std::time::Duration::from_secs(1), consumer.recv_ingress())
+            .await
+            .expect("subagent result was not admitted to Fabric")
+            .expect("Fabric ingress unexpectedly closed");
+        let envelope = item.envelope();
+        assert_eq!(envelope.direction, ChannelDirection::Ingress);
+        assert_eq!(envelope.origin, ChannelOrigin::Runtime);
+        assert_eq!(envelope.address.channel, "telegram");
+        assert_eq!(envelope.address.chat_id, "chat-1");
+        assert_eq!(envelope.address.sender_id.as_deref(), Some("subagent"));
+        assert_eq!(envelope.correlation.session_key, "telegram:chat-1");
+        assert!(envelope.correlation.request_id.is_some());
+        assert!(envelope.correlation.trace_id.is_some());
+        assert!(envelope.correlation.message_id.is_some());
+        assert!(envelope.correlation.reply_to.is_none());
+        match &envelope.payload {
+            ChannelPayloadV1::Message {
+                parts,
+                context,
+                subject,
+                ..
+            } => {
+                assert!(context.is_none());
+                assert!(subject.is_none());
+                assert!(matches!(
+                    parts.as_slice(),
+                    [agent_diva_core::channel::ContentPart::Text { text }]
+                        if text.contains("found the relevant entry")
+                ));
+            }
+            payload => panic!("unexpected subagent result payload: {payload:?}"),
+        }
     }
 
     #[test]
