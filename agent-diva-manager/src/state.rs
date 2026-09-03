@@ -98,8 +98,8 @@ pub struct AppState {
     pub fabric_handle: Option<FabricHandle>,
     /// Shared attachment authority used to resolve HTTP references before Fabric admission.
     pub attachment_authority: Option<Arc<agent_diva_files::FileManager>>,
-    /// Typed Neuro-Link ingress seam.  The gateway never reaches through the
-    /// legacy AgentEventBus; production wiring can install an AgentLoop/Fabric
+    /// Typed Neuro-Link ingress seam. The gateway never reaches through the
+    /// event projection bus; production wiring can install an AgentLoop/Fabric
     /// implementation while isolated fixtures leave it unset.
     pub neuro_link_runtime: Option<Arc<dyn crate::neuro_link::NeuroLinkRuntime>>,
     /// Lazily opened durable Neuro-Link projection journal.  The lazy cell
