@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use agent_diva_agent::AgentEvent;
 use agent_diva_cli::client::ApiClient;
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
 use agent_diva_core::bus::{SessionAdmissionObservation, SessionAdmissionPhase};
 use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
 use agent_diva_manager::run_server_with_listener;
@@ -39,7 +39,7 @@ async fn update_plan_end_to_end_client_sse() {
             world: "Local E2E".into(),
         })
         .expect("initialize Persona");
-    let state = AppState::new(api_tx, MessageBus::new(), temp_dir.path()).expect("build state");
+    let state = AppState::new(api_tx, AgentEventBus::new(), temp_dir.path()).expect("build state");
 
     let expected_args = UpdatePlanArgs {
         explanation: Some("e2e update plan".to_string()),

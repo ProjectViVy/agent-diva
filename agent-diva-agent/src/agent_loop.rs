@@ -1,8 +1,8 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{
-    AgentEvent, AgentEventBus, PlanRuntimeState, SessionAdmissionCode,
-    SessionAdmissionObservation, SessionAdmissionPhase,
+    AgentEvent, AgentEventBus, PlanRuntimeState, SessionAdmissionCode, SessionAdmissionObservation,
+    SessionAdmissionPhase,
 };
 use agent_diva_core::channel::{
     ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
@@ -288,7 +288,7 @@ pub struct AgentLoop {
     /// Window threshold for `turn_rate_limiter`, from `max_actions_per_hour`.
     max_actions_per_hour: u32,
     subagent_manager: Arc<SubagentManager>,
-    runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+    runtime_control_rx: Option<mpsc::Receiver<RuntimeControlCommand>>,
     file_manager: Arc<FileManager>,
     /// Memory provider boundary for prefetch, sync_turn, and shutdown hooks.
     memory_provider: Arc<dyn MemoryProvider>,
@@ -1007,7 +1007,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        runtime_control_rx: Option<mpsc::Receiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::with_tools_and_memory_provider(
@@ -1035,7 +1035,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        runtime_control_rx: Option<mpsc::Receiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -1061,7 +1061,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
         tool_config: ToolConfig,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        runtime_control_rx: Option<mpsc::Receiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -1193,7 +1193,7 @@ impl AgentLoop {
         model: Option<String>,
         max_iterations: Option<usize>,
         toolset: AgentLoopToolSet,
-        runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
+        runtime_control_rx: Option<mpsc::Receiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         gc_tool_artifacts(&workspace).await;
@@ -1388,10 +1388,12 @@ impl AgentLoop {
             envelope.origin,
             ChannelOrigin::OwnerFrontend | ChannelOrigin::ExternalUser
         ) {
-            let _ = self.bus.publish_poke_event(agent_diva_core::bus::PokeEvent::UserActivity {
-                session_key: envelope.correlation.session_key.clone(),
-                sender_id: envelope.address.sender_id.clone(),
-            });
+            let _ = self
+                .bus
+                .publish_poke_event(agent_diva_core::bus::PokeEvent::UserActivity {
+                    session_key: envelope.correlation.session_key.clone(),
+                    sender_id: envelope.address.sender_id.clone(),
+                });
         }
         let session_key = envelope.correlation.session_key.clone();
         let observer = admission_observer(
@@ -1692,6 +1694,25 @@ mod tests {
         )
     }
 
+    fn external_envelope(session_key: &str, chat_id: &str, content: &str) -> ChannelEnvelopeV1 {
+        let mut address = ChannelAddress::new("telegram", chat_id);
+        address.sender_id = Some("external-user".to_string());
+        ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            address,
+            Correlation::new(session_key),
+            ChannelOrigin::ExternalUser,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: content.to_string(),
+                }],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        )
+    }
+
     #[test]
     fn typed_approval_policy_is_classified_without_mutating_runtime_defaults() {
         let cautious = ChannelEnvelopeV1::new(
@@ -1707,9 +1728,7 @@ mod tests {
                 locale: None,
                 context: Some(OwnerTurnContextV1 {
                     intent: OwnerTurnIntent::Agent,
-                    approval_policy: Some(
-                        agent_diva_core::channel::OwnerApprovalPolicy::OnRequest,
-                    ),
+                    approval_policy: Some(agent_diva_core::channel::OwnerApprovalPolicy::OnRequest),
                     execution: None,
                 }),
             },
@@ -2484,6 +2503,34 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("simulated stream failure"));
+    }
+
+    #[tokio::test]
+    async fn external_user_without_owner_context_runs_as_fixed_agent_mode() {
+        let bus = AgentEventBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(bus, provider, temp_dir.path().to_path_buf(), None, Some(1))
+            .await
+            .unwrap();
+
+        let mut inbound = external_envelope("telegram/session-1", "chat-1", "hello");
+        inbound.correlation.request_id = Some("request-1".to_string());
+        inbound.correlation.trace_id = Some("trace-1".to_string());
+        inbound.correlation.message_id = Some("message-1".to_string());
+        let command = agent.process_channel_envelope(inbound, None).await.unwrap();
+
+        let Some(ChannelCommand::Send { envelope, .. }) = command else {
+            panic!("external user turns must produce a typed adapter command");
+        };
+        assert_eq!(envelope.origin, ChannelOrigin::Runtime);
+        assert_eq!(envelope.correlation.session_key, "telegram/session-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
+        assert_eq!(envelope.correlation.trace_id.as_deref(), Some("trace-1"));
+        assert_eq!(envelope.correlation.reply_to.as_deref(), Some("message-1"));
     }
 
     #[tokio::test]

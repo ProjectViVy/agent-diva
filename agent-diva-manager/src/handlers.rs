@@ -102,7 +102,7 @@ pub struct ChatRequest {
     pub approval_policy: Option<String>,
 }
 
-fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
+fn normalized_owner_intent(mode: Option<&str>) -> Option<&'static str> {
     match mode.map(str::trim) {
         None => None,
         Some("agent") => Some("agent"),
@@ -113,7 +113,7 @@ fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
 }
 
 fn owner_turn_intent(mode: Option<&str>) -> OwnerTurnIntent {
-    match normalized_exec_mode(mode) {
+    match normalized_owner_intent(mode) {
         Some("plan") => OwnerTurnIntent::Plan,
         Some("ask") => OwnerTurnIntent::Ask,
         _ => OwnerTurnIntent::Agent,
@@ -199,16 +199,15 @@ async fn build_typed_chat_envelope(
     correlation.trace_id = Some(uuid::Uuid::new_v4().to_string());
     correlation.message_id = Some(uuid::Uuid::new_v4().to_string());
 
-    let mut parts = vec![ContentPart::Text {
-        text: message,
-    }];
+    let mut parts = vec![ContentPart::Text { text: message }];
     parts.extend(resolve_attachment_parts(state, attachments).await?);
     let execution = if execution_start.unwrap_or(false) {
         Some(OwnerExecutionContextV1 {
             plan_id: plan_id
                 .ok_or_else(|| "plan_id is required for execution continuation".to_string())?,
-            revision: plan_revision
-                .ok_or_else(|| "plan_revision is required for execution continuation".to_string())?,
+            revision: plan_revision.ok_or_else(|| {
+                "plan_revision is required for execution continuation".to_string()
+            })?,
             execution_id,
         })
     } else {
@@ -266,10 +265,7 @@ pub async fn chat_handler(
     State(state): State<AppState>,
     Json(payload): Json<ChatRequest>,
 ) -> Sse<futures::stream::BoxStream<'static, Result<Event, Infallible>>> {
-    let channel = payload
-        .channel
-        .clone()
-        .unwrap_or_else(|| "api".to_string());
+    let channel = payload.channel.clone().unwrap_or_else(|| "api".to_string());
     let chat_id = payload
         .chat_id
         .clone()
@@ -354,10 +350,11 @@ pub async fn chat_handler(
     {
         Ok(envelope) => envelope,
         Err(error) => {
-            let stream = futures::stream::once(async move {
-                Ok(Event::default().event("error").data(error))
-            })
-            .boxed();
+            let stream =
+                futures::stream::once(
+                    async move { Ok(Event::default().event("error").data(error)) },
+                )
+                .boxed();
             return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
         }
     };
@@ -1407,7 +1404,7 @@ pub async fn delete_cron_job_handler(
 mod tests {
     use super::{
         agent_bus_event_to_sse, chat_handler, generate_session_title_handler,
-        get_session_history_handler, get_sessions_handler, normalized_exec_mode,
+        get_session_history_handler, get_sessions_handler, normalized_owner_intent,
         parse_approval_policy, update_session_title_handler, AgentEvent, ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
@@ -1425,12 +1422,12 @@ mod tests {
     use tokio::sync::mpsc;
 
     #[test]
-    fn normalized_exec_mode_accepts_known_modes_only() {
-        assert_eq!(normalized_exec_mode(Some("plan")), Some("plan"));
-        assert_eq!(normalized_exec_mode(Some(" ask ")), Some("ask"));
-        assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
-        assert_eq!(normalized_exec_mode(Some("execute")), Some("ask"));
-        assert_eq!(normalized_exec_mode(None), None);
+    fn normalized_owner_intent_accepts_known_modes_only() {
+        assert_eq!(normalized_owner_intent(Some("plan")), Some("plan"));
+        assert_eq!(normalized_owner_intent(Some(" ask ")), Some("ask"));
+        assert_eq!(normalized_owner_intent(Some("agent")), Some("agent"));
+        assert_eq!(normalized_owner_intent(Some("execute")), Some("ask"));
+        assert_eq!(normalized_owner_intent(None), None);
     }
 
     #[tokio::test]

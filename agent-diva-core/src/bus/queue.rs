@@ -151,7 +151,10 @@ mod tests {
             event_rx.try_recv().unwrap().event,
             AgentEvent::FinalResponse { .. }
         ));
-        assert!(matches!(poke_rx.try_recv().unwrap(), PokeEvent::PokeSend { .. }));
+        assert!(matches!(
+            poke_rx.try_recv().unwrap(),
+            PokeEvent::PokeSend { .. }
+        ));
         assert!(event_rx.try_recv().is_err());
         assert!(poke_rx.try_recv().is_err());
     }

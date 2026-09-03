@@ -3,7 +3,6 @@ use agent_diva_core::channel::{
     ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
     ContentPart,
 };
-use uuid::Uuid;
 use agent_diva_core::planning::{
     normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
     strip_proposed_plan_block, PlanRevisionAuthor,
@@ -12,6 +11,7 @@ use agent_diva_core::session::TokenUsage;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
 use tracing::{error, info, trace, warn};
+use uuid::Uuid;
 
 use super::super::super::consolidation;
 use super::super::loop_turn::{fallback_session_title, save_turn, should_generate_session_title};

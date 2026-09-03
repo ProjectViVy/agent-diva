@@ -13,7 +13,7 @@
 //!
 //! # Important
 //!
-//! The `drop(tx)` call after each `process_inbound_message` is **critical**:
+//! The `drop(tx)` call after each `process_channel_envelope` is **critical**:
 //! the `EventCollector::collect()` method blocks until the sender is dropped,
 //! so every turn must close its channel before collection.
 
@@ -24,8 +24,12 @@ use crate::tracer::E2ETracer;
 use crate::types::E2EScenario;
 
 use agent_diva_agent::{AgentLoop, ToolConfig};
-use agent_diva_core::bus::events::{AgentEvent, InboundMessage};
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::events::AgentEvent;
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::{
+    ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
+    ContentPart, Correlation,
+};
 use agent_diva_providers::LLMProvider;
 use agent_diva_providers::OpenAiCompatibleClient;
 
@@ -128,7 +132,7 @@ impl ScenarioRunner {
     /// 2. Create workspace (temp dir or specified path)
     /// 3. Execute file creation setup
     /// 4. Build [`LLMProvider`] from config
-    /// 5. Build [`MessageBus`] and [`AgentLoop`]
+    /// 5. Build [`AgentEventBus`] and [`AgentLoop`]
     /// 6. Register default tools
     /// 7. Process each message turn (capture events via channel)
     /// 8. Evaluate all assertions
@@ -202,8 +206,8 @@ impl ScenarioRunner {
             .min(self.config.max_timeout_secs);
         let timeout_duration = Duration::from_secs(timeout_secs);
 
-        // ---- 6. Build MessageBus and AgentLoop ----
-        let bus = MessageBus::new();
+        // ---- 6. Build AgentEventBus and AgentLoop ----
+        let bus = AgentEventBus::new();
         let model = scenario
             .setup
             .model_override
@@ -229,15 +233,31 @@ impl ScenarioRunner {
             let channel = msg.channel.clone().unwrap_or_else(|| "e2e".to_string());
             let chat_id = msg.chat_id.clone().unwrap_or_else(|| "default".to_string());
 
-            let inbound =
-                InboundMessage::new(channel, msg.sender.clone(), chat_id, msg.content.clone());
+            let mut address = ChannelAddress::new(channel.clone(), chat_id.clone());
+            address.sender_id = Some(msg.sender.clone());
+            let mut correlation = Correlation::new(format!("e2e:{channel}:{chat_id}"));
+            correlation.message_id = Some(uuid::Uuid::new_v4().to_string());
+            let envelope = ChannelEnvelopeV1::new(
+                ChannelDirection::Ingress,
+                address,
+                correlation,
+                ChannelOrigin::ExternalUser,
+                ChannelPayloadV1::Message {
+                    parts: vec![ContentPart::Text {
+                        text: msg.content.clone(),
+                    }],
+                    subject: None,
+                    locale: None,
+                    context: None,
+                },
+            );
 
             let (tx, mut rx) = mpsc::unbounded_channel::<AgentEvent>();
 
             // Process the message — the AgentLoop runs the LLM call and
             // emits events through the provided sender.
             let _response = agent_loop
-                .process_inbound_message(inbound, Some(&tx))
+                .process_channel_envelope(envelope, Some(&tx))
                 .await
                 .map_err(|e| {
                     format!("[{scenario_name}] Turn {i} (message processing) failed: {e}")

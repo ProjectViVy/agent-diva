@@ -729,7 +729,8 @@ async fn dispatch_typed_channel_turn(
                     }
                 }
             },
-        ) as std::sync::Arc<dyn Fn(super::dispatcher::SessionDispatchTransition) + Send + Sync>
+        )
+            as std::sync::Arc<dyn Fn(super::dispatcher::SessionDispatchTransition) + Send + Sync>
     };
     let execution_envelope = envelope.clone();
     let result = dispatcher
@@ -776,11 +777,11 @@ async fn dispatch_typed_channel_turn(
 #[cfg(test)]
 mod typed_channel_tests {
     use super::*;
+    use crate::agent_loop::prepare_turn_envelope;
     use agent_diva_core::channel::{
         ChannelAddress, ChannelDirection, ChannelOrigin, ChannelPayloadV1, ContentPart,
         Correlation, OwnerApprovalPolicy, OwnerExecutionContextV1, OwnerTurnIntent, StreamPhase,
     };
-    use crate::agent_loop::prepare_turn_envelope;
 
     #[test]
     fn typed_message_preserves_opaque_session_and_correlations() {
@@ -798,7 +799,7 @@ mod typed_channel_tests {
                         text: "hello".to_string(),
                     },
                     ContentPart::Markdown {
-                    markdown: " **world**".to_string(),
+                        markdown: " **world**".to_string(),
                     },
                 ],
                 subject: Some("subject".to_string()),
@@ -816,8 +817,14 @@ mod typed_channel_tests {
         );
         let (prepared, identity) = prepare_turn_envelope(envelope).unwrap();
         assert_eq!(prepared.correlation.session_key, "profile/session-1");
-        assert_eq!(prepared.rendered_message_text().as_deref(), Some("hello\n **world**"));
-        assert_eq!(prepared.correlation.request_id.as_deref(), Some("request-1"));
+        assert_eq!(
+            prepared.rendered_message_text().as_deref(),
+            Some("hello\n **world**")
+        );
+        assert_eq!(
+            prepared.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
         assert_eq!(prepared.correlation.trace_id.as_deref(), Some("trace-1"));
         assert_eq!(identity.request_id, "request-1");
         assert_eq!(identity.trace_id, "trace-1");
@@ -831,9 +838,15 @@ mod typed_channel_tests {
                 assert_eq!(subject.as_deref(), Some("subject"));
                 assert_eq!(locale.as_deref(), Some("zh-CN"));
                 assert_eq!(context.intent, OwnerTurnIntent::Agent);
-                assert_eq!(context.approval_policy, Some(OwnerApprovalPolicy::OnFailure));
                 assert_eq!(
-                    context.execution.as_ref().and_then(|value| value.execution_id.as_deref()),
+                    context.approval_policy,
+                    Some(OwnerApprovalPolicy::OnFailure)
+                );
+                assert_eq!(
+                    context
+                        .execution
+                        .as_ref()
+                        .and_then(|value| value.execution_id.as_deref()),
                     Some("execution-1")
                 );
             }

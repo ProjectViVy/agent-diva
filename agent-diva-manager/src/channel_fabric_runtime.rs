@@ -194,7 +194,8 @@ mod tests {
     async fn neuro_link_reaches_agent_loop_only_after_fabric_admission() {
         let (fabric, consumer) = FabricKernel::new().into_parts();
         let pending = pending_admissions();
-        let (control_tx, mut control_rx) = mpsc::channel(agent_diva_core::channel::capacity::CONTROL);
+        let (control_tx, mut control_rx) =
+            mpsc::channel(agent_diva_core::channel::capacity::CONTROL);
         let ingress = spawn_fabric_ingress(consumer, pending.clone(), control_tx.clone());
         let runtime = FabricNeuroLinkRuntime::new(fabric, pending, control_tx);
         let responder = tokio::spawn(async move {

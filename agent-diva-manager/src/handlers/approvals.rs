@@ -296,7 +296,7 @@ fn extraction_error_response(
 mod tests {
     use super::*;
     use agent_diva_core::{
-        bus::MessageBus,
+        bus::AgentEventBus,
         governance::{ApprovalCoordinator, GovernanceSubject, SqliteGovernanceLedger},
     };
     use agent_diva_sandbox::{
@@ -336,7 +336,7 @@ mod tests {
         let (api_tx, _api_rx) = mpsc::channel(1);
         AppState::new_with_runtime_governance(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             root,
             command,
             agent_diva_core::ask_user::AskUserCoordinator::default(),

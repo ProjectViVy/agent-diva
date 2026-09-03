@@ -127,12 +127,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         handle_config_diff(diff, new_config, &bus_for_hotreload);
     });
 
-    let cron_service = start_cron_service(
-        cron_store,
-        workspace_root.clone(),
-        fabric_handle.clone(),
-    )
-    .await;
+    let cron_service =
+        start_cron_service(cron_store, workspace_root.clone(), fabric_handle.clone()).await;
     ensure_notebook_monthly_cron_job(&cron_service).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(build_provider(
         &config,

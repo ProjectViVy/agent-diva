@@ -101,7 +101,7 @@ impl AgentLoop {
         session_key: &str,
         active_execution: &mut Option<ExecutionSession>,
         plan_guard_active: bool,
-        approved_plan_markdown: Option<&str>,
+        execution_plan_markdown: Option<&str>,
         read_only: bool,
         active_mask: Option<&MaskFile>,
         scheduled: bool,
@@ -490,20 +490,17 @@ impl AgentLoop {
             }
         }
 
-        dynamic_sections.push(
-            self.context
-                .build_volatile_meta_section(
-                    Some(&message.address.channel),
-                    Some(&message.address.chat_id),
-                ),
-        );
+        dynamic_sections.push(self.context.build_volatile_meta_section(
+            Some(&message.address.channel),
+            Some(&message.address.chat_id),
+        ));
         if scheduled {
             dynamic_sections.push(PromptSection::new(
                 ContextSection::VolatileMeta,
                 prompt::scheduled_turn().content,
             ));
         }
-        if let Some(markdown) = approved_plan_markdown {
+        if let Some(markdown) = execution_plan_markdown {
             dynamic_sections.push(PromptSection::new(
                 ContextSection::PlanGuard,
                 prompt::approved_plan(markdown).content,

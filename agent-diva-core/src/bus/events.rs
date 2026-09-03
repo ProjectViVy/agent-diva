@@ -400,4 +400,3 @@ pub enum PokeEvent {
         fields: Vec<String>,
     },
 }
-

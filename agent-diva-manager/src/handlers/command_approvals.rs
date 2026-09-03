@@ -245,7 +245,7 @@ pub async fn command_approval_events_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::body::{to_bytes, Body};
     use axum::http::Request;
     use tokio::sync::mpsc;
@@ -282,7 +282,7 @@ mod tests {
         let (api_tx, _api_rx) = mpsc::channel(1);
         AppState::new(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             tempfile::tempdir().unwrap().keep(),
         )
         .unwrap()
@@ -296,7 +296,7 @@ mod tests {
         );
         AppState::new_with_command_approvals(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             dir,
             agent_diva_sandbox::CommandApprovalCoordinator::default().with_command_rules(rules),
         )

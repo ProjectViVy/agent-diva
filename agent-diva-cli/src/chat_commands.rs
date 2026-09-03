@@ -13,7 +13,8 @@ use agent_diva_agent::{
     AgentEvent, AgentLoop, BuiltInToolsConfig, ToolConfig,
 };
 use agent_diva_core::ask_user::AskUserCoordinator;
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::capacity;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::CronService;
 use agent_diva_core::governance::{ApprovalCoordinator, SqliteGovernanceLedger};
@@ -85,14 +86,14 @@ async fn build_local_cli_agent(
     Config,
     String,
     AgentLoop,
-    Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    Option<mpsc::Sender<RuntimeControlCommand>>,
     AskUserCoordinator,
 )> {
     let config = runtime.load_config()?;
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = runtime.effective_workspace(&config);
 
-    let bus = MessageBus::new();
+    let bus = AgentEventBus::new();
     let provider = build_provider(&config, &selected_model)?;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let ask_user = AskUserCoordinator::default();
@@ -114,7 +115,7 @@ async fn build_local_cli_agent(
     };
 
     let (runtime_control_tx, runtime_control_rx) = if with_runtime_control {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::channel(capacity::CONTROL);
         (Some(tx), Some(rx))
     } else {
         (None, None)
@@ -713,11 +714,13 @@ pub async fn run_chat(
             "/stop" => {
                 if let Some(tx) = &runtime_control_tx {
                     let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
-                    let _ = tx.send(RuntimeControlCommand::StopSession {
-                        session_key: current_session.clone(),
-                        request_id: None,
-                        reply_tx,
-                    });
+                    let _ = tx
+                        .send(RuntimeControlCommand::StopSession {
+                            session_key: current_session.clone(),
+                            request_id: None,
+                            reply_tx,
+                        })
+                        .await;
                     println!("{}", style("stop requested").yellow());
                 }
                 continue;
@@ -734,7 +737,7 @@ pub async fn run_chat(
                     }
                 };
                 if let Some(tx) = &runtime_control_tx {
-                    let _ = tx.send(RuntimeControlCommand::SetThinking { mode });
+                    let _ = tx.send(RuntimeControlCommand::SetThinking { mode }).await;
                     println!("{}", style(format!("thinking mode -> {:?}", mode)).green());
                 }
                 continue;
@@ -742,10 +745,12 @@ pub async fn run_chat(
             "/compact" => {
                 if let Some(tx) = &runtime_control_tx {
                     let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-                    let _ = tx.send(RuntimeControlCommand::CompactSession {
-                        session_key: current_session.clone(),
-                        reply_tx,
-                    });
+                    let _ = tx
+                        .send(RuntimeControlCommand::CompactSession {
+                            session_key: current_session.clone(),
+                            reply_tx,
+                        })
+                        .await;
                     println!("{}", style("compacting...").cyan());
                     match reply_rx.await {
                         Ok(Ok(msg)) => println!("{}", style(msg).green()),

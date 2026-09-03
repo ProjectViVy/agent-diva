@@ -418,6 +418,93 @@ pub enum ChannelContractError {
     UnexpectedOwnerTurnContext { origin: ChannelOrigin },
 }
 
+impl ChannelEnvelopeV1 {
+    /// Return the typed message parts when this envelope carries a message.
+    pub fn message_parts(&self) -> Option<&[ContentPart]> {
+        match &self.payload {
+            ChannelPayloadV1::Message { parts, .. } => Some(parts),
+            _ => None,
+        }
+    }
+
+    /// Render message parts into a stable, transport-neutral text form.
+    ///
+    /// Rich parts remain typed on the envelope; this representation is only
+    /// the deterministic provider prompt projection. Attachment bytes are
+    /// resolved separately through the shared attachment authority.
+    pub fn rendered_message_text(&self) -> Option<String> {
+        self.message_parts().map(render_content_parts)
+    }
+}
+
+/// Deterministically render typed content for a provider prompt.
+pub fn render_content_parts(parts: &[ContentPart]) -> String {
+    parts
+        .iter()
+        .map(render_content_part)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn render_content_part(part: &ContentPart) -> String {
+    match part {
+        ContentPart::Text { text } => text.clone(),
+        ContentPart::Markdown { markdown } => markdown.clone(),
+        ContentPart::Image { attachment } => format!(
+            "[Image: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::Audio {
+            attachment,
+            transcript,
+        } => transcript.clone().unwrap_or_else(|| {
+            format!(
+                "[Audio: {} ({} bytes, {})]",
+                attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+                attachment.size_bytes,
+                attachment.media_type
+            )
+        }),
+        ContentPart::Video { attachment } => format!(
+            "[Video: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::File { attachment } => format!(
+            "[File: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::Location {
+            latitude,
+            longitude,
+            label,
+        } => match label {
+            Some(label) => format!("Location: {latitude:.6}, {longitude:.6} ({label})"),
+            None => format!("Location: {latitude:.6}, {longitude:.6}"),
+        },
+        ContentPart::Card { schema, body } => {
+            format!("Card ({schema}): {}", body.to_string())
+        }
+        ContentPart::Reference {
+            uri,
+            title,
+            media_type,
+        } => {
+            let title = title.as_deref().unwrap_or("reference");
+            match media_type {
+                Some(media_type) => format!("Reference: {title} <{uri}> ({media_type})"),
+                None => format!("Reference: {title} <{uri}>"),
+            }
+        }
+    }
+}
+
 /// JSON-RPC request ID accepted by Neuro-Link v1.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -795,7 +882,9 @@ mod tests {
         assert!(message(ChannelOrigin::OwnerFrontend, owner_context.clone())
             .validate()
             .is_ok());
-        assert!(message(ChannelOrigin::ExternalUser, None).validate().is_ok());
+        assert!(message(ChannelOrigin::ExternalUser, None)
+            .validate()
+            .is_ok());
         assert!(matches!(
             message(ChannelOrigin::ExternalUser, owner_context.clone()).validate(),
             Err(ChannelContractError::UnexpectedOwnerTurnContext {

@@ -224,7 +224,7 @@ pub fn todo_routes() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::body::to_bytes;
     use axum::http::{Request, StatusCode};
     use axum::Router;
@@ -233,7 +233,7 @@ mod tests {
 
     fn test_app_with_dir(dir: &std::path::Path) -> Router {
         let (api_tx, _api_rx) = mpsc::channel(1);
-        let state = AppState::new(api_tx, MessageBus::new(), dir).unwrap();
+        let state = AppState::new(api_tx, AgentEventBus::new(), dir).unwrap();
         todo_routes().with_state(state)
     }
 

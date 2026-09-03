@@ -1,4 +1,6 @@
-use agent_diva_core::channel::{ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1, OwnerTurnIntent};
+use agent_diva_core::channel::{
+    ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1, OwnerTurnIntent,
+};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::{ExecutionSession, ExecutionSessionStatus};
@@ -87,7 +89,7 @@ pub(crate) struct AdmittedTurn {
     pub active_execution_id: Option<String>,
     pub snapshot: TurnSnapshot,
     pub plan_guard_active: bool,
-    pub approved_plan_markdown: Option<String>,
+    pub execution_plan_markdown: Option<String>,
     pub background_task_context: BackgroundTaskContext,
 }
 
@@ -142,8 +144,11 @@ impl AgentLoop {
         let plan_mode = admission.mode.is_plan();
         let owner_execution_context = match &envelope.payload {
             ChannelPayloadV1::Message { context, .. }
-                if matches!(envelope.origin, ChannelOrigin::OwnerFrontend) => {
-                context.as_ref().and_then(|context| context.execution.as_ref())
+                if matches!(envelope.origin, ChannelOrigin::OwnerFrontend) =>
+            {
+                context
+                    .as_ref()
+                    .and_then(|context| context.execution.as_ref())
             }
             _ => None,
         };
@@ -239,7 +244,7 @@ impl AgentLoop {
             trace_id.to_string(),
         );
         let plan_guard_active = snapshot.plan_guard_active();
-        let approved_plan_markdown = if admission.mode.allows_execution() {
+        let execution_plan_markdown = if admission.mode.allows_execution() {
             if let (Some(planning), Some(execution)) =
                 (&self.tool_config.planning, active_execution.as_ref())
             {
@@ -283,7 +288,7 @@ impl AgentLoop {
             active_execution_id,
             snapshot,
             plan_guard_active,
-            approved_plan_markdown,
+            execution_plan_markdown,
             background_task_context,
         })
     }

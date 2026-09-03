@@ -34,11 +34,7 @@ impl Manager {
         tokio::spawn(async move {
             let cancel = tokio_util::sync::CancellationToken::new();
             if let Err(error) = fabric
-                .admit_ingress(
-                    req.envelope,
-                    std::time::Duration::from_secs(2),
-                    &cancel,
-                )
+                .admit_ingress(req.envelope, std::time::Duration::from_secs(2), &cancel)
                 .await
             {
                 let _ = event_tx.send(AgentEvent::Error {

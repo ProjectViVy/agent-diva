@@ -325,7 +325,7 @@ impl AgentLoop {
             active_execution_id,
             snapshot: mut turn_snapshot,
             plan_guard_active,
-            approved_plan_markdown,
+            execution_plan_markdown,
             background_task_context,
         } = self.admit_turn(&msg, &trace_id).await?;
         let plan_mode = mode.is_plan();
@@ -339,7 +339,7 @@ impl AgentLoop {
                 &session_key,
                 &mut active_execution,
                 plan_guard_active,
-                approved_plan_markdown.as_deref(),
+                execution_plan_markdown.as_deref(),
                 read_only,
                 active_mask.as_ref(),
                 is_cron_trigger,

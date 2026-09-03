@@ -445,8 +445,12 @@ mod tests {
             }
         });
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -478,8 +482,12 @@ mod tests {
     async fn legacy_chat_and_sse_routes_are_removed() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state);
         for uri in ["/api/chat", "/api/chat/stop", "/api/events"] {
             let response = app
@@ -495,8 +503,12 @@ mod tests {
     async fn skill_evolution_http_routes_enforce_zip_cas_history_and_review() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state.clone());
 
         let zip = skill_zip("zip-skill");
@@ -647,8 +659,12 @@ mod tests {
     async fn persona_api_initializes_reads_and_enforces_cas() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state);
 
         let status = app
@@ -737,8 +753,12 @@ mod tests {
         let fixture: serde_json::Value = serde_json::from_str(G0_RUNTIME_CONTRACT).unwrap();
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state.clone());
 
         for route in fixture["routes"].as_array().unwrap() {
@@ -762,8 +782,12 @@ mod tests {
     async fn build_router_keeps_legacy_laputa_governance_routes_removed() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -794,8 +818,12 @@ mod tests {
     async fn evolution_workspace_exposes_payload_free_recall_feedback() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let response = build_router(state)
             .oneshot(
                 Request::builder()
@@ -816,8 +844,12 @@ mod tests {
     async fn autodream_manual_run_executes_worker_and_returns_terminal_failure() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -878,8 +910,12 @@ mod tests {
         session.add_message("user", "verified local E0 session evidence");
         let saved = session.clone();
         sessions.save(&saved).unwrap();
-        let mut state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let mut state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
         state.autodream = state.autodream.clone().with_skill_reflection_engine(None);
         let app = build_router(state.clone());
@@ -949,7 +985,7 @@ mod tests {
 
         let mut state = AppState::new_with_runtime_memory(
             api_tx,
-            agent_diva_core::bus::MessageBus::new(),
+            agent_diva_core::bus::AgentEventBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),

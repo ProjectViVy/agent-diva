@@ -149,9 +149,12 @@ impl Tool for MessageTool {
         })?;
 
         let mut parts = vec![ContentPart::Text { text: content }];
-        parts.extend(attachments.iter().cloned().map(|attachment| {
-            ContentPart::File { attachment }
-        }));
+        parts.extend(
+            attachments
+                .iter()
+                .cloned()
+                .map(|attachment| ContentPart::File { attachment }),
+        );
         let address = ChannelAddress {
             channel: channel.clone(),
             account_id: None,
