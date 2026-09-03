@@ -187,10 +187,10 @@
       生产外部 ingress 与平台 egress 已走 typed Fabric/ChannelCommand，但 AgentLoop 内部结果仍
       使用旧 DTO 后再转为 typed command。需直接以 typed envelope/command 贯通 AgentLoop，删除
       `agent-diva-core/src/bus/events.rs` 中旧 DTO 及所有构造点后，才能满足架构 §15.2/§19.10。
-    - [ ] **C6-E：切换后真实平台/桌面验收、MSRV 与原子合入 dev** `sev-P1`
-      自动化 workspace、GUI、TCK 与 clean-break 子门禁正在本迭代记录；仍需至少一个真实平台
-      完成入站、最终 receipt，并在新生产路径复测桌面断线恢复。C6-D/C6-E 完成前不得关闭 C6
-      或把本分支合入 `dev`。
+    - [ ] **C6-E：切换后真实平台/桌面验收与全工作区 MSRV** `sev-P1`
+      C6 已按用户明确指令于 2026-09-03 通过 `8cc6580b` 本地合入 `dev`，且合并后 workspace、
+      TCK 与 clean-break 门禁通过；仍需至少一个真实平台完成入站、最终 receipt，并在新生产
+      路径复测桌面断线恢复。C6-D/C6-E 完成前不得关闭 C6；本地合入不等于完整验收或已推送。
 
   - [ ] **GUI 依赖安全审计基线** `sev-P2`
     C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。

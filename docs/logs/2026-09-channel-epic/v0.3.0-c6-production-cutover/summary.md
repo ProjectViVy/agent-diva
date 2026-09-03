@@ -19,11 +19,12 @@ unbounded ingress/egress were deleted.
 
 ## Completion boundary
 
-This delivery makes the new channels effective on `feat/channel-epic-c6`, but does not close C6.
+This delivery makes the new channels effective on local `dev` after merge commit `8cc6580b`, but
+does not close C6.
 `InboundMessage` and `OutboundMessage` still exist inside AgentLoop and are converted at the native
 egress boundary. The frozen architecture requires their physical deletion. Post-cutover real
-desktop/platform acceptance and the Rust 1.80 probe are also still required before an atomic merge
-to `dev`.
+desktop/platform acceptance and the full-workspace Rust 1.80 probe are also still required for Epic
+closure.
 
 ## Impact
 

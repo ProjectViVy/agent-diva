@@ -22,6 +22,17 @@ CLI test now exercises the typed runtime-turn route, and the two timing-sensitiv
 the valid runtime order/state. The Manager projection test also waits for both ordered live events
 before reading the journal. The final full workspace gate passed after these corrections.
 
+## Post-merge validation on `dev`
+
+- Merge commit: `8cc6580b` (`merge: integrate C6 channel cutover into dev`)
+- `just fmt-check` — passed
+- `just check` — passed
+- `just channel-clean-break-check` — self-test and production scan passed
+- `just test` — full workspace unit, integration, and doc-test gate passed
+
+The only merge conflict was `LOCK.md`; resolution retained both the released implementation record
+and the active merge-validation lock. No product-source conflict occurred.
+
 ## Deferred exit criteria
 
 - Full workspace Rust 1.80 probe failed before compilation because Tauri's build dependency chain
