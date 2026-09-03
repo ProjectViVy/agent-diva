@@ -1403,14 +1403,17 @@ pub async fn delete_cron_job_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        agent_bus_event_to_sse, chat_handler, generate_session_title_handler,
-        get_session_history_handler, get_sessions_handler, normalized_owner_intent,
-        parse_approval_policy, update_session_title_handler, AgentEvent, ChatRequest, Sse,
+        agent_bus_event_to_sse, build_typed_chat_envelope, chat_handler,
+        generate_session_title_handler, get_session_history_handler, get_sessions_handler,
+        normalized_owner_intent, parse_approval_policy, update_session_title_handler, AgentEvent,
+        ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::AgentEventBus;
     use agent_diva_core::session::store::{ChatMessage, Session};
     use agent_diva_core::session::{SessionInfo, SessionKind};
+    use agent_diva_files::handle::FileMetadata;
+    use agent_diva_files::{FileConfig, FileManager};
     use axum::{
         body::to_bytes,
         extract::{Path, State},
@@ -1419,6 +1422,7 @@ mod tests {
         Json,
     };
     use chrono::Utc;
+    use std::sync::Arc;
     use tokio::sync::mpsc;
 
     #[test]
@@ -1428,6 +1432,113 @@ mod tests {
         assert_eq!(normalized_owner_intent(Some("agent")), Some("agent"));
         assert_eq!(normalized_owner_intent(Some("execute")), Some("ask"));
         assert_eq!(normalized_owner_intent(None), None);
+    }
+
+    #[tokio::test]
+    async fn runtime_chat_resolves_typed_attachments_before_admission() {
+        let (api_tx, _api_rx) = mpsc::channel::<ManagerCommand>(1);
+        let bus = AgentEventBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+        let files = Arc::new(
+            FileManager::new(FileConfig::with_path(temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+        let handle = files
+            .store(
+                &[0x89, b'P', b'N', b'G'],
+                FileMetadata {
+                    name: "diagram.png".to_string(),
+                    size: 4,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("api".to_string()),
+                    created_at: Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let state = state.with_attachment_authority(files);
+        let payload = ChatRequest {
+            message: "describe this".to_string(),
+            request_id: Some("request-1".to_string()),
+            channel: Some("api".to_string()),
+            chat_id: Some("chat-1".to_string()),
+            attachments: Some(vec![handle.id.clone()]),
+            mode: Some("plan".to_string()),
+            execution_start: None,
+            plan_id: None,
+            plan_revision: None,
+            execution_id: None,
+            approval_policy: None,
+        };
+        let envelope = build_typed_chat_envelope(
+            &state,
+            "api".to_string(),
+            "chat-1".to_string(),
+            "request-1".to_string(),
+            payload,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(envelope.correlation.session_key, "api:chat-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
+        assert_eq!(
+            envelope.origin,
+            agent_diva_core::channel::ChannelOrigin::OwnerFrontend
+        );
+        match envelope.payload {
+            agent_diva_core::channel::ChannelPayloadV1::Message {
+                parts,
+                context: Some(context),
+                ..
+            } => {
+                assert_eq!(
+                    context.intent,
+                    agent_diva_core::channel::OwnerTurnIntent::Plan
+                );
+                assert!(matches!(
+                    parts.as_slice(),
+                    [
+                        agent_diva_core::channel::ContentPart::Text { text },
+                        agent_diva_core::channel::ContentPart::Image { attachment }
+                    ] if text == "describe this"
+                        && attachment.media_type == "image/png"
+                        && attachment.file_name.as_deref() == Some("diagram.png")
+                ));
+            }
+            payload => panic!("unexpected typed HTTP payload: {payload:?}"),
+        }
+
+        let invalid = build_typed_chat_envelope(
+            &state,
+            "api".to_string(),
+            "chat-1".to_string(),
+            "request-2".to_string(),
+            ChatRequest {
+                message: "bad attachment".to_string(),
+                request_id: Some("request-2".to_string()),
+                channel: Some("api".to_string()),
+                chat_id: Some("chat-1".to_string()),
+                attachments: Some(vec!["sha256:not-found".to_string()]),
+                mode: None,
+                execution_start: None,
+                plan_id: None,
+                plan_revision: None,
+                execution_id: None,
+                approval_policy: None,
+            },
+        )
+        .await;
+        assert!(invalid
+            .expect_err("unknown attachment must fail before admission")
+            .contains("invalid attachment reference"));
     }
 
     #[tokio::test]
