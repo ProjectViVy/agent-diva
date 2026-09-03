@@ -4,8 +4,9 @@
 //! supervised run queue. The task is stored in the `supervised_runs` table
 //! and can be claimed and executed by a worker (e.g. SubagentRunHandler).
 
+use agent_diva_core::channel::ChannelRoute;
 use agent_diva_core::config::schema::MaskConfig;
-use agent_diva_core::supervised::{RunKind, RunStore, SupervisedRunSpec};
+use agent_diva_core::supervised::{RunKind, RunStore, SupervisedRunContext, SupervisedRunSpec};
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -13,11 +14,10 @@ use serde_json::{json, Value};
 /// Default routing and budget context inherited from the active agent turn.
 #[derive(Debug, Clone, Default)]
 pub struct BackgroundTaskContext {
-    pub channel: Option<String>,
-    pub chat_id: Option<String>,
-    pub session_key: Option<String>,
-    pub trace_id: Option<String>,
-    pub parent_run_id: Option<String>,
+    /// Authoritative parent channel route captured from the typed envelope.
+    pub route: Option<ChannelRoute>,
+    /// Dedicated supervised-run lineage; never encoded in generic metadata.
+    pub parent_id: Option<String>,
     pub token_budget_limit: Option<u64>,
     /// Immutable parent-turn mask inherited by the supervised subagent.
     pub mask_config: Option<MaskConfig>,
@@ -64,10 +64,6 @@ impl Tool for EnqueueBackgroundTaskTool {
                     "type": "string",
                     "description": "The task description or instruction"
                 },
-                "channel": {
-                    "type": "string",
-                    "description": "Optional channel context for the task"
-                },
                 "priority": {
                     "type": "integer",
                     "description": "Optional priority (higher = executed sooner). Defaults to 0."
@@ -75,22 +71,6 @@ impl Tool for EnqueueBackgroundTaskTool {
                 "label": {
                     "type": "string",
                     "description": "Optional label stored in metadata for display"
-                },
-                "chat_id": {
-                    "type": "string",
-                    "description": "Optional chat id override for result routing"
-                },
-                "session_key": {
-                    "type": "string",
-                    "description": "Optional parent session key for token ledger inheritance"
-                },
-                "trace_id": {
-                    "type": "string",
-                    "description": "Optional parent trace id"
-                },
-                "parent_run_id": {
-                    "type": "string",
-                    "description": "Optional parent run id for lineage"
                 },
                 "token_budget_limit": {
                     "type": "integer",
@@ -113,54 +93,27 @@ impl Tool for EnqueueBackgroundTaskTool {
 
         let mut spec = SupervisedRunSpec::from_spec(message).with_kind(RunKind::Subagent);
 
-        let channel = args
-            .get("channel")
-            .and_then(|v| v.as_str())
-            .map(str::to_string)
-            .or_else(|| self.context.channel.clone());
-        if let Some(channel) = channel {
-            spec = spec.with_channel(channel);
-        }
-
         if let Some(priority) = args.get("priority").and_then(|v| v.as_i64()) {
             spec = spec.with_priority(priority as i32);
         }
 
         let mut metadata = serde_json::Map::new();
         insert_string_arg_or_default(&mut metadata, &args, "label", None);
-        insert_string_arg_or_default(
-            &mut metadata,
-            &args,
-            "chat_id",
-            self.context.chat_id.clone(),
-        );
-        insert_string_arg_or_default(
-            &mut metadata,
-            &args,
-            "session_key",
-            self.context.session_key.clone(),
-        );
-        insert_string_arg_or_default(
-            &mut metadata,
-            &args,
-            "trace_id",
-            self.context.trace_id.clone(),
-        );
-        insert_string_arg_or_default(
-            &mut metadata,
-            &args,
-            "parent_run_id",
-            self.context.parent_run_id.clone(),
-        );
         let token_budget_limit = args
             .get("token_budget_limit")
             .and_then(|v| v.as_u64())
             .or(self.context.token_budget_limit);
-        if let Some(limit) = token_budget_limit {
-            metadata.insert("token_budget_limit".to_string(), json!(limit));
+        if let Some(route) = self.context.route.clone() {
+            spec = spec
+                .with_channel(route.address.channel.clone())
+                .with_context(SupervisedRunContext {
+                    route,
+                    token_budget_limit,
+                    mask_config: self.context.mask_config.clone(),
+                });
         }
-        if let Some(mask) = self.context.mask_config.as_ref() {
-            metadata.insert("mask_config".to_string(), json!(mask));
+        if let Some(parent_id) = self.context.parent_id.clone() {
+            spec = spec.with_parent_id(parent_id);
         }
 
         if !metadata.is_empty() {
@@ -220,13 +173,8 @@ mod tests {
         let params = tool.parameters();
         assert!(params["properties"]["message"].is_object());
         assert_eq!(params["required"][0], "message");
-        assert!(params["properties"]["channel"].is_object());
         assert!(params["properties"]["priority"].is_object());
         assert!(params["properties"]["label"].is_object());
-        assert!(params["properties"]["chat_id"].is_object());
-        assert!(params["properties"]["session_key"].is_object());
-        assert!(params["properties"]["trace_id"].is_object());
-        assert!(params["properties"]["parent_run_id"].is_object());
         assert!(params["properties"]["token_budget_limit"].is_object());
     }
 
@@ -261,7 +209,6 @@ mod tests {
 
         let args = json!({
             "message": "High priority cleanup",
-            "channel": "telegram",
             "priority": 10
         });
 
@@ -272,7 +219,7 @@ mod tests {
             .await
             .expect("get_record")
             .expect("record should exist");
-        assert_eq!(record.channel, Some("telegram".to_string()));
+        assert_eq!(record.channel, None);
         assert_eq!(record.priority, 10);
         assert_eq!(record.kind, RunKind::Subagent);
     }
@@ -299,16 +246,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enqueue_background_task_inherits_context_metadata() {
+    async fn test_enqueue_background_task_persists_typed_context() {
         let (_dir, store) = setup_store().await;
+        let mut address = agent_diva_core::channel::ChannelAddress::new("api", "chat-1");
+        address.thread_id = Some("thread-1".to_string());
+        let mut correlation = agent_diva_core::channel::Correlation::new("opaque-session");
+        correlation.request_id = Some("request-1".to_string());
+        correlation.trace_id = Some("trace-1".to_string());
+        correlation.message_id = Some("message-1".to_string());
         let tool = EnqueueBackgroundTaskTool::with_context(
             store.clone(),
             BackgroundTaskContext {
-                channel: Some("api".to_string()),
-                chat_id: Some("chat-1".to_string()),
-                session_key: Some("api:chat-1".to_string()),
-                trace_id: Some("trace-1".to_string()),
-                parent_run_id: Some("parent-1".to_string()),
+                route: Some(ChannelRoute::new(
+                    address,
+                    correlation,
+                    agent_diva_core::channel::ChannelOrigin::OwnerFrontend,
+                )),
+                parent_id: Some("parent-1".to_string()),
                 token_budget_limit: Some(2048),
                 mask_config: Some(MaskConfig::default()),
             },
@@ -330,12 +284,16 @@ mod tests {
         assert_eq!(record.channel.as_deref(), Some("api"));
         let metadata = record.metadata.expect("metadata");
         assert_eq!(metadata["label"], "ctx");
-        assert_eq!(metadata["chat_id"], "chat-1");
-        assert_eq!(metadata["session_key"], "api:chat-1");
-        assert_eq!(metadata["trace_id"], "trace-1");
-        assert_eq!(metadata["parent_run_id"], "parent-1");
-        assert_eq!(metadata["token_budget_limit"], 2048);
-        assert!(metadata["mask_config"].is_object());
+        assert_eq!(record.parent_id.as_deref(), Some("parent-1"));
+        let context = record.context.expect("typed context");
+        assert_eq!(context.route.correlation.session_key, "opaque-session");
+        assert_eq!(
+            context.route.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
+        assert_eq!(context.route.address.thread_id.as_deref(), Some("thread-1"));
+        assert_eq!(context.token_budget_limit, Some(2048));
+        assert!(context.mask_config.is_some());
     }
 
     #[tokio::test]

@@ -13,14 +13,15 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use agent_diva_core::channel::{
-    ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
-    ContentPart, Correlation, FabricHandle,
+    ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1, ChannelRoute,
+    ContentPart, FabricHandle,
 };
 use agent_diva_core::config::schema::{
     BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, TokenUsage, ToolLimits,
 };
 use agent_diva_core::memory::{MemoryProvider, SystemPromptRequest};
 use agent_diva_core::session::TokenUsage as SessionTokenUsage;
+use agent_diva_core::supervised::SupervisedRunContext;
 use agent_diva_core::token_ledger::budget::check_budget_at_path;
 use agent_diva_core::token_ledger::BudgetExceeded;
 use agent_diva_core::token_ledger::{JsonlTokenLedger, TokenLedgerEntry};
@@ -61,14 +62,24 @@ pub struct SubagentManager {
 }
 
 /// Parent-turn context for supervised subagent runs.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SupervisedSubagentContext {
-    pub session_key: Option<String>,
-    pub trace_id: Option<String>,
-    pub parent_run_id: Option<String>,
+    pub route: ChannelRoute,
+    pub parent_id: Option<String>,
     pub token_budget_limit: Option<u64>,
     /// Parent-turn mask captured when the background run was enqueued.
     pub mask_config: Option<MaskConfig>,
+}
+
+impl SupervisedSubagentContext {
+    pub fn from_run_context(context: SupervisedRunContext, parent_id: Option<String>) -> Self {
+        Self {
+            route: context.route,
+            parent_id,
+            token_budget_limit: context.token_budget_limit,
+            mask_config: context.mask_config,
+        }
+    }
 }
 
 impl SubagentManager {
@@ -213,8 +224,7 @@ impl SubagentManager {
     /// # Arguments
     /// * `task` - The task description for the subagent
     /// * `label` - Optional human-readable label for the task
-    /// * `origin_channel` - The channel to announce results to
-    /// * `origin_chat_id` - The chat ID to announce results to
+    /// * `route` - The typed parent route used to announce results
     ///
     /// # Returns
     /// Status message indicating the subagent was started
@@ -222,12 +232,10 @@ impl SubagentManager {
         &self,
         task: String,
         label: Option<String>,
-        origin_channel: String,
-        origin_chat_id: String,
+        route: ChannelRoute,
     ) -> Result<String> {
         let mask = self.current_mask.read().await.clone();
-        self.spawn_with_mask(task, label, origin_channel, origin_chat_id, mask)
-            .await
+        self.spawn_with_mask(task, label, route, mask).await
     }
 
     /// Spawn a subagent with immutable defaults captured from one parent turn.
@@ -235,8 +243,7 @@ impl SubagentManager {
         &self,
         task: String,
         label: Option<String>,
-        origin_channel: String,
-        origin_chat_id: String,
+        route: ChannelRoute,
         mask: Option<MaskConfig>,
     ) -> Result<String> {
         let task_id = Uuid::new_v4().to_string()[..8].to_string();
@@ -266,8 +273,7 @@ impl SubagentManager {
                 task_id_clone.clone(),
                 task.clone(),
                 display_label_clone.clone(),
-                origin_channel,
-                origin_chat_id,
+                route,
                 provider,
                 workspace,
                 fabric.clone(),
@@ -308,8 +314,6 @@ impl SubagentManager {
         &self,
         task: String,
         label: Option<String>,
-        origin_channel: String,
-        origin_chat_id: String,
         context: SupervisedSubagentContext,
     ) -> Result<String> {
         let task_id = Uuid::new_v4().to_string()[..8].to_string();
@@ -361,8 +365,7 @@ impl SubagentManager {
                     &display_label,
                     &task,
                     &content,
-                    &origin_channel,
-                    &origin_chat_id,
+                    &context.route,
                     "ok",
                     &fabric,
                 )
@@ -377,8 +380,7 @@ impl SubagentManager {
                     &display_label,
                     &task,
                     &error_msg,
-                    &origin_channel,
-                    &origin_chat_id,
+                    &context.route,
                     "error",
                     &fabric,
                 )
@@ -389,9 +391,7 @@ impl SubagentManager {
     }
 
     fn enforce_parent_session_budget(&self, context: &SupervisedSubagentContext) -> Result<()> {
-        let Some(session_key) = context.session_key.as_deref() else {
-            return Ok(());
-        };
+        let session_key = &context.route.correlation.session_key;
         let limit = context
             .token_budget_limit
             .or(self.session_token_budget_limit);
@@ -406,9 +406,7 @@ impl SubagentManager {
         context: &SupervisedSubagentContext,
         usage: &HashMap<String, i64>,
     ) -> Result<()> {
-        let Some(session_key) = context.session_key.as_deref() else {
-            return Ok(());
-        };
+        let session_key = &context.route.correlation.session_key;
         let Some(data_root) = &self.token_ledger_data_root else {
             return Ok(());
         };
@@ -925,8 +923,7 @@ impl SubagentManager {
         label: &str,
         task: &str,
         result: &str,
-        origin_channel: &str,
-        origin_chat_id: &str,
+        route: &ChannelRoute,
         status: &str,
         fabric: &FabricHandle,
     ) {
@@ -941,13 +938,11 @@ impl SubagentManager {
             label, status_text, task, result
         );
 
-        let mut address = ChannelAddress::new(origin_channel, origin_chat_id);
+        let mut address = route.address.clone();
         address.sender_id = Some("subagent".to_string());
-        let session_key = format!("{}:{}", address.channel, address.chat_id);
-        let mut correlation = Correlation::new(session_key);
+        let mut correlation = route.correlation.clone();
         correlation.message_id = Some(Uuid::new_v4().to_string());
-        correlation.request_id = Some(Uuid::new_v4().to_string());
-        correlation.trace_id = Some(Uuid::new_v4().to_string());
+        correlation.reply_to = route.correlation.message_id.clone();
         let envelope = ChannelEnvelopeV1::new(
             ChannelDirection::Ingress,
             address,
@@ -975,7 +970,7 @@ impl SubagentManager {
 
         debug!(
             "Subagent [{}] announced result to {}:{}",
-            task_id, origin_channel, origin_chat_id
+            task_id, route.address.channel, route.address.chat_id
         );
     }
 
@@ -1093,8 +1088,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         task_id: String,
         task: String,
         label: String,
-        origin_channel: String,
-        origin_chat_id: String,
+        route: ChannelRoute,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         fabric: FabricHandle,
@@ -1148,8 +1142,7 @@ When you have completed the task, provide a clear summary of your findings or ac
             &label,
             &task,
             &final_result,
-            &origin_channel,
-            &origin_chat_id,
+            &route,
             status,
             &fabric,
         )
@@ -1192,7 +1185,8 @@ fn accumulate_usage(total_usage: &mut HashMap<String, i64>, delta: &HashMap<Stri
 mod tests {
     use super::{accumulate_usage, extract_token_usage, SubagentManager};
     use agent_diva_core::channel::{
-        ChannelDirection, ChannelOrigin, ChannelPayloadV1, FabricKernel,
+        ChannelAddress, ChannelDirection, ChannelOrigin, ChannelPayloadV1, ChannelRoute,
+        Correlation, FabricKernel,
     };
     use agent_diva_core::config::schema::{
         BatchSpawnRequest, MaskConfig, SubAgentStatus, SubAgentTask, SubagentDefaults, TokenUsage,
@@ -1477,13 +1471,19 @@ mod tests {
     #[tokio::test]
     async fn subagent_result_is_injected_as_a_typed_runtime_envelope() {
         let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        let mut address = ChannelAddress::new("telegram", "chat-1");
+        address.thread_id = Some("thread-1".to_string());
+        let mut correlation = Correlation::new("opaque:telegram:chat-1");
+        correlation.request_id = Some("request-parent".to_string());
+        correlation.trace_id = Some("trace-parent".to_string());
+        correlation.message_id = Some("message-parent".to_string());
+        let route = ChannelRoute::new(address, correlation, ChannelOrigin::ExternalUser);
         SubagentManager::announce_result(
             "task-1",
             "research",
             "inspect the logs",
             "found the relevant entry",
-            "telegram",
-            "chat-1",
+            &route,
             "ok",
             &fabric,
         )
@@ -1499,11 +1499,21 @@ mod tests {
         assert_eq!(envelope.address.channel, "telegram");
         assert_eq!(envelope.address.chat_id, "chat-1");
         assert_eq!(envelope.address.sender_id.as_deref(), Some("subagent"));
-        assert_eq!(envelope.correlation.session_key, "telegram:chat-1");
-        assert!(envelope.correlation.request_id.is_some());
-        assert!(envelope.correlation.trace_id.is_some());
+        assert_eq!(envelope.correlation.session_key, "opaque:telegram:chat-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("request-parent")
+        );
+        assert_eq!(
+            envelope.correlation.trace_id.as_deref(),
+            Some("trace-parent")
+        );
         assert!(envelope.correlation.message_id.is_some());
-        assert!(envelope.correlation.reply_to.is_none());
+        assert_eq!(
+            envelope.correlation.reply_to.as_deref(),
+            Some("message-parent")
+        );
+        assert_eq!(envelope.address.thread_id.as_deref(), Some("thread-1"));
         match &envelope.payload {
             ChannelPayloadV1::Message {
                 parts,

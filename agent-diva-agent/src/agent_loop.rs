@@ -6,7 +6,7 @@ use agent_diva_core::bus::{
 };
 use agent_diva_core::channel::{
     ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
-    ChannelPayloadV1, ContentPart, Correlation, OwnerTurnContextV1, OwnerTurnIntent,
+    ChannelPayloadV1, ChannelRoute, ContentPart, Correlation, OwnerTurnContextV1, OwnerTurnIntent,
 };
 use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
@@ -434,11 +434,10 @@ impl SubagentSpawner for SubagentManagerSpawner {
         &self,
         task: String,
         label: Option<String>,
-        channel: String,
-        chat_id: String,
+        route: ChannelRoute,
     ) -> Result<String, ToolError> {
         self.manager
-            .spawn_with_mask(task, label, channel, chat_id, self.mask.clone())
+            .spawn_with_mask(task, label, route, self.mask.clone())
             .await
             .map_err(|e| ToolError::ExecutionFailed(e.to_string()))
     }
@@ -3326,12 +3325,17 @@ mod tests {
         )
         .await
         .unwrap();
+        let mut route_address = ChannelAddress::new("gui", "chat-e7");
+        route_address.thread_id = Some("thread-e7".into());
+        let mut route_correlation = Correlation::new("opaque:gui:chat-e7");
+        route_correlation.trace_id = Some("trace-e7".into());
         let context = BackgroundTaskContext {
-            channel: Some("gui".into()),
-            chat_id: Some("chat-e7".into()),
-            session_key: Some("gui:chat-e7".into()),
-            trace_id: Some("trace-e7".into()),
-            parent_run_id: Some("run-e7".into()),
+            route: Some(ChannelRoute::new(
+                route_address,
+                route_correlation,
+                ChannelOrigin::OwnerFrontend,
+            )),
+            parent_id: Some("run-e7".into()),
             token_budget_limit: Some(4_000),
             mask_config: None,
         };
@@ -3371,7 +3375,12 @@ mod tests {
                 .active_tool_surface
                 .background_task_context
                 .as_ref()
-                .and_then(|context| context.trace_id.as_deref()),
+                .and_then(|context| {
+                    context
+                        .route
+                        .as_ref()
+                        .and_then(|route| route.correlation.trace_id.as_deref())
+                }),
             Some("trace-e7")
         );
     }

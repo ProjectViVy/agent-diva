@@ -1,5 +1,5 @@
 use agent_diva_core::channel::{
-    ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1, OwnerTurnIntent,
+    ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1, ChannelRoute, OwnerTurnIntent,
 };
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::store::PlanningStore;
@@ -255,11 +255,8 @@ impl AgentLoop {
             None
         };
         let background_task_context = BackgroundTaskContext {
-            channel: Some(envelope.address.channel.clone()),
-            chat_id: Some(envelope.address.chat_id.clone()),
-            session_key: Some(admission.session_key.clone()),
-            trace_id: Some(trace_id.to_string()),
-            parent_run_id: None,
+            route: Some(ChannelRoute::from_envelope(envelope)),
+            parent_id: None,
             token_budget_limit: self.session_token_budget_limit,
             mask_config: active_mask.as_ref().map(|mask| mask.frontmatter.clone()),
         };
