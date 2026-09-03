@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `none (C5 dev merge completed; see handoff notes)`
-- Owner: `Codex / C5-V merge after QQ compatibility smoke`
-- Session/Task: `CHANNEL-EPIC merge feat/channel-epic into dev`
-- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-09-03T04:00:13+08:00`
-- Last Heartbeat: `2026-09-03T04:22:23+08:00`
-- Expires At: `—`
-- Handoff Notes: `Released after merge commit ecb32705fcdc12b65406e49845ab420639c5f34f integrated feat/channel-epic into dev. The only merge conflict was LOCK.md and both lock histories were preserved. Post-merge cargo test -p agent-diva-channels --all-targets, cargo clippy -p agent-diva-channels --all-targets -- -D warnings, just fmt-check, just check, just test, just msrv-probe check -p agent-diva-channels, and git diff --check passed; just test was rerun after cargo clean because the first attempt hit a 276.5 GiB generated-target disk exhaustion. User-confirmed QQ compatibility smoke is recorded; the ignored QQ live harness still requires external credentials and was not run. No push, Manager cutover, or C6.`
+- Lock State: `HELD`
+- Scope: `GLOBAL — C6 channel production cutover across core, agent, channels, manager, GUI, configuration, tests, and iteration records`
+- Owner: `Codex / C6 production cutover`
+- Session/Task: `CHANNEL-EPIC C6 production cutover`
+- Branch/Worktree: `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`
+- Started At: `2026-09-03T18:00:53+08:00`
+- Last Heartbeat: `2026-09-03T18:00:53+08:00`
+- Expires At: `2026-09-04T06:00:53+08:00`
+- Handoff Notes: `Claimed from clean dev efe06a27 for the atomic C6 cutover requested by the user. No overlapping writer lock was active. Work will proceed in an isolated worktree; no push without explicit authorization.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C6 production cutover` — **HELD 2026-09-03T18:00:53+08:00** by `Codex / C6 production cutover` on `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`. GLOBAL scope covers the atomic migration of Fabric admission, AgentLoop typed channel turns, native adapter runtime assembly, Manager lifecycle/status APIs, desktop Neuro-Link cleanup, legacy source deletion, clean-break gates, TODO and iteration records. No push without explicit authorization.
 
 - `CHANNEL-EPIC merge feat/channel-epic into dev` — **RELEASED 2026-09-03T04:22:23+08:00** by `Codex / C5-V merge after QQ compatibility smoke`. Merge commit `ecb32705fcdc12b65406e49845ab420639c5f34f` integrated `feat/channel-epic` at `edc8accf` into `dev` at `ad0f87c1`; the only conflict was `LOCK.md`, resolved while preserving both histories. Post-merge channel tests, channel all-target Clippy, `just fmt-check`, `just check`, `just test`, Rust 1.80 MSRV probe, and `git diff --check` passed. User-confirmed QQ compatibility smoke is not a substitute for the ignored credential-gated QQ live harness or official D-013/D-014 evidence. No push, Manager/C6 cutover, or production assembly change.
 
