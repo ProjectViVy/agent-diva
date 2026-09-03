@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `GLOBAL — merge feat/channel-epic-c6 into dev and run post-merge validation`
 - Owner: `Codex / C6 dev merge`
 - Session/Task: `CHANNEL-EPIC C6 merge to dev`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-09-03T21:12:41+08:00`
-- Last Heartbeat: `2026-09-03T21:12:41+08:00`
-- Expires At: `2026-09-04T09:12:41+08:00`
-- Handoff Notes: `User explicitly requested local merge of feat/channel-epic-c6 into dev. Merge and post-merge validation only; no push.`
+- Last Heartbeat: `2026-09-03T21:20:53+08:00`
+- Expires At: `N/A — released`
+- Handoff Notes: `Released after local merge commit 8cc6580b and documentation commit 3d15b23a. Post-merge fmt, clippy, clean-break, and full workspace tests passed. No push. C6-D/C6-E remain open.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `CHANNEL-EPIC C6 merge to dev` — **HELD 2026-09-03T21:12:41+08:00** by `Codex / C6 dev merge` on `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`. GLOBAL scope covers the local merge, conflict resolution, and post-merge validation. User explicitly requested the merge; no push.
+- `CHANNEL-EPIC C6 merge to dev` — **RELEASED 2026-09-03T21:20:53+08:00** by `Codex / C6 dev merge` on `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`. Merge commit `8cc6580b` integrated `feat/channel-epic-c6`; the only conflict was `LOCK.md`, resolved by preserving both histories. Post-merge `just fmt-check`, `just check`, `just channel-clean-break-check`, and `just test` passed. Documentation follow-up is `3d15b23a`. No push; C6-D/C6-E remain open.
 
 - `CHANNEL-EPIC C6 production cutover` — **RELEASED 2026-09-03T19:17:05+08:00** by `Codex / C6 production cutover` on `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`. Preview implementation commits `e8bb8da0` through `108f3f4c`; full workspace tests, fmt, clippy, GUI tests/build, CLI smoke, channel TCK, and clean-break gates passed. C6-D DTO deletion, C6-E real-platform/MSRV acceptance, and atomic `dev` merge remain open. No push.
 
@@ -133,6 +133,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `Workspace 与 AGENTS.md 全研发周期（Wave A-D backend）` — **STALE/TAKEN OVER 2026-08-26T00:00:00+08:00** by `Codex` for backlog consolidation only. Original lock expired `2026-08-24T04:00:00+08:00`; implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-workspace-agents`, branch `feat/workspace-agents-impl`, commits `8ccc82b2` → `d1264f3d`, unmerged and not pushed. Product code remains untouched in this planning iteration.
 
 ## Handoff Notes
+
+- `2026-09-03T21:20:53+08:00`: Released the C6 local dev merge. Product merge `8cc6580b` and documentation follow-up `3d15b23a` are on `dev`; all required post-merge workspace gates passed. No push. Remaining closure work is tracked as C6-D/C6-E.
 
 - `2026-09-03T21:12:41+08:00`: Claimed the local C6 merge after the user's explicit request. Both `dev` and `feat/channel-epic-c6` were clean before the claim; no push is authorized.
 
