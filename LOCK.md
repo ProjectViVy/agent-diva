@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `GLOBAL — C6 channel production cutover across core, agent, channels, manager, GUI, configuration, tests, and iteration records`
 - Owner: `Codex / C6 production cutover`
 - Session/Task: `CHANNEL-EPIC C6 production cutover`
 - Branch/Worktree: `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`
 - Started At: `2026-09-03T18:00:53+08:00`
-- Last Heartbeat: `2026-09-03T18:00:53+08:00`
-- Expires At: `2026-09-04T06:00:53+08:00`
-- Handoff Notes: `Claimed from clean dev efe06a27 for the atomic C6 cutover requested by the user. No overlapping writer lock was active. Work will proceed in an isolated worktree; no push without explicit authorization.`
+- Last Heartbeat: `2026-09-03T19:17:05+08:00`
+- Expires At: `N/A — released`
+- Handoff Notes: `Released after committing the C6 preview implementation and iteration records on feat/channel-epic-c6. Full workspace tests, fmt, clippy, GUI tests/build, CLI smoke, channel TCK, and clean-break gates passed. C6-D DTO deletion and C6-E real-platform/MSRV acceptance remain open; no merge or push.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `CHANNEL-EPIC C6 production cutover` — **HELD 2026-09-03T18:00:53+08:00** by `Codex / C6 production cutover` on `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`. GLOBAL scope covers the atomic migration of Fabric admission, AgentLoop typed channel turns, native adapter runtime assembly, Manager lifecycle/status APIs, desktop Neuro-Link cleanup, legacy source deletion, clean-break gates, TODO and iteration records. No push without explicit authorization.
+- `CHANNEL-EPIC C6 production cutover` — **RELEASED 2026-09-03T19:17:05+08:00** by `Codex / C6 production cutover` on `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`. Preview implementation commits `e8bb8da0` through `108f3f4c`; full workspace tests, fmt, clippy, GUI tests/build, CLI smoke, channel TCK, and clean-break gates passed. C6-D DTO deletion, C6-E real-platform/MSRV acceptance, and atomic `dev` merge remain open. No push.
 
 - `CHANNEL-EPIC merge feat/channel-epic into dev` — **RELEASED 2026-09-03T04:22:23+08:00** by `Codex / C5-V merge after QQ compatibility smoke`. Merge commit `ecb32705fcdc12b65406e49845ab420639c5f34f` integrated `feat/channel-epic` at `edc8accf` into `dev` at `ad0f87c1`; the only conflict was `LOCK.md`, resolved while preserving both histories. Post-merge channel tests, channel all-target Clippy, `just fmt-check`, `just check`, `just test`, Rust 1.80 MSRV probe, and `git diff --check` passed. User-confirmed QQ compatibility smoke is not a substitute for the ignored credential-gated QQ live harness or official D-013/D-014 evidence. No push, Manager/C6 cutover, or production assembly change.
 
@@ -131,6 +131,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `Workspace 与 AGENTS.md 全研发周期（Wave A-D backend）` — **STALE/TAKEN OVER 2026-08-26T00:00:00+08:00** by `Codex` for backlog consolidation only. Original lock expired `2026-08-24T04:00:00+08:00`; implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-workspace-agents`, branch `feat/workspace-agents-impl`, commits `8ccc82b2` → `d1264f3d`, unmerged and not pushed. Product code remains untouched in this planning iteration.
 
 ## Handoff Notes
+
+- `2026-09-03T19:17:05+08:00`: Released the C6 preview implementation on `feat/channel-epic-c6`. The Manager-owned six-channel runtime, Fabric-first ingress, bounded single-owner egress, runtime-backed GUI status, retired channel/route deletion, and clean-break gate are committed and automated gates pass. Do not merge until C6-D physically deletes the old AgentLoop DTOs and C6-E records a controlled real-platform receipt plus desktop/MSRV acceptance.
 
 - `2026-09-01T01:50:54+08:00`: C5-I Gate 2 released from this isolated worktree. Six native adapters and factory/TCK are implemented; verification logs are current at 126 channel library tests plus full workspace `just test`. Receiving agent starts at C5-V and must retain QQ D-013/D-014 as blocked until official wire evidence exists.
 
