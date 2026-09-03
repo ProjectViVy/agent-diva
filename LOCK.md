@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `GLOBAL — C6-D strict Clean Break: typed AgentLoop/Fabric migration and physical removal of legacy DTO/message queues across active Rust source, tests, scripts, docs/logs, and TODOLIST`
-- Owner: `Codex / C6-D DTO Clean Break`
-- Session/Task: `CHANNEL-EPIC C6-D strict deletion of InboundMessage/OutboundMessage and old queue APIs`
+- Lock State: `RELEASED`
+- Scope: `GLOBAL — C6-D strict Clean Break (released)`
+- Owner: `none`
+- Session/Task: `CHANNEL-EPIC C6-D strict deletion of InboundMessage/OutboundMessage and old queue APIs (released)`
 - Branch/Worktree: `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`
 - Started At: `2026-09-04T02:29:56+08:00`
-- Last Heartbeat: `2026-09-04T02:29:56+08:00`
-- Expires At: `2026-09-06T02:29:56+08:00`
-- Handoff Notes: `C6-D implementation owner is /root/c6_d_dto_cleanbreak. Preserve unrelated parallel worktree changes; no push or dev merge. Release only after implementation, validation, iteration logs, and TODOLIST bookkeeping are complete.`
+- Last Heartbeat: `2026-09-04T06:03:26+08:00`
+- Expires At: `none`
+- Handoff Notes: `C6-D feature worktree is clean at final HEAD bccae24d; implementation, validation, iteration logs, and TODOLIST bookkeeping are complete. Feature branch was not merged to dev and nothing was pushed. C6-E remains open for real-platform/desktop/MSRV acceptance.`
 
 ## Lock Rules
 
@@ -25,6 +25,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C6-D strict Clean Break` — **RELEASED 2026-09-04T06:03:26+08:00** by
+  `Codex / C6-D DTO Clean Break` on `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`.
+  Feature HEAD `bccae24d` is clean. `just fmt-check`, `just check`, `just test`, clean-break,
+  focused channel TCK, and CLI help smoke passed; the Rust 1.80 scoped probe remains a C6-E
+  blocker at `getrandom 0.4.3` Edition2024. The feature remains unmerged and unpushed.
 
 - `CHANNEL-EPIC C6 merge to dev` — **RELEASED 2026-09-03T21:20:53+08:00** by `Codex / C6 dev merge` on `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`. Merge commit `8cc6580b` integrated `feat/channel-epic-c6`; the only conflict was `LOCK.md`, resolved by preserving both histories. Post-merge `just fmt-check`, `just check`, `just channel-clean-break-check`, and `just test` passed. Documentation follow-up is `3d15b23a`. No push; C6-D/C6-E remain open.
 
