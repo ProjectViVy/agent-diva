@@ -1,72 +1,45 @@
-//! Async message queue implementation
+//! Broadcast fan-out for AgentEvent projections and identity-only activity.
+//!
+//! Turn ingress and adapter egress are owned by the typed Channel Fabric. This
+//! module intentionally contains no message queues or turn DTOs.
 
-use super::events::{AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PokeEvent};
-use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use super::events::{AgentBusEvent, AgentEvent, PokeEvent};
+use tokio::sync::broadcast;
 
-/// Type alias for message channel senders
-pub type OutboundSender = mpsc::Sender<OutboundMessage>;
-pub type OutboundReceiver = mpsc::Receiver<OutboundMessage>;
-
-const AGENT_MESSAGE_CAPACITY: usize = 256;
-
-/// Async message bus that decouples chat channels from the agent core
-///
-/// Channels push messages to the inbound queue, and the agent processes
-/// them and pushes responses to the outbound queue.
+/// Event fan-out shared by the agent loop, projections, and observability
+/// consumers.
 #[derive(Clone)]
-pub struct MessageBus {
-    /// Inbound messages from channels
-    inbound_tx: mpsc::Sender<InboundMessage>,
-    inbound_rx: Arc<RwLock<Option<mpsc::Receiver<InboundMessage>>>>,
-    /// Outbound messages to channels
-    outbound_tx: mpsc::Sender<OutboundMessage>,
-    outbound_rx: Arc<RwLock<Option<mpsc::Receiver<OutboundMessage>>>>,
-    /// Event broadcast channel
+pub struct AgentEventBus {
     event_tx: broadcast::Sender<AgentBusEvent>,
-    /// Poke event broadcast channel for lifecycle/audit events
     poke_event_tx: broadcast::Sender<PokeEvent>,
-    /// Running state
-    running: Arc<RwLock<bool>>,
 }
 
-impl MessageBus {
-    /// Create a new message bus
+impl AgentEventBus {
+    /// Create a new event fan-out hub.
     pub fn new() -> Self {
-        let (inbound_tx, inbound_rx) = mpsc::channel(AGENT_MESSAGE_CAPACITY);
-        let (outbound_tx, outbound_rx) = mpsc::channel(AGENT_MESSAGE_CAPACITY);
         let (event_tx, _) = broadcast::channel(1024);
         let (poke_event_tx, _) = broadcast::channel(1024);
-
         Self {
-            inbound_tx,
-            inbound_rx: Arc::new(RwLock::new(Some(inbound_rx))),
-            outbound_tx,
-            outbound_rx: Arc::new(RwLock::new(Some(outbound_rx))),
             event_tx,
             poke_event_tx,
-            running: Arc::new(RwLock::new(false)),
         }
     }
 
-    /// Publish an event to the broadcast channel
+    /// Publish an event without turn-specific correlation.
     pub fn publish_event(
         &self,
         channel: impl Into<String>,
         chat_id: impl Into<String>,
         event: AgentEvent,
     ) -> crate::Result<()> {
-        let bus_event = AgentBusEvent {
+        self.publish_event_inner(AgentBusEvent {
             channel: channel.into(),
             chat_id: chat_id.into(),
             session_key: None,
             request_id: None,
             trace_id: None,
             event,
-        };
-        // We ignore the error if there are no receivers
-        let _ = self.event_tx.send(bus_event);
-        Ok(())
+        })
     }
 
     /// Publish a turn event with exact request/trace/session correlation.
@@ -79,71 +52,41 @@ impl MessageBus {
         trace_id: impl Into<String>,
         event: AgentEvent,
     ) -> crate::Result<()> {
-        let bus_event = AgentBusEvent {
+        self.publish_event_inner(AgentBusEvent {
             channel: channel.into(),
             chat_id: chat_id.into(),
             session_key: Some(session_key.into()),
             request_id: Some(request_id.into()),
             trace_id: Some(trace_id.into()),
             event,
-        };
-        let _ = self.event_tx.send(bus_event);
+        })
+    }
+
+    fn publish_event_inner(&self, event: AgentBusEvent) -> crate::Result<()> {
+        // A projection subscriber may be absent during startup/shutdown. The
+        // event remains best-effort fan-out; durable state owns recovery.
+        let _ = self.event_tx.send(event);
         Ok(())
     }
 
-    /// Subscribe to the event broadcast channel
+    /// Subscribe to the AgentEvent projection stream.
     pub fn subscribe_events(&self) -> broadcast::Receiver<AgentBusEvent> {
         self.event_tx.subscribe()
     }
 
-    /// Publish a poke event to the broadcast channel
+    /// Publish a lifecycle or identity-only activity event.
     pub fn publish_poke_event(&self, event: PokeEvent) -> crate::Result<()> {
-        // We ignore the error if there are no receivers
         let _ = self.poke_event_tx.send(event);
         Ok(())
     }
 
-    /// Subscribe to the poke event broadcast channel
+    /// Subscribe to lifecycle and identity-only activity events.
     pub fn subscribe_poke_events(&self) -> broadcast::Receiver<PokeEvent> {
         self.poke_event_tx.subscribe()
     }
-
-    /// Take the inbound receiver (can only be called once)
-    pub async fn take_inbound_receiver(&self) -> Option<mpsc::Receiver<InboundMessage>> {
-        self.inbound_rx.write().await.take()
-    }
-
-    /// Take the outbound receiver (can only be called once)
-    pub async fn take_outbound_receiver(&self) -> Option<mpsc::Receiver<OutboundMessage>> {
-        self.outbound_rx.write().await.take()
-    }
-
-    /// Publish a message from a channel to the agent
-    pub fn publish_inbound(&self, msg: InboundMessage) -> crate::Result<()> {
-        self.inbound_tx
-            .try_send(msg)
-            .map_err(|error| crate::Error::Channel(format!("Inbound channel unavailable: {error}")))
-    }
-
-    /// Publish a response from the agent to channels
-    pub fn publish_outbound(&self, msg: OutboundMessage) -> crate::Result<()> {
-        self.outbound_tx.try_send(msg).map_err(|error| {
-            crate::Error::Channel(format!("Outbound channel unavailable: {error}"))
-        })
-    }
-
-    /// Stop the dispatcher loop
-    pub async fn stop(&self) {
-        *self.running.write().await = false;
-    }
-
-    /// Check if the bus is running
-    pub async fn is_running(&self) -> bool {
-        *self.running.read().await
-    }
 }
 
-impl Default for MessageBus {
+impl Default for AgentEventBus {
     fn default() -> Self {
         Self::new()
     }
@@ -154,71 +97,9 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_message_bus_creation() {
-        let bus = MessageBus::new();
-        assert!(!bus.is_running().await);
-    }
-
-    #[tokio::test]
-    async fn test_publish_inbound() {
-        let bus = MessageBus::new();
-        let mut inbound_rx = bus.take_inbound_receiver().await.unwrap();
-
-        let msg = InboundMessage::new("test", "user1", "chat1", "Hello");
-        assert!(bus.publish_inbound(msg.clone()).is_ok());
-
-        // Verify message was received
-        let received = inbound_rx.try_recv();
-        assert!(received.is_ok());
-    }
-
-    #[tokio::test]
-    async fn inbound_queue_rejects_when_capacity_is_exhausted() {
-        let bus = MessageBus::new();
-        for index in 0..AGENT_MESSAGE_CAPACITY {
-            bus.publish_inbound(InboundMessage::new(
-                "test",
-                "user1",
-                format!("chat-{index}"),
-                "queued",
-            ))
-            .expect("messages within the fixed capacity should be accepted");
-        }
-
-        let error = bus
-            .publish_inbound(InboundMessage::new("test", "user1", "overflow", "rejected"))
-            .expect_err("the bounded queue must reject overflow");
-        assert!(error.to_string().contains("no available capacity"));
-    }
-
-    #[tokio::test]
-    async fn test_poke_event_publish_subscribe() {
-        let bus = MessageBus::new();
-        let mut poke_rx = bus.subscribe_poke_events();
-
-        bus.publish_poke_event(PokeEvent::ChatReceived {
-            content: "hello".to_string(),
-            sender_id: "user1".to_string(),
-        })
-        .unwrap();
-
-        let received = poke_rx.try_recv().unwrap();
-        match received {
-            PokeEvent::ChatReceived { content, sender_id } => {
-                assert_eq!(content, "hello");
-                assert_eq!(sender_id, "user1");
-            }
-            _ => panic!("Expected ChatReceived, got {:?}", received),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_both_event_channels_independent() {
-        let bus = MessageBus::new();
+    async fn event_fanout_creation_and_publish() {
+        let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
-        let mut poke_rx = bus.subscribe_poke_events();
-
-        // Publish an AgentEvent
         bus.publish_event(
             "ch",
             "chat1",
@@ -227,53 +108,57 @@ mod tests {
             },
         )
         .unwrap();
+        let received = event_rx.try_recv().unwrap();
+        assert_eq!(received.channel, "ch");
+        assert_eq!(received.chat_id, "chat1");
+        assert!(matches!(received.event, AgentEvent::FinalResponse { .. }));
+    }
 
-        // Publish a PokeEvent
+    #[tokio::test]
+    async fn identity_activity_never_contains_message_content() {
+        let bus = AgentEventBus::new();
+        let mut poke_rx = bus.subscribe_poke_events();
+        bus.publish_poke_event(PokeEvent::UserActivity {
+            session_key: "telegram:chat-1".to_string(),
+            sender_id: Some("user-1".to_string()),
+        })
+        .unwrap();
+        assert!(matches!(
+            poke_rx.try_recv().unwrap(),
+            PokeEvent::UserActivity { session_key, sender_id }
+                if session_key == "telegram:chat-1" && sender_id.as_deref() == Some("user-1")
+        ));
+    }
+
+    #[tokio::test]
+    async fn event_and_poke_fanout_are_independent() {
+        let bus = AgentEventBus::new();
+        let mut event_rx = bus.subscribe_events();
+        let mut poke_rx = bus.subscribe_poke_events();
+        bus.publish_event(
+            "ch",
+            "chat1",
+            AgentEvent::FinalResponse {
+                content: "response".to_string(),
+            },
+        )
+        .unwrap();
         bus.publish_poke_event(PokeEvent::PokeSend {
             message: "poke".to_string(),
         })
         .unwrap();
-
-        // event_rx should only receive the AgentEvent
-        let agent_received = event_rx.try_recv().unwrap();
         assert!(matches!(
-            agent_received.event,
+            event_rx.try_recv().unwrap().event,
             AgentEvent::FinalResponse { .. }
         ));
-
-        // poke_rx should only receive the PokeEvent
-        let poke_received = poke_rx.try_recv().unwrap();
-        assert!(matches!(poke_received, PokeEvent::PokeSend { .. }));
-
-        // No cross-contamination: the other channel should have no further events
+        assert!(matches!(poke_rx.try_recv().unwrap(), PokeEvent::PokeSend { .. }));
         assert!(event_rx.try_recv().is_err());
         assert!(poke_rx.try_recv().is_err());
     }
 
-    #[tokio::test]
-    async fn test_publish_event_wraps_correlation_context() {
-        let bus = MessageBus::new();
-        let mut event_rx = bus.subscribe_events();
-
-        // The event stream wraps the agent event with channel correlation.
-        bus.publish_event(
-            "test_channel",
-            "test_chat",
-            AgentEvent::AssistantDelta {
-                text: "delta content".to_string(),
-            },
-        )
-        .unwrap();
-
-        let received = event_rx.try_recv().unwrap();
-        assert_eq!(received.channel, "test_channel");
-        assert_eq!(received.chat_id, "test_chat");
-        assert!(matches!(received.event, AgentEvent::AssistantDelta { .. }));
-    }
-
     #[test]
-    fn test_poke_event_roundtrip_serialize() {
-        let variants: Vec<PokeEvent> = vec![
+    fn poke_event_variants_roundtrip_serialize() {
+        let variants = [
             PokeEvent::PokeSend {
                 message: "hello poke".to_string(),
             },
@@ -284,9 +169,9 @@ mod tests {
                 content: "sent content".to_string(),
                 message_id: "msg_123".to_string(),
             },
-            PokeEvent::ChatReceived {
-                content: "received".to_string(),
-                sender_id: "user_42".to_string(),
+            PokeEvent::UserActivity {
+                session_key: "session-1".to_string(),
+                sender_id: Some("user_42".to_string()),
             },
             PokeEvent::ReasoningReceived {
                 content: "deep thoughts...".to_string(),
@@ -310,37 +195,10 @@ mod tests {
                 ],
             },
         ];
-
         for variant in variants {
             let json = serde_json::to_value(&variant).unwrap();
             let deserialized: PokeEvent = serde_json::from_value(json).unwrap();
-
-            // Verify variant kind matches by debug formatting
-            let original_debug = format!("{:?}", &variant);
-            let deserialized_debug = format!("{:?}", &deserialized);
-            assert_eq!(
-                original_debug, deserialized_debug,
-                "Roundtrip failed for {:?}",
-                variant
-            );
+            assert_eq!(format!("{variant:?}"), format!("{deserialized:?}"));
         }
-    }
-
-    #[tokio::test]
-    async fn test_multiple_subscribers() {
-        let bus = MessageBus::new();
-        let mut rx1 = bus.subscribe_poke_events();
-        let mut rx2 = bus.subscribe_poke_events();
-
-        bus.publish_poke_event(PokeEvent::ChatOver {
-            reason: "completed".to_string(),
-        })
-        .unwrap();
-
-        // Both subscribers should receive the same event
-        let received_1 = rx1.try_recv().unwrap();
-        let received_2 = rx2.try_recv().unwrap();
-        assert!(matches!(received_1, PokeEvent::ChatOver { .. }));
-        assert!(matches!(received_2, PokeEvent::ChatOver { .. }));
     }
 }

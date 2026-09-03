@@ -362,6 +362,19 @@ impl ChannelEnvelopeV1 {
         if self.correlation.session_key.trim().is_empty() {
             return Err(ChannelContractError::EmptyField("correlation.session_key"));
         }
+        if let ChannelPayloadV1::Message { context, .. } = &self.payload {
+            match (self.origin, context.is_some()) {
+                (ChannelOrigin::OwnerFrontend, false) => {
+                    return Err(ChannelContractError::MissingOwnerTurnContext)
+                }
+                (ChannelOrigin::ExternalUser | ChannelOrigin::Runtime, true) => {
+                    return Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                        origin: self.origin,
+                    })
+                }
+                _ => {}
+            }
+        }
         for key in self.extensions.keys() {
             if !is_namespaced_extension(key) {
                 return Err(ChannelContractError::InvalidExtensionKey(key.clone()));
@@ -399,6 +412,10 @@ pub enum ChannelContractError {
     EmptyField(&'static str),
     #[error("extension key is not namespaced: {0}")]
     InvalidExtensionKey(String),
+    #[error("owner frontend message requires typed turn context")]
+    MissingOwnerTurnContext,
+    #[error("{origin:?} messages must not carry owner turn context")]
+    UnexpectedOwnerTurnContext { origin: ChannelOrigin },
 }
 
 /// JSON-RPC request ID accepted by Neuro-Link v1.
@@ -735,12 +752,63 @@ mod tests {
                 }],
                 subject: None,
                 locale: None,
-                context: None,
+                context: Some(OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: None,
+                    execution: None,
+                }),
             },
         );
 
         assert_eq!(envelope.schema_version, CHANNEL_SCHEMA_VERSION_V1);
         assert!(envelope.validate().is_ok());
+    }
+
+    #[test]
+    fn trust_matrix_requires_owner_context_and_rejects_it_elsewhere() {
+        let message = |origin, context| {
+            ChannelEnvelopeV1::new(
+                ChannelDirection::Ingress,
+                ChannelAddress::new("channel", "chat"),
+                Correlation::new("session"),
+                origin,
+                ChannelPayloadV1::Message {
+                    parts: vec![ContentPart::Text {
+                        text: "hello".to_string(),
+                    }],
+                    subject: None,
+                    locale: None,
+                    context,
+                },
+            )
+        };
+        let owner_context = Some(OwnerTurnContextV1 {
+            intent: OwnerTurnIntent::Agent,
+            approval_policy: None,
+            execution: None,
+        });
+
+        assert!(matches!(
+            message(ChannelOrigin::OwnerFrontend, None).validate(),
+            Err(ChannelContractError::MissingOwnerTurnContext)
+        ));
+        assert!(message(ChannelOrigin::OwnerFrontend, owner_context.clone())
+            .validate()
+            .is_ok());
+        assert!(message(ChannelOrigin::ExternalUser, None).validate().is_ok());
+        assert!(matches!(
+            message(ChannelOrigin::ExternalUser, owner_context.clone()).validate(),
+            Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                origin: ChannelOrigin::ExternalUser
+            })
+        ));
+        assert!(message(ChannelOrigin::Runtime, None).validate().is_ok());
+        assert!(matches!(
+            message(ChannelOrigin::Runtime, owner_context).validate(),
+            Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                origin: ChannelOrigin::Runtime
+            })
+        ));
     }
 
     #[test]

@@ -1,15 +1,14 @@
-//! Message bus for decoupled communication
+//! Agent event fan-out for decoupled projection communication.
 //!
-//! The message bus provides a dual-queue system for inbound and outbound
-//! messages, decoupling chat channels from the agent core.
+//! Typed turn ingress and adapter egress are owned by the Channel Fabric.
 
 pub mod events;
 pub mod queue;
 
 pub use events::{
-    AgentBusEvent, AgentEvent, InboundMessage, OutboundMessage, PlanApprovalResult,
+    AgentBusEvent, AgentEvent, PlanApprovalResult,
     PlanRuntimeState, PlanRuntimeStep, PlanRuntimeTodo, PokeEvent, SessionAdmissionCode,
     SessionAdmissionObservation, SessionAdmissionPhase, SessionControlAction,
     SessionControlOutcome, SessionControlTargetState,
 };
-pub use queue::MessageBus;
+pub use queue::AgentEventBus;

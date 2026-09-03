@@ -1,9 +1,9 @@
-//! Presence detector — subscribes to MessageBus, tracks user activity,
+//! Presence detector — subscribes to AgentEventBus, tracks user activity,
 //! detects state transitions, and emits audit events.
 //!
 //! Design:
-//! 1. Listens for `InboundMessage` traffic via a bus receiver.
-//! 2. On each message, records `sender_id` + timestamp (monotonic clock).
+//! 1. Listens for identity-only activity notifications via a broadcast.
+//! 2. On each notification, records `sender_id` + timestamp (monotonic clock).
 //! 3. A periodic tick checks idle time and computes current `PresenceState`.
 //! 4. On state change, emits both an `AuditEvent::PresenceChanged` and a
 //!    `PresenceEvent` on a watch channel that the heartbeat service consumes.
@@ -15,11 +15,10 @@ use tokio::sync::watch;
 use tracing::{debug, info};
 
 use crate::audit::{self, AuditEvent};
-use crate::bus::InboundMessage;
 use crate::presence::service::PresenceEvent;
 use crate::presence::types::{PresenceConfig, PresenceState, PresenceStatus};
 
-/// Detects user presence transitions by monitoring `InboundMessage` traffic.
+/// Detects user presence transitions from identity-only activity signals.
 pub struct PresenceDetector {
     config: PresenceConfig,
     /// Current presence state.
@@ -56,18 +55,19 @@ impl PresenceDetector {
         self.event_tx.subscribe()
     }
 
-    /// Handle an inbound message — bumps the activity timer and transitions state.
+    /// Handle identity-only user activity — bumps the activity timer and
+    /// transitions state. Message content is intentionally not accepted.
     ///
     /// - If the user was `Gone`, they return to `Active` immediately.
     /// - If the user was `Distracted`, they return to `Active` immediately.
     /// - If already `Active`, just updates the timestamp.
-    pub async fn on_message(&self, msg: &InboundMessage) {
+    pub async fn on_activity(&self, _session_key: &str, sender_id: Option<&str>) {
         let now = Instant::now();
         let old_state = *self.state.read().await;
 
         // Update activity timestamp and sender
         *self.last_activity.write().await = now;
-        *self.last_sender.write().await = Some(msg.sender_id.clone());
+        *self.last_sender.write().await = sender_id.map(str::to_owned);
 
         // Transition back to Active if currently Distracted or Gone
         match old_state {
@@ -82,8 +82,8 @@ impl PresenceDetector {
         }
 
         debug!(
-            "Presence: message from {}, state={:?}",
-            msg.sender_id,
+            "Presence: activity from {:?}, state={:?}",
+            sender_id,
             self.state.read().await
         );
     }
@@ -150,8 +150,8 @@ mod tests {
     use super::*;
     use crate::presence::types::PresenceConfig;
 
-    fn make_msg(sender: &str) -> InboundMessage {
-        InboundMessage::new("test", sender, "chat_1", "hello")
+    fn activity(sender: &str) -> (&'static str, Option<&str>) {
+        ("test:chat_1", Some(sender))
     }
 
     #[tokio::test]
@@ -166,8 +166,8 @@ mod tests {
     async fn test_presence_message_bumps_activity() {
         let config = PresenceConfig::default();
         let detector = PresenceDetector::new(config);
-        let msg = make_msg("user_1");
-        detector.on_message(&msg).await;
+        let (session_key, sender_id) = activity("user_1");
+        detector.on_activity(session_key, sender_id).await;
         let status = detector.status().await;
         assert_eq!(status.state, PresenceState::Active);
         assert_eq!(status.last_sender_id.as_deref(), Some("user_1"));
@@ -180,8 +180,8 @@ mod tests {
         // Simulate Gone state by forcing the state
         *detector.state.write().await = PresenceState::Gone;
         // Send a message — should wake to Active
-        let msg = make_msg("user_2");
-        detector.on_message(&msg).await;
+        let (session_key, sender_id) = activity("user_2");
+        detector.on_activity(session_key, sender_id).await;
         let status = detector.status().await;
         assert_eq!(status.state, PresenceState::Active);
     }
@@ -233,8 +233,8 @@ mod tests {
         assert_eq!(detector.status().await.state, PresenceState::Distracted);
 
         // Message comes in — back to Active
-        let msg = make_msg("user_1");
-        detector.on_message(&msg).await;
+        let (session_key, sender_id) = activity("user_1");
+        detector.on_activity(session_key, sender_id).await;
         assert_eq!(detector.status().await.state, PresenceState::Active);
     }
 
