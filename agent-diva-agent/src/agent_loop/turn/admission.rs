@@ -211,12 +211,11 @@ impl AgentLoop {
             }
             _ => None,
         };
-        if execution_continuation {
+        if let Some(context) = owner_execution_context {
             validate_execution_continuation(admission.mode, execution_continuation)?;
             let execution = active_execution
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("no unique active execution for continuation"))?;
-            let context = owner_execution_context.expect("execution context checked above");
             let conflict = context.plan_id != execution.report_id.0
                 || context.revision != execution.revision
                 || context
