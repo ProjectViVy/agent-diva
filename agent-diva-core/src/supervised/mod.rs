@@ -8,4 +8,4 @@ pub mod types;
 pub use executor::{RunHandler, SleepHandler, TaskExecutor};
 pub use reaper::Reaper;
 pub use store::RunStore;
-pub use types::{RunItem, RunKind, RunRecord, RunStatus, SupervisedRunSpec};
+pub use types::{RunItem, RunKind, RunRecord, RunStatus, SupervisedRunContext, SupervisedRunSpec};

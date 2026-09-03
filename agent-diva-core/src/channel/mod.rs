@@ -127,6 +127,27 @@ impl Correlation {
     }
 }
 
+/// Typed routing identity inherited by runtime work that must announce a
+/// result back to the originating conversation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChannelRoute {
+    pub address: ChannelAddress,
+    pub correlation: Correlation,
+    pub origin: ChannelOrigin,
+}
+
+impl ChannelRoute {
+    /// Construct a route from the authoritative envelope identities.
+    pub fn new(address: ChannelAddress, correlation: Correlation, origin: ChannelOrigin) -> Self {
+        Self {
+            address,
+            correlation,
+            origin,
+        }
+    }
+}
+
 /// A bounded cursor into a durable projection stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -434,6 +455,18 @@ impl ChannelEnvelopeV1 {
     /// resolved separately through the shared attachment authority.
     pub fn rendered_message_text(&self) -> Option<String> {
         self.message_parts().map(render_content_parts)
+    }
+}
+
+impl ChannelRoute {
+    /// Capture only the typed address/correlation authority needed by a
+    /// deferred runtime task. Payload and owner policy never cross this seam.
+    pub fn from_envelope(envelope: &ChannelEnvelopeV1) -> Self {
+        Self::new(
+            envelope.address.clone(),
+            envelope.correlation.clone(),
+            envelope.origin,
+        )
     }
 }
 

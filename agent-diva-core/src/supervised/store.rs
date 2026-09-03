@@ -67,11 +67,28 @@ impl RunStore {
                 claimed_by TEXT,
                 metadata TEXT,
                 parent_id TEXT,
-                tags TEXT
+                tags TEXT,
+                context TEXT
             );",
         )
         .execute(&pool)
         .await?;
+
+        // Keep existing profile-local run stores readable after the typed
+        // context column was introduced. Old rows remain intentionally
+        // context-free and are rejected by handlers that require routing.
+        if let Err(error) = sqlx::query("ALTER TABLE supervised_runs ADD COLUMN context TEXT")
+            .execute(&pool)
+            .await
+        {
+            if !error
+                .to_string()
+                .to_ascii_lowercase()
+                .contains("duplicate column name")
+            {
+                return Err(error);
+            }
+        }
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_supervised_runs_status ON supervised_runs(status);",
@@ -288,6 +305,10 @@ impl RunStore {
     pub async fn create(&self, spec: &SupervisedRunSpec) -> Result<RunRecord, RunStoreError> {
         let record = RunRecord::from_spec(spec);
         let metadata_str = record.metadata.as_ref().map(|m| m.to_string());
+        let context_str = record
+            .context
+            .as_ref()
+            .map(|context| serde_json::to_string(context).unwrap_or_default());
         let tags_str = record
             .tags
             .as_ref()
@@ -297,8 +318,8 @@ impl RunStore {
             "INSERT INTO supervised_runs (
                 id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                 kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                error_message, result_summary, claimed_by, metadata, parent_id, tags
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+                error_message, result_summary, claimed_by, metadata, parent_id, tags, context
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
         )
         .bind(&record.id)
         .bind(record.status.as_str())
@@ -321,6 +342,7 @@ impl RunStore {
         .bind(metadata_str)
         .bind(&record.parent_id)
         .bind(tags_str)
+        .bind(context_str)
         .execute(&self.pool)
         .await
         .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
@@ -338,7 +360,7 @@ impl RunStore {
         let row = sqlx::query(
             "SELECT id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                     kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                    error_message, result_summary, claimed_by, metadata, parent_id, tags
+                    error_message, result_summary, claimed_by, metadata, parent_id, tags, context
              FROM supervised_runs WHERE id = ?1",
         )
         .bind(id)
@@ -377,7 +399,7 @@ impl RunStore {
              )
              RETURNING id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                        kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                       error_message, result_summary, claimed_by, metadata, parent_id, tags",
+                       error_message, result_summary, claimed_by, metadata, parent_id, tags, context",
         )
         .bind(worker_id)
         .bind(now_str.clone())
@@ -634,7 +656,7 @@ impl RunStore {
         let rows = sqlx::query(
             "SELECT id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                     kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                    error_message, result_summary, claimed_by, metadata, parent_id, tags
+                    error_message, result_summary, claimed_by, metadata, parent_id, tags, context
              FROM supervised_runs
              WHERE status = 'running' AND heartbeat_at IS NOT NULL AND heartbeat_at < ?1",
         )
@@ -831,6 +853,12 @@ impl RunStore {
             .transpose()
             .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
+        let context_str: Option<String> = row.get(21);
+        let context = context_str
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
+
         let tags_str: Option<String> = row.get(20);
         let tags = tags_str
             .map(|s| serde_json::from_str(&s))
@@ -861,6 +889,7 @@ impl RunStore {
             result_summary: row.get(16),
             claimed_by: row.get(17),
             metadata,
+            context,
             parent_id: row.get(19),
             tags,
         })
