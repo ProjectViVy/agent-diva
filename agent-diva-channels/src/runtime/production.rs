@@ -34,8 +34,6 @@ pub struct ChannelRuntimeStatus {
 
 #[derive(Debug, Error)]
 pub enum ChannelRuntimeError {
-    #[error("channel configuration is invalid: {0}")]
-    Config(String),
     #[error(transparent)]
     Build(#[from] AdapterBuildError),
     #[error("channel runtime registration failed: {0}")]
@@ -88,10 +86,8 @@ impl ChannelRuntime {
         Ok(runtime)
     }
 
-    /// Validate and construct every candidate before replacing the live set.
+    /// Construct every candidate before replacing the live set.
     pub async fn reconfigure(&self, config: &Config) -> Result<(), ChannelRuntimeError> {
-        agent_diva_core::config::validate::validate_config(config)
-            .map_err(|error| ChannelRuntimeError::Config(error.to_string()))?;
         let candidates = build_active_adapters(config, self.services.clone())?;
         self.stop_entries().await;
         let mut installed = BTreeMap::new();

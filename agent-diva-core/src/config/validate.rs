@@ -92,73 +92,6 @@ pub fn validate_config(config: &Config) -> crate::Result<()> {
         errors.push(error);
     }
 
-    if config.channels.email.enabled && !config.channels.email.consent_granted {
-        errors.push("channels.email.consent_granted must be true when enabled".to_string());
-    }
-    let mut require = |enabled: bool, channel: &str, field: &str, value: &str| {
-        if enabled && value.trim().is_empty() {
-            errors.push(format!(
-                "channels.{channel}.{field} must not be empty when enabled"
-            ));
-        }
-    };
-    require(
-        config.channels.telegram.enabled,
-        "telegram",
-        "token",
-        &config.channels.telegram.token,
-    );
-    require(
-        config.channels.discord.enabled,
-        "discord",
-        "token",
-        &config.channels.discord.token,
-    );
-    for (field, value) in [
-        ("app_id", config.channels.feishu.app_id.as_str()),
-        ("app_secret", config.channels.feishu.app_secret.as_str()),
-    ] {
-        require(config.channels.feishu.enabled, "feishu", field, value);
-    }
-    for (field, value) in [
-        ("client_id", config.channels.dingtalk.client_id.as_str()),
-        (
-            "client_secret",
-            config.channels.dingtalk.client_secret.as_str(),
-        ),
-    ] {
-        require(config.channels.dingtalk.enabled, "dingtalk", field, value);
-    }
-    for (field, value) in [
-        ("imap_host", config.channels.email.imap_host.as_str()),
-        (
-            "imap_username",
-            config.channels.email.imap_username.as_str(),
-        ),
-        (
-            "imap_password",
-            config.channels.email.imap_password.as_str(),
-        ),
-        ("smtp_host", config.channels.email.smtp_host.as_str()),
-        (
-            "smtp_username",
-            config.channels.email.smtp_username.as_str(),
-        ),
-        (
-            "smtp_password",
-            config.channels.email.smtp_password.as_str(),
-        ),
-        ("from_address", config.channels.email.from_address.as_str()),
-    ] {
-        require(config.channels.email.enabled, "email", field, value);
-    }
-    for (field, value) in [
-        ("app_id", config.channels.qq.app_id.as_str()),
-        ("secret", config.channels.qq.secret.as_str()),
-    ] {
-        require(config.channels.qq.enabled, "qq", field, value);
-    }
-
     if errors.is_empty() {
         Ok(())
     } else {
@@ -178,13 +111,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_enabled_channel_requires_credentials() {
+    fn test_validate_allows_enabled_channel_to_report_runtime_health() {
         let mut config = Config::default();
         config.channels.telegram.enabled = true;
         config.providers.anthropic.api_key = "test-key".to_string();
 
-        let error = validate_config(&config).unwrap_err();
-        assert!(error.to_string().contains("channels.telegram.token"));
+        validate_config(&config).unwrap();
     }
 
     #[test]
