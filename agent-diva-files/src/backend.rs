@@ -244,10 +244,10 @@ impl StorageBackend for LocalStorageBackend {
     }
 }
 
-/// S3-compatible storage backend (placeholder for future implementation)
-///
-/// This is a stub that shows how to implement a remote storage backend.
-/// Uncomment and implement when needed.
+// S3-compatible storage backend (placeholder for future implementation).
+//
+// This is a stub that shows how to implement a remote storage backend.
+// Uncomment and implement when needed.
 /*
 pub struct S3StorageBackend {
     bucket: String,
