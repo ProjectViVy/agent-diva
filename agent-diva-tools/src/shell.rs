@@ -645,7 +645,7 @@ mod tests {
         std::fs::create_dir_all(&inner).unwrap();
         let tool = ExecTool::with_config(60, Some(workspace.path().to_path_buf()), true);
         let params = json!({
-            "command": if cfg!(target_os = "windows") { "echo hello" } else { "echo hello" },
+            "command": "echo hello",
             "working_dir": inner.to_str().unwrap()
         });
         let result = tool.execute(params).await.unwrap();

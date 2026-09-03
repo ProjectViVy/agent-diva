@@ -2586,7 +2586,7 @@ mod tests {
     async fn provider_retry_attempt_emits_bus_event() {
         let bus = MessageBus::new();
         let mut event_rx = bus.subscribe_events();
-        let provider = Arc::new(RetryEmittingProvider::default());
+        let provider = Arc::new(RetryEmittingProvider);
         let temp_dir = tempfile::tempdir().unwrap();
 
         let mut agent = AgentLoop::new(
@@ -4260,24 +4260,24 @@ mod tests {
             .unwrap();
         assert_eq!(result, "done");
         assert_eq!(memory_provider.memory_add_count.load(Ordering::SeqCst), 1);
-        let calls = provider.captured_messages.lock().unwrap();
-        assert!(calls.len() >= 3);
-        let second_call = calls[1]
-            .iter()
-            .map(|message| message.content.to_text_lossy())
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(second_call.contains("<memory-write-rules source=\"default\">"));
-        assert!(second_call.contains("R4: direct revision-checked writes"));
-        assert!(second_call.contains("\"status\":\"rules_required\""));
-        let third_call = calls[2]
-            .iter()
-            .map(|message| message.content.to_text_lossy())
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(third_call.contains("\"status\":\"applied\""));
-
-        drop(calls);
+        {
+            let calls = provider.captured_messages.lock().unwrap();
+            assert!(calls.len() >= 3);
+            let second_call = calls[1]
+                .iter()
+                .map(|message| message.content.to_text_lossy())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(second_call.contains("<memory-write-rules source=\"default\">"));
+            assert!(second_call.contains("R4: direct revision-checked writes"));
+            assert!(second_call.contains("\"status\":\"rules_required\""));
+            let third_call = calls[2]
+                .iter()
+                .map(|message| message.content.to_text_lossy())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(third_call.contains("\"status\":\"applied\""));
+        }
         let second_result = agent
             .process_direct("remember another", "ignored", "gui", "rules-chat")
             .await
