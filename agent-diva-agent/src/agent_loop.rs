@@ -1,13 +1,16 @@
 //! Agent loop: the core processing engine
 
 use agent_diva_core::bus::{
-    AgentEvent, InboundMessage, MessageBus, OutboundMessage, PlanRuntimeState,
-    SessionAdmissionCode, SessionAdmissionObservation, SessionAdmissionPhase,
+    AgentEvent, AgentEventBus, PlanRuntimeState, SessionAdmissionCode,
+    SessionAdmissionObservation, SessionAdmissionPhase,
+};
+use agent_diva_core::channel::{
+    ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
+    ChannelPayloadV1, ContentPart, Correlation, OwnerTurnContextV1, OwnerTurnIntent,
 };
 use agent_diva_core::config::schema::ToolLimits;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
-use agent_diva_core::error_context::ErrorContext;
 use agent_diva_core::memory::{MemoryProvider, RecallOutcomeRequest, RecallTurnOutcome};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::reasoning::ThinkingMode;
@@ -28,35 +31,42 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::task::JoinSet;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 use uuid::Uuid;
 
-const REQUEST_ID_METADATA_KEY: &str = "request_id";
-const TRACE_ID_METADATA_KEY: &str = "trace_id";
+fn local_fabric_handle() -> agent_diva_core::channel::FabricHandle {
+    agent_diva_core::channel::FabricKernel::new().into_parts().0
+}
 
-fn normalized_request_id(value: Option<&serde_json::Value>) -> Option<String> {
+fn normalized_correlation_id(value: Option<&String>) -> Option<String> {
     value
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
+        .map(|value| value.trim())
         .filter(|value| !value.is_empty() && value.len() <= 128)
         .map(str::to_owned)
 }
 
-pub(crate) fn publish_message_event(bus: &MessageBus, msg: &InboundMessage, event: AgentEvent) {
-    let request_id = normalized_request_id(msg.metadata.get(REQUEST_ID_METADATA_KEY));
-    let trace_id = normalized_request_id(msg.metadata.get(TRACE_ID_METADATA_KEY));
+pub(crate) fn publish_envelope_event(
+    bus: &AgentEventBus,
+    envelope: &ChannelEnvelopeV1,
+    event: AgentEvent,
+) {
+    let request_id = normalized_correlation_id(envelope.correlation.request_id.as_ref());
+    let trace_id = normalized_correlation_id(envelope.correlation.trace_id.as_ref());
     if let (Some(request_id), Some(trace_id)) = (request_id, trace_id) {
         let _ = bus.publish_correlated_event(
-            msg.channel.clone(),
-            msg.chat_id.clone(),
-            msg.session_key(),
+            envelope.address.channel.clone(),
+            envelope.address.chat_id.clone(),
+            envelope.correlation.session_key.clone(),
             request_id,
             trace_id,
             event,
         );
     } else {
-        let _ = bus.publish_event(msg.channel.clone(), msg.chat_id.clone(), event);
+        let _ = bus.publish_event(
+            envelope.address.channel.clone(),
+            envelope.address.chat_id.clone(),
+            event,
+        );
     }
 }
 
@@ -100,33 +110,33 @@ fn admission_code_and_phase(
     }
 }
 
-fn prepare_turn_message(
-    mut message: InboundMessage,
-) -> (InboundMessage, dispatcher::SessionRequestIdentity) {
-    let request_id = normalized_request_id(message.metadata.get(REQUEST_ID_METADATA_KEY))
+fn prepare_turn_envelope(
+    mut envelope: ChannelEnvelopeV1,
+) -> Result<(ChannelEnvelopeV1, dispatcher::SessionRequestIdentity), String> {
+    envelope
+        .validate()
+        .map_err(|error| format!("invalid channel envelope: {error}"))?;
+    if !matches!(envelope.payload, ChannelPayloadV1::Message { .. }) {
+        return Err("typed channel turn requires a message payload".to_string());
+    }
+    let request_id = normalized_correlation_id(envelope.correlation.request_id.as_ref())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    let trace_id = normalized_request_id(message.metadata.get(TRACE_ID_METADATA_KEY))
+    let trace_id = normalized_correlation_id(envelope.correlation.trace_id.as_ref())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    message.metadata.insert(
-        REQUEST_ID_METADATA_KEY.to_string(),
-        serde_json::Value::String(request_id.clone()),
-    );
-    message.metadata.insert(
-        TRACE_ID_METADATA_KEY.to_string(),
-        serde_json::Value::String(trace_id.clone()),
-    );
-    (
-        message,
+    envelope.correlation.request_id = Some(request_id.clone());
+    envelope.correlation.trace_id = Some(trace_id.clone());
+    Ok((
+        envelope,
         dispatcher::SessionRequestIdentity {
             request_id,
             trace_id,
         },
-    )
+    ))
 }
 
 fn admission_observer(
-    bus: MessageBus,
-    message: InboundMessage,
+    bus: AgentEventBus,
+    envelope: ChannelEnvelopeV1,
     event_tx: Option<mpsc::UnboundedSender<AgentEvent>>,
     identity: dispatcher::SessionRequestIdentity,
 ) -> Arc<dyn Fn(dispatcher::SessionDispatchTransition) + Send + Sync> {
@@ -160,7 +170,7 @@ fn admission_observer(
             observation: SessionAdmissionObservation {
                 code,
                 phase,
-                session_key: message.session_key(),
+                session_key: envelope.correlation.session_key.clone(),
                 request_id: identity.request_id.clone(),
                 trace_id: identity.trace_id.clone(),
                 queue_depth,
@@ -170,107 +180,8 @@ fn admission_observer(
         if let Some(tx) = event_tx.as_ref() {
             let _ = tx.send(event.clone());
         }
-        publish_message_event(&bus, &message, event);
+        publish_envelope_event(&bus, &envelope, event);
     })
-}
-
-async fn dispatch_bus_turn(
-    dispatcher: dispatcher::SessionDispatcher,
-    bus: MessageBus,
-    worker_tx: mpsc::UnboundedSender<SessionWorkerCommand>,
-    message: InboundMessage,
-) {
-    let (message, identity) = prepare_turn_message(message);
-    let session_key = message.session_key();
-    let observer = admission_observer(bus.clone(), message.clone(), None, identity.clone());
-    let execution_message = message.clone();
-    let result = dispatcher
-        .dispatch_observed(
-            session_key,
-            identity,
-            observer,
-            move |cancellation| async move {
-                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-                worker_tx
-                    .send(SessionWorkerCommand::Execute {
-                        message: execution_message,
-                        cancellation,
-                        reply_tx,
-                    })
-                    .map_err(|_| "session worker unavailable".to_string())?;
-                reply_rx
-                    .await
-                    .map_err(|_| "session worker unavailable".to_string())?
-            },
-        )
-        .await;
-
-    match result {
-        Ok(Some(response)) => {
-            if let Err(error) = bus.publish_outbound(response) {
-                tracing::error!(%error, "failed to publish session worker response");
-            }
-        }
-        Ok(None) => {
-            tracing::debug!(session_key = %message.session_key(), "turn produced no response")
-        }
-        Err(error) => {
-            if matches!(
-                &error,
-                dispatcher::SessionDispatchError::Turn(message)
-                    if message == "session worker unavailable"
-            ) {
-                publish_message_event(
-                    &bus,
-                    &message,
-                    AgentEvent::SessionAdmission {
-                        observation: SessionAdmissionObservation {
-                            code: Some(SessionAdmissionCode::SessionWorkerUnavailable),
-                            phase: SessionAdmissionPhase::Unavailable,
-                            session_key: message.session_key(),
-                            request_id: normalized_request_id(
-                                message.metadata.get(REQUEST_ID_METADATA_KEY),
-                            )
-                            .unwrap_or_default(),
-                            trace_id: normalized_request_id(
-                                message.metadata.get(TRACE_ID_METADATA_KEY),
-                            )
-                            .unwrap_or_default(),
-                            queue_depth: 0,
-                            wait_latency_ms: 0,
-                        },
-                    },
-                );
-            }
-            let message_text = format!("Failed to process message: {error}");
-            let context = ErrorContext::new("dispatch_bus_turn", &message_text)
-                .with_metadata("channel", message.channel.clone())
-                .with_metadata("chat_id", message.chat_id.clone())
-                .with_metadata("sender_id", message.sender_id.clone());
-            tracing::error!("{}", context.to_detailed_string());
-            publish_message_event(
-                &bus,
-                &message,
-                AgentEvent::Error {
-                    message: message_text.clone(),
-                },
-            );
-            let mut outbound = OutboundMessage::new(
-                message.channel.clone(),
-                message.chat_id.clone(),
-                message_text,
-            );
-            if let Some(request_id) = message.metadata.get(REQUEST_ID_METADATA_KEY) {
-                outbound = outbound.with_metadata("request_id", request_id.clone());
-            }
-            if let Some(trace_id) = message.metadata.get(TRACE_ID_METADATA_KEY) {
-                outbound = outbound.with_metadata("trace_id", trace_id.clone());
-            }
-            if let Err(error) = bus.publish_outbound(outbound) {
-                tracing::error!(%error, "failed to publish session admission error");
-            }
-        }
-    }
 }
 
 use crate::consolidation;
@@ -354,7 +265,10 @@ impl Default for ToolConfig {
 
 /// The agent loop is the core processing engine
 pub struct AgentLoop {
-    bus: MessageBus,
+    bus: AgentEventBus,
+    /// Bounded adapter egress owned by the Manager runtime. OwnerFrontend
+    /// turns never use this channel; their result is projected as events.
+    egress_tx: Option<mpsc::Sender<ChannelCommand>>,
     provider: Arc<dyn LLMProvider>,
     #[allow(dead_code)]
     workspace: PathBuf,
@@ -394,9 +308,9 @@ pub struct AgentLoop {
 
 enum SessionWorkerCommand {
     Execute {
-        message: InboundMessage,
+        envelope: ChannelEnvelopeV1,
         cancellation: tokio_util::sync::CancellationToken,
-        reply_tx: tokio::sync::oneshot::Sender<Result<Option<OutboundMessage>, String>>,
+        reply_tx: tokio::sync::oneshot::Sender<Result<Option<ChannelCommand>, String>>,
     },
     Reset {
         session_key: String,
@@ -632,16 +546,11 @@ async fn gc_tool_artifacts(workspace: &Path) {
     }
 }
 
-fn is_interactive_actmem_turn(message: &InboundMessage) -> bool {
-    let sender = message.sender_id.to_ascii_lowercase();
-    let channel = message.channel.to_ascii_lowercase();
-    sender != "cron"
-        && sender != "system"
-        && sender != "subagent"
-        && channel != "cron"
-        && channel != "system"
-        && !message.metadata.contains_key("cron_job_id")
-        && !message.metadata.contains_key("subagent_id")
+fn is_interactive_actmem_turn(envelope: &ChannelEnvelopeV1) -> bool {
+    matches!(
+        envelope.origin,
+        ChannelOrigin::OwnerFrontend | ChannelOrigin::ExternalUser
+    )
 }
 
 impl AgentLoop {
@@ -761,38 +670,33 @@ impl AgentLoop {
         );
     }
 
-    /// Read `metadata["approval_policy"]` from the inbound message and apply it.
-    /// Accepts either a string ("on-request"/"on-failure"/"unless-trusted"/"never")
-    /// or a serialized `AskForApproval` value. Unknown values are ignored so a
-    /// stale GUI cannot break the orchestrator.
-    fn approval_policy_from_metadata(msg: &InboundMessage) -> Option<AskForApproval> {
-        let raw = msg.metadata.get("approval_policy")?;
-        match raw {
-            serde_json::Value::String(s) => {
-                serde_json::from_value(serde_json::Value::String(s.clone()))
-                    .ok()
-                    .or_else(|| match s.to_ascii_lowercase().as_str() {
-                        "cautious" | "on-request" | "on_request" => Some(AskForApproval::OnRequest),
-                        "smart" | "on-failure" | "on_failure" => Some(AskForApproval::OnFailure),
-                        "trusted" | "unless-trusted" | "unless_trusted" => {
-                            Some(AskForApproval::UnlessTrusted)
-                        }
-                        "never" => Some(AskForApproval::Never),
-                        _ => None,
-                    })
+    /// Resolve the owner-selected approval policy from typed context.
+    fn approval_policy_for_envelope(envelope: &ChannelEnvelopeV1) -> Option<AskForApproval> {
+        let ChannelPayloadV1::Message {
+            context: Some(context),
+            ..
+        } = &envelope.payload
+        else {
+            return None;
+        };
+        context.approval_policy.map(|policy| match policy {
+            agent_diva_core::channel::OwnerApprovalPolicy::OnRequest => AskForApproval::OnRequest,
+            agent_diva_core::channel::OwnerApprovalPolicy::OnFailure => AskForApproval::OnFailure,
+            agent_diva_core::channel::OwnerApprovalPolicy::UnlessTrusted => {
+                AskForApproval::UnlessTrusted
             }
-            _ => None,
-        }
+            agent_diva_core::channel::OwnerApprovalPolicy::Never => AskForApproval::Never,
+        })
     }
 
     /// Create a new agent loop
     pub async fn new(
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
         max_iterations: Option<usize>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
@@ -823,7 +727,7 @@ impl AgentLoop {
             SubagentManager::new(
                 provider.clone(),
                 workspace.clone(),
-                bus.clone(),
+                local_fabric_handle(),
                 Some(model.clone()),
                 BuiltInToolsConfig::default().for_subagent(),
                 NetworkToolConfig::default(),
@@ -842,6 +746,7 @@ impl AgentLoop {
 
         Ok(Self {
             bus,
+            egress_tx: None,
             provider,
             persona_root: workspace.clone(),
             workspace,
@@ -888,6 +793,17 @@ impl AgentLoop {
         self.file_manager.clone()
     }
 
+    /// Install the bounded Manager-owned adapter egress for Fabric turns.
+    pub fn set_egress_sender(&mut self, egress_tx: mpsc::Sender<ChannelCommand>) {
+        self.egress_tx = Some(egress_tx);
+    }
+
+    /// Install the production Fabric handle used by spawned subagents for
+    /// Runtime-origin result ingress.
+    pub async fn set_fabric_handle(&self, fabric: agent_diva_core::channel::FabricHandle) {
+        self.subagent_manager.set_fabric_handle(fabric).await;
+    }
+
     /// Apply the serialized per-session admission limits before the loop starts.
     pub fn configure_session_admission(
         &mut self,
@@ -917,6 +833,7 @@ impl AgentLoop {
         );
         Self {
             bus: self.bus.clone(),
+            egress_tx: self.egress_tx.clone(),
             provider: self.provider.clone(),
             workspace: self.workspace.clone(),
             persona_root: self.persona_root.clone(),
@@ -977,13 +894,13 @@ impl AgentLoop {
             while let Some(command) = receiver.recv().await {
                 match command {
                     SessionWorkerCommand::Execute {
-                        message,
+                        envelope,
                         cancellation,
                         reply_tx,
                     } => {
                         worker.active_turn_cancellation = Some(cancellation);
                         let result = worker
-                            .process_inbound_message_admitted(message, None)
+                            .process_channel_envelope_admitted(envelope, None)
                             .await
                             .map_err(|error| error.to_string());
                         worker.active_turn_cancellation = None;
@@ -1084,7 +1001,7 @@ impl AgentLoop {
     /// Create a new agent loop with tool configuration
     #[allow(clippy::too_many_arguments)]
     pub async fn with_tools(
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
@@ -1092,7 +1009,7 @@ impl AgentLoop {
         tool_config: ToolConfig,
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::with_tools_and_memory_provider(
             bus,
             provider,
@@ -1112,7 +1029,7 @@ impl AgentLoop {
     /// When `memory_provider` is `None`, the machine-wide MemoryHome is used.
     #[allow(clippy::too_many_arguments)]
     pub async fn with_tools_and_memory_provider(
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
@@ -1121,7 +1038,7 @@ impl AgentLoop {
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Self::with_tools_and_memory_provider_inner(
             bus,
             provider,
@@ -1138,7 +1055,7 @@ impl AgentLoop {
 
     #[allow(clippy::too_many_arguments)]
     async fn with_tools_and_memory_provider_inner(
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
@@ -1147,7 +1064,7 @@ impl AgentLoop {
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
         memory_provider: Option<Arc<dyn MemoryProvider>>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
@@ -1172,7 +1089,7 @@ impl AgentLoop {
             SubagentManager::new(
                 provider.clone(),
                 workspace.clone(),
-                bus.clone(),
+                local_fabric_handle(),
                 Some(model.clone()),
                 tool_config.builtin.for_subagent(),
                 tool_config.network.clone(),
@@ -1208,6 +1125,7 @@ impl AgentLoop {
 
         let mut agent = Self {
             bus,
+            egress_tx: None,
             provider,
             workspace,
             persona_root,
@@ -1269,7 +1187,7 @@ impl AgentLoop {
 
     #[allow(clippy::too_many_arguments)]
     pub async fn with_toolset(
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
         model: Option<String>,
@@ -1277,7 +1195,7 @@ impl AgentLoop {
         toolset: AgentLoopToolSet,
         runtime_control_rx: Option<mpsc::UnboundedReceiver<RuntimeControlCommand>>,
         file_manager: Arc<FileManager>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         gc_tool_artifacts(&workspace).await;
         let model = model.unwrap_or_else(|| provider.get_default_model());
         let runtime_security = Self::load_runtime_security_config(&workspace);
@@ -1296,7 +1214,7 @@ impl AgentLoop {
             SubagentManager::new(
                 provider.clone(),
                 workspace.clone(),
-                bus.clone(),
+                local_fabric_handle(),
                 Some(model.clone()),
                 toolset.config.builtin.for_subagent(),
                 toolset.config.network.clone(),
@@ -1318,6 +1236,7 @@ impl AgentLoop {
         let custom_tools = toolset.registry.deferred_tools();
         Ok(Self {
             bus,
+            egress_tx: None,
             provider,
             persona_root,
             workspace,
@@ -1369,96 +1288,43 @@ impl AgentLoop {
         self.context.build_system_prompt(None)
     }
 
-    /// Run the agent loop, processing messages from the bus
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Run the AgentLoop control worker. Typed Fabric ingress is forwarded to
+    /// this bounded control lane by the Manager runtime; no turn receiver is
+    /// owned by the event bus.
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Agent loop started");
         self.actor_dispatch_enabled = true;
-
-        // Take the inbound receiver
-        let Some(mut inbound_rx) = self.bus.take_inbound_receiver().await else {
-            error!("Failed to take inbound receiver");
-            return Err("Inbound receiver already taken".into());
+        let Some(mut control_rx) = self.runtime_control_rx.take() else {
+            return Err("runtime control channel is not initialized".into());
         };
-        let mut turn_tasks = JoinSet::new();
         let mut reap_tick = tokio::time::interval(std::time::Duration::from_secs(30));
         reap_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
         loop {
-            if let Some(control_rx) = self.runtime_control_rx.as_mut() {
-                tokio::select! {
-                    biased;
-                    control = control_rx.recv() => {
-                        match control {
-                            Some(cmd) => self.handle_runtime_control_command(cmd).await,
-                            None => {
-                                info!("Runtime control channel closed");
-                                self.runtime_control_rx = None;
-                            }
-                        }
+            tokio::select! {
+                biased;
+                control = control_rx.recv() => {
+                    match control {
+                        Some(command) => self.handle_runtime_control_command(command).await,
+                        None => break,
                     }
-                    maybe_msg = inbound_rx.recv() => {
-                        match maybe_msg {
-                            Some(msg) => self.enqueue_inbound(msg, &mut turn_tasks),
-                            None => {
-                                info!("Message bus closed, stopping agent loop");
-                                break;
-                            }
-                        }
-                    }
-                    _ = reap_tick.tick() => self.reap_idle_session_workers(),
                 }
-            } else {
-                tokio::select! {
-                    maybe_msg = inbound_rx.recv() => {
-                        match maybe_msg {
-                            Some(msg) => self.enqueue_inbound(msg, &mut turn_tasks),
-                            None => {
-                                info!("Message bus closed, stopping agent loop");
-                                break;
-                            }
-                        }
-                    }
-                    _ = reap_tick.tick() => self.reap_idle_session_workers(),
-                }
+                _ = reap_tick.tick() => self.reap_idle_session_workers(),
             }
         }
-
-        info!("Agent loop stopped");
-
         self.session_dispatcher.close();
-        while let Some(result) = turn_tasks.join_next().await {
-            if let Err(error) = result {
-                tracing::error!(%error, "session dispatch task failed during drain");
-            }
-        }
         let _ = self.session_dispatcher.evict_idle();
         self.session_workers
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
-
-        // Daemon shutdown is not a logical session end. Preserve durable
-        // checkpoints and only cancel process-local idle timers.
         for (_, handle) in self.actmem_idle_handles.drain() {
             handle.abort();
         }
-
         self.context.clear_session_caches();
         self.cache_observer.clear();
         self.active_deferred_tools.clear();
-
+        info!("Agent loop stopped");
         Ok(())
-    }
-
-    fn enqueue_inbound(&self, msg: InboundMessage, turn_tasks: &mut JoinSet<()>) {
-        debug!("Received message from {}:{}", msg.channel, msg.chat_id);
-        let worker_tx = self.session_worker_sender(&msg.session_key());
-        turn_tasks.spawn(dispatch_bus_turn(
-            self.session_dispatcher.clone(),
-            self.bus.clone(),
-            worker_tx,
-            msg,
-        ));
     }
 
     fn reap_idle_session_workers(&self) {
@@ -1474,12 +1340,26 @@ impl AgentLoop {
                 .unwrap_or_else(|| ("system".to_string(), session_key.clone()));
             let request_id = Uuid::new_v4().to_string();
             let trace_id = Uuid::new_v4().to_string();
-            let _ = self.bus.publish_correlated_event(
-                channel,
-                chat_id,
-                session_key.clone(),
-                request_id.clone(),
-                trace_id.clone(),
+            let envelope = ChannelEnvelopeV1::new(
+                ChannelDirection::InternalProjection,
+                ChannelAddress::new(channel, chat_id),
+                Correlation {
+                    session_key: session_key.clone(),
+                    request_id: Some(request_id.clone()),
+                    trace_id: Some(trace_id.clone()),
+                    message_id: None,
+                    reply_to: None,
+                    sequence: None,
+                },
+                ChannelOrigin::Runtime,
+                ChannelPayloadV1::Presentation {
+                    event: "session_evicted".to_string(),
+                    body: serde_json::json!({"session_key": session_key}),
+                },
+            );
+            publish_envelope_event(
+                &self.bus,
+                &envelope,
                 AgentEvent::SessionAdmission {
                     observation: SessionAdmissionObservation {
                         code: None,
@@ -1495,100 +1375,84 @@ impl AgentLoop {
         }
     }
 
-    #[cfg(test)]
-    async fn handle_inbound(&mut self, msg: InboundMessage) {
-        debug!("Received message from {}:{}", msg.channel, msg.chat_id);
-        let event_msg = msg.clone();
-        match self.process_inbound_message(msg, None).await {
-            Ok(Some(response)) => {
-                if let Err(error) = self.bus.publish_outbound(response) {
-                    error!(%error, "failed to publish response");
-                }
-            }
-            Ok(None) => debug!("No response needed"),
-            Err(error) => {
-                let message = format!("Failed to process message: {error}");
-                let context = ErrorContext::new("handle_inbound", &message)
-                    .with_metadata("channel", event_msg.channel.clone())
-                    .with_metadata("chat_id", event_msg.chat_id.clone())
-                    .with_metadata("sender_id", event_msg.sender_id.clone());
-                error!("{}", context.to_detailed_string());
-                publish_message_event(&self.bus, &event_msg, AgentEvent::Error { message });
-            }
-        }
-    }
-
-    /// Process a single inbound message
-    pub async fn process_inbound_message(
+    /// Process one validated typed Fabric envelope through bounded session
+    /// admission and return a typed adapter command when egress is allowed.
+    pub async fn process_channel_envelope(
         &mut self,
-        msg: InboundMessage,
+        envelope: ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let (msg, identity) = prepare_turn_message(msg);
-        let session_key = msg.session_key();
+    ) -> Result<Option<ChannelCommand>, Box<dyn std::error::Error + Send + Sync>> {
+        let (envelope, identity) = prepare_turn_envelope(envelope)
+            .map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { error.into() })?;
+        if matches!(
+            envelope.origin,
+            ChannelOrigin::OwnerFrontend | ChannelOrigin::ExternalUser
+        ) {
+            let _ = self.bus.publish_poke_event(agent_diva_core::bus::PokeEvent::UserActivity {
+                session_key: envelope.correlation.session_key.clone(),
+                sender_id: envelope.address.sender_id.clone(),
+            });
+        }
+        let session_key = envelope.correlation.session_key.clone();
         let observer = admission_observer(
             self.bus.clone(),
-            msg.clone(),
+            envelope.clone(),
             event_tx.cloned(),
             identity.clone(),
         );
         let dispatcher = self.session_dispatcher.clone();
+        let event_tx_owned = event_tx.cloned();
         let result = {
             let agent = &mut *self;
             dispatcher
-                .dispatch_observed(session_key, identity, observer, |cancellation| async move {
-                    agent.active_turn_cancellation = Some(cancellation);
-                    let result = agent.process_inbound_message_admitted(msg, event_tx).await;
-                    agent.active_turn_cancellation = None;
-                    result
+                .dispatch_observed(session_key, identity, observer, move |cancellation| {
+                    let envelope = envelope.clone();
+                    let event_tx = event_tx_owned.clone();
+                    async move {
+                        agent.active_turn_cancellation = Some(cancellation);
+                        let result = agent
+                            .process_channel_envelope_admitted(envelope, event_tx.as_ref())
+                            .await;
+                        agent.active_turn_cancellation = None;
+                        result
+                    }
                 })
                 .await
                 .map_err(|error| error.to_string())
         };
         self.finish_pending_session_cleanups().await;
-        result.map_err(|error| -> Box<dyn std::error::Error> { error.into() })
+        result.map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { error.into() })
     }
 
-    /// Execute a turn after the dispatcher has granted exclusive ownership.
-    async fn process_inbound_message_admitted(
+    async fn process_channel_envelope_admitted(
         &mut self,
-        msg: InboundMessage,
+        envelope: ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        let trace_id = normalized_request_id(msg.metadata.get(TRACE_ID_METADATA_KEY))
+    ) -> Result<Option<ChannelCommand>, Box<dyn std::error::Error + Send + Sync>> {
+        let trace_id = envelope
+            .correlation
+            .trace_id
+            .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let corrected = signals_memory_correction(&msg.content);
-        let terminal_session_key = msg.session_key();
-        let interactive_turn = is_interactive_actmem_turn(&msg);
+        let content = envelope
+            .rendered_message_text()
+            .ok_or_else(|| "typed channel turn requires a message payload".to_string())?;
+        let terminal_session_key = envelope.correlation.session_key.clone();
+        let interactive_turn = is_interactive_actmem_turn(&envelope);
+        let corrected = signals_memory_correction(&content);
         let workspace_root = self.workspace.clone();
         let feedback_request_id = trace_id.clone();
         use tracing::Instrument;
         let span = tracing::info_span!("AgentSpan", trace_id = %trace_id);
-
-        enum TerminalTurn {
-            Succeeded(Option<OutboundMessage>),
-            Failed(String),
-        }
         let terminal = match self
-            .process_inbound_message_inner(msg, event_tx, trace_id)
+            .process_channel_envelope_inner(envelope, event_tx, trace_id)
             .instrument(span)
             .await
         {
-            Ok(response) => TerminalTurn::Succeeded(response),
-            Err(error) => TerminalTurn::Failed(error.to_string()),
-        };
-        match terminal {
-            TerminalTurn::Succeeded(response) => {
-                self.commit_recall_outcome(
-                    workspace_root,
-                    feedback_request_id,
-                    RecallTurnOutcome::Succeeded,
-                    corrected,
-                )
-                .await;
-                Ok(response)
-            }
-            TerminalTurn::Failed(error_message) => {
+            Ok(response) => response,
+            Err(error) => {
+                let error_message = error.to_string();
+                drop(error);
                 self.commit_recall_outcome(
                     workspace_root,
                     feedback_request_id,
@@ -1599,12 +1463,20 @@ impl AgentLoop {
                 if interactive_turn {
                     self.schedule_actmem_idle_fold(&terminal_session_key).await;
                 }
-                Err(error_message.into())
+                return Err(error_message.into());
             }
-        }
+        };
+        self.commit_recall_outcome(
+            workspace_root,
+            feedback_request_id,
+            RecallTurnOutcome::Succeeded,
+            corrected,
+        )
+        .await;
+        Ok(terminal)
     }
 
-    /// Cancel an existing idle fold and mark the named session active.
+    /// Cancel any pending ACTMEM idle fold and mark the session active.
     pub(crate) async fn mark_actmem_session_active(&mut self, session_key: &str) {
         if let Some(handle) = self.actmem_idle_handles.remove(session_key) {
             handle.abort();
@@ -1614,7 +1486,8 @@ impl AgentLoop {
         *generation = generation.saturating_add(1);
     }
 
-    /// Schedule a fold that may run only if no newer activity generation exists.
+    /// Schedule an ACTMEM fold after a quiet period, fenced by an activity
+    /// generation so a newer turn cannot be folded accidentally.
     pub(crate) async fn schedule_actmem_idle_fold(&mut self, session_key: &str) {
         self.mark_actmem_session_active(session_key).await;
         let expected_generation = self
@@ -1645,7 +1518,7 @@ impl AgentLoop {
         self.actmem_idle_handles.insert(owned_session_key, handle);
     }
 
-    /// Cancel the timer and invalidate its generation without scheduling a fold.
+    /// Cancel the session's idle fold and discard its activity generation.
     pub(crate) async fn cancel_actmem_session(&mut self, session_key: &str) {
         self.mark_actmem_session_active(session_key).await;
         self.actmem_activity_generations
@@ -1675,58 +1548,84 @@ impl AgentLoop {
         }
     }
 
-    /// Process a message directly (for CLI or testing)
+    fn direct_envelope(
+        content: String,
+        session_key: String,
+        channel: String,
+        chat_id: String,
+    ) -> ChannelEnvelopeV1 {
+        let mut address = ChannelAddress::new(channel, chat_id);
+        address.sender_id = Some("user".to_string());
+        let mut correlation = Correlation::new(session_key);
+        correlation.message_id = Some(Uuid::new_v4().to_string());
+        ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            address,
+            correlation,
+            ChannelOrigin::OwnerFrontend,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text { text: content }],
+                subject: None,
+                locale: None,
+                context: Some(OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: None,
+                    execution: None,
+                }),
+            },
+        )
+    }
+
+    /// Process a direct CLI/test turn using the typed owner-frontend path.
+    /// The returned text is read from the AgentEvent projection; no adapter
+    /// command is synthesized for OwnerFrontend.
     pub async fn process_direct(
         &mut self,
         content: impl Into<String>,
-        _session_key: impl Into<String>,
+        session_key: impl Into<String>,
         channel: impl Into<String>,
         chat_id: impl Into<String>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        let content = content.into();
-        let channel = channel.into();
-        let chat_id = chat_id.into();
-
-        let msg = InboundMessage::new(channel, "user", chat_id, content);
-
-        let response = self.process_inbound_message(msg, None).await?;
-        Ok(response
-            .map(|r| {
-                let content = r.content;
-                if let Some(reasoning) = r.reasoning_content {
-                    if !reasoning.is_empty() {
-                        return format!("<think>\n{}\n</think>\n\n{}", reasoning, content);
-                    }
-                }
-                content
-            })
-            .unwrap_or_default())
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        self.process_channel_envelope(
+            Self::direct_envelope(
+                content.into(),
+                session_key.into(),
+                channel.into(),
+                chat_id.into(),
+            ),
+            Some(&event_tx),
+        )
+        .await?;
+        let mut final_content = String::new();
+        while let Ok(event) = event_rx.try_recv() {
+            if let AgentEvent::FinalResponse { content } = event {
+                final_content = content;
+            }
+        }
+        Ok(final_content)
     }
 
-    /// Process a message directly and emit streaming events for UI consumers.
+    /// Process a direct typed turn and emit streaming AgentEvents.
     pub async fn process_direct_stream(
         &mut self,
         content: impl Into<String>,
-        _session_key: impl Into<String>,
+        session_key: impl Into<String>,
         channel: impl Into<String>,
         chat_id: impl Into<String>,
         event_tx: mpsc::UnboundedSender<AgentEvent>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        let content = content.into();
-        let channel = channel.into();
-        let chat_id = chat_id.into();
-
-        let msg = InboundMessage::new(channel, "user", chat_id, content);
-
-        match self.process_inbound_message(msg, Some(&event_tx)).await {
-            Ok(response) => Ok(response.map(|r| r.content).unwrap_or_default()),
-            Err(err) => {
-                let _ = event_tx.send(AgentEvent::Error {
-                    message: err.to_string(),
-                });
-                Err(err)
-            }
-        }
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        self.process_channel_envelope(
+            Self::direct_envelope(
+                content.into(),
+                session_key.into(),
+                channel.into(),
+                chat_id.into(),
+            ),
+            Some(&event_tx),
+        )
+        .await?;
+        Ok(String::new())
     }
 }
 
@@ -1751,17 +1650,89 @@ mod tests {
     use super::*;
     use agent_diva_providers::ToolChoiceMode;
 
+    fn owner_envelope(chat_id: &str, content: &str, request_id: Option<&str>) -> ChannelEnvelopeV1 {
+        let mut address = ChannelAddress::new("gui", chat_id);
+        address.sender_id = Some("user".to_string());
+        let mut correlation = Correlation::new(format!("profile/{chat_id}"));
+        correlation.request_id = request_id.map(str::to_owned);
+        ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            address,
+            correlation,
+            ChannelOrigin::OwnerFrontend,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: content.to_string(),
+                }],
+                subject: None,
+                locale: None,
+                context: Some(OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: None,
+                    execution: None,
+                }),
+            },
+        )
+    }
+
+    fn runtime_envelope(session_key: &str, chat_id: &str, content: &str) -> ChannelEnvelopeV1 {
+        ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("runtime", chat_id),
+            Correlation::new(session_key),
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: content.to_string(),
+                }],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        )
+    }
+
     #[test]
-    fn approval_metadata_is_classified_without_mutating_runtime_defaults() {
-        let cautious = InboundMessage::new("gui", "user", "chat", "hello")
-            .with_metadata("approval_policy", "cautious");
+    fn typed_approval_policy_is_classified_without_mutating_runtime_defaults() {
+        let cautious = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("gui", "chat"),
+            Correlation::new("session"),
+            ChannelOrigin::OwnerFrontend,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: "hello".to_string(),
+                }],
+                subject: None,
+                locale: None,
+                context: Some(OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: Some(
+                        agent_diva_core::channel::OwnerApprovalPolicy::OnRequest,
+                    ),
+                    execution: None,
+                }),
+            },
+        );
         assert_eq!(
-            AgentLoop::approval_policy_from_metadata(&cautious),
+            AgentLoop::approval_policy_for_envelope(&cautious),
             Some(AskForApproval::OnRequest)
         );
-        let unknown = InboundMessage::new("gui", "user", "chat", "hello")
-            .with_metadata("approval_policy", "future-policy");
-        assert_eq!(AgentLoop::approval_policy_from_metadata(&unknown), None);
+        let external = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("external", "chat"),
+            Correlation::new("session"),
+            ChannelOrigin::ExternalUser,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: "hello".to_string(),
+                }],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        assert_eq!(AgentLoop::approval_policy_for_envelope(&external), None);
     }
 
     #[test]
@@ -2097,59 +2068,6 @@ mod tests {
         }
     }
 
-    struct ConcurrentRetryProvider {
-        barrier: Arc<tokio::sync::Barrier>,
-    }
-
-    #[async_trait]
-    impl LLMProvider for ConcurrentRetryProvider {
-        async fn chat(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _tool_choice: ToolChoiceMode,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<LLMResponse> {
-            Err(ProviderError::ApiError(
-                "chat should not be used".to_string(),
-            ))
-        }
-
-        async fn chat_stream(
-            &self,
-            _messages: Vec<Message>,
-            _tools: Option<Vec<serde_json::Value>>,
-            _tool_choice: ToolChoiceMode,
-            _model: Option<String>,
-            _max_tokens: i32,
-            _temperature: f64,
-        ) -> ProviderResult<ProviderEventStream> {
-            self.barrier.wait().await;
-            current_retry_listener().unwrap()(RetryAttempt {
-                model: "concurrent-fixture".to_string(),
-                attempt: 1,
-                max_retries: 1,
-                delay_ms: 0,
-                reason: "concurrent fixture".to_string(),
-            });
-            Ok(Box::pin(stream::iter(vec![Ok(LLMStreamEvent::Completed(
-                LLMResponse {
-                    content: Some("done".to_string()),
-                    tool_calls: Vec::new(),
-                    finish_reason: "stop".to_string(),
-                    usage: HashMap::new(),
-                    reasoning_content: None,
-                },
-            ))])))
-        }
-
-        fn get_default_model(&self) -> String {
-            "concurrent-fixture".to_string()
-        }
-    }
-
     #[async_trait]
     impl LLMProvider for CapturingStreamProvider {
         async fn chat(
@@ -2463,7 +2381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_loop_creation() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(OpenAiCompatibleClient::default());
         let workspace = PathBuf::from("/tmp/test");
         let agent = AgentLoop::new(bus, provider, workspace, None, None)
@@ -2474,7 +2392,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_direct() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(OpenAiCompatibleClient::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -2494,7 +2412,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_direct_blocks_injection_before_provider_call() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -2520,7 +2438,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_direct_keeps_original_pii_shaped_text() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(CapturingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -2552,39 +2470,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_inbound_emits_error_event_on_provider_failure() {
-        let bus = MessageBus::new();
-        let mut event_rx = bus.subscribe_events();
+    async fn typed_turn_reports_provider_failure_without_legacy_transport() {
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
 
-        let mut agent = AgentLoop::new(bus.clone(), provider, workspace, None, Some(1))
+        let mut agent = AgentLoop::new(bus, provider, workspace, None, Some(1))
             .await
             .unwrap();
-        let msg = InboundMessage::new("gui", "user", "chat-1", "Hello");
-
-        agent.handle_inbound(msg).await;
-
-        let error_event = timeout(Duration::from_secs(1), async {
-            loop {
-                let bus_event = event_rx.recv().await.unwrap();
-                if let AgentEvent::Error { message } = bus_event.event {
-                    break (bus_event.channel, bus_event.chat_id, message);
-                }
-            }
-        })
-        .await
-        .expect("timed out waiting for error event");
-
-        assert_eq!(error_event.0, "gui");
-        assert_eq!(error_event.1, "chat-1");
-        assert!(error_event.2.contains("simulated stream failure"));
+        let error = agent
+            .process_channel_envelope(owner_envelope("chat-1", "Hello", None), None)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("simulated stream failure"));
     }
 
     #[tokio::test]
     async fn provider_retry_attempt_emits_bus_event() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
         let provider = Arc::new(RetryEmittingProvider);
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2600,8 +2504,9 @@ mod tests {
         .unwrap();
 
         agent
-            .handle_inbound(InboundMessage::new("gui", "user", "chat-retry", "Hello"))
-            .await;
+            .process_channel_envelope(owner_envelope("chat-retry", "Hello", None), None)
+            .await
+            .unwrap();
 
         let observed = timeout(Duration::from_secs(2), async {
             loop {
@@ -2631,59 +2536,26 @@ mod tests {
         assert_eq!(observed.3, 1000);
     }
 
-    #[tokio::test]
-    async fn concurrent_sessions_keep_provider_retry_correlation_isolated() {
-        let bus = MessageBus::new();
-        let mut event_rx = bus.subscribe_events();
-        let provider = Arc::new(ConcurrentRetryProvider {
-            barrier: Arc::new(tokio::sync::Barrier::new(2)),
-        });
-        let temp_dir = tempfile::tempdir().unwrap();
-        let mut agent = AgentLoop::new(
-            bus.clone(),
-            provider,
-            temp_dir.path().to_path_buf(),
-            None,
-            Some(1),
-        )
-        .await
-        .unwrap();
-        let run = tokio::spawn(async move { agent.run().await.map_err(|error| error.to_string()) });
+    #[test]
+    fn typed_turn_correlations_are_preserved_per_session() {
+        let mut first = owner_envelope("chat-a", "Hello", Some("request-a"));
+        first.correlation.trace_id = Some("trace-a".to_string());
+        let mut second = owner_envelope("chat-b", "Hello", Some("request-b"));
+        second.correlation.trace_id = Some("trace-b".to_string());
 
-        for (chat_id, request_id) in [("chat-a", "request-a"), ("chat-b", "request-b")] {
-            let mut message = InboundMessage::new("gui", "user", chat_id, "Hello");
-            message.metadata.insert(
-                REQUEST_ID_METADATA_KEY.to_string(),
-                serde_json::Value::String(request_id.to_string()),
-            );
-            bus.publish_inbound(message).unwrap();
-        }
-
-        let observed = timeout(Duration::from_secs(2), async {
-            let mut retries = HashMap::new();
-            while retries.len() < 2 {
-                let event = event_rx.recv().await.unwrap();
-                if matches!(event.event, AgentEvent::ProviderRetry { .. }) {
-                    retries.insert(
-                        event.chat_id,
-                        (event.request_id.unwrap(), event.trace_id.unwrap()),
-                    );
-                }
-            }
-            retries
-        })
-        .await
-        .expect("timed out waiting for concurrent retry events");
-
-        assert_eq!(observed["chat-a"].0, "request-a");
-        assert_eq!(observed["chat-b"].0, "request-b");
-        assert_ne!(observed["chat-a"].1, observed["chat-b"].1);
-        run.abort();
+        let (first, first_identity) = prepare_turn_envelope(first).unwrap();
+        let (second, second_identity) = prepare_turn_envelope(second).unwrap();
+        assert_eq!(first.correlation.session_key, "profile/chat-a");
+        assert_eq!(second.correlation.session_key, "profile/chat-b");
+        assert_eq!(first_identity.request_id, "request-a");
+        assert_eq!(second_identity.request_id, "request-b");
+        assert_eq!(first_identity.trace_id, "trace-a");
+        assert_eq!(second_identity.trace_id, "trace-b");
     }
 
     #[tokio::test]
     async fn characterization_normal_turn_emits_final_response_without_error() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
         let provider = Arc::new(CapturingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2698,8 +2570,9 @@ mod tests {
         .unwrap();
 
         agent
-            .handle_inbound(InboundMessage::new("gui", "user", "chat-g0", "Hello"))
-            .await;
+            .process_channel_envelope(owner_envelope("chat-g0", "Hello", None), None)
+            .await
+            .unwrap();
 
         let observed = timeout(Duration::from_secs(2), async {
             let mut events = Vec::new();
@@ -2728,7 +2601,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_plan_handler_emits_event() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
         let provider = Arc::new(UpdatePlanToolCallProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2793,7 +2666,7 @@ mod tests {
 
     #[tokio::test]
     async fn characterization_tool_error_is_recorded_before_final_response() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
         let provider = Arc::new(UnknownToolCallProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -2937,7 +2810,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_text_after_tools_retries_summary_only_from_upstream_stop() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(EmptyAfterToolsProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let mut agent = AgentLoop::new(
@@ -3175,7 +3048,7 @@ mod tests {
             .unwrap(),
         );
         AgentLoop::with_tools_and_memory_provider(
-            MessageBus::new(),
+            AgentEventBus::new(),
             Arc::new(CapturingStreamProvider::default()),
             root.to_path_buf(),
             None,
@@ -3191,7 +3064,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_loop_accepts_custom_memory_provider() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3281,15 +3154,15 @@ mod tests {
         let mut agent = build_tracking_agent(temp_dir.path(), memory_provider.clone()).await;
 
         agent
-            .process_inbound_message(
-                InboundMessage::new("gui", "cron", "cron-chat", "scheduled"),
+            .process_channel_envelope(
+                runtime_envelope("runtime/cron/cron-chat", "cron-chat", "scheduled"),
                 None,
             )
             .await
             .unwrap();
         agent
-            .process_inbound_message(
-                InboundMessage::new("gui", "subagent", "sub-chat", "worker report"),
+            .process_channel_envelope(
+                runtime_envelope("runtime/subagent/sub-chat", "sub-chat", "worker report"),
                 None,
             )
             .await
@@ -3309,7 +3182,7 @@ mod tests {
         let session_key = "gui:reset-chat".to_string();
 
         agent
-            .process_direct("hello", "ignored", "gui", "reset-chat")
+            .process_direct("hello", session_key.clone(), "gui", "reset-chat")
             .await
             .unwrap();
         tokio::task::yield_now().await;
@@ -3329,7 +3202,7 @@ mod tests {
 
     #[tokio::test]
     async fn runtime_tool_rebuild_preserves_active_turn_surface() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3405,7 +3278,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_recall_block_is_injected_before_first_llm_call() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(CapturingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3473,7 +3346,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_loop_prefetch_failure_continues_without_recall_injection() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(CapturingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3530,7 +3403,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_loop_consolidation_sync_failure_keeps_main_response() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(ConsolidatingStreamProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3596,7 +3469,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_loop_loads_workspace_budget_settings() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3621,7 +3494,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rejection_circuit_reads_config_values() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3642,7 +3515,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_turn_rate_limiter_reads_max_actions_per_hour() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3667,7 +3540,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_direct_rejects_when_session_budget_exceeded() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3683,7 +3556,7 @@ mod tests {
                 .unwrap();
         ledger
             .append(agent_diva_core::token_ledger::TokenLedgerEntry::new(
-                "gui:chat-1",
+                "session-1",
                 "test-model",
                 60,
                 60,
@@ -3703,7 +3576,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_direct_appends_usage_to_token_ledger() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(UsageStreamProvider {
             usage: HashMap::from([
                 ("prompt_tokens".to_string(), 40),
@@ -3745,7 +3618,7 @@ mod tests {
                 .unwrap();
         let entries = ledger
             .read(&agent_diva_core::token_ledger::UsageFilters {
-                session_id: Some("gui:chat-1".to_string()),
+                session_id: Some("session-1".to_string()),
                 ..Default::default()
             })
             .unwrap();
@@ -3836,7 +3709,7 @@ mod tests {
 
     #[tokio::test]
     async fn mask_model_override() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3864,7 +3737,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_mask_default_model() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(FailingStreamProvider);
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -3981,7 +3854,7 @@ mod tests {
 
     #[tokio::test]
     async fn ask_user_tool_call_blocks_turn_until_answered() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(AskUserFlowProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -4095,7 +3968,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_run_onboarding_is_not_prompt_driven_when_persona_is_empty() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(PromptCaptureProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -4120,7 +3993,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_run_onboarding_absent_when_frozen_core_has_content() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(PromptCaptureProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -4162,7 +4035,7 @@ mod tests {
 
     #[tokio::test]
     async fn deferred_tool_search_auto_activates_for_the_next_same_turn_call() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(DeferredActivationProvider::default());
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace = temp_dir.path().to_path_buf();
@@ -4209,14 +4082,14 @@ mod tests {
         assert!(!tool_sets[0].iter().any(|name| name == "target_tool"));
         assert!(tool_sets[1].iter().any(|name| name == "target_tool"));
 
-        let session_path = workspace.join("sessions").join("gui_chat-discovery.jsonl");
+        let session_path = workspace.join("sessions").join("session-discovery.jsonl");
         let session_text = std::fs::read_to_string(session_path).unwrap();
         assert!(!session_text.contains("discovered"));
         assert!(session_text.contains("target_tool"));
 
         let restored_provider = Arc::new(FailingStreamProvider);
         let restored = AgentLoop::new(
-            MessageBus::new(),
+            AgentEventBus::new(),
             restored_provider,
             workspace,
             None,
@@ -4229,7 +4102,7 @@ mod tests {
 
     #[tokio::test]
     async fn core_memory_write_preflights_rules_before_execution() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let provider = Arc::new(MemoryActivationProvider::default());
         let memory_provider = Arc::new(TrackingMemoryProvider::new());
         let temp_dir = tempfile::tempdir().unwrap();
@@ -4308,7 +4181,7 @@ mod tests {
             .unwrap(),
         );
         let mut agent = AgentLoop::with_tools_and_memory_provider(
-            MessageBus::new(),
+            AgentEventBus::new(),
             provider.clone(),
             temp_dir.path().to_path_buf(),
             None,

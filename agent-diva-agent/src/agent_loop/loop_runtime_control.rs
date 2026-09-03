@@ -1,17 +1,14 @@
 use super::AgentLoop;
 use crate::compaction::{CheckpointCompactor, CheckpointSnapshot};
 use crate::runtime_control::RuntimeControlCommand;
-use agent_diva_core::bus::{AgentEvent, InboundMessage, PlanRuntimeState};
+use agent_diva_core::bus::{AgentEvent, PlanRuntimeState};
 use agent_diva_core::bus::{
     SessionAdmissionCode, SessionControlAction, SessionControlOutcome, SessionControlTargetState,
 };
-use agent_diva_core::channel::{
-    ChannelEnvelopeV1, ChannelPayloadV1, ContentPart, OwnerApprovalPolicy, OwnerTurnIntent,
-};
+use agent_diva_core::channel::ChannelEnvelopeV1;
 use agent_diva_core::memory::{SessionEndRequest, SystemPromptRefreshRequest};
 use agent_diva_core::session::CheckpointTrigger;
 use agent_diva_providers::Message;
-use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
@@ -435,7 +432,7 @@ impl AgentLoop {
 
     pub(super) fn emit_error_event(
         &self,
-        msg: &InboundMessage,
+        envelope: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         message: impl Into<String>,
     ) {
@@ -445,7 +442,7 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        super::publish_message_event(&self.bus, msg, event);
+        super::publish_envelope_event(&self.bus, envelope, event);
     }
 
     /// Handle manual `/compact` command: run compaction on the session and
@@ -663,6 +660,7 @@ impl AgentLoop {
             self.session_dispatcher.clone(),
             self.bus.clone(),
             worker_tx,
+            self.egress_tx.clone(),
             envelope,
             reply_tx,
         ));
@@ -671,34 +669,35 @@ impl AgentLoop {
 
 async fn dispatch_typed_channel_turn(
     dispatcher: super::dispatcher::SessionDispatcher,
-    bus: agent_diva_core::bus::MessageBus,
+    bus: agent_diva_core::bus::AgentEventBus,
     worker_tx: mpsc::UnboundedSender<super::SessionWorkerCommand>,
+    egress_tx: Option<mpsc::Sender<agent_diva_core::channel::ChannelCommand>>,
     envelope: ChannelEnvelopeV1,
     reply_tx: oneshot::Sender<Result<agent_diva_core::bus::SessionAdmissionObservation, String>>,
 ) {
-    let message = match channel_envelope_to_inbound(envelope) {
-        Ok(message) => message,
+    let (envelope, identity) = match super::prepare_turn_envelope(envelope) {
+        Ok(value) => value,
         Err(error) => {
             let _ = reply_tx.send(Err(error));
             return;
         }
     };
-    let (message, identity) = super::prepare_turn_message(message);
-    let session_key = message.session_key();
-    let observer = super::admission_observer(bus.clone(), message.clone(), None, identity.clone());
-    let reply_slot = Arc::new(Mutex::new(Some(reply_tx)));
+    let session_key = envelope.correlation.session_key.clone();
+    let observer = super::admission_observer(bus.clone(), envelope.clone(), None, identity.clone());
+    let reply_slot = std::sync::Arc::new(std::sync::Mutex::new(Some(reply_tx)));
     let callback = {
-        let reply_slot = Arc::clone(&reply_slot);
-        let callback_message = message.clone();
+        let reply_slot = std::sync::Arc::clone(&reply_slot);
+        let callback_envelope = envelope.clone();
         let callback_identity = identity.clone();
-        Arc::new(
+        let observer = observer.clone();
+        std::sync::Arc::new(
             move |transition: super::dispatcher::SessionDispatchTransition| {
                 let admission = match &transition {
                     super::dispatcher::SessionDispatchTransition::Queued { queue_depth } => {
                         Some(agent_diva_core::bus::SessionAdmissionObservation {
                             code: None,
                             phase: agent_diva_core::bus::SessionAdmissionPhase::Queued,
-                            session_key: callback_message.session_key(),
+                            session_key: callback_envelope.correlation.session_key.clone(),
                             request_id: callback_identity.request_id.clone(),
                             trace_id: callback_identity.trace_id.clone(),
                             queue_depth: *queue_depth,
@@ -711,7 +710,7 @@ async fn dispatch_typed_channel_turn(
                     } => Some(agent_diva_core::bus::SessionAdmissionObservation {
                         code: None,
                         phase: agent_diva_core::bus::SessionAdmissionPhase::Running,
-                        session_key: callback_message.session_key(),
+                        session_key: callback_envelope.correlation.session_key.clone(),
                         request_id: callback_identity.request_id.clone(),
                         trace_id: callback_identity.trace_id.clone(),
                         queue_depth: *queue_depth,
@@ -730,9 +729,9 @@ async fn dispatch_typed_channel_turn(
                     }
                 }
             },
-        ) as Arc<dyn Fn(super::dispatcher::SessionDispatchTransition) + Send + Sync>
+        ) as std::sync::Arc<dyn Fn(super::dispatcher::SessionDispatchTransition) + Send + Sync>
     };
-    let execution_message = message.clone();
+    let execution_envelope = envelope.clone();
     let result = dispatcher
         .dispatch_observed(
             session_key,
@@ -742,7 +741,7 @@ async fn dispatch_typed_channel_turn(
                 let (worker_reply_tx, worker_reply_rx) = oneshot::channel();
                 worker_tx
                     .send(super::SessionWorkerCommand::Execute {
-                        message: execution_message,
+                        envelope: execution_envelope,
                         cancellation,
                         reply_tx: worker_reply_tx,
                     })
@@ -753,178 +752,35 @@ async fn dispatch_typed_channel_turn(
             },
         )
         .await;
-    if let Err(error) = result {
-        if let Some(reply_tx) = reply_slot
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .take()
-        {
-            let _ = reply_tx.send(Err(error.to_string()));
-        }
-    }
-}
-
-/// Convert a validated typed Fabric message into the AgentLoop's internal turn
-/// input. The session correlation remains authoritative through the private
-/// metadata override, so opaque frontend session keys are not rewritten as
-/// `channel:chat_id`.
-fn channel_envelope_to_inbound(envelope: ChannelEnvelopeV1) -> Result<InboundMessage, String> {
-    envelope
-        .validate()
-        .map_err(|error| format!("invalid Neuro-Link envelope: {error}"))?;
-    let ChannelPayloadV1::Message {
-        parts,
-        subject,
-        locale,
-        context,
-    } = envelope.payload
-    else {
-        return Err("typed channel turn requires a message payload".to_string());
-    };
-    let mut content = String::new();
-    let mut media = Vec::new();
-    for part in parts {
-        match part {
-            ContentPart::Text { text } => content.push_str(&text),
-            ContentPart::Markdown { markdown } => content.push_str(&markdown),
-            ContentPart::Image { attachment }
-            | ContentPart::Video { attachment }
-            | ContentPart::File { attachment } => media.push(attachment.uri),
-            ContentPart::Audio {
-                attachment,
-                transcript,
-            } => {
-                media.push(attachment.uri);
-                if let Some(transcript) = transcript {
-                    content.push_str(&transcript);
+    match result {
+        Ok(Some(command)) => {
+            if let Some(egress_tx) = egress_tx {
+                if let Err(error) = egress_tx.send(command).await {
+                    tracing::error!(%error, "failed to publish typed adapter command");
                 }
             }
-            ContentPart::Location {
-                latitude,
-                longitude,
-                label,
-            } => {
-                content.push_str(&format!("[location: {latitude}, {longitude}"));
-                if let Some(label) = label {
-                    content.push_str(", ");
-                    content.push_str(&label);
-                }
-                content.push(']');
-            }
-            ContentPart::Card { schema, body } => {
-                content.push_str(&format!("[card:{schema}] "));
-                content.push_str(&serde_json::to_string(&body).unwrap_or_default());
-            }
-            ContentPart::Reference { uri, title, .. } => {
-                content.push_str("[reference: ");
-                content.push_str(title.as_deref().unwrap_or(&uri));
-                content.push_str("] ");
-                content.push_str(&uri);
+        }
+        Ok(None) => {}
+        Err(error) => {
+            if let Some(reply_tx) = reply_slot
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .take()
+            {
+                let _ = reply_tx.send(Err(error.to_string()));
             }
         }
     }
-    let sender_id = envelope
-        .address
-        .sender_id
-        .clone()
-        .unwrap_or_else(|| "owner-frontend".to_string());
-    let mut message = InboundMessage::new(
-        envelope.address.channel.clone(),
-        sender_id,
-        envelope.address.chat_id.clone(),
-        content,
-    );
-    message.timestamp = envelope.occurred_at;
-    message.media = media;
-    message.metadata.insert(
-        "agent_diva.session_key_override".to_string(),
-        serde_json::Value::String(envelope.correlation.session_key.clone()),
-    );
-    if let Some(request_id) = envelope.correlation.request_id {
-        message.metadata.insert(
-            "request_id".to_string(),
-            serde_json::Value::String(request_id),
-        );
-    }
-    if let Some(trace_id) = envelope.correlation.trace_id {
-        message
-            .metadata
-            .insert("trace_id".to_string(), serde_json::Value::String(trace_id));
-    }
-    if let Some(message_id) = envelope.correlation.message_id {
-        message.metadata.insert(
-            "message_id".to_string(),
-            serde_json::Value::String(message_id),
-        );
-    }
-    if let Some(thread_id) = envelope.address.thread_id {
-        message.metadata.insert(
-            "thread_id".to_string(),
-            serde_json::Value::String(thread_id),
-        );
-    }
-    if let Some(subject) = subject {
-        message
-            .metadata
-            .insert("subject".to_string(), serde_json::Value::String(subject));
-    }
-    if let Some(locale) = locale {
-        message
-            .metadata
-            .insert("locale".to_string(), serde_json::Value::String(locale));
-    }
-    let context = context
-        .ok_or_else(|| "owner frontend turn is missing typed execution context".to_string())?;
-    let exec_mode = match context.intent {
-        OwnerTurnIntent::Agent => "agent",
-        OwnerTurnIntent::Plan => "plan",
-        OwnerTurnIntent::Ask => "ask",
-    };
-    message.metadata.insert(
-        "exec_mode".to_string(),
-        serde_json::Value::String(exec_mode.to_string()),
-    );
-    if let Some(policy) = context.approval_policy {
-        let value = match policy {
-            OwnerApprovalPolicy::OnRequest => "on-request",
-            OwnerApprovalPolicy::OnFailure => "on-failure",
-            OwnerApprovalPolicy::UnlessTrusted => "unless-trusted",
-            OwnerApprovalPolicy::Never => "never",
-        };
-        message.metadata.insert(
-            "approval_policy".to_string(),
-            serde_json::Value::String(value.to_string()),
-        );
-    }
-    if let Some(execution) = context.execution {
-        message
-            .metadata
-            .insert("execution_start".to_string(), serde_json::Value::Bool(true));
-        message.metadata.insert(
-            "plan_id".to_string(),
-            serde_json::Value::String(execution.plan_id),
-        );
-        message.metadata.insert(
-            "plan_revision".to_string(),
-            serde_json::Value::Number(execution.revision.into()),
-        );
-        if let Some(execution_id) = execution.execution_id {
-            message.metadata.insert(
-                "execution_id".to_string(),
-                serde_json::Value::String(execution_id),
-            );
-        }
-    }
-    Ok(message)
 }
 
 #[cfg(test)]
 mod typed_channel_tests {
     use super::*;
     use agent_diva_core::channel::{
-        ChannelAddress, ChannelDirection, ChannelOrigin, Correlation, StreamPhase,
+        ChannelAddress, ChannelDirection, ChannelOrigin, ChannelPayloadV1, ContentPart,
+        Correlation, OwnerApprovalPolicy, OwnerExecutionContextV1, OwnerTurnIntent, StreamPhase,
     };
-    use serde_json::Value;
+    use crate::agent_loop::prepare_turn_envelope;
 
     #[test]
     fn typed_message_preserves_opaque_session_and_correlations() {
@@ -942,15 +798,15 @@ mod typed_channel_tests {
                         text: "hello".to_string(),
                     },
                     ContentPart::Markdown {
-                        markdown: " **world**".to_string(),
+                    markdown: " **world**".to_string(),
                     },
                 ],
                 subject: Some("subject".to_string()),
                 locale: Some("zh-CN".to_string()),
                 context: Some(agent_diva_core::channel::OwnerTurnContextV1 {
                     intent: OwnerTurnIntent::Agent,
-                    approval_policy: Some(agent_diva_core::channel::OwnerApprovalPolicy::OnFailure),
-                    execution: Some(agent_diva_core::channel::OwnerExecutionContextV1 {
+                    approval_policy: Some(OwnerApprovalPolicy::OnFailure),
+                    execution: Some(OwnerExecutionContextV1 {
                         plan_id: "plan-1".to_string(),
                         revision: 3,
                         execution_id: Some("execution-1".to_string()),
@@ -958,54 +814,31 @@ mod typed_channel_tests {
                 }),
             },
         );
-        let message = channel_envelope_to_inbound(envelope).unwrap();
-        assert_eq!(message.session_key(), "profile/session-1");
-        assert_eq!(message.content, "hello **world**");
-        assert_eq!(
-            message.metadata.get("request_id").and_then(Value::as_str),
-            Some("request-1")
-        );
-        assert_eq!(
-            message.metadata.get("trace_id").and_then(Value::as_str),
-            Some("trace-1")
-        );
-        assert_eq!(
-            message.metadata.get("locale").and_then(Value::as_str),
-            Some("zh-CN")
-        );
-        assert_eq!(
-            message.metadata.get("exec_mode").and_then(Value::as_str),
-            Some("agent")
-        );
-        assert_eq!(
-            message
-                .metadata
-                .get("approval_policy")
-                .and_then(Value::as_str),
-            Some("on-failure")
-        );
-        assert_eq!(
-            message
-                .metadata
-                .get("execution_start")
-                .and_then(Value::as_bool),
-            Some(true)
-        );
-        assert_eq!(
-            message.metadata.get("plan_id").and_then(Value::as_str),
-            Some("plan-1")
-        );
-        assert_eq!(
-            message
-                .metadata
-                .get("plan_revision")
-                .and_then(Value::as_i64),
-            Some(3)
-        );
-        assert_eq!(
-            message.metadata.get("execution_id").and_then(Value::as_str),
-            Some("execution-1")
-        );
+        let (prepared, identity) = prepare_turn_envelope(envelope).unwrap();
+        assert_eq!(prepared.correlation.session_key, "profile/session-1");
+        assert_eq!(prepared.rendered_message_text().as_deref(), Some("hello\n **world**"));
+        assert_eq!(prepared.correlation.request_id.as_deref(), Some("request-1"));
+        assert_eq!(prepared.correlation.trace_id.as_deref(), Some("trace-1"));
+        assert_eq!(identity.request_id, "request-1");
+        assert_eq!(identity.trace_id, "trace-1");
+        match prepared.payload {
+            ChannelPayloadV1::Message {
+                subject,
+                locale,
+                context: Some(context),
+                ..
+            } => {
+                assert_eq!(subject.as_deref(), Some("subject"));
+                assert_eq!(locale.as_deref(), Some("zh-CN"));
+                assert_eq!(context.intent, OwnerTurnIntent::Agent);
+                assert_eq!(context.approval_policy, Some(OwnerApprovalPolicy::OnFailure));
+                assert_eq!(
+                    context.execution.as_ref().and_then(|value| value.execution_id.as_deref()),
+                    Some("execution-1")
+                );
+            }
+            payload => panic!("unexpected payload: {payload:?}"),
+        }
     }
 
     #[test]
@@ -1020,7 +853,7 @@ mod typed_channel_tests {
                 parts: Vec::new(),
             },
         );
-        let error = channel_envelope_to_inbound(envelope).unwrap_err();
+        let error = prepare_turn_envelope(envelope).unwrap_err();
         assert!(error.contains("message payload"));
     }
 }

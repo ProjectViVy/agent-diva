@@ -12,9 +12,8 @@ use super::turn::{
 };
 use super::AgentLoop;
 use crate::context_assembly::{serialize_dynamic_sections, ContextSection, PromptSection};
-use agent_diva_core::bus::{
-    AgentEvent, InboundMessage, OutboundMessage, PlanRuntimeState, PlanRuntimeTodo, PokeEvent,
-};
+use agent_diva_core::bus::{AgentEvent, PlanRuntimeState, PlanRuntimeTodo, PokeEvent};
+use agent_diva_core::channel::{AttachmentRef, ChannelCommand, ChannelEnvelopeV1, ChannelOrigin};
 use agent_diva_core::planning::model::{PlanPhase, TodoStatus};
 use agent_diva_core::planning::store::PlanningStore;
 use agent_diva_core::planning::update_plan::UpdatePlanArgs;
@@ -136,19 +135,19 @@ pub(super) fn build_current_turn_message(
 impl AgentLoop {
     pub(super) fn emit_agent_event(
         &self,
-        msg: &InboundMessage,
+        msg: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         event: AgentEvent,
     ) {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        super::publish_message_event(&self.bus, msg, event);
+        super::publish_envelope_event(&self.bus, msg, event);
     }
 
     pub(super) async fn emit_planning_runtime_events(
         &self,
-        msg: &InboundMessage,
+        msg: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         tool_name: &str,
         before: Option<PlanRuntimeState>,
@@ -217,7 +216,7 @@ impl AgentLoop {
     /// consumers and the bus.
     pub(super) async fn emit_chat_plan_update(
         &self,
-        msg: &InboundMessage,
+        msg: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         tool_name: &str,
         params: &serde_json::Value,
@@ -275,7 +274,7 @@ impl AgentLoop {
     pub(super) fn enforce_session_token_budget(
         &self,
         session_key: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(limit) = self.session_token_budget_limit {
             check_budget_at_path(&self.token_ledger_data_root, session_key, limit)?;
         }
@@ -288,7 +287,7 @@ impl AgentLoop {
         model: &str,
         usage: &TokenUsage,
         provider_usage: &HashMap<String, i64>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if usage.total_tokens == 0 {
             return Ok(());
         }
@@ -307,20 +306,20 @@ impl AgentLoop {
         Ok(())
     }
 
-    pub(super) async fn process_inbound_message_inner(
+    pub(super) async fn process_channel_envelope_inner(
         &mut self,
-        msg: InboundMessage,
+        msg: ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
         trace_id: String,
-    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
-        trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.channel, msg.sender_id);
+    ) -> Result<Option<ChannelCommand>, Box<dyn std::error::Error + Send + Sync>> {
+        trace!(trace_id = %trace_id, step_name = "msg_received", "Message received from {}:{}", msg.address.channel, msg.address.sender_id.as_deref().unwrap_or("unknown"));
 
         let AdmittedTurn {
             active_mask,
             model: model_to_use,
             scheduled: is_cron_trigger,
             mode,
-            execution_start,
+            execution_continuation,
             session_key,
             mut active_execution,
             active_execution_id,
@@ -336,7 +335,7 @@ impl AgentLoop {
             .prepare_runtime_context(
                 &msg,
                 &model_to_use,
-                execution_start,
+                execution_continuation,
                 &session_key,
                 &mut active_execution,
                 plan_guard_active,
@@ -353,7 +352,10 @@ impl AgentLoop {
             self.mark_actmem_session_active(&session_key).await;
             if let Err(error) = self
                 .memory_provider
-                .record_user_pulse(&session_key, &msg.content)
+                .record_user_pulse(
+                    &session_key,
+                    msg.rendered_message_text().as_deref().unwrap_or_default(),
+                )
                 .await
             {
                 warn!(
@@ -410,7 +412,7 @@ impl AgentLoop {
             if let Some(tx) = event_tx {
                 let _ = tx.send(event.clone());
             }
-            super::publish_message_event(&self.bus, &msg, event);
+            super::publish_envelope_event(&self.bus, &msg, event);
 
             // Call LLM (streaming when provider supports it)
             // For cron-triggered turns, keep normal tools available but hide cron tool
@@ -434,7 +436,7 @@ impl AgentLoop {
                 }
             } else if read_only {
                 read_only_tool_definitions(self.tools.get_definition_set())
-            } else if msg.channel == "cron" || is_cron_trigger {
+            } else if is_cron_trigger || matches!(msg.origin, ChannelOrigin::Runtime) {
                 let mut definitions = self.tools.get_definition_set();
                 definitions.retain(|def| {
                     def.get("function")
@@ -741,7 +743,7 @@ impl AgentLoop {
                 session_key: turn_snapshot.session_key,
                 message_content,
                 turn_messages_start,
-                system_turn: is_cron_trigger || execution_start,
+                system_turn: is_cron_trigger || execution_continuation,
                 actmem_interactive,
                 model: turn_snapshot.model,
                 trace_id: turn_snapshot.trace_id,
@@ -757,16 +759,17 @@ impl AgentLoop {
     /// For other files, adds a placeholder telling AI to use read_file tool.
     pub(super) async fn load_attachment_contents(
         &self,
-        file_ids: &[String],
-    ) -> Result<ProcessedInboundMedia, Box<dyn std::error::Error>> {
+        attachments: &[AttachmentRef],
+    ) -> Result<ProcessedInboundMedia, Box<dyn std::error::Error + Send + Sync>> {
         let storage_path = dirs::data_local_dir()
             .map(|p| p.join("agent-diva").join("files"))
             .unwrap_or_else(|| PathBuf::from(".agent-diva/files"));
         info!("Loading attachments from: {}", storage_path.display());
-        info!("File IDs to load: {:?}", file_ids);
+        info!("Typed attachments to load: {:?}", attachments);
         let mut result = ProcessedInboundMedia::default();
 
-        for file_id in file_ids {
+        for attachment in attachments {
+            let file_id = &attachment.uri;
             match self.file_manager.get(file_id).await {
                 Ok(handle) => {
                     let size = handle.metadata.size;
@@ -775,6 +778,32 @@ impl AgentLoop {
                         .mime_type
                         .as_deref()
                         .unwrap_or("application/octet-stream");
+                    if size != attachment.size_bytes {
+                        return Err(anyhow::anyhow!(
+                            "attachment {} size does not match the shared file authority",
+                            attachment.uri
+                        )
+                        .into());
+                    }
+                    if !attachment.sha256.trim().is_empty()
+                        && handle.id != attachment.sha256
+                        && handle.id != format!("sha256:{}", attachment.sha256)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "attachment {} hash does not match the shared file authority",
+                            attachment.uri
+                        )
+                        .into());
+                    }
+                    if !attachment.media_type.trim().is_empty()
+                        && attachment.media_type != mime_type
+                    {
+                        return Err(anyhow::anyhow!(
+                            "attachment {} media type does not match the shared file authority",
+                            attachment.uri
+                        )
+                        .into());
+                    }
                     let is_text = mime_type.starts_with("text/")
                         || mime_type == "application/json"
                         || mime_type == "application/javascript"

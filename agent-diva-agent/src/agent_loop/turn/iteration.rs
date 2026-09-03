@@ -1,4 +1,5 @@
-use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::bus::AgentEvent;
+use agent_diva_core::channel::ChannelEnvelopeV1;
 use agent_diva_core::session::{ChatMessage, CheckpointTrigger, TokenUsage};
 use agent_diva_providers::retry::{RetryAttempt, RetryListener};
 use agent_diva_providers::{
@@ -174,13 +175,13 @@ impl AgentLoop {
         summary_only: bool,
         session_key: &str,
         model: &str,
-        message: &InboundMessage,
+        message: &ChannelEnvelopeV1,
         dynamic_sections: &[PromptSection],
         current_turn_message: &Message,
         turn_messages_start: &mut usize,
         stable_prefix: &StablePrefixSnapshot,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<StartedModelStream, Box<dyn std::error::Error>> {
+    ) -> Result<StartedModelStream, Box<dyn std::error::Error + Send + Sync>> {
         let requested_max_tokens = if summary_only {
             SUMMARY_ONLY_COMPLETION_TOKENS
         } else {
@@ -276,7 +277,7 @@ impl AgentLoop {
                 let bus = self.bus.clone();
                 let event_message = message.clone();
                 let listener: RetryListener = Arc::new(move |r: RetryAttempt| {
-                    super::super::publish_message_event(
+                    super::super::publish_envelope_event(
                         &bus,
                         &event_message,
                         AgentEvent::ProviderRetry {
@@ -399,9 +400,9 @@ impl AgentLoop {
         dynamic_sections: &[PromptSection],
         current_turn_message: &Message,
         session_key: &str,
-        message: &InboundMessage,
+        message: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let current_turn_snapshot =
             std::iter::once(provider_message_to_chat_message(current_turn_message))
                 .flatten()
@@ -533,9 +534,9 @@ impl AgentLoop {
         &mut self,
         mut stream: ProviderEventStream,
         session_key: &str,
-        message: &InboundMessage,
+        message: &ChannelEnvelopeV1,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<Option<StreamedModelStep>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<StreamedModelStep>, Box<dyn std::error::Error + Send + Sync>> {
         let mut streamed_content = String::new();
         let mut streamed_reasoning = String::new();
         let mut output_guard = InternalProtocolGuard::default();
@@ -562,7 +563,7 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        super::super::publish_message_event(&self.bus, message, event);
+                        super::super::publish_envelope_event(&self.bus, message, event);
                     }
                 }
                 LLMStreamEvent::ReasoningDelta(delta) => {
@@ -572,7 +573,7 @@ impl AgentLoop {
                     if let Some(tx) = event_tx {
                         let _ = tx.send(event.clone());
                     }
-                    super::super::publish_message_event(&self.bus, message, event);
+                    super::super::publish_envelope_event(&self.bus, message, event);
                 }
                 LLMStreamEvent::ToolCallDelta {
                     name,
@@ -587,7 +588,7 @@ impl AgentLoop {
                         if let Some(tx) = event_tx {
                             let _ = tx.send(event.clone());
                         }
-                        super::super::publish_message_event(&self.bus, message, event);
+                        super::super::publish_envelope_event(&self.bus, message, event);
                     }
                 }
                 LLMStreamEvent::Completed(done) => {
@@ -615,7 +616,7 @@ impl AgentLoop {
                 if let Some(tx) = event_tx {
                     let _ = tx.send(event.clone());
                 }
-                super::super::publish_message_event(&self.bus, message, event);
+                super::super::publish_envelope_event(&self.bus, message, event);
             }
         }
 

@@ -12,7 +12,10 @@ use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::channel::{
+    ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
+    ContentPart, Correlation, FabricHandle,
+};
 use agent_diva_core::config::schema::{
     BatchSpawnRequest, MaskConfig, SubAgentResult, SubAgentStatus, TokenUsage, ToolLimits,
 };
@@ -39,7 +42,7 @@ const MAX_CONCURRENT_SUBAGENTS: usize = 4;
 pub struct SubagentManager {
     provider: Arc<dyn LLMProvider>,
     workspace: PathBuf,
-    bus: MessageBus,
+    fabric: Arc<RwLock<FabricHandle>>,
     model: String,
     builtin_tools: BuiltInToolsConfig,
     network_config: Arc<RwLock<NetworkToolConfig>>,
@@ -74,7 +77,7 @@ impl SubagentManager {
     pub fn new(
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
-        bus: MessageBus,
+        fabric: FabricHandle,
         model: Option<String>,
         builtin_tools: BuiltInToolsConfig,
         network_config: NetworkToolConfig,
@@ -91,7 +94,7 @@ impl SubagentManager {
         Self {
             provider,
             workspace,
-            bus,
+            fabric: Arc::new(RwLock::new(fabric)),
             model,
             builtin_tools,
             network_config: Arc::new(RwLock::new(network_config)),
@@ -134,6 +137,11 @@ impl SubagentManager {
     pub async fn update_mcp_servers(&self, mcp_servers: HashMap<String, MCPServerConfig>) {
         let mut guard = self.mcp_servers.write().await;
         *guard = mcp_servers;
+    }
+
+    /// Replace the Fabric handle used for all future subagent result ingress.
+    pub async fn set_fabric_handle(&self, fabric: FabricHandle) {
+        *self.fabric.write().await = fabric;
     }
 
     /// Resolve the model to use for a subagent, following the priority chain:
@@ -236,7 +244,7 @@ impl SubagentManager {
 
         let provider = Arc::clone(&self.provider);
         let workspace = self.workspace.clone();
-        let bus = self.bus.clone();
+        let fabric = self.fabric.read().await.clone();
         let builtin_tools = self.builtin_tools.clone();
         let network_config = self.network_config.read().await.clone();
         let exec_timeout = self.exec_timeout;
@@ -262,7 +270,7 @@ impl SubagentManager {
                 origin_chat_id,
                 provider,
                 workspace,
-                bus.clone(),
+                fabric.clone(),
                 model,
                 builtin_tools,
                 network_config,
@@ -339,6 +347,7 @@ impl SubagentManager {
             self.per_task_token_budget,
         )
         .await;
+        let fabric = self.fabric.read().await.clone();
 
         match result {
             Ok((content, usage)) => {
@@ -355,7 +364,7 @@ impl SubagentManager {
                     &origin_channel,
                     &origin_chat_id,
                     "ok",
-                    &self.bus,
+                    &fabric,
                 )
                 .await;
                 Ok(content)
@@ -371,7 +380,7 @@ impl SubagentManager {
                     &origin_channel,
                     &origin_chat_id,
                     "error",
-                    &self.bus,
+                    &fabric,
                 )
                 .await;
                 Err(error)
@@ -908,7 +917,8 @@ impl SubagentManager {
         Ok((result_text, final_usage))
     }
 
-    /// Announce the subagent result to the main agent via the message bus
+    /// Announce the subagent result by injecting a typed Runtime envelope into
+    /// the shared Fabric ingress lane.
     #[allow(clippy::too_many_arguments)]
     async fn announce_result(
         task_id: &str,
@@ -918,7 +928,7 @@ impl SubagentManager {
         origin_channel: &str,
         origin_chat_id: &str,
         status: &str,
-        bus: &MessageBus,
+        fabric: &FabricHandle,
     ) {
         let status_text = if status == "ok" {
             "completed successfully"
@@ -931,12 +941,36 @@ impl SubagentManager {
             label, status_text, task, result
         );
 
-        // Inject as system message to trigger main agent
-        // Use the origin channel/chat_id directly so the response routes back correctly
-        let msg = InboundMessage::new(origin_channel, "subagent", origin_chat_id, announce_content);
-
-        if let Err(e) = bus.publish_inbound(msg) {
-            error!("Failed to announce subagent result: {}", e);
+        let mut address = ChannelAddress::new(origin_channel, origin_chat_id);
+        address.sender_id = Some("subagent".to_string());
+        let session_key = format!("{}:{}", address.channel, address.chat_id);
+        let mut correlation = Correlation::new(session_key);
+        correlation.message_id = Some(Uuid::new_v4().to_string());
+        correlation.request_id = Some(Uuid::new_v4().to_string());
+        correlation.trace_id = Some(Uuid::new_v4().to_string());
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            address,
+            correlation,
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Text {
+                    text: announce_content,
+                }],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        if let Err(error) = fabric
+            .admit_ingress(
+                envelope,
+                std::time::Duration::from_secs(1),
+                &tokio_util::sync::CancellationToken::new(),
+            )
+            .await
+        {
+            error!(%error, "Failed to announce subagent result through Fabric");
         }
 
         debug!(
@@ -1063,7 +1097,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         origin_chat_id: String,
         provider: Arc<dyn LLMProvider>,
         workspace: PathBuf,
-        bus: MessageBus,
+        fabric: FabricHandle,
         model: String,
         builtin_tools: BuiltInToolsConfig,
         network_config: NetworkToolConfig,
@@ -1108,6 +1142,7 @@ When you have completed the task, provide a clear summary of your findings or ac
             }
         };
 
+        let fabric = fabric;
         Self::announce_result(
             &task_id,
             &label,
@@ -1116,7 +1151,7 @@ When you have completed the task, provide a clear summary of your findings or ac
             &origin_channel,
             &origin_chat_id,
             status,
-            &bus,
+            &fabric,
         )
         .await;
     }
