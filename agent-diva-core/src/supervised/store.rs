@@ -310,7 +310,7 @@ impl RunStore {
         let context_str = record
             .context
             .as_ref()
-            .map(|context| serde_json::to_string(context))
+            .map(serde_json::to_string)
             .transpose()
             .map_err(|error| {
                 RunStoreError::SqlxError(format!(
@@ -320,7 +320,7 @@ impl RunStore {
         let tags_str = record
             .tags
             .as_ref()
-            .map(|tags| serde_json::to_string(tags))
+            .map(serde_json::to_string)
             .transpose()
             .map_err(|error| {
                 RunStoreError::SqlxError(format!(
