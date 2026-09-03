@@ -339,6 +339,7 @@ mod memory_authority_tests {
         let mut value = serde_json::to_value(Config::default()).unwrap();
         value.as_object_mut().unwrap().remove("memory");
         let config: Config = serde_json::from_value(value).unwrap();
+        assert_eq!(config.memory.l1_index_lines, 30);
     }
 
     #[test]
@@ -349,6 +350,7 @@ mod memory_authority_tests {
             .unwrap()
             .insert("memory".to_string(), serde_json::json!({}));
         let config: Config = serde_json::from_value(value).unwrap();
+        assert_eq!(config.memory.l1_index_lines, 30);
     }
 
     #[test]
@@ -691,35 +693,13 @@ pub struct ChannelsConfig {
     #[serde(default)]
     pub discord: DiscordConfig,
     #[serde(default)]
-    pub whatsapp: WhatsAppConfig,
-    #[serde(default)]
     pub feishu: FeishuConfig,
     #[serde(default)]
     pub dingtalk: DingTalkConfig,
     #[serde(default)]
     pub email: EmailConfig,
     #[serde(default)]
-    pub slack: SlackConfig,
-    #[serde(default)]
     pub qq: QQConfig,
-    #[serde(default)]
-    pub matrix: MatrixConfig,
-    /// Reserved future heavyweight channel (`neuro-link` / `generic_pipe`).
-    /// Not a peer of telegram/qq-style adapters; do not treat missing
-    /// `channel_statuses` coverage as an accidental gap.
-    #[serde(
-        default,
-        rename = "neuro-link",
-        alias = "neuro_link",
-        alias = "generic_pipe"
-    )]
-    pub neuro_link: NeuroLinkConfig,
-    #[serde(default)]
-    pub irc: IrcConfig,
-    #[serde(default)]
-    pub mattermost: MattermostConfig,
-    #[serde(default)]
-    pub nextcloud_talk: NextcloudTalkConfig,
 }
 
 /// Telegram channel configuration
@@ -782,31 +762,6 @@ impl Default for DiscordConfig {
             mention_only: false,
             listen_to_bots: false,
             group_reply_allowed_sender_ids: Vec::new(),
-        }
-    }
-}
-
-/// WhatsApp channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WhatsAppConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_whatsapp_bridge")]
-    pub bridge_url: String,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_whatsapp_bridge() -> String {
-    "ws://localhost:3001".to_string()
-}
-
-impl Default for WhatsAppConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            bridge_url: default_whatsapp_bridge(),
-            allow_from: Vec::new(),
         }
     }
 }
@@ -968,77 +923,6 @@ impl Default for EmailConfig {
     }
 }
 
-/// Slack channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SlackConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_slack_mode")]
-    pub mode: String,
-    #[serde(default)]
-    pub webhook_path: String,
-    #[serde(default)]
-    pub bot_token: String,
-    #[serde(default)]
-    pub app_token: String,
-    #[serde(default = "default_true")]
-    pub user_token_read_only: bool,
-    #[serde(default = "default_slack_policy")]
-    pub group_policy: String,
-    #[serde(default)]
-    pub group_allow_from: Vec<String>,
-    #[serde(default)]
-    pub dm: SlackDMConfig,
-}
-
-fn default_slack_mode() -> String {
-    "socket".to_string()
-}
-fn default_slack_policy() -> String {
-    "mention".to_string()
-}
-
-impl Default for SlackConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            mode: default_slack_mode(),
-            webhook_path: "/slack/events".to_string(),
-            bot_token: String::new(),
-            app_token: String::new(),
-            user_token_read_only: true,
-            group_policy: default_slack_policy(),
-            group_allow_from: Vec::new(),
-            dm: SlackDMConfig::default(),
-        }
-    }
-}
-
-/// Slack DM configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SlackDMConfig {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    #[serde(default = "default_slack_dm_policy")]
-    pub policy: String,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_slack_dm_policy() -> String {
-    "open".to_string()
-}
-
-impl Default for SlackDMConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            policy: default_slack_dm_policy(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
 /// QQ channel configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct QQConfig {
@@ -1050,225 +934,6 @@ pub struct QQConfig {
     pub secret: String,
     #[serde(default)]
     pub allow_from: Vec<String>,
-}
-
-/// Neuro-link (local WebSocket pipe) channel configuration.
-///
-/// Intentionally reserved as a future heavyweight channel design, not a
-/// conventional messaging adapter. Keep the config surface; do not flatten
-/// it into telegram/qq-style doctor/GUI status until that design starts.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NeuroLinkConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_pipe_host")]
-    pub host: String,
-    #[serde(default = "default_pipe_port")]
-    pub port: u16,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_pipe_host() -> String {
-    "0.0.0.0".to_string()
-}
-fn default_pipe_port() -> u16 {
-    9100
-}
-
-impl Default for NeuroLinkConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            host: default_pipe_host(),
-            port: default_pipe_port(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
-/// Matrix channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MatrixConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_matrix_homeserver")]
-    pub homeserver: String,
-    #[serde(default)]
-    pub user_id: String,
-    #[serde(default)]
-    pub access_token: String,
-    #[serde(default)]
-    pub device_id: String,
-    #[serde(default = "default_true")]
-    pub e2ee_enabled: bool,
-    #[serde(default = "default_matrix_media_limit")]
-    pub max_media_bytes: usize,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-    #[serde(default)]
-    pub group_allow_from: Vec<String>,
-    #[serde(default = "default_matrix_sync_timeout")]
-    pub sync_timeout_ms: u64,
-    #[serde(default = "default_matrix_sync_stop_grace")]
-    pub sync_stop_grace_seconds: u64,
-}
-
-fn default_matrix_homeserver() -> String {
-    "https://matrix.org".to_string()
-}
-fn default_matrix_media_limit() -> usize {
-    20 * 1024 * 1024
-}
-fn default_matrix_sync_timeout() -> u64 {
-    30_000
-}
-fn default_matrix_sync_stop_grace() -> u64 {
-    8
-}
-
-impl Default for MatrixConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            homeserver: default_matrix_homeserver(),
-            user_id: String::new(),
-            access_token: String::new(),
-            device_id: String::new(),
-            e2ee_enabled: true,
-            max_media_bytes: default_matrix_media_limit(),
-            allow_from: Vec::new(),
-            group_allow_from: Vec::new(),
-            sync_timeout_ms: default_matrix_sync_timeout(),
-            sync_stop_grace_seconds: default_matrix_sync_stop_grace(),
-        }
-    }
-}
-
-/// IRC channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrcConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub server: String,
-    #[serde(default = "default_irc_port")]
-    pub port: u16,
-    #[serde(default)]
-    pub nickname: String,
-    #[serde(default)]
-    pub username: String,
-    #[serde(default)]
-    pub channels: Vec<String>,
-    #[serde(default)]
-    pub server_password: Option<String>,
-    #[serde(default)]
-    pub nickserv_password: Option<String>,
-    #[serde(default)]
-    pub sasl_password: Option<String>,
-    #[serde(default = "default_true")]
-    pub use_tls: bool,
-    #[serde(default = "default_true")]
-    pub verify_tls: bool,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_irc_port() -> u16 {
-    6697
-}
-
-impl Default for IrcConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            server: String::new(),
-            port: default_irc_port(),
-            nickname: String::new(),
-            username: String::new(),
-            channels: Vec::new(),
-            server_password: None,
-            nickserv_password: None,
-            sasl_password: None,
-            use_tls: true,
-            verify_tls: true,
-            allow_from: Vec::new(),
-        }
-    }
-}
-
-/// Mattermost channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MattermostConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub base_url: String,
-    #[serde(default)]
-    pub bot_token: String,
-    #[serde(default)]
-    pub channel_id: String,
-    #[serde(default = "default_true")]
-    pub thread_replies: bool,
-    #[serde(default)]
-    pub mention_only: bool,
-    #[serde(default = "default_mm_poll_interval")]
-    pub poll_interval_seconds: u64,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_mm_poll_interval() -> u64 {
-    3
-}
-
-impl Default for MattermostConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            base_url: String::new(),
-            bot_token: String::new(),
-            channel_id: String::new(),
-            thread_replies: true,
-            mention_only: false,
-            poll_interval_seconds: default_mm_poll_interval(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
-/// Nextcloud Talk channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NextcloudTalkConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default)]
-    pub base_url: String,
-    #[serde(default)]
-    pub app_token: String,
-    #[serde(default)]
-    pub room_token: String,
-    #[serde(default = "default_nc_poll_interval")]
-    pub poll_interval_seconds: u64,
-    #[serde(default)]
-    pub allow_from: Vec<String>,
-}
-
-fn default_nc_poll_interval() -> u64 {
-    5
-}
-
-impl Default for NextcloudTalkConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            base_url: String::new(),
-            app_token: String::new(),
-            room_token: String::new(),
-            poll_interval_seconds: default_nc_poll_interval(),
-            allow_from: Vec::new(),
-        }
-    }
 }
 
 /// Provider configuration

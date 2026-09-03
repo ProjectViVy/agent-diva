@@ -1048,7 +1048,7 @@ mod approval_mode_tests {
             .mount(server)
             .await;
         Mock::given(method("POST"))
-            .and(path("/api/chat"))
+            .and(path("/api/runtime/turns"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-type", "text/event-stream")

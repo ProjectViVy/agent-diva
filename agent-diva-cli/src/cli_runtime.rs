@@ -587,13 +587,6 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
             notes: vec![],
         },
         ChannelStatus {
-            name: "whatsapp".to_string(),
-            enabled: config.channels.whatsapp.enabled,
-            ready: config.channels.whatsapp.enabled,
-            missing_fields: vec![],
-            notes: vec!["requires bridge login".to_string()],
-        },
-        ChannelStatus {
             name: "feishu".to_string(),
             enabled: config.channels.feishu.enabled,
             ready: config.channels.feishu.enabled
@@ -670,22 +663,6 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
             notes: vec![],
         },
         ChannelStatus {
-            name: "slack".to_string(),
-            enabled: config.channels.slack.enabled,
-            ready: config.channels.slack.enabled
-                && !config.channels.slack.bot_token.is_empty()
-                && !config.channels.slack.app_token.is_empty(),
-            missing_fields: [
-                ("bot_token", config.channels.slack.bot_token.is_empty()),
-                ("app_token", config.channels.slack.app_token.is_empty()),
-            ]
-            .into_iter()
-            .filter(|(_, missing)| config.channels.slack.enabled && *missing)
-            .map(|(name, _)| name.to_string())
-            .collect(),
-            notes: vec![],
-        },
-        ChannelStatus {
             name: "qq".to_string(),
             enabled: config.channels.qq.enabled,
             ready: config.channels.qq.enabled
@@ -701,26 +678,6 @@ pub fn channel_statuses(config: &Config) -> Vec<ChannelStatus> {
             .collect(),
             notes: vec![],
         },
-        ChannelStatus {
-            name: "matrix".to_string(),
-            enabled: config.channels.matrix.enabled,
-            ready: config.channels.matrix.enabled
-                && !config.channels.matrix.user_id.is_empty()
-                && !config.channels.matrix.access_token.is_empty(),
-            missing_fields: [
-                ("user_id", config.channels.matrix.user_id.is_empty()),
-                (
-                    "access_token",
-                    config.channels.matrix.access_token.is_empty(),
-                ),
-            ]
-            .into_iter()
-            .filter(|(_, missing)| config.channels.matrix.enabled && *missing)
-            .map(|(name, _)| name.to_string())
-            .collect(),
-            notes: vec![],
-        },
-        // neuro-link intentionally omitted: reserved future heavyweight channel.
     ]
 }
 

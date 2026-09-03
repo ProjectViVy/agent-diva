@@ -58,7 +58,7 @@ pub use provider_companion::{
     get_providers_handler, resolve_provider_handler, update_provider_handler,
 };
 
-use agent_diva_agent::AgentEvent;
+use agent_diva_agent::{runtime_control::RuntimeControlCommand, AgentEvent};
 use agent_diva_core::bus::{AgentBusEvent, InboundMessage};
 use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use agent_diva_core::config::ConfigLoader;
@@ -1063,16 +1063,75 @@ pub async fn update_channel_handler(
     Json(payload): Json<ChannelUpdate>,
 ) -> Json<serde_json::Value> {
     tracing::info!("Received update channel request: {}", payload.name);
+    let (reply_tx, reply_rx) = oneshot::channel();
     if let Err(e) = state
         .api_tx
-        .send(ManagerCommand::UpdateChannel(payload))
+        .send(ManagerCommand::UpdateChannel(payload, reply_tx))
         .await
     {
         tracing::error!("Failed to send UpdateChannel request: {}", e);
         return Json(serde_json::json!({ "status": "error", "message": e.to_string() }));
     }
 
-    Json(serde_json::json!({ "status": "ok" }))
+    match reply_rx.await {
+        Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(error) => Json(serde_json::json!({ "status": "error", "message": error.to_string() })),
+    }
+}
+
+pub async fn get_channel_runtime_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let (reply_tx, reply_rx) = oneshot::channel();
+    if let Err(error) = state
+        .api_tx
+        .send(ManagerCommand::GetChannelRuntime(reply_tx))
+        .await
+    {
+        return Json(serde_json::json!({ "status": "error", "message": error.to_string() }));
+    }
+    match reply_rx.await {
+        Ok(channels) => Json(serde_json::json!({ "status": "ok", "channels": channels })),
+        Err(error) => Json(serde_json::json!({ "status": "error", "message": error.to_string() })),
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CompactSessionRequest {
+    pub session_key: String,
+}
+
+pub async fn compact_session_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<CompactSessionRequest>,
+) -> Json<serde_json::Value> {
+    let Some(control_tx) = state.runtime_control_tx.clone() else {
+        return Json(
+            serde_json::json!({ "status": "error", "message": "AgentLoop runtime unavailable" }),
+        );
+    };
+    let session_key = payload.session_key.trim().to_string();
+    if session_key.is_empty() {
+        return Json(
+            serde_json::json!({ "status": "error", "message": "session_key is required" }),
+        );
+    }
+    let (reply_tx, reply_rx) = oneshot::channel();
+    if control_tx
+        .send(RuntimeControlCommand::CompactSession {
+            session_key,
+            reply_tx,
+        })
+        .is_err()
+    {
+        return Json(
+            serde_json::json!({ "status": "error", "message": "AgentLoop control lane is closed" }),
+        );
+    }
+    match reply_rx.await {
+        Ok(Ok(summary)) => Json(serde_json::json!({ "status": "ok", "summary": summary })),
+        Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
+        Err(error) => Json(serde_json::json!({ "status": "error", "message": error.to_string() })),
+    }
 }
 
 pub async fn heartbeat_handler() -> &'static str {

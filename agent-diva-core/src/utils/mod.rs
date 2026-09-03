@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_sync_workspace_templates_creates_missing_files() {
         let temp = tempfile::tempdir().unwrap();
-        let added = sync_workspace_templates(temp.path()).unwrap();
+        let _added = sync_workspace_templates(temp.path()).unwrap();
         assert!(!temp.path().join("memory").exists());
         assert!(temp.path().join("skills").exists());
         assert!(temp.path().join("masks").exists());

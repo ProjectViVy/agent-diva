@@ -6,7 +6,7 @@ use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_agent::tool_config::network::{
     NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
 };
-use agent_diva_channels::ChannelManager;
+use agent_diva_channels::runtime::ChannelRuntime;
 use agent_diva_core::bus::MessageBus;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
@@ -34,7 +34,7 @@ pub struct Manager {
     current_model: String,
     current_api_base: Option<String>,
     current_api_key: Option<String>,
-    channel_manager: Option<Arc<ChannelManager>>,
+    channel_runtime: Option<Arc<ChannelRuntime>>,
     runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
@@ -75,7 +75,7 @@ impl Manager {
         initial_model: String,
         api_key: Option<String>,
         api_base: Option<String>,
-        channel_manager: Option<Arc<ChannelManager>>,
+        channel_runtime: Option<Arc<ChannelRuntime>>,
         runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
         cron_service: Arc<CronService>,
         file_manager: Arc<FileManager>,
@@ -93,7 +93,7 @@ impl Manager {
             current_model: initial_model,
             current_api_base: api_base,
             current_api_key: api_key,
-            channel_manager,
+            channel_runtime,
             runtime_control_tx,
             cron_service,
             file_manager,
@@ -379,8 +379,15 @@ impl Manager {
                         ManagerCommand::UpdateTools(update) => {
                             self.handle_update_tools(update);
                         }
-                        ManagerCommand::UpdateChannel(update) => {
-                            self.handle_update_channel(update).await;
+                        ManagerCommand::UpdateChannel(update, reply) => {
+                            self.handle_update_channel(update, reply).await;
+                        }
+                        ManagerCommand::GetChannelRuntime(reply) => {
+                            let statuses = match &self.channel_runtime {
+                                Some(runtime) => runtime.statuses().await,
+                                None => Vec::new(),
+                            };
+                            let _ = reply.send(statuses);
                         }
                         ManagerCommand::ListPlanReports(reply) => self.handle_list_plan_reports(reply).await,
                         ManagerCommand::CreatePlanReport(request, reply) => self.handle_create_plan_report(request, reply).await,

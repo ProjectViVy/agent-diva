@@ -851,6 +851,12 @@ mod tests {
         assert_eq!(live.cursor.sequence, 1);
         assert_eq!(live.method, "presentation/event");
         assert!(live.envelope.correlation.sequence.is_some());
+        let second_live = tokio::time::timeout(std::time::Duration::from_secs(3), events.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(second_live.cursor.sequence, 2);
+        assert_eq!(second_live.method, "conversation/stream");
 
         let journal = ProjectionJournal::open(temp.path()).await.unwrap();
         let sync = journal

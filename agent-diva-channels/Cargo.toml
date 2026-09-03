@@ -8,17 +8,6 @@ license = "MIT"
 repository = "https://github.com/ProjectViVy/agent-diva"
 description = "Chat platform integrations for agent-diva"
 
-[features]
-default = []
-# RETIRED 2026-08-18（用户决策）：以下 6 个未验证通道默认不编译，
-# 源码保留；需要时单独启用对应 feature 恢复编译与注入。
-channel-slack = ["dep:slack-morphism"]
-channel-whatsapp = []
-channel-matrix = []
-channel-irc = []
-channel-mattermost = []
-channel-nextcloud-talk = []
-
 [dependencies]
 agent-diva-core = { path = "../agent-diva-core", version = "0.9.9" }
 agent-diva-providers = { path = "../agent-diva-providers", version = "0.9.9" }
@@ -42,10 +31,7 @@ reqwest = { workspace = true }
 # QQ OpenAPI: workspace reqwest uses rusttls; bots.qq.com often needs native-tls/Schannel on Windows.
 reqwest_qq = { package = "reqwest", version = "0.12", default-features = true, features = ["json"] }
 tokio-tungstenite = { workspace = true, features = ["native-tls"] }
-slack-morphism = { version = "2.17", default-features = false, features = ["hyper"], optional = true }
 
-# Telegram Bot API
-teloxide = { version = "0.13", features = ["macros", "webhooks"] }
 
 # Logging and tracing
 tracing = { workspace = true }
@@ -79,7 +65,3 @@ openssl = { version = "0.10", features = ["vendored"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
-
-[[test]]
-name = "whatsapp_bridge_integration"
-required-features = ["channel-whatsapp"]

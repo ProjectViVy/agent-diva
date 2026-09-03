@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
-import { isRetiredChannel } from './channel-platforms';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
 interface Channel {
@@ -28,7 +27,6 @@ const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s]))
 
 const channelList = computed(() =>
   Object.entries(props.channels)
-    .filter(([name]) => !isRetiredChannel(name))
     .map(([name, raw]) => ({
       name,
       channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,

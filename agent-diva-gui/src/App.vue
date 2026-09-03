@@ -2609,15 +2609,6 @@ onMounted(async () => {
     unlisteners.push(await listen('approval-stream-connected', () => void refreshUnifiedApprovals()));
     try {
       await withTimeout(
-        invoke("start_background_stream"),
-        STARTUP_TASK_TIMEOUT_MS,
-        "start_background_stream"
-      );
-    } catch (e) {
-      console.warn("Failed to start background stream:", e);
-    }
-    try {
-      await withTimeout(
         invoke('start_approval_stream', { initialCursor: null }),
         STARTUP_TASK_TIMEOUT_MS,
         'start_approval_stream',
@@ -2720,16 +2711,6 @@ onMounted(async () => {
     });
   }));
 
-  // Listen for background responses (e.g. scheduled cron executions)
-  unlisteners.push(await listen<string>("agent-background-response", (event) => {
-    messages.value.push({
-      id: generateMessageId(),
-      role: 'agent',
-      content: event.payload,
-      timestamp: Date.now(),
-      emotion: currentEmotion.value
-    });
-  }));
   } catch (e) {
     console.error("App initialization error:", e);
   } finally {

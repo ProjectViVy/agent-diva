@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_compaction_only_evidence_is_not_authoritative_for_proposals() {
-        let evidence = vec![EvidenceRef {
+        let evidence = [EvidenceRef {
             id: "compact-1".to_string(),
             source: EvidenceSource::ContextCompaction,
             uri: "capsule://compact-1.md".to_string(),

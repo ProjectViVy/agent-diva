@@ -41,10 +41,8 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -1823,132 +1821,12 @@ async fn run_config_show(runtime: &CliRuntime, format: ConfigOutputFormat) -> Re
     Ok(())
 }
 
-fn run_process(command: &str, args: &[&str], cwd: &Path, envs: &[(&str, String)]) -> Result<()> {
-    let mut process = Command::new(command);
-    process
-        .args(args)
-        .current_dir(cwd)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    for (key, value) in envs {
-        process.env(key, value);
-    }
-
-    let status = process
-        .status()
-        .map_err(|e| anyhow::anyhow!("Failed to start '{} {}': {}", command, args.join(" "), e))?;
-    if !status.success() {
-        anyhow::bail!(
-            "Command failed: '{} {}' (exit: {})",
-            command,
-            args.join(" "),
-            status
-        );
-    }
-    Ok(())
-}
-
-fn copy_bridge_dir(src: &Path, dst: &Path) -> Result<()> {
-    fs::create_dir_all(dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = entry.file_name();
-        let name = file_name.to_string_lossy();
-
-        if name == "node_modules" || name == "dist" {
-            continue;
-        }
-
-        let target = dst.join(&file_name);
-        if path.is_dir() {
-            copy_bridge_dir(&path, &target)?;
-        } else if path.is_file() {
-            fs::copy(&path, &target)?;
-        }
-    }
-    Ok(())
-}
-
-fn find_bridge_source_dir() -> Option<PathBuf> {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let candidates = [
-        manifest_dir.join("../bridge"),
-        manifest_dir.join("../../bridge"),
-        std::env::current_dir().ok()?.join("bridge"),
-    ];
-
-    candidates
-        .into_iter()
-        .find(|path| path.join("package.json").exists())
-}
-
-fn setup_bridge(runtime: &CliRuntime) -> Result<PathBuf> {
-    let bridge_dir = runtime.bridge_dir();
-    if bridge_dir.join("dist").join("index.js").exists() {
-        return Ok(bridge_dir);
-    }
-
-    run_process("npm", &["--version"], Path::new("."), &[]).map_err(|_| {
-        anyhow::anyhow!("npm not found. Please install Node.js >= 20 and ensure npm is in PATH.")
-    })?;
-
-    let source = find_bridge_source_dir().ok_or_else(|| {
-        anyhow::anyhow!("Bridge source not found. Expected a local 'bridge' directory.")
-    })?;
-
-    println!("{}", style("Setting up WhatsApp bridge...").cyan());
-    if bridge_dir.exists() {
-        fs::remove_dir_all(&bridge_dir)?;
-    }
-    copy_bridge_dir(&source, &bridge_dir)?;
-
-    println!("Installing bridge dependencies...");
-    run_process("npm", &["install"], &bridge_dir, &[])?;
-    println!("Building bridge...");
-    run_process("npm", &["run", "build"], &bridge_dir, &[])?;
-    println!("{}", style("Bridge is ready.").green());
-    Ok(bridge_dir)
-}
-
-fn extract_bridge_port(bridge_url: &str) -> Option<String> {
-    let without_scheme = bridge_url.split("://").nth(1).unwrap_or(bridge_url);
-    let host_port = without_scheme.split('/').next().unwrap_or(without_scheme);
-    host_port.rsplit(':').next().and_then(|s| {
-        if s.chars().all(|c| c.is_ascii_digit()) {
-            Some(s.to_string())
-        } else {
-            None
-        }
-    })
-}
-
 async fn run_channel_login(runtime: &CliRuntime, channel: String) -> Result<()> {
-    if channel.to_lowercase() != "whatsapp" {
-        println!("Channel '{}' login flow is not implemented yet.", channel);
-        return Ok(());
-    }
-
-    let config = runtime.load_config()?;
-    let bridge_dir = setup_bridge(runtime)?;
-    let auth_dir = runtime.whatsapp_auth_dir();
-    let media_dir = runtime.whatsapp_media_dir();
-    fs::create_dir_all(&auth_dir)?;
-    fs::create_dir_all(&media_dir)?;
-
-    println!("{}", style("Starting WhatsApp bridge...").cyan());
-    println!("Scan the QR code shown below with WhatsApp Linked Devices.\n");
-
-    let mut envs = vec![
-        ("AUTH_DIR", auth_dir.to_string_lossy().to_string()),
-        ("MEDIA_DIR", media_dir.to_string_lossy().to_string()),
-    ];
-    if let Some(port) = extract_bridge_port(&config.channels.whatsapp.bridge_url) {
-        envs.push(("BRIDGE_PORT", port));
-    }
-
-    run_process("npm", &["start"], &bridge_dir, &envs)?;
+    let _ = runtime;
+    println!(
+        "Channel '{}' has no interactive login flow; configure one of telegram, discord, feishu, dingtalk, email, or qq.",
+        channel
+    );
     Ok(())
 }
 

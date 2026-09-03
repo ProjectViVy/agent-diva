@@ -450,12 +450,6 @@ fn coalesce_alias_keys(
 }
 
 fn normalize_alias_keys(config: &mut Value) {
-    coalesce_alias_keys(
-        config,
-        &["channels"],
-        "neuro-link",
-        &["neuro_link", "generic_pipe"],
-    );
     coalesce_alias_keys(config, &["tools"], "mcpServers", &["mcp_servers"]);
     coalesce_alias_keys(config, &["tools"], "mcpManager", &["mcp_manager"]);
     // Legacy top-level `pet` section was renamed to `mate`.
@@ -668,33 +662,6 @@ mod tests {
         let server = config.tools.mcp_servers.get("filesystem").unwrap();
         assert_eq!(server.command, "npx");
         assert_eq!(server.args.len(), 3);
-    }
-
-    #[test]
-    fn test_load_supports_generic_pipe_alias_without_duplicate_field_error() {
-        let _lock = lock_env();
-        let temp_dir = TempDir::new().unwrap();
-        let loader = ConfigLoader::with_dir(temp_dir.path());
-
-        let config_path = temp_dir.path().join("config.json");
-        std::fs::write(
-            &config_path,
-            r#"{
-  "channels": {
-    "generic_pipe": {
-      "enabled": true,
-      "host": "127.0.0.1",
-      "port": 9200
-    }
-  }
-}"#,
-        )
-        .unwrap();
-
-        let config = loader.load().unwrap();
-        assert!(config.channels.neuro_link.enabled);
-        assert_eq!(config.channels.neuro_link.host, "127.0.0.1");
-        assert_eq!(config.channels.neuro_link.port, 9200);
     }
 
     #[test]

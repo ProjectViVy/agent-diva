@@ -14,7 +14,7 @@ use tokio::time::timeout;
 /// End-to-end test for the normal-chat `update_plan` event flow.
 ///
 /// Verifies the complete chain:
-/// 1. The CLI `ApiClient` posts a chat message to the manager `/api/chat` endpoint.
+/// 1. The CLI `ApiClient` posts a turn to the manager `/api/runtime/turns` endpoint.
 /// 2. The manager forwards the request as a `ManagerCommand::Chat`.
 /// 3. A mock agent consumer replies with `AgentEvent::ChatPlanUpdate` followed by
 ///    `AgentEvent::FinalResponse`.

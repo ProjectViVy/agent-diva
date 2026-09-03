@@ -21,7 +21,7 @@ export interface GuiCapability {
 export const GUI_CAPABILITIES: readonly GuiCapability[] = [
   {
     id: 'chat.turn',
-    entrypoint: 'send_message / start_background_stream / stop_generation',
+    entrypoint: 'Neuro-Link v1 turn/start / turn/cancel / projection replay',
     transport: 'tauri-manager-proxy',
     classification: 'MANAGER',
     authority: 'AgentLoop through Manager',

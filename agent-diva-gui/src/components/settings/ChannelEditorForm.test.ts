@@ -62,13 +62,8 @@ describe('ChannelEditorForm', () => {
 });
 
 describe('channel credential schema', () => {
-  it('uses the backend default neuro-link port', () => {
-    const port = CHANNEL_CREDENTIAL_FIELDS['neuro-link'].find((field) => field.key === 'port');
-    expect(port?.default).toBe(9100);
-  });
-
-  it('covers every GUI channel with at least one required or defaulted field', () => {
-    for (const platform of ['telegram', 'discord', 'feishu', 'dingtalk', 'email', 'qq', 'neuro-link']) {
+  it('covers every production channel with at least one required or defaulted field', () => {
+    for (const platform of ['telegram', 'discord', 'feishu', 'dingtalk', 'email', 'qq']) {
       expect(CHANNEL_CREDENTIAL_FIELDS[platform]?.length).toBeGreaterThan(0);
     }
   });

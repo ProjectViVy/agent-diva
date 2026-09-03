@@ -10,7 +10,6 @@ use crate::shutdown_manager::ShutdownManager;
 use crate::{EmbeddedGatewayState, WorkspaceSwitchState};
 use agent_diva_agent::mask::{MaskRegistry, ToolPolicy};
 use agent_diva_cli::cli_runtime::{collect_status_report, CliRuntime, StatusReport};
-use agent_diva_core::bus::PlanRuntimeState;
 use agent_diva_core::config::schema::{AgentMode, SubagentDefaults, ToolLimits};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::planning::{normalize_report_markdown, revision_hash, ExecutionContextPolicy};
@@ -42,7 +41,7 @@ use tokio_tungstenite::connect_async_tls_with_config;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::protocol::Message as WsMessage;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -1353,497 +1352,6 @@ mod laputa_payload_tests {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone)]
-struct ToolStartEvent {
-    name: String,
-    #[serde(alias = "args")]
-    args_preview: String,
-    #[serde(alias = "id")]
-    call_id: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct ToolFinishEvent {
-    name: String,
-    result: String,
-    #[serde(alias = "error")]
-    is_error: Option<bool>,
-    #[serde(alias = "id")]
-    call_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ToolDeltaEvent {
-    delta: String,
-}
-
-#[derive(Deserialize)]
-struct ProviderRetryEvent {
-    model: String,
-    attempt: u32,
-    max_retries: u32,
-    delay_ms: u64,
-    reason: String,
-}
-
-#[derive(Deserialize)]
-struct ProviderStalledEvent {
-    model: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct ContextCompactionEvent {
-    session_id: String,
-    trigger: String,
-    phase: String,
-    summary: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct BackgroundFinalEvent {
-    content: String,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamTextPayload {
-    request_id: String,
-    data: String,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamRetryPayload {
-    request_id: String,
-    model: String,
-    attempt: u32,
-    max_retries: u32,
-    delay_ms: u64,
-    reason: String,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamStalledPayload {
-    request_id: String,
-    model: Option<String>,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamToolStartPayload {
-    request_id: String,
-    name: String,
-    args_preview: String,
-    call_id: Option<String>,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamToolFinishPayload {
-    request_id: String,
-    name: String,
-    result: String,
-    is_error: Option<bool>,
-    call_id: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct PlanStreamEvent {
-    plan: PlanRuntimeState,
-    todo: Option<agent_diva_core::bus::PlanRuntimeTodo>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct TurnPlanUpdatedEvent {
-    explanation: Option<String>,
-    plan: Vec<TurnPlanItem>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct TurnPlanItem {
-    step: String,
-    status: String,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamPlanPayload {
-    request_id: String,
-    data: PlanStreamEvent,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamTurnPlanPayload {
-    request_id: String,
-    data: TurnPlanUpdatedEvent,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamJsonPayload {
-    request_id: String,
-    data: serde_json::Value,
-}
-
-#[derive(Serialize, Clone)]
-struct StreamContextCompactionPayload {
-    request_id: String,
-    data: ContextCompactionEvent,
-}
-
-#[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub async fn send_message(
-    message: String,
-    channel: Option<String>,
-    #[allow(non_snake_case)] chatId: Option<String>,
-    attachments: Option<Vec<String>>,
-    mode: Option<String>,
-    execution: Option<serde_json::Value>,
-    #[allow(non_snake_case)] streamRequestId: String,
-    #[allow(non_snake_case)] approvalPolicy: Option<String>,
-    window: Window,
-    state: State<'_, AgentState>,
-) -> Result<(), String> {
-    // Tauri v2 uses camelCase from frontend, convert to snake_case internally
-    let chat_id = chatId;
-    let stream_request_id = streamRequestId;
-    info!("Sending message to API: {}", message);
-    info!("Attachments: {:?}", attachments);
-
-    let client = &state.client;
-    let url = format!("{}/chat", state.api_base_url());
-
-    let response = client
-        .post(&url)
-        .json(&serde_json::json!({
-            "message": message,
-            "request_id": stream_request_id.clone(),
-            "channel": channel,
-            "chat_id": chat_id,
-            "attachments": attachments,
-            "mode": mode,
-            "execution_start": execution.as_ref().map(|_| true),
-            "plan_id": execution.as_ref().and_then(|value| value.get("plan_id")),
-            "plan_revision": execution.as_ref().and_then(|value| value.get("revision")),
-            "execution_id": execution.as_ref().and_then(|value| value.get("execution_id")),
-            "approval_policy": approvalPolicy
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to connect to agent server: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Server returned error: {}", response.status()));
-    }
-
-    let mut stream = response.bytes_stream().eventsource();
-    let mut saw_terminal = false;
-
-    while let Some(event) = stream.next().await {
-        match event {
-            Ok(event) => {
-                if !event.id.is_empty() && event.id != stream_request_id {
-                    debug!(
-                        expected_request_id = %stream_request_id,
-                        received_request_id = %event.id,
-                        "Ignoring stale chat SSE event"
-                    );
-                    continue;
-                }
-                match event.event.as_str() {
-                    "session_admission" => {
-                        if let Ok(data) = serde_json::from_str::<serde_json::Value>(&event.data) {
-                            let _ = window.emit(
-                                "agent-session-admission",
-                                StreamJsonPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "delta" => {
-                        let _ = window.emit(
-                            "agent-response-delta",
-                            StreamTextPayload {
-                                request_id: stream_request_id.clone(),
-                                data: event.data,
-                            },
-                        );
-                    }
-                    "reasoning_delta" => {
-                        let _ = window.emit(
-                            "agent-reasoning-delta",
-                            StreamTextPayload {
-                                request_id: stream_request_id.clone(),
-                                data: event.data,
-                            },
-                        );
-                    }
-                    "provider_retry" => {
-                        if let Ok(data) = serde_json::from_str::<ProviderRetryEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-provider-retry",
-                                StreamRetryPayload {
-                                    request_id: stream_request_id.clone(),
-                                    model: data.model,
-                                    attempt: data.attempt,
-                                    max_retries: data.max_retries,
-                                    delay_ms: data.delay_ms,
-                                    reason: data.reason,
-                                },
-                            );
-                        }
-                    }
-                    "provider_stalled" => {
-                        if let Ok(data) = serde_json::from_str::<ProviderStalledEvent>(&event.data)
-                        {
-                            let _ = window.emit(
-                                "agent-provider-stalled",
-                                StreamStalledPayload {
-                                    request_id: stream_request_id.clone(),
-                                    model: data.model,
-                                },
-                            );
-                        }
-                    }
-                    "context_compaction" => {
-                        if let Ok(data) =
-                            serde_json::from_str::<ContextCompactionEvent>(&event.data)
-                        {
-                            let _ = window.emit(
-                                "agent-context-compaction",
-                                StreamContextCompactionPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "tool_delta" => {
-                        if let Ok(data) = serde_json::from_str::<ToolDeltaEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-tool-delta",
-                                StreamTextPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data: data.delta,
-                                },
-                            );
-                        }
-                    }
-                    "final" => {
-                        saw_terminal = true;
-                        let _ = window.emit(
-                            "agent-response-complete",
-                            StreamTextPayload {
-                                request_id: stream_request_id.clone(),
-                                data: event.data,
-                            },
-                        );
-                    }
-                    "tool_start" => {
-                        if let Ok(data) = serde_json::from_str::<ToolStartEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-tool-start",
-                                StreamToolStartPayload {
-                                    request_id: stream_request_id.clone(),
-                                    name: data.name,
-                                    args_preview: data.args_preview,
-                                    call_id: data.call_id,
-                                },
-                            );
-                        } else {
-                            // Fallback if parsing fails
-                            let _ = window.emit(
-                                "agent-tool-start",
-                                StreamToolStartPayload {
-                                    request_id: stream_request_id.clone(),
-                                    name: "unknown".to_string(),
-                                    args_preview: event.data,
-                                    call_id: None,
-                                },
-                            );
-                        }
-                    }
-                    "tool_finish" => {
-                        if let Ok(data) = serde_json::from_str::<ToolFinishEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-tool-end",
-                                StreamToolFinishPayload {
-                                    request_id: stream_request_id.clone(),
-                                    name: data.name,
-                                    result: data.result,
-                                    is_error: data.is_error,
-                                    call_id: data.call_id,
-                                },
-                            );
-                        } else {
-                            let _ = window.emit(
-                                "agent-tool-end",
-                                StreamToolFinishPayload {
-                                    request_id: stream_request_id.clone(),
-                                    name: "unknown".to_string(),
-                                    result: event.data,
-                                    is_error: Some(false),
-                                    call_id: None,
-                                },
-                            );
-                        }
-                    }
-                    "error" => {
-                        saw_terminal = true;
-                        let _ = window.emit(
-                            "agent-error",
-                            StreamTextPayload {
-                                request_id: stream_request_id.clone(),
-                                data: event.data,
-                            },
-                        );
-                    }
-                    "todo_created" => {
-                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-todo-created",
-                                StreamPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "todo_step_updated" => {
-                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-todo-updated",
-                                StreamPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "todo_completed" => {
-                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-todo-completed",
-                                StreamPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "todo_cancelled" => {
-                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-todo-cancelled",
-                                StreamPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "plan_ready_for_approval" => {
-                        if let Ok(data) = serde_json::from_str::<PlanStreamEvent>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-ready",
-                                StreamPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "plan_report_ready_for_approval" => {
-                        if let Ok(data) = serde_json::from_str::<serde_json::Value>(&event.data) {
-                            let _ = window.emit(
-                                "agent-plan-report-ready",
-                                StreamJsonPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    "turn_plan_updated" => {
-                        if let Ok(data) = serde_json::from_str::<TurnPlanUpdatedEvent>(&event.data)
-                        {
-                            let _ = window.emit(
-                                "agent-turn-plan-updated",
-                                StreamTurnPlanPayload {
-                                    request_id: stream_request_id.clone(),
-                                    data,
-                                },
-                            );
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Err(e) => {
-                error!("Stream error: {}", e);
-                saw_terminal = true;
-                let _ = window.emit(
-                    "agent-error",
-                    StreamTextPayload {
-                        request_id: stream_request_id.clone(),
-                        data: e.to_string(),
-                    },
-                );
-            }
-        }
-    }
-
-    // The SSE stream ended without a final/error event (e.g. manager-side
-    // disconnect). Notify the frontend so it can recover from the stuck
-    // streaming state instead of waiting forever.
-    if !saw_terminal {
-        let _ = window.emit(
-            "agent-error",
-            StreamTextPayload {
-                request_id: stream_request_id.clone(),
-                data: "与服务器的连接已断开，请重试。".to_string(),
-            },
-        );
-    }
-
-    Ok(())
-}
-
-/// Continues a previously approved plan without requiring the frontend to
-/// synthesize a visible user chat message.
-///
-/// Uses the same SSE loop as [`send_message`], including the `saw_terminal`
-/// disconnect fallback (emit `agent-error` when the stream ends without a
-/// final/error event). There is no separate plan-only EventSource loop.
-#[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub async fn continue_approved_plan_execution(
-    channel: Option<String>,
-    #[allow(non_snake_case)] chatId: Option<String>,
-    #[allow(non_snake_case)] streamRequestId: String,
-    plan_id: Option<String>,
-    revision: Option<i64>,
-    execution_id: Option<String>,
-    window: Window,
-    state: State<'_, AgentState>,
-) -> Result<(), String> {
-    send_message(
-        "Continue the approved plan execution from its persisted plan and execution context."
-            .to_string(),
-        channel,
-        chatId,
-        None,
-        Some("agent".to_string()),
-        Some(serde_json::json!({
-            "plan_id": plan_id,
-            "revision": revision,
-            "execution_id": execution_id,
-        })),
-        streamRequestId,
-        None,
-        window,
-        state,
-    )
-    .await
-}
-
 #[tauri::command]
 pub async fn approve_active_plan_execution(
     request: serde_json::Value,
@@ -2281,98 +1789,6 @@ pub async fn update_execution_todo(
         .get("todo")
         .cloned()
         .ok_or_else(|| "Missing execution todo payload".to_string())
-}
-
-#[tauri::command]
-pub async fn stop_generation(
-    channel: Option<String>,
-    chat_id: Option<String>,
-    request_id: Option<String>,
-    state: State<'_, AgentState>,
-) -> Result<agent_diva_core::bus::SessionControlOutcome, String> {
-    let url = format!("{}/chat/stop", state.api_base_url());
-    let payload = serde_json::json!({
-        "channel": channel,
-        "chat_id": chat_id,
-        "request_id": request_id
-    });
-
-    let response = state
-        .client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to request stop: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Server returned error: {}", response.status()));
-    }
-
-    let value: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Invalid stop response: {}", e))?;
-
-    let status_ok = value.get("status").and_then(|v| v.as_str()) == Some("ok");
-    if !status_ok {
-        let message = value
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error");
-        return Err(format!("Stop request rejected: {}", message));
-    }
-
-    parse_stop_outcome(&value)
-}
-
-fn parse_stop_outcome(
-    value: &serde_json::Value,
-) -> Result<agent_diva_core::bus::SessionControlOutcome, String> {
-    serde_json::from_value(
-        value
-            .get("outcome")
-            .cloned()
-            .ok_or_else(|| "Stop response missing typed outcome".to_string())?,
-    )
-    .map_err(|error| format!("Invalid stop outcome: {error}"))
-}
-
-#[cfg(test)]
-mod stop_outcome_tests {
-    use super::parse_stop_outcome;
-    use agent_diva_core::bus::SessionControlTargetState;
-
-    #[test]
-    fn queued_preserved_outcome_remains_non_terminal() {
-        let outcome = parse_stop_outcome(&serde_json::json!({
-            "status": "ok",
-            "stopped": false,
-            "outcome": {
-                "action": "stop",
-                "session_key": "gui:chat",
-                "request_id": "request-a",
-                "trace_id": "trace-a",
-                "code": null,
-                "target_state": "queued_preserved",
-                "running_cancelled": false,
-                "queued_cancelled": 0,
-                "cleanup_complete": true
-            }
-        }))
-        .unwrap();
-
-        assert_eq!(
-            outcome.target_state,
-            SessionControlTargetState::QueuedPreserved
-        );
-        assert!(!outcome.running_cancelled);
-    }
-
-    #[test]
-    fn missing_typed_outcome_is_rejected() {
-        assert!(parse_stop_outcome(&serde_json::json!({ "status": "ok" })).is_err());
-    }
 }
 
 #[tauri::command]
@@ -2894,124 +2310,6 @@ pub async fn delete_cron_job(job_id: String, state: State<'_, AgentState>) -> Re
             .unwrap_or("unknown error")
             .to_string());
     }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn start_background_stream(
-    window: Window,
-    state: State<'_, AgentState>,
-    shutdown_manager: State<'_, ShutdownManager>,
-) -> Result<(), String> {
-    let client = state.client.clone();
-    let cancel_token = shutdown_manager.cancel_token();
-    let url = format!(
-        "{}/events?channel=api&chat_prefix=cron:",
-        state.api_base_url()
-    );
-
-    tauri::async_runtime::spawn(async move {
-        loop {
-            let response = tokio::select! {
-                _ = cancel_token.cancelled() => {
-                    info!("Background stream cancelled before next connection attempt");
-                    break;
-                }
-                response = client.get(&url).send() => response,
-            };
-
-            let response = match response {
-                Ok(resp) => resp,
-                Err(e) => {
-                    error!("Failed to connect background stream: {}", e);
-                    tokio::select! {
-                        _ = cancel_token.cancelled() => {
-                            info!("Background stream cancelled during reconnect backoff");
-                            break;
-                        }
-                        _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
-                    }
-                    continue;
-                }
-            };
-
-            if !response.status().is_success() {
-                error!("Background stream server error: {}", response.status());
-                tokio::select! {
-                    _ = cancel_token.cancelled() => {
-                        info!("Background stream cancelled after server error");
-                        break;
-                    }
-                    _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
-                }
-                continue;
-            }
-
-            let mut stream = response.bytes_stream().eventsource();
-            loop {
-                let event = tokio::select! {
-                    _ = cancel_token.cancelled() => {
-                        info!("Background stream cancelled while reading events");
-                        return;
-                    }
-                    event = stream.next() => event,
-                };
-
-                let Some(event) = event else {
-                    break;
-                };
-
-                match event {
-                    Ok(event) => match event.event.as_str() {
-                        "final" => {
-                            if let Ok(payload) =
-                                serde_json::from_str::<BackgroundFinalEvent>(&event.data)
-                            {
-                                let _ = window.emit("agent-background-response", payload.content);
-                            }
-                        }
-                        "error" => {
-                            let _ = window.emit("agent-error", event.data);
-                        }
-                        "context_compaction" => {
-                            if let Ok(data) =
-                                serde_json::from_str::<ContextCompactionEvent>(&event.data)
-                            {
-                                let _ = window.emit(
-                                    "agent-context-compaction",
-                                    StreamContextCompactionPayload {
-                                        request_id: data.session_id.clone(),
-                                        data,
-                                    },
-                                );
-                            }
-                        }
-                        "provider_retry" | "provider_stalled" => {
-                            // Background streams have no request_id channel; the
-                            // manager-level stall handling still applies upstream.
-                            debug!("Background provider status event ignored: {}", event.event);
-                        }
-                        _ => {}
-                    },
-                    Err(e) => {
-                        error!("Background stream error: {}", e);
-                        break;
-                    }
-                }
-            }
-
-            tokio::select! {
-                _ = cancel_token.cancelled() => {
-                    info!("Background stream cancelled before retry");
-                    break;
-                }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {}
-            }
-        }
-
-        info!("Background stream task exited");
-    });
 
     Ok(())
 }
@@ -4324,6 +3622,71 @@ pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Va
 }
 
 #[tauri::command]
+pub async fn get_channel_runtime(
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}/channels/runtime", state.api_base_url());
+    let response = state
+        .client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+        .await
+        .map_err(|error| format!("Failed to fetch channel runtime: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!("Server error: {}", response.status()));
+    }
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("Invalid channel runtime JSON: {error}"))?;
+    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
+        return Err(payload
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("channel runtime unavailable")
+            .to_string());
+    }
+    Ok(payload
+        .get("channels")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+}
+
+#[tauri::command]
+pub async fn compact_session(
+    session_key: String,
+    state: State<'_, AgentState>,
+) -> Result<String, String> {
+    let response = state
+        .client
+        .post(format!("{}/sessions/compact", state.api_base_url()))
+        .json(&serde_json::json!({ "session_key": session_key }))
+        .send()
+        .await
+        .map_err(|error| format!("Failed to compact session: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!("Server error: {}", response.status()));
+    }
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("Invalid compact response: {error}"))?;
+    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
+        return Err(payload
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("session compaction failed")
+            .to_string());
+    }
+    Ok(payload
+        .get("summary")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string())
+}
+
+#[tauri::command]
 pub async fn update_channel(
     name: String,
     enabled: Option<bool>,
@@ -4349,8 +3712,19 @@ pub async fn update_channel(
     if !response.status().is_success() {
         return Err(format!("Server error: {}", response.status()));
     }
-
-    Ok(())
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("Invalid update response: {error}"))?;
+    if payload.get("status").and_then(serde_json::Value::as_str) == Some("ok") {
+        Ok(())
+    } else {
+        Err(payload
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("channel update failed")
+            .to_string())
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

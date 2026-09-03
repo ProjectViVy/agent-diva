@@ -375,29 +375,6 @@ export const CHANNEL_CREDENTIAL_FIELDS: Record<string, WizardFormField[]> = {
       group: 'advanced',
     },
   ],
-  'neuro-link': [
-    {
-      key: 'host',
-      label: '监听地址',
-      type: 'text',
-      required: true,
-      default: '0.0.0.0',
-    },
-    {
-      key: 'port',
-      label: '监听端口',
-      type: 'number',
-      required: true,
-      default: 9100,
-    },
-    {
-      key: 'allow_from',
-      label: '允许的客户端',
-      type: 'string-list',
-      placeholder: '每行一个来源，留空表示不限制',
-      group: 'advanced',
-    },
-  ],
 };
 
 export function fieldDefaults(platform: string): Record<string, unknown> {

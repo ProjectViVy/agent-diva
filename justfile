@@ -53,6 +53,11 @@ cognitive-clean-break-check:
     python scripts/ci/check_cognitive_clean_break.py --self-test
     python scripts/ci/check_cognitive_clean_break.py
 
+# Prove the C6 native channel runtime has no registered legacy transport fallback.
+channel-clean-break-check:
+    python scripts/ci/check_channel_clean_break.py --self-test
+    python scripts/ci/check_channel_clean_break.py
+
 # Prove governance modules never call BML write APIs directly (BML boundary).
 bml-boundary-check:
     cargo test -p agent-diva-laputa --test bml_boundary_guard
@@ -108,7 +113,7 @@ feature-gate-check:
     python scripts/feature-gate-check.py
 
 # Run all checks (CI pipeline)
-ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check cognitive-clean-break-check bml-boundary-check
+ci: fmt-check check test health-benchmark-check feature-gate-check laputa-clean-break-check cognitive-clean-break-check channel-clean-break-check bml-boundary-check
     @echo "All checks passed!"
 
 # Isolated cache for every `cargo +1.80` probe. Do not point those commands at

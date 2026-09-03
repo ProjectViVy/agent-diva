@@ -1,9 +1,8 @@
 use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
 use agent_diva_core::config::schema::{
-    ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, IrcConfig,
-    MatrixConfig, MattermostConfig, NeuroLinkConfig, NextcloudTalkConfig, QQConfig,
-    SelfEvolutionConfig, SlackConfig, TelegramConfig, WebToolsConfig, WhatsAppConfig,
+    ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, QQConfig,
+    SelfEvolutionConfig, TelegramConfig, WebToolsConfig,
 };
 use agent_diva_providers::{
     build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
@@ -407,7 +406,11 @@ impl Manager {
         }
     }
 
-    pub(super) async fn handle_update_channel(&self, update: ChannelUpdate) {
+    pub(super) async fn handle_update_channel(
+        &self,
+        update: ChannelUpdate,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
         info!("Processing UpdateChannel request: {}", update.name);
         let channel_name = update.name.clone();
 
@@ -415,26 +418,39 @@ impl Manager {
             Ok(config) => config,
             Err(e) => {
                 error!("Failed to load config: {}", e);
+                let _ = reply.send(Err(e.to_string()));
                 return;
             }
         };
+        let previous = config.clone();
 
         if let Err(e) = Self::apply_channel_update(&mut config, &update) {
             error!("Failed to update channel config: {}", e);
+            let _ = reply.send(Err(e.to_string()));
             return;
         }
         if let Err(e) = self.loader.save(&config) {
             error!("Failed to save config: {}", e);
+            let _ = reply.send(Err(e.to_string()));
             return;
         }
 
-        if let Some(cm) = &self.channel_manager {
-            if let Err(e) = cm.update_channel(&channel_name, config).await {
+        if let Some(runtime) = &self.channel_runtime {
+            if let Err(e) = runtime.reconfigure(&config).await {
                 error!("Failed to reload channel {}: {}", channel_name, e);
+                if let Err(restore_error) = self.loader.save(&previous) {
+                    error!("Failed to restore channel config: {}", restore_error);
+                }
+                if let Err(restore_error) = runtime.reconfigure(&previous).await {
+                    error!("Failed to restore channel runtime: {}", restore_error);
+                }
+                let _ = reply.send(Err(e.to_string()));
+                return;
             } else {
                 info!("Channel {} reloaded successfully", channel_name);
             }
         }
+        let _ = reply.send(Ok(()));
     }
 
     async fn apply_provider_selection_update(
@@ -577,16 +593,9 @@ impl Manager {
             "telegram" => set_channel(&mut config.channels.telegram, update)?,
             "discord" => set_channel(&mut config.channels.discord, update)?,
             "feishu" => set_channel(&mut config.channels.feishu, update)?,
-            "whatsapp" => set_channel(&mut config.channels.whatsapp, update)?,
             "dingtalk" => set_channel(&mut config.channels.dingtalk, update)?,
             "email" => set_channel(&mut config.channels.email, update)?,
-            "slack" => set_channel(&mut config.channels.slack, update)?,
             "qq" => set_channel(&mut config.channels.qq, update)?,
-            "matrix" => set_channel(&mut config.channels.matrix, update)?,
-            "neuro-link" => set_channel(&mut config.channels.neuro_link, update)?,
-            "irc" => set_channel(&mut config.channels.irc, update)?,
-            "mattermost" => set_channel(&mut config.channels.mattermost, update)?,
-            "nextcloud_talk" => set_channel(&mut config.channels.nextcloud_talk, update)?,
             _ => anyhow::bail!("Unknown channel: {}", name),
         }
         Ok(())
@@ -695,16 +704,9 @@ impl_channel_toggle!(
     TelegramConfig,
     DiscordConfig,
     FeishuConfig,
-    WhatsAppConfig,
     DingTalkConfig,
     EmailConfig,
-    SlackConfig,
     QQConfig,
-    MatrixConfig,
-    NeuroLinkConfig,
-    IrcConfig,
-    MattermostConfig,
-    NextcloudTalkConfig,
 );
 
 #[cfg(test)]
@@ -957,61 +959,24 @@ mod tests {
     }
 
     #[test]
-    fn apply_channel_update_routes_newly_supported_channels() {
+    fn apply_channel_update_rejects_retired_channels() {
         let mut config = Config::default();
-
-        Manager::apply_channel_update(
-            &mut config,
-            &channel_update(
-                "neuro-link",
-                Some(true),
-                serde_json::json!({ "host": "127.0.0.1", "port": 9123 }),
-            ),
-        )
-        .expect("neuro-link update should apply");
-        assert!(config.channels.neuro_link.enabled);
-        assert_eq!(config.channels.neuro_link.host, "127.0.0.1");
-        assert_eq!(config.channels.neuro_link.port, 9123);
-
-        Manager::apply_channel_update(
-            &mut config,
-            &channel_update(
-                "irc",
-                Some(true),
-                serde_json::json!({ "server": "irc.example.com", "nickname": "diva", "channels": ["#a"] }),
-            ),
-        )
-        .expect("irc update should apply");
-        assert!(config.channels.irc.enabled);
-        assert_eq!(config.channels.irc.server, "irc.example.com");
-        assert_eq!(config.channels.irc.channels, vec!["#a".to_string()]);
-
-        Manager::apply_channel_update(
-            &mut config,
-            &channel_update(
-                "mattermost",
-                Some(true),
-                serde_json::json!({ "base_url": "https://mm.example.com", "bot_token": "tok" }),
-            ),
-        )
-        .expect("mattermost update should apply");
-        assert!(config.channels.mattermost.enabled);
-        assert_eq!(
-            config.channels.mattermost.base_url,
-            "https://mm.example.com"
-        );
-
-        Manager::apply_channel_update(
-            &mut config,
-            &channel_update(
-                "nextcloud_talk",
-                Some(false),
-                serde_json::json!({ "base_url": "https://nc.example.com", "room_token": "room" }),
-            ),
-        )
-        .expect("nextcloud_talk update should apply");
-        assert!(!config.channels.nextcloud_talk.enabled);
-        assert_eq!(config.channels.nextcloud_talk.room_token, "room");
+        for name in [
+            "neuro-link",
+            "generic_pipe",
+            "whatsapp",
+            "slack",
+            "matrix",
+            "irc",
+            "mattermost",
+            "nextcloud_talk",
+        ] {
+            assert!(Manager::apply_channel_update(
+                &mut config,
+                &channel_update(name, Some(true), serde_json::json!({})),
+            )
+            .is_err());
+        }
     }
 
     #[test]

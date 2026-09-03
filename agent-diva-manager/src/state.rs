@@ -372,7 +372,8 @@ pub enum ManagerCommand {
         oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,
     ),
     UpdateConfig(ConfigUpdate),
-    UpdateChannel(ChannelUpdate),
+    UpdateChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
+    GetChannelRuntime(oneshot::Sender<Vec<agent_diva_channels::runtime::ChannelRuntimeStatus>>),
     GetConfig(oneshot::Sender<ConfigResponse>),
     GetSelfEvolutionConfig(oneshot::Sender<Result<SelfEvolutionConfig, String>>),
     UpdateSelfEvolutionConfig(

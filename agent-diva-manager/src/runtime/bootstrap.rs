@@ -85,6 +85,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let workspace_root = workspace.root.clone();
 
     let bus = MessageBus::new();
+    let (fabric_handle, fabric_consumer) = FabricKernel::new().into_parts();
     let bus_for_hotreload = bus.clone();
     let run_store_root = supervised_store_root_from_cron_store(&cron_store);
     let run_store = Arc::new(RunStore::new(&run_store_root).await?);
@@ -194,6 +195,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         ask_user,
         governance,
         memory_home,
+        fabric_handle,
+        fabric_consumer,
     })
 }
 
@@ -266,26 +269,14 @@ async fn ensure_notebook_monthly_cron_job(cron_service: &CronService) -> Result<
 
 pub(super) async fn bootstrap_channel_runtime(
     config: &Config,
-    bus: MessageBus,
-) -> ChannelBootstrap {
-    let mut channel_manager = ChannelManager::new(config.clone());
-    let (inbound_tx, mut inbound_rx) = mpsc::channel::<InboundMessage>(1024);
-    channel_manager.set_inbound_sender(inbound_tx);
-    let inbound_bridge_handle = tokio::spawn(async move {
-        while let Some(msg) = inbound_rx.recv().await {
-            if let Err(e) = bus.publish_inbound(msg) {
-                tracing::error!("Failed to publish inbound message to bus: {}", e);
-            }
-        }
-    });
-
-    if let Err(e) = channel_manager.initialize().await {
-        tracing::error!("Failed to initialize channels: {}", e);
-        tracing::warn!("Continuing gateway startup without fully initialized channels");
-    }
-
-    ChannelBootstrap {
-        channel_manager: Arc::new(channel_manager),
-        inbound_bridge_handle,
-    }
+    file_manager: Arc<FileManager>,
+    fabric: FabricHandle,
+) -> Result<ChannelBootstrap> {
+    let attachments =
+        Arc::new(crate::channel_attachment_store::FileManagerAttachmentStore::new(file_manager));
+    let services = agent_diva_channels::adapter::AdapterServices::new(attachments);
+    let channel_runtime = ChannelRuntime::start(config, services, fabric)
+        .await
+        .map_err(|error| anyhow::anyhow!("failed to start native channel runtime: {error}"))?;
+    Ok(ChannelBootstrap { channel_runtime })
 }

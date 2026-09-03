@@ -110,16 +110,8 @@ const runCompact = async () => {
   compactRunning.value = true;
   try {
     const sessionKey = props.currentSessionKey?.trim() || '';
-    const [channel, chatId] = sessionKey.includes(':')
-      ? [sessionKey.slice(0, sessionKey.indexOf(':')), sessionKey.slice(sessionKey.indexOf(':') + 1)]
-      : ['gui', sessionKey];
-    await invoke('send_message', {
-      message: '/compact',
-      channel: chatId ? channel : null,
-      chatId: chatId || null,
-      attachments: null,
-      streamRequestId: crypto.randomUUID(),
-    });
+    if (!sessionKey) throw new Error('No active session');
+    await invoke('compact_session', { sessionKey });
     showAppToast(t('compaction.compactSuccess'), 'success');
   } catch {
     showAppToast(t('compaction.compactError'), 'error');

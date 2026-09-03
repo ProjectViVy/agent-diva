@@ -156,7 +156,7 @@ impl ApiClient {
         chat_id: Option<&str>,
         event_tx: mpsc::UnboundedSender<AgentEvent>,
     ) -> Result<()> {
-        let url = format!("{}/chat", self.base_url);
+        let url = format!("{}/runtime/turns", self.base_url);
         let request_id = uuid::Uuid::new_v4().to_string();
         let mut payload = serde_json::json!({
             "message": message,
@@ -276,7 +276,7 @@ impl ApiClient {
     }
 
     pub async fn stop(&self, channel: Option<&str>, chat_id: Option<&str>) -> Result<bool> {
-        let url = format!("{}/chat/stop", self.base_url);
+        let url = format!("{}/runtime/turns/stop", self.base_url);
         let mut payload = serde_json::json!({});
         if let Some(channel) = channel {
             payload["channel"] = serde_json::Value::String(channel.to_string());

@@ -18,23 +18,6 @@ export interface ChannelPlatformInfo {
 }
 
 /**
- * 未经验证、已从 GUI 下架的通道（用户决策 2026-08-18）。
- * 后端代码与配置结构保留作历史性保留，GUI 不再展示/编辑。
- */
-export const RETIRED_CHANNELS: readonly string[] = [
-  'slack',
-  'whatsapp',
-  'nextcloud_talk',
-  'mattermost',
-  'matrix',
-  'irc',
-];
-
-export function isRetiredChannel(name: string): boolean {
-  return RETIRED_CHANNELS.includes(name);
-}
-
-/**
  * 各平台详细信息
  */
 export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
@@ -128,20 +111,6 @@ export const CHANNEL_PLATFORMS: Record<string, ChannelPlatformInfo> = {
       '创建机器人应用',
       '在开发设置获取 AppID 和 AppSecret',
       '配置功能权限和沙箱环境',
-    ],
-  },
-  'neuro-link': {
-    name: 'neuro-link',
-    displayName: 'Neuro-Link',
-    tutorialPath: '/docs/channels/neuro-link.md',
-    difficulty: 1,
-    requiresPublicIP: false,
-    accessMethod: 'WebSocket 服务',
-    credentialFields: CHANNEL_CREDENTIAL_FIELDS['neuro-link'],
-    quickGuideSteps: [
-      '配置监听地址（默认 0.0.0.0）',
-      '配置监听端口（默认 8080）',
-      '启动 Neuro-Link 服务',
     ],
   },
 };

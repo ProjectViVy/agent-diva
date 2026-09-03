@@ -6,9 +6,22 @@ import ChannelWizardModal from './ChannelWizardModal.vue';
 
 const rawChannels = {
   telegram: { enabled: true, token: 'abc' },
-  slack: { enabled: true, bot_token: 'retired' },
+  discord: { enabled: false, token: '' },
   feishu: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
+  dingtalk: { enabled: false, client_id: '', client_secret: '' },
+  email: { enabled: false, imap_host: '', smtp_host: '' },
+  qq: { enabled: false, app_id: '', client_secret: '' },
 };
+
+const runtimeChannels = [
+  {
+    name: 'telegram',
+    registered: true,
+    lifecycle: 'running',
+    health: 'healthy',
+    diagnosis: null,
+  },
+];
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -29,6 +42,7 @@ vi.mock('@lucide/vue', () => {
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string) => {
     if (cmd === 'get_channels') return Promise.resolve(structuredClone(rawChannels));
+    if (cmd === 'get_channel_runtime') return Promise.resolve(structuredClone(runtimeChannels));
     return Promise.resolve(null);
   }),
 }));
@@ -168,14 +182,17 @@ describe('ChannelsSettings', () => {
     expect(wrapper.find('.editor-stub').text()).toContain('feishu');
   });
 
-  it('hides retired channels from the list-view sidebar', async () => {
+  it('renders exactly the six production channels in the list-view sidebar', async () => {
     const { wrapper } = mountSettings();
     await flushPromises();
 
     await wrapper.find('button[title="channels.listView"]').trigger('click');
     const sidebar = wrapper.find('.channels-sidebar').text();
     expect(sidebar).toContain('telegram');
+    expect(sidebar).toContain('discord');
     expect(sidebar).toContain('feishu');
-    expect(sidebar).not.toContain('slack');
+    expect(sidebar).toContain('dingtalk');
+    expect(sidebar).toContain('email');
+    expect(sidebar).toContain('qq');
   });
 });

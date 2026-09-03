@@ -10,28 +10,29 @@ use tower_http::trace::TraceLayer;
 
 use crate::handlers::{
     accept_persona_request_handler, accept_skill_request_handler, add_provider_model_handler,
-    cancel_autodream_run_handler, chat_handler, create_cron_job_handler, create_mcp_handler,
-    create_memory_record_handler, create_persona_request_handler, create_provider_handler,
-    create_skill_request_handler, delete_actmem_capsule_handler, delete_cron_job_handler,
-    delete_mcp_handler, delete_memory_record_handler, delete_provider_handler,
-    delete_provider_model_handler, delete_session_handler, delete_skill_handler,
-    disable_skill_handler, events_handler, featured_marketplace_skills_handler,
+    cancel_autodream_run_handler, chat_handler, compact_session_handler, create_cron_job_handler,
+    create_mcp_handler, create_memory_record_handler, create_persona_request_handler,
+    create_provider_handler, create_skill_request_handler, delete_actmem_capsule_handler,
+    delete_cron_job_handler, delete_mcp_handler, delete_memory_record_handler,
+    delete_provider_handler, delete_provider_model_handler, delete_session_handler,
+    delete_skill_handler, disable_skill_handler, featured_marketplace_skills_handler,
     generate_session_title_handler, get_actmem_capsule_handler, get_actmem_handler,
     get_audit_events_handler, get_audit_log_handler, get_autodream_live_text_handler,
-    get_autodream_run_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
-    get_mcps_handler, get_memory_record_handler, get_memrules_handler,
-    get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
-    get_provider_handler, get_provider_models_handler, get_providers_handler,
-    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
-    get_skill_handler, get_skill_history_revision_handler, get_skill_request_handler,
-    get_skills_handler, get_tools_handler, get_workspace_handler, health_handler,
-    heartbeat_handler, initialize_persona_handler, install_marketplace_skill_handler,
-    list_actmem_capsules_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
-    list_cron_jobs_handler, list_memory_records_handler, list_persona_history_handler,
-    list_persona_requests_handler, list_recall_feedback_handler, list_skill_history_handler,
-    list_skill_requests_handler, logs_routes, put_actmem_handler, put_memrules_handler,
-    refresh_mcp_status_handler, reject_persona_request_handler, reject_skill_request_handler,
-    repair_persona_handler, reset_session_handler, resolve_provider_handler, run_cron_job_handler,
+    get_autodream_run_handler, get_channel_runtime_handler, get_channels_handler,
+    get_config_handler, get_cron_job_handler, get_mcps_handler, get_memory_record_handler,
+    get_memrules_handler, get_persona_document_handler, get_persona_history_revision_handler,
+    get_persona_status_handler, get_provider_handler, get_provider_models_handler,
+    get_providers_handler, get_self_evolution_config_handler, get_session_history_handler,
+    get_sessions_handler, get_skill_handler, get_skill_history_revision_handler,
+    get_skill_request_handler, get_skills_handler, get_tools_handler, get_workspace_handler,
+    health_handler, heartbeat_handler, initialize_persona_handler,
+    install_marketplace_skill_handler, list_actmem_capsules_handler,
+    list_autodream_run_events_handler, list_autodream_runs_handler, list_cron_jobs_handler,
+    list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
+    list_recall_feedback_handler, list_skill_history_handler, list_skill_requests_handler,
+    logs_routes, put_actmem_handler, put_memrules_handler, refresh_mcp_status_handler,
+    reject_persona_request_handler, reject_skill_request_handler, repair_persona_handler,
+    reset_session_handler, resolve_provider_handler, run_cron_job_handler,
     save_persona_document_handler, search_marketplace_skills_handler, set_cron_job_enabled_handler,
     set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, todo_routes,
     token_stats_routes, trigger_autodream_run_handler, update_channel_handler,
@@ -211,9 +212,8 @@ fn persona_routes() -> Router<AppState> {
 
 fn runtime_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/chat", post(chat_handler))
-        .route("/api/chat/stop", post(stop_chat_handler))
-        .route("/api/events", get(events_handler))
+        .route("/api/runtime/turns", post(chat_handler))
+        .route("/api/runtime/turns/stop", post(stop_chat_handler))
         .route("/api/sessions", get(get_sessions_handler))
         .route(
             "/api/sessions/:id",
@@ -230,6 +230,7 @@ fn runtime_routes() -> Router<AppState> {
             post(generate_session_title_handler),
         )
         .route("/api/sessions/reset", post(reset_session_handler))
+        .route("/api/sessions/compact", post(compact_session_handler))
         .route(
             "/api/config",
             get(get_config_handler).post(update_config_handler),
@@ -243,6 +244,7 @@ fn runtime_routes() -> Router<AppState> {
             "/api/channels",
             get(get_channels_handler).post(update_channel_handler),
         )
+        .route("/api/channels/runtime", get(get_channel_runtime_handler))
         .route(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
@@ -470,6 +472,23 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(skills_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn legacy_chat_and_sse_routes_are_removed() {
+        let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
+        let temp = tempfile::tempdir().unwrap();
+        let state =
+            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let app = build_router(state);
+        for uri in ["/api/chat", "/api/chat/stop", "/api/events"] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        }
     }
 
     #[tokio::test]

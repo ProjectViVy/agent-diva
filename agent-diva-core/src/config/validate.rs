@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_enabled_channel_requires_credentials() {
+    fn test_validate_allows_enabled_channel_to_report_runtime_health() {
         let mut config = Config::default();
         config.channels.telegram.enabled = true;
         config.providers.anthropic.api_key = "test-key".to_string();
