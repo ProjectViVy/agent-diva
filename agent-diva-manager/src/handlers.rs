@@ -360,7 +360,7 @@ pub async fn chat_handler(
     };
     let req = ApiRequest { envelope, event_tx };
 
-    if let Err(e) = state.api_tx.send(ManagerCommand::Chat(req)).await {
+    if let Err(e) = state.api_tx.send(ManagerCommand::Chat(Box::new(req))).await {
         tracing::error!("Failed to send API request to manager: {}", e);
     }
 

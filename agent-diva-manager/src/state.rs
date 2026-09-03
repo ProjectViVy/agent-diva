@@ -384,7 +384,7 @@ pub enum ProviderCommand {
 
 pub enum ManagerCommand {
     // Core runtime control plane used by the formal CLI runtime.
-    Chat(ApiRequest),
+    Chat(Box<ApiRequest>),
     StopChat(
         StopChatRequest,
         oneshot::Sender<Result<agent_diva_core::bus::SessionControlOutcome, String>>,

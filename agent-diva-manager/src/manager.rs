@@ -282,7 +282,7 @@ impl Manager {
                         }
                     };
                     match cmd {
-                        ManagerCommand::Chat(req) => self.handle_chat(req),
+                        ManagerCommand::Chat(req) => self.handle_chat(*req),
                         ManagerCommand::StopChat(req, reply) => {
                             self.handle_stop_chat(req, reply);
                         }
