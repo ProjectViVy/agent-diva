@@ -154,11 +154,12 @@ async fn resolve_attachment_parts(
             .mime_type
             .clone()
             .unwrap_or_else(|| "application/octet-stream".to_string());
+        let sha256 = attachment_digest(&handle.id)?;
         let attachment = AttachmentRef {
             uri: handle.id.clone(),
             media_type: media_type.clone(),
             size_bytes: handle.metadata.size,
-            sha256: handle.id.clone(),
+            sha256: sha256.to_string(),
             file_name: Some(handle.metadata.name.clone()),
         };
         parts.push(match media_type.as_str() {
@@ -172,6 +173,13 @@ async fn resolve_attachment_parts(
         });
     }
     Ok(parts)
+}
+
+fn attachment_digest(handle_id: &str) -> Result<&str, String> {
+    handle_id
+        .strip_prefix("sha256:")
+        .filter(|digest| !digest.is_empty())
+        .ok_or_else(|| format!("attachment authority returned non-sha256 id: {handle_id}"))
 }
 
 async fn build_typed_chat_envelope(
@@ -1403,7 +1411,7 @@ pub async fn delete_cron_job_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        agent_bus_event_to_sse, build_typed_chat_envelope, chat_handler,
+        agent_bus_event_to_sse, attachment_digest, build_typed_chat_envelope, chat_handler,
         generate_session_title_handler, get_session_history_handler, get_sessions_handler,
         normalized_owner_intent, parse_approval_policy, update_session_title_handler, AgentEvent,
         ChatRequest, Sse,
@@ -1511,6 +1519,8 @@ mod tests {
                     ] if text == "describe this"
                         && attachment.media_type == "image/png"
                         && attachment.file_name.as_deref() == Some("diagram.png")
+                        && attachment.uri == handle.id
+                        && attachment.sha256 == handle.id.strip_prefix("sha256:").unwrap()
                 ));
             }
             payload => panic!("unexpected typed HTTP payload: {payload:?}"),
@@ -1539,6 +1549,13 @@ mod tests {
         assert!(invalid
             .expect_err("unknown attachment must fail before admission")
             .contains("invalid attachment reference"));
+    }
+
+    #[test]
+    fn attachment_digest_requires_sha256_authority_id() {
+        assert_eq!(attachment_digest("sha256:abc").unwrap(), "abc");
+        assert!(attachment_digest("abc").is_err());
+        assert!(attachment_digest("sha256:").is_err());
     }
 
     #[tokio::test]
