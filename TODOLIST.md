@@ -103,9 +103,9 @@
     GUI 实时链路已迁移到 typed Neuro-Link v1；Mate 删除 avatar chat ID/`speak` 特例，改用
     semantic Presentation；GUI tests/build、Rust workspace 门禁和协议/TCK 回归均通过。详见
     [`v0.1.7-desktop-neuro-link-client`](docs/logs/2026-08-channel-epic/v0.1.7-desktop-neuro-link-client/)。
-    - [ ] 发布工作站真实 Tauri/桌面断线恢复冒烟：当前环境缺少 agent-browser/可用浏览器二进制，
-      待现场确认发送、排队取消、计划继续、WS 重连回放与 Mate TTS 后关闭；不阻塞 C4 代码审阅，
-      但在 C6 原子合入前必须完成。
+    - [x] 发布工作站真实 Tauri/桌面断线恢复冒烟（2026-09-03 用户确认此前冒烟无异常）。
+      本确认覆盖 C4 桌面路径；C6 新原生频道生产切换后的真实平台收发仍单列在 C6-E，不能用
+      本次确认替代。
   - [ ] **C5：六个现役 ChannelAdapter 与 capability TCK**
     迁移 Telegram、Discord、Feishu、DingTalk、Email、QQ；每个 `true` capability 都有
     离线 fixture/mock 证明，至少一个真实平台纵向 smoke。
@@ -118,7 +118,7 @@
       已由 Telegram、Discord、Feishu、DingTalk、Email、QQ 六个独立频道任务完成深扫，
       新增 endpoint ledger、跨频道 gap matrix、decision log、agent task cards、evidence
       manifest 和六份端点级报告。QQ intents/media 仍按 Blocked 交接，未伪造完成能力。
-    - [ ] **C5-I：六个原生 ChannelAdapter 与 Octos 能力增强**
+    - [x] **C5-I：六个原生 ChannelAdapter 与 Octos 能力增强**（2026-09-03）
       先冻结共享 adapter/services seam，再按“一频道一 agent、资源分波”的隔离 worktree
       分工实施；禁止 wrapper、双发 bus、默认成功和生产双轨切换。实现 ownership 与顺序见
       [`agent-task-cards.md`](docs/dev/channel-epic/c5-octos-migration/agent-task-cards.md)。
@@ -171,6 +171,26 @@
     删除旧 Neuro-Link、`ChannelHandler`、旧消息 DTO、旧 SSE、无界频道 bus、配置别名和
     Slack/WhatsApp/Matrix/IRC/Mattermost/Nextcloud Talk 源码/feature；通过 workspace、
     GUI、MSRV、TCK、clean-break 和 release acceptance 后一次性合入 `dev`。
+    - [x] **C6-A：Manager 原生频道生产装配与运行时事实源**（2026-09-03）
+      六个 adapter 已由 Manager 构造 `AdapterServices`、Registry、pacing 与 supervisor；外部
+      ingress 先经 bounded Fabric 再进入 AgentLoop；GUI/API 读取真实注册、健康与诊断状态；
+      配置热更新在候选构造失败时恢复旧配置和旧 runtime，凭据不完整则由 runtime health
+      明确报告，不阻断整个 gateway 启动。
+    - [x] **C6-B：退休频道与旧桌面/HTTP 实时入口删除**（2026-09-03）
+      已删除六个退休频道源码、配置、feature 和旧 ChannelHandler 树；旧 `/api/chat`、
+      `/api/chat/stop`、`/api/events` 及 Tauri SSE/background 注册均已移除；上下文压缩改用
+      独立 typed command。
+    - [x] **C6-C：频道队列有界化与 callback subscriber 删除**（2026-09-03）
+      Agent 消息队列改为固定容量 256，满载显式失败；生产 egress 由单一 receiver 顺序转入
+      adapter pacing lane，不再使用 callback subscriber 或无界 ingress/egress。
+    - [ ] **C6-D：物理删除 AgentLoop 旧 InboundMessage/OutboundMessage DTO** `sev-P1`
+      生产外部 ingress 与平台 egress 已走 typed Fabric/ChannelCommand，但 AgentLoop 内部结果仍
+      使用旧 DTO 后再转为 typed command。需直接以 typed envelope/command 贯通 AgentLoop，删除
+      `agent-diva-core/src/bus/events.rs` 中旧 DTO 及所有构造点后，才能满足架构 §15.2/§19.10。
+    - [ ] **C6-E：切换后真实平台/桌面验收、MSRV 与原子合入 dev** `sev-P1`
+      自动化 workspace、GUI、TCK 与 clean-break 子门禁正在本迭代记录；仍需至少一个真实平台
+      完成入站、最终 receipt，并在新生产路径复测桌面断线恢复。C6-D/C6-E 完成前不得关闭 C6
+      或把本分支合入 `dev`。
 
   - [ ] **GUI 依赖安全审计基线** `sev-P2`
     C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。
