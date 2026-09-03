@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `GLOBAL — merge feat/channel-epic-c6 into dev and run post-merge validation`
-- Owner: `Codex / C6 dev merge`
-- Session/Task: `CHANNEL-EPIC C6 merge to dev`
-- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-09-03T21:12:41+08:00`
-- Last Heartbeat: `2026-09-03T21:20:53+08:00`
-- Expires At: `N/A — released`
-- Handoff Notes: `Released after local merge commit 8cc6580b and documentation commit 3d15b23a. Post-merge fmt, clippy, clean-break, and full workspace tests passed. No push. C6-D/C6-E remain open.`
+- Lock State: `HELD`
+- Scope: `GLOBAL — C6-D strict Clean Break: typed AgentLoop/Fabric migration and physical removal of legacy DTO/message queues across active Rust source, tests, scripts, docs/logs, and TODOLIST`
+- Owner: `Codex / C6-D DTO Clean Break`
+- Session/Task: `CHANNEL-EPIC C6-D strict deletion of InboundMessage/OutboundMessage and old queue APIs`
+- Branch/Worktree: `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`
+- Started At: `2026-09-04T02:29:56+08:00`
+- Last Heartbeat: `2026-09-04T02:29:56+08:00`
+- Expires At: `2026-09-06T02:29:56+08:00`
+- Handoff Notes: `C6-D implementation owner is /root/c6_d_dto_cleanbreak. Preserve unrelated parallel worktree changes; no push or dev merge. Release only after implementation, validation, iteration logs, and TODOLIST bookkeeping are complete.`
 
 ## Lock Rules
 
