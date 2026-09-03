@@ -901,6 +901,83 @@ mod tests {
     }
 
     #[test]
+    fn typed_content_renders_deterministically_and_preserves_subject() {
+        let attachment = |name: &str, media_type: &str| AttachmentRef {
+            uri: format!("sha256:{name}"),
+            media_type: media_type.to_string(),
+            size_bytes: 3,
+            sha256: name.to_string(),
+            file_name: Some(name.to_string()),
+        };
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("email", "thread-1"),
+            Correlation::new("external/email/thread-1"),
+            ChannelOrigin::ExternalUser,
+            ChannelPayloadV1::Message {
+                parts: vec![
+                    ContentPart::Text {
+                        text: "plain".to_string(),
+                    },
+                    ContentPart::Markdown {
+                        markdown: "**markdown**".to_string(),
+                    },
+                    ContentPart::Image {
+                        attachment: attachment("photo.png", "image/png"),
+                    },
+                    ContentPart::Audio {
+                        attachment: attachment("voice.ogg", "audio/ogg"),
+                        transcript: None,
+                    },
+                    ContentPart::Video {
+                        attachment: attachment("clip.mp4", "video/mp4"),
+                    },
+                    ContentPart::File {
+                        attachment: attachment("report.pdf", "application/pdf"),
+                    },
+                    ContentPart::Location {
+                        latitude: 1.25,
+                        longitude: 2.5,
+                        label: Some("office".to_string()),
+                    },
+                    ContentPart::Card {
+                        schema: "application/vnd.card+json".to_string(),
+                        body: serde_json::json!({"title": "Card"}),
+                    },
+                    ContentPart::Reference {
+                        uri: "https://example.test/docs/1".to_string(),
+                        title: Some("docs".to_string()),
+                        media_type: Some("text/html".to_string()),
+                    },
+                ],
+                subject: Some("Subject".to_string()),
+                locale: Some("en-US".to_string()),
+                context: None,
+            },
+        );
+
+        assert_eq!(
+            envelope.rendered_message_text().as_deref(),
+            Some(
+                "plain\n**markdown**\n[Image: photo.png (3 bytes, image/png)]\n[Audio: voice.ogg (3 bytes, audio/ogg)]\n[Video: clip.mp4 (3 bytes, video/mp4)]\n[File: report.pdf (3 bytes, application/pdf)]\nLocation: 1.250000, 2.500000 (office)\nCard (application/vnd.card+json): {\"title\":\"Card\"}\nReference: docs <https://example.test/docs/1> (text/html)"
+            )
+        );
+        match envelope.payload {
+            ChannelPayloadV1::Message {
+                subject,
+                locale,
+                context,
+                ..
+            } => {
+                assert_eq!(subject.as_deref(), Some("Subject"));
+                assert_eq!(locale.as_deref(), Some("en-US"));
+                assert!(context.is_none());
+            }
+            payload => panic!("unexpected payload: {payload:?}"),
+        }
+    }
+
+    #[test]
     fn extensions_must_be_namespaced() {
         let mut envelope = ChannelEnvelopeV1::new(
             ChannelDirection::Ingress,
