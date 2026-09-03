@@ -1,8 +1,8 @@
 //! Message forwarding tool
 
 use agent_diva_core::channel::{
-    ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
-    ChannelPayloadV1, ContentPart, Correlation,
+    AttachmentRef, ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1,
+    ChannelOrigin, ChannelPayloadV1, ContentPart, Correlation,
 };
 use agent_diva_tooling::{Tool, ToolError};
 use async_trait::async_trait;
@@ -149,12 +149,7 @@ impl Tool for MessageTool {
         })?;
 
         let mut parts = vec![ContentPart::Text { text: content }];
-        parts.extend(
-            attachments
-                .iter()
-                .cloned()
-                .map(|attachment| ContentPart::File { attachment }),
-        );
+        parts.extend(attachments.iter().cloned().map(attachment_content_part));
         let address = ChannelAddress {
             channel: channel.clone(),
             account_id: None,
@@ -198,6 +193,21 @@ impl Tool for MessageTool {
     }
 }
 
+fn attachment_content_part(attachment: AttachmentRef) -> ContentPart {
+    if attachment.media_type.starts_with("image/") {
+        ContentPart::Image { attachment }
+    } else if attachment.media_type.starts_with("audio/") {
+        ContentPart::Audio {
+            attachment,
+            transcript: None,
+        }
+    } else if attachment.media_type.starts_with("video/") {
+        ContentPart::Video { attachment }
+    } else {
+        ContentPart::File { attachment }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +248,71 @@ mod tests {
         let result = tool.execute(params).await.unwrap();
 
         assert!(result.contains("No target channel/chat"));
+    }
+
+    #[tokio::test]
+    async fn typed_attachments_keep_their_media_variants_in_the_command() {
+        let mut tool = MessageTool::new();
+        tool.set_context("telegram".to_string(), "123".to_string())
+            .await;
+        let captured = Arc::new(Mutex::new(None));
+        let callback_capture = captured.clone();
+        tool.set_send_callback(move |command| {
+            let callback_capture = callback_capture.clone();
+            async move {
+                *callback_capture.lock().await = Some(command);
+                Ok(())
+            }
+        });
+
+        let attachment = |uri: &str, media_type: &str, file_name: &str| {
+            json!({
+                "uri": uri,
+                "media_type": media_type,
+                "size_bytes": 1,
+                "sha256": uri.trim_start_matches("sha256:"),
+                "file_name": file_name,
+            })
+        };
+        let result = tool
+            .execute(json!({
+                "content": "hello",
+                "attachments": [
+                    attachment("sha256:image", "image/png", "image.png"),
+                    attachment("sha256:audio", "audio/ogg", "audio.ogg"),
+                    attachment("sha256:video", "video/mp4", "video.mp4"),
+                    attachment("sha256:file", "application/pdf", "file.pdf"),
+                ]
+            }))
+            .await
+            .unwrap();
+
+        assert!(result.contains("with 4 attachments"));
+        let command = captured.lock().await.take().expect("callback command");
+        let ChannelCommand::Send { envelope, .. } = command else {
+            panic!("message tool must emit a typed Send command");
+        };
+        assert_eq!(envelope.direction, ChannelDirection::Egress);
+        assert_eq!(envelope.origin, ChannelOrigin::Runtime);
+        match envelope.payload {
+            ChannelPayloadV1::Message { parts, .. } => {
+                assert!(
+                    matches!(parts.first(), Some(ContentPart::Text { text }) if text == "hello")
+                );
+                assert!(
+                    matches!(parts.get(1), Some(ContentPart::Image { attachment }) if attachment.media_type == "image/png")
+                );
+                assert!(
+                    matches!(parts.get(2), Some(ContentPart::Audio { attachment, transcript }) if attachment.media_type == "audio/ogg" && transcript.is_none())
+                );
+                assert!(
+                    matches!(parts.get(3), Some(ContentPart::Video { attachment }) if attachment.media_type == "video/mp4")
+                );
+                assert!(
+                    matches!(parts.get(4), Some(ContentPart::File { attachment }) if attachment.media_type == "application/pdf")
+                );
+            }
+            payload => panic!("unexpected message tool payload: {payload:?}"),
+        }
     }
 }
