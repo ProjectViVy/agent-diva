@@ -13,8 +13,9 @@ use agent_diva_autodream::{
     AutoDreamService, ReflectionError, ScheduledMonthlyReportOutcome, SkillReflectionEngine,
     SkillReflectionInput, SkillReflectionOutput,
 };
-use agent_diva_channels::ChannelManager;
+use agent_diva_channels::runtime::ChannelRuntime;
 use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::channel::{FabricConsumer, FabricHandle, FabricKernel};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
@@ -246,22 +247,21 @@ struct GatewayBootstrap {
     ask_user: agent_diva_core::ask_user::AskUserCoordinator,
     governance: agent_diva_core::governance::ApprovalCoordinator,
     memory_home: agent_diva_laputa::MemoryHome,
+    fabric_handle: FabricHandle,
+    fabric_consumer: FabricConsumer,
 }
 
 struct ChannelBootstrap {
-    channel_manager: Arc<ChannelManager>,
-    inbound_bridge_handle: JoinHandle<()>,
+    channel_runtime: Arc<ChannelRuntime>,
 }
 
 struct GatewayTasks {
     bus: MessageBus,
     cron_service: Arc<CronService>,
-    channel_manager: Arc<ChannelManager>,
+    channel_runtime: Arc<ChannelRuntime>,
     server_shutdown_tx: broadcast::Sender<()>,
-    inbound_bridge_handle: JoinHandle<()>,
-    neuro_link_bridge_handle: Option<JoinHandle<()>>,
+    fabric_ingress_handle: JoinHandle<()>,
     outbound_dispatch_handle: JoinHandle<()>,
-    channel_handle: JoinHandle<()>,
     agent_handle: JoinHandle<()>,
     supervised_executor_cancel: tokio_util::sync::CancellationToken,
     supervised_executor_handle: JoinHandle<()>,
@@ -487,8 +487,12 @@ fn skill_reflection_system_prompt(attempt: usize) -> String {
 pub async fn run_local_gateway(runtime: GatewayRuntimeConfig) -> Result<()> {
     let port = runtime.port;
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap =
-        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
+    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
+        &bootstrap.config,
+        bootstrap.file_manager.clone(),
+        bootstrap.fabric_handle.clone(),
+    )
+    .await?;
     let mut tasks = task_runtime::start_runtime_tasks(bootstrap, channel_bootstrap).await;
     tracing::info!(
         "Gateway ready; HTTP API at http://127.0.0.1:{} (Ctrl+C to stop)",
@@ -505,8 +509,12 @@ pub async fn start_embedded_gateway_runtime(
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<EmbeddedGatewayRuntime> {
     let bootstrap = bootstrap::bootstrap_runtime(runtime).await?;
-    let channel_bootstrap =
-        bootstrap::bootstrap_channel_runtime(&bootstrap.config, bootstrap.bus.clone()).await;
+    let channel_bootstrap = bootstrap::bootstrap_channel_runtime(
+        &bootstrap.config,
+        bootstrap.file_manager.clone(),
+        bootstrap.fabric_handle.clone(),
+    )
+    .await?;
     let tasks = task_runtime::start_embedded_runtime_tasks(
         bootstrap,
         channel_bootstrap,

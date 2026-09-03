@@ -1,4 +1,6 @@
 pub mod approval_service;
+pub mod channel_attachment_store;
+pub mod channel_fabric_runtime;
 pub mod file_service;
 pub mod handlers;
 pub mod manager;

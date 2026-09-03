@@ -1,4 +1,3 @@
-use agent_diva_core::bus::{InboundMessage, MessageBus, OutboundMessage};
 use agent_diva_core::channel::{
     capacity, ChannelEnvelopeV1, ChannelOrigin, ProtocolHelloParams, RpcRequestV1,
     CHANNEL_SCHEMA_VERSION_V1, JSON_RPC_VERSION, NEURO_LINK_PROTOCOL_V1,
@@ -174,42 +173,8 @@ fn c1_capacity_profile_is_explicit_bounded_and_not_octos_4096() {
     assert!(capacities.iter().all(|capacity| *capacity > 0));
     assert!(capacities.iter().all(|capacity| *capacity <= 512));
     assert!(capacities.iter().all(|capacity| *capacity != 4096));
-    assert!(capacity::CONTROL < capacity::INGRESS);
-    assert!(capacity::TRANSIENT_EVENT < capacity::DURABLE_EVENT);
-}
-
-#[tokio::test]
-async fn legacy_message_bus_characterization_preserves_fifo_and_single_receiver() {
-    let bus = MessageBus::new();
-    let mut receiver = bus
-        .take_inbound_receiver()
-        .await
-        .expect("the legacy inbound receiver is single-consumer");
-    assert!(bus.take_inbound_receiver().await.is_none());
-
-    bus.publish_inbound(InboundMessage::new("telegram", "user-1", "chat-1", "one"))
-        .expect("legacy inbound publish should accept an open bus");
-    bus.publish_inbound(InboundMessage::new("telegram", "user-1", "chat-1", "two"))
-        .expect("legacy inbound publish should preserve the open bus");
-
-    assert_eq!(receiver.recv().await.expect("first inbound").content, "one");
-    assert_eq!(
-        receiver.recv().await.expect("second inbound").content,
-        "two"
-    );
-}
-
-#[tokio::test]
-async fn legacy_outbound_bus_reports_closed_receiver() {
-    let bus = MessageBus::new();
-    let receiver = bus
-        .take_outbound_receiver()
-        .await
-        .expect("the legacy outbound receiver is single-consumer");
-    drop(receiver);
-
-    let error = bus
-        .publish_outbound(OutboundMessage::new("telegram", "chat-1", "reply"))
-        .expect_err("publishing to a closed legacy receiver must be observable");
-    assert!(error.to_string().contains("Outbound channel closed"));
+    const {
+        assert!(capacity::CONTROL < capacity::INGRESS);
+        assert!(capacity::TRANSIENT_EVENT < capacity::DURABLE_EVENT);
+    }
 }

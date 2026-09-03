@@ -22,8 +22,7 @@ vi.mock('@lucide/vue', () => {
 
 const rawChannels = {
   telegram: { enabled: true, token: 'abc' },
-  'neuro-link': { enabled: false, host: '0.0.0.0', port: 9100 },
-  slack: { enabled: true, bot_token: 'xoxb-retired' },
+  discord: { enabled: false, token: '' },
 };
 
 const mountView = (channels: Record<string, any>, statuses: any[] = []) =>
@@ -37,25 +36,14 @@ describe('ChannelCardView', () => {
     const wrapper = mountView(rawChannels);
     const text = wrapper.text();
     expect(text).toContain('Telegram');
-    expect(text).toContain('Neuro-Link');
+    expect(text).toContain('Discord');
     expect(text).toContain('channels.enabled');
     expect(text).toContain('channels.disabled');
     expect(wrapper.findAll('.channel-card')).toHaveLength(2);
   });
 
-  it('hides retired channels even when they are enabled in the config', () => {
-    const wrapper = mountView(rawChannels);
-    expect(wrapper.text()).not.toContain('Slack');
-    expect(wrapper.findAll('.channel-card')).toHaveLength(2);
-  });
-
   it('renders the empty state when there are no channels', () => {
     const wrapper = mountView({});
-    expect(wrapper.find('.channel-empty-state').exists()).toBe(true);
-  });
-
-  it('renders the empty state when only retired channels remain', () => {
-    const wrapper = mountView({ slack: { enabled: true }, irc: { enabled: false } });
     expect(wrapper.find('.channel-empty-state').exists()).toBe(true);
   });
 

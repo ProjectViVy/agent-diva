@@ -55,18 +55,13 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     }
     join_with_timeout("manager", tasks.manager_handle, ABORT_JOIN_TIMEOUT).await;
 
-    tasks.inbound_bridge_handle.abort();
+    tasks.fabric_ingress_handle.abort();
     join_with_timeout(
-        "inbound bridge",
-        tasks.inbound_bridge_handle,
+        "Fabric ingress",
+        tasks.fabric_ingress_handle,
         ABORT_JOIN_TIMEOUT,
     )
     .await;
-
-    if let Some(handle) = tasks.neuro_link_bridge_handle {
-        handle.abort();
-        join_with_timeout("neuro-link bridge", handle, ABORT_JOIN_TIMEOUT).await;
-    }
 
     tasks.outbound_dispatch_handle.abort();
     join_with_timeout(
@@ -87,13 +82,11 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     )
     .await;
 
-    tasks.channel_handle.abort();
-    join_with_timeout("channel runtime", tasks.channel_handle, ABORT_JOIN_TIMEOUT).await;
-
-    match tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.channel_manager.stop_all()).await {
-        Ok(Err(e)) => tracing::error!("Failed to stop channels: {}", e),
-        Err(_) => tracing::warn!("Channel manager did not stop within the shutdown timeout"),
-        Ok(Ok(())) => {}
+    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.channel_runtime.shutdown())
+        .await
+        .is_err()
+    {
+        tracing::warn!("Native channel runtime did not stop within the shutdown timeout");
     }
 
     if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.cron_service.stop())

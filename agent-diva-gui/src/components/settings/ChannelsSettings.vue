@@ -7,7 +7,6 @@ import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';
 import ChannelEditorForm from './ChannelEditorForm.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
-import { isRetiredChannel } from './channel-platforms';
 import { normalizeChannelConfig } from './channel-wizard-fields';
 
 const { t } = useI18n();
@@ -31,6 +30,14 @@ const isSaving = ref(false);
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
+interface ChannelRuntimeStatus {
+  name: string;
+  registered: boolean;
+  lifecycle: 'starting' | 'running' | 'degraded' | 'down';
+  health: 'healthy' | 'degraded' | 'down' | 'unknown';
+  diagnosis?: string | null;
+}
+
 function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
   if (!d || typeof d !== 'object') return;
   if (!Array.isArray(d.allow_from)) d.allow_from = [];
@@ -47,13 +54,29 @@ function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
 async function loadChannels() {
   isLoading.value = true;
   try {
-    const fetchedChannels = await invoke<Record<string, any>>('get_channels');
+    const [fetchedChannels, configStatus, runtimeStatuses] = await Promise.all([
+      invoke<Record<string, any>>('get_channels'),
+      getConfigStatus(),
+      invoke<ChannelRuntimeStatus[]>('get_channel_runtime'),
+    ]);
     normalizeDiscordConfig(fetchedChannels.discord);
     draftChannels.value = cloneValue(fetchedChannels);
     savedChannels.value = cloneValue(fetchedChannels);
-    channelStatuses.value = (await getConfigStatus()).channels;
-    if (!selectedChannel.value || !draftChannels.value[selectedChannel.value] || isRetiredChannel(selectedChannel.value)) {
-      selectedChannel.value = Object.keys(draftChannels.value).find((name) => !isRetiredChannel(name)) ?? null;
+    const configStatusMap = new Map(configStatus.channels.map((item) => [item.name, item]));
+    const runtimeStatusMap = new Map(runtimeStatuses.map((item) => [item.name, item]));
+    channelStatuses.value = Object.entries(fetchedChannels).map(([name, channel]) => {
+      const runtime = runtimeStatusMap.get(name);
+      const configured = configStatusMap.get(name);
+      return {
+        name,
+        enabled: Boolean(channel?.enabled),
+        ready: Boolean(runtime?.registered && runtime.health !== 'down'),
+        missing_fields: runtime?.registered ? [] : (configured?.missing_fields ?? []),
+        notes: [runtime?.lifecycle, runtime?.diagnosis].filter(Boolean) as string[],
+      };
+    });
+    if (!selectedChannel.value || !draftChannels.value[selectedChannel.value]) {
+      selectedChannel.value = Object.keys(draftChannels.value)[0] ?? null;
     }
   } catch (e) {
     console.error('Failed to load channels:', e);
@@ -71,13 +94,7 @@ const channelStatusMap = computed(() => {
   return new Map(channelStatuses.value.map((item) => [item.name, item]));
 });
 
-const visibleDraftChannels = computed(() => {
-  const next: Record<string, any> = {};
-  for (const [name, config] of Object.entries(draftChannels.value)) {
-    if (!isRetiredChannel(name)) next[name] = config;
-  }
-  return next;
-});
+const visibleDraftChannels = computed(() => draftChannels.value);
 
 const selectedChannelDraft = computed(() => {
   if (!selectedChannel.value) return null;
@@ -102,7 +119,7 @@ const persistChannel = async (name: string, config: Record<string, any>) => {
     await props.saveChannelConfigAction(name, cloneValue(config));
     draftChannels.value[name] = cloneValue(config);
     savedChannels.value[name] = cloneValue(config);
-    channelStatuses.value = (await getConfigStatus()).channels;
+    await loadChannels();
   } finally {
     isSaving.value = false;
   }

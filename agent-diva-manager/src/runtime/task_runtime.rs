@@ -1,9 +1,12 @@
 use super::*;
 use crate::{run_server, AppState, Manager};
 use agent_diva_agent::subagent_run_handler::SubagentRunHandler;
-use agent_diva_channels::neuro_link::OLV_AVATAR_CHAT_ID;
-use agent_diva_channels::ChannelManager;
-use agent_diva_core::bus::{AgentEvent, OutboundMessage};
+use agent_diva_channels::runtime::ChannelRuntime;
+use agent_diva_core::bus::OutboundMessage;
+use agent_diva_core::channel::{
+    ChannelAddress, ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
+    ChannelPayloadV1, ContentPart, Correlation,
+};
 use agent_diva_core::supervised::{RunKind, TaskExecutor};
 
 pub(super) async fn start_runtime_tasks(
@@ -61,11 +64,10 @@ async fn start_runtime_tasks_inner(
         ask_user,
         governance,
         memory_home,
+        fabric_handle,
+        fabric_consumer,
     } = bootstrap;
-    let ChannelBootstrap {
-        channel_manager,
-        inbound_bridge_handle,
-    } = channel_bootstrap;
+    let ChannelBootstrap { channel_runtime } = channel_bootstrap;
     let workspace_root = workspace.root.clone();
     let config_dir = loader.config_dir().to_path_buf();
 
@@ -76,13 +78,6 @@ async fn start_runtime_tasks_inner(
             error
         );
     }
-
-    subscribe_configured_outbound_channels(&bus, &channel_manager, &config).await;
-    let neuro_link_bridge_handle = config
-        .channels
-        .neuro_link
-        .enabled
-        .then(|| spawn_neuro_link_gui_bridge(bus.clone()));
 
     let (api_tx, api_rx) = mpsc::channel(100);
     let planning_service = Arc::new(crate::planning_service::PlanningService::governed(
@@ -101,9 +96,17 @@ async fn start_runtime_tasks_inner(
         );
     }
     let runtime_control_tx_for_state = runtime_control_tx.clone();
-    let neuro_link_runtime = Arc::new(crate::neuro_link::AgentLoopNeuroLinkRuntime::new(
+    let pending_admissions = crate::channel_fabric_runtime::pending_admissions();
+    let neuro_link_runtime = Arc::new(crate::channel_fabric_runtime::FabricNeuroLinkRuntime::new(
+        fabric_handle,
+        pending_admissions.clone(),
         runtime_control_tx.clone(),
     ));
+    let fabric_ingress_handle = crate::channel_fabric_runtime::spawn_fabric_ingress(
+        fabric_consumer,
+        pending_admissions,
+        runtime_control_tx.clone(),
+    );
     let manager = Manager::new(
         api_rx,
         bus.clone(),
@@ -113,7 +116,7 @@ async fn start_runtime_tasks_inner(
         config.agents.defaults.model.clone(),
         provider_api_key,
         provider_api_base,
-        Some(channel_manager.clone()),
+        Some(channel_runtime.clone()),
         Some(runtime_control_tx),
         Arc::clone(&cron_service),
         file_manager,
@@ -123,8 +126,8 @@ async fn start_runtime_tasks_inner(
     );
     let api_tx_keepalive = api_tx.clone();
 
-    let outbound_dispatch_handle = spawn_outbound_dispatch(bus.clone());
-    let channel_handle = spawn_channel_runtime(channel_manager.clone());
+    let outbound_dispatch_handle =
+        spawn_native_outbound_dispatch(&bus, channel_runtime.clone()).await;
     let supervised_executor_cancel = tokio_util::sync::CancellationToken::new();
     let supervised_executor_handle = spawn_supervised_executor(
         run_store,
@@ -159,12 +162,10 @@ async fn start_runtime_tasks_inner(
     GatewayTasks {
         bus,
         cron_service,
-        channel_manager,
+        channel_runtime,
         server_shutdown_tx,
-        inbound_bridge_handle,
-        neuro_link_bridge_handle,
+        fabric_ingress_handle,
         outbound_dispatch_handle,
-        channel_handle,
         agent_handle,
         supervised_executor_cancel,
         supervised_executor_handle,
@@ -174,88 +175,75 @@ async fn start_runtime_tasks_inner(
     }
 }
 
-async fn subscribe_configured_outbound_channels(
+async fn spawn_native_outbound_dispatch(
     bus: &MessageBus,
-    channel_manager: &Arc<ChannelManager>,
-    config: &Config,
-) {
-    for channel_name in configured_channels(config) {
-        let manager = channel_manager.clone();
-        let channel_key = channel_name.clone();
-        bus.subscribe_outbound(channel_name, move |msg| {
-            let manager = manager.clone();
-            let channel_key = channel_key.clone();
-            async move {
-                if let Err(e) = manager.send(&channel_key, msg).await {
-                    tracing::error!("Failed to send outbound message to {}: {}", channel_key, e);
-                }
+    channel_runtime: Arc<ChannelRuntime>,
+) -> JoinHandle<()> {
+    let mut outbound_rx = bus
+        .take_outbound_receiver()
+        .await
+        .expect("native channel egress receiver must have exactly one owner");
+    tokio::spawn(async move {
+        while let Some(message) = outbound_rx.recv().await {
+            let channel = message.channel.clone();
+            let command = outbound_command(message);
+            let cancel = tokio_util::sync::CancellationToken::new();
+            match channel_runtime.execute(command, &cancel).await {
+                Ok(receipt) => tracing::info!(
+                    %channel,
+                    status = ?receipt.status,
+                    platform_message_id = ?receipt.platform_message_id,
+                    "native channel delivery receipt"
+                ),
+                Err(error) => tracing::error!(
+                    %channel,
+                    %error,
+                    "native channel delivery failed"
+                ),
             }
-        })
-        .await;
+        }
+    })
+}
+
+fn outbound_command(message: OutboundMessage) -> ChannelCommand {
+    let mut address = ChannelAddress::new(message.channel.clone(), message.chat_id.clone());
+    address.thread_id = message
+        .metadata
+        .get("thread_id")
+        .and_then(serde_json::Value::as_str)
+        .map(ToOwned::to_owned);
+    let mut correlation = Correlation::new(
+        message
+            .metadata
+            .get("session_key")
+            .and_then(serde_json::Value::as_str)
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| format!("{}:{}", message.channel, message.chat_id)),
+    );
+    correlation.reply_to = message.reply_to;
+    correlation.request_id = message
+        .metadata
+        .get("request_id")
+        .and_then(serde_json::Value::as_str)
+        .map(ToOwned::to_owned);
+    let envelope = ChannelEnvelopeV1::new(
+        ChannelDirection::Egress,
+        address,
+        correlation,
+        ChannelOrigin::Runtime,
+        ChannelPayloadV1::Message {
+            parts: vec![ContentPart::Markdown {
+                markdown: message.content,
+            }],
+            subject: None,
+            locale: None,
+            context: None,
+        },
+    );
+    ChannelCommand::Send {
+        envelope,
+        idempotency_key: None,
     }
-}
-
-fn configured_channels(config: &Config) -> Vec<String> {
-    ChannelManager::configured_channel_names(config)
-}
-
-fn spawn_outbound_dispatch(bus: MessageBus) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        bus.dispatch_outbound_loop().await;
-    })
-}
-
-fn spawn_neuro_link_gui_bridge(bus: MessageBus) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        let mut event_rx = bus.subscribe_events();
-        loop {
-            match event_rx.recv().await {
-                Ok(bus_event) => {
-                    if bus_event.channel != "gui" {
-                        continue;
-                    }
-
-                    let AgentEvent::FinalResponse { content } = bus_event.event else {
-                        continue;
-                    };
-
-                    if content.trim().is_empty() {
-                        continue;
-                    }
-
-                    let outbound = build_neuro_link_avatar_message(bus_event.chat_id, content);
-
-                    if let Err(error) = bus.publish_outbound(outbound) {
-                        tracing::error!(
-                            "Failed to publish neuro-link avatar outbound message: {}",
-                            error
-                        );
-                    }
-                }
-                Err(error) => {
-                    tracing::warn!("Neuro-link GUI bridge event stream closed: {}", error);
-                    break;
-                }
-            }
-        }
-    })
-}
-
-fn build_neuro_link_avatar_message(chat_id: String, content: String) -> OutboundMessage {
-    OutboundMessage::new("neuro-link", OLV_AVATAR_CHAT_ID, content)
-        .with_metadata("neuro_link_pipe", "speak")
-        .with_metadata("source", "diva")
-        .with_metadata("source_channel", "gui")
-        .with_metadata("source_chat_id", chat_id)
-        .with_metadata("mode", "final")
-}
-
-fn spawn_channel_runtime(channel_manager: Arc<ChannelManager>) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        if let Err(e) = channel_manager.start_all().await {
-            tracing::error!("Channel manager error: {}", e);
-        }
-    })
 }
 
 fn spawn_agent_runtime(agent: AgentLoop) -> JoinHandle<()> {
@@ -322,43 +310,18 @@ fn spawn_embedded_server_runtime(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::config::schema::Config;
 
     #[test]
-    fn configured_channels_includes_neuro_link_when_enabled() {
-        let mut config = Config::default();
-        config.channels.neuro_link.enabled = true;
-        let channels = configured_channels(&config);
-        assert!(channels.iter().any(|channel| channel == "neuro-link"));
-    }
-
-    #[test]
-    fn configured_channels_skips_invalid_enabled_channel() {
-        let mut config = Config::default();
-        config.channels.discord.enabled = true;
-
-        let channels = configured_channels(&config);
-        assert!(!channels.iter().any(|channel| channel == "discord"));
-    }
-
-    #[test]
-    fn neuro_link_avatar_message_has_speak_metadata() {
-        let outbound = build_neuro_link_avatar_message("main".to_string(), "hello".to_string());
-        assert_eq!(outbound.channel, "neuro-link");
-        assert_eq!(outbound.chat_id, OLV_AVATAR_CHAT_ID);
-        assert_eq!(
-            outbound
-                .metadata
-                .get("neuro_link_pipe")
-                .and_then(|value| value.as_str()),
-            Some("speak")
+    fn outbound_message_becomes_typed_native_command() {
+        let command = outbound_command(
+            OutboundMessage::new("telegram", "chat-1", "hello").reply_to("message-1"),
         );
-        assert_eq!(
-            outbound
-                .metadata
-                .get("source_chat_id")
-                .and_then(|value| value.as_str()),
-            Some("main")
-        );
+        let ChannelCommand::Send { envelope, .. } = command else {
+            panic!("expected send command");
+        };
+        assert_eq!(envelope.address.channel, "telegram");
+        assert_eq!(envelope.address.chat_id, "chat-1");
+        assert_eq!(envelope.correlation.session_key, "telegram:chat-1");
+        assert_eq!(envelope.correlation.reply_to.as_deref(), Some("message-1"));
     }
 }
