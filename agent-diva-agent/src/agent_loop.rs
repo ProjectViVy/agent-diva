@@ -308,7 +308,7 @@ pub struct AgentLoop {
 
 enum SessionWorkerCommand {
     Execute {
-        envelope: ChannelEnvelopeV1,
+        envelope: Box<ChannelEnvelopeV1>,
         cancellation: tokio_util::sync::CancellationToken,
         reply_tx: tokio::sync::oneshot::Sender<Result<Option<ChannelCommand>, String>>,
     },
@@ -900,7 +900,7 @@ impl AgentLoop {
                     } => {
                         worker.active_turn_cancellation = Some(cancellation);
                         let result = worker
-                            .process_channel_envelope_admitted(envelope, None)
+                            .process_channel_envelope_admitted(*envelope, None)
                             .await
                             .map_err(|error| error.to_string());
                         worker.active_turn_cancellation = None;

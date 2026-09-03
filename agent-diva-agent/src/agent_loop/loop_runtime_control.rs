@@ -742,7 +742,7 @@ async fn dispatch_typed_channel_turn(
                 let (worker_reply_tx, worker_reply_rx) = oneshot::channel();
                 worker_tx
                     .send(super::SessionWorkerCommand::Execute {
-                        envelope: execution_envelope,
+                        envelope: Box::new(execution_envelope),
                         cancellation,
                         reply_tx: worker_reply_tx,
                     })
