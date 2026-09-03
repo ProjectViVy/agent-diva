@@ -2534,6 +2534,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn runtime_turn_returns_egress_with_full_typed_correlation() {
+        let bus = AgentEventBus::new();
+        let provider = Arc::new(CapturingStreamProvider::default());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut agent = AgentLoop::new(bus, provider, temp_dir.path().to_path_buf(), None, Some(1))
+            .await
+            .unwrap();
+
+        let mut inbound = runtime_envelope("runtime/cron/job-1", "chat-1", "tick");
+        inbound.address.thread_id = Some("thread-1".to_string());
+        inbound.correlation.request_id = Some("request-1".to_string());
+        inbound.correlation.trace_id = Some("trace-1".to_string());
+        inbound.correlation.message_id = Some("message-1".to_string());
+        let command = agent.process_channel_envelope(inbound, None).await.unwrap();
+
+        let Some(ChannelCommand::Send { envelope, .. }) = command else {
+            panic!("runtime turns must produce a typed adapter command");
+        };
+        assert_eq!(envelope.direction, ChannelDirection::Egress);
+        assert_eq!(envelope.origin, ChannelOrigin::Runtime);
+        assert_eq!(envelope.address.channel, "runtime");
+        assert_eq!(envelope.address.chat_id, "chat-1");
+        assert_eq!(envelope.address.thread_id.as_deref(), Some("thread-1"));
+        assert_eq!(envelope.correlation.session_key, "runtime/cron/job-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
+        assert_eq!(envelope.correlation.trace_id.as_deref(), Some("trace-1"));
+        assert_eq!(envelope.correlation.reply_to.as_deref(), Some("message-1"));
+        assert!(envelope.correlation.message_id.is_some());
+        match envelope.payload {
+            ChannelPayloadV1::Message {
+                parts,
+                subject,
+                context,
+                ..
+            } => {
+                assert_eq!(subject, None);
+                assert_eq!(context, None);
+                assert!(
+                    matches!(parts.as_slice(), [ContentPart::Markdown { markdown }] if markdown == "done")
+                );
+            }
+            payload => panic!("unexpected runtime egress payload: {payload:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn provider_retry_attempt_emits_bus_event() {
         let bus = AgentEventBus::new();
         let mut event_rx = bus.subscribe_events();
@@ -2616,10 +2665,14 @@ mod tests {
         .await
         .unwrap();
 
-        agent
+        let command = agent
             .process_channel_envelope(owner_envelope("chat-g0", "Hello", None), None)
             .await
             .unwrap();
+        assert!(
+            command.is_none(),
+            "owner results must remain projection-only"
+        );
 
         let observed = timeout(Duration::from_secs(2), async {
             let mut events = Vec::new();
