@@ -17,6 +17,9 @@
   image/audio/video/file 保持 typed `AttachmentRef` parts。
 - Cron 和 Subagent 通过 cloneable FabricHandle 产生 Runtime-origin ingress；六个 external
   adapter 继续 Fabric-first；Manager-owned egress 独立 bounded，ChannelRuntime 负责 pacing。
+- `supervised_runs` 的 `context` 为 nullable additive SQLite migration：旧表启动时自动补列、
+  旧行保持不变；没有 typed route 的旧记录会在 Subagent handler 明确拒绝。回滚到旧二进制
+  可读取既有字段但不提供 C6-D 的 route correlation，回滚前须处理依赖 typed context 的任务。
 - Presence 只消费 identity-only user activity/poke，不抢占单一 turn receiver，也不接触消息正文。
 - stop/reset、same-session FIFO、cross-session concurrency、queue/backpressure、control
   priority、shutdown drain、worker recovery 和 typed runtime control 均有回归测试。

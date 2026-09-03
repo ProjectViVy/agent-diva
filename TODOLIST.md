@@ -192,6 +192,9 @@
       Subagent、Presence、message tool 和 CLI SSE 均已迁移。trust matrix、correlation/
       reply_to、typed content/media、attachment admission、stop/reset/backpressure/shutdown
       与 worker recovery 均有回归证据；clean-break gate 和全 workspace Rust gates 通过。
+      `supervised_runs.context` 采用 nullable additive SQLite migration，旧表自动补列、旧行
+      保持不变，缺少 typed route 的旧记录由 Subagent handler fail-closed；完整迁移/回滚影响
+      见 iteration verification/release。
       证据：[C6-D iteration log](docs/logs/2026-09-channel-epic/v0.3.1-c6-d-typed-agent-loop/)。
     - [ ] **C6-E：切换后真实平台/桌面验收与全工作区 MSRV** `sev-P1`
       C6 已按用户明确指令于 2026-09-03 通过 `8cc6580b` 本地合入 `dev`，且合并后 workspace、

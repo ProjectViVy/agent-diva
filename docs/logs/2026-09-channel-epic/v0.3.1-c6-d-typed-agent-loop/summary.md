@@ -25,6 +25,12 @@ projection；ExternalUser/Runtime 的结果保留 typed address、session、requ
   解析附件；Cron/Subagent 通过 cloneable FabricHandle 注入 Runtime-origin envelope。
 - 六个 external adapter 继续 Fabric-first；message tool 使用 typed ChannelCommand callback；
   Email subject、图像/音频/视频/文件/位置/card/reference 等 typed parts 不降级为匿名 map。
+- supervised run store 以 additive SQLite schema migration 增加 nullable `context` 列；打开旧表
+  时通过 `PRAGMA table_info` 检测并补列，旧行保持不变且没有 typed route 的记录在 Subagent
+  handler 处 fail-closed。context/tags 序列化错误显式传播，不再静默写入空值。
+- 最终审查修复了 opaque parent session 的 Subagent result route inheritance、FileManager
+  `sha256:` 前缀规范化、production admission panic 分支，以及 clean-break checker 对全部
+  active workspace crates 的覆盖。
 - clean-break checker 递归检查 active product roots，并排除历史/archive 文档、构建输出与
   checker 自身，防止旧 token/API 回流。
 
