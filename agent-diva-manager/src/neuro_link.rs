@@ -1421,12 +1421,17 @@ mod tests {
             ))
             .await
             .unwrap();
-        let opened = next_json(&mut socket).await;
+        let open_first = next_json(&mut socket).await;
+        let open_second = next_json(&mut socket).await;
+        let (opened, opened_notification) = if open_first["id"] == "open" {
+            (open_first, open_second)
+        } else {
+            (open_second, open_first)
+        };
         assert_eq!(
             opened["result"]["opened"]["catalog_revision"],
             CATALOG_REVISION
         );
-        let opened_notification = next_json(&mut socket).await;
         assert_eq!(opened_notification["method"], "session/opened");
 
         socket
@@ -1444,10 +1449,15 @@ mod tests {
             ))
             .await
             .unwrap();
-        let turn = next_json(&mut socket).await;
+        let turn_first = next_json(&mut socket).await;
+        let turn_second = next_json(&mut socket).await;
+        let (turn, admission) = if turn_first["id"] == "turn" {
+            (turn_first, turn_second)
+        } else {
+            (turn_second, turn_first)
+        };
         assert_eq!(turn["result"]["session_key"], "smoke-session");
         assert_eq!(turn["result"]["admission"]["phase"], "running");
-        let admission = next_json(&mut socket).await;
         assert_eq!(admission["method"], "turn/admission");
         assert_eq!(
             admission["params"]["envelope"]["correlation"]["session_key"],
