@@ -35,13 +35,6 @@ pub(super) async fn wait_for_shutdown(tasks: &mut GatewayTasks) -> bool {
 }
 
 pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_completed: bool) {
-    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.bus.stop())
-        .await
-        .is_err()
-    {
-        tracing::warn!("Message bus did not stop within the shutdown timeout");
-    }
-
     let _ = tasks.server_shutdown_tx.send(());
     join_with_timeout(
         "HTTP server",

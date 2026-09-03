@@ -1,6 +1,7 @@
 use agent_diva_agent::AgentEvent;
 use agent_diva_autodream::AutoDreamService;
-use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::{ChannelEnvelopeV1, FabricHandle};
 use agent_diva_core::config::schema::{
     ChannelsConfig, MCPServerConfig, SelfEvolutionConfig, WebFetchConfig, WebSearchConfig,
     WebToolsConfig,
@@ -65,7 +66,7 @@ impl HealthSignals {
 #[derive(Clone)]
 pub struct AppState {
     pub api_tx: mpsc::Sender<ManagerCommand>,
-    pub bus: MessageBus,
+    pub bus: AgentEventBus,
     /// Authoritative runtime workspace snapshot used by operator-facing APIs.
     /// `workspace_root` remains as a compatibility projection for existing
     /// handlers and must always be copied from this context at construction.
@@ -92,9 +93,13 @@ pub struct AppState {
     pub planning_service: Option<Arc<crate::planning_service::PlanningService>>,
     /// Internal AgentLoop control channel for workspace-scoped authority
     /// projection refreshes. It is absent in isolated handler fixtures.
-    pub runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    pub runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
+    /// Cloneable producer for every runtime ingress path.
+    pub fabric_handle: Option<FabricHandle>,
+    /// Shared attachment authority used to resolve HTTP references before Fabric admission.
+    pub attachment_authority: Option<Arc<agent_diva_files::FileManager>>,
     /// Typed Neuro-Link ingress seam.  The gateway never reaches through the
-    /// legacy MessageBus; production wiring can install an AgentLoop/Fabric
+    /// legacy AgentEventBus; production wiring can install an AgentLoop/Fabric
     /// implementation while isolated fixtures leave it unset.
     pub neuro_link_runtime: Option<Arc<dyn crate::neuro_link::NeuroLinkRuntime>>,
     /// Lazily opened durable Neuro-Link projection journal.  The lazy cell
@@ -109,7 +114,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_root: impl Into<PathBuf>,
     ) -> anyhow::Result<Self> {
         Self::new_with_command_approvals(
@@ -122,7 +127,7 @@ impl AppState {
 
     pub fn new_with_command_approvals(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
     ) -> anyhow::Result<Self> {
@@ -137,7 +142,7 @@ impl AppState {
 
     pub fn new_with_ask_user(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
@@ -147,7 +152,7 @@ impl AppState {
 
     pub fn new_with_runtime_memory(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
@@ -170,7 +175,7 @@ impl AppState {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_runtime_governance(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_root: impl Into<PathBuf>,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
@@ -197,7 +202,7 @@ impl AppState {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_runtime_governance_and_control(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_context: WorkspaceContext,
         config_dir: impl Into<PathBuf>,
         memory_home: MemoryHome,
@@ -205,7 +210,7 @@ impl AppState {
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         governance: ApprovalCoordinator,
         planning_service: Arc<crate::planning_service::PlanningService>,
-        runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+        runtime_control_tx: mpsc::Sender<RuntimeControlCommand>,
     ) -> anyhow::Result<Self> {
         Self::new_with_runtime_governance_inner(
             api_tx,
@@ -225,13 +230,13 @@ impl AppState {
     #[allow(clippy::too_many_arguments)]
     fn new_with_runtime_governance_inner(
         api_tx: mpsc::Sender<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         workspace_context: WorkspaceContext,
         command_approvals: CommandApprovalCoordinator,
         ask_user: agent_diva_core::ask_user::AskUserCoordinator,
         governance: Option<ApprovalCoordinator>,
         planning_service: Option<Arc<crate::planning_service::PlanningService>>,
-        runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+        runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
         config_dir: Option<PathBuf>,
         memory_home: Option<MemoryHome>,
         neuro_link_runtime: Option<Arc<dyn crate::neuro_link::NeuroLinkRuntime>>,
@@ -282,6 +287,8 @@ impl AppState {
             governance,
             planning_service,
             runtime_control_tx,
+            fabric_handle: None,
+            attachment_authority: None,
             neuro_link_runtime,
             projection_journal: Arc::new(OnceCell::new()),
             neuro_link_projection: crate::neuro_link_projection::NeuroLinkProjectionHub::new(
@@ -308,6 +315,21 @@ impl AppState {
         runtime: Arc<dyn crate::neuro_link::NeuroLinkRuntime>,
     ) -> Self {
         self.neuro_link_runtime = Some(runtime);
+        self
+    }
+
+    /// Install the cloneable Fabric producer for typed HTTP/runtime ingress.
+    pub fn with_fabric_handle(mut self, fabric_handle: FabricHandle) -> Self {
+        self.fabric_handle = Some(fabric_handle);
+        self
+    }
+
+    /// Install the shared file authority used while constructing typed content parts.
+    pub fn with_attachment_authority(
+        mut self,
+        attachment_authority: Arc<agent_diva_files::FileManager>,
+    ) -> Self {
+        self.attachment_authority = Some(attachment_authority);
         self
     }
 
@@ -477,7 +499,7 @@ pub enum ManagerCommand {
 }
 
 pub struct ApiRequest {
-    pub msg: InboundMessage,
+    pub envelope: ChannelEnvelopeV1,
     pub event_tx: mpsc::UnboundedSender<AgentEvent>,
 }
 

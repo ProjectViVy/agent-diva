@@ -7,7 +7,8 @@ use agent_diva_agent::tool_config::network::{
     NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
 };
 use agent_diva_channels::runtime::ChannelRuntime;
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::FabricHandle;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_core::governance::ApprovalCoordinator;
@@ -26,7 +27,7 @@ use tokio::sync::oneshot;
 
 pub struct Manager {
     api_rx: mpsc::Receiver<ManagerCommand>,
-    bus: MessageBus,
+    bus: AgentEventBus,
     provider: Arc<DynamicProvider>,
     loader: ConfigLoader,
     // Current config state
@@ -35,7 +36,8 @@ pub struct Manager {
     current_api_base: Option<String>,
     current_api_key: Option<String>,
     channel_runtime: Option<Arc<ChannelRuntime>>,
-    runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
+    fabric_handle: Option<FabricHandle>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
     workspace: PathBuf,
@@ -68,7 +70,7 @@ impl Manager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         api_rx: mpsc::Receiver<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<DynamicProvider>,
         loader: ConfigLoader,
         initial_provider: Option<String>,
@@ -76,7 +78,8 @@ impl Manager {
         api_key: Option<String>,
         api_base: Option<String>,
         channel_runtime: Option<Arc<ChannelRuntime>>,
-        runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+        runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
+        fabric_handle: Option<FabricHandle>,
         cron_service: Arc<CronService>,
         file_manager: Arc<FileManager>,
         workspace: PathBuf,
@@ -95,6 +98,7 @@ impl Manager {
             current_api_key: api_key,
             channel_runtime,
             runtime_control_tx,
+            fabric_handle,
             cron_service,
             file_manager,
             workspace,
@@ -149,7 +153,7 @@ impl Manager {
             error!("Failed to load config for MCP runtime update");
             return;
         };
-        if let Err(e) = tx.send(RuntimeControlCommand::UpdateMcp {
+        if let Err(e) = tx.try_send(RuntimeControlCommand::UpdateMcp {
             servers: config.tools.active_mcp_servers(),
         }) {
             error!("Failed to send runtime MCP update: {}", e);
@@ -160,7 +164,7 @@ impl Manager {
         let Some(tx) = &self.runtime_control_tx else {
             return;
         };
-        if let Err(error) = tx.send(runtime_skills_reload_command(operation, skill_name)) {
+        if let Err(error) = tx.try_send(runtime_skills_reload_command(operation, skill_name)) {
             error!(
                 operation,
                 skill_name,
@@ -456,6 +460,7 @@ impl Manager {
                     title: new_title,
                     reply_tx,
                 })
+                .await
                 .map_err(|e| format!("failed to send UpdateSessionTitle command: {}", e))?;
                 reply_rx
                     .await
@@ -493,6 +498,7 @@ impl Manager {
                     fallback_title: fallback,
                     reply_tx,
                 })
+                .await
                 .map_err(|e| format!("failed to send GenerateSessionTitle command: {}", e))?;
                 reply_rx
                     .await

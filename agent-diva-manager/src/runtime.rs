@@ -14,8 +14,8 @@ use agent_diva_autodream::{
     SkillReflectionInput, SkillReflectionOutput,
 };
 use agent_diva_channels::runtime::ChannelRuntime;
-use agent_diva_core::bus::{InboundMessage, MessageBus};
-use agent_diva_core::channel::{FabricConsumer, FabricHandle, FabricKernel};
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::{ChannelCommand, FabricConsumer, FabricHandle, FabricKernel};
 use agent_diva_core::config::{Config, ConfigLoader};
 use agent_diva_core::cron::service::JobCallback;
 use agent_diva_core::cron::CronService;
@@ -233,11 +233,11 @@ struct GatewayBootstrap {
     config: Config,
     loader: ConfigLoader,
     port: u16,
-    bus: MessageBus,
+    bus: AgentEventBus,
     cron_service: Arc<CronService>,
     dynamic_provider: Arc<DynamicProvider>,
     workspace: WorkspaceContext,
-    runtime_control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+    runtime_control_tx: mpsc::Sender<RuntimeControlCommand>,
     provider_api_key: Option<String>,
     provider_api_base: Option<String>,
     agent: AgentLoop,
@@ -249,6 +249,7 @@ struct GatewayBootstrap {
     memory_home: agent_diva_laputa::MemoryHome,
     fabric_handle: FabricHandle,
     fabric_consumer: FabricConsumer,
+    egress_rx: mpsc::Receiver<ChannelCommand>,
 }
 
 struct ChannelBootstrap {
@@ -256,7 +257,6 @@ struct ChannelBootstrap {
 }
 
 struct GatewayTasks {
-    bus: MessageBus,
     cron_service: Arc<CronService>,
     channel_runtime: Arc<ChannelRuntime>,
     server_shutdown_tx: broadcast::Sender<()>,
@@ -527,23 +527,23 @@ pub async fn start_embedded_gateway_runtime(
 
 async fn start_cron_service(
     cron_store: PathBuf,
-    bus: MessageBus,
     workspace: PathBuf,
+    fabric: FabricHandle,
 ) -> Arc<CronService> {
     let cron_service = Arc::new(CronService::new(
         cron_store,
-        Some(build_cron_callback(bus, workspace)),
+        Some(build_cron_callback(fabric, workspace)),
     ));
     cron_service.start().await;
     cron_service
 }
 
-fn build_cron_callback(bus: MessageBus, workspace: PathBuf) -> JobCallback {
-    build_cron_callback_with_clock(bus, workspace, Arc::new(SystemRuntimeClock))
+fn build_cron_callback(fabric: FabricHandle, workspace: PathBuf) -> JobCallback {
+    build_cron_callback_with_clock(fabric, workspace, Arc::new(SystemRuntimeClock))
 }
 
 fn build_cron_callback_with_clock(
-    bus: MessageBus,
+    fabric: FabricHandle,
     workspace: PathBuf,
     clock: Arc<dyn RuntimeClock>,
 ) -> JobCallback {
@@ -551,7 +551,7 @@ fn build_cron_callback_with_clock(
         move |job: agent_diva_core::cron::CronJob,
               cancel_token|
               -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<String>> + Send>> {
-            let bus = bus.clone();
+            let fabric = fabric.clone();
             let workspace = workspace.clone();
             let clock = clock.clone();
             Box::pin(async move {
@@ -613,20 +613,43 @@ fn build_cron_callback_with_clock(
                     (target_channel.clone(), target_chat_id)
                 };
 
-                let inbound = InboundMessage::new(
+                let mut address = agent_diva_core::channel::ChannelAddress::new(
                     conversation_channel,
-                    "cron",
                     conversation_chat_id,
-                    job.payload.message,
-                )
-                .with_metadata("cron_job_id", job.id.clone())
-                .with_metadata("cron_trigger", "scheduled")
-                .with_metadata("cron_delivery_channel", target_channel);
-
-                if let Err(e) = bus.publish_inbound(inbound) {
-                    error!("Failed to publish cron inbound job {}: {}", job.id, e);
+                );
+                address.sender_id = Some("cron".to_string());
+                let mut correlation = agent_diva_core::channel::Correlation::new(format!(
+                    "runtime/cron/{}",
+                    job.id
+                ));
+                correlation.request_id = Some(format!("cron:{}", job.id));
+                correlation.trace_id = Some(uuid::Uuid::new_v4().to_string());
+                correlation.message_id = Some(uuid::Uuid::new_v4().to_string());
+                let envelope = agent_diva_core::channel::ChannelEnvelopeV1::new(
+                    agent_diva_core::channel::ChannelDirection::Ingress,
+                    address,
+                    correlation,
+                    agent_diva_core::channel::ChannelOrigin::Runtime,
+                    agent_diva_core::channel::ChannelPayloadV1::Message {
+                        parts: vec![agent_diva_core::channel::ContentPart::Text {
+                            text: job.payload.message,
+                        }],
+                        subject: None,
+                        locale: None,
+                        context: None,
+                    },
+                );
+                if let Err(e) = fabric
+                    .admit_ingress(
+                        envelope,
+                        std::time::Duration::from_secs(2),
+                        &cancel_token,
+                    )
+                    .await
+                {
+                    error!("Failed to admit cron job {} into Fabric: {}", job.id, e);
                     return Some(format!(
-                        "failed to publish cron inbound job {}: {}",
+                        "failed to admit cron job {} into Fabric: {}",
                         job.id, e
                     ));
                 }
@@ -842,12 +865,12 @@ mod tests {
 #[allow(clippy::too_many_arguments)]
 async fn build_agent_loop(
     config: &Config,
-    bus: MessageBus,
+    bus: AgentEventBus,
     dynamic_provider: Arc<DynamicProvider>,
     workspace: PathBuf,
     config_dir: PathBuf,
     memory_home: agent_diva_laputa::MemoryHome,
-    runtime_control_rx: mpsc::UnboundedReceiver<RuntimeControlCommand>,
+    runtime_control_rx: mpsc::Receiver<RuntimeControlCommand>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
     run_store: Arc<RunStore>,

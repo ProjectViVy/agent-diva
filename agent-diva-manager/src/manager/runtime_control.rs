@@ -18,29 +18,44 @@ use crate::state::{
 
 impl Manager {
     pub(super) fn handle_chat(&self, req: ApiRequest) {
-        debug!("Processing Chat request via Bus");
-        let channel = req.msg.channel.clone();
-        let chat_id = req.msg.chat_id.clone();
-        let request_id = req
-            .msg
-            .metadata
-            .get("request_id")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned);
+        debug!("Processing typed Chat request via Fabric");
+        let channel = req.envelope.address.channel.clone();
+        let chat_id = req.envelope.address.chat_id.clone();
+        let session_key = req.envelope.correlation.session_key.clone();
+        let request_id = req.envelope.correlation.request_id.clone();
         let event_tx = req.event_tx.clone();
         let event_rx = self.bus.subscribe_events();
-
-        if let Err(e) = self.bus.publish_inbound(req.msg) {
-            error!("Failed to publish inbound: {}", e);
+        let Some(fabric) = self.fabric_handle.clone() else {
             let _ = event_tx.send(AgentEvent::Error {
-                message: e.to_string(),
+                message: "Fabric ingress is not initialized".to_string(),
             });
             return;
-        }
-
-        tokio::spawn(forward_chat_events(
-            event_rx, event_tx, channel, chat_id, request_id,
-        ));
+        };
+        tokio::spawn(async move {
+            let cancel = tokio_util::sync::CancellationToken::new();
+            if let Err(error) = fabric
+                .admit_ingress(
+                    req.envelope,
+                    std::time::Duration::from_secs(2),
+                    &cancel,
+                )
+                .await
+            {
+                let _ = event_tx.send(AgentEvent::Error {
+                    message: error.to_string(),
+                });
+                return;
+            }
+            forward_chat_events(
+                event_rx,
+                event_tx,
+                channel,
+                chat_id,
+                session_key,
+                request_id,
+            )
+            .await;
+        });
     }
 
     pub(super) fn handle_stop_chat(
@@ -66,6 +81,7 @@ impl Manager {
                             request_id: req.request_id,
                             reply_tx,
                         })
+                        .await
                         .map_err(|error| {
                             format!("failed to send runtime control command: {error}")
                         });
@@ -103,6 +119,7 @@ impl Manager {
                     session_key,
                     reply_tx,
                 })
+                .await
                 .map_err(|error| format!("failed to send runtime control command: {error}"));
             let result = match result {
                 Ok(()) => reply_rx
@@ -123,6 +140,7 @@ impl Manager {
                 |tx| async move {
                     let (reply_tx, reply_rx) = oneshot::channel();
                     tx.send(RuntimeControlCommand::GetSessions { reply_tx })
+                        .await
                         .map_err(|e| format!("failed to send GetSessions command: {}", e))?;
                     reply_rx
                         .await
@@ -147,6 +165,7 @@ impl Manager {
                         session_key,
                         reply_tx,
                     })
+                    .await
                     .map_err(|e| format!("failed to send GetSession command: {}", e))?;
                     reply_rx
                         .await
@@ -171,6 +190,7 @@ impl Manager {
                         session_key,
                         reply_tx,
                     })
+                    .await
                     .map_err(|e| format!("failed to send DeleteSession command: {}", e))?;
                     reply_rx
                         .await
@@ -400,7 +420,7 @@ impl Manager {
 
         if let Some(tx) = &self.runtime_control_tx {
             let network = Self::map_network_config(&config);
-            if let Err(e) = tx.send(RuntimeControlCommand::UpdateNetwork(network)) {
+            if let Err(e) = tx.try_send(RuntimeControlCommand::UpdateNetwork(network)) {
                 error!("Failed to send runtime tools update: {}", e);
             }
         }
@@ -607,7 +627,7 @@ impl Manager {
         missing_message: &str,
     ) -> Result<T, String>
     where
-        F: FnOnce(tokio::sync::mpsc::UnboundedSender<RuntimeControlCommand>) -> Fut,
+        F: FnOnce(tokio::sync::mpsc::Sender<RuntimeControlCommand>) -> Fut,
         Fut: std::future::Future<Output = Result<T, String>>,
     {
         let tx = self
@@ -629,6 +649,7 @@ async fn forward_chat_events(
     event_tx: tokio::sync::mpsc::UnboundedSender<AgentEvent>,
     channel: String,
     chat_id: String,
+    session_key: String,
     request_id: Option<String>,
 ) {
     let mut stalled_notified = false;
@@ -639,7 +660,11 @@ async fn forward_chat_events(
                     Some(expected) => bus_event.request_id.as_deref() == Some(expected),
                     None => true,
                 };
-                if bus_event.channel == channel && bus_event.chat_id == chat_id && request_matches {
+                if bus_event.channel == channel
+                    && bus_event.chat_id == chat_id
+                    && bus_event.session_key.as_deref() == Some(session_key.as_str())
+                    && request_matches
+                {
                     let event = bus_event.event;
                     if event_tx.send(event.clone()).is_err() {
                         break;
@@ -712,13 +737,13 @@ impl_channel_toggle!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use tokio::sync::mpsc;
     use tokio::time::{advance, Duration};
 
     #[tokio::test(start_paused = true)]
     async fn forward_chat_events_emits_stall_then_disconnect_error_when_idle() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let event_rx = bus.subscribe_events();
         let (event_tx, mut event_out) = mpsc::unbounded_channel();
 
@@ -727,6 +752,7 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            "gui:chat-1".to_string(),
             None,
         ));
 
@@ -749,7 +775,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn forward_chat_events_forwards_events_and_terminates_on_final() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let event_rx = bus.subscribe_events();
         let (event_tx, mut event_out) = mpsc::unbounded_channel();
 
@@ -758,20 +784,27 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            "gui:chat-1".to_string(),
             None,
         ));
 
-        bus.publish_event(
+        bus.publish_correlated_event(
             "gui",
             "chat-1",
+            "gui:chat-1",
+            "request-1",
+            "trace-1",
             AgentEvent::AssistantDelta {
                 text: "hi".to_string(),
             },
         )
         .unwrap();
-        bus.publish_event(
+        bus.publish_correlated_event(
             "gui",
             "chat-1",
+            "gui:chat-1",
+            "request-1",
+            "trace-1",
             AgentEvent::FinalResponse {
                 content: "done".to_string(),
             },
@@ -792,7 +825,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn forward_chat_events_ignores_other_chat_ids() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let event_rx = bus.subscribe_events();
         let (event_tx, mut event_out) = mpsc::unbounded_channel();
 
@@ -801,12 +834,16 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            "gui:chat-1".to_string(),
             None,
         ));
 
-        bus.publish_event(
+        bus.publish_correlated_event(
             "gui",
             "chat-other",
+            "gui:chat-other",
+            "request-other",
+            "trace-other",
             AgentEvent::FinalResponse {
                 content: "noise".to_string(),
             },
@@ -819,9 +856,12 @@ mod tests {
             "foreign chat event forwarded"
         );
 
-        bus.publish_event(
+        bus.publish_correlated_event(
             "gui",
             "chat-1",
+            "gui:chat-1",
+            "request-1",
+            "trace-1",
             AgentEvent::Error {
                 message: "boom".to_string(),
             },
@@ -839,7 +879,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn forward_chat_events_isolates_concurrent_requests_in_same_chat() {
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let event_rx = bus.subscribe_events();
         let (event_tx, mut event_out) = mpsc::unbounded_channel();
 
@@ -848,6 +888,7 @@ mod tests {
             event_tx,
             "gui".to_string(),
             "chat-1".to_string(),
+            "gui:chat-1".to_string(),
             Some("request-a".to_string()),
         ));
 

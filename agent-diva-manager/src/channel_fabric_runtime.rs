@@ -20,14 +20,14 @@ type PendingAdmissions = Arc<Mutex<HashMap<Uuid, oneshot::Sender<AdmissionResult
 pub struct FabricNeuroLinkRuntime {
     fabric: FabricHandle,
     pending: PendingAdmissions,
-    control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+    control_tx: mpsc::Sender<RuntimeControlCommand>,
 }
 
 impl FabricNeuroLinkRuntime {
     pub fn new(
         fabric: FabricHandle,
         pending: PendingAdmissions,
-        control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+        control_tx: mpsc::Sender<RuntimeControlCommand>,
     ) -> Self {
         Self {
             fabric,
@@ -100,6 +100,7 @@ impl NeuroLinkRuntime for FabricNeuroLinkRuntime {
                 request_id: Some(params.request_id),
                 reply_tx,
             })
+            .await
             .map_err(|_| {
                 NeuroLinkRuntimeError::Unavailable("AgentLoop control lane is closed".into())
             })?;
@@ -122,7 +123,7 @@ pub fn pending_admissions() -> PendingAdmissions {
 pub fn spawn_fabric_ingress(
     mut consumer: FabricConsumer,
     pending: PendingAdmissions,
-    control_tx: mpsc::UnboundedSender<RuntimeControlCommand>,
+    control_tx: mpsc::Sender<RuntimeControlCommand>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(item) = consumer.recv_ingress().await {
@@ -139,6 +140,7 @@ pub fn spawn_fabric_ingress(
                     envelope: Box::new(envelope),
                     reply_tx,
                 })
+                .await
                 .is_err()
             {
                 if let Some(reply) = owner_reply {
@@ -185,14 +187,14 @@ mod tests {
     use agent_diva_core::bus::{SessionAdmissionObservation, SessionAdmissionPhase};
     use agent_diva_core::channel::{
         ChannelAddress, ChannelDirection, ChannelOrigin, ChannelPayloadV1, ContentPart,
-        Correlation, FabricKernel,
+        Correlation, FabricKernel, OwnerTurnContextV1, OwnerTurnIntent,
     };
 
     #[tokio::test]
     async fn neuro_link_reaches_agent_loop_only_after_fabric_admission() {
         let (fabric, consumer) = FabricKernel::new().into_parts();
         let pending = pending_admissions();
-        let (control_tx, mut control_rx) = mpsc::unbounded_channel();
+        let (control_tx, mut control_rx) = mpsc::channel(agent_diva_core::channel::capacity::CONTROL);
         let ingress = spawn_fabric_ingress(consumer, pending.clone(), control_tx.clone());
         let runtime = FabricNeuroLinkRuntime::new(fabric, pending, control_tx);
         let responder = tokio::spawn(async move {
@@ -227,7 +229,11 @@ mod tests {
                     }],
                     subject: None,
                     locale: None,
-                    context: None,
+                    context: Some(OwnerTurnContextV1 {
+                        intent: OwnerTurnIntent::Agent,
+                        approval_policy: None,
+                        execution: None,
+                    }),
                 },
             ))
             .await
