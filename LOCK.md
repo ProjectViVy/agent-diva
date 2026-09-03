@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `GLOBAL — C6 channel production cutover across core, agent, channels, manager, GUI, configuration, tests, and iteration records`
-- Owner: `Codex / C6 production cutover`
-- Session/Task: `CHANNEL-EPIC C6 production cutover`
-- Branch/Worktree: `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`
-- Started At: `2026-09-03T18:00:53+08:00`
-- Last Heartbeat: `2026-09-03T19:17:05+08:00`
-- Expires At: `N/A — released`
-- Handoff Notes: `Released after committing the C6 preview implementation and iteration records on feat/channel-epic-c6. Full workspace tests, fmt, clippy, GUI tests/build, CLI smoke, channel TCK, and clean-break gates passed. C6-D DTO deletion and C6-E real-platform/MSRV acceptance remain open; no merge or push.`
+- Lock State: `HELD`
+- Scope: `GLOBAL — merge feat/channel-epic-c6 into dev and run post-merge validation`
+- Owner: `Codex / C6 dev merge`
+- Session/Task: `CHANNEL-EPIC C6 merge to dev`
+- Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
+- Started At: `2026-09-03T21:12:41+08:00`
+- Last Heartbeat: `2026-09-03T21:12:41+08:00`
+- Expires At: `2026-09-04T09:12:41+08:00`
+- Handoff Notes: `User explicitly requested local merge of feat/channel-epic-c6 into dev. Merge and post-merge validation only; no push.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `CHANNEL-EPIC C6 merge to dev` — **HELD 2026-09-03T21:12:41+08:00** by `Codex / C6 dev merge` on `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`. GLOBAL scope covers the local merge, conflict resolution, and post-merge validation. User explicitly requested the merge; no push.
 
 - `CHANNEL-EPIC C6 production cutover` — **RELEASED 2026-09-03T19:17:05+08:00** by `Codex / C6 production cutover` on `feat/channel-epic-c6 / C:\Users\Administrator\Desktop\morediva\agent-diva-channel-epic-c6`. Preview implementation commits `e8bb8da0` through `108f3f4c`; full workspace tests, fmt, clippy, GUI tests/build, CLI smoke, channel TCK, and clean-break gates passed. C6-D DTO deletion, C6-E real-platform/MSRV acceptance, and atomic `dev` merge remain open. No push.
 
@@ -131,6 +133,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `Workspace 与 AGENTS.md 全研发周期（Wave A-D backend）` — **STALE/TAKEN OVER 2026-08-26T00:00:00+08:00** by `Codex` for backlog consolidation only. Original lock expired `2026-08-24T04:00:00+08:00`; implementation remains isolated in `C:\Users\Administrator\Desktop\morediva\agent-diva-workspace-agents`, branch `feat/workspace-agents-impl`, commits `8ccc82b2` → `d1264f3d`, unmerged and not pushed. Product code remains untouched in this planning iteration.
 
 ## Handoff Notes
+
+- `2026-09-03T21:12:41+08:00`: Claimed the local C6 merge after the user's explicit request. Both `dev` and `feat/channel-epic-c6` were clean before the claim; no push is authorized.
 
 - `2026-09-03T19:17:05+08:00`: Released the C6 preview implementation on `feat/channel-epic-c6`. The Manager-owned six-channel runtime, Fabric-first ingress, bounded single-owner egress, runtime-backed GUI status, retired channel/route deletion, and clean-break gate are committed and automated gates pass. Do not merge until C6-D physically deletes the old AgentLoop DTOs and C6-E records a controlled real-platform receipt plus desktop/MSRV acceptance.
 
