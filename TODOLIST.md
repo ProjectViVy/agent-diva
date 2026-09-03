@@ -183,14 +183,22 @@
     - [x] **C6-C：频道队列有界化与 callback subscriber 删除**（2026-09-03）
       Agent 消息队列改为固定容量 256，满载显式失败；生产 egress 由单一 receiver 顺序转入
       adapter pacing lane，不再使用 callback subscriber 或无界 ingress/egress。
-    - [ ] **C6-D：物理删除 AgentLoop 旧 InboundMessage/OutboundMessage DTO** `sev-P1`
-      生产外部 ingress 与平台 egress 已走 typed Fabric/ChannelCommand，但 AgentLoop 内部结果仍
-      使用旧 DTO 后再转为 typed command。需直接以 typed envelope/command 贯通 AgentLoop，删除
-      `agent-diva-core/src/bus/events.rs` 中旧 DTO 及所有构造点后，才能满足架构 §15.2/§19.10。
+    - [x] **C6-D：物理删除 AgentLoop 旧 InboundMessage/OutboundMessage DTO** `sev-P1`（2026-09-04）
+      已按架构 §15.2/§19.10 完成 strict Clean Break：AgentLoop 直接接收
+      `ChannelEnvelopeV1` 并返回 `Option<ChannelCommand>`，旧 DTO、旧 inbound/outbound queue、
+      publish/take receiver API、callback subscriber 和 metadata shim 均已从 active source
+      删除。OwnerFrontend 只产生 AgentEvent projection；ExternalUser/Runtime 严格要求
+      context 为 None 并走 typed adapter egress；Manager、六个 external adapter、Cron、
+      Subagent、Presence、message tool 和 CLI SSE 均已迁移。trust matrix、correlation/
+      reply_to、typed content/media、attachment admission、stop/reset/backpressure/shutdown
+      与 worker recovery 均有回归证据；clean-break gate 和全 workspace Rust gates 通过。
+      证据：[C6-D iteration log](docs/logs/2026-09-channel-epic/v0.3.1-c6-d-typed-agent-loop/)。
     - [ ] **C6-E：切换后真实平台/桌面验收与全工作区 MSRV** `sev-P1`
       C6 已按用户明确指令于 2026-09-03 通过 `8cc6580b` 本地合入 `dev`，且合并后 workspace、
-      TCK 与 clean-break 门禁通过；仍需至少一个真实平台完成入站、最终 receipt，并在新生产
-      路径复测桌面断线恢复。C6-D/C6-E 完成前不得关闭 C6；本地合入不等于完整验收或已推送。
+      TCK 与 clean-break 门禁通过；C6-D 已在隔离分支完成，但仍需至少一个真实平台完成入站、
+      最终 receipt，并在新生产路径复测桌面断线恢复。Rust 1.80 channel-scoped probe 仍被
+      缓存的 `getrandom 0.4.3` Edition2024 manifest 要求阻塞；待真实平台/桌面和全工作区
+      MSRV 条件满足后关闭。本地合入不等于完整验收或已推送。
 
   - [ ] **GUI 依赖安全审计基线** `sev-P2`
     C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。
