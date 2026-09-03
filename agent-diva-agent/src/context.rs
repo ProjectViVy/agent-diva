@@ -1012,6 +1012,10 @@ mod tests {
                 .map(|entries| {
                     entries
                         .filter_map(|entry| entry.ok().map(|value| value.file_name()))
+                        .filter(|name| {
+                            let name = name.to_string_lossy();
+                            !name.ends_with("-wal") && !name.ends_with("-shm")
+                        })
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default()
@@ -1028,6 +1032,10 @@ mod tests {
                 .map(|entries| {
                     entries
                         .filter_map(|entry| entry.ok().map(|value| value.file_name()))
+                        .filter(|name| {
+                            let name = name.to_string_lossy();
+                            !name.ends_with("-wal") && !name.ends_with("-shm")
+                        })
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
