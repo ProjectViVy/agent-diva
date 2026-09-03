@@ -689,6 +689,72 @@ mod tests {
         assert_eq!(clock.local_today(), expected);
     }
 
+    #[tokio::test]
+    async fn cron_callback_admits_a_typed_runtime_envelope() {
+        let (fabric, mut consumer) = FabricKernel::new().into_parts();
+        let callback = build_cron_callback_with_clock(
+            fabric,
+            tempfile::tempdir().unwrap().path().to_path_buf(),
+            Arc::new(FixedRuntimeClock {
+                date: NaiveDate::from_ymd_opt(2026, 7, 31).unwrap(),
+            }),
+        );
+        let job = agent_diva_core::cron::CronJob {
+            id: "job-1".to_string(),
+            name: "typed ingress".to_string(),
+            enabled: true,
+            schedule: agent_diva_core::cron::CronSchedule::every(60_000),
+            payload: agent_diva_core::cron::CronPayload {
+                kind: "agent_turn".to_string(),
+                message: "scheduled hello".to_string(),
+                deliver: true,
+                channel: Some("telegram".to_string()),
+                to: Some("chat-1".to_string()),
+            },
+            state: Default::default(),
+            created_at_ms: 0,
+            updated_at_ms: 0,
+            delete_after_run: false,
+        };
+
+        let result = callback(job, tokio_util::sync::CancellationToken::new()).await;
+        assert_eq!(result.as_deref(), Some("triggered agent turn"));
+        let item = tokio::time::timeout(std::time::Duration::from_secs(1), consumer.recv_ingress())
+            .await
+            .expect("cron callback did not publish to Fabric")
+            .expect("Fabric ingress unexpectedly closed");
+        let envelope = item.envelope();
+        assert_eq!(
+            envelope.direction,
+            agent_diva_core::channel::ChannelDirection::Ingress
+        );
+        assert_eq!(
+            envelope.origin,
+            agent_diva_core::channel::ChannelOrigin::Runtime
+        );
+        assert_eq!(envelope.address.channel, "telegram");
+        assert_eq!(envelope.address.chat_id, "chat-1");
+        assert_eq!(envelope.address.sender_id.as_deref(), Some("cron"));
+        assert_eq!(envelope.correlation.session_key, "runtime/cron/job-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("cron:job-1")
+        );
+        assert!(envelope.correlation.trace_id.is_some());
+        assert!(envelope.correlation.message_id.is_some());
+        match &envelope.payload {
+            agent_diva_core::channel::ChannelPayloadV1::Message { parts, context, .. } => {
+                assert!(context.is_none());
+                assert!(matches!(
+                    parts.as_slice(),
+                    [agent_diva_core::channel::ContentPart::Text { text }]
+                        if text == "scheduled hello"
+                ));
+            }
+            payload => panic!("unexpected cron payload: {payload:?}"),
+        }
+    }
+
     #[test]
     fn reflection_provider_limits_allow_slow_bounded_responses() {
         assert_eq!(REFLECTION_PROVIDER_TIMEOUT_SECS, 90);
