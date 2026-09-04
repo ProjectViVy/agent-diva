@@ -9,6 +9,13 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 const ADAPTER_STOP_TIMEOUT: Duration = Duration::from_secs(5);
+const SUPERVISOR_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(12);
+
+#[derive(Debug, thiserror::Error)]
+pub enum SupervisorError {
+    #[error("adapter supervisor worker could not be spawned: {0}")]
+    WorkerSpawn(String),
+}
 
 /// Code-level listener restart policy; it is intentionally not user configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +62,18 @@ impl std::fmt::Debug for AdapterSupervisor {
 
 impl AdapterSupervisor {
     pub fn spawn(adapter: Arc<dyn ChannelAdapter>, context: AdapterContext) -> Self {
-        Self::spawn_with_policy(adapter, context, SupervisorPolicy::default())
+        match Self::try_spawn(adapter, context) {
+            Ok(supervisor) => supervisor,
+            Err(error) => panic!("{error}"),
+        }
+    }
+
+    /// Spawn a listener supervisor while reporting runtime allocation errors.
+    pub fn try_spawn(
+        adapter: Arc<dyn ChannelAdapter>,
+        context: AdapterContext,
+    ) -> Result<Self, SupervisorError> {
+        Self::try_spawn_with_policy(adapter, context, SupervisorPolicy::default())
     }
 
     pub fn spawn_with_policy(
@@ -63,12 +81,25 @@ impl AdapterSupervisor {
         context: AdapterContext,
         policy: SupervisorPolicy,
     ) -> Self {
+        match Self::try_spawn_with_policy(adapter, context, policy) {
+            Ok(supervisor) => supervisor,
+            Err(error) => panic!("{error}"),
+        }
+    }
+
+    pub fn try_spawn_with_policy(
+        adapter: Arc<dyn ChannelAdapter>,
+        context: AdapterContext,
+        policy: SupervisorPolicy,
+    ) -> Result<Self, SupervisorError> {
+        let runtime = tokio::runtime::Handle::try_current()
+            .map_err(|error| SupervisorError::WorkerSpawn(error.to_string()))?;
         let channel = adapter.name().to_string();
         let cancel = context.cancel.child_token();
         let initial_health = adapter.health();
         let (health_tx, health_rx) = watch::channel(initial_health);
         let consecutive_failures = Arc::new(AtomicU32::new(0));
-        let task = tokio::spawn(run_supervisor(
+        let task = runtime.spawn(run_supervisor(
             adapter,
             context,
             cancel.clone(),
@@ -76,14 +107,14 @@ impl AdapterSupervisor {
             consecutive_failures.clone(),
             policy,
         ));
-        Self {
+        Ok(Self {
             channel,
             cancel,
             health_tx,
             health_rx,
             consecutive_failures,
             task,
-        }
+        })
     }
 
     pub fn health(&self) -> ChannelHealth {
@@ -107,7 +138,14 @@ impl AdapterSupervisor {
     /// Interrupt listener reads/reconnect sleep and wait for clean ownership release.
     pub async fn shutdown(self) {
         self.cancel.cancel();
-        let _ = self.task.await;
+        let mut task = self.task;
+        if tokio::time::timeout(SUPERVISOR_SHUTDOWN_TIMEOUT, &mut task)
+            .await
+            .is_err()
+        {
+            task.abort();
+            let _ = task.await;
+        }
     }
 }
 

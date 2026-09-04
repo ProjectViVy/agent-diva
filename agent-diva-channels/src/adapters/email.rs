@@ -25,7 +25,7 @@ use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
@@ -40,6 +40,11 @@ const FABRIC_ADMISSION_DEADLINE: Duration = Duration::from_secs(1);
 const IMAP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const SMTP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const BLOCKING_OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
+// Health probing is deliberately much shorter than ordinary mail polling or
+// delivery. This gives the owning BlockingTaskRegistry a small, explicit
+// drain bound after the public probe budget expires.
+const EMAIL_PROBE_OPERATION_TIMEOUT: Duration = Duration::from_secs(3);
+const EMAIL_PROBE_IO_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 enum EmailTransportError {
@@ -221,7 +226,7 @@ trait EmailTransport: Send + Sync + 'static {
         message: SmtpMessage,
     ) -> Result<String, EmailTransportError>;
 
-    fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError>;
+    fn probe(&self, config: &EmailConfig, deadline: Instant) -> Result<(), EmailTransportError>;
 
     fn record_event(&self, _event: &str) {}
 }
@@ -255,8 +260,8 @@ impl EmailTransport for SystemEmailTransport {
         smtp_send_blocking(config, message)
     }
 
-    fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError> {
-        probe_email_blocking(config)
+    fn probe(&self, config: &EmailConfig, deadline: Instant) -> Result<(), EmailTransportError> {
+        probe_email_blocking_until(config, deadline)
     }
 }
 
@@ -969,7 +974,12 @@ impl EmailAdapter {
 
         let config = self.config.clone();
         let transport = self.transport.clone();
-        let probe = self.run_blocking("health_probe_timeout", move || transport.probe(&config));
+        let deadline = Instant::now() + EMAIL_PROBE_OPERATION_TIMEOUT;
+        let probe = self.run_blocking_with_timeout(
+            EMAIL_PROBE_OPERATION_TIMEOUT,
+            "health_probe_timeout",
+            move || transport.probe(&config, deadline),
+        );
         let probe_result = tokio::select! {
             biased;
             _ = self.shutdown.cancelled() => return Err(AdapterError::Stopped),
@@ -1575,15 +1585,18 @@ fn resolve_imap_address(config: &EmailConfig) -> Result<std::net::SocketAddr, Em
         .ok_or_else(|| transport_failure("IMAP address resolution returned no addresses"))
 }
 
-fn connect_imap_tcp(config: &EmailConfig) -> Result<TcpStream, EmailTransportError> {
+fn connect_imap_tcp_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<TcpStream, EmailTransportError> {
     let address = resolve_imap_address(config)?;
-    let stream = TcpStream::connect_timeout(&address, IMAP_IO_TIMEOUT)
+    let stream = TcpStream::connect_timeout(&address, io_timeout)
         .map_err(|error| transport_failure(format!("IMAP connect failed: {error}")))?;
     stream
-        .set_read_timeout(Some(IMAP_IO_TIMEOUT))
+        .set_read_timeout(Some(io_timeout))
         .map_err(|error| transport_failure(format!("IMAP read timeout setup failed: {error}")))?;
     stream
-        .set_write_timeout(Some(IMAP_IO_TIMEOUT))
+        .set_write_timeout(Some(io_timeout))
         .map_err(|error| transport_failure(format!("IMAP write timeout setup failed: {error}")))?;
     Ok(stream)
 }
@@ -1591,9 +1604,16 @@ fn connect_imap_tcp(config: &EmailConfig) -> Result<TcpStream, EmailTransportErr
 fn connect_imap_tls(
     config: &EmailConfig,
 ) -> Result<imap::Client<native_tls::TlsStream<TcpStream>>, EmailTransportError> {
+    connect_imap_tls_with_timeout(config, IMAP_IO_TIMEOUT)
+}
+
+fn connect_imap_tls_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<imap::Client<native_tls::TlsStream<TcpStream>>, EmailTransportError> {
     let connector = native_tls::TlsConnector::new()
         .map_err(|error| transport_failure(format!("IMAP TLS setup failed: {error}")))?;
-    let stream = connect_imap_tcp(config)?;
+    let stream = connect_imap_tcp_with_timeout(config, io_timeout)?;
     let stream = connector
         .connect(&config.imap_host, stream)
         .map_err(|error| transport_failure(format!("IMAP TLS handshake failed: {error}")))?;
@@ -1607,7 +1627,14 @@ fn connect_imap_tls(
 fn connect_imap_plain(
     config: &EmailConfig,
 ) -> Result<imap::Client<TcpStream>, EmailTransportError> {
-    let stream = connect_imap_tcp(config)?;
+    connect_imap_plain_with_timeout(config, IMAP_IO_TIMEOUT)
+}
+
+fn connect_imap_plain_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<imap::Client<TcpStream>, EmailTransportError> {
+    let stream = connect_imap_tcp_with_timeout(config, io_timeout)?;
     let mut client = imap::Client::new(stream);
     client
         .read_greeting()
@@ -1681,17 +1708,21 @@ fn mark_seen_session<T: Read + Write>(
     result
 }
 
-fn probe_imap_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
+fn probe_imap_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
     let mailbox = if config.imap_mailbox.trim().is_empty() {
         DEFAULT_MAILBOX
     } else {
         config.imap_mailbox.trim()
     };
+    let io_timeout = remaining_probe_timeout(deadline);
     if config.imap_use_ssl {
-        let client = connect_imap_tls(config)?;
+        let client = connect_imap_tls_with_timeout(config, io_timeout)?;
         probe_imap_session(login_imap(client, config)?, mailbox)
     } else {
-        let client = connect_imap_plain(config)?;
+        let client = connect_imap_plain_with_timeout(config, io_timeout)?;
         probe_imap_session(login_imap(client, config)?, mailbox)
     }
 }
@@ -1712,8 +1743,9 @@ fn probe_imap_session<T: Read + Write>(
     result
 }
 
-fn build_smtp_transport(
+fn build_smtp_transport_with_timeout(
     config: &EmailConfig,
+    io_timeout: Duration,
 ) -> Result<lettre::SmtpTransport, EmailTransportError> {
     use lettre::transport::smtp::authentication::Credentials;
     use lettre::SmtpTransport;
@@ -1725,27 +1757,36 @@ fn build_smtp_transport(
             .map_err(|error| transport_failure(format!("SMTP SSL setup failed: {error}")))?
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     } else if config.smtp_use_tls {
         SmtpTransport::starttls_relay(&config.smtp_host)
             .map_err(|error| transport_failure(format!("SMTP STARTTLS setup failed: {error}")))?
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     } else {
         SmtpTransport::builder_dangerous(&config.smtp_host)
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     };
     Ok(transport)
 }
 
-fn probe_smtp_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
-    let transport = build_smtp_transport(config)?;
+fn build_smtp_transport(
+    config: &EmailConfig,
+) -> Result<lettre::SmtpTransport, EmailTransportError> {
+    build_smtp_transport_with_timeout(config, SMTP_IO_TIMEOUT)
+}
+
+fn probe_smtp_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
+    let transport = build_smtp_transport_with_timeout(config, remaining_probe_timeout(deadline))?;
     match transport
         .test_connection()
         .map_err(|error| transport_failure(format!("SMTP health probe failed: {error}")))?
@@ -1757,9 +1798,21 @@ fn probe_smtp_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> 
     }
 }
 
-fn probe_email_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
-    probe_imap_blocking(config)?;
-    probe_smtp_blocking(config)
+fn probe_email_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
+    probe_imap_blocking_until(config, deadline)?;
+    probe_smtp_blocking_until(config, deadline)
+}
+
+fn remaining_probe_timeout(deadline: Instant) -> Duration {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        Duration::from_millis(1)
+    } else {
+        remaining.min(EMAIL_PROBE_IO_TIMEOUT)
+    }
 }
 
 fn smtp_send_blocking(
@@ -2032,6 +2085,7 @@ mod tests {
         events: StdMutex<Vec<String>>,
         smtp_wire: StdMutex<Vec<String>>,
         send_gate: StdMutex<Option<Arc<FakeBlockingGate>>>,
+        probe_gate: StdMutex<Option<Arc<FakeBlockingGate>>>,
     }
 
     struct FakeBlockingGate {
@@ -2111,7 +2165,11 @@ mod tests {
                 })
         }
 
-        fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError> {
+        fn probe(
+            &self,
+            config: &EmailConfig,
+            _deadline: Instant,
+        ) -> Result<(), EmailTransportError> {
             let mode = smtp_mode(config);
             let mut events = self.events.lock().unwrap();
             events.push(format!(
@@ -2120,6 +2178,10 @@ mod tests {
             ));
             events.push(format!("smtp.probe mode={mode} command=EHLO NOOP"));
             drop(events);
+            if let Some(gate) = self.probe_gate.lock().unwrap().clone() {
+                let _ = gate.started.lock().unwrap().send(());
+                let _ = gate.release.lock().unwrap().recv();
+            }
             self.probe_results
                 .lock()
                 .unwrap()
@@ -2928,6 +2990,52 @@ mod tests {
             .await;
         assert_error_code_for_any(result, "fixture_timeout");
         adapter.stop().await.expect("drain timed-out task");
+    }
+
+    #[tokio::test]
+    async fn public_probe_timeout_keeps_email_cleanup_owned_until_drain() {
+        let fake = Arc::new(FakeEmailTransport::default());
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        *fake.probe_gate.lock().unwrap() = Some(Arc::new(FakeBlockingGate {
+            started: StdMutex::new(started_tx),
+            release: StdMutex::new(release_rx),
+        }));
+        let adapter = Arc::new(EmailAdapter::with_transport(
+            config(),
+            AdapterServices::new(Arc::new(MemoryAttachments::default())),
+            fake,
+        ));
+        let probe_adapter = adapter.clone();
+        let probe_task = tokio::spawn(async move {
+            crate::adapter::probe_adapter(probe_adapter, "email", Duration::from_millis(20)).await
+        });
+        tokio::task::spawn_blocking(move || started_rx.recv())
+            .await
+            .expect("probe started waiter")
+            .expect("blocking email probe started");
+
+        // The single public deadline must not wait for, or drop, cleanup while
+        // the native transport is still blocked.
+        let mut probe_task = probe_task;
+        let result = tokio::time::timeout(Duration::from_millis(40), &mut probe_task)
+            .await
+            .expect("probe response deadline")
+            .expect("probe join");
+        assert!(matches!(
+            result,
+            Err(crate::adapter::ChannelProbeError::Timeout)
+        ));
+        assert!(crate::adapter::pending_probe_cleanup_tasks().await > 0);
+        release_tx.send(()).expect("release email probe");
+
+        for _ in 0..50 {
+            if crate::adapter::pending_probe_cleanup_tasks().await == 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("email probe cleanup task was not drained");
     }
 
     #[tokio::test]

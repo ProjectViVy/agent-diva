@@ -19,6 +19,37 @@ use crate::state::{
 };
 
 const CHANNEL_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(35);
+const CHANNEL_RUNTIME_RECONFIGURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Run a runtime transition with an owned task so a caller timeout cannot
+/// cancel the transaction halfway through registry installation. If the
+/// budget elapses, the task is still joined before returning, preserving
+/// cleanup ownership and giving the caller an explicit timeout result.
+async fn reconfigure_channel_runtime(
+    runtime: &Arc<agent_diva_channels::runtime::ChannelRuntime>,
+    config: &Config,
+) -> Result<(), String> {
+    let runtime = Arc::clone(runtime);
+    let config = config.clone();
+    let mut task = tokio::spawn(async move { runtime.reconfigure(&config).await });
+    match tokio::time::timeout(CHANNEL_RUNTIME_RECONFIGURE_TIMEOUT, &mut task).await {
+        Ok(Ok(Ok(()))) => Ok(()),
+        Ok(Ok(Err(error))) => Err(error.to_string()),
+        Ok(Err(error)) => Err(format!("channel runtime transition task failed: {error}")),
+        Err(_) => match task.await {
+            Ok(Ok(())) => Err(
+                "channel runtime transition exceeded its bounded deadline after completing"
+                    .to_string(),
+            ),
+            Ok(Err(error)) => Err(format!(
+                "channel runtime transition exceeded its bounded deadline: {error}"
+            )),
+            Err(error) => Err(format!(
+                "channel runtime transition task failed after deadline: {error}"
+            )),
+        },
+    }
+}
 
 impl Manager {
     pub(super) fn handle_chat(&self, req: ApiRequest) {
@@ -456,12 +487,12 @@ impl Manager {
         }
 
         if let Some(runtime) = &self.channel_runtime {
-            if let Err(e) = runtime.reconfigure(&config).await {
+            if let Err(e) = reconfigure_channel_runtime(runtime, &config).await {
                 error!("Failed to reload channel {}: {}", channel_name, e);
                 if let Err(restore_error) = self.loader.save(&previous) {
                     error!("Failed to restore channel config: {}", restore_error);
                 }
-                if let Err(restore_error) = runtime.reconfigure(&previous).await {
+                if let Err(restore_error) = reconfigure_channel_runtime(runtime, &previous).await {
                     error!("Failed to restore channel runtime: {}", restore_error);
                 }
                 let _ = reply.send(Err(e.to_string()));
@@ -549,9 +580,9 @@ impl Manager {
             .map_err(|error| error.to_string())?;
 
         if let Some(runtime) = &self.channel_runtime {
-            if let Err(error) = runtime.reconfigure(&config).await {
+            if let Err(error) = reconfigure_channel_runtime(runtime, &config).await {
                 let rollback = self.loader.save(&previous).err();
-                let runtime_rollback = runtime.reconfigure(&previous).await.err();
+                let runtime_rollback = reconfigure_channel_runtime(runtime, &previous).await.err();
                 let mut message = format!("failed to reload channel {name}: {error}");
                 if let Some(rollback) = rollback {
                     message.push_str(&format!("; config rollback failed: {rollback}"));

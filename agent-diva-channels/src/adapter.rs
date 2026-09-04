@@ -11,8 +11,17 @@ use agent_diva_core::channel::{
 use agent_diva_core::config::Config;
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::{fmt, sync::Arc, time::Duration};
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::{
+    fmt,
+    sync::Arc,
+    sync::OnceLock,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
@@ -338,7 +347,88 @@ fn is_safe_probe_code(code: &str) -> bool {
         })
 }
 
-const PROBE_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+/// Owns cleanup tasks that outlive the public probe response deadline.
+///
+/// `spawn_blocking` cannot be force-aborted once a native library has entered
+/// a blocking call. When a candidate probe times out, this registry keeps the
+/// adapter and its cleanup JoinHandle alive until `stop` has actually drained
+/// the adapter-owned work. The handle is never dropped at the public timeout
+/// boundary.
+struct ProbeCleanupRegistry {
+    next_id: AtomicU64,
+    tasks: Mutex<BTreeMap<u64, JoinHandle<Result<(), AdapterError>>>>,
+    reaper_started: AtomicBool,
+}
+
+impl ProbeCleanupRegistry {
+    fn new() -> Self {
+        Self {
+            next_id: AtomicU64::new(1),
+            tasks: Mutex::new(BTreeMap::new()),
+            reaper_started: AtomicBool::new(false),
+        }
+    }
+
+    async fn adopt(self: &Arc<Self>, task: JoinHandle<Result<(), AdapterError>>) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.tasks.lock().await.insert(id, task);
+        self.start_reaper();
+    }
+
+    fn start_reaper(self: &Arc<Self>) {
+        if self
+            .reaper_started
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let registry = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                let finished = {
+                    let tasks = registry.tasks.lock().await;
+                    tasks
+                        .iter()
+                        .filter_map(|(id, task)| task.is_finished().then_some(*id))
+                        .collect::<Vec<_>>()
+                };
+                for id in finished {
+                    let task = registry.tasks.lock().await.remove(&id);
+                    if let Some(task) = task {
+                        let _ = task.await;
+                    }
+                }
+                if registry.tasks.lock().await.is_empty() {
+                    registry.reaper_started.store(false, Ordering::Release);
+                    // An adoption may race with the empty check. Re-check
+                    // after releasing the flag and keep this reaper alive if
+                    // another task arrived before it could restart one.
+                    if registry.tasks.lock().await.is_empty() {
+                        break;
+                    }
+                    registry.reaper_started.store(true, Ordering::Release);
+                }
+            }
+        });
+    }
+
+    #[cfg(test)]
+    async fn pending(&self) -> usize {
+        self.tasks.lock().await.len()
+    }
+}
+
+fn probe_cleanup_registry() -> &'static Arc<ProbeCleanupRegistry> {
+    static REGISTRY: OnceLock<Arc<ProbeCleanupRegistry>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Arc::new(ProbeCleanupRegistry::new()))
+}
+
+#[cfg(test)]
+pub(crate) async fn pending_probe_cleanup_tasks() -> usize {
+    probe_cleanup_registry().pending().await
+}
 
 /// Construct one native adapter for a candidate channel configuration.
 ///
@@ -425,31 +515,44 @@ pub async fn probe_candidate(
     probe_timeout: Duration,
 ) -> Result<DeliveryReceipt, ChannelProbeError> {
     let adapter = build_probe_adapter(config, channel, services)?;
+    probe_adapter(adapter, channel, probe_timeout).await
+}
+
+/// Run and clean up a pre-built candidate adapter. This is kept crate-visible
+/// for adapter lifecycle tests; production callers should use
+/// [`probe_candidate`] so construction remains restricted to native factories.
+pub(crate) async fn probe_adapter(
+    adapter: Arc<dyn ChannelAdapter>,
+    channel: &str,
+    probe_timeout: Duration,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    let deadline = Instant::now() + probe_timeout;
     let channel_id =
         ChannelId::new(channel.to_string()).map_err(|_| ChannelProbeError::UnknownChannel {
             channel: channel.to_string(),
         })?;
 
     let probe_result = timeout(
-        probe_timeout,
+        deadline.saturating_duration_since(Instant::now()),
         adapter.execute(ChannelCommand::ProbeHealth {
             channel: channel_id,
         }),
     )
     .await;
 
-    // Cleanup is intentionally performed after both success and timeout.  A
-    // native adapter may own a cancellation token, socket, or blocking probe
-    // worker even when its command future has already elapsed.
-    let cleanup_result = timeout(PROBE_CLEANUP_TIMEOUT, adapter.stop()).await;
-
-    match cleanup_result {
-        Err(_) => {
-            return Err(ChannelProbeError::Cleanup {
-                code: "cleanup_timeout".to_string(),
-            });
-        }
-        Ok(Err(error)) => {
+    // Cleanup is always owned by a JoinHandle. If an adapter needs longer
+    // than the response grace period to drain, transfer that handle to the
+    // process-level registry instead of dropping it and detaching work.
+    let cleanup_adapter = adapter.clone();
+    let mut cleanup = tokio::spawn(async move { cleanup_adapter.stop().await });
+    let cleanup_pending = match timeout(
+        deadline.saturating_duration_since(Instant::now()),
+        &mut cleanup,
+    )
+    .await
+    {
+        Ok(Ok(Ok(()))) => false,
+        Ok(Ok(Err(error))) => {
             return Err(ChannelProbeError::Cleanup {
                 code: if is_safe_probe_code(error.code()) {
                     error.code().to_string()
@@ -458,7 +561,15 @@ pub async fn probe_candidate(
                 },
             });
         }
-        Ok(Ok(())) => {}
+        Ok(Err(_)) => {
+            return Err(ChannelProbeError::Cleanup {
+                code: "cleanup_task_failed".to_string(),
+            });
+        }
+        Err(_) => true,
+    };
+    if cleanup_pending {
+        probe_cleanup_registry().adopt(cleanup).await;
     }
 
     match probe_result {
@@ -478,37 +589,37 @@ pub fn build_active_adapters(
 ) -> Result<Vec<Arc<dyn ChannelAdapter>>, AdapterBuildError> {
     let mut adapters: Vec<Arc<dyn ChannelAdapter>> = Vec::new();
 
-    if config.channels.discord.enabled {
+    if config.channels.discord.enabled && !config.channels.removed.contains("discord") {
         adapters.push(Arc::new(crate::adapters::discord::DiscordAdapter::new(
             config.channels.discord.clone(),
             services.clone(),
         )));
     }
-    if config.channels.dingtalk.enabled {
+    if config.channels.dingtalk.enabled && !config.channels.removed.contains("dingtalk") {
         adapters.push(Arc::new(crate::adapters::dingtalk::DingTalkAdapter::new(
             &config.channels.dingtalk,
             services.clone(),
         )));
     }
-    if config.channels.email.enabled {
+    if config.channels.email.enabled && !config.channels.removed.contains("email") {
         adapters.push(Arc::new(crate::adapters::email::EmailAdapter::new(
             config.channels.email.clone(),
             services.clone(),
         )));
     }
-    if config.channels.feishu.enabled {
+    if config.channels.feishu.enabled && !config.channels.removed.contains("feishu") {
         adapters.push(Arc::new(crate::adapters::feishu::FeishuAdapter::new(
             config.channels.feishu.clone(),
             services.clone(),
         )));
     }
-    if config.channels.telegram.enabled {
+    if config.channels.telegram.enabled && !config.channels.removed.contains("telegram") {
         adapters.push(Arc::new(crate::adapters::telegram::TelegramAdapter::new(
             config.channels.telegram.clone(),
             services.clone(),
         )));
     }
-    if config.channels.qq.enabled {
+    if config.channels.qq.enabled && !config.channels.removed.contains("qq") {
         adapters.push(Arc::new(crate::adapters::qq::QqAdapter::new(
             config.channels.qq.clone(),
             services.clone(),

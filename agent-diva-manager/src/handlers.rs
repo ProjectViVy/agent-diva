@@ -1265,14 +1265,18 @@ pub async fn probe_channel_handler(
             )
         })?;
 
-    match reply_rx.await {
-        Ok(Ok(receipt)) => Ok(Json(serde_json::json!({
-            "status": "ok",
-            "channel": name,
-            "receipt": receipt,
-        }))),
-        Ok(Err(error)) => Err(channel_probe_error_response(error)),
+    match tokio::time::timeout(std::time::Duration::from_secs(37), reply_rx).await {
         Err(_) => Err((
+            StatusCode::GATEWAY_TIMEOUT,
+            Json(serde_json::json!({
+                "status": "error",
+                "code": "channel_probe_timeout",
+                "message": "channel probe exceeded its bounded deadline",
+                "retryable": true,
+                "retry_after_ms": null,
+            })),
+        )),
+        Ok(Err(_)) => Err((
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
                 "status": "error",
@@ -1282,6 +1286,12 @@ pub async fn probe_channel_handler(
                 "retry_after_ms": null,
             })),
         )),
+        Ok(Ok(Ok(receipt))) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "channel": name,
+            "receipt": receipt,
+        }))),
+        Ok(Ok(Err(error))) => Err(channel_probe_error_response(error)),
     }
 }
 

@@ -10,6 +10,7 @@ use agent_diva_core::channel::{
 };
 use agent_diva_core::config::Config;
 use chrono::{DateTime, Utc};
+use futures::future::join_all;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -39,6 +40,8 @@ pub enum ChannelRuntimeError {
     Build(#[from] AdapterBuildError),
     #[error("channel runtime registration failed: {0}")]
     Registry(String),
+    #[error("channel runtime lifecycle failed: {0}")]
+    Lifecycle(String),
     #[error("channel runtime is not active: {0}")]
     Unknown(String),
     #[error(transparent)]
@@ -59,6 +62,13 @@ pub struct ChannelRuntime {
     registry: Arc<AdapterRegistry>,
     cancel: CancellationToken,
     entries: Mutex<BTreeMap<String, RuntimeEntry>>,
+    /// Serializes runtime transitions with all reads/submissions. The entry
+    /// map is only observed while this guard is held, so a transition cannot
+    /// expose a partially installed set to egress or status callers.
+    lifecycle: Mutex<()>,
+    /// Last successfully installed configuration, used to rebuild the live
+    /// set if a candidate transition fails after old workers are stopped.
+    active_config: Mutex<Option<Config>>,
 }
 
 impl std::fmt::Debug for ChannelRuntime {
@@ -82,6 +92,8 @@ impl ChannelRuntime {
             registry: Arc::new(AdapterRegistry::new()),
             cancel: CancellationToken::new(),
             entries: Mutex::new(BTreeMap::new()),
+            lifecycle: Mutex::new(()),
+            active_config: Mutex::new(None),
         });
         runtime.reconfigure(config).await?;
         Ok(runtime)
@@ -90,38 +102,45 @@ impl ChannelRuntime {
     /// Construct every candidate before replacing the live set.
     pub async fn reconfigure(&self, config: &Config) -> Result<(), ChannelRuntimeError> {
         let candidates = build_active_adapters(config, self.services.clone())?;
-        self.stop_entries().await;
-        let mut installed = BTreeMap::new();
-        for adapter in candidates {
-            let id = adapter.name();
-            self.registry
-                .register(adapter.clone())
-                .await
-                .map_err(|error| ChannelRuntimeError::Registry(error.to_string()))?;
-            self.registry
-                .mark_running(&id)
-                .await
-                .map_err(|error| ChannelRuntimeError::Registry(error.to_string()))?;
-            let pacing = AdapterPacingLane::spawn(adapter.clone());
-            let pacing_handle = pacing.handle();
-            let supervisor = AdapterSupervisor::spawn(
-                adapter.clone(),
-                AdapterContext {
-                    fabric: self.fabric.clone(),
-                    cancel: self.cancel.child_token(),
-                },
-            );
-            installed.insert(
-                id.to_string(),
-                RuntimeEntry {
-                    adapter,
-                    pacing,
-                    pacing_handle,
-                    supervisor,
-                },
-            );
-        }
+        let _lifecycle = self.lifecycle.lock().await;
+        let previous_config = self.active_config.lock().await.clone();
+        self.stop_entries_locked().await;
+        let installed = match self.install_candidates(candidates).await {
+            Ok(installed) => installed,
+            Err(error) => {
+                // install_candidates owns cleanup of every registered item,
+                // including an adapter whose pacing/supervisor was only
+                // partially created. Rebuild the last known good set while
+                // the lifecycle guard is still held, so readers never see an
+                // empty/half-installed runtime after a failed transition.
+                if let Some(previous_config) = previous_config {
+                    let restore_candidates = match build_active_adapters(
+                        &previous_config,
+                        self.services.clone(),
+                    ) {
+                        Ok(candidates) => candidates,
+                        Err(restore_error) => {
+                            return Err(ChannelRuntimeError::Lifecycle(format!(
+                                "{error}; runtime recovery candidate construction failed: {restore_error}"
+                            )));
+                        }
+                    };
+                    match self.install_candidates(restore_candidates).await {
+                        Ok(restored) => {
+                            *self.entries.lock().await = restored;
+                        }
+                        Err(restore_error) => {
+                            return Err(ChannelRuntimeError::Lifecycle(format!(
+                                "{error}; runtime recovery failed: {restore_error}"
+                            )));
+                        }
+                    }
+                }
+                return Err(error);
+            }
+        };
         *self.entries.lock().await = installed;
+        *self.active_config.lock().await = Some(config.clone());
         Ok(())
     }
 
@@ -134,13 +153,18 @@ impl ChannelRuntime {
             .target_channel()
             .map_err(|error| ChannelRuntimeError::Registry(error.to_string()))?
             .to_string();
-        let handle = self
-            .entries
-            .lock()
-            .await
-            .get(&channel)
-            .map(|entry| entry.pacing_handle.clone())
-            .ok_or(ChannelRuntimeError::Unknown(channel))?;
+        let handle = {
+            // The lifecycle guard protects the map lookup. The cloned handle
+            // remains cancellation-aware, allowing a transition to stop the
+            // lane promptly instead of waiting on an in-flight transport.
+            let _lifecycle = self.lifecycle.lock().await;
+            self.entries
+                .lock()
+                .await
+                .get(&channel)
+                .map(|entry| entry.pacing_handle.clone())
+                .ok_or(ChannelRuntimeError::Unknown(channel))?
+        };
         Ok(handle
             .submit(command, EGRESS_ADMISSION_DEADLINE, cancel)
             .await?)
@@ -158,6 +182,7 @@ impl ChannelRuntime {
     }
 
     pub async fn statuses(&self) -> Vec<ChannelRuntimeStatus> {
+        let _lifecycle = self.lifecycle.lock().await;
         self.entries
             .lock()
             .await
@@ -193,19 +218,211 @@ impl ChannelRuntime {
 
     pub async fn shutdown(&self) {
         self.cancel.cancel();
-        self.stop_entries().await;
+        let _lifecycle = self.lifecycle.lock().await;
+        self.stop_entries_locked().await;
     }
 
-    async fn stop_entries(&self) {
+    async fn install_candidates(
+        &self,
+        candidates: Vec<Arc<dyn ChannelAdapter>>,
+    ) -> Result<BTreeMap<String, RuntimeEntry>, ChannelRuntimeError> {
+        let mut installed = BTreeMap::new();
+        for adapter in candidates {
+            let id = adapter.name();
+            if let Err(error) = self.registry.register(adapter.clone()).await {
+                self.shutdown_entries(installed).await;
+                return Err(ChannelRuntimeError::Registry(error.to_string()));
+            }
+            if let Err(error) = self.registry.mark_running(&id).await {
+                self.registry.mark_stopped(&id).await;
+                self.unregister_adapter(&id, "mark-running rollback").await;
+                self.shutdown_entries(installed).await;
+                return Err(ChannelRuntimeError::Registry(error.to_string()));
+            }
+
+            let pacing = match AdapterPacingLane::try_spawn(adapter.clone()) {
+                Ok(pacing) => pacing,
+                Err(error) => {
+                    self.registry.mark_stopped(&id).await;
+                    self.unregister_adapter(&id, "pacing spawn rollback").await;
+                    self.shutdown_entries(installed).await;
+                    return Err(ChannelRuntimeError::Pacing(error));
+                }
+            };
+            let pacing_handle = pacing.handle();
+            let supervisor = match AdapterSupervisor::try_spawn(
+                adapter.clone(),
+                AdapterContext {
+                    fabric: self.fabric.clone(),
+                    cancel: self.cancel.child_token(),
+                },
+            ) {
+                Ok(supervisor) => supervisor,
+                Err(error) => {
+                    pacing.shutdown().await;
+                    self.registry.mark_stopped(&id).await;
+                    self.unregister_adapter(&id, "supervisor spawn rollback")
+                        .await;
+                    self.shutdown_entries(installed).await;
+                    return Err(ChannelRuntimeError::Lifecycle(error.to_string()));
+                }
+            };
+            installed.insert(
+                id.to_string(),
+                RuntimeEntry {
+                    adapter,
+                    pacing,
+                    pacing_handle,
+                    supervisor,
+                },
+            );
+        }
+        Ok(installed)
+    }
+
+    async fn stop_entries_locked(&self) {
         let entries = std::mem::take(&mut *self.entries.lock().await);
-        for (name, entry) in entries {
-            entry.supervisor.shutdown().await;
-            entry.pacing.shutdown().await;
+        self.shutdown_entries(entries).await;
+    }
+
+    async fn shutdown_entries(&self, entries: BTreeMap<String, RuntimeEntry>) {
+        let stopped = join_all(entries.into_iter().map(|(name, entry)| async move {
             let id = entry.adapter.name();
             self.registry.mark_stopped(&id).await;
-            if let Err(error) = self.registry.unregister(&id).await {
-                tracing::warn!(channel = %name, %error, "failed to unregister native adapter");
-            }
+            let RuntimeEntry {
+                pacing, supervisor, ..
+            } = entry;
+            let _ = tokio::join!(supervisor.shutdown(), pacing.shutdown());
+            (name, id)
+        }))
+        .await;
+        for (name, id) in stopped {
+            self.unregister_adapter(&id, &format!("{name} shutdown"))
+                .await;
         }
+    }
+
+    async fn unregister_adapter(&self, id: &agent_diva_core::channel::ChannelId, operation: &str) {
+        if let Err(error) = self.registry.unregister(id).await {
+            tracing::warn!(channel = %id, %error, operation, "failed to unregister native adapter");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapter::{
+        AttachmentStoreError, ChannelAttachmentStore, IngressAttachment, StoredAttachment,
+    };
+    use agent_diva_core::channel::{
+        AttachmentRef, ChannelCapabilities, ChannelHealth, ChannelHealthStatus, FabricKernel,
+    };
+    use async_trait::async_trait;
+
+    #[derive(Default)]
+    struct TestAttachments;
+
+    #[async_trait]
+    impl ChannelAttachmentStore for TestAttachments {
+        async fn put(
+            &self,
+            _input: IngressAttachment,
+        ) -> Result<AttachmentRef, AttachmentStoreError> {
+            Err(AttachmentStoreError::Backend {
+                diagnosis: "test attachment store does not persist values".to_string(),
+            })
+        }
+
+        async fn get(
+            &self,
+            reference: &AttachmentRef,
+        ) -> Result<StoredAttachment, AttachmentStoreError> {
+            Err(AttachmentStoreError::NotFound {
+                uri: reference.uri.clone(),
+            })
+        }
+    }
+
+    struct TestAdapter {
+        id: agent_diva_core::channel::ChannelId,
+    }
+
+    #[async_trait]
+    impl ChannelAdapter for TestAdapter {
+        fn name(&self) -> agent_diva_core::channel::ChannelId {
+            self.id.clone()
+        }
+
+        fn capabilities(&self) -> agent_diva_core::channel::ChannelCapabilities {
+            ChannelCapabilities::new(std::iter::empty())
+        }
+
+        async fn start(&self, context: AdapterContext) -> Result<(), crate::adapter::AdapterError> {
+            context.cancel.cancelled().await;
+            Ok(())
+        }
+
+        async fn execute(
+            &self,
+            _command: ChannelCommand,
+        ) -> Result<DeliveryReceipt, crate::adapter::AdapterError> {
+            Err(crate::adapter::AdapterError::Stopped)
+        }
+
+        fn health(&self) -> agent_diva_core::channel::ChannelHealth {
+            ChannelHealth::new(ChannelHealthStatus::Healthy)
+        }
+
+        async fn stop(&self) -> Result<(), crate::adapter::AdapterError> {
+            Ok(())
+        }
+    }
+
+    fn test_runtime() -> ChannelRuntime {
+        let (fabric, _consumer) = FabricKernel::new().into_parts();
+        ChannelRuntime {
+            services: AdapterServices::new(Arc::new(TestAttachments)),
+            fabric,
+            registry: Arc::new(AdapterRegistry::new()),
+            cancel: CancellationToken::new(),
+            entries: Mutex::new(BTreeMap::new()),
+            lifecycle: Mutex::new(()),
+            active_config: Mutex::new(None),
+        }
+    }
+
+    fn test_adapter(name: &str) -> Arc<TestAdapter> {
+        Arc::new(TestAdapter {
+            id: agent_diva_core::channel::ChannelId::new(name).unwrap(),
+        })
+    }
+
+    #[tokio::test]
+    async fn failed_partial_install_cleans_registry_and_owned_workers() {
+        let runtime = test_runtime();
+        let adapter = test_adapter("partial");
+        let result = runtime
+            .install_candidates(vec![adapter.clone(), adapter.clone()])
+            .await;
+
+        assert!(matches!(result, Err(ChannelRuntimeError::Registry(_))));
+        assert!(runtime.registry.list().await.is_empty());
+        assert!(runtime.entries.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn lifecycle_gate_blocks_status_observation_during_transition() {
+        let runtime = Arc::new(test_runtime());
+        let guard = runtime.lifecycle.lock().await;
+        let status_runtime = runtime.clone();
+        let mut status_task = tokio::spawn(async move { status_runtime.statuses().await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut status_task)
+                .await
+                .is_err()
+        );
+        drop(guard);
+        assert!(status_task.await.unwrap().is_empty());
     }
 }
