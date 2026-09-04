@@ -59,7 +59,9 @@ describe('ChannelCardView', () => {
 
   it('shows loading instead of an empty state before the first response', () => {
     const wrapper = mountView({}, [], undefined, [], true);
-    expect(wrapper.find('.channel-loading-state').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="channel-card-skeleton"]').exists()).toBe(true);
+    expect(wrapper.find('.channel-card-grid-skeleton').exists()).toBe(true);
+    expect(wrapper.findAll('.channel-card-skeleton')).toHaveLength(6);
     expect(wrapper.find('.channel-empty-state').exists()).toBe(false);
   });
 
@@ -81,6 +83,7 @@ describe('ChannelCardView', () => {
     const wrapper = mountView({}, [], false);
     expect(wrapper.find('.channel-empty-state').exists()).toBe(true);
     expect(wrapper.find('.empty-actions').exists()).toBe(false);
+    expect(wrapper.find('.channel-empty-state p').text()).toBe('channels.noChannelsHintNoRecovery');
   });
 
   it('marks only the busy channel controls as disabled', () => {

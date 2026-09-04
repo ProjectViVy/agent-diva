@@ -147,6 +147,38 @@ describe('ChannelWizardModal', () => {
     wrapper.unmount();
   });
 
+  it('invalidates an in-flight test when credentials change and releases pending state', async () => {
+    let resolveTest!: (result: { success: boolean; message: string }) => void;
+    const onTest = vi.fn(
+      () =>
+        new Promise<{ success: boolean; message: string }>((resolve) => {
+          resolveTest = resolve;
+        }),
+    );
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('first-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await nextTick();
+
+    expect((wrapper.vm as any).isTesting).toBe(true);
+    (wrapper.vm as any).formData.credentials.token = 'second-token';
+    await nextTick();
+
+    expect((wrapper.vm as any).isTesting).toBe(false);
+    resolveTest({ success: true, message: 'stale result' });
+    await flushPromises();
+    expect(wrapper.find('.test-result.success').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it('keeps the form open when the completion callback fails', async () => {
     const onTest = vi.fn(async () => ({ success: true, message: 'ok' }));
     const onComplete = vi

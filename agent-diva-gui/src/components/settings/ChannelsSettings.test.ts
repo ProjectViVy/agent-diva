@@ -27,6 +27,7 @@ const runtimeChannels = [
 let channelsResponse: unknown = rawChannels;
 let channelLoadError: Error | null = null;
 let channelLoadQueue: Promise<unknown>[] = [];
+let runtimeResponses: unknown[] = [];
 
 const appDialogMock = vi.hoisted(() => ({
   appConfirmAsync: vi.fn(async (_message: string, action: () => Promise<void>) => {
@@ -61,7 +62,10 @@ vi.mock('@tauri-apps/api/core', () => ({
       if (queued) return queued;
       return Promise.resolve(structuredClone(channelsResponse));
     }
-    if (cmd === 'get_channel_runtime') return Promise.resolve(structuredClone(runtimeChannels));
+    if (cmd === 'get_channel_runtime') {
+      const queued = runtimeResponses.shift();
+      return Promise.resolve(structuredClone(queued ?? runtimeChannels));
+    }
     if (cmd === 'delete_channel') return Promise.resolve(null);
     if (cmd === 'probe_channel') return Promise.resolve({ success: true, message: 'ok' });
     return Promise.resolve(null);
@@ -124,6 +128,7 @@ describe('ChannelsSettings', () => {
     channelsResponse = rawChannels;
     channelLoadError = null;
     channelLoadQueue = [];
+    runtimeResponses = [];
     appDialogMock.appConfirmAsync.mockClear();
   });
 
@@ -153,6 +158,15 @@ describe('ChannelsSettings', () => {
 
     expect(wrapper.find('.channels-load-error').text()).toContain('channels.invalidResponse');
     expect(wrapper.find('.toggle-telegram').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('treats malformed runtime status elements as a load error', async () => {
+    runtimeResponses = [[{ name: 'telegram', registered: true }]];
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    expect(wrapper.find('.channels-load-error').text()).toContain('channels.invalidResponse');
     wrapper.unmount();
   });
 
@@ -233,6 +247,78 @@ describe('ChannelsSettings', () => {
     await flushPromises();
 
     expect(wrapper.find('.toggle-telegram').text()).toContain('telegram:false');
+    wrapper.unmount();
+  });
+
+  it('does not let a load started during save overwrite the completed save', async () => {
+    const { wrapper, saveChannelConfigAction } = mountSettings();
+    await flushPromises();
+    await wrapper.find('button[title="channels.listView"]').trigger('click');
+    await wrapper.find('.editor-input').setValue('submitted-token');
+
+    let releaseSave!: () => void;
+    saveChannelConfigAction.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSave = resolve;
+        }),
+    );
+    const saveClick = wrapper.find('.btn-save-config').trigger('click');
+    await flushPromises();
+
+    let resolveLoad!: (value: unknown) => void;
+    runtimeResponses.push([
+      {
+        name: 'telegram',
+        registered: true,
+        lifecycle: 'down',
+        health: 'down',
+        diagnosis: 'stale runtime snapshot',
+      },
+    ]);
+    channelLoadQueue.push(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const refresh = (wrapper.vm as any).handleRefresh();
+    await flushPromises();
+
+    releaseSave();
+    await saveClick;
+    resolveLoad({ ...rawChannels, telegram: { enabled: true, token: 'stale-from-load' } });
+    await refresh;
+    await flushPromises();
+
+    const state = wrapper.vm as any;
+    expect(state.savedChannels.telegram.token).toBe('submitted-token');
+    expect(state.draftChannels.telegram.token).toBe('submitted-token');
+    expect(state.channelStatuses.find((item: any) => item.name === 'telegram').ready).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('refreshes readiness for only the saved channel after persistence', async () => {
+    const { wrapper, saveChannelConfigAction } = mountSettings();
+    await flushPromises();
+    runtimeResponses.push([
+      {
+        name: 'telegram',
+        registered: true,
+        lifecycle: 'down',
+        health: 'down',
+        diagnosis: 'connection unavailable',
+      },
+    ]);
+    await wrapper.find('.toggle-telegram').trigger('click');
+    await flushPromises();
+
+    expect(saveChannelConfigAction).toHaveBeenCalledWith('telegram', {
+      enabled: false,
+      token: 'abc',
+    });
+    const status = (wrapper.vm as any).channelStatuses.find((item: any) => item.name === 'telegram');
+    expect(status.ready).toBe(false);
+    expect(status.notes).toContain('down');
     wrapper.unmount();
   });
 

@@ -259,7 +259,8 @@ const selectPlatform = (platform: string) => {
 watch(
   () => JSON.stringify({ platform: formData.value.platform, credentials: formData.value.credentials }),
   () => {
-    if (isTesting.value) return;
+    testGeneration.value += 1;
+    if (isTesting.value) isTesting.value = false;
     if (testResult.value !== 'idle') {
       testResult.value = 'idle';
       testMessage.value = '';
@@ -363,6 +364,7 @@ watch(
                 v-if="formData.platform"
                 :platform="formData.platform"
                 :config="formData.credentials"
+                :disabled="isTesting || isSaving"
               />
             </div>
 

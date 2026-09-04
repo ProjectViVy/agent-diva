@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CircleAlert, LoaderCircle, Plus, MessageSquarePlus } from '@lucide/vue';
+import { CircleAlert, Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
 const busyChannelSet = computed(() => new Set(props.busyChannels ?? []));
 const canAddAction = computed(() => props.canAdd ?? true);
+const skeletonCards = Array.from({ length: 6 }, (_, index) => index);
 
 const channelList = computed(() =>
   Object.entries(props.channels)
@@ -45,9 +46,26 @@ const channelList = computed(() =>
 <template>
   <div class="channel-card-view">
     <!-- Empty State -->
-    <div v-if="loading && channelList.length === 0" class="channel-loading-state" role="status">
-      <LoaderCircle :size="32" class="animate-spin" />
-      <span>{{ $t('channels.loading') }}</span>
+    <div
+      v-if="loading && channelList.length === 0"
+      class="channel-card-grid channel-card-grid-skeleton"
+      data-testid="channel-card-skeleton"
+      role="status"
+      aria-busy="true"
+    >
+      <div v-for="index in skeletonCards" :key="index" class="channel-card-skeleton" aria-hidden="true">
+        <div class="channel-card-skeleton-header">
+          <span class="skeleton-block skeleton-icon" />
+          <span class="skeleton-block skeleton-title" />
+        </div>
+        <span class="skeleton-block skeleton-line" />
+        <span class="skeleton-block skeleton-line skeleton-line-short" />
+        <div class="channel-card-skeleton-actions">
+          <span class="skeleton-block skeleton-action" />
+          <span class="skeleton-block skeleton-action" />
+          <span class="skeleton-block skeleton-action" />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="error && channelList.length === 0" class="channel-error-state" role="alert">
@@ -60,7 +78,7 @@ const channelList = computed(() =>
         <MessageSquarePlus :size="80" />
       </div>
       <h3>{{ $t('channels.noChannels') }}</h3>
-      <p>{{ $t('channels.noChannelsHint') }}</p>
+      <p>{{ $t(canAddAction ? 'channels.noChannelsHint' : 'channels.noChannelsHintNoRecovery') }}</p>
       <div v-if="canAddAction" class="empty-actions">
         <button class="btn-primary" @click="emit('add')">
           <Plus :size="16" />
@@ -93,7 +111,6 @@ const channelList = computed(() =>
   overflow-y: auto;
 }
 
-.channel-loading-state,
 .channel-error-state {
   display: flex;
   min-height: 14rem;
@@ -103,10 +120,6 @@ const channelList = computed(() =>
   gap: 0.75rem;
   padding: 4rem 2rem;
   text-align: center;
-}
-
-.channel-loading-state {
-  color: var(--text-muted);
 }
 
 .channel-error-state {
@@ -184,5 +197,71 @@ const channelList = computed(() =>
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
   padding: 1.5rem;
+}
+
+.channel-card-grid-skeleton {
+  align-content: start;
+}
+
+.channel-card-skeleton {
+  display: flex;
+  min-height: 12rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.channel-card-skeleton-header,
+.channel-card-skeleton-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.channel-card-skeleton-actions {
+  margin-top: auto;
+  gap: 0.5rem;
+}
+
+.skeleton-block {
+  display: block;
+  border-radius: 999px;
+  background: var(--line);
+  animation: channel-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+}
+
+.skeleton-title {
+  width: 45%;
+  height: 0.875rem;
+}
+
+.skeleton-line {
+  width: 80%;
+  height: 0.625rem;
+}
+
+.skeleton-line-short {
+  width: 55%;
+}
+
+.skeleton-action {
+  width: 3.25rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes channel-skeleton-pulse {
+  0%,
+  100% { opacity: 0.55; }
+  50% { opacity: 0.95; }
 }
 </style>

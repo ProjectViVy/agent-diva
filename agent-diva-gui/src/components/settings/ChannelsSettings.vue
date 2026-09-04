@@ -36,6 +36,8 @@ const loadError = ref<string | null>(null);
 let loadGeneration = 0;
 let channelMutationGeneration = 0;
 const channelMutationVersions = new Map<string, number>();
+let channelStatusRequestGeneration = 0;
+const channelStatusRequests = new Map<string, number>();
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -92,11 +94,25 @@ function parseChannelsResponse(value: unknown): ParsedChannelsResponse {
 }
 
 function parseRuntimeStatuses(value: unknown): ChannelRuntimeStatus[] {
-  if (Array.isArray(value)) return value as ChannelRuntimeStatus[];
-  if (isRecord(value) && Array.isArray(value.channels)) {
-    return value.channels as ChannelRuntimeStatus[];
+  const source = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.channels)
+      ? value.channels
+      : null;
+  if (!source || source.some((item) => {
+    if (!isRecord(item)) return true;
+    return (
+      typeof item.name !== 'string' ||
+      item.name.length === 0 ||
+      typeof item.registered !== 'boolean' ||
+      !['starting', 'running', 'degraded', 'down'].includes(item.lifecycle) ||
+      !['healthy', 'degraded', 'down', 'unknown'].includes(item.health) ||
+      (item.diagnosis !== undefined && item.diagnosis !== null && typeof item.diagnosis !== 'string')
+    );
+  })) {
+    throw new Error(t('channels.invalidResponse'));
   }
-  return [];
+  return source as ChannelRuntimeStatus[];
 }
 
 function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
@@ -130,22 +146,30 @@ async function loadChannels(): Promise<boolean> {
     const remoteSavedChannels = cloneValue(parsed.channels);
     const nextChannels = cloneValue(remoteChannels);
     const nextSavedChannels = cloneValue(remoteSavedChannels);
+    const mutationChangedNames = new Set<string>();
     for (const [name, draft] of Object.entries(draftChannels.value)) {
       const mutationChanged = (channelMutationVersions.get(name) ?? 0) !== (mutationSnapshot.get(name) ?? 0);
       const draftIsDirty = JSON.stringify(draft) !== JSON.stringify(savedChannels.value[name] ?? null);
       if (mutationChanged) {
+        mutationChangedNames.add(name);
         nextChannels[name] = cloneValue(draft);
         if (savedChannels.value[name] === undefined) delete nextSavedChannels[name];
         else nextSavedChannels[name] = cloneValue(savedChannels.value[name]);
       } else if (isChannelBusy(name) || draftIsDirty) {
         nextChannels[name] = cloneValue(draft);
+        if (isChannelBusy(name)) mutationChangedNames.add(name);
       }
     }
     const nextRemovedChannels = new Set(parsed.removed);
     for (const [name, version] of channelMutationVersions) {
       if (version === mutationSnapshot.get(name)) continue;
-      if (removedChannels.value.has(name)) nextRemovedChannels.add(name);
-      else nextRemovedChannels.delete(name);
+      if (removedChannels.value.has(name)) {
+        nextRemovedChannels.add(name);
+        delete nextChannels[name];
+        delete nextSavedChannels[name];
+      } else {
+        nextRemovedChannels.delete(name);
+      }
     }
     draftChannels.value = nextChannels;
     savedChannels.value = nextSavedChannels;
@@ -153,9 +177,13 @@ async function loadChannels(): Promise<boolean> {
     const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
     const configStatusMap = new Map(configStatus.channels.map((item) => [item.name, item]));
     const runtimeStatusMap = new Map(runtimeStatuses.map((item) => [item.name, item]));
+    const existingStatusMap = new Map(channelStatuses.value.map((item) => [item.name, item]));
     channelStatuses.value = Object.entries(nextChannels)
       .filter(([name]) => !nextRemovedChannels.has(name))
       .map(([name, channel]) => {
+        if (mutationChangedNames.has(name) && existingStatusMap.has(name)) {
+          return existingStatusMap.get(name)!;
+        }
         const runtime = runtimeStatusMap.get(name);
         const configured = configStatusMap.get(name);
         return {
@@ -232,6 +260,56 @@ const markChannelMutation = (channelName: string) => {
 
 const valuesEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 
+const markChannelStatusPending = (name: string) => {
+  channelStatuses.value = channelStatuses.value.map((item) =>
+    item.name === name
+      ? { ...item, ready: false, notes: [t('channels.statusRefreshRequired')] }
+      : item,
+  );
+};
+
+const refreshChannelStatus = async (name: string, mutationVersion: number) => {
+  const requestGeneration = ++channelStatusRequestGeneration;
+  channelStatusRequests.set(name, requestGeneration);
+  const isCurrent = () =>
+    channelStatusRequests.get(name) === requestGeneration && channelMutationVersions.get(name) === mutationVersion;
+
+  try {
+    const [rawRuntimeStatuses, configStatus] = await Promise.all([
+      invoke<unknown>('get_channel_runtime'),
+      getConfigStatus(),
+    ]);
+    const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
+    if (!isCurrent()) return;
+
+    const runtime = runtimeStatuses.find((item) => item.name === name);
+    const configured = configStatus.channels.find((item) => item.name === name);
+    const currentConfig = draftChannels.value[name];
+    if (!currentConfig || removedChannels.value.has(name)) return;
+    const status: ChannelStatusSummary = {
+      name,
+      enabled: Boolean(currentConfig.enabled),
+      ready: Boolean(runtime?.registered && runtime.health !== 'down'),
+      missing_fields: runtime?.registered ? [] : (configured?.missing_fields ?? []),
+      notes: runtime
+        ? [runtime.lifecycle, runtime.diagnosis].filter(Boolean) as string[]
+        : [t('channels.statusRefreshRequired')],
+    };
+    channelStatuses.value = [
+      ...channelStatuses.value.filter((item) => item.name !== name),
+      status,
+    ];
+  } catch (error) {
+    if (!isCurrent()) return;
+    channelStatuses.value = channelStatuses.value.map((item) =>
+      item.name === name
+        ? { ...item, ready: false, notes: [t('channels.statusRefreshRequired')] }
+        : item,
+    );
+    console.error('Failed to refresh channel status:', error);
+  }
+};
+
 const commitLocalChannelSave = (name: string, submittedConfig: Record<string, any>) => {
   const submitted = cloneValue(submittedConfig);
   const currentDraft = draftChannels.value[name];
@@ -249,11 +327,24 @@ const commitLocalChannelSave = (name: string, submittedConfig: Record<string, an
   const existingStatus = channelStatuses.value.find((status) => status.name === name);
   channelStatuses.value = existingStatus
     ? channelStatuses.value.map((status) =>
-        status.name === name ? { ...status, enabled: Boolean(submitted.enabled) } : status,
+        status.name === name
+          ? {
+              ...status,
+              enabled: Boolean(submitted.enabled),
+              ready: false,
+              notes: [t('channels.statusRefreshRequired')],
+            }
+          : status,
       )
     : [
         ...channelStatuses.value,
-        { name, enabled: Boolean(submitted.enabled), ready: false, missing_fields: [], notes: [] },
+        {
+          name,
+          enabled: Boolean(submitted.enabled),
+          ready: false,
+          missing_fields: [],
+          notes: [t('channels.statusRefreshRequired')],
+        },
       ];
   if (!selectedChannel.value) selectedChannel.value = name;
 };
@@ -306,10 +397,14 @@ const persistChannel = async (name: string, config: Record<string, any>) => {
   markChannelMutation(name);
   setChannelError(name, null);
   setChannelBusy(name, true);
+  markChannelStatusPending(name);
   try {
     await props.saveChannelConfigAction(name, submitted);
     commitLocalChannelSave(name, submitted);
+    const completedVersion = markChannelMutation(name);
+    await refreshChannelStatus(name, completedVersion);
   } catch (error) {
+    markChannelMutation(name);
     setChannelError(name, error);
     throw error;
   } finally {
@@ -391,6 +486,7 @@ const handleCardDelete = async (name: string) => {
         setChannelError(name, error);
         throw error;
       } finally {
+        markChannelMutation(name);
         setChannelBusy(name, false);
       }
     },
