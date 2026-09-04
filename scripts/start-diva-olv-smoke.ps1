@@ -80,7 +80,7 @@ $olvConfigPath = Join-Path $olvDir "conf.yaml"
 
 Write-Step "Checking environment and config"
 Assert-Command -Name "cargo" -Hint "Install Rust stable first."
-Assert-Command -Name "npm" -Hint "Install Node.js and GUI dependencies first."
+Assert-Command -Name "pnpm" -Hint "Install pnpm and GUI dependencies first."
 Assert-Command -Name "uv" -Hint "Install uv and OLV Python dependencies first."
 Assert-Path -Path $repoRoot
 Assert-Path -Path $guiDir
@@ -107,7 +107,7 @@ Start-Window -Title "olv-server" -Workdir $olvDir -Command $olvCommand
 
 if (-not $SkipGui) {
     Write-Step "Starting Diva GUI"
-    Start-Window -Title "diva-gui" -Workdir $guiDir -Command "npm run tauri dev"
+    Start-Window -Title "diva-gui" -Workdir $guiDir -Command "pnpm tauri dev"
 }
 
 if (-not $SkipBrowser) {

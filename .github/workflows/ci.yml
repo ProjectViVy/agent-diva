@@ -45,7 +45,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
+  PNPM_VERSION: '10.34.5'
 
 # 显式声明后，未列出的权限为 none。上传/下载 artifact 需要 actions: write/read。
 permissions:
