@@ -5,7 +5,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-core channel config; agent-diva-channels probe; agent-diva-manager channel API/runtime; agent-diva-gui dependency/Tauri/channel settings; TODOLIST.md; docs/logs/2026-09-gui-channel-recovery/**`
+- Scope: `agent-diva-core channel config; agent-diva-channels probe; agent-diva-manager channel API/runtime; agent-diva-gui dependency/Tauri/channel settings; .github/workflows/ci.yml; GUI packaging scripts; justfile; README.md; README.zh-CN.md; AGENTS-ARCH.MD; TODOLIST.md; docs/logs/2026-09-gui-channel-recovery/**`
 - Owner: `Codex / GPT-5.6-LUNA/MAX agent team`
 - Session/Task: `GUI dependency audit remediation and channel settings probe/delete restoration`
 - Branch/Worktree: `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`
