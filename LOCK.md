@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `GLOBAL — integrate C6-D and implement GUI audit/channel settings recovery`
+- Lock State: `RELEASED`
+- Scope: `agent-diva-core channel config; agent-diva-channels probe; agent-diva-manager channel API/runtime; agent-diva-gui dependency/Tauri/channel settings; .github/workflows/ci.yml; GUI packaging scripts; justfile; README.md; README.zh-CN.md; AGENTS-ARCH.MD; TODOLIST.md; docs/logs/2026-09-gui-channel-recovery/**`
 - Owner: `Codex / GPT-5.6-LUNA/MAX agent team`
 - Session/Task: `GUI dependency audit remediation and channel settings probe/delete restoration`
 - Branch/Worktree: `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`
 - Started At: `2026-09-04T11:55:15+08:00`
-- Last Heartbeat: `2026-09-04T11:55:15+08:00`
-- Expires At: `2026-09-04T15:55:15+08:00`
-- Handoff Notes: `Implementation authorized by the user. The isolated integration branch will start from dev, merge C6-D at bccae24d, then accept non-overlapping dependency, Manager/API, and GUI work from GPT-5.6-LUNA/MAX agents. No push is authorized.`
+- Last Heartbeat: `2026-09-04T17:05:00+08:00`
+- Expires At: `N/A`
+- Handoff Notes: `Implementation and iteration records are complete through bd583755. Independent dependency/backend review approved with P0=0/P1=0. Final sequential QA passed: workspace 2288 tests, GUI 562 tests, Tauri 61 tests, channel clean-break, Rust 1.80 channel check, dependency policy, build, CLI and browser smoke. Real-platform C5/C6-E acceptance remains open. Ready for local no-ff merge to dev; no push is authorized.`
 
 ## Lock Rules
 
@@ -26,7 +26,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `GUI dependency audit remediation and channel settings recovery` — **HELD 2026-09-04T11:55:15+08:00** by `Codex / GPT-5.6-LUNA/MAX agent team` on `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`. Scope is GLOBAL only while C6-D is integrated; afterward agent ownership is split across dependency metadata, Manager/Core/Channels APIs, and GUI components. No push is authorized.
+- `GUI dependency audit remediation and channel settings recovery` — **RELEASED 2026-09-04T17:05:00+08:00** by `Codex / GPT-5.6-LUNA/MAX agent team` on `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`. Implementation and v0.4.11/v0.4.12 records are complete through `bd583755`; final gates and independent review passed. Real-platform C5/C6-E evidence remains open. No push was performed.
 
 - `CHANNEL-EPIC C6-D strict Clean Break` — **RELEASED 2026-09-04T06:03:26+08:00** by
   `Codex / C6-D DTO Clean Break` on `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`.
