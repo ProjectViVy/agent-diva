@@ -4,6 +4,16 @@
 
 ## 最终自动化门禁
 
+本地 `dev` 合并提交 `7f51874c` 完成后，使用 D 盘隔离 Cargo target 复跑：
+
+- `just fmt-check`：通过。
+- `just check`：通过；仅保留 `imap-proto v0.10.2` future-incompat warning。
+- `just test`：通过。
+- `just channel-clean-break-check`：通过。
+- `python scripts/ci/check_gui_dependency_policy.py`：通过。
+
+合并只在 `LOCK.md` 产生冲突并按双方记录合并；产品代码与下述功能分支最终验证内容一致。
+
 最终后端集成 HEAD `53b3dded` 的顺序 QA：
 
 - `just fmt-check`：通过。
