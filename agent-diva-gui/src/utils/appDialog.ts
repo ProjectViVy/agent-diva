@@ -7,6 +7,8 @@ export type AppDialogOpen =
       title?: string;
       confirmLabel?: string;
       cancelLabel?: string;
+      pending?: boolean;
+      error?: string | null;
     }
   | {
       kind: 'alert';
@@ -28,6 +30,24 @@ const open: ShallowRef<AppDialogOpen | null> = shallowRef(null);
 let resolveConfirm: ((v: boolean) => void) | null = null;
 let resolveAlert: (() => void) | null = null;
 let resolvePrompt: ((v: string | null) => void) | null = null;
+let confirmAction: (() => Promise<void>) | null = null;
+let confirmPending = false;
+let confirmError: string | null = null;
+
+function publishConfirmState() {
+  if (open.value?.kind !== 'confirm') return;
+  open.value = {
+    ...open.value,
+    pending: confirmPending,
+    error: confirmError,
+  };
+}
+
+function resetConfirmState() {
+  confirmAction = null;
+  confirmPending = false;
+  confirmError = null;
+}
 
 function settlePrevious() {
   if (resolveConfirm) {
@@ -45,6 +65,7 @@ function settlePrevious() {
     resolvePrompt = null;
     r(null);
   }
+  resetConfirmState();
 }
 
 export function getAppDialogOpen(): ShallowRef<AppDialogOpen | null> {
@@ -59,7 +80,35 @@ export function appConfirm(
   return new Promise((resolve) => {
     settlePrevious();
     resolveConfirm = resolve;
+    resetConfirmState();
     open.value = { kind: 'confirm', message, ...options };
+  });
+}
+
+/**
+ * Themed confirmation for an asynchronous action.
+ *
+ * The dialog stays open while `action` is running. A rejected action leaves
+ * the dialog open with its error and can be retried by confirming again.
+ */
+export function appConfirmAsync(
+  message: string,
+  action: () => Promise<void>,
+  options?: { title?: string; confirmLabel?: string; cancelLabel?: string },
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    settlePrevious();
+    resolveConfirm = resolve;
+    confirmAction = action;
+    confirmPending = false;
+    confirmError = null;
+    open.value = {
+      kind: 'confirm',
+      message,
+      ...options,
+      pending: false,
+      error: null,
+    };
   });
 }
 
@@ -76,10 +125,41 @@ export function appAlert(
 }
 
 export function dismissAppDialogConfirm(confirmed: boolean) {
+  if (confirmPending) return;
+  if (confirmed && confirmAction) {
+    void submitAppDialogConfirm();
+    return;
+  }
   open.value = null;
   const r = resolveConfirm;
   resolveConfirm = null;
+  resetConfirmState();
   if (r) r(confirmed);
+}
+
+/** Start or retry the action attached to the active async confirmation. */
+export async function submitAppDialogConfirm(): Promise<void> {
+  if (open.value?.kind !== 'confirm' || confirmPending) return;
+  if (!confirmAction) {
+    dismissAppDialogConfirm(true);
+    return;
+  }
+
+  confirmPending = true;
+  confirmError = null;
+  publishConfirmState();
+
+  try {
+    await confirmAction();
+    confirmAction = null;
+    confirmPending = false;
+    confirmError = null;
+    dismissAppDialogConfirm(true);
+  } catch (error) {
+    confirmPending = false;
+    confirmError = error instanceof Error ? error.message : String(error);
+    publishConfirmState();
+  }
 }
 
 export function dismissAppDialogAlert() {

@@ -13,6 +13,7 @@ interface Channel {
 const props = defineProps<{
   channel: Channel;
   status?: ChannelStatusSummary;
+  busy?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -56,7 +57,9 @@ const missingFields = computed(() => {
       enabled: isEnabled,
       ready: isReady,
       disabled: !isEnabled,
+      busy: props.busy,
     }"
+    :aria-busy="props.busy || undefined"
   >
     <div class="card-header">
       <div class="platform-logo">
@@ -84,6 +87,7 @@ const missingFields = computed(() => {
     <div class="card-actions">
       <button
         class="action-btn"
+        :disabled="props.busy"
         @click="emit('toggle')"
         :title="isEnabled ? $t('channels.deactivate') : $t('channels.activate')"
       >
@@ -91,6 +95,7 @@ const missingFields = computed(() => {
       </button>
       <button
         class="action-btn"
+        :disabled="props.busy"
         @click="emit('edit')"
         :title="$t('settings.edit')"
       >
@@ -98,6 +103,7 @@ const missingFields = computed(() => {
       </button>
       <button
         class="action-btn danger"
+        :disabled="props.busy"
         @click="emit('delete')"
         :title="$t('settings.delete')"
       >
@@ -137,6 +143,10 @@ const missingFields = computed(() => {
 
 .channel-card.disabled {
   opacity: 0.6;
+}
+
+.channel-card.busy {
+  opacity: 0.75;
 }
 
 .card-header {
@@ -232,6 +242,11 @@ const missingFields = computed(() => {
 .action-btn:hover {
   background: var(--accent-bg-light);
   color: var(--accent);
+}
+
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .action-btn.danger:hover {

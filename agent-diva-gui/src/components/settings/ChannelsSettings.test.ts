@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 import ChannelsSettings from './ChannelsSettings.vue';
 import ChannelCardView from './ChannelCardView.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
@@ -23,6 +24,19 @@ const runtimeChannels = [
   },
 ];
 
+let channelsResponse: Record<string, any> = rawChannels;
+let deleteResponseAfter: Record<string, any> | null = null;
+let channelLoadError: Error | null = null;
+
+const appDialogMock = vi.hoisted(() => ({
+  appConfirmAsync: vi.fn(async (_message: string, action: () => Promise<void>) => {
+    await action();
+    return true;
+  }),
+}));
+
+vi.mock('../../utils/appDialog', () => appDialogMock);
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
@@ -41,8 +55,16 @@ vi.mock('@lucide/vue', () => {
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string) => {
-    if (cmd === 'get_channels') return Promise.resolve(structuredClone(rawChannels));
+    if (cmd === 'get_channels') {
+      if (channelLoadError) return Promise.reject(channelLoadError);
+      return Promise.resolve(structuredClone(channelsResponse));
+    }
     if (cmd === 'get_channel_runtime') return Promise.resolve(structuredClone(runtimeChannels));
+    if (cmd === 'delete_channel') {
+      if (deleteResponseAfter) channelsResponse = deleteResponseAfter;
+      return Promise.resolve(null);
+    }
+    if (cmd === 'probe_channel') return Promise.resolve({ success: true, message: 'ok' });
     return Promise.resolve(null);
   }),
 }));
@@ -53,7 +75,7 @@ vi.mock('../../api/desktop', () => ({
 
 vi.mock('./ChannelCardView.vue', () => ({
   default: {
-    props: ['channels', 'statuses', 'loading'],
+    props: ['channels', 'statuses', 'loading', 'canAdd', 'busyChannels'],
     emits: ['add', 'edit', 'delete', 'toggle'],
     template: `<div class="card-stub">
       <button
@@ -68,8 +90,8 @@ vi.mock('./ChannelCardView.vue', () => ({
 
 vi.mock('./ChannelWizardModal.vue', () => ({
   default: {
-    props: ['open', 'initialData'],
-    emits: ['update:open', 'test', 'complete'],
+    props: ['open', 'initialData', 'availablePlatforms', 'onTest', 'onComplete'],
+    emits: ['update:open'],
     template: '<div class="wizard-stub" />',
   },
 }));
@@ -91,6 +113,91 @@ const mountSettings = () => {
 };
 
 describe('ChannelsSettings', () => {
+  beforeEach(() => {
+    channelsResponse = rawChannels;
+    deleteResponseAfter = null;
+    channelLoadError = null;
+    appDialogMock.appConfirmAsync.mockClear();
+  });
+
+  it('shows a load error and retry while preserving the current channel content', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    channelLoadError = new Error('temporary load error');
+    await wrapper.find('button[title="topbar.refresh"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.channels-load-error').text()).toContain('temporary load error');
+    expect(wrapper.find('.channels-load-retry').exists()).toBe(true);
+    expect(wrapper.find('.toggle-telegram').exists()).toBe(true);
+
+    channelLoadError = null;
+    await wrapper.find('.channels-load-retry').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.channels-load-error').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('filters removed channels and exposes only recoverable platforms to the wizard', async () => {
+    channelsResponse = { ...rawChannels, removed: ['discord', 'retired'] };
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    expect(wrapper.find('.toggle-telegram').exists()).toBe(true);
+    expect(wrapper.find('.toggle-discord').exists()).toBe(false);
+    expect(wrapper.find('button.btn-primary').exists()).toBe(true);
+    expect(wrapper.findComponent(ChannelWizardModal).props('availablePlatforms')).toEqual(['discord']);
+  });
+
+  it('hides add actions when no platform can be recovered', async () => {
+    channelsResponse = { ...rawChannels, removed: [] };
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    expect(wrapper.find('button.btn-primary').exists()).toBe(false);
+    expect(wrapper.findComponent(ChannelWizardModal).props('availablePlatforms')).toEqual([]);
+  });
+
+  it('probes a normalized credential payload through the backend command', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    const test = wrapper.findComponent(ChannelWizardModal).props('onTest') as (data: {
+      platform: string;
+      name: string;
+      credentials: Record<string, unknown>;
+    }) => Promise<{ success: boolean; message: string }>;
+    await test({
+      platform: 'email',
+      name: 'Email',
+      credentials: { imap_use_ssl: 'false', smtp_use_ssl: 'true' },
+    });
+
+    expect(invoke).toHaveBeenCalledWith('probe_channel', {
+      name: 'email',
+      config: { imap_use_ssl: false, smtp_use_ssl: true },
+    });
+  });
+
+  it('deletes through the backend and waits for the refreshed list before closing confirmation', async () => {
+    channelsResponse = { ...rawChannels };
+    deleteResponseAfter = { ...rawChannels, telegram: undefined, removed: ['telegram'] };
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    wrapper.findComponent(ChannelCardView).vm.$emit('delete', 'telegram');
+    await flushPromises();
+
+    expect(invoke).toHaveBeenCalledWith('delete_channel', { name: 'telegram' });
+    expect(wrapper.find('.toggle-telegram').exists()).toBe(false);
+    expect(appDialogMock.appConfirmAsync).toHaveBeenCalledWith(
+      'channels.deleteConfirm',
+      expect.any(Function),
+      expect.objectContaining({ title: 'channels.deleteTitle' }),
+    );
+  });
+
   it('persists the toggled card even when it is not the selected channel', async () => {
     const { wrapper, saveChannelConfigAction } = mountSettings();
     await flushPromises();
@@ -111,8 +218,14 @@ describe('ChannelsSettings', () => {
     const { wrapper, saveChannelConfigAction } = mountSettings();
     await flushPromises();
 
-    wrapper.findComponent(ChannelWizardModal).vm.$emit('complete', {
+    const complete = wrapper.findComponent(ChannelWizardModal).props('onComplete') as (data: {
+      platform: string;
+      name: string;
+      credentials: Record<string, unknown>;
+    }) => Promise<void>;
+    await complete({
       platform: 'feishu',
+      name: '飞书',
       credentials: { app_id: 'cli_x', app_secret: 'sec' },
     });
     await flushPromises();
@@ -129,8 +242,14 @@ describe('ChannelsSettings', () => {
     const { wrapper, saveChannelConfigAction } = mountSettings();
     await flushPromises();
 
-    wrapper.findComponent(ChannelWizardModal).vm.$emit('complete', {
+    const complete = wrapper.findComponent(ChannelWizardModal).props('onComplete') as (data: {
+      platform: string;
+      name: string;
+      credentials: Record<string, unknown>;
+    }) => Promise<void>;
+    await complete({
       platform: 'email',
+      name: 'Email',
       credentials: { imap_host: 'imap.example.com', imap_use_ssl: 'false', smtp_use_ssl: 'true' },
     });
     await flushPromises();

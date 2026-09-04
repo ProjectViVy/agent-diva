@@ -25,9 +25,14 @@ const rawChannels = {
   discord: { enabled: false, token: '' },
 };
 
-const mountView = (channels: Record<string, any>, statuses: any[] = []) =>
+const mountView = (
+  channels: Record<string, any>,
+  statuses: any[] = [],
+  canAdd?: boolean,
+  busyChannels: string[] = [],
+) =>
   mount(ChannelCardView, {
-    props: { channels, statuses },
+    props: { channels, statuses, canAdd, busyChannels },
     global: { mocks: { $t: (key: string) => key } },
   });
 
@@ -45,6 +50,22 @@ describe('ChannelCardView', () => {
   it('renders the empty state when there are no channels', () => {
     const wrapper = mountView({});
     expect(wrapper.find('.channel-empty-state').exists()).toBe(true);
+  });
+
+  it('hides the empty-state add action when recovery is unavailable', () => {
+    const wrapper = mountView({}, [], false);
+    expect(wrapper.find('.channel-empty-state').exists()).toBe(true);
+    expect(wrapper.find('.empty-actions').exists()).toBe(false);
+  });
+
+  it('marks only the busy channel controls as disabled', () => {
+    const wrapper = mountView(rawChannels, [], undefined, ['telegram']);
+    const cards = wrapper.findAll('.channel-card');
+
+    expect(cards[0].attributes('aria-busy')).toBe('true');
+    expect(cards[0].findAll('button[disabled]')).toHaveLength(3);
+    expect(cards[1].attributes('aria-busy')).toBeUndefined();
+    expect(cards[1].findAll('button[disabled]')).toHaveLength(0);
   });
 
   it('bubbles toggle events with the config map key', async () => {

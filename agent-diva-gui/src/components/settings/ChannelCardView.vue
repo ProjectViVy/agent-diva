@@ -14,6 +14,8 @@ const props = defineProps<{
   channels: Record<string, Record<string, any>>;
   statuses: ChannelStatusSummary[];
   loading?: boolean;
+  canAdd?: boolean;
+  busyChannels?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -24,6 +26,8 @@ const emit = defineEmits<{
 }>();
 
 const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
+const busyChannelSet = computed(() => new Set(props.busyChannels ?? []));
+const canAddAction = computed(() => props.canAdd ?? true);
 
 const channelList = computed(() =>
   Object.entries(props.channels)
@@ -44,7 +48,7 @@ const channelList = computed(() =>
       </div>
       <h3>{{ $t('channels.noChannels') }}</h3>
       <p>{{ $t('channels.noChannelsHint') }}</p>
-      <div class="empty-actions">
+      <div v-if="canAddAction" class="empty-actions">
         <button class="btn-primary" @click="emit('add')">
           <Plus :size="16" />
           {{ $t('channels.addChannel') }}
@@ -59,6 +63,7 @@ const channelList = computed(() =>
         :key="name"
         :channel="channel"
         :status="status"
+        :busy="busyChannelSet.has(name)"
         @toggle="emit('toggle', name)"
         @edit="emit('edit', name)"
         @delete="emit('delete', name)"

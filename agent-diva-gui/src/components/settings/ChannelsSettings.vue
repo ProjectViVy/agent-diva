@@ -3,10 +3,13 @@ import { ref, onMounted, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { LoaderCircle, MessageSquare, LayoutGrid, List, Plus, RefreshCw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
+import { appConfirmAsync } from '../../utils/appDialog';
+import { errorMessage } from '../../utils/errorMessage';
 import { getConfigStatus, type ChannelStatusSummary } from '../../api/desktop';
 import ChannelCardView from './ChannelCardView.vue';
 import ChannelEditorForm from './ChannelEditorForm.vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
+import { CHANNEL_PLATFORMS } from './channel-platforms';
 import { normalizeChannelConfig } from './channel-wizard-fields';
 
 const { t } = useI18n();
@@ -23,10 +26,12 @@ const isLoading = ref(false);
 
 const draftChannels = ref<Record<string, any>>({});
 const savedChannels = ref<Record<string, any>>({});
+const removedChannels = ref<Set<string>>(new Set());
 const channelStatuses = ref<ChannelStatusSummary[]>([]);
 const selectedChannel = ref<string | null>(null);
 const isInitializing = ref(true);
-const isSaving = ref(false);
+const busyChannels = ref<Set<string>>(new Set());
+const loadError = ref<string | null>(null);
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -36,6 +41,50 @@ interface ChannelRuntimeStatus {
   lifecycle: 'starting' | 'running' | 'degraded' | 'down';
   health: 'healthy' | 'degraded' | 'down' | 'unknown';
   diagnosis?: string | null;
+}
+
+interface ChannelWizardData {
+  platform: string;
+  name: string;
+  credentials: Record<string, unknown>;
+  extra?: Record<string, unknown>;
+}
+
+interface ParsedChannelsResponse {
+  channels: Record<string, Record<string, any>>;
+  removed: Set<string>;
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseRemovedNames(value: unknown): Set<string> {
+  if (Array.isArray(value)) {
+    return new Set(value.filter((name): name is string => typeof name === 'string' && name.length > 0));
+  }
+  if (typeof value === 'string' && value.length > 0) return new Set([value]);
+  if (isRecord(value)) return new Set(Object.keys(value));
+  return new Set();
+}
+
+function parseChannelsResponse(value: unknown): ParsedChannelsResponse {
+  const raw = isRecord(value) ? value : {};
+  const source = isRecord(raw.channels) ? raw.channels : raw;
+  const channels: Record<string, Record<string, any>> = {};
+  for (const [name, config] of Object.entries(source)) {
+    if (name === 'channels' || name === 'removed' || !isRecord(config)) continue;
+    channels[name] = config;
+  }
+  return { channels, removed: parseRemovedNames(raw.removed) };
+}
+
+function parseRuntimeStatuses(value: unknown): ChannelRuntimeStatus[] {
+  if (Array.isArray(value)) return value as ChannelRuntimeStatus[];
+  if (isRecord(value) && Array.isArray(value.channels)) {
+    return value.channels as ChannelRuntimeStatus[];
+  }
+  return [];
 }
 
 function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
@@ -51,35 +100,46 @@ function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
   if (!Array.isArray(d.group_reply_allowed_sender_ids)) d.group_reply_allowed_sender_ids = [];
 }
 
-async function loadChannels() {
+async function loadChannels(): Promise<boolean> {
   isLoading.value = true;
+  loadError.value = null;
   try {
-    const [fetchedChannels, configStatus, runtimeStatuses] = await Promise.all([
-      invoke<Record<string, any>>('get_channels'),
+    const [fetchedChannels, configStatus, rawRuntimeStatuses] = await Promise.all([
+      invoke<unknown>('get_channels'),
       getConfigStatus(),
-      invoke<ChannelRuntimeStatus[]>('get_channel_runtime'),
+      invoke<unknown>('get_channel_runtime'),
     ]);
-    normalizeDiscordConfig(fetchedChannels.discord);
-    draftChannels.value = cloneValue(fetchedChannels);
-    savedChannels.value = cloneValue(fetchedChannels);
+    const parsed = parseChannelsResponse(fetchedChannels);
+    normalizeDiscordConfig(parsed.channels.discord);
+    const nextChannels = cloneValue(parsed.channels);
+    draftChannels.value = nextChannels;
+    savedChannels.value = cloneValue(nextChannels);
+    removedChannels.value = parsed.removed;
+    const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
     const configStatusMap = new Map(configStatus.channels.map((item) => [item.name, item]));
     const runtimeStatusMap = new Map(runtimeStatuses.map((item) => [item.name, item]));
-    channelStatuses.value = Object.entries(fetchedChannels).map(([name, channel]) => {
-      const runtime = runtimeStatusMap.get(name);
-      const configured = configStatusMap.get(name);
-      return {
-        name,
-        enabled: Boolean(channel?.enabled),
-        ready: Boolean(runtime?.registered && runtime.health !== 'down'),
-        missing_fields: runtime?.registered ? [] : (configured?.missing_fields ?? []),
-        notes: [runtime?.lifecycle, runtime?.diagnosis].filter(Boolean) as string[],
-      };
-    });
-    if (!selectedChannel.value || !draftChannels.value[selectedChannel.value]) {
-      selectedChannel.value = Object.keys(draftChannels.value)[0] ?? null;
+    channelStatuses.value = Object.entries(nextChannels)
+      .filter(([name]) => !parsed.removed.has(name))
+      .map(([name, channel]) => {
+        const runtime = runtimeStatusMap.get(name);
+        const configured = configStatusMap.get(name);
+        return {
+          name,
+          enabled: Boolean(channel?.enabled),
+          ready: Boolean(runtime?.registered && runtime.health !== 'down'),
+          missing_fields: runtime?.registered ? [] : (configured?.missing_fields ?? []),
+          notes: [runtime?.lifecycle, runtime?.diagnosis].filter(Boolean) as string[],
+        };
+      });
+    const visibleNames = Object.keys(nextChannels).filter((name) => !parsed.removed.has(name));
+    if (!selectedChannel.value || !nextChannels[selectedChannel.value] || parsed.removed.has(selectedChannel.value)) {
+      selectedChannel.value = visibleNames[0] ?? null;
     }
+    return true;
   } catch (e) {
     console.error('Failed to load channels:', e);
+    loadError.value = errorMessage(e, t('channels.loadFailed'));
+    return false;
   } finally {
     isInitializing.value = false;
     isLoading.value = false;
@@ -94,12 +154,37 @@ const channelStatusMap = computed(() => {
   return new Map(channelStatuses.value.map((item) => [item.name, item]));
 });
 
-const visibleDraftChannels = computed(() => draftChannels.value);
+const visibleDraftChannels = computed(() => {
+  const visible: Record<string, Record<string, any>> = {};
+  for (const [name, config] of Object.entries(draftChannels.value)) {
+    if (!removedChannels.value.has(name)) visible[name] = config;
+  }
+  return visible;
+});
+
+const recoverablePlatforms = computed(() =>
+  Array.from(removedChannels.value).filter((platform) => Boolean(CHANNEL_PLATFORMS[platform])),
+);
+
+const canAddChannel = computed(() => recoverablePlatforms.value.length > 0);
+
+const busyChannelNames = computed(() => Array.from(busyChannels.value));
+
+const isChannelBusy = (channelName: string) => busyChannels.value.has(channelName);
+
+const setChannelBusy = (channelName: string, busy: boolean) => {
+  const next = new Set(busyChannels.value);
+  if (busy) next.add(channelName);
+  else next.delete(channelName);
+  busyChannels.value = next;
+};
 
 const selectedChannelDraft = computed(() => {
   if (!selectedChannel.value) return null;
-  return draftChannels.value[selectedChannel.value] ?? null;
+  return visibleDraftChannels.value[selectedChannel.value] ?? null;
 });
+
+const isSaving = computed(() => Boolean(selectedChannel.value && isChannelBusy(selectedChannel.value)));
 
 const isDirty = computed(() => {
   if (!selectedChannel.value || !selectedChannelDraft.value) return false;
@@ -113,15 +198,18 @@ const toggleChannelEnabled = (channelName: string) => {
 };
 
 const persistChannel = async (name: string, config: Record<string, any>) => {
-  if (isSaving.value) return;
-  isSaving.value = true;
+  if (isChannelBusy(name)) return;
+  setChannelBusy(name, true);
   try {
     await props.saveChannelConfigAction(name, cloneValue(config));
     draftChannels.value[name] = cloneValue(config);
     savedChannels.value[name] = cloneValue(config);
-    await loadChannels();
+    const refreshed = await loadChannels();
+    if (!refreshed) {
+      throw new Error(loadError.value || t('channels.loadFailed'));
+    }
   } finally {
-    isSaving.value = false;
+    setChannelBusy(name, false);
   }
 };
 
@@ -132,30 +220,43 @@ const saveCurrentChannel = async () => {
 
 // 向导相关函数
 const openWizard = () => {
+  if (!canAddChannel.value) return;
   editingChannel.value = null;
   wizardOpen.value = true;
 };
 
-const handleWizardTest = async (_data: any) => {
-  // TODO: 实现真实连接测试逻辑
-  return { success: false, message: t('channels.testNotImplemented') };
+const handleWizardTest = async (data: ChannelWizardData) => {
+  const config = normalizeChannelConfig(data.platform, cloneValue(data.credentials ?? {}));
+  delete config.enabled;
+  const result = await invoke<unknown>('probe_channel', {
+    name: data.platform,
+    config,
+  });
+  const raw = isRecord(result) ? result : {};
+  const status = typeof raw.status === 'string' ? raw.status.toLowerCase() : '';
+  const success =
+    typeof raw.success === 'boolean'
+      ? raw.success
+      : typeof raw.ok === 'boolean'
+        ? raw.ok
+        : status === 'ok' || status === 'success' || raw.healthy === true;
+  const message =
+    (typeof raw.message === 'string' && raw.message) ||
+    (typeof raw.error === 'string' && raw.error) ||
+    (success ? t('channels.testSuccess') : t('channels.testFailed', { error: t('channels.testUnknownError') }));
+  return { success, message };
 };
 
-const handleWizardComplete = async (data: { platform: string; credentials?: Record<string, unknown> }) => {
-  try {
-    const existing = draftChannels.value[data.platform] ?? {};
-    const credentials = normalizeChannelConfig(data.platform, data.credentials ?? {});
-    delete credentials.enabled;
-    const enabled = editingChannel.value ? Boolean(existing.enabled) : true;
-    await props.saveChannelConfigAction(data.platform, {
-      ...cloneValue(existing),
-      ...credentials,
-      enabled,
-    });
-    await loadChannels();
-  } catch (e) {
-    console.error('Failed to save channel from wizard:', e);
-  }
+const handleWizardComplete = async (data: ChannelWizardData) => {
+  const existing = draftChannels.value[data.platform] ?? {};
+  const credentials = normalizeChannelConfig(data.platform, cloneValue(data.credentials ?? {}));
+  delete credentials.enabled;
+  const enabled = editingChannel.value ? Boolean(existing.enabled) : true;
+  await persistChannel(data.platform, {
+    ...cloneValue(existing),
+    ...credentials,
+    enabled,
+  });
 };
 
 const handleCardEdit = (name: string) => {
@@ -165,15 +266,39 @@ const handleCardEdit = (name: string) => {
 };
 
 const handleCardDelete = async (name: string) => {
-  const confirmed = window.confirm(t('channels.deleteConfirm', { name }));
-  if (!confirmed) return;
-  // TODO: 调用后端删除 API
-  window.alert(t('channels.deleteNotImplemented'));
+  if (isChannelBusy(name)) return false;
+  return appConfirmAsync(
+    t('channels.deleteConfirm', { name }),
+    async () => {
+      setChannelBusy(name, true);
+      try {
+        const result = await invoke<unknown>('delete_channel', { name });
+        if (isRecord(result) && typeof result.status === 'string' && result.status.toLowerCase() === 'error') {
+          throw new Error(typeof result.message === 'string' ? result.message : t('channels.deleteFailed'));
+        }
+        const refreshed = await loadChannels();
+        if (!refreshed || visibleDraftChannels.value[name]) {
+          throw new Error(loadError.value || t('channels.deleteRefreshFailed'));
+        }
+      } finally {
+        setChannelBusy(name, false);
+      }
+    },
+    {
+      title: t('channels.deleteTitle'),
+      confirmLabel: t('channels.delete'),
+    },
+  );
 };
 
 const handleCardToggle = async (name: string) => {
+  if (isChannelBusy(name)) return;
   toggleChannelEnabled(name);
-  await persistChannel(name, draftChannels.value[name]);
+  try {
+    await persistChannel(name, draftChannels.value[name]);
+  } catch (e) {
+    console.error('Failed to save channel state:', e);
+  }
 };
 
 const handleRefresh = async () => {
@@ -242,11 +367,24 @@ const handleRefresh = async () => {
           </button>
         </div>
         <div class="flex items-center gap-2">
-          <button class="btn-primary" @click="openWizard">
+          <button v-if="canAddChannel" class="btn-primary" @click="openWizard">
             <Plus :size="16" />
             {{ t('channels.addChannel') }}
           </button>
         </div>
+      </div>
+
+      <div v-if="loadError" class="channels-load-error" role="alert">
+        <span class="channels-load-error-message">{{ loadError }}</span>
+        <button
+          type="button"
+          class="channels-load-retry"
+          :disabled="isLoading"
+          @click="handleRefresh"
+        >
+          <RefreshCw :size="14" :class="{ 'animate-spin': isLoading }" />
+          {{ isLoading ? t('channels.loading') : t('channels.retry') }}
+        </button>
       </div>
 
       <!-- 卡片视图 -->
@@ -255,6 +393,8 @@ const handleRefresh = async () => {
           :channels="visibleDraftChannels"
           :statuses="channelStatuses"
           :loading="isInitializing"
+          :can-add="canAddChannel"
+          :busy-channels="busyChannelNames"
           @add="openWizard"
           @edit="handleCardEdit"
           @delete="handleCardDelete"
@@ -344,8 +484,9 @@ const handleRefresh = async () => {
           ? { platform: editingChannel, credentials: { ...(draftChannels[editingChannel] ?? {}) } }
           : undefined
       "
-      @test="handleWizardTest"
-      @complete="handleWizardComplete"
+      :available-platforms="recoverablePlatforms"
+      :on-test="handleWizardTest"
+      :on-complete="handleWizardComplete"
     />
   </div>
 </template>
@@ -409,6 +550,46 @@ const handleRefresh = async () => {
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--line);
   background: var(--accent-bg-light);
+}
+
+.channels-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--danger);
+  background: var(--accent-bg-light);
+  color: var(--danger);
+}
+
+.channels-load-error-message {
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.channels-load-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.channels-load-retry:hover:not(:disabled) {
+  background: var(--accent-bg-light);
+}
+
+.channels-load-retry:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .toolbar-btn {
