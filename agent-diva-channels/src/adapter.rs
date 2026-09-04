@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant},
 };
 use thiserror::Error;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
@@ -360,6 +360,78 @@ struct ProbeCleanupRegistry {
     reaper_started: AtomicBool,
 }
 
+/// A probe occupies both one process-wide slot and one channel slot until the
+/// temporary adapter has actually stopped.  The latter is important for
+/// blocking adapters: a caller timing out must not be able to start a second
+/// DNS/IMAP operation for the same channel while the first one is still held
+/// by its cleanup owner.
+const MAX_CONCURRENT_PROBES: usize = 4;
+
+struct ProbeAdmission {
+    global: Arc<Semaphore>,
+    channels: [Arc<Semaphore>; 6],
+}
+
+struct ProbeAdmissionLease {
+    _global: OwnedSemaphorePermit,
+    _channel: OwnedSemaphorePermit,
+}
+
+impl ProbeAdmission {
+    fn new() -> Self {
+        Self {
+            global: Arc::new(Semaphore::new(MAX_CONCURRENT_PROBES)),
+            channels: std::array::from_fn(|_| Arc::new(Semaphore::new(1))),
+        }
+    }
+
+    fn acquire(&self, channel: &str) -> Result<ProbeAdmissionLease, ChannelProbeError> {
+        let Some(index) = probe_channel_index(channel) else {
+            return Err(ChannelProbeError::UnknownChannel {
+                channel: channel.to_string(),
+            });
+        };
+        let channel_permit = self.channels[index]
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| probe_busy_error("probe_busy"))?;
+        let global_permit = self
+            .global
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| probe_busy_error("probe_busy"))?;
+        Ok(ProbeAdmissionLease {
+            _global: global_permit,
+            _channel: channel_permit,
+        })
+    }
+}
+
+fn probe_admission() -> &'static ProbeAdmission {
+    static ADMISSION: OnceLock<ProbeAdmission> = OnceLock::new();
+    ADMISSION.get_or_init(ProbeAdmission::new)
+}
+
+fn probe_channel_index(channel: &str) -> Option<usize> {
+    match channel {
+        "telegram" => Some(0),
+        "discord" => Some(1),
+        "feishu" => Some(2),
+        "dingtalk" => Some(3),
+        "email" => Some(4),
+        "qq" => Some(5),
+        _ => None,
+    }
+}
+
+fn probe_busy_error(code: &'static str) -> ChannelProbeError {
+    ChannelProbeError::Adapter {
+        code: code.to_string(),
+        retry_after_ms: Some(250),
+        retryable: true,
+    }
+}
+
 impl ProbeCleanupRegistry {
     fn new() -> Self {
         Self {
@@ -371,7 +443,22 @@ impl ProbeCleanupRegistry {
 
     async fn adopt(self: &Arc<Self>, task: JoinHandle<Result<(), AdapterError>>) {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        self.tasks.lock().await.insert(id, task);
+        let mut tasks = self.tasks.lock().await;
+        let finished = tasks
+            .iter()
+            .filter_map(|(id, task)| task.is_finished().then_some(*id))
+            .collect::<Vec<_>>();
+        for id in finished {
+            tasks.remove(&id);
+        }
+        // Every adopted task owns one ProbeAdmissionLease.  The process-wide
+        // semaphore therefore makes this map bounded by
+        // MAX_CONCURRENT_PROBES, even when an adapter's blocking stop never
+        // returns.  Keep this invariant next to the ownership transfer so a
+        // future caller cannot accidentally bypass the admission budget.
+        debug_assert!(tasks.len() < MAX_CONCURRENT_PROBES);
+        tasks.insert(id, task);
+        drop(tasks);
         self.start_reaper();
     }
 
@@ -505,6 +592,27 @@ fn map_probe_adapter_error(error: AdapterError) -> ChannelProbeError {
     }
 }
 
+enum ProbeExecutionResult {
+    Receipt(DeliveryReceipt),
+    Adapter(AdapterError),
+    Timeout,
+}
+
+fn finalize_probe_result(
+    probe_result: ProbeExecutionResult,
+    cleanup_error: Option<ChannelProbeError>,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    // The operation result is more useful and deterministic than a cleanup
+    // diagnostic.  Cleanup failures are surfaced only when the probe itself
+    // succeeded; a timed-out/failed probe keeps its primary error class.
+    match (probe_result, cleanup_error) {
+        (ProbeExecutionResult::Receipt(_receipt), Some(error)) => Err(error),
+        (ProbeExecutionResult::Receipt(receipt), None) => Ok(receipt),
+        (ProbeExecutionResult::Adapter(error), _) => Err(map_probe_adapter_error(error)),
+        (ProbeExecutionResult::Timeout, _) => Err(ChannelProbeError::Timeout),
+    }
+}
+
 /// Execute one native `ProbeHealth` command and always stop the temporary
 /// adapter afterward.  The adapter is never registered, supervised, or
 /// started as a listener.
@@ -531,52 +639,61 @@ pub(crate) async fn probe_adapter(
         ChannelId::new(channel.to_string()).map_err(|_| ChannelProbeError::UnknownChannel {
             channel: channel.to_string(),
         })?;
+    let admission = probe_admission().acquire(channel)?;
 
-    let probe_result = timeout(
+    let probe_result = match timeout(
         deadline.saturating_duration_since(Instant::now()),
         adapter.execute(ChannelCommand::ProbeHealth {
             channel: channel_id,
         }),
     )
-    .await;
+    .await
+    {
+        Ok(Ok(receipt)) => ProbeExecutionResult::Receipt(receipt),
+        Ok(Err(error)) => ProbeExecutionResult::Adapter(error),
+        Err(_) => ProbeExecutionResult::Timeout,
+    };
 
     // Cleanup is always owned by a JoinHandle. If an adapter needs longer
     // than the response grace period to drain, transfer that handle to the
     // process-level registry instead of dropping it and detaching work.
     let cleanup_adapter = adapter.clone();
-    let mut cleanup = tokio::spawn(async move { cleanup_adapter.stop().await });
-    let cleanup_pending = match timeout(
+    let mut cleanup = tokio::spawn(async move {
+        let result = cleanup_adapter.stop().await;
+        // Keep the lease inside the cleanup owner.  If the public probe
+        // deadline expires, dropping the response future cannot release the
+        // per-channel/global slot before stop has completed.
+        drop(admission);
+        result
+    });
+    let cleanup_error = match timeout(
         deadline.saturating_duration_since(Instant::now()),
         &mut cleanup,
     )
     .await
     {
-        Ok(Ok(Ok(()))) => false,
-        Ok(Ok(Err(error))) => {
-            return Err(ChannelProbeError::Cleanup {
-                code: if is_safe_probe_code(error.code()) {
-                    error.code().to_string()
-                } else {
-                    "cleanup_error".to_string()
-                },
-            });
+        Ok(Ok(Ok(()))) => None,
+        Ok(Ok(Err(error))) => Some(ChannelProbeError::Cleanup {
+            code: if is_safe_probe_code(error.code()) {
+                error.code().to_string()
+            } else {
+                "cleanup_error".to_string()
+            },
+        }),
+        Ok(Err(_)) => Some(ChannelProbeError::Cleanup {
+            code: "cleanup_task_failed".to_string(),
+        }),
+        Err(_) => {
+            // The JoinHandle remains the sole owner of the adapter and lease
+            // after this transfer.  Its registry is bounded by the admission
+            // semaphore above, so a permanently blocked DNS task cannot turn
+            // retries into an unbounded cleanup queue.
+            probe_cleanup_registry().adopt(cleanup).await;
+            None
         }
-        Ok(Err(_)) => {
-            return Err(ChannelProbeError::Cleanup {
-                code: "cleanup_task_failed".to_string(),
-            });
-        }
-        Err(_) => true,
     };
-    if cleanup_pending {
-        probe_cleanup_registry().adopt(cleanup).await;
-    }
 
-    match probe_result {
-        Ok(Ok(receipt)) => Ok(receipt),
-        Ok(Err(error)) => Err(map_probe_adapter_error(error)),
-        Err(_) => Err(ChannelProbeError::Timeout),
-    }
+    finalize_probe_result(probe_result, cleanup_error)
 }
 
 /// Construct configured native adapters without registering or starting them.
@@ -802,7 +919,40 @@ pub trait ChannelAdapter: Send + Sync + 'static {
 
 #[cfg(test)]
 mod probe_error_tests {
-    use super::ChannelProbeError;
+    use super::{
+        finalize_probe_result, AdapterError, ChannelProbeError, ProbeAdmission,
+        ProbeExecutionResult,
+    };
+
+    #[tokio::test]
+    async fn probe_admission_rejects_duplicate_channel_until_cleanup_releases() {
+        let admission = ProbeAdmission::new();
+        let lease = admission.acquire("email").expect("email slot");
+        let error = match admission.acquire("email") {
+            Ok(_) => panic!("duplicate email probe must be busy"),
+            Err(error) => error,
+        };
+        assert_eq!(error.public_code(), "probe_busy");
+        drop(lease);
+        assert!(admission.acquire("email").is_ok());
+    }
+
+    #[test]
+    fn probe_admission_rejects_work_beyond_global_capacity() {
+        let admission = ProbeAdmission::new();
+        let leases = ["telegram", "discord", "feishu", "dingtalk"]
+            .into_iter()
+            .map(|channel| admission.acquire(channel).expect("global probe slot"))
+            .collect::<Vec<_>>();
+
+        let error = match admission.acquire("email") {
+            Ok(_) => panic!("global probe capacity must be bounded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.public_code(), "probe_busy");
+        drop(leases);
+        assert!(admission.acquire("email").is_ok());
+    }
 
     #[test]
     fn public_probe_codes_drop_untrusted_diagnostics() {
@@ -822,5 +972,47 @@ mod probe_error_tests {
             retryable: true,
         };
         assert_eq!(error.public_code(), "telegram_api");
+    }
+
+    #[test]
+    fn probe_error_takes_precedence_over_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(
+            ProbeExecutionResult::Adapter(AdapterError::Stopped),
+            cleanup,
+        );
+
+        assert_eq!(
+            result.expect_err("probe failure").public_code(),
+            "adapter_stopped"
+        );
+    }
+
+    #[test]
+    fn probe_timeout_takes_precedence_over_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(ProbeExecutionResult::Timeout, cleanup);
+
+        assert_eq!(
+            result.expect_err("probe timeout"),
+            ChannelProbeError::Timeout
+        );
+    }
+
+    #[test]
+    fn successful_probe_surfaces_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(
+            ProbeExecutionResult::Receipt(super::accepted_receipt("email", "probe", None, None)),
+            cleanup.clone(),
+        );
+
+        assert_eq!(result, Err(cleanup.expect("cleanup error")));
     }
 }

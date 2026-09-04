@@ -1,15 +1,186 @@
 use crate::adapter::{AdapterContext, ChannelAdapter};
 use agent_diva_core::channel::{ChannelHealth, ChannelHealthStatus};
 use chrono::Utc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 const ADAPTER_STOP_TIMEOUT: Duration = Duration::from_secs(5);
-const SUPERVISOR_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(12);
+const SUPERVISOR_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(6);
+const MAX_PENDING_STOP_CLEANUPS: usize = 6;
+const MAX_PENDING_STOP_CLEANUPS_PER_CHANNEL: usize = 1;
+
+/// Owns adapter stop futures that outlive the supervisor's bounded shutdown
+/// wait.  The runtime keeps one registry for its whole lifetime, so a
+/// reconfigure cannot drop a timed-out `EmailAdapter::stop` future with its
+/// blocking-task owner still inside it.
+pub(super) struct StopCleanupRegistry {
+    next_id: AtomicU64,
+    slots: Arc<Semaphore>,
+    channels: [Arc<Semaphore>; 6],
+    tasks: Mutex<BTreeMap<u64, StopCleanupTask>>,
+    reaper_started: std::sync::atomic::AtomicBool,
+}
+
+pub(super) struct StopCleanupReservation {
+    _global: OwnedSemaphorePermit,
+    _channel: Option<OwnedSemaphorePermit>,
+}
+
+struct StopCleanupTask {
+    channel: String,
+    _reservation: StopCleanupReservation,
+    task: JoinHandle<Result<(), crate::adapter::AdapterError>>,
+}
+
+fn cleanup_channel_index(channel: &str) -> Option<usize> {
+    match channel {
+        "telegram" => Some(0),
+        "discord" => Some(1),
+        "feishu" => Some(2),
+        "dingtalk" => Some(3),
+        "email" => Some(4),
+        "qq" => Some(5),
+        _ => None,
+    }
+}
+
+impl StopCleanupRegistry {
+    pub(super) fn new() -> Self {
+        Self {
+            next_id: AtomicU64::new(1),
+            slots: Arc::new(Semaphore::new(MAX_PENDING_STOP_CLEANUPS)),
+            channels: std::array::from_fn(|_| Arc::new(Semaphore::new(1))),
+            tasks: Mutex::new(BTreeMap::new()),
+            reaper_started: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Reserve a cleanup slot before spawning an adapter stop operation.
+    /// Completed owners are purged first so a cancelled caller cannot make a
+    /// slot permanently unavailable.  A full registry is a fail-fast result;
+    /// callers must not start a stop future they cannot transfer to an owner.
+    pub(super) async fn try_reserve(&self, channel: &str) -> Option<StopCleanupReservation> {
+        let mut tasks = self.tasks.lock().await;
+        let finished = tasks
+            .iter()
+            .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
+            .collect::<Vec<_>>();
+        for id in finished {
+            tasks.remove(&id);
+        }
+        let channel_permit = match cleanup_channel_index(channel) {
+            Some(index) => Some(self.channels[index].clone().try_acquire_owned().ok()?),
+            None => None,
+        };
+        let global_permit = self.slots.clone().try_acquire_owned().ok()?;
+        Some(StopCleanupReservation {
+            _global: global_permit,
+            _channel: channel_permit,
+        })
+    }
+
+    pub(super) async fn adopt(
+        self: &Arc<Self>,
+        channel: String,
+        task: JoinHandle<Result<(), crate::adapter::AdapterError>>,
+        reservation: StopCleanupReservation,
+    ) {
+        let mut tasks = self.tasks.lock().await;
+        let finished = tasks
+            .iter()
+            .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
+            .collect::<Vec<_>>();
+        for id in finished {
+            tasks.remove(&id);
+        }
+        let channel_count = tasks
+            .values()
+            .filter(|entry| entry.channel == channel)
+            .count();
+        // `ChannelRuntime::reconfigure` rejects a new generation while any
+        // prior cleanup is pending.  A runtime has at most six active
+        // channels, and a transition that times out after stopping does not
+        // install a new generation, so the limits below are reserved by
+        // construction before this hand-off.
+        // Never turn a full-registry condition into `stop.await`: that would
+        // make the supervisor's bounded shutdown fake again.  Keep the
+        // assertions as a regression tripwire if the channel count or
+        // transition protocol changes later.
+        debug_assert!(tasks.len() < MAX_PENDING_STOP_CLEANUPS);
+        debug_assert!(channel_count < MAX_PENDING_STOP_CLEANUPS_PER_CHANNEL);
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        tasks.insert(
+            id,
+            StopCleanupTask {
+                channel,
+                _reservation: reservation,
+                task,
+            },
+        );
+        drop(tasks);
+        self.start_reaper();
+    }
+
+    pub(super) async fn pending(&self) -> usize {
+        self.tasks
+            .lock()
+            .await
+            .values()
+            .filter(|entry| !entry.task.is_finished())
+            .count()
+    }
+
+    fn start_reaper(self: &Arc<Self>) {
+        if self
+            .reaper_started
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let registry = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                let finished = {
+                    let tasks = registry.tasks.lock().await;
+                    tasks
+                        .iter()
+                        .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
+                        .collect::<Vec<_>>()
+                };
+                for id in finished {
+                    let task = registry.tasks.lock().await.remove(&id);
+                    if let Some(task) = task {
+                        let _ = task.task.await;
+                    }
+                }
+                if registry.tasks.lock().await.is_empty() {
+                    registry.reaper_started.store(false, Ordering::Release);
+                    if registry.tasks.lock().await.is_empty() {
+                        break;
+                    }
+                    registry.reaper_started.store(true, Ordering::Release);
+                }
+            }
+        });
+    }
+
+    #[cfg(test)]
+    async fn pending_for(&self, channel: &str) -> usize {
+        self.tasks
+            .lock()
+            .await
+            .values()
+            .filter(|entry| entry.channel == channel && !entry.task.is_finished())
+            .count()
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SupervisorError {
@@ -92,6 +263,20 @@ impl AdapterSupervisor {
         context: AdapterContext,
         policy: SupervisorPolicy,
     ) -> Result<Self, SupervisorError> {
+        Self::try_spawn_with_policy_and_cleanup(
+            adapter,
+            context,
+            policy,
+            Arc::new(StopCleanupRegistry::new()),
+        )
+    }
+
+    pub(super) fn try_spawn_with_policy_and_cleanup(
+        adapter: Arc<dyn ChannelAdapter>,
+        context: AdapterContext,
+        policy: SupervisorPolicy,
+        stop_cleanup: Arc<StopCleanupRegistry>,
+    ) -> Result<Self, SupervisorError> {
         let runtime = tokio::runtime::Handle::try_current()
             .map_err(|error| SupervisorError::WorkerSpawn(error.to_string()))?;
         let channel = adapter.name().to_string();
@@ -106,6 +291,7 @@ impl AdapterSupervisor {
             health_tx.clone(),
             consecutive_failures.clone(),
             policy,
+            stop_cleanup.clone(),
         ));
         Ok(Self {
             channel,
@@ -156,6 +342,7 @@ async fn run_supervisor(
     health_tx: watch::Sender<ChannelHealth>,
     consecutive_failures: Arc<AtomicU32>,
     policy: SupervisorPolicy,
+    stop_cleanup: Arc<StopCleanupRegistry>,
 ) {
     loop {
         if cancel.is_cancelled() {
@@ -176,26 +363,37 @@ async fn run_supervisor(
             biased;
             _ = cancel.cancelled() => {
                 listener_cancel.cancel();
-                stop_adapter(adapter.as_ref()).await;
-                if tokio::time::timeout(ADAPTER_STOP_TIMEOUT, &mut listener).await.is_err() {
-                    listener.abort();
-                    let _ = listener.await;
-                }
+                let stop = stop_adapter(adapter.clone(), stop_cleanup.clone());
+                let wait_listener = async {
+                    if tokio::time::timeout(ADAPTER_STOP_TIMEOUT, &mut listener)
+                        .await
+                        .is_err()
+                    {
+                        listener.abort();
+                        let _ = listener.await;
+                    }
+                };
+                let _ = tokio::join!(stop, wait_listener);
                 break;
             }
             outcome = &mut listener => outcome,
         };
         listener_cancel.cancel();
-        stop_adapter(adapter.as_ref()).await;
+        let stop_outcome = stop_adapter(adapter.clone(), stop_cleanup.clone()).await;
+        if matches!(stop_outcome, StopOutcome::Pending) {
+            // A stop future that exceeded its local budget is now owned by the
+            // registry.  Restarting the listener would permit another native
+            // operation for the same adapter while the old one is still
+            // unwinding, so this supervisor remains down until a fresh runtime
+            // generation is installed.
+            break;
+        }
 
         let failure_count = consecutive_failures.fetch_add(1, Ordering::AcqRel) + 1;
         let (panic, diagnosis) = match outcome {
             Ok(Ok(())) => (false, "adapter listener exited normally".to_string()),
-            Ok(Err(error)) => (false, error.to_string()),
-            Err(error) => (
-                error.is_panic(),
-                format!("adapter listener task failed: {error}"),
-            ),
+            Ok(Err(error)) => (false, safe_listener_diagnosis(&error)),
+            Err(error) => (error.is_panic(), "adapter listener task failed".to_string()),
         };
         let status = if panic || failure_count >= policy.down_after_failures.max(1) {
             ChannelHealthStatus::Down
@@ -234,19 +432,69 @@ async fn run_supervisor(
     health_tx.send_replace(health);
 }
 
-async fn stop_adapter(adapter: &dyn ChannelAdapter) {
-    match tokio::time::timeout(ADAPTER_STOP_TIMEOUT, adapter.stop()).await {
-        Ok(Ok(())) => {}
-        Ok(Err(error)) => tracing::warn!(
-            channel = %adapter.name(),
-            error = %error,
-            "channel adapter stop returned an error"
-        ),
-        Err(_) => tracing::warn!(
-            channel = %adapter.name(),
-            "channel adapter stop timed out"
-        ),
+enum StopOutcome {
+    Completed,
+    Pending,
+}
+
+async fn stop_adapter(
+    adapter: Arc<dyn ChannelAdapter>,
+    stop_cleanup: Arc<StopCleanupRegistry>,
+) -> StopOutcome {
+    stop_adapter_with_budget(adapter, stop_cleanup, ADAPTER_STOP_TIMEOUT).await
+}
+
+async fn stop_adapter_with_budget(
+    adapter: Arc<dyn ChannelAdapter>,
+    stop_cleanup: Arc<StopCleanupRegistry>,
+    budget: Duration,
+) -> StopOutcome {
+    let channel = adapter.name().to_string();
+    let Some(reservation) = stop_cleanup.try_reserve(&channel).await else {
+        tracing::warn!(
+            channel = %channel,
+            "channel adapter stop cleanup registry is full; refusing another native stop"
+        );
+        return StopOutcome::Pending;
+    };
+    let mut stop = tokio::spawn(async move { adapter.stop().await });
+    match tokio::time::timeout(budget, &mut stop).await {
+        Ok(Ok(Ok(()))) => StopOutcome::Completed,
+        Ok(Ok(Err(error))) => {
+            tracing::warn!(channel = %channel, code = %safe_adapter_code(&error), "channel adapter stop returned an error");
+            StopOutcome::Completed
+        }
+        Ok(Err(error)) => {
+            tracing::warn!(channel = %channel, error = %error, "channel adapter stop task failed");
+            StopOutcome::Completed
+        }
+        Err(_) => {
+            stop_cleanup.adopt(channel.clone(), stop, reservation).await;
+            tracing::warn!(
+                channel = %channel,
+                "channel adapter stop exceeded its bounded wait; cleanup owner retained"
+            );
+            StopOutcome::Pending
+        }
     }
+}
+
+fn safe_adapter_code(error: &crate::adapter::AdapterError) -> String {
+    let code = error.code();
+    if !code.is_empty()
+        && code.len() <= 64
+        && code.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+        })
+    {
+        code.to_string()
+    } else {
+        "adapter_error".to_string()
+    }
+}
+
+fn safe_listener_diagnosis(error: &crate::adapter::AdapterError) -> String {
+    format!("adapter listener failed ({})", safe_adapter_code(error))
 }
 
 fn should_log_failure(failure_count: u32) -> bool {
@@ -280,6 +528,138 @@ fn backoff_delay(policy: SupervisorPolicy, failure_count: u32, channel: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::{AdapterError, ChannelAdapter};
+    use agent_diva_core::channel::{
+        ChannelCapabilities, ChannelCommand, ChannelId, DeliveryReceipt,
+    };
+    use async_trait::async_trait;
+    use tokio::sync::Notify;
+
+    struct BlockingStopAdapter {
+        id: ChannelId,
+        release: Arc<Notify>,
+        started: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    #[async_trait]
+    impl ChannelAdapter for BlockingStopAdapter {
+        fn name(&self) -> ChannelId {
+            self.id.clone()
+        }
+
+        fn capabilities(&self) -> ChannelCapabilities {
+            ChannelCapabilities::new(std::iter::empty())
+        }
+
+        async fn start(&self, context: AdapterContext) -> Result<(), AdapterError> {
+            context.cancel.cancelled().await;
+            Ok(())
+        }
+
+        async fn execute(&self, _command: ChannelCommand) -> Result<DeliveryReceipt, AdapterError> {
+            Err(AdapterError::Stopped)
+        }
+
+        fn health(&self) -> ChannelHealth {
+            ChannelHealth::new(ChannelHealthStatus::Healthy)
+        }
+
+        async fn stop(&self) -> Result<(), AdapterError> {
+            self.started.store(true, Ordering::Release);
+            self.release.notified().await;
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn timed_out_stop_remains_owned_until_reaper_observes_completion() {
+        let cleanup = Arc::new(StopCleanupRegistry::new());
+        let release = Arc::new(Notify::new());
+        let adapter = Arc::new(BlockingStopAdapter {
+            id: ChannelId::new("test").expect("channel id"),
+            release: release.clone(),
+            started: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        });
+        assert!(matches!(
+            stop_adapter_with_budget(adapter, cleanup.clone(), Duration::from_millis(5)).await,
+            StopOutcome::Pending
+        ));
+        assert_eq!(cleanup.pending_for("test").await, 1);
+        release.notify_one();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if cleanup.pending().await == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("stop cleanup reaper");
+    }
+
+    #[tokio::test]
+    async fn full_stop_cleanup_registry_fails_fast_without_starting_native_stop() {
+        let cleanup = Arc::new(StopCleanupRegistry::new());
+        let mut releases = Vec::new();
+        for index in 0..MAX_PENDING_STOP_CLEANUPS {
+            let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+            let task = tokio::spawn(async move {
+                let _ = release_rx.await;
+                Ok::<(), AdapterError>(())
+            });
+            let channel = format!("filled-{index}");
+            let reservation = cleanup
+                .try_reserve(&channel)
+                .await
+                .expect("cleanup capacity");
+            cleanup.adopt(channel, task, reservation).await;
+            releases.push(release_tx);
+        }
+
+        let started = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let adapter = Arc::new(BlockingStopAdapter {
+            id: ChannelId::new("test").expect("channel id"),
+            release: Arc::new(Notify::new()),
+            started: started.clone(),
+        });
+        assert!(matches!(
+            tokio::time::timeout(
+                Duration::from_millis(100),
+                stop_adapter_with_budget(adapter, cleanup.clone(), Duration::from_secs(5)),
+            )
+            .await
+            .expect("full cleanup registry must fail fast"),
+            StopOutcome::Pending
+        ));
+        assert!(!started.load(Ordering::Acquire));
+
+        for release in releases {
+            release.send(()).expect("release cleanup owner");
+        }
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if cleanup.pending().await == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("stop cleanup reaper");
+    }
+
+    #[tokio::test]
+    async fn duplicate_channel_stop_cleanup_reservation_fails_fast() {
+        let cleanup = StopCleanupRegistry::new();
+        let reservation = cleanup
+            .try_reserve("email")
+            .await
+            .expect("first channel reservation");
+        assert!(cleanup.try_reserve("email").await.is_none());
+        drop(reservation);
+        assert!(cleanup.try_reserve("email").await.is_some());
+    }
 
     #[test]
     fn backoff_is_bounded_and_deterministic() {

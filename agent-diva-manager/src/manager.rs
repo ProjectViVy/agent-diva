@@ -387,7 +387,11 @@ impl Manager {
                             self.handle_update_channel(update, reply).await;
                         }
                         ManagerCommand::ProbeChannel(name, config, reply) => {
-                            self.handle_probe_channel(name, config, reply).await;
+                            // Probes have their own bounded admission and
+                            // cleanup ownership.  Keep the single Manager
+                            // actor available for stop/status/update commands
+                            // while a network probe spends its 35s deadline.
+                            self.handle_probe_channel(name, config, reply);
                         }
                         ManagerCommand::DeleteChannel(name, reply) => {
                             self.handle_delete_channel(name, reply).await;

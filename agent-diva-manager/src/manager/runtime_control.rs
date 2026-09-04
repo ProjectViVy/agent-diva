@@ -5,6 +5,7 @@ use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, QQConfig,
     SelfEvolutionConfig, TelegramConfig, WebToolsConfig,
 };
+use agent_diva_core::config::ConfigLoader;
 use agent_diva_providers::{
     build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
 };
@@ -19,35 +20,37 @@ use crate::state::{
 };
 
 const CHANNEL_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(35);
-const CHANNEL_RUNTIME_RECONFIGURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// Run a runtime transition with an owned task so a caller timeout cannot
-/// cancel the transaction halfway through registry installation. If the
-/// budget elapses, the task is still joined before returning, preserving
-/// cleanup ownership and giving the caller an explicit timeout result.
+/// Run one runtime transition to a definite terminal result.  The transition
+/// is intentionally awaited directly: a caller timeout must not drop a future
+/// halfway through registry installation or leave a detached late commit.
+/// ChannelRuntime bounds its contended lock and each worker shutdown internally
+/// before it mutates the active generation.
 async fn reconfigure_channel_runtime(
     runtime: &Arc<agent_diva_channels::runtime::ChannelRuntime>,
     config: &Config,
 ) -> Result<(), String> {
-    let runtime = Arc::clone(runtime);
-    let config = config.clone();
-    let mut task = tokio::spawn(async move { runtime.reconfigure(&config).await });
-    match tokio::time::timeout(CHANNEL_RUNTIME_RECONFIGURE_TIMEOUT, &mut task).await {
-        Ok(Ok(Ok(()))) => Ok(()),
-        Ok(Ok(Err(error))) => Err(error.to_string()),
-        Ok(Err(error)) => Err(format!("channel runtime transition task failed: {error}")),
-        Err(_) => match task.await {
-            Ok(Ok(())) => Err(
-                "channel runtime transition exceeded its bounded deadline after completing"
-                    .to_string(),
-            ),
-            Ok(Err(error)) => Err(format!(
-                "channel runtime transition exceeded its bounded deadline: {error}"
-            )),
-            Err(error) => Err(format!(
-                "channel runtime transition task failed after deadline: {error}"
-            )),
-        },
+    match runtime.reconfigure(config).await {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            tracing::error!(error = %error, "channel runtime transition failed");
+            Err("channel runtime transition failed".to_string())
+        }
+    }
+}
+
+fn persistence_failure_message(
+    operation: &str,
+    config_rollback_failed: bool,
+    runtime_rollback_failed: bool,
+) -> String {
+    match (config_rollback_failed, runtime_rollback_failed) {
+        (false, false) => format!("{operation} persistence failed"),
+        (true, false) => format!("{operation} persistence failed; configuration rollback failed"),
+        (false, true) => format!("{operation} persistence failed; runtime rollback failed"),
+        (true, true) => {
+            format!("{operation} persistence failed; configuration and runtime rollback failed")
+        }
     }
 }
 
@@ -469,7 +472,7 @@ impl Manager {
             Ok(config) => config,
             Err(e) => {
                 error!("Failed to load config: {}", e);
-                let _ = reply.send(Err(e.to_string()));
+                let _ = reply.send(Err("channel configuration is unavailable".to_string()));
                 return;
             }
         };
@@ -477,45 +480,90 @@ impl Manager {
 
         if let Err(e) = Self::apply_channel_update(&mut config, &update) {
             error!("Failed to update channel config: {}", e);
-            let _ = reply.send(Err(e.to_string()));
-            return;
-        }
-        if let Err(e) = self.loader.save(&config) {
-            error!("Failed to save config: {}", e);
-            let _ = reply.send(Err(e.to_string()));
+            let message = if e.to_string().starts_with("Unknown channel:") {
+                e.to_string()
+            } else {
+                "invalid channel configuration".to_string()
+            };
+            let _ = reply.send(Err(message));
             return;
         }
 
         if let Some(runtime) = &self.channel_runtime {
             if let Err(e) = reconfigure_channel_runtime(runtime, &config).await {
-                error!("Failed to reload channel {}: {}", channel_name, e);
-                if let Err(restore_error) = self.loader.save(&previous) {
-                    error!("Failed to restore channel config: {}", restore_error);
-                }
-                if let Err(restore_error) = reconfigure_channel_runtime(runtime, &previous).await {
-                    error!("Failed to restore channel runtime: {}", restore_error);
-                }
-                let _ = reply.send(Err(e.to_string()));
+                error!(channel = %channel_name, error = %e, "failed to reload channel");
+                // Persistence has not started yet, so a failed runtime
+                // transition cannot leave a late config rollback behind.
+                let _ = reply.send(Err(e));
                 return;
-            } else {
-                info!("Channel {} reloaded successfully", channel_name);
             }
         }
+
+        if let Err(e) = self.loader.save(&config) {
+            error!(channel = %channel_name, error = %e, "failed to persist channel config");
+            let config_rollback_failed = match self.loader.save(&previous) {
+                Ok(()) => false,
+                Err(rollback_error) => {
+                    error!(
+                        channel = %channel_name,
+                        error = %rollback_error,
+                        "failed to restore channel config after persistence failure"
+                    );
+                    true
+                }
+            };
+            let runtime_rollback_failed = if let Some(runtime) = &self.channel_runtime {
+                match reconfigure_channel_runtime(runtime, &previous).await {
+                    Ok(()) => false,
+                    Err(restore_error) => {
+                        error!(
+                            channel = %channel_name,
+                            error = %restore_error,
+                            "failed to restore channel runtime after persistence failure"
+                        );
+                        true
+                    }
+                }
+            } else {
+                false
+            };
+            let _ = reply.send(Err(persistence_failure_message(
+                "channel configuration",
+                config_rollback_failed,
+                runtime_rollback_failed,
+            )));
+            return;
+        }
+        info!("Channel {} reloaded successfully", channel_name);
         let _ = reply.send(Ok(()));
     }
 
-    pub(super) async fn handle_probe_channel(
+    pub(super) fn handle_probe_channel(
         &self,
         name: String,
         candidate: serde_json::Value,
         reply: oneshot::Sender<Result<DeliveryReceipt, agent_diva_channels::ChannelProbeError>>,
     ) {
-        let result = self.probe_channel_candidate(&name, candidate).await;
-        let _ = reply.send(result);
+        let loader = self.loader.clone();
+        let runtime = self.channel_runtime.clone();
+        let file_manager = self.file_manager.clone();
+        tokio::spawn(async move {
+            let result = Self::probe_channel_candidate(
+                &loader,
+                runtime.as_ref(),
+                file_manager,
+                &name,
+                candidate,
+            )
+            .await;
+            let _ = reply.send(result);
+        });
     }
 
     async fn probe_channel_candidate(
-        &self,
+        loader: &ConfigLoader,
+        runtime: Option<&Arc<agent_diva_channels::runtime::ChannelRuntime>>,
+        file_manager: Arc<agent_diva_files::FileManager>,
         name: &str,
         candidate: serde_json::Value,
     ) -> Result<DeliveryReceipt, agent_diva_channels::ChannelProbeError> {
@@ -526,8 +574,7 @@ impl Manager {
             });
         }
 
-        let mut config = self
-            .loader
+        let mut config = loader
             .load()
             .map_err(|_| agent_diva_channels::ChannelProbeError::Build)?;
         Self::apply_channel_update(
@@ -540,15 +587,13 @@ impl Manager {
         )
         .map_err(|_| agent_diva_channels::ChannelProbeError::InvalidConfig)?;
 
-        if let Some(runtime) = &self.channel_runtime {
+        if let Some(runtime) = runtime {
             runtime
                 .probe_candidate(&config, name, CHANNEL_PROBE_TIMEOUT)
                 .await
         } else {
             let attachments = Arc::new(
-                crate::channel_attachment_store::FileManagerAttachmentStore::new(
-                    self.file_manager.clone(),
-                ),
+                crate::channel_attachment_store::FileManagerAttachmentStore::new(file_manager),
             );
             let services = agent_diva_channels::AdapterServices::new(attachments);
             agent_diva_channels::probe_candidate(&config, name, services, CHANNEL_PROBE_TIMEOUT)
@@ -575,23 +620,48 @@ impl Manager {
         let previous = config.clone();
         reset_channel(&mut config, name).map_err(|error| error.to_string())?;
 
-        self.loader
-            .save(&config)
-            .map_err(|error| error.to_string())?;
-
         if let Some(runtime) = &self.channel_runtime {
             if let Err(error) = reconfigure_channel_runtime(runtime, &config).await {
-                let rollback = self.loader.save(&previous).err();
-                let runtime_rollback = reconfigure_channel_runtime(runtime, &previous).await.err();
-                let mut message = format!("failed to reload channel {name}: {error}");
-                if let Some(rollback) = rollback {
-                    message.push_str(&format!("; config rollback failed: {rollback}"));
-                }
-                if let Some(runtime_rollback) = runtime_rollback {
-                    message.push_str(&format!("; runtime rollback failed: {runtime_rollback}"));
-                }
-                return Err(message);
+                error!(channel = %name, error = %error, "failed to reload channel for deletion");
+                // The tombstone is not persisted until the final runtime
+                // generation is known to be installed.
+                return Err("channel deletion could not be applied".to_string());
             }
+        }
+
+        if let Err(error) = self.loader.save(&config) {
+            error!(channel = %name, error = %error, "failed to persist channel deletion");
+            let config_rollback_failed = match self.loader.save(&previous) {
+                Ok(()) => false,
+                Err(rollback_error) => {
+                    error!(
+                        channel = %name,
+                        error = %rollback_error,
+                        "failed to restore channel config after deletion persistence failure"
+                    );
+                    true
+                }
+            };
+            let runtime_rollback_failed = if let Some(runtime) = &self.channel_runtime {
+                match reconfigure_channel_runtime(runtime, &previous).await {
+                    Ok(()) => false,
+                    Err(restore_error) => {
+                        error!(
+                            channel = %name,
+                            error = %restore_error,
+                            "failed to restore channel runtime after deletion persistence failure"
+                        );
+                        true
+                    }
+                }
+            } else {
+                false
+            };
+            return Err(persistence_failure_message(
+                "channel deletion",
+                config_rollback_failed,
+                runtime_rollback_failed,
+            ));
         }
         Ok(())
     }
@@ -1217,5 +1287,25 @@ mod tests {
         for name in ["neuro-link", "slack", "whatsapp", "carrier-pigeon"] {
             assert!(reset_channel(&mut config, name).is_err(), "{name}");
         }
+    }
+
+    #[test]
+    fn persistence_failure_reports_each_rollback_failure() {
+        assert_eq!(
+            persistence_failure_message("channel configuration", false, false),
+            "channel configuration persistence failed"
+        );
+        assert_eq!(
+            persistence_failure_message("channel deletion", true, false),
+            "channel deletion persistence failed; configuration rollback failed"
+        );
+        assert_eq!(
+            persistence_failure_message("channel deletion", false, true),
+            "channel deletion persistence failed; runtime rollback failed"
+        );
+        assert_eq!(
+            persistence_failure_message("channel deletion", true, true),
+            "channel deletion persistence failed; configuration and runtime rollback failed"
+        );
     }
 }

@@ -1,3 +1,4 @@
+use super::supervisor::{StopCleanupRegistry, SupervisorPolicy};
 use super::{
     AdapterPacingHandle, AdapterPacingLane, AdapterRegistry, AdapterSupervisor, PacingError,
 };
@@ -20,6 +21,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 const EGRESS_ADMISSION_DEADLINE: Duration = Duration::from_secs(2);
+const RECONFIGURE_LIFECYCLE_LOCK_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChannelRuntimeStatus {
@@ -69,6 +71,8 @@ pub struct ChannelRuntime {
     /// Last successfully installed configuration, used to rebuild the live
     /// set if a candidate transition fails after old workers are stopped.
     active_config: Mutex<Option<Config>>,
+    /// Owns stop futures that can outlive a supervisor's bounded shutdown.
+    stop_cleanup: Arc<StopCleanupRegistry>,
 }
 
 impl std::fmt::Debug for ChannelRuntime {
@@ -94,6 +98,7 @@ impl ChannelRuntime {
             entries: Mutex::new(BTreeMap::new()),
             lifecycle: Mutex::new(()),
             active_config: Mutex::new(None),
+            stop_cleanup: Arc::new(StopCleanupRegistry::new()),
         });
         runtime.reconfigure(config).await?;
         Ok(runtime)
@@ -102,9 +107,25 @@ impl ChannelRuntime {
     /// Construct every candidate before replacing the live set.
     pub async fn reconfigure(&self, config: &Config) -> Result<(), ChannelRuntimeError> {
         let candidates = build_active_adapters(config, self.services.clone())?;
-        let _lifecycle = self.lifecycle.lock().await;
+        // Once acquired, the transition below consists only of bounded
+        // supervisor/pacing shutdowns and synchronous candidate assembly.
+        // Bound the only externally-contended lock separately so callers do
+        // not need to cancel a transaction halfway through installation.
+        let _lifecycle =
+            tokio::time::timeout(RECONFIGURE_LIFECYCLE_LOCK_TIMEOUT, self.lifecycle.lock())
+                .await
+                .map_err(|_| {
+                    ChannelRuntimeError::Lifecycle(
+                        "channel runtime transition is busy; retry later".to_string(),
+                    )
+                })?;
+        if self.stop_cleanup.pending().await > 0 {
+            return Err(ChannelRuntimeError::Lifecycle(
+                "channel runtime cleanup is still pending; retry later".to_string(),
+            ));
+        }
         let previous_config = self.active_config.lock().await.clone();
-        self.stop_entries_locked().await;
+        self.stop_entries_locked().await?;
         let installed = match self.install_candidates(candidates).await {
             Ok(installed) => installed,
             Err(error) => {
@@ -113,6 +134,11 @@ impl ChannelRuntime {
                 // partially created. Rebuild the last known good set while
                 // the lifecycle guard is still held, so readers never see an
                 // empty/half-installed runtime after a failed transition.
+                if self.stop_cleanup.pending().await > 0 {
+                    return Err(ChannelRuntimeError::Lifecycle(format!(
+                        "{error}; runtime cleanup is still pending and no new generation was installed"
+                    )));
+                }
                 if let Some(previous_config) = previous_config {
                     let restore_candidates = match build_active_adapters(
                         &previous_config,
@@ -209,7 +235,7 @@ impl ChannelRuntime {
                         .collect(),
                     egress_remaining_capacity: entry.pacing_handle.remaining_capacity(),
                     consecutive_failures: health.consecutive_failures,
-                    diagnosis: health.diagnosis,
+                    diagnosis: public_health_diagnosis(health.status),
                     checked_at: health.checked_at,
                 }
             })
@@ -219,7 +245,7 @@ impl ChannelRuntime {
     pub async fn shutdown(&self) {
         self.cancel.cancel();
         let _lifecycle = self.lifecycle.lock().await;
-        self.stop_entries_locked().await;
+        let _ = self.stop_entries_locked().await;
     }
 
     async fn install_candidates(
@@ -250,12 +276,14 @@ impl ChannelRuntime {
                 }
             };
             let pacing_handle = pacing.handle();
-            let supervisor = match AdapterSupervisor::try_spawn(
+            let supervisor = match AdapterSupervisor::try_spawn_with_policy_and_cleanup(
                 adapter.clone(),
                 AdapterContext {
                     fabric: self.fabric.clone(),
                     cancel: self.cancel.child_token(),
                 },
+                SupervisorPolicy::default(),
+                self.stop_cleanup.clone(),
             ) {
                 Ok(supervisor) => supervisor,
                 Err(error) => {
@@ -280,9 +308,21 @@ impl ChannelRuntime {
         Ok(installed)
     }
 
-    async fn stop_entries_locked(&self) {
+    async fn stop_entries_locked(&self) -> Result<(), ChannelRuntimeError> {
         let entries = std::mem::take(&mut *self.entries.lock().await);
         self.shutdown_entries(entries).await;
+        if self.stop_cleanup.pending().await > 0 {
+            // The live map is deliberately empty here: the old generation
+            // has been unregistered, while active_config remains the last
+            // known-good rebuild source.  Do not install a new generation
+            // until every old stop owner has drained; callers receive a
+            // definite unavailable result and may retry the transition.
+            return Err(ChannelRuntimeError::Lifecycle(
+                "channel adapter cleanup exceeded its bounded wait; runtime generation is unavailable"
+                    .to_string(),
+            ));
+        }
+        Ok(())
     }
 
     async fn shutdown_entries(&self, entries: BTreeMap<String, RuntimeEntry>) {
@@ -306,6 +346,18 @@ impl ChannelRuntime {
         if let Err(error) = self.registry.unregister(id).await {
             tracing::warn!(channel = %id, %error, operation, "failed to unregister native adapter");
         }
+    }
+}
+
+/// Runtime status is an operator-facing API.  Adapter diagnostics are kept
+/// internally for logs, but transport errors can contain endpoint URLs,
+/// response bodies, or credentials.  Expose only a stable state summary.
+fn public_health_diagnosis(status: ChannelHealthStatus) -> Option<String> {
+    match status {
+        ChannelHealthStatus::Healthy => None,
+        ChannelHealthStatus::Degraded => Some("adapter is degraded".to_string()),
+        ChannelHealthStatus::Down => Some("adapter is unavailable".to_string()),
+        ChannelHealthStatus::Unknown => Some("adapter is starting".to_string()),
     }
 }
 
@@ -389,6 +441,7 @@ mod tests {
             entries: Mutex::new(BTreeMap::new()),
             lifecycle: Mutex::new(()),
             active_config: Mutex::new(None),
+            stop_cleanup: Arc::new(StopCleanupRegistry::new()),
         }
     }
 
@@ -424,5 +477,60 @@ mod tests {
         );
         drop(guard);
         assert!(status_task.await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn reconfigure_fails_fast_when_lifecycle_transition_is_busy() {
+        let runtime = Arc::new(test_runtime());
+        let guard = runtime.lifecycle.lock().await;
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            runtime.reconfigure(&Config::default()),
+        )
+        .await
+        .expect("busy transition must have a bounded result");
+
+        assert!(matches!(
+            result,
+            Err(ChannelRuntimeError::Lifecycle(message))
+                if message == "channel runtime transition is busy; retry later"
+        ));
+        drop(guard);
+    }
+
+    #[tokio::test]
+    async fn pending_stop_cleanup_rejects_new_generation_without_installing_workers() {
+        let runtime = test_runtime();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let cleanup_task = tokio::spawn(async move {
+            let _ = release_rx.await;
+            Ok::<(), crate::adapter::AdapterError>(())
+        });
+        let reservation = runtime
+            .stop_cleanup
+            .try_reserve("email")
+            .await
+            .expect("cleanup slot");
+        runtime
+            .stop_cleanup
+            .adopt("email".to_string(), cleanup_task, reservation)
+            .await;
+
+        let result = runtime.reconfigure(&Config::default()).await;
+        assert!(matches!(result, Err(ChannelRuntimeError::Lifecycle(_))));
+        assert!(runtime.registry.list().await.is_empty());
+        assert!(runtime.entries.lock().await.is_empty());
+
+        release_tx.send(()).expect("release cleanup owner");
+        tokio::time::sleep(Duration::from_millis(40)).await;
+    }
+
+    #[test]
+    fn public_runtime_diagnosis_is_a_state_summary_only() {
+        assert_eq!(public_health_diagnosis(ChannelHealthStatus::Healthy), None);
+        assert_eq!(
+            public_health_diagnosis(ChannelHealthStatus::Down),
+            Some("adapter is unavailable".to_string())
+        );
     }
 }

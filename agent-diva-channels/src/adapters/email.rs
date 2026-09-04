@@ -40,6 +40,10 @@ const FABRIC_ADMISSION_DEADLINE: Duration = Duration::from_secs(1);
 const IMAP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const SMTP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const BLOCKING_OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
+// A cancelled waiter cannot abort a `spawn_blocking` operation.  Keep a hard
+// per-adapter cap so repeated sends/probes cannot accumulate an unbounded set
+// of native blocking workers while an external DNS/IMAP call is wedged.
+const MAX_BLOCKING_TASKS: usize = 8;
 // Health probing is deliberately much shorter than ordinary mail polling or
 // delivery. This gives the owning BlockingTaskRegistry a small, explicit
 // drain bound after the public probe budget expires.
@@ -73,6 +77,8 @@ fn transport_failure(diagnosis: impl Into<String>) -> EmailTransportError {
 enum BlockingTaskError {
     #[error("blocking task registry is closed")]
     Closed,
+    #[error("blocking task registry is at capacity")]
+    AtCapacity,
     #[error("blocking task did not return a result")]
     MissingResult,
     #[error("blocking task panicked: {diagnosis}")]
@@ -107,8 +113,15 @@ impl BlockingTaskRegistry {
         F: FnOnce() -> R + Send + 'static,
     {
         let mut tasks = self.tasks.lock().await;
+        // A caller may time out while the native operation continues.  Once
+        // that operation has completed, its orphaned JoinHandle no longer
+        // owns blocking work and must not consume a capacity slot forever.
+        tasks.retain(|_, task| !task.is_finished());
         if self.closed.load(Ordering::Acquire) {
             return Err(BlockingTaskError::Closed);
+        }
+        if tasks.len() >= MAX_BLOCKING_TASKS {
+            return Err(BlockingTaskError::AtCapacity);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (sender, receiver) = oneshot::channel();
@@ -2091,6 +2104,100 @@ mod tests {
     struct FakeBlockingGate {
         started: StdMutex<std::sync::mpsc::Sender<()>>,
         release: StdMutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    #[tokio::test]
+    async fn blocking_task_registry_rejects_work_beyond_hard_capacity() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let release_rx = Arc::new(StdMutex::new(release_rx));
+        let mut workers = Vec::new();
+        for _ in 0..MAX_BLOCKING_TASKS {
+            let registry = registry.clone();
+            let release_rx = release_rx.clone();
+            workers.push(tokio::spawn(async move {
+                registry
+                    .run(move || {
+                        let _ = release_rx.lock().expect("release lock").recv();
+                    })
+                    .await
+            }));
+        }
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == MAX_BLOCKING_TASKS {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("all blocking workers admitted");
+
+        assert!(matches!(
+            registry.run(|| ()).await,
+            Err(BlockingTaskError::AtCapacity)
+        ));
+        for _ in 0..MAX_BLOCKING_TASKS {
+            release_tx.send(()).expect("release blocking worker");
+        }
+        for worker in workers {
+            worker
+                .await
+                .expect("blocking worker join")
+                .expect("worker result");
+        }
+    }
+
+    #[tokio::test]
+    async fn completed_orphan_blocking_handle_does_not_consume_capacity() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let waiter_registry = registry.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_registry
+                .run(move || {
+                    let _ = release_rx.recv();
+                })
+                .await
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocking worker admitted");
+        waiter.abort();
+        let _ = waiter.await;
+        release_tx.send(()).expect("release orphaned worker");
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry
+                    .tasks
+                    .lock()
+                    .await
+                    .values()
+                    .all(|task| task.is_finished())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("orphaned worker completed");
+
+        registry
+            .run(|| ())
+            .await
+            .expect("completed orphan must be purged before admission");
     }
 
     impl EmailTransport for FakeEmailTransport {

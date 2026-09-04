@@ -1210,20 +1210,27 @@ fn channel_probe_error_response(
 ) -> (StatusCode, Json<serde_json::Value>) {
     use agent_diva_channels::ChannelProbeError;
 
-    let (status, message) = match &error {
-        ChannelProbeError::UnknownChannel { .. } | ChannelProbeError::InvalidConfig => {
-            (StatusCode::BAD_REQUEST, "invalid channel probe request")
+    let (status, message) = if error.public_code() == "probe_busy" {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            "channel probe is already in progress",
+        )
+    } else {
+        match &error {
+            ChannelProbeError::UnknownChannel { .. } | ChannelProbeError::InvalidConfig => {
+                (StatusCode::BAD_REQUEST, "invalid channel probe request")
+            }
+            ChannelProbeError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "channel probe timed out"),
+            ChannelProbeError::Adapter { .. } => (StatusCode::BAD_GATEWAY, "channel probe failed"),
+            ChannelProbeError::Build => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "channel probe unavailable",
+            ),
+            ChannelProbeError::Cleanup { .. } => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "channel probe cleanup failed",
+            ),
         }
-        ChannelProbeError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "channel probe timed out"),
-        ChannelProbeError::Adapter { .. } => (StatusCode::BAD_GATEWAY, "channel probe failed"),
-        ChannelProbeError::Build => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "channel probe unavailable",
-        ),
-        ChannelProbeError::Cleanup { .. } => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "channel probe cleanup failed",
-        ),
     };
     (
         status,
@@ -1559,10 +1566,10 @@ pub async fn delete_cron_job_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        agent_bus_event_to_sse, attachment_digest, build_typed_chat_envelope, chat_handler,
-        generate_session_title_handler, get_session_history_handler, get_sessions_handler,
-        normalized_owner_intent, parse_approval_policy, update_session_title_handler, AgentEvent,
-        ChatRequest, Sse,
+        agent_bus_event_to_sse, attachment_digest, build_typed_chat_envelope,
+        channel_probe_error_response, chat_handler, generate_session_title_handler,
+        get_session_history_handler, get_sessions_handler, normalized_owner_intent,
+        parse_approval_policy, update_session_title_handler, AgentEvent, ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
     use agent_diva_core::bus::AgentEventBus;
@@ -1704,6 +1711,24 @@ mod tests {
         assert_eq!(attachment_digest("sha256:abc").unwrap(), "abc");
         assert!(attachment_digest("abc").is_err());
         assert!(attachment_digest("sha256:").is_err());
+    }
+
+    #[test]
+    fn busy_probe_error_is_rate_limited_without_adapter_diagnostics() {
+        let error = agent_diva_channels::ChannelProbeError::Adapter {
+            code: "probe_busy".to_string(),
+            retry_after_ms: Some(250),
+            retryable: true,
+        };
+        let (status, Json(body)) = channel_probe_error_response(error);
+
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(body["code"], "probe_busy");
+        assert_eq!(body["message"], "channel probe is already in progress");
+        assert_eq!(body["retryable"], true);
+        assert_eq!(body["retry_after_ms"], 250);
+        assert!(!body.to_string().contains("smtp"));
+        assert!(!body.to_string().contains("secret"));
     }
 
     #[tokio::test]
