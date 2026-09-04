@@ -5,14 +5,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `GLOBAL — integrate C6-D and implement GUI audit/channel settings recovery`
+- Scope: `agent-diva-core channel config; agent-diva-channels probe; agent-diva-manager channel API/runtime; agent-diva-gui dependency/Tauri/channel settings; TODOLIST.md; docs/logs/2026-09-gui-channel-recovery/**`
 - Owner: `Codex / GPT-5.6-LUNA/MAX agent team`
 - Session/Task: `GUI dependency audit remediation and channel settings probe/delete restoration`
 - Branch/Worktree: `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`
 - Started At: `2026-09-04T11:55:15+08:00`
-- Last Heartbeat: `2026-09-04T11:55:15+08:00`
+- Last Heartbeat: `2026-09-04T12:25:06+08:00`
 - Expires At: `2026-09-04T15:55:15+08:00`
-- Handoff Notes: `Implementation authorized by the user. The isolated integration branch will start from dev, merge C6-D at bccae24d, then accept non-overlapping dependency, Manager/API, and GUI work from GPT-5.6-LUNA/MAX agents. No push is authorized.`
+- Handoff Notes: `C6-D bccae24d is integrated in the isolated branch as merge 1a195be9. Dependency audit remediation is committed at 42828d22 with pnpm audit zero and 541 GUI tests/build passing. Backend and frontend lanes remain active; no push is authorized.`
 
 ## Lock Rules
 
