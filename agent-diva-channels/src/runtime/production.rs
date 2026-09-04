@@ -14,10 +14,11 @@ use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 const EGRESS_ADMISSION_DEADLINE: Duration = Duration::from_secs(2);
@@ -57,22 +58,122 @@ struct RuntimeEntry {
     supervisor: AdapterSupervisor,
 }
 
+/// Owns one runtime lifecycle transaction independently of its caller.
+///
+/// Reconfiguration moves the live entry map out, awaits supervisor shutdown,
+/// then installs a new generation. A caller may be cancelled at any of those
+/// await points; this slot keeps the spawned owner alive so the map cannot be
+/// left taken and the old JoinHandles cannot be detached. The reservation is
+/// synchronous to close the spawn-to-owner handoff race.
+struct RuntimeOwnerSlot {
+    state: StdMutex<RuntimeOwnerState>,
+}
+
+struct RuntimeOwnerState {
+    reserved: bool,
+    /// The owner has completed all runtime work and will only return from its
+    /// task body. It is safe for the next transaction to replace this
+    /// completed handle even if Tokio has not marked it finished yet.
+    releasable: bool,
+    task: Option<JoinHandle<()>>,
+}
+
+impl RuntimeOwnerSlot {
+    fn new() -> Self {
+        Self {
+            state: StdMutex::new(RuntimeOwnerState {
+                reserved: false,
+                releasable: false,
+                task: None,
+            }),
+        }
+    }
+
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, RuntimeOwnerState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Reserve the slot before spawning. This is a non-awaiting admission
+    /// boundary, so a competing command cannot observe an unowned task.
+    fn try_reserve(&self) -> bool {
+        let mut state = self.lock_state();
+        if state.releasable {
+            state.task.take();
+            state.releasable = false;
+        }
+        if state
+            .task
+            .as_ref()
+            .is_some_and(tokio::task::JoinHandle::is_finished)
+        {
+            state.task.take();
+        }
+        if state.reserved || state.task.is_some() {
+            return false;
+        }
+        state.reserved = true;
+        true
+    }
+
+    fn adopt(&self, task: JoinHandle<()>) {
+        let mut state = self.lock_state();
+        debug_assert!(state.reserved);
+        debug_assert!(state.task.is_none());
+        state.reserved = false;
+        state.releasable = false;
+        state.task = Some(task);
+    }
+
+    /// Mark the owner available only after its transaction result has been
+    /// sent. No mutable runtime work follows this call, so replacing the
+    /// completed JoinHandle cannot detach an in-flight transition.
+    fn mark_releasable(&self) {
+        let mut state = self.lock_state();
+        debug_assert!(!state.reserved);
+        debug_assert!(state.task.is_some());
+        state.releasable = true;
+    }
+
+    #[cfg(test)]
+    fn is_owned(&self) -> bool {
+        let state = self.lock_state();
+        state.reserved || state.task.is_some()
+    }
+
+    #[cfg(test)]
+    fn is_finished(&self) -> bool {
+        let state = self.lock_state();
+        state
+            .task
+            .as_ref()
+            .is_some_and(tokio::task::JoinHandle::is_finished)
+    }
+}
+
 /// Production owner for native adapters, their listener supervisors, and bounded egress lanes.
 pub struct ChannelRuntime {
     services: AdapterServices,
     fabric: FabricHandle,
     registry: Arc<AdapterRegistry>,
     cancel: CancellationToken,
-    entries: Mutex<BTreeMap<String, RuntimeEntry>>,
+    entries: Arc<Mutex<BTreeMap<String, RuntimeEntry>>>,
     /// Serializes runtime transitions with all reads/submissions. The entry
     /// map is only observed while this guard is held, so a transition cannot
     /// expose a partially installed set to egress or status callers.
-    lifecycle: Mutex<()>,
+    lifecycle: Arc<Mutex<()>>,
     /// Last successfully installed configuration, used to rebuild the live
     /// set if a candidate transition fails after old workers are stopped.
-    active_config: Mutex<Option<Config>>,
+    active_config: Arc<Mutex<Option<Config>>>,
     /// Owns stop futures that can outlive a supervisor's bounded shutdown.
     stop_cleanup: Arc<StopCleanupRegistry>,
+    /// Keeps a reconfiguration transaction alive if its Manager/API waiter is
+    /// cancelled while stopping or installing a generation.
+    transition_owner: Arc<RuntimeOwnerSlot>,
+    /// Shutdown has a separate owner because it may be requested while a
+    /// transition owner is still draining the previous generation.
+    shutdown_owner: Arc<RuntimeOwnerSlot>,
 }
 
 impl std::fmt::Debug for ChannelRuntime {
@@ -95,17 +196,46 @@ impl ChannelRuntime {
             fabric,
             registry: Arc::new(AdapterRegistry::new()),
             cancel: CancellationToken::new(),
-            entries: Mutex::new(BTreeMap::new()),
-            lifecycle: Mutex::new(()),
-            active_config: Mutex::new(None),
+            entries: Arc::new(Mutex::new(BTreeMap::new())),
+            lifecycle: Arc::new(Mutex::new(())),
+            active_config: Arc::new(Mutex::new(None)),
             stop_cleanup: Arc::new(StopCleanupRegistry::new()),
+            transition_owner: Arc::new(RuntimeOwnerSlot::new()),
+            shutdown_owner: Arc::new(RuntimeOwnerSlot::new()),
         });
         runtime.reconfigure(config).await?;
         Ok(runtime)
     }
 
     /// Construct every candidate before replacing the live set.
+    ///
+    /// The public waiter only receives the owner result. The full transaction
+    /// is retained by `transition_owner`, so dropping this future cannot
+    /// cancel a `mem::take`/install sequence or detach an adapter worker.
     pub async fn reconfigure(&self, config: &Config) -> Result<(), ChannelRuntimeError> {
+        if !self.transition_owner.try_reserve() {
+            return Err(ChannelRuntimeError::Lifecycle(
+                "channel runtime transition is busy; retry later".to_string(),
+            ));
+        }
+        let (result_sender, result_receiver) = tokio::sync::oneshot::channel();
+        let runtime = self.owner_arc();
+        let owner_slot = self.transition_owner.clone();
+        let config = config.clone();
+        let owner = tokio::spawn(async move {
+            let result = runtime.reconfigure_owned(&config).await;
+            let _ = result_sender.send(result);
+            owner_slot.mark_releasable();
+        });
+        self.transition_owner.adopt(owner);
+        result_receiver.await.map_err(|_| {
+            ChannelRuntimeError::Lifecycle(
+                "channel runtime transaction owner stopped unexpectedly".to_string(),
+            )
+        })?
+    }
+
+    async fn reconfigure_owned(&self, config: &Config) -> Result<(), ChannelRuntimeError> {
         let candidates = build_active_adapters(config, self.services.clone())?;
         // Once acquired, the transition below consists only of bounded
         // supervisor/pacing shutdowns and synchronous candidate assembly.
@@ -244,8 +374,39 @@ impl ChannelRuntime {
 
     pub async fn shutdown(&self) {
         self.cancel.cancel();
-        let _lifecycle = self.lifecycle.lock().await;
-        let _ = self.stop_entries_locked().await;
+        // Shutdown is idempotent. If another shutdown owner is already
+        // draining, it remains the sole owner and this caller can return.
+        if !self.shutdown_owner.try_reserve() {
+            return;
+        }
+        let (done_sender, done_receiver) = tokio::sync::oneshot::channel();
+        let runtime = self.owner_arc();
+        let owner_slot = self.shutdown_owner.clone();
+        let owner = tokio::spawn(async move {
+            let _lifecycle = runtime.lifecycle.lock().await;
+            let _ = runtime.stop_entries_locked().await;
+            let _ = done_sender.send(());
+            owner_slot.mark_releasable();
+        });
+        self.shutdown_owner.adopt(owner);
+        let _ = done_receiver.await;
+    }
+
+    /// Build an owner handle that shares every mutable runtime resource while
+    /// allowing the caller-facing `&self` future to be dropped safely.
+    fn owner_arc(&self) -> Arc<Self> {
+        Arc::new(Self {
+            services: self.services.clone(),
+            fabric: self.fabric.clone(),
+            registry: self.registry.clone(),
+            cancel: self.cancel.clone(),
+            entries: self.entries.clone(),
+            lifecycle: self.lifecycle.clone(),
+            active_config: self.active_config.clone(),
+            stop_cleanup: self.stop_cleanup.clone(),
+            transition_owner: self.transition_owner.clone(),
+            shutdown_owner: self.shutdown_owner.clone(),
+        })
     }
 
     async fn install_candidates(
@@ -438,10 +599,12 @@ mod tests {
             fabric,
             registry: Arc::new(AdapterRegistry::new()),
             cancel: CancellationToken::new(),
-            entries: Mutex::new(BTreeMap::new()),
-            lifecycle: Mutex::new(()),
-            active_config: Mutex::new(None),
+            entries: Arc::new(Mutex::new(BTreeMap::new())),
+            lifecycle: Arc::new(Mutex::new(())),
+            active_config: Arc::new(Mutex::new(None)),
             stop_cleanup: Arc::new(StopCleanupRegistry::new()),
+            transition_owner: Arc::new(RuntimeOwnerSlot::new()),
+            shutdown_owner: Arc::new(RuntimeOwnerSlot::new()),
         }
     }
 
@@ -499,8 +662,94 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn completed_transition_owner_is_reusable_immediately() {
+        let runtime = Arc::new(test_runtime());
+        runtime
+            .reconfigure(&Config::default())
+            .await
+            .expect("first transition");
+        // The first owner sends its result before Tokio necessarily marks its
+        // JoinHandle finished. A rollback issued immediately by Manager must
+        // still be admitted once all transition work is complete.
+        runtime
+            .reconfigure(&Config::default())
+            .await
+            .expect("immediate rollback transition");
+        assert!(runtime.entries.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancelled_reconfigure_owner_finishes_late_without_partial_runtime() {
+        let runtime = Arc::new(test_runtime());
+        let guard = runtime.lifecycle.lock().await;
+        let caller_runtime = runtime.clone();
+        let caller =
+            tokio::spawn(async move { caller_runtime.reconfigure(&Config::default()).await });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !runtime.transition_owner.is_owned() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("transition owner was registered before waiting");
+        caller.abort();
+        assert!(caller
+            .await
+            .expect_err("caller task was cancelled")
+            .is_cancelled());
+        drop(guard);
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if runtime.active_config.lock().await.is_some()
+                    && runtime.transition_owner.is_finished()
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("registry-held transaction completed after caller cancellation");
+        assert!(runtime.entries.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancelled_shutdown_waiter_keeps_shutdown_owner() {
+        let runtime = Arc::new(test_runtime());
+        let guard = runtime.lifecycle.lock().await;
+        let shutdown_runtime = runtime.clone();
+        let shutdown = tokio::spawn(async move { shutdown_runtime.shutdown().await });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !runtime.shutdown_owner.is_owned() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("shutdown owner was registered before waiting");
+        shutdown.abort();
+        assert!(shutdown
+            .await
+            .expect_err("shutdown caller task was cancelled")
+            .is_cancelled());
+        drop(guard);
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !runtime.shutdown_owner.is_finished() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("registry-held shutdown owner completed");
+        assert!(runtime.cancel.is_cancelled());
+        assert!(runtime.entries.lock().await.is_empty());
+    }
+
+    #[tokio::test]
     async fn pending_stop_cleanup_rejects_new_generation_without_installing_workers() {
-        let runtime = test_runtime();
+        let runtime = Arc::new(test_runtime());
         let (release_tx, release_rx) = tokio::sync::oneshot::channel();
         let cleanup_task = tokio::spawn(async move {
             let _ = release_rx.await;
@@ -513,8 +762,7 @@ mod tests {
             .expect("cleanup slot");
         runtime
             .stop_cleanup
-            .adopt("email".to_string(), cleanup_task, reservation)
-            .await;
+            .adopt("email".to_string(), cleanup_task, reservation);
 
         let result = runtime.reconfigure(&Config::default()).await;
         assert!(matches!(result, Err(ChannelRuntimeError::Lifecycle(_))));

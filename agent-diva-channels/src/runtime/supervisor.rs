@@ -3,9 +3,9 @@ use agent_diva_core::channel::{ChannelHealth, ChannelHealthStatus};
 use chrono::Utc;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
-use tokio::sync::{watch, Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -22,7 +22,7 @@ pub(super) struct StopCleanupRegistry {
     next_id: AtomicU64,
     slots: Arc<Semaphore>,
     channels: [Arc<Semaphore>; 6],
-    tasks: Mutex<BTreeMap<u64, StopCleanupTask>>,
+    tasks: StdMutex<BTreeMap<u64, StopCleanupTask>>,
     reaper_started: std::sync::atomic::AtomicBool,
 }
 
@@ -54,8 +54,10 @@ impl StopCleanupRegistry {
         Self {
             next_id: AtomicU64::new(1),
             slots: Arc::new(Semaphore::new(MAX_PENDING_STOP_CLEANUPS)),
-            channels: std::array::from_fn(|_| Arc::new(Semaphore::new(1))),
-            tasks: Mutex::new(BTreeMap::new()),
+            channels: std::array::from_fn(|_| {
+                Arc::new(Semaphore::new(MAX_PENDING_STOP_CLEANUPS_PER_CHANNEL))
+            }),
+            tasks: StdMutex::new(BTreeMap::new()),
             reaper_started: std::sync::atomic::AtomicBool::new(false),
         }
     }
@@ -65,7 +67,10 @@ impl StopCleanupRegistry {
     /// slot permanently unavailable.  A full registry is a fail-fast result;
     /// callers must not start a stop future they cannot transfer to an owner.
     pub(super) async fn try_reserve(&self, channel: &str) -> Option<StopCleanupReservation> {
-        let mut tasks = self.tasks.lock().await;
+        let mut tasks = self
+            .tasks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let finished = tasks
             .iter()
             .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
@@ -84,13 +89,19 @@ impl StopCleanupRegistry {
         })
     }
 
-    pub(super) async fn adopt(
+    /// Transfer a timed-out stop owner without an await point. A supervisor
+    /// cancellation immediately after the bounded wait therefore cannot drop
+    /// the JoinHandle and detach the adapter stop future.
+    pub(super) fn adopt(
         self: &Arc<Self>,
         channel: String,
         task: JoinHandle<Result<(), crate::adapter::AdapterError>>,
         reservation: StopCleanupReservation,
     ) {
-        let mut tasks = self.tasks.lock().await;
+        let mut tasks = self
+            .tasks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let finished = tasks
             .iter()
             .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
@@ -98,21 +109,6 @@ impl StopCleanupRegistry {
         for id in finished {
             tasks.remove(&id);
         }
-        let channel_count = tasks
-            .values()
-            .filter(|entry| entry.channel == channel)
-            .count();
-        // `ChannelRuntime::reconfigure` rejects a new generation while any
-        // prior cleanup is pending.  A runtime has at most six active
-        // channels, and a transition that times out after stopping does not
-        // install a new generation, so the limits below are reserved by
-        // construction before this hand-off.
-        // Never turn a full-registry condition into `stop.await`: that would
-        // make the supervisor's bounded shutdown fake again.  Keep the
-        // assertions as a regression tripwire if the channel count or
-        // transition protocol changes later.
-        debug_assert!(tasks.len() < MAX_PENDING_STOP_CLEANUPS);
-        debug_assert!(channel_count < MAX_PENDING_STOP_CLEANUPS_PER_CHANNEL);
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         tasks.insert(
             id,
@@ -122,6 +118,7 @@ impl StopCleanupRegistry {
                 task,
             },
         );
+        debug_assert!(tasks.values().all(|entry| !entry.channel.is_empty()));
         drop(tasks);
         self.start_reaper();
     }
@@ -129,7 +126,7 @@ impl StopCleanupRegistry {
     pub(super) async fn pending(&self) -> usize {
         self.tasks
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .values()
             .filter(|entry| !entry.task.is_finished())
             .count()
@@ -148,24 +145,47 @@ impl StopCleanupRegistry {
             loop {
                 tokio::time::sleep(Duration::from_millis(20)).await;
                 let finished = {
-                    let tasks = registry.tasks.lock().await;
+                    let tasks = registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     tasks
                         .iter()
                         .filter_map(|(id, entry)| entry.task.is_finished().then_some(*id))
                         .collect::<Vec<_>>()
                 };
                 for id in finished {
-                    let task = registry.tasks.lock().await.remove(&id);
+                    let task = registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .remove(&id);
                     if let Some(task) = task {
                         let _ = task.task.await;
                     }
                 }
-                if registry.tasks.lock().await.is_empty() {
+                if registry
+                    .tasks
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_empty()
+                {
                     registry.reaper_started.store(false, Ordering::Release);
-                    if registry.tasks.lock().await.is_empty() {
+                    if registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .is_empty()
+                    {
                         break;
                     }
-                    registry.reaper_started.store(true, Ordering::Release);
+                    if registry
+                        .reaper_started
+                        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
             }
         });
@@ -175,7 +195,7 @@ impl StopCleanupRegistry {
     async fn pending_for(&self, channel: &str) -> usize {
         self.tasks
             .lock()
-            .await
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .values()
             .filter(|entry| entry.channel == channel && !entry.task.is_finished())
             .count()
@@ -457,8 +477,18 @@ async fn stop_adapter_with_budget(
         );
         return StopOutcome::Pending;
     };
-    let mut stop = tokio::spawn(async move { adapter.stop().await });
-    match tokio::time::timeout(budget, &mut stop).await {
+    let (result_sender, result_receiver) = oneshot::channel();
+    let stop = tokio::spawn(async move {
+        let result = adapter.stop().await;
+        let _ = result_sender.send(result.clone());
+        result
+    });
+    // Adopt before waiting on the bounded observation. If the supervisor or
+    // its caller is cancelled during the adapter stop budget, the registry
+    // still owns the JoinHandle and reservation instead of detaching native
+    // cleanup work.
+    stop_cleanup.adopt(channel.clone(), stop, reservation);
+    match tokio::time::timeout(budget, result_receiver).await {
         Ok(Ok(Ok(()))) => StopOutcome::Completed,
         Ok(Ok(Err(error))) => {
             tracing::warn!(channel = %channel, code = %safe_adapter_code(&error), "channel adapter stop returned an error");
@@ -469,7 +499,6 @@ async fn stop_adapter_with_budget(
             StopOutcome::Completed
         }
         Err(_) => {
-            stop_cleanup.adopt(channel.clone(), stop, reservation).await;
             tracing::warn!(
                 channel = %channel,
                 "channel adapter stop exceeded its bounded wait; cleanup owner retained"
@@ -599,6 +628,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelled_stop_waiter_keeps_registry_owner() {
+        let cleanup = Arc::new(StopCleanupRegistry::new());
+        let release = Arc::new(Notify::new());
+        let started = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let adapter = Arc::new(BlockingStopAdapter {
+            id: ChannelId::new("test").expect("channel id"),
+            release: release.clone(),
+            started: started.clone(),
+        });
+        let caller_cleanup = cleanup.clone();
+        let caller = tokio::spawn(async move {
+            stop_adapter_with_budget(adapter, caller_cleanup, Duration::from_secs(30)).await
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !started.load(Ordering::Acquire) {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("stop owner started before caller cancellation");
+        caller.abort();
+        match caller.await {
+            Ok(_) => panic!("stop waiter should have been cancelled"),
+            Err(error) => assert!(error.is_cancelled()),
+        }
+        assert_eq!(cleanup.pending_for("test").await, 1);
+
+        release.notify_one();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if cleanup.pending().await == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("registry owner drained after caller cancellation");
+    }
+
+    #[tokio::test]
     async fn full_stop_cleanup_registry_fails_fast_without_starting_native_stop() {
         let cleanup = Arc::new(StopCleanupRegistry::new());
         let mut releases = Vec::new();
@@ -613,7 +684,7 @@ mod tests {
                 .try_reserve(&channel)
                 .await
                 .expect("cleanup capacity");
-            cleanup.adopt(channel, task, reservation).await;
+            cleanup.adopt(channel, task, reservation);
             releases.push(release_tx);
         }
 
