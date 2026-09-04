@@ -637,6 +637,31 @@ mod tests {
     }
 
     #[test]
+    fn test_load_migrates_legacy_channels_without_removed_tombstones() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        std::fs::write(
+            loader.config_path(),
+            r#"{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "legacy-token"
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        assert!(config.channels.telegram.enabled);
+        assert_eq!(config.channels.telegram.token, "legacy-token");
+        assert!(config.channels.removed.is_empty());
+    }
+
+    #[test]
     fn test_load_supports_mcp_servers_camel_case() {
         let _lock = lock_env();
         let temp_dir = TempDir::new().unwrap();

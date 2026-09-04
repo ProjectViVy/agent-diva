@@ -386,6 +386,12 @@ impl Manager {
                         ManagerCommand::UpdateChannel(update, reply) => {
                             self.handle_update_channel(update, reply).await;
                         }
+                        ManagerCommand::ProbeChannel(name, config, reply) => {
+                            self.handle_probe_channel(name, config, reply).await;
+                        }
+                        ManagerCommand::DeleteChannel(name, reply) => {
+                            self.handle_delete_channel(name, reply).await;
+                        }
                         ManagerCommand::GetChannelRuntime(reply) => {
                             let statuses = match &self.channel_runtime {
                                 Some(runtime) => runtime.statuses().await,

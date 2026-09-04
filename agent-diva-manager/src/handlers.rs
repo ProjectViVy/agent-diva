@@ -69,6 +69,7 @@ use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use agent_diva_core::config::ConfigLoader;
 use axum::{
     extract::{Multipart, Path, Query, State},
+    http::StatusCode,
     response::sse::{Event, Sse},
     Json,
 };
@@ -1201,6 +1202,143 @@ pub async fn update_channel_handler(
         Ok(Ok(())) => Json(serde_json::json!({ "status": "ok" })),
         Ok(Err(message)) => Json(serde_json::json!({ "status": "error", "message": message })),
         Err(error) => Json(serde_json::json!({ "status": "error", "message": error.to_string() })),
+    }
+}
+
+fn channel_probe_error_response(
+    error: agent_diva_channels::ChannelProbeError,
+) -> (StatusCode, Json<serde_json::Value>) {
+    use agent_diva_channels::ChannelProbeError;
+
+    let (status, message) = match &error {
+        ChannelProbeError::UnknownChannel { .. } | ChannelProbeError::InvalidConfig => {
+            (StatusCode::BAD_REQUEST, "invalid channel probe request")
+        }
+        ChannelProbeError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "channel probe timed out"),
+        ChannelProbeError::Adapter { .. } => (StatusCode::BAD_GATEWAY, "channel probe failed"),
+        ChannelProbeError::Build => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "channel probe unavailable",
+        ),
+        ChannelProbeError::Cleanup { .. } => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "channel probe cleanup failed",
+        ),
+    };
+    (
+        status,
+        Json(serde_json::json!({
+            "status": "error",
+            "code": error.public_code(),
+            "message": message,
+            "retryable": error.retryable(),
+            "retry_after_ms": error.retry_after_ms(),
+        })),
+    )
+}
+
+pub async fn probe_channel_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(payload): Json<crate::state::ChannelProbeRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let name = name.trim().to_string();
+    let (reply_tx, reply_rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::ProbeChannel(
+            name.clone(),
+            payload.config,
+            reply_tx,
+        ))
+        .await
+        .map_err(|_error| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "code": "manager_unavailable",
+                    "message": "channel manager is unavailable",
+                    "retryable": true,
+                    "retry_after_ms": null,
+                })),
+            )
+        })?;
+
+    match reply_rx.await {
+        Ok(Ok(receipt)) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "channel": name,
+            "receipt": receipt,
+        }))),
+        Ok(Err(error)) => Err(channel_probe_error_response(error)),
+        Err(_) => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "status": "error",
+                "code": "manager_unavailable",
+                "message": "channel manager is unavailable",
+                "retryable": true,
+                "retry_after_ms": null,
+            })),
+        )),
+    }
+}
+
+pub async fn delete_channel_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let name = name.trim().to_string();
+    let (reply_tx, reply_rx) = oneshot::channel();
+    state
+        .api_tx
+        .send(ManagerCommand::DeleteChannel(name.clone(), reply_tx))
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "code": "manager_unavailable",
+                    "message": "channel manager is unavailable",
+                })),
+            )
+        })?;
+
+    match reply_rx.await {
+        Ok(Ok(())) => Ok(Json(serde_json::json!({
+            "status": "ok",
+            "channel": name,
+            "removed": true,
+        }))),
+        Ok(Err(message)) => {
+            let (status, code, safe_message) = if message.starts_with("Unknown channel:") {
+                (StatusCode::BAD_REQUEST, "unknown_channel", message)
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "channel_delete_failed",
+                    "channel deletion failed".to_string(),
+                )
+            };
+            Err((
+                status,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "code": code,
+                    "message": safe_message,
+                })),
+            ))
+        }
+        Err(_) => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "status": "error",
+                "code": "manager_unavailable",
+                "message": "channel manager is unavailable",
+            })),
+        )),
     }
 }
 

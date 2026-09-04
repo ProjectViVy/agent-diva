@@ -395,6 +395,17 @@ pub enum ManagerCommand {
     ),
     UpdateConfig(ConfigUpdate),
     UpdateChannel(ChannelUpdate, oneshot::Sender<Result<(), String>>),
+    ProbeChannel(
+        String,
+        serde_json::Value,
+        oneshot::Sender<
+            Result<
+                agent_diva_core::channel::DeliveryReceipt,
+                agent_diva_channels::ChannelProbeError,
+            >,
+        >,
+    ),
+    DeleteChannel(String, oneshot::Sender<Result<(), String>>),
     GetChannelRuntime(oneshot::Sender<Vec<agent_diva_channels::runtime::ChannelRuntimeStatus>>),
     GetConfig(oneshot::Sender<ConfigResponse>),
     GetSelfEvolutionConfig(oneshot::Sender<Result<SelfEvolutionConfig, String>>),
@@ -542,6 +553,11 @@ pub struct ConfigUpdate {
 pub struct ChannelUpdate {
     pub name: String,
     pub enabled: Option<bool>,
+    pub config: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelProbeRequest {
     pub config: serde_json::Value,
 }
 

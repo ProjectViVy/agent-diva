@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::{fmt, sync::Arc, time::Duration};
 use thiserror::Error;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 /// Services shared by native adapters without changing the listener context.
@@ -256,6 +257,217 @@ pub enum AdapterBuildError {
     Unavailable { channels: Vec<String> },
 }
 
+/// Error returned by an explicit desktop/API channel probe.
+///
+/// This deliberately stores only stable error codes and retry metadata.  Native
+/// adapter diagnostics may contain transport response bodies or other
+/// configuration-derived values, so they must not cross the Manager API
+/// boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum ChannelProbeError {
+    #[error("unknown channel: {channel}")]
+    UnknownChannel { channel: String },
+    #[error("invalid channel probe configuration")]
+    InvalidConfig,
+    #[error("failed to construct a native channel probe adapter")]
+    Build,
+    #[error("channel probe timed out")]
+    Timeout,
+    #[error("channel probe failed ({code})")]
+    Adapter {
+        code: String,
+        retry_after_ms: Option<u64>,
+        retryable: bool,
+    },
+    #[error("channel probe cleanup failed ({code})")]
+    Cleanup { code: String },
+}
+
+impl ChannelProbeError {
+    /// Stable machine-readable code suitable for an HTTP/Tauri error body.
+    pub fn code(&self) -> &str {
+        match self {
+            Self::UnknownChannel { .. } => "unknown_channel",
+            Self::InvalidConfig => "invalid_config",
+            Self::Build => "probe_build_failed",
+            Self::Timeout => "probe_timeout",
+            Self::Adapter { code, .. } => code,
+            Self::Cleanup { .. } => "probe_cleanup_failed",
+        }
+    }
+
+    /// Whether retrying the same candidate may succeed without changing it.
+    pub fn retryable(&self) -> bool {
+        match self {
+            Self::Adapter { retryable, .. } => *retryable,
+            Self::Timeout => true,
+            Self::UnknownChannel { .. }
+            | Self::InvalidConfig
+            | Self::Build
+            | Self::Cleanup { .. } => false,
+        }
+    }
+
+    /// Retry hint from the native adapter, if one was provided.
+    pub fn retry_after_ms(&self) -> Option<u64> {
+        match self {
+            Self::Adapter { retry_after_ms, .. } => *retry_after_ms,
+            _ => None,
+        }
+    }
+
+    /// Return a bounded code safe to expose outside the adapter process.
+    ///
+    /// Native adapters currently use fixed snake-case codes, but keeping this
+    /// boundary defensive prevents a future transport/parser code from
+    /// carrying response text or configuration-derived data.
+    pub fn public_code(&self) -> String {
+        match self {
+            Self::Adapter { code, .. } if is_safe_probe_code(code) => code.clone(),
+            Self::Adapter { .. } => "adapter_error".to_string(),
+            _ => self.code().to_string(),
+        }
+    }
+}
+
+fn is_safe_probe_code(code: &str) -> bool {
+    !code.is_empty()
+        && code.len() <= 64
+        && code.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+        })
+}
+
+const PROBE_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Construct one native adapter for a candidate channel configuration.
+///
+/// Unlike [`build_active_adapters`], this function is intentionally not tied
+/// to the persisted `enabled` flag: a desktop user may validate credentials
+/// before saving an enabled configuration.  The candidate is still never
+/// registered with [`crate::runtime::AdapterRegistry`] and no listener is
+/// started by this function.
+pub fn build_probe_adapter(
+    config: &Config,
+    channel: &str,
+    services: AdapterServices,
+) -> Result<Arc<dyn ChannelAdapter>, ChannelProbeError> {
+    match channel {
+        "telegram" => {
+            let mut candidate = config.channels.telegram.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::telegram::TelegramAdapter::new(
+                candidate, services,
+            )))
+        }
+        "discord" => {
+            let mut candidate = config.channels.discord.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::discord::DiscordAdapter::new(
+                candidate, services,
+            )))
+        }
+        "feishu" => {
+            let mut candidate = config.channels.feishu.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::feishu::FeishuAdapter::new(
+                candidate, services,
+            )))
+        }
+        "dingtalk" => {
+            let mut candidate = config.channels.dingtalk.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::dingtalk::DingTalkAdapter::new(
+                &candidate, services,
+            )))
+        }
+        "email" => {
+            let mut candidate = config.channels.email.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::email::EmailAdapter::new(
+                candidate, services,
+            )))
+        }
+        "qq" => {
+            let mut candidate = config.channels.qq.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::qq::QqAdapter::new(
+                candidate, services,
+            )))
+        }
+        other => Err(ChannelProbeError::UnknownChannel {
+            channel: other.to_string(),
+        }),
+    }
+}
+
+fn map_probe_adapter_error(error: AdapterError) -> ChannelProbeError {
+    ChannelProbeError::Adapter {
+        code: if is_safe_probe_code(error.code()) {
+            error.code().to_string()
+        } else {
+            "adapter_error".to_string()
+        },
+        retry_after_ms: error
+            .retry_after()
+            .and_then(|duration| u64::try_from(duration.as_millis()).ok()),
+        retryable: error.is_retryable(),
+    }
+}
+
+/// Execute one native `ProbeHealth` command and always stop the temporary
+/// adapter afterward.  The adapter is never registered, supervised, or
+/// started as a listener.
+pub async fn probe_candidate(
+    config: &Config,
+    channel: &str,
+    services: AdapterServices,
+    probe_timeout: Duration,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    let adapter = build_probe_adapter(config, channel, services)?;
+    let channel_id =
+        ChannelId::new(channel.to_string()).map_err(|_| ChannelProbeError::UnknownChannel {
+            channel: channel.to_string(),
+        })?;
+
+    let probe_result = timeout(
+        probe_timeout,
+        adapter.execute(ChannelCommand::ProbeHealth {
+            channel: channel_id,
+        }),
+    )
+    .await;
+
+    // Cleanup is intentionally performed after both success and timeout.  A
+    // native adapter may own a cancellation token, socket, or blocking probe
+    // worker even when its command future has already elapsed.
+    let cleanup_result = timeout(PROBE_CLEANUP_TIMEOUT, adapter.stop()).await;
+
+    match cleanup_result {
+        Err(_) => {
+            return Err(ChannelProbeError::Cleanup {
+                code: "cleanup_timeout".to_string(),
+            });
+        }
+        Ok(Err(error)) => {
+            return Err(ChannelProbeError::Cleanup {
+                code: if is_safe_probe_code(error.code()) {
+                    error.code().to_string()
+                } else {
+                    "cleanup_error".to_string()
+                },
+            });
+        }
+        Ok(Ok(())) => {}
+    }
+
+    match probe_result {
+        Ok(Ok(receipt)) => Ok(receipt),
+        Ok(Err(error)) => Err(map_probe_adapter_error(error)),
+        Err(_) => Err(ChannelProbeError::Timeout),
+    }
+}
+
 /// Construct configured native adapters without registering or starting them.
 ///
 /// C5 assembles native channel objects only. Registration, supervision, and
@@ -475,4 +687,29 @@ pub trait ChannelAdapter: Send + Sync + 'static {
 
     /// Interrupt platform reads and release adapter-owned resources.
     async fn stop(&self) -> Result<(), AdapterError>;
+}
+
+#[cfg(test)]
+mod probe_error_tests {
+    use super::ChannelProbeError;
+
+    #[test]
+    fn public_probe_codes_drop_untrusted_diagnostics() {
+        let error = ChannelProbeError::Adapter {
+            code: "remote response: bearer-secret".to_string(),
+            retry_after_ms: None,
+            retryable: false,
+        };
+        assert_eq!(error.public_code(), "adapter_error");
+    }
+
+    #[test]
+    fn public_probe_codes_preserve_stable_native_codes() {
+        let error = ChannelProbeError::Adapter {
+            code: "telegram_api".to_string(),
+            retry_after_ms: Some(1000),
+            retryable: true,
+        };
+        assert_eq!(error.public_code(), "telegram_api");
+    }
 }

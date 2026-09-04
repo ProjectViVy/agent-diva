@@ -2,7 +2,8 @@ use super::{
     AdapterPacingHandle, AdapterPacingLane, AdapterRegistry, AdapterSupervisor, PacingError,
 };
 use crate::adapter::{
-    build_active_adapters, AdapterBuildError, AdapterContext, AdapterServices, ChannelAdapter,
+    build_active_adapters, probe_candidate, AdapterBuildError, AdapterContext, AdapterServices,
+    ChannelAdapter, ChannelProbeError,
 };
 use agent_diva_core::channel::{
     ChannelCommand, ChannelHealthStatus, DeliveryReceipt, FabricHandle,
@@ -143,6 +144,17 @@ impl ChannelRuntime {
         Ok(handle
             .submit(command, EGRESS_ADMISSION_DEADLINE, cancel)
             .await?)
+    }
+
+    /// Probe a candidate configuration without changing the registered
+    /// runtime set or starting a listener.
+    pub async fn probe_candidate(
+        &self,
+        config: &Config,
+        channel: &str,
+        timeout: Duration,
+    ) -> Result<DeliveryReceipt, ChannelProbeError> {
+        probe_candidate(config, channel, self.services.clone(), timeout).await
     }
 
     pub async fn statuses(&self) -> Vec<ChannelRuntimeStatus> {

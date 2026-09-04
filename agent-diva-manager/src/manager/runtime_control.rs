@@ -1,5 +1,6 @@
 use agent_diva_agent::runtime_control::RuntimeControlCommand;
 use agent_diva_core::bus::AgentEvent;
+use agent_diva_core::channel::DeliveryReceipt;
 use agent_diva_core::config::schema::{
     ChannelsConfig, Config, DingTalkConfig, DiscordConfig, EmailConfig, FeishuConfig, QQConfig,
     SelfEvolutionConfig, TelegramConfig, WebToolsConfig,
@@ -7,6 +8,7 @@ use agent_diva_core::config::schema::{
 use agent_diva_providers::{
     build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
 };
+use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 
@@ -15,6 +17,8 @@ use crate::state::{
     ApiRequest, ChannelUpdate, ConfigResponse, ConfigUpdate, ResetSessionRequest, StopChatRequest,
     ToolsConfigResponse, ToolsConfigUpdate,
 };
+
+const CHANNEL_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(35);
 
 impl Manager {
     pub(super) fn handle_chat(&self, req: ApiRequest) {
@@ -469,6 +473,98 @@ impl Manager {
         let _ = reply.send(Ok(()));
     }
 
+    pub(super) async fn handle_probe_channel(
+        &self,
+        name: String,
+        candidate: serde_json::Value,
+        reply: oneshot::Sender<Result<DeliveryReceipt, agent_diva_channels::ChannelProbeError>>,
+    ) {
+        let result = self.probe_channel_candidate(&name, candidate).await;
+        let _ = reply.send(result);
+    }
+
+    async fn probe_channel_candidate(
+        &self,
+        name: &str,
+        candidate: serde_json::Value,
+    ) -> Result<DeliveryReceipt, agent_diva_channels::ChannelProbeError> {
+        let name = name.trim();
+        if !is_fixed_channel(name) {
+            return Err(agent_diva_channels::ChannelProbeError::UnknownChannel {
+                channel: name.to_string(),
+            });
+        }
+
+        let mut config = self
+            .loader
+            .load()
+            .map_err(|_| agent_diva_channels::ChannelProbeError::Build)?;
+        Self::apply_channel_update(
+            &mut config,
+            &ChannelUpdate {
+                name: name.to_string(),
+                enabled: None,
+                config: candidate,
+            },
+        )
+        .map_err(|_| agent_diva_channels::ChannelProbeError::InvalidConfig)?;
+
+        if let Some(runtime) = &self.channel_runtime {
+            runtime
+                .probe_candidate(&config, name, CHANNEL_PROBE_TIMEOUT)
+                .await
+        } else {
+            let attachments = Arc::new(
+                crate::channel_attachment_store::FileManagerAttachmentStore::new(
+                    self.file_manager.clone(),
+                ),
+            );
+            let services = agent_diva_channels::AdapterServices::new(attachments);
+            agent_diva_channels::probe_candidate(&config, name, services, CHANNEL_PROBE_TIMEOUT)
+                .await
+        }
+    }
+
+    pub(super) async fn handle_delete_channel(
+        &self,
+        name: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        let channel_name = name.trim().to_string();
+        let response = self.delete_channel_transaction(&channel_name).await;
+        let _ = reply.send(response);
+    }
+
+    async fn delete_channel_transaction(&self, name: &str) -> Result<(), String> {
+        if !is_fixed_channel(name) {
+            return Err(format!("Unknown channel: {name}"));
+        }
+
+        let mut config = self.loader.load().map_err(|error| error.to_string())?;
+        let previous = config.clone();
+        reset_channel(&mut config, name).map_err(|error| error.to_string())?;
+
+        self.loader
+            .save(&config)
+            .map_err(|error| error.to_string())?;
+
+        if let Some(runtime) = &self.channel_runtime {
+            if let Err(error) = runtime.reconfigure(&config).await {
+                let rollback = self.loader.save(&previous).err();
+                let runtime_rollback = runtime.reconfigure(&previous).await.err();
+                let mut message = format!("failed to reload channel {name}: {error}");
+                if let Some(rollback) = rollback {
+                    message.push_str(&format!("; config rollback failed: {rollback}"));
+                }
+                if let Some(runtime_rollback) = runtime_rollback {
+                    message.push_str(&format!("; runtime rollback failed: {runtime_rollback}"));
+                }
+                return Err(message);
+            }
+        }
+        Ok(())
+    }
+
     async fn apply_provider_selection_update(
         &mut self,
         config: &mut Config,
@@ -604,7 +700,7 @@ impl Manager {
     }
 
     fn apply_channel_update(config: &mut Config, update: &ChannelUpdate) -> anyhow::Result<()> {
-        let name = update.name.as_str();
+        let name = update.name.trim();
         match name {
             "telegram" => set_channel(&mut config.channels.telegram, update)?,
             "discord" => set_channel(&mut config.channels.discord, update)?,
@@ -614,6 +710,9 @@ impl Manager {
             "qq" => set_channel(&mut config.channels.qq, update)?,
             _ => anyhow::bail!("Unknown channel: {}", name),
         }
+        // A valid save is an explicit re-add/update, so it clears a prior
+        // delete tombstone from the additive channel projection.
+        config.channels.removed.remove(name);
         Ok(())
     }
 
@@ -729,6 +828,27 @@ impl_channel_toggle!(
     EmailConfig,
     QQConfig,
 );
+
+fn is_fixed_channel(name: &str) -> bool {
+    matches!(
+        name,
+        "telegram" | "discord" | "feishu" | "dingtalk" | "email" | "qq"
+    )
+}
+
+fn reset_channel(config: &mut Config, name: &str) -> anyhow::Result<()> {
+    match name {
+        "telegram" => config.channels.telegram = TelegramConfig::default(),
+        "discord" => config.channels.discord = DiscordConfig::default(),
+        "feishu" => config.channels.feishu = FeishuConfig::default(),
+        "dingtalk" => config.channels.dingtalk = DingTalkConfig::default(),
+        "email" => config.channels.email = EmailConfig::default(),
+        "qq" => config.channels.qq = QQConfig::default(),
+        _ => anyhow::bail!("Unknown channel: {name}"),
+    }
+    config.channels.removed.insert(name.to_string());
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
@@ -1025,5 +1145,46 @@ mod tests {
         );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("carrier-pigeon"));
+    }
+
+    #[test]
+    fn apply_channel_update_clears_a_removed_tombstone() {
+        let mut config = Config::default();
+        config.channels.removed.insert("telegram".to_string());
+
+        Manager::apply_channel_update(
+            &mut config,
+            &channel_update(
+                "telegram",
+                Some(true),
+                serde_json::json!({"enabled": false, "token": "candidate"}),
+            ),
+        )
+        .unwrap();
+
+        assert!(!config.channels.removed.contains("telegram"));
+        assert!(config.channels.telegram.enabled);
+        assert_eq!(config.channels.telegram.token, "candidate");
+    }
+
+    #[test]
+    fn reset_channel_restores_defaults_and_records_a_tombstone() {
+        let mut config = Config::default();
+        config.channels.telegram.enabled = true;
+        config.channels.telegram.token = "secret-that-must-be-removed".to_string();
+
+        reset_channel(&mut config, "telegram").unwrap();
+
+        assert!(!config.channels.telegram.enabled);
+        assert!(config.channels.telegram.token.is_empty());
+        assert!(config.channels.removed.contains("telegram"));
+    }
+
+    #[test]
+    fn reset_channel_rejects_retired_and_unknown_names() {
+        let mut config = Config::default();
+        for name in ["neuro-link", "slack", "whatsapp", "carrier-pigeon"] {
+            assert!(reset_channel(&mut config, name).is_err(), "{name}");
+        }
     }
 }
