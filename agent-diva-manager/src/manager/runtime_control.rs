@@ -102,12 +102,13 @@ impl ChannelMutationRegistry {
         runtime: Option<Arc<agent_diva_channels::runtime::ChannelRuntime>>,
         mutation: ChannelMutation,
         reply: oneshot::Sender<Result<(), String>>,
-    ) {
+    ) -> Option<oneshot::Receiver<()>> {
         if !self.try_reserve() {
             let _ = reply.send(Err("channel mutation is busy; retry later".to_string()));
-            return;
+            return None;
         }
 
+        let (done_sender, done_receiver) = oneshot::channel();
         let owner_registry = Arc::clone(self);
         let owner = tokio::spawn(async move {
             let result = run_channel_mutation(loader, runtime, mutation, &reply).await;
@@ -115,19 +116,19 @@ impl ChannelMutationRegistry {
             // definite terminal state, even if the caller disconnected.
             let _ = reply.send(result);
             owner_registry.mark_releasable();
+            // This signal is intentionally separate from the client reply:
+            // the Manager actor waits for it to serialize every other config
+            // writer, while an aborted actor cannot cancel this owner.
+            let _ = done_sender.send(());
         });
         self.adopt(owner);
+        Some(done_receiver)
     }
 
     #[cfg(test)]
     fn is_owned(&self) -> bool {
         let state = self.lock_state();
         state.reserved || state.task.is_some()
-    }
-
-    #[cfg(test)]
-    fn is_releasable(&self) -> bool {
-        self.lock_state().releasable
     }
 
     #[cfg(test)]
@@ -709,12 +710,15 @@ impl Manager {
         reply: oneshot::Sender<Result<(), String>>,
     ) {
         info!("Processing UpdateChannel request: {}", update.name);
-        self.channel_mutations.start(
+        let completion = self.channel_mutations.start(
             self.loader.clone(),
             self.channel_runtime.clone(),
             ChannelMutation::Update(update),
             reply,
         );
+        if let Some(completion) = completion {
+            let _ = completion.await;
+        }
     }
 
     pub(super) fn handle_probe_channel(
@@ -786,12 +790,15 @@ impl Manager {
         reply: oneshot::Sender<Result<(), String>>,
     ) {
         let channel_name = name.trim().to_string();
-        self.channel_mutations.start(
+        let completion = self.channel_mutations.start(
             self.loader.clone(),
             self.channel_runtime.clone(),
             ChannelMutation::Delete { name: channel_name },
             reply,
         );
+        if let Some(completion) = completion {
+            let _ = completion.await;
+        }
     }
 
     async fn apply_provider_selection_update(
@@ -1112,19 +1119,6 @@ mod tests {
                 uri: reference.uri.clone(),
             })
         }
-    }
-
-    async fn wait_for_owner_releasable(registry: &ChannelMutationRegistry) {
-        timeout(Duration::from_secs(1), async {
-            loop {
-                if registry.is_releasable() {
-                    break;
-                }
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("channel mutation owner did not reach a terminal state");
     }
 
     async fn wait_for_owner_finished(registry: &ChannelMutationRegistry) {
@@ -1506,16 +1500,18 @@ mod tests {
         let registry = ChannelMutationRegistry::new();
         let (reply_tx, reply_rx) = oneshot::channel();
 
-        registry.start(
-            loader.clone(),
-            None,
-            ChannelMutation::Delete {
-                name: "telegram".to_string(),
-            },
-            reply_tx,
-        );
+        let completion = registry
+            .start(
+                loader.clone(),
+                None,
+                ChannelMutation::Delete {
+                    name: "telegram".to_string(),
+                },
+                reply_tx,
+            )
+            .expect("mutation owner completion");
         drop(reply_rx);
-        wait_for_owner_releasable(&registry).await;
+        completion.await.expect("mutation owner completion signal");
 
         let unchanged = loader.load().expect("load unchanged config");
         assert!(!unchanged.channels.telegram.enabled);
@@ -1524,17 +1520,20 @@ mod tests {
         // The owner slot is reusable immediately after its terminal result,
         // even if Tokio has not observed the old JoinHandle as finished yet.
         let (reply_tx, reply_rx) = oneshot::channel();
-        registry.start(
-            loader.clone(),
-            None,
-            ChannelMutation::Update(channel_update(
-                "telegram",
-                Some(true),
-                serde_json::json!({}),
-            )),
-            reply_tx,
-        );
+        let completion = registry
+            .start(
+                loader.clone(),
+                None,
+                ChannelMutation::Update(channel_update(
+                    "telegram",
+                    Some(true),
+                    serde_json::json!({}),
+                )),
+                reply_tx,
+            )
+            .expect("mutation owner completion");
         assert_eq!(reply_rx.await.expect("mutation result"), Ok(()));
+        completion.await.expect("mutation owner completion signal");
         assert!(
             loader
                 .load()
@@ -1553,7 +1552,7 @@ mod tests {
         let handler_registry = Arc::clone(&registry);
         let handler_loader = loader.clone();
         let handler = tokio::spawn(async move {
-            handler_registry.start(
+            let completion = handler_registry.start(
                 handler_loader,
                 None,
                 ChannelMutation::Update(channel_update(
@@ -1563,6 +1562,9 @@ mod tests {
                 )),
                 reply_tx,
             );
+            if let Some(completion) = completion {
+                let _ = completion.await;
+            }
             // Model the Manager actor being cancelled while the owner is
             // already retained by its registry.
             tokio::task::yield_now().await;
@@ -1626,7 +1628,7 @@ mod tests {
         let handler_loader = loader.clone();
         let handler_runtime = Arc::clone(&runtime);
         let handler = tokio::spawn(async move {
-            handler_registry.start(
+            let completion = handler_registry.start(
                 handler_loader,
                 Some(handler_runtime),
                 ChannelMutation::Update(channel_update(
@@ -1636,6 +1638,9 @@ mod tests {
                 )),
                 reply_tx,
             );
+            if let Some(completion) = completion {
+                let _ = completion.await;
+            }
             tokio::task::yield_now().await;
         });
         timeout(Duration::from_secs(1), async {
@@ -1678,14 +1683,16 @@ mod tests {
         registry.adopt(owner);
 
         let (reply_tx, reply_rx) = oneshot::channel();
-        registry.start(
-            loader,
-            None,
-            ChannelMutation::Delete {
-                name: "telegram".to_string(),
-            },
-            reply_tx,
-        );
+        assert!(registry
+            .start(
+                loader,
+                None,
+                ChannelMutation::Delete {
+                    name: "telegram".to_string(),
+                },
+                reply_tx,
+            )
+            .is_none());
         assert_eq!(
             reply_rx.await.expect("busy response"),
             Err("channel mutation is busy; retry later".to_string())
@@ -1693,5 +1700,40 @@ mod tests {
 
         release.notify_one();
         wait_for_owner_finished(&registry).await;
+    }
+
+    #[tokio::test]
+    async fn channel_mutation_completion_serializes_followup_writer() {
+        let registry = ChannelMutationRegistry::new();
+        assert!(registry.try_reserve());
+
+        // Model a runtime reconfigure that has not reached its terminal state.
+        // The following writer is allowed to run only after the independent
+        // owner publishes its completion signal.
+        let runtime_release = Arc::new(tokio::sync::Notify::new());
+        let runtime_release_waiter = Arc::clone(&runtime_release);
+        let (done_sender, done_receiver) = oneshot::channel();
+        let owner_registry = Arc::clone(&registry);
+        let owner = tokio::spawn(async move {
+            runtime_release_waiter.notified().await;
+            owner_registry.mark_releasable();
+            let _ = done_sender.send(());
+        });
+        registry.adopt(owner);
+
+        let writer_ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer_ran_clone = Arc::clone(&writer_ran);
+        let writer = tokio::spawn(async move {
+            done_receiver
+                .await
+                .expect("mutation owner completion signal");
+            writer_ran_clone.store(true, std::sync::atomic::Ordering::Release);
+        });
+        tokio::task::yield_now().await;
+        assert!(!writer_ran.load(std::sync::atomic::Ordering::Acquire));
+
+        runtime_release.notify_one();
+        writer.await.expect("follow-up writer task");
+        assert!(writer_ran.load(std::sync::atomic::Ordering::Acquire));
     }
 }
