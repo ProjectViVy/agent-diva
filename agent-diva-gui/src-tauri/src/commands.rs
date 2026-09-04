@@ -3621,6 +3621,22 @@ pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Va
     Ok(channels)
 }
 
+fn parse_channel_runtime_response(payload: serde_json::Value) -> Result<serde_json::Value, String> {
+    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
+        return Err(payload
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("channel runtime unavailable")
+            .to_string());
+    }
+
+    match payload.get("channels") {
+        Some(channels) if channels.is_array() => Ok(channels.clone()),
+        Some(_) => Err("Invalid channel runtime response: channels must be an array".to_string()),
+        None => Err("Invalid channel runtime response: missing channels".to_string()),
+    }
+}
+
 #[tauri::command]
 pub async fn get_channel_runtime(
     state: State<'_, AgentState>,
@@ -3640,17 +3656,7 @@ pub async fn get_channel_runtime(
         .json()
         .await
         .map_err(|error| format!("Invalid channel runtime JSON: {error}"))?;
-    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
-        return Err(payload
-            .get("message")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("channel runtime unavailable")
-            .to_string());
-    }
-    Ok(payload
-        .get("channels")
-        .cloned()
-        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+    parse_channel_runtime_response(payload)
 }
 
 #[tauri::command]
@@ -3725,6 +3731,161 @@ pub async fn update_channel(
             .unwrap_or("channel update failed")
             .to_string())
     }
+}
+
+const CHANNEL_OPERATION_TIMEOUT: Duration = Duration::from_secs(40);
+
+fn channel_endpoint(base_url: &str, name: &str, operation: Option<&str>) -> String {
+    let encoded_name = urlencoding::encode(name.trim());
+    match operation {
+        Some(operation) => format!("{base_url}/channels/{encoded_name}/{operation}"),
+        None => format!("{base_url}/channels/{encoded_name}"),
+    }
+}
+
+fn channel_response_error(payload: &serde_json::Value, fallback: &str) -> String {
+    payload
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+async fn read_channel_operation_response(
+    response: reqwest::Response,
+    operation: &str,
+) -> Result<serde_json::Value, String> {
+    let status = response.status();
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("Invalid channel {operation} response: {error}"))?;
+
+    if !status.is_success() {
+        return Err(channel_response_error(
+            &payload,
+            &format!("Channel {operation} failed ({status})"),
+        ));
+    }
+    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
+        return Err(channel_response_error(
+            &payload,
+            &format!("Channel {operation} failed"),
+        ));
+    }
+    Ok(payload)
+}
+
+#[cfg(test)]
+mod channel_command_tests {
+    use super::{
+        channel_endpoint, channel_response_error, parse_channel_runtime_response,
+        CHANNEL_OPERATION_TIMEOUT,
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn channel_endpoint_trims_and_encodes_names() {
+        assert_eq!(
+            channel_endpoint("http://127.0.0.1:3000/api", " /a/b ", Some("probe")),
+            "http://127.0.0.1:3000/api/channels/%2Fa%2Fb/probe"
+        );
+        assert_eq!(
+            channel_endpoint("http://127.0.0.1:3000/api", "telegram", None),
+            "http://127.0.0.1:3000/api/channels/telegram"
+        );
+    }
+
+    #[test]
+    fn channel_operations_use_the_backend_timeout_budget() {
+        assert_eq!(CHANNEL_OPERATION_TIMEOUT, Duration::from_secs(40));
+    }
+
+    #[test]
+    fn channel_response_error_uses_only_server_message() {
+        let payload = serde_json::json!({
+            "message": "channel probe failed",
+            "secret": "must-not-be-forwarded"
+        });
+        assert_eq!(
+            channel_response_error(&payload, "fallback"),
+            "channel probe failed"
+        );
+        assert_eq!(
+            channel_response_error(&serde_json::json!({}), "fallback"),
+            "fallback"
+        );
+    }
+
+    #[test]
+    fn channel_runtime_response_requires_a_channels_array() {
+        assert_eq!(
+            parse_channel_runtime_response(serde_json::json!({
+                "status": "ok",
+                "channels": []
+            }))
+            .expect("valid runtime response"),
+            serde_json::json!([])
+        );
+
+        let missing = parse_channel_runtime_response(serde_json::json!({ "status": "ok" }))
+            .expect_err("missing channels must fail");
+        assert!(missing.contains("missing channels"));
+
+        let malformed = parse_channel_runtime_response(serde_json::json!({
+            "status": "ok",
+            "channels": {}
+        }))
+        .expect_err("non-array channels must fail");
+        assert!(malformed.contains("channels must be an array"));
+    }
+}
+
+/// Probe a candidate channel configuration without persisting or activating it.
+#[tauri::command]
+pub async fn probe_channel(
+    name: String,
+    config: serde_json::Value,
+    state: State<'_, AgentState>,
+) -> Result<serde_json::Value, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("channel name is required".to_string());
+    }
+
+    let url = channel_endpoint(&state.api_base_url(), name, Some("probe"));
+    let response = state
+        .client
+        .post(&url)
+        .timeout(CHANNEL_OPERATION_TIMEOUT)
+        .json(&serde_json::json!({ "config": config }))
+        .send()
+        .await
+        .map_err(|error| format!("Failed to probe channel: {error}"))?;
+
+    read_channel_operation_response(response, "probe").await
+}
+
+/// Remove a channel configuration and stop its active runtime, if any.
+#[tauri::command]
+pub async fn delete_channel(name: String, state: State<'_, AgentState>) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("channel name is required".to_string());
+    }
+
+    let url = channel_endpoint(&state.api_base_url(), name, None);
+    let response = state
+        .client
+        .delete(&url)
+        .timeout(CHANNEL_OPERATION_TIMEOUT)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to delete channel: {error}"))?;
+
+    read_channel_operation_response(response, "delete")
+        .await
+        .map(|_| ())
 }
 
 #[derive(Debug, Clone, Serialize)]

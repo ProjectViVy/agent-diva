@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Plus, MessageSquarePlus } from '@lucide/vue';
+import { CircleAlert, Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -14,6 +14,10 @@ const props = defineProps<{
   channels: Record<string, Record<string, any>>;
   statuses: ChannelStatusSummary[];
   loading?: boolean;
+  canAdd?: boolean;
+  busyChannels?: string[];
+  errors?: Record<string, string>;
+  error?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -24,27 +28,58 @@ const emit = defineEmits<{
 }>();
 
 const statusMap = computed(() => new Map(props.statuses.map((s) => [s.name, s])));
+const busyChannelSet = computed(() => new Set(props.busyChannels ?? []));
+const canAddAction = computed(() => props.canAdd ?? true);
+const skeletonCards = Array.from({ length: 6 }, (_, index) => index);
 
 const channelList = computed(() =>
   Object.entries(props.channels)
     .map(([name, raw]) => ({
       name,
       channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,
-      status: statusMap.value.get(name),
-    }))
+        status: statusMap.value.get(name),
+        error: props.errors?.[name],
+      }))
 );
 </script>
 
 <template>
   <div class="channel-card-view">
     <!-- Empty State -->
-    <div v-if="channelList.length === 0" class="channel-empty-state">
+    <div
+      v-if="loading && channelList.length === 0"
+      class="channel-card-grid channel-card-grid-skeleton"
+      data-testid="channel-card-skeleton"
+      role="status"
+      aria-busy="true"
+    >
+      <div v-for="index in skeletonCards" :key="index" class="channel-card-skeleton" aria-hidden="true">
+        <div class="channel-card-skeleton-header">
+          <span class="skeleton-block skeleton-icon" />
+          <span class="skeleton-block skeleton-title" />
+        </div>
+        <span class="skeleton-block skeleton-line" />
+        <span class="skeleton-block skeleton-line skeleton-line-short" />
+        <div class="channel-card-skeleton-actions">
+          <span class="skeleton-block skeleton-action" />
+          <span class="skeleton-block skeleton-action" />
+          <span class="skeleton-block skeleton-action" />
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="error && channelList.length === 0" class="channel-error-state" role="alert">
+      <CircleAlert :size="32" />
+      <span>{{ error }}</span>
+    </div>
+
+    <div v-else-if="channelList.length === 0" class="channel-empty-state">
       <div class="empty-icon">
         <MessageSquarePlus :size="80" />
       </div>
       <h3>{{ $t('channels.noChannels') }}</h3>
-      <p>{{ $t('channels.noChannelsHint') }}</p>
-      <div class="empty-actions">
+      <p>{{ $t(canAddAction ? 'channels.noChannelsHint' : 'channels.noChannelsHintNoRecovery') }}</p>
+      <div v-if="canAddAction" class="empty-actions">
         <button class="btn-primary" @click="emit('add')">
           <Plus :size="16" />
           {{ $t('channels.addChannel') }}
@@ -55,10 +90,12 @@ const channelList = computed(() =>
     <!-- Card Grid -->
     <div v-else class="channel-card-grid">
       <ChannelCard
-        v-for="{ name, channel, status } in channelList"
+        v-for="{ name, channel, status, error: channelError } in channelList"
         :key="name"
         :channel="channel"
         :status="status"
+        :busy="busyChannelSet.has(name)"
+        :error="channelError"
         @toggle="emit('toggle', name)"
         @edit="emit('edit', name)"
         @delete="emit('delete', name)"
@@ -72,6 +109,21 @@ const channelList = computed(() =>
   width: 100%;
   height: 100%;
   overflow-y: auto;
+}
+
+.channel-error-state {
+  display: flex;
+  min-height: 14rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.channel-error-state {
+  color: var(--danger);
 }
 
 .channel-empty-state {
@@ -145,5 +197,71 @@ const channelList = computed(() =>
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
   padding: 1.5rem;
+}
+
+.channel-card-grid-skeleton {
+  align-content: start;
+}
+
+.channel-card-skeleton {
+  display: flex;
+  min-height: 12rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.channel-card-skeleton-header,
+.channel-card-skeleton-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.channel-card-skeleton-actions {
+  margin-top: auto;
+  gap: 0.5rem;
+}
+
+.skeleton-block {
+  display: block;
+  border-radius: 999px;
+  background: var(--line);
+  animation: channel-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+}
+
+.skeleton-title {
+  width: 45%;
+  height: 0.875rem;
+}
+
+.skeleton-line {
+  width: 80%;
+  height: 0.625rem;
+}
+
+.skeleton-line-short {
+  width: 55%;
+}
+
+.skeleton-action {
+  width: 3.25rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes channel-skeleton-pulse {
+  0%,
+  100% { opacity: 0.55; }
+  50% { opacity: 0.95; }
 }
 </style>

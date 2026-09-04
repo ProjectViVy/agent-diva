@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 const PACING_RETRY_HINT: Duration = Duration::from_millis(100);
 const LOCAL_RETRY_BASE: Duration = Duration::from_millis(250);
 const MAX_ATTEMPTS: usize = 3;
+const PACING_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Error)]
 pub enum PacingError {
@@ -21,6 +22,8 @@ pub enum PacingError {
     Busy { retry_after: Duration },
     #[error("adapter pacing lane is closed")]
     Closed,
+    #[error("adapter pacing worker could not be spawned: {0}")]
+    WorkerSpawn(String),
     #[error("adapter pacing request was cancelled")]
     Cancelled,
     #[error("command targets {actual}, but pacing lane belongs to {expected}")]
@@ -118,12 +121,24 @@ impl std::fmt::Debug for AdapterPacingLane {
 
 impl AdapterPacingLane {
     pub fn spawn(adapter: Arc<dyn ChannelAdapter>) -> Self {
+        match Self::try_spawn(adapter) {
+            Ok(lane) => lane,
+            Err(error) => panic!("{error}"),
+        }
+    }
+
+    /// Spawn a pacing worker while reporting the absence of a Tokio runtime to
+    /// the caller. Runtime reconfiguration uses this fallible constructor so
+    /// a failed worker allocation can roll back registry state.
+    pub fn try_spawn(adapter: Arc<dyn ChannelAdapter>) -> Result<Self, PacingError> {
+        let runtime = tokio::runtime::Handle::try_current()
+            .map_err(|error| PacingError::WorkerSpawn(error.to_string()))?;
         let (sender, receiver) = mpsc::channel(capacity::ADAPTER_EGRESS);
         let shutdown = CancellationToken::new();
         let channel = adapter.name().to_string();
         let worker_shutdown = shutdown.clone();
-        let worker = tokio::spawn(run_worker(adapter, receiver, worker_shutdown));
-        Self {
+        let worker = runtime.spawn(run_worker(adapter, receiver, worker_shutdown));
+        Ok(Self {
             handle: AdapterPacingHandle {
                 channel,
                 sender,
@@ -131,7 +146,7 @@ impl AdapterPacingLane {
             },
             shutdown,
             worker,
-        }
+        })
     }
 
     pub fn handle(&self) -> AdapterPacingHandle {
@@ -141,7 +156,14 @@ impl AdapterPacingLane {
     /// Close admission, interrupt pacing waits and resolve every accepted request.
     pub async fn shutdown(self) {
         self.shutdown.cancel();
-        let _ = self.worker.await;
+        let mut worker = self.worker;
+        if tokio::time::timeout(PACING_SHUTDOWN_TIMEOUT, &mut worker)
+            .await
+            .is_err()
+        {
+            worker.abort();
+            let _ = worker.await;
+        }
     }
 }
 

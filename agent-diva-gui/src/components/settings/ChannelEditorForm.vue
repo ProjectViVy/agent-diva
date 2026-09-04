@@ -14,6 +14,7 @@ import {
 const props = defineProps<{
   platform: string;
   config: Record<string, unknown>;
+  disabled?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -37,6 +38,7 @@ watch(
 );
 
 function toggleRevealed(key: string) {
+  if (props.disabled) return;
   if (revealedSecrets.value.has(key)) {
     revealedSecrets.value.delete(key);
   } else {
@@ -45,15 +47,27 @@ function toggleRevealed(key: string) {
 }
 
 function setField(field: WizardFormField, value: unknown) {
+  if (props.disabled) return;
   props.config[field.key] = coerceChannelFieldValue(field, value);
 }
 
 function setStringList(field: WizardFormField, text: string) {
+  if (props.disabled) return;
   props.config[field.key] = splitIdList(text);
 }
 
 function setBoolean(field: WizardFormField, next: boolean) {
+  if (props.disabled) return;
   props.config[field.key] = next;
+}
+
+function setExtraValue(key: string, raw: string) {
+  if (props.disabled) return;
+  try {
+    props.config[key] = JSON.parse(raw);
+  } catch {
+    props.config[key] = raw;
+  }
 }
 
 function fieldValue(field: WizardFormField): unknown {
@@ -66,7 +80,7 @@ function booleanValue(field: WizardFormField): boolean {
 </script>
 
 <template>
-  <div class="channel-editor-form">
+  <div class="channel-editor-form" :aria-disabled="props.disabled || undefined">
     <div v-if="!hasSchema && extraKeys.length === 0" class="channel-editor-empty">
       {{ t('channels.noEditableFields') }}
     </div>
@@ -81,6 +95,7 @@ function booleanValue(field: WizardFormField): boolean {
         <select
           v-if="field.type === 'select'"
           class="credential-input"
+          :disabled="props.disabled"
           :value="String(fieldValue(field) ?? '')"
           @change="setField(field, ($event.target as HTMLSelectElement).value)"
         >
@@ -92,6 +107,7 @@ function booleanValue(field: WizardFormField): boolean {
         <textarea
           v-else-if="field.type === 'textarea' || field.type === 'string-list'"
           class="credential-input"
+          :disabled="props.disabled"
           :value="field.type === 'string-list' ? joinIdList(fieldValue(field)) : String(fieldValue(field) ?? '')"
           :placeholder="field.placeholder"
           rows="3"
@@ -110,6 +126,7 @@ function booleanValue(field: WizardFormField): boolean {
             :aria-checked="booleanValue(field)"
             class="channels-toggle"
             :class="{ enabled: booleanValue(field) }"
+            :disabled="props.disabled"
             @click="setBoolean(field, !booleanValue(field))"
           >
             <span class="channels-toggle-thumb" />
@@ -119,6 +136,7 @@ function booleanValue(field: WizardFormField): boolean {
         <div v-else-if="field.type === 'password'" class="credential-input-wrapper">
           <input
             class="credential-input"
+            :disabled="props.disabled"
             :type="revealedSecrets.has(field.key) ? 'text' : 'password'"
             :value="String(fieldValue(field) ?? '')"
             :placeholder="field.placeholder"
@@ -129,6 +147,7 @@ function booleanValue(field: WizardFormField): boolean {
             v-if="field.secret"
             type="button"
             class="input-toggle"
+            :disabled="props.disabled"
             :title="revealedSecrets.has(field.key) ? t('channels.hideSecret') : t('channels.showSecret')"
             @click="toggleRevealed(field.key)"
           >
@@ -140,6 +159,7 @@ function booleanValue(field: WizardFormField): boolean {
         <input
           v-else
           class="credential-input"
+          :disabled="props.disabled"
           :type="field.type === 'number' ? 'number' : 'text'"
           :value="fieldValue(field) ?? ''"
           :placeholder="field.placeholder"
@@ -171,6 +191,7 @@ function booleanValue(field: WizardFormField): boolean {
           <select
             v-if="field.type === 'select'"
             class="credential-input"
+            :disabled="props.disabled"
             :value="String(fieldValue(field) ?? '')"
             @change="setField(field, ($event.target as HTMLSelectElement).value)"
           >
@@ -182,6 +203,7 @@ function booleanValue(field: WizardFormField): boolean {
           <textarea
             v-else-if="field.type === 'textarea' || field.type === 'string-list'"
             class="credential-input"
+            :disabled="props.disabled"
             :value="field.type === 'string-list' ? joinIdList(fieldValue(field)) : String(fieldValue(field) ?? '')"
             :placeholder="field.placeholder"
             rows="3"
@@ -200,6 +222,7 @@ function booleanValue(field: WizardFormField): boolean {
               :aria-checked="booleanValue(field)"
               class="channels-toggle"
               :class="{ enabled: booleanValue(field) }"
+              :disabled="props.disabled"
               @click="setBoolean(field, !booleanValue(field))"
             >
               <span class="channels-toggle-thumb" />
@@ -209,6 +232,7 @@ function booleanValue(field: WizardFormField): boolean {
           <div v-else-if="field.type === 'password'" class="credential-input-wrapper">
             <input
               class="credential-input"
+              :disabled="props.disabled"
               :type="revealedSecrets.has(field.key) ? 'text' : 'password'"
               :value="String(fieldValue(field) ?? '')"
               :placeholder="field.placeholder"
@@ -219,6 +243,7 @@ function booleanValue(field: WizardFormField): boolean {
               v-if="field.secret"
               type="button"
               class="input-toggle"
+              :disabled="props.disabled"
               :title="revealedSecrets.has(field.key) ? t('channels.hideSecret') : t('channels.showSecret')"
               @click="toggleRevealed(field.key)"
             >
@@ -230,6 +255,7 @@ function booleanValue(field: WizardFormField): boolean {
           <input
             v-else
             class="credential-input"
+            :disabled="props.disabled"
             :type="field.type === 'number' ? 'number' : 'text'"
             :value="fieldValue(field) ?? ''"
             :placeholder="field.placeholder"
@@ -255,18 +281,10 @@ function booleanValue(field: WizardFormField): boolean {
         <label class="credential-label">{{ key }}</label>
         <textarea
           class="credential-input"
+          :disabled="props.disabled"
           :value="typeof config[key] === 'string' ? config[key] : JSON.stringify(config[key] ?? '', null, 2)"
           rows="3"
-          @input="
-            (() => {
-              const raw = ($event.target as HTMLTextAreaElement).value;
-              try {
-                config[key] = JSON.parse(raw);
-              } catch {
-                config[key] = raw;
-              }
-            })()
-          "
+          @input="setExtraValue(key, ($event.target as HTMLTextAreaElement).value)"
         />
       </div>
     </div>

@@ -21,7 +21,8 @@ use agent_diva_cli::provider_commands::{
     run_provider_list, run_provider_login, run_provider_models, run_provider_set,
     run_provider_status,
 };
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::capacity;
 use agent_diva_core::config::validate::validate_config;
 use agent_diva_core::config::Config;
 use agent_diva_core::cron::{CronSchedule, CronService};
@@ -1301,7 +1302,7 @@ async fn run_tui(
     let selected_model = model.unwrap_or_else(|| config.agents.defaults.model.clone());
     let workspace = runtime.effective_workspace(&config);
 
-    let bus = MessageBus::new();
+    let bus = AgentEventBus::new();
     let provider = build_provider(&config, &selected_model)?;
     let planning = Some(PlanningConfig::open_workspace(&workspace).await?);
     let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
@@ -1323,7 +1324,7 @@ async fn run_tui(
         budget: config.tools.budget.clone().into(),
     };
 
-    let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
+    let (runtime_control_tx, runtime_control_rx) = mpsc::channel(capacity::CONTROL);
 
     // Initialize shared FileManager for attachment handling
     let storage_path = dirs::data_local_dir()
@@ -1524,11 +1525,13 @@ async fn run_tui(
                             let chat_id = chat_id_from_tui_session(&app.session_key);
                             let session_key = format!("cli:{}", chat_id);
                             let (reply_tx, _reply_rx) = tokio::sync::oneshot::channel();
-                            let _ = runtime_control_tx.send(RuntimeControlCommand::StopSession {
-                                session_key,
-                                request_id: None,
-                                reply_tx,
-                            });
+                            let _ = runtime_control_tx
+                                .send(RuntimeControlCommand::StopSession {
+                                    session_key,
+                                    request_id: None,
+                                    reply_tx,
+                                })
+                                .await;
                             app.add_line(TimelineKind::System, "stop requested");
                         } else {
                             app.add_line(TimelineKind::User, content.clone());

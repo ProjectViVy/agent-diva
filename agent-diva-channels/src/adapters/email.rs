@@ -24,10 +24,10 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, RwLock as StdRwLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex as StdMutex, RwLock as StdRwLock};
+use std::time::{Duration, Instant};
 use thiserror::Error;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
@@ -40,6 +40,15 @@ const FABRIC_ADMISSION_DEADLINE: Duration = Duration::from_secs(1);
 const IMAP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const SMTP_IO_TIMEOUT: Duration = Duration::from_secs(15);
 const BLOCKING_OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
+// A cancelled waiter cannot abort a `spawn_blocking` operation.  Keep a hard
+// per-adapter cap so repeated sends/probes cannot accumulate an unbounded set
+// of native blocking workers while an external DNS/IMAP call is wedged.
+const MAX_BLOCKING_TASKS: usize = 8;
+// Health probing is deliberately much shorter than ordinary mail polling or
+// delivery. This gives the owning BlockingTaskRegistry a small, explicit
+// drain bound after the public probe budget expires.
+const EMAIL_PROBE_OPERATION_TIMEOUT: Duration = Duration::from_secs(3);
+const EMAIL_PROBE_IO_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 enum EmailTransportError {
@@ -68,10 +77,10 @@ fn transport_failure(diagnosis: impl Into<String>) -> EmailTransportError {
 enum BlockingTaskError {
     #[error("blocking task registry is closed")]
     Closed,
+    #[error("blocking task registry is at capacity")]
+    AtCapacity,
     #[error("blocking task did not return a result")]
     MissingResult,
-    #[error("blocking task panicked: {diagnosis}")]
-    Join { diagnosis: String },
 }
 
 /// Owns every `spawn_blocking` handle created by one adapter.
@@ -83,14 +92,22 @@ struct BlockingTaskRegistry {
     closed: AtomicBool,
     next_id: AtomicU64,
     tasks: Mutex<HashMap<u64, JoinHandle<()>>>,
+    /// Exactly one owner drains all native workers. Listener cancellation and
+    /// supervisor stop only wait for this owner; neither caller takes or drops
+    /// its local JoinHandle while another drain may be in progress.
+    drain_owner: StdMutex<Option<JoinHandle<Result<(), String>>>>,
+    drain_done: watch::Sender<Option<Result<(), String>>>,
 }
 
 impl Default for BlockingTaskRegistry {
     fn default() -> Self {
+        let (drain_done, _receiver) = watch::channel(None);
         Self {
             closed: AtomicBool::new(false),
             next_id: AtomicU64::new(1),
             tasks: Mutex::new(HashMap::new()),
+            drain_owner: StdMutex::new(None),
+            drain_done,
         }
     }
 }
@@ -102,8 +119,15 @@ impl BlockingTaskRegistry {
         F: FnOnce() -> R + Send + 'static,
     {
         let mut tasks = self.tasks.lock().await;
+        // A caller may time out while the native operation continues.  Once
+        // that operation has completed, its orphaned JoinHandle no longer
+        // owns blocking work and must not consume a capacity slot forever.
+        tasks.retain(|_, task| !task.is_finished());
         if self.closed.load(Ordering::Acquire) {
             return Err(BlockingTaskError::Closed);
+        }
+        if tasks.len() >= MAX_BLOCKING_TASKS {
+            return Err(BlockingTaskError::AtCapacity);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (sender, receiver) = oneshot::channel();
@@ -114,18 +138,48 @@ impl BlockingTaskRegistry {
         tasks.insert(id, handle);
         drop(tasks);
 
-        let result = receiver.await.map_err(|_| BlockingTaskError::MissingResult);
-        let handle = self.tasks.lock().await.remove(&id);
-        if let Some(handle) = handle {
-            handle.await.map_err(|error| BlockingTaskError::Join {
-                diagnosis: error.to_string(),
-            })?;
-        }
-        result
+        // Keep the JoinHandle in the registry even after the waiter receives
+        // its result. A cancelled waiter therefore cannot race with a
+        // remove-and-join step and detach the native operation. Completed
+        // handles are purged before the next admission, and all remaining
+        // handles are joined by the single drain owner below.
+        receiver.await.map_err(|_| BlockingTaskError::MissingResult)
     }
 
-    async fn close_and_drain(&self) -> Result<(), String> {
+    async fn close_and_drain(self: &Arc<Self>) -> Result<(), String> {
         self.closed.store(true, Ordering::Release);
+
+        let mut done = self.drain_done.subscribe();
+        {
+            let mut owner = self
+                .drain_owner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if owner.is_none() && self.drain_done.borrow().is_none() {
+                let registry = Arc::clone(self);
+                let result_sender = self.drain_done.clone();
+                *owner = Some(tokio::spawn(async move {
+                    let result = registry.drain_owned().await;
+                    let _ = result_sender.send(Some(result.clone()));
+                    result
+                }));
+            }
+        }
+
+        if let Some(result) = done.borrow().clone() {
+            return result;
+        }
+        loop {
+            if done.changed().await.is_err() {
+                return Err("blocking drain owner stopped unexpectedly".to_string());
+            }
+            if let Some(result) = done.borrow().clone() {
+                return result;
+            }
+        }
+    }
+
+    async fn drain_owned(&self) -> Result<(), String> {
         let handles = self
             .tasks
             .lock()
@@ -221,7 +275,7 @@ trait EmailTransport: Send + Sync + 'static {
         message: SmtpMessage,
     ) -> Result<String, EmailTransportError>;
 
-    fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError>;
+    fn probe(&self, config: &EmailConfig, deadline: Instant) -> Result<(), EmailTransportError>;
 
     fn record_event(&self, _event: &str) {}
 }
@@ -255,8 +309,8 @@ impl EmailTransport for SystemEmailTransport {
         smtp_send_blocking(config, message)
     }
 
-    fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError> {
-        probe_email_blocking(config)
+    fn probe(&self, config: &EmailConfig, deadline: Instant) -> Result<(), EmailTransportError> {
+        probe_email_blocking_until(config, deadline)
     }
 }
 
@@ -969,7 +1023,12 @@ impl EmailAdapter {
 
         let config = self.config.clone();
         let transport = self.transport.clone();
-        let probe = self.run_blocking("health_probe_timeout", move || transport.probe(&config));
+        let deadline = Instant::now() + EMAIL_PROBE_OPERATION_TIMEOUT;
+        let probe = self.run_blocking_with_timeout(
+            EMAIL_PROBE_OPERATION_TIMEOUT,
+            "health_probe_timeout",
+            move || transport.probe(&config, deadline),
+        );
         let probe_result = tokio::select! {
             biased;
             _ = self.shutdown.cancelled() => return Err(AdapterError::Stopped),
@@ -1575,15 +1634,18 @@ fn resolve_imap_address(config: &EmailConfig) -> Result<std::net::SocketAddr, Em
         .ok_or_else(|| transport_failure("IMAP address resolution returned no addresses"))
 }
 
-fn connect_imap_tcp(config: &EmailConfig) -> Result<TcpStream, EmailTransportError> {
+fn connect_imap_tcp_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<TcpStream, EmailTransportError> {
     let address = resolve_imap_address(config)?;
-    let stream = TcpStream::connect_timeout(&address, IMAP_IO_TIMEOUT)
+    let stream = TcpStream::connect_timeout(&address, io_timeout)
         .map_err(|error| transport_failure(format!("IMAP connect failed: {error}")))?;
     stream
-        .set_read_timeout(Some(IMAP_IO_TIMEOUT))
+        .set_read_timeout(Some(io_timeout))
         .map_err(|error| transport_failure(format!("IMAP read timeout setup failed: {error}")))?;
     stream
-        .set_write_timeout(Some(IMAP_IO_TIMEOUT))
+        .set_write_timeout(Some(io_timeout))
         .map_err(|error| transport_failure(format!("IMAP write timeout setup failed: {error}")))?;
     Ok(stream)
 }
@@ -1591,9 +1653,16 @@ fn connect_imap_tcp(config: &EmailConfig) -> Result<TcpStream, EmailTransportErr
 fn connect_imap_tls(
     config: &EmailConfig,
 ) -> Result<imap::Client<native_tls::TlsStream<TcpStream>>, EmailTransportError> {
+    connect_imap_tls_with_timeout(config, IMAP_IO_TIMEOUT)
+}
+
+fn connect_imap_tls_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<imap::Client<native_tls::TlsStream<TcpStream>>, EmailTransportError> {
     let connector = native_tls::TlsConnector::new()
         .map_err(|error| transport_failure(format!("IMAP TLS setup failed: {error}")))?;
-    let stream = connect_imap_tcp(config)?;
+    let stream = connect_imap_tcp_with_timeout(config, io_timeout)?;
     let stream = connector
         .connect(&config.imap_host, stream)
         .map_err(|error| transport_failure(format!("IMAP TLS handshake failed: {error}")))?;
@@ -1607,7 +1676,14 @@ fn connect_imap_tls(
 fn connect_imap_plain(
     config: &EmailConfig,
 ) -> Result<imap::Client<TcpStream>, EmailTransportError> {
-    let stream = connect_imap_tcp(config)?;
+    connect_imap_plain_with_timeout(config, IMAP_IO_TIMEOUT)
+}
+
+fn connect_imap_plain_with_timeout(
+    config: &EmailConfig,
+    io_timeout: Duration,
+) -> Result<imap::Client<TcpStream>, EmailTransportError> {
+    let stream = connect_imap_tcp_with_timeout(config, io_timeout)?;
     let mut client = imap::Client::new(stream);
     client
         .read_greeting()
@@ -1681,17 +1757,21 @@ fn mark_seen_session<T: Read + Write>(
     result
 }
 
-fn probe_imap_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
+fn probe_imap_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
     let mailbox = if config.imap_mailbox.trim().is_empty() {
         DEFAULT_MAILBOX
     } else {
         config.imap_mailbox.trim()
     };
+    let io_timeout = remaining_probe_timeout(deadline);
     if config.imap_use_ssl {
-        let client = connect_imap_tls(config)?;
+        let client = connect_imap_tls_with_timeout(config, io_timeout)?;
         probe_imap_session(login_imap(client, config)?, mailbox)
     } else {
-        let client = connect_imap_plain(config)?;
+        let client = connect_imap_plain_with_timeout(config, io_timeout)?;
         probe_imap_session(login_imap(client, config)?, mailbox)
     }
 }
@@ -1712,8 +1792,9 @@ fn probe_imap_session<T: Read + Write>(
     result
 }
 
-fn build_smtp_transport(
+fn build_smtp_transport_with_timeout(
     config: &EmailConfig,
+    io_timeout: Duration,
 ) -> Result<lettre::SmtpTransport, EmailTransportError> {
     use lettre::transport::smtp::authentication::Credentials;
     use lettre::SmtpTransport;
@@ -1725,27 +1806,36 @@ fn build_smtp_transport(
             .map_err(|error| transport_failure(format!("SMTP SSL setup failed: {error}")))?
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     } else if config.smtp_use_tls {
         SmtpTransport::starttls_relay(&config.smtp_host)
             .map_err(|error| transport_failure(format!("SMTP STARTTLS setup failed: {error}")))?
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     } else {
         SmtpTransport::builder_dangerous(&config.smtp_host)
             .credentials(credentials())
             .port(config.smtp_port)
-            .timeout(Some(SMTP_IO_TIMEOUT))
+            .timeout(Some(io_timeout))
             .build()
     };
     Ok(transport)
 }
 
-fn probe_smtp_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
-    let transport = build_smtp_transport(config)?;
+fn build_smtp_transport(
+    config: &EmailConfig,
+) -> Result<lettre::SmtpTransport, EmailTransportError> {
+    build_smtp_transport_with_timeout(config, SMTP_IO_TIMEOUT)
+}
+
+fn probe_smtp_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
+    let transport = build_smtp_transport_with_timeout(config, remaining_probe_timeout(deadline))?;
     match transport
         .test_connection()
         .map_err(|error| transport_failure(format!("SMTP health probe failed: {error}")))?
@@ -1757,9 +1847,21 @@ fn probe_smtp_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> 
     }
 }
 
-fn probe_email_blocking(config: &EmailConfig) -> Result<(), EmailTransportError> {
-    probe_imap_blocking(config)?;
-    probe_smtp_blocking(config)
+fn probe_email_blocking_until(
+    config: &EmailConfig,
+    deadline: Instant,
+) -> Result<(), EmailTransportError> {
+    probe_imap_blocking_until(config, deadline)?;
+    probe_smtp_blocking_until(config, deadline)
+}
+
+fn remaining_probe_timeout(deadline: Instant) -> Duration {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        Duration::from_millis(1)
+    } else {
+        remaining.min(EMAIL_PROBE_IO_TIMEOUT)
+    }
 }
 
 fn smtp_send_blocking(
@@ -2032,11 +2134,182 @@ mod tests {
         events: StdMutex<Vec<String>>,
         smtp_wire: StdMutex<Vec<String>>,
         send_gate: StdMutex<Option<Arc<FakeBlockingGate>>>,
+        probe_gate: StdMutex<Option<Arc<FakeBlockingGate>>>,
     }
 
     struct FakeBlockingGate {
         started: StdMutex<std::sync::mpsc::Sender<()>>,
         release: StdMutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    #[tokio::test]
+    async fn blocking_task_registry_rejects_work_beyond_hard_capacity() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let release_rx = Arc::new(StdMutex::new(release_rx));
+        let mut workers = Vec::new();
+        for _ in 0..MAX_BLOCKING_TASKS {
+            let registry = registry.clone();
+            let release_rx = release_rx.clone();
+            workers.push(tokio::spawn(async move {
+                registry
+                    .run(move || {
+                        let _ = release_rx.lock().expect("release lock").recv();
+                    })
+                    .await
+            }));
+        }
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == MAX_BLOCKING_TASKS {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("all blocking workers admitted");
+
+        assert!(matches!(
+            registry.run(|| ()).await,
+            Err(BlockingTaskError::AtCapacity)
+        ));
+        for _ in 0..MAX_BLOCKING_TASKS {
+            release_tx.send(()).expect("release blocking worker");
+        }
+        for worker in workers {
+            worker
+                .await
+                .expect("blocking worker join")
+                .expect("worker result");
+        }
+    }
+
+    #[tokio::test]
+    async fn completed_orphan_blocking_handle_does_not_consume_capacity() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let waiter_registry = registry.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_registry
+                .run(move || {
+                    let _ = release_rx.recv();
+                })
+                .await
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocking worker admitted");
+        waiter.abort();
+        let _ = waiter.await;
+        release_tx.send(()).expect("release orphaned worker");
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry
+                    .tasks
+                    .lock()
+                    .await
+                    .values()
+                    .all(|task| task.is_finished())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("orphaned worker completed");
+
+        registry
+            .run(|| ())
+            .await
+            .expect("completed orphan must be purged before admission");
+    }
+
+    #[tokio::test]
+    async fn listener_abort_keeps_single_registry_drain_owner_for_stop() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let completed = Arc::new(AtomicBool::new(false));
+        let worker_registry = registry.clone();
+        let worker_completed = completed.clone();
+        let worker = tokio::spawn(async move {
+            worker_registry
+                .run(move || {
+                    let _ = release_rx.recv();
+                    worker_completed.store(true, Ordering::Release);
+                })
+                .await
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocking worker admitted");
+
+        // The listener starts the drain, but a supervisor may abort its
+        // waiter. The JoinHandle must remain owned by the registry itself.
+        let listener_registry = registry.clone();
+        let listener = tokio::spawn(async move { listener_registry.close_and_drain().await });
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry
+                    .drain_owner
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_some()
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("listener installed the unique drain owner");
+        listener.abort();
+        assert!(listener
+            .await
+            .expect_err("listener waiter was cancelled")
+            .is_cancelled());
+
+        let stop_registry = registry.clone();
+        let mut stop = tokio::spawn(async move { stop_registry.close_and_drain().await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut stop)
+                .await
+                .is_err(),
+            "stop must wait for the registry owner instead of returning early"
+        );
+        release_tx.send(()).expect("release blocking worker");
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !completed.load(Ordering::Acquire) {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("registry-owned blocking worker completed");
+        assert!(stop.await.expect("stop drain task").is_ok());
+        assert!(registry.tasks.lock().await.is_empty());
+        worker
+            .await
+            .expect("blocking waiter task")
+            .expect("worker result");
     }
 
     impl EmailTransport for FakeEmailTransport {
@@ -2111,7 +2384,11 @@ mod tests {
                 })
         }
 
-        fn probe(&self, config: &EmailConfig) -> Result<(), EmailTransportError> {
+        fn probe(
+            &self,
+            config: &EmailConfig,
+            _deadline: Instant,
+        ) -> Result<(), EmailTransportError> {
             let mode = smtp_mode(config);
             let mut events = self.events.lock().unwrap();
             events.push(format!(
@@ -2120,6 +2397,10 @@ mod tests {
             ));
             events.push(format!("smtp.probe mode={mode} command=EHLO NOOP"));
             drop(events);
+            if let Some(gate) = self.probe_gate.lock().unwrap().clone() {
+                let _ = gate.started.lock().unwrap().send(());
+                let _ = gate.release.lock().unwrap().recv();
+            }
             self.probe_results
                 .lock()
                 .unwrap()
@@ -2928,6 +3209,52 @@ mod tests {
             .await;
         assert_error_code_for_any(result, "fixture_timeout");
         adapter.stop().await.expect("drain timed-out task");
+    }
+
+    #[tokio::test]
+    async fn public_probe_timeout_keeps_email_cleanup_owned_until_drain() {
+        let fake = Arc::new(FakeEmailTransport::default());
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        *fake.probe_gate.lock().unwrap() = Some(Arc::new(FakeBlockingGate {
+            started: StdMutex::new(started_tx),
+            release: StdMutex::new(release_rx),
+        }));
+        let adapter = Arc::new(EmailAdapter::with_transport(
+            config(),
+            AdapterServices::new(Arc::new(MemoryAttachments::default())),
+            fake,
+        ));
+        let probe_adapter = adapter.clone();
+        let probe_task = tokio::spawn(async move {
+            crate::adapter::probe_adapter(probe_adapter, "email", Duration::from_millis(20)).await
+        });
+        tokio::task::spawn_blocking(move || started_rx.recv())
+            .await
+            .expect("probe started waiter")
+            .expect("blocking email probe started");
+
+        // The single public deadline must not wait for, or drop, cleanup while
+        // the native transport is still blocked.
+        let mut probe_task = probe_task;
+        let result = tokio::time::timeout(Duration::from_millis(40), &mut probe_task)
+            .await
+            .expect("probe response deadline")
+            .expect("probe join");
+        assert!(matches!(
+            result,
+            Err(crate::adapter::ChannelProbeError::Timeout)
+        ));
+        assert!(crate::adapter::pending_probe_cleanup_tasks().await > 0);
+        release_tx.send(()).expect("release email probe");
+
+        for _ in 0..50 {
+            if crate::adapter::pending_probe_cleanup_tasks().await == 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("email probe cleanup task was not drained");
     }
 
     #[tokio::test]

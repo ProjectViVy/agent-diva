@@ -59,6 +59,16 @@ describe('ChannelEditorForm', () => {
     expect((details.element as HTMLDetailsElement).open).toBe(false);
     expect(wrapper.text()).toContain('channels.advancedSettings');
   });
+
+  it('disables every editor control while its channel is busy', () => {
+    const config: Record<string, unknown> = { token: 'x', allow_from: [] };
+    const wrapper = mount(ChannelEditorForm, {
+      props: { platform: 'telegram', config, disabled: true },
+      global: { mocks: { $t: (key: string) => key } },
+    });
+
+    expect(wrapper.findAll('input, select, textarea, button').every((control) => control.attributes('disabled') !== undefined)).toBe(true);
+  });
 });
 
 describe('channel credential schema', () => {

@@ -627,4 +627,91 @@ mod tests {
             ))
         ));
     }
+
+    #[tokio::test]
+    async fn failed_worker_drains_waiters_and_allows_a_fresh_turn() {
+        let dispatcher = SessionDispatcher::new(limits(2, Duration::from_secs(2)));
+        let session_key = "runtime/failure".to_string();
+        let running_started = Arc::new(Barrier::new(2));
+        let (transition_tx, mut transition_rx) = mpsc::unbounded_channel();
+        let running = {
+            let dispatcher = dispatcher.clone();
+            let session_key = session_key.clone();
+            let running_started = running_started.clone();
+            let transition_tx = transition_tx.clone();
+            tokio::spawn(async move {
+                dispatcher
+                    .dispatch_observed(
+                        session_key,
+                        SessionRequestIdentity {
+                            request_id: "request-running".to_string(),
+                            trace_id: "trace-running".to_string(),
+                        },
+                        Arc::new(move |transition| {
+                            transition_tx.send(transition).unwrap();
+                        }),
+                        move |cancellation| async move {
+                            running_started.wait().await;
+                            cancellation.cancelled().await;
+                            Err::<(), _>("worker failed")
+                        },
+                    )
+                    .await
+            })
+        };
+        running_started.wait().await;
+
+        let waiter = {
+            let dispatcher = dispatcher.clone();
+            let session_key = session_key.clone();
+            let transition_tx = transition_tx.clone();
+            tokio::spawn(async move {
+                dispatcher
+                    .dispatch_observed(
+                        session_key,
+                        SessionRequestIdentity {
+                            request_id: "request-queued".to_string(),
+                            trace_id: "trace-queued".to_string(),
+                        },
+                        Arc::new(move |transition| {
+                            transition_tx.send(transition).unwrap();
+                        }),
+                        |_| async { Ok::<_, &'static str>(()) },
+                    )
+                    .await
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if matches!(
+                    transition_rx.recv().await,
+                    Some(SessionDispatchTransition::Queued { .. })
+                ) {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("failed worker waiter was not queued");
+
+        assert_eq!(dispatcher.worker_unavailable(&session_key), 1);
+        assert!(matches!(
+            running.await.unwrap(),
+            Err(SessionDispatchError::Turn("worker failed"))
+        ));
+        assert!(matches!(
+            waiter.await.unwrap(),
+            Err(SessionDispatchError::Admission(
+                SessionAdmissionError::Cancelled {
+                    reason: SessionAdmissionCancelReason::WorkerUnavailable
+                }
+            ))
+        ));
+
+        let recovered = dispatcher
+            .dispatch(session_key, |_| async { Ok::<_, &'static str>(7) })
+            .await
+            .unwrap();
+        assert_eq!(recovered, 7);
+    }
 }

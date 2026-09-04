@@ -11,8 +11,17 @@ use agent_diva_core::channel::{
 use agent_diva_core::config::Config;
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::{fmt, sync::Arc, time::Duration};
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::{
+    fmt,
+    sync::{Arc, Mutex as StdMutex, OnceLock},
+    time::{Duration, Instant},
+};
 use thiserror::Error;
+use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 /// Services shared by native adapters without changing the listener context.
@@ -256,6 +265,485 @@ pub enum AdapterBuildError {
     Unavailable { channels: Vec<String> },
 }
 
+/// Error returned by an explicit desktop/API channel probe.
+///
+/// This deliberately stores only stable error codes and retry metadata.  Native
+/// adapter diagnostics may contain transport response bodies or other
+/// configuration-derived values, so they must not cross the Manager API
+/// boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum ChannelProbeError {
+    #[error("unknown channel: {channel}")]
+    UnknownChannel { channel: String },
+    #[error("invalid channel probe configuration")]
+    InvalidConfig,
+    #[error("failed to construct a native channel probe adapter")]
+    Build,
+    #[error("channel probe timed out")]
+    Timeout,
+    #[error("channel probe failed ({code})")]
+    Adapter {
+        code: String,
+        retry_after_ms: Option<u64>,
+        retryable: bool,
+    },
+    #[error("channel probe cleanup failed ({code})")]
+    Cleanup { code: String },
+}
+
+impl ChannelProbeError {
+    /// Stable machine-readable code suitable for an HTTP/Tauri error body.
+    pub fn code(&self) -> &str {
+        match self {
+            Self::UnknownChannel { .. } => "unknown_channel",
+            Self::InvalidConfig => "invalid_config",
+            Self::Build => "probe_build_failed",
+            Self::Timeout => "probe_timeout",
+            Self::Adapter { code, .. } => code,
+            Self::Cleanup { .. } => "probe_cleanup_failed",
+        }
+    }
+
+    /// Whether retrying the same candidate may succeed without changing it.
+    pub fn retryable(&self) -> bool {
+        match self {
+            Self::Adapter { retryable, .. } => *retryable,
+            Self::Timeout => true,
+            Self::UnknownChannel { .. }
+            | Self::InvalidConfig
+            | Self::Build
+            | Self::Cleanup { .. } => false,
+        }
+    }
+
+    /// Retry hint from the native adapter, if one was provided.
+    pub fn retry_after_ms(&self) -> Option<u64> {
+        match self {
+            Self::Adapter { retry_after_ms, .. } => *retry_after_ms,
+            _ => None,
+        }
+    }
+
+    /// Return a bounded code safe to expose outside the adapter process.
+    ///
+    /// Native adapters currently use fixed snake-case codes, but keeping this
+    /// boundary defensive prevents a future transport/parser code from
+    /// carrying response text or configuration-derived data.
+    pub fn public_code(&self) -> String {
+        match self {
+            Self::Adapter { code, .. } if is_safe_probe_code(code) => code.clone(),
+            Self::Adapter { .. } => "adapter_error".to_string(),
+            _ => self.code().to_string(),
+        }
+    }
+}
+
+fn is_safe_probe_code(code: &str) -> bool {
+    !code.is_empty()
+        && code.len() <= 64
+        && code.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'-'
+        })
+}
+
+/// Owns probe operations that outlive the public probe response deadline.
+///
+/// `spawn_blocking` cannot be force-aborted once a native library has entered
+/// a blocking call. The registry therefore keeps one owner task for each probe
+/// from the moment its admission lease is acquired. That owner retains the
+/// execute future, cleanup future, and lease even when the public caller is
+/// cancelled. Registration is synchronous so there is no cancellation window
+/// while transferring ownership to the registry.
+struct ProbeCleanupRegistry {
+    next_id: AtomicU64,
+    tasks: StdMutex<BTreeMap<u64, JoinHandle<()>>>,
+    reaper_started: AtomicBool,
+}
+
+/// A probe occupies both one process-wide slot and one channel slot until the
+/// temporary adapter has actually stopped.  The latter is important for
+/// blocking adapters: a caller timing out must not be able to start a second
+/// DNS/IMAP operation for the same channel while the first one is still held
+/// by its cleanup owner.
+const MAX_CONCURRENT_PROBES: usize = 4;
+
+struct ProbeAdmission {
+    global: Arc<Semaphore>,
+    channels: [Arc<Semaphore>; 6],
+}
+
+struct ProbeAdmissionLease {
+    _global: OwnedSemaphorePermit,
+    _channel: OwnedSemaphorePermit,
+}
+
+impl ProbeAdmission {
+    fn new() -> Self {
+        Self {
+            global: Arc::new(Semaphore::new(MAX_CONCURRENT_PROBES)),
+            channels: std::array::from_fn(|_| Arc::new(Semaphore::new(1))),
+        }
+    }
+
+    fn acquire(&self, channel: &str) -> Result<ProbeAdmissionLease, ChannelProbeError> {
+        let Some(index) = probe_channel_index(channel) else {
+            return Err(ChannelProbeError::UnknownChannel {
+                channel: channel.to_string(),
+            });
+        };
+        let channel_permit = self.channels[index]
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| probe_busy_error("probe_busy"))?;
+        let global_permit = self
+            .global
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| probe_busy_error("probe_busy"))?;
+        Ok(ProbeAdmissionLease {
+            _global: global_permit,
+            _channel: channel_permit,
+        })
+    }
+}
+
+fn probe_admission() -> &'static ProbeAdmission {
+    static ADMISSION: OnceLock<ProbeAdmission> = OnceLock::new();
+    ADMISSION.get_or_init(ProbeAdmission::new)
+}
+
+fn probe_channel_index(channel: &str) -> Option<usize> {
+    match channel {
+        "telegram" => Some(0),
+        "discord" => Some(1),
+        "feishu" => Some(2),
+        "dingtalk" => Some(3),
+        "email" => Some(4),
+        "qq" => Some(5),
+        _ => None,
+    }
+}
+
+fn probe_busy_error(code: &'static str) -> ChannelProbeError {
+    ChannelProbeError::Adapter {
+        code: code.to_string(),
+        retry_after_ms: Some(250),
+        retryable: true,
+    }
+}
+
+impl ProbeCleanupRegistry {
+    fn new() -> Self {
+        Self {
+            next_id: AtomicU64::new(1),
+            tasks: StdMutex::new(BTreeMap::new()),
+            reaper_started: AtomicBool::new(false),
+        }
+    }
+
+    fn adopt(self: &Arc<Self>, task: JoinHandle<()>) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let mut tasks = self
+            .tasks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let finished = tasks
+            .iter()
+            .filter_map(|(id, task)| task.is_finished().then_some(*id))
+            .collect::<Vec<_>>();
+        for id in finished {
+            tasks.remove(&id);
+        }
+        // Every live owner owns one ProbeAdmissionLease. The process-wide
+        // semaphore therefore bounds live native work even when a cleanup
+        // future never returns. Finished handles may briefly remain in this
+        // map until the reaper observes them, so the map itself is not used as
+        // the admission authority.
+        tasks.insert(id, task);
+        drop(tasks);
+        self.start_reaper();
+    }
+
+    fn start_reaper(self: &Arc<Self>) {
+        if self
+            .reaper_started
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let registry = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                let finished = {
+                    let tasks = registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    tasks
+                        .iter()
+                        .filter_map(|(id, task)| task.is_finished().then_some(*id))
+                        .collect::<Vec<_>>()
+                };
+                for id in finished {
+                    let task = registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .remove(&id);
+                    if let Some(task) = task {
+                        let _ = task.await;
+                    }
+                }
+                if registry
+                    .tasks
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_empty()
+                {
+                    registry.reaper_started.store(false, Ordering::Release);
+                    // An adoption may race with the empty check. Re-check
+                    // after releasing the flag and keep this reaper alive if
+                    // another task arrived before it could restart one.
+                    if registry
+                        .tasks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .is_empty()
+                    {
+                        break;
+                    }
+                    registry.reaper_started.store(true, Ordering::Release);
+                }
+            }
+        });
+    }
+
+    #[cfg(test)]
+    fn pending(&self) -> usize {
+        self.tasks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len()
+    }
+}
+
+fn probe_cleanup_registry() -> &'static Arc<ProbeCleanupRegistry> {
+    static REGISTRY: OnceLock<Arc<ProbeCleanupRegistry>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Arc::new(ProbeCleanupRegistry::new()))
+}
+
+#[cfg(test)]
+pub(crate) async fn pending_probe_cleanup_tasks() -> usize {
+    probe_cleanup_registry().pending()
+}
+
+/// Construct one native adapter for a candidate channel configuration.
+///
+/// Unlike [`build_active_adapters`], this function is intentionally not tied
+/// to the persisted `enabled` flag: a desktop user may validate credentials
+/// before saving an enabled configuration.  The candidate is still never
+/// registered with [`crate::runtime::AdapterRegistry`] and no listener is
+/// started by this function.
+pub fn build_probe_adapter(
+    config: &Config,
+    channel: &str,
+    services: AdapterServices,
+) -> Result<Arc<dyn ChannelAdapter>, ChannelProbeError> {
+    match channel {
+        "telegram" => {
+            let mut candidate = config.channels.telegram.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::telegram::TelegramAdapter::new(
+                candidate, services,
+            )))
+        }
+        "discord" => {
+            let mut candidate = config.channels.discord.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::discord::DiscordAdapter::new(
+                candidate, services,
+            )))
+        }
+        "feishu" => {
+            let mut candidate = config.channels.feishu.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::feishu::FeishuAdapter::new(
+                candidate, services,
+            )))
+        }
+        "dingtalk" => {
+            let mut candidate = config.channels.dingtalk.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::dingtalk::DingTalkAdapter::new(
+                &candidate, services,
+            )))
+        }
+        "email" => {
+            let mut candidate = config.channels.email.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::email::EmailAdapter::new(
+                candidate, services,
+            )))
+        }
+        "qq" => {
+            let mut candidate = config.channels.qq.clone();
+            candidate.enabled = true;
+            Ok(Arc::new(crate::adapters::qq::QqAdapter::new(
+                candidate, services,
+            )))
+        }
+        other => Err(ChannelProbeError::UnknownChannel {
+            channel: other.to_string(),
+        }),
+    }
+}
+
+fn map_probe_adapter_error(error: AdapterError) -> ChannelProbeError {
+    ChannelProbeError::Adapter {
+        code: if is_safe_probe_code(error.code()) {
+            error.code().to_string()
+        } else {
+            "adapter_error".to_string()
+        },
+        retry_after_ms: error
+            .retry_after()
+            .and_then(|duration| u64::try_from(duration.as_millis()).ok()),
+        retryable: error.is_retryable(),
+    }
+}
+
+enum ProbeExecutionResult {
+    Receipt(DeliveryReceipt),
+    Adapter(AdapterError),
+    Timeout,
+}
+
+fn finalize_probe_result(
+    probe_result: ProbeExecutionResult,
+    cleanup_error: Option<ChannelProbeError>,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    // The operation result is more useful and deterministic than a cleanup
+    // diagnostic.  Cleanup failures are surfaced only when the probe itself
+    // succeeded; a timed-out/failed probe keeps its primary error class.
+    match (probe_result, cleanup_error) {
+        (ProbeExecutionResult::Receipt(_receipt), Some(error)) => Err(error),
+        (ProbeExecutionResult::Receipt(receipt), None) => Ok(receipt),
+        (ProbeExecutionResult::Adapter(error), _) => Err(map_probe_adapter_error(error)),
+        (ProbeExecutionResult::Timeout, _) => Err(ChannelProbeError::Timeout),
+    }
+}
+
+/// Execute one native `ProbeHealth` command and always stop the temporary
+/// adapter afterward.  The adapter is never registered, supervised, or
+/// started as a listener.
+pub async fn probe_candidate(
+    config: &Config,
+    channel: &str,
+    services: AdapterServices,
+    probe_timeout: Duration,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    let adapter = build_probe_adapter(config, channel, services)?;
+    probe_adapter(adapter, channel, probe_timeout).await
+}
+
+/// Run and clean up a pre-built candidate adapter. This is kept crate-visible
+/// for adapter lifecycle tests; production callers should use
+/// [`probe_candidate`] so construction remains restricted to native factories.
+pub(crate) async fn probe_adapter(
+    adapter: Arc<dyn ChannelAdapter>,
+    channel: &str,
+    probe_timeout: Duration,
+) -> Result<DeliveryReceipt, ChannelProbeError> {
+    let deadline = Instant::now() + probe_timeout;
+    let channel_id =
+        ChannelId::new(channel.to_string()).map_err(|_| ChannelProbeError::UnknownChannel {
+            channel: channel.to_string(),
+        })?;
+    let admission = probe_admission().acquire(channel)?;
+
+    let (result_sender, result_receiver) = oneshot::channel();
+    let owner = tokio::spawn(run_probe_owner(
+        adapter,
+        channel_id,
+        deadline,
+        admission,
+        result_sender,
+    ));
+    // Keep ownership transfer synchronous. There is no cancellation point
+    // between spawning the owner and placing it in the process registry.
+    probe_cleanup_registry().adopt(owner);
+
+    result_receiver
+        .await
+        .map_err(|_| ChannelProbeError::Build)?
+}
+
+/// Execute and stop one probe under an independent owner task.
+///
+/// The public caller observes a bounded result through `result_sender`, while
+/// this owner retains the execute/stop futures and admission lease until both
+/// operations finish. In particular, dropping the caller future cannot drop a
+/// native future or release a permit midway through cleanup.
+async fn run_probe_owner(
+    adapter: Arc<dyn ChannelAdapter>,
+    channel: ChannelId,
+    deadline: Instant,
+    admission: ProbeAdmissionLease,
+    result_sender: oneshot::Sender<Result<DeliveryReceipt, ChannelProbeError>>,
+) {
+    let mut execute = Box::pin(adapter.execute(ChannelCommand::ProbeHealth { channel }));
+    let probe_result = match timeout(
+        deadline.saturating_duration_since(Instant::now()),
+        &mut execute,
+    )
+    .await
+    {
+        Ok(Ok(receipt)) => ProbeExecutionResult::Receipt(receipt),
+        Ok(Err(error)) => ProbeExecutionResult::Adapter(error),
+        Err(_) => {
+            // Keep the execute future alive while stop interrupts/drains the
+            // adapter. Sending now preserves the public probe deadline; the
+            // owner still joins both futures before releasing admission.
+            let _ = result_sender.send(finalize_probe_result(ProbeExecutionResult::Timeout, None));
+            let cleanup = adapter.stop();
+            let (_execute_result, _cleanup_result) = tokio::join!(&mut execute, cleanup);
+            drop(admission);
+            return;
+        }
+    };
+
+    let mut cleanup = Box::pin(adapter.stop());
+    let cleanup_error = match timeout(
+        deadline.saturating_duration_since(Instant::now()),
+        &mut cleanup,
+    )
+    .await
+    {
+        Ok(Ok(())) => None,
+        Ok(Err(error)) => Some(ChannelProbeError::Cleanup {
+            code: if is_safe_probe_code(error.code()) {
+                error.code().to_string()
+            } else {
+                "cleanup_error".to_string()
+            },
+        }),
+        Err(_) => {
+            // The cleanup future remains owned by this task after the public
+            // deadline. Do not detach it or release admission early.
+            let result = finalize_probe_result(probe_result, None);
+            let _ = result_sender.send(result);
+            let _ = cleanup.await;
+            drop(admission);
+            return;
+        }
+    };
+
+    let _ = result_sender.send(finalize_probe_result(probe_result, cleanup_error));
+    drop(admission);
+}
+
 /// Construct configured native adapters without registering or starting them.
 ///
 /// C5 assembles native channel objects only. Registration, supervision, and
@@ -266,37 +754,37 @@ pub fn build_active_adapters(
 ) -> Result<Vec<Arc<dyn ChannelAdapter>>, AdapterBuildError> {
     let mut adapters: Vec<Arc<dyn ChannelAdapter>> = Vec::new();
 
-    if config.channels.discord.enabled {
+    if config.channels.discord.enabled && !config.channels.removed.contains("discord") {
         adapters.push(Arc::new(crate::adapters::discord::DiscordAdapter::new(
             config.channels.discord.clone(),
             services.clone(),
         )));
     }
-    if config.channels.dingtalk.enabled {
+    if config.channels.dingtalk.enabled && !config.channels.removed.contains("dingtalk") {
         adapters.push(Arc::new(crate::adapters::dingtalk::DingTalkAdapter::new(
             &config.channels.dingtalk,
             services.clone(),
         )));
     }
-    if config.channels.email.enabled {
+    if config.channels.email.enabled && !config.channels.removed.contains("email") {
         adapters.push(Arc::new(crate::adapters::email::EmailAdapter::new(
             config.channels.email.clone(),
             services.clone(),
         )));
     }
-    if config.channels.feishu.enabled {
+    if config.channels.feishu.enabled && !config.channels.removed.contains("feishu") {
         adapters.push(Arc::new(crate::adapters::feishu::FeishuAdapter::new(
             config.channels.feishu.clone(),
             services.clone(),
         )));
     }
-    if config.channels.telegram.enabled {
+    if config.channels.telegram.enabled && !config.channels.removed.contains("telegram") {
         adapters.push(Arc::new(crate::adapters::telegram::TelegramAdapter::new(
             config.channels.telegram.clone(),
             services.clone(),
         )));
     }
-    if config.channels.qq.enabled {
+    if config.channels.qq.enabled && !config.channels.removed.contains("qq") {
         adapters.push(Arc::new(crate::adapters::qq::QqAdapter::new(
             config.channels.qq.clone(),
             services.clone(),
@@ -475,4 +963,272 @@ pub trait ChannelAdapter: Send + Sync + 'static {
 
     /// Interrupt platform reads and release adapter-owned resources.
     async fn stop(&self) -> Result<(), AdapterError>;
+}
+
+#[cfg(test)]
+mod probe_error_tests {
+    use super::{
+        finalize_probe_result, AdapterError, ChannelProbeError, ProbeAdmission,
+        ProbeExecutionResult,
+    };
+
+    #[tokio::test]
+    async fn probe_admission_rejects_duplicate_channel_until_cleanup_releases() {
+        let admission = ProbeAdmission::new();
+        let lease = admission.acquire("email").expect("email slot");
+        let error = match admission.acquire("email") {
+            Ok(_) => panic!("duplicate email probe must be busy"),
+            Err(error) => error,
+        };
+        assert_eq!(error.public_code(), "probe_busy");
+        drop(lease);
+        assert!(admission.acquire("email").is_ok());
+    }
+
+    #[test]
+    fn probe_admission_rejects_work_beyond_global_capacity() {
+        let admission = ProbeAdmission::new();
+        let leases = ["telegram", "discord", "feishu", "dingtalk"]
+            .into_iter()
+            .map(|channel| admission.acquire(channel).expect("global probe slot"))
+            .collect::<Vec<_>>();
+
+        let error = match admission.acquire("email") {
+            Ok(_) => panic!("global probe capacity must be bounded"),
+            Err(error) => error,
+        };
+        assert_eq!(error.public_code(), "probe_busy");
+        drop(leases);
+        assert!(admission.acquire("email").is_ok());
+    }
+
+    #[test]
+    fn public_probe_codes_drop_untrusted_diagnostics() {
+        let error = ChannelProbeError::Adapter {
+            code: "remote response: bearer-secret".to_string(),
+            retry_after_ms: None,
+            retryable: false,
+        };
+        assert_eq!(error.public_code(), "adapter_error");
+    }
+
+    #[test]
+    fn public_probe_codes_preserve_stable_native_codes() {
+        let error = ChannelProbeError::Adapter {
+            code: "telegram_api".to_string(),
+            retry_after_ms: Some(1000),
+            retryable: true,
+        };
+        assert_eq!(error.public_code(), "telegram_api");
+    }
+
+    #[test]
+    fn probe_error_takes_precedence_over_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(
+            ProbeExecutionResult::Adapter(AdapterError::Stopped),
+            cleanup,
+        );
+
+        assert_eq!(
+            result.expect_err("probe failure").public_code(),
+            "adapter_stopped"
+        );
+    }
+
+    #[test]
+    fn probe_timeout_takes_precedence_over_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(ProbeExecutionResult::Timeout, cleanup);
+
+        assert_eq!(
+            result.expect_err("probe timeout"),
+            ChannelProbeError::Timeout
+        );
+    }
+
+    #[test]
+    fn successful_probe_surfaces_cleanup_error() {
+        let cleanup = Some(ChannelProbeError::Cleanup {
+            code: "cleanup_failed".to_string(),
+        });
+        let result = finalize_probe_result(
+            ProbeExecutionResult::Receipt(super::accepted_receipt("email", "probe", None, None)),
+            cleanup.clone(),
+        );
+
+        assert_eq!(result, Err(cleanup.expect("cleanup error")));
+    }
+}
+
+#[cfg(test)]
+mod probe_owner_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio::sync::Notify;
+
+    struct ProbeOwnerTestAdapter {
+        channel: ChannelId,
+        wait_for_execute_release: bool,
+        execute_started: Arc<Notify>,
+        release_execute: Arc<Notify>,
+        stop_started: Arc<Notify>,
+        release_stop: Arc<Notify>,
+        execute_finished: Arc<AtomicBool>,
+        stop_finished: Arc<AtomicBool>,
+    }
+
+    impl ProbeOwnerTestAdapter {
+        fn new(channel: &str, wait_for_execute_release: bool) -> Arc<Self> {
+            Arc::new(Self {
+                channel: ChannelId::new(channel).expect("test channel id"),
+                wait_for_execute_release,
+                execute_started: Arc::new(Notify::new()),
+                release_execute: Arc::new(Notify::new()),
+                stop_started: Arc::new(Notify::new()),
+                release_stop: Arc::new(Notify::new()),
+                execute_finished: Arc::new(AtomicBool::new(false)),
+                stop_finished: Arc::new(AtomicBool::new(false)),
+            })
+        }
+
+        async fn wait_for_stop(&self) {
+            tokio::time::timeout(Duration::from_secs(1), self.stop_started.notified())
+                .await
+                .expect("probe owner entered cleanup");
+        }
+
+        async fn wait_for_reap(&self, baseline: usize) {
+            tokio::time::timeout(Duration::from_secs(1), async {
+                loop {
+                    if pending_probe_cleanup_tasks().await <= baseline {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("probe owner was reaped after cleanup");
+        }
+    }
+
+    #[async_trait]
+    impl ChannelAdapter for ProbeOwnerTestAdapter {
+        fn name(&self) -> ChannelId {
+            self.channel.clone()
+        }
+
+        fn capabilities(&self) -> ChannelCapabilities {
+            ChannelCapabilities::new(std::iter::empty())
+        }
+
+        async fn start(&self, _context: AdapterContext) -> Result<(), AdapterError> {
+            Ok(())
+        }
+
+        async fn execute(&self, _command: ChannelCommand) -> Result<DeliveryReceipt, AdapterError> {
+            self.execute_started.notify_one();
+            if self.wait_for_execute_release {
+                self.release_execute.notified().await;
+            }
+            self.execute_finished.store(true, Ordering::Release);
+            Ok(accepted_receipt(self.channel.as_str(), "probe", None, None))
+        }
+
+        fn health(&self) -> ChannelHealth {
+            ChannelHealth::new(agent_diva_core::channel::ChannelHealthStatus::Healthy)
+        }
+
+        async fn stop(&self) -> Result<(), AdapterError> {
+            self.stop_started.notify_one();
+            self.release_stop.notified().await;
+            self.stop_finished.store(true, Ordering::Release);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn dropping_probe_waiter_during_execute_keeps_owner_and_admission() {
+        let baseline = pending_probe_cleanup_tasks().await;
+        let adapter = ProbeOwnerTestAdapter::new("qq", true);
+        let execute_started = adapter.execute_started.clone();
+        let release_execute = adapter.release_execute.clone();
+        let release_stop = adapter.release_stop.clone();
+        let probe_adapter = adapter.clone();
+        let probe = tokio::spawn(async move {
+            crate::adapter::probe_adapter(probe_adapter, "qq", Duration::from_secs(30)).await
+        });
+        tokio::time::timeout(Duration::from_secs(1), execute_started.notified())
+            .await
+            .expect("probe owner entered execute");
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if pending_probe_cleanup_tasks().await > baseline {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("probe owner was registered before awaiting caller");
+
+        probe.abort();
+        assert!(probe
+            .await
+            .expect_err("caller task was cancelled")
+            .is_cancelled());
+
+        let busy = crate::adapter::probe_adapter(adapter.clone(), "qq", Duration::from_millis(20))
+            .await
+            .expect_err("execute owner must retain channel admission");
+        assert_eq!(busy.public_code(), "probe_busy");
+
+        release_execute.notify_one();
+        adapter.wait_for_stop().await;
+        let busy = crate::adapter::probe_adapter(adapter.clone(), "qq", Duration::from_millis(20))
+            .await
+            .expect_err("cleanup owner must retain channel admission");
+        assert_eq!(busy.public_code(), "probe_busy");
+        release_stop.notify_one();
+        adapter.wait_for_reap(baseline).await;
+        assert!(adapter.execute_finished.load(Ordering::Acquire));
+        assert!(adapter.stop_finished.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn dropping_probe_waiter_during_cleanup_keeps_owner_joinable() {
+        let baseline = pending_probe_cleanup_tasks().await;
+        let adapter = ProbeOwnerTestAdapter::new("dingtalk", false);
+        let execute_started = adapter.execute_started.clone();
+        let stop_started = adapter.stop_started.clone();
+        let release_stop = adapter.release_stop.clone();
+        let probe_adapter = adapter.clone();
+        let probe = tokio::spawn(async move {
+            crate::adapter::probe_adapter(probe_adapter, "dingtalk", Duration::from_secs(30)).await
+        });
+        tokio::time::timeout(Duration::from_secs(1), execute_started.notified())
+            .await
+            .expect("probe owner entered execute");
+        tokio::time::timeout(Duration::from_secs(1), stop_started.notified())
+            .await
+            .expect("probe owner entered cleanup");
+        probe.abort();
+        assert!(probe
+            .await
+            .expect_err("caller task was cancelled")
+            .is_cancelled());
+
+        let busy =
+            crate::adapter::probe_adapter(adapter.clone(), "dingtalk", Duration::from_millis(20))
+                .await
+                .expect_err("cleanup owner must retain channel admission");
+        assert_eq!(busy.public_code(), "probe_busy");
+        release_stop.notify_one();
+        adapter.wait_for_reap(baseline).await;
+        assert!(adapter.stop_finished.load(Ordering::Acquire));
+    }
 }

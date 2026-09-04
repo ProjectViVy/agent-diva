@@ -2,6 +2,11 @@ use super::*;
 use std::time::Duration;
 
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+// ChannelRuntime waits for each supervisor's bounded six-second shutdown
+// budget before reporting a deterministic cleanup-pending state. Keep the
+// owning boundary longer than that internal budget so it is not cancelled
+// while it still owns the live RuntimeEntry set.
+const CHANNEL_RUNTIME_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(8);
 const ABORT_JOIN_TIMEOUT: Duration = Duration::from_secs(1);
 
 // ---------------------------------------------------------------------------
@@ -35,13 +40,6 @@ pub(super) async fn wait_for_shutdown(tasks: &mut GatewayTasks) -> bool {
 }
 
 pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_completed: bool) {
-    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.bus.stop())
-        .await
-        .is_err()
-    {
-        tracing::warn!("Message bus did not stop within the shutdown timeout");
-    }
-
     let _ = tasks.server_shutdown_tx.send(());
     join_with_timeout(
         "HTTP server",
@@ -82,9 +80,12 @@ pub(super) async fn shutdown_runtime(tasks: GatewayTasks, manager_handle_complet
     )
     .await;
 
-    if tokio::time::timeout(GRACEFUL_SHUTDOWN_TIMEOUT, tasks.channel_runtime.shutdown())
-        .await
-        .is_err()
+    if tokio::time::timeout(
+        CHANNEL_RUNTIME_SHUTDOWN_TIMEOUT,
+        tasks.channel_runtime.shutdown(),
+    )
+    .await
+    .is_err()
     {
         tracing::warn!("Native channel runtime did not stop within the shutdown timeout");
     }

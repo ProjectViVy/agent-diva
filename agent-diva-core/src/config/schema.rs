@@ -1,7 +1,7 @@
 //! Configuration schema definitions
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 // ── Sandbox configuration types (used by agent-diva-sandbox) ────────────────
 
@@ -688,6 +688,12 @@ mod session_admission_config_tests {
 /// Channel configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ChannelsConfig {
+    /// Fixed native channels that were explicitly removed from the desktop
+    /// configuration surface.  The tombstones are additive and therefore
+    /// remain compatible with configurations written before this field was
+    /// introduced.
+    #[serde(default)]
+    pub removed: BTreeSet<String>,
     #[serde(default)]
     pub telegram: TelegramConfig,
     #[serde(default)]
@@ -1483,6 +1489,38 @@ impl Default for MateConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn channels_config_defaults_to_no_removed_tombstones() {
+        let config = ChannelsConfig::default();
+
+        assert!(config.removed.is_empty());
+        assert!(!config.telegram.enabled);
+        assert!(!config.discord.enabled);
+        assert!(!config.feishu.enabled);
+        assert!(!config.dingtalk.enabled);
+        assert!(!config.email.enabled);
+        assert!(!config.qq.enabled);
+    }
+
+    #[test]
+    fn channels_config_removed_is_backward_compatible_and_deduplicated() {
+        let old: ChannelsConfig = serde_json::from_value(serde_json::json!({
+            "telegram": {"enabled": true, "token": "old-token"}
+        }))
+        .expect("old channel config should still deserialize");
+        assert!(old.removed.is_empty());
+
+        let value = serde_json::to_value(ChannelsConfig {
+            removed: ["qq", "telegram", "qq"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            ..ChannelsConfig::default()
+        })
+        .expect("channel config should serialize");
+        assert_eq!(value["removed"], serde_json::json!(["qq", "telegram"]));
+    }
 
     // ── SubAgentStatus tests ───────────────────────────────────────────────
 

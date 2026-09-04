@@ -3,11 +3,16 @@
 use super::schema::Config;
 use super::validate::validate_config;
 use serde_json::{Map, Value};
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{info, warn};
+
+static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Configuration loader
 #[derive(Clone)]
@@ -75,9 +80,21 @@ impl ConfigLoader {
 
     /// Save configuration to file
     pub fn save(&self, config: &Config) -> crate::Result<()> {
-        std::fs::create_dir_all(&self.config_dir)?;
+        fs::create_dir_all(&self.config_dir)?;
         let content = serde_json::to_string_pretty(config)?;
-        std::fs::write(&self.config_path, content)?;
+        let (temporary_path, mut temporary_file) = create_save_file(&self.config_path)?;
+        let write_result = (|| -> std::io::Result<()> {
+            temporary_file.write_all(content.as_bytes())?;
+            temporary_file.flush()?;
+            temporary_file.sync_all()?;
+            drop(temporary_file);
+            atomic_replace(&temporary_path, &self.config_path)
+        })();
+
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error.into());
+        }
         Ok(())
     }
 
@@ -169,6 +186,82 @@ impl ConfigLoader {
     fn read_file_mtime(path: &Path) -> Option<SystemTime> {
         std::fs::metadata(path).ok().and_then(|m| m.modified().ok())
     }
+}
+
+fn create_save_file(path: &Path) -> std::io::Result<(PathBuf, File)> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("config.json");
+    for _ in 0..32 {
+        let sequence = SAVE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let temporary_path = path.with_file_name(format!(
+            ".{file_name}.{}.{}.tmp",
+            std::process::id(),
+            sequence
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+        {
+            Ok(file) => return Ok((temporary_path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "unable to allocate a unique configuration save file",
+    ))
+}
+
+#[cfg(windows)]
+fn atomic_replace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        #[link_name = "MoveFileExW"]
+        fn move_file_ex_w(
+            existing_file_name: *const u16,
+            new_file_name: *const u16,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    // SAFETY: both strings are NUL-terminated UTF-16 buffers that remain
+    // alive for the duration of the Win32 call.
+    let replaced = unsafe {
+        move_file_ex_w(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if replaced == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn atomic_replace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
 }
 
 impl Default for ConfigLoader {
@@ -523,9 +616,38 @@ mod tests {
         config.agents.defaults.model = "test-model".to_string();
 
         loader.save(&config).unwrap();
+        config.agents.defaults.model = "replacement-model".to_string();
+        loader.save(&config).unwrap();
         let loaded = loader.load().unwrap();
 
-        assert_eq!(loaded.agents.defaults.model, "test-model");
+        assert_eq!(loaded.agents.defaults.model, "replacement-model");
+    }
+
+    #[test]
+    fn test_atomic_save_keeps_previous_destination_when_replace_fails() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.json");
+        std::fs::create_dir(&config_path).unwrap();
+        let marker = config_path.join("marker");
+        std::fs::write(&marker, "old destination").unwrap();
+
+        let loader = ConfigLoader::with_file(&config_path);
+        let error = loader.save(&Config::default()).unwrap_err();
+
+        assert!(error.to_string().contains("I/O error"));
+        assert_eq!(std::fs::read_to_string(marker).unwrap(), "old destination");
+        let temporary_files = std::fs::read_dir(temp_dir.path())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".config.json.")
+            })
+            .count();
+        assert_eq!(temporary_files, 0, "temporary save file must be cleaned up");
     }
 
     #[test]
@@ -634,6 +756,31 @@ mod tests {
         let config = loader.load().unwrap();
         assert!(config.channels.discord.enabled);
         assert!(config.channels.discord.token.is_empty());
+    }
+
+    #[test]
+    fn test_load_migrates_legacy_channels_without_removed_tombstones() {
+        let _lock = lock_env();
+        let temp_dir = TempDir::new().unwrap();
+        let loader = ConfigLoader::with_dir(temp_dir.path());
+
+        std::fs::write(
+            loader.config_path(),
+            r#"{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "legacy-token"
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let config = loader.load().unwrap();
+        assert!(config.channels.telegram.enabled);
+        assert_eq!(config.channels.telegram.token, "legacy-token");
+        assert!(config.channels.removed.is_empty());
     }
 
     #[test]

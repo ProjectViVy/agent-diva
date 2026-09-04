@@ -472,7 +472,7 @@ pub fn token_stats_routes() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::{body::to_bytes, body::Body, http::Request};
     use chrono::Duration;
     use tokio::sync::mpsc;
@@ -481,7 +481,7 @@ mod tests {
     fn test_app() -> (tempfile::TempDir, Router) {
         let temp = tempfile::tempdir().unwrap();
         let (api_tx, _api_rx) = mpsc::channel(1);
-        let state = AppState::new(api_tx, MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(api_tx, AgentEventBus::new(), temp.path()).unwrap();
         let ledger = JsonlTokenLedger::new(&temp.path().join(".agent-diva")).unwrap();
 
         let mut first = TokenLedgerEntry::new("gui:one", "openai/gpt-test", 10, 5).with_cost(0.02);

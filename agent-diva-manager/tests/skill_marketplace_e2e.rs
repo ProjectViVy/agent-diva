@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
 use agent_diva_manager::{build_router, marketplace::MARKETPLACE_BASE_URL_ENV, AppState};
 use agent_diva_sandbox::CommandApprovalCoordinator;
 use axum::{
@@ -37,7 +37,7 @@ fn marketplace_state(root: &Path) -> AppState {
     let (api_tx, _api_rx) = mpsc::channel(8);
     AppState::new_with_runtime_memory(
         api_tx,
-        MessageBus::new(),
+        AgentEventBus::new(),
         root,
         CommandApprovalCoordinator::default(),
         agent_diva_core::ask_user::AskUserCoordinator::default(),

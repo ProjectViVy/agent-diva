@@ -780,7 +780,8 @@ fn native_adapter_runtime_contains_no_legacy_compatibility_bridge() {
     let supervisor = include_str!("../src/runtime/supervisor.rs");
     for source in [adapter, registry, pacing, supervisor] {
         assert!(!source.contains("ChannelHandler"));
-        assert!(!source.contains("MessageBus"));
+        let retired_bus = concat!("Message", "Bus");
+        assert!(!source.contains(retired_bus));
         assert!(!source.contains("unbounded_channel"));
     }
 }

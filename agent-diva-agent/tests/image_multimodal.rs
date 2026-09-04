@@ -1,5 +1,9 @@
 use agent_diva_agent::{AgentLoop, ToolConfig};
-use agent_diva_core::bus::{InboundMessage, MessageBus};
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::{
+    AttachmentRef, ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
+    ChannelPayloadV1, ContentPart, Correlation, OwnerTurnContextV1, OwnerTurnIntent,
+};
 use agent_diva_files::handle::FileMetadata;
 use agent_diva_files::{FileConfig, FileManager};
 use agent_diva_providers::{
@@ -90,9 +94,41 @@ async fn store_png(file_manager: &FileManager, name: &str) -> String {
         .id
 }
 
+fn image_envelope(file_id: String, chat_id: &str, content: &str) -> ChannelEnvelopeV1 {
+    ChannelEnvelopeV1::new(
+        ChannelDirection::Ingress,
+        ChannelAddress::new("gui", chat_id),
+        Correlation::new(format!("profile/{chat_id}")),
+        ChannelOrigin::OwnerFrontend,
+        ChannelPayloadV1::Message {
+            parts: vec![
+                ContentPart::Text {
+                    text: content.to_string(),
+                },
+                ContentPart::Image {
+                    attachment: AttachmentRef {
+                        uri: file_id.clone(),
+                        media_type: "image/png".to_string(),
+                        size_bytes: 4,
+                        sha256: file_id,
+                        file_name: Some("diagram.png".to_string()),
+                    },
+                },
+            ],
+            subject: None,
+            locale: None,
+            context: Some(OwnerTurnContextV1 {
+                intent: OwnerTurnIntent::Agent,
+                approval_policy: None,
+                execution: None,
+            }),
+        },
+    )
+}
+
 #[tokio::test]
 async fn image_attachment_is_forwarded_as_structured_multimodal_user_message() {
-    let bus = MessageBus::new();
+    let bus = AgentEventBus::new();
     let provider = Arc::new(CapturingStreamProvider::default());
     let temp_dir = tempfile::tempdir().unwrap();
     let workspace = temp_dir.path().to_path_buf();
@@ -112,11 +148,17 @@ async fn image_attachment_is_forwarded_as_structured_multimodal_user_message() {
     .unwrap();
 
     let file_id = store_png(&file_manager, "diagram.png").await;
-    let msg =
-        InboundMessage::new("gui", "user", "chat-1", "describe this image").with_media(file_id);
-
-    let response = agent.process_inbound_message(msg, None).await.unwrap();
-    assert!(response.is_some());
+    let response = agent
+        .process_channel_envelope(
+            image_envelope(file_id, "chat-1", "describe this image"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(
+        response.is_none(),
+        "OwnerFrontend image turns must project through AgentEvents without adapter egress"
+    );
 
     let captured = provider.captured_messages.lock().unwrap();
     let first_call = captured.first().expect("provider should capture a request");
@@ -147,7 +189,7 @@ async fn image_attachment_is_forwarded_as_structured_multimodal_user_message() {
 
 #[tokio::test]
 async fn image_attachment_rejects_non_vision_model_before_provider_call() {
-    let bus = MessageBus::new();
+    let bus = AgentEventBus::new();
     let provider = Arc::new(CapturingStreamProvider::default());
     let temp_dir = tempfile::tempdir().unwrap();
     let workspace = temp_dir.path().to_path_buf();
@@ -167,9 +209,10 @@ async fn image_attachment_rejects_non_vision_model_before_provider_call() {
     .unwrap();
 
     let file_id = store_png(&file_manager, "blocked.png").await;
-    let msg = InboundMessage::new("gui", "user", "chat-1", "what is this").with_media(file_id);
-
-    let err = agent.process_inbound_message(msg, None).await.unwrap_err();
+    let err = agent
+        .process_channel_envelope(image_envelope(file_id, "chat-1", "what is this"), None)
+        .await
+        .unwrap_err();
     assert!(err.to_string().contains("does not support vision input"));
     assert!(provider.captured_messages.lock().unwrap().is_empty());
 }

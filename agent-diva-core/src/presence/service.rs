@@ -1,6 +1,6 @@
 //! Presence service — lifecycle management for the presence detector.
 //!
-//! Owns the `PresenceDetector`, subscribes to the `MessageBus`, and manages
+//! Owns the `PresenceDetector`, subscribes to the `AgentEventBus`, and manages
 //! the background idle-check task. Exposes a watch channel for the
 //! `HeartbeatService` to consume presence state changes.
 
@@ -10,7 +10,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
-use crate::bus::MessageBus;
+use crate::bus::{AgentEventBus, PokeEvent};
 use crate::presence::detector::PresenceDetector;
 use crate::presence::types::{PresenceConfig, PresenceState, IDLE_CHECK_INTERVAL_MS};
 
@@ -27,18 +27,19 @@ pub enum PresenceEvent {
 /// Manages the presence detection lifecycle.
 ///
 /// Spawns a background tokio task that:
-/// 1. Receives inbound messages from the bus and calls `detector.on_message()`.
+/// 1. Receives identity-only activity events from the bus and calls
+///    `detector.on_activity()`.
 /// 2. Runs a periodic idle-check tick via `detector.check_idle()`.
 pub struct PresenceService {
     detector: Arc<PresenceDetector>,
     config: PresenceConfig,
-    bus: MessageBus,
+    bus: AgentEventBus,
     task: tokio::sync::Mutex<Option<JoinHandle<()>>>,
 }
 
 impl PresenceService {
-    /// Create a new presence service with the given config and message bus.
-    pub fn new(config: PresenceConfig, bus: MessageBus) -> Self {
+    /// Create a new presence service with the given config and event bus.
+    pub fn new(config: PresenceConfig, bus: AgentEventBus) -> Self {
         let detector = Arc::new(PresenceDetector::new(config.clone()));
         Self {
             detector,
@@ -60,7 +61,7 @@ impl PresenceService {
 
     /// Start the presence service.
     ///
-    /// Spawns a background task that processes inbound messages and runs
+    /// Spawns a background task that processes identity-only activity and runs
     /// periodic idle checks. This is safe to call multiple times — subsequent
     /// calls are no-ops.
     pub async fn start(&self) {
@@ -82,14 +83,7 @@ impl PresenceService {
         let bus = self.bus.clone();
 
         let task = tokio::spawn(async move {
-            // Take the inbound receiver (one-shot)
-            let mut inbound_rx = match bus.take_inbound_receiver().await {
-                Some(rx) => rx,
-                None => {
-                    warn!("Presence: inbound receiver already taken");
-                    return;
-                }
-            };
+            let mut activity_rx = bus.subscribe_poke_events();
 
             // Periodic idle-check interval
             let mut idle_interval =
@@ -97,14 +91,18 @@ impl PresenceService {
 
             loop {
                 tokio::select! {
-                    // Process inbound messages
-                    msg = inbound_rx.recv() => {
-                        match msg {
-                            Some(msg) => {
-                                detector.on_message(&msg).await;
+                    // Process identity-only activity.
+                    activity = activity_rx.recv() => {
+                        match activity {
+                            Ok(PokeEvent::UserActivity { session_key, sender_id }) => {
+                                detector.on_activity(&session_key, sender_id.as_deref()).await;
                             }
-                            None => {
-                                debug!("Presence: inbound channel closed");
+                            Ok(_) => {}
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                                warn!(skipped, "Presence: activity notifications lagged");
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                debug!("Presence: activity channel closed");
                                 break;
                             }
                         }

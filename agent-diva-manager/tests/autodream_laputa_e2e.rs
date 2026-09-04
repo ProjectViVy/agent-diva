@@ -6,7 +6,7 @@
 use std::{path::Path, time::Duration};
 
 use agent_diva_core::{
-    bus::MessageBus,
+    bus::AgentEventBus,
     evolution::AutoDreamRunState,
     experience::{ExperienceJournal, OutcomeKind},
     session::SessionManager,
@@ -28,7 +28,7 @@ async fn typed_state(root: &Path) -> AppState {
     let (api_tx, _api_rx) = mpsc::channel(8);
     let mut state = AppState::new_with_runtime_memory(
         api_tx,
-        MessageBus::new(),
+        AgentEventBus::new(),
         root,
         CommandApprovalCoordinator::default(),
         agent_diva_core::ask_user::AskUserCoordinator::default(),

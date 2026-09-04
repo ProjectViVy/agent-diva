@@ -234,6 +234,17 @@ fn factory_returns_one_native_adapter_per_enabled_channel() {
         .map(|adapter| adapter.name().to_string())
         .collect::<Vec<_>>();
     assert_eq!(names, vec!["telegram", "qq"]);
+
+    enabled.channels.removed.insert("telegram".to_string());
+    let adapters = build_active_adapters(&enabled, test_services())
+        .expect("tombstoned channels must still be constructible as an empty active set");
+    assert_eq!(
+        adapters
+            .iter()
+            .map(|adapter| adapter.name().to_string())
+            .collect::<Vec<_>>(),
+        vec!["qq"]
+    );
 }
 
 fn capability_set(values: &[ChannelCapability]) -> BTreeSet<ChannelCapability> {

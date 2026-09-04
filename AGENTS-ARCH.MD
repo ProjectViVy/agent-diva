@@ -122,7 +122,7 @@ Notable layout points:
 | `just laputa-clean-break-check` | Prove retired legacy memory names (`mentle`/`memtle`) have not re-entered code/manifests/CI/build recipes. |
 | `just feature-gate-check` | Verify each non-default `agent-diva-sandbox` feature compiles individually. |
 | `just health-benchmark-check` | Run the ignored `health_benchmark_ci_gate_stays_within_budget` manager test. |
-| `just gui-automated-check` | GUI npm test/build + Tauri cargo check. |
+| `just gui-automated-check` | GUI pnpm test/build + Tauri cargo check. |
 | `just start` / `just diva-gate` / `just make-diva` | Local full-stack or gateway-only dev startup helpers. |
 
 **CI notes:**

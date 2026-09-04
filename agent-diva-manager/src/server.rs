@@ -13,33 +13,33 @@ use crate::handlers::{
     cancel_autodream_run_handler, chat_handler, compact_session_handler, create_cron_job_handler,
     create_mcp_handler, create_memory_record_handler, create_persona_request_handler,
     create_provider_handler, create_skill_request_handler, delete_actmem_capsule_handler,
-    delete_cron_job_handler, delete_mcp_handler, delete_memory_record_handler,
-    delete_provider_handler, delete_provider_model_handler, delete_session_handler,
-    delete_skill_handler, disable_skill_handler, featured_marketplace_skills_handler,
-    generate_session_title_handler, get_actmem_capsule_handler, get_actmem_handler,
-    get_audit_events_handler, get_audit_log_handler, get_autodream_live_text_handler,
-    get_autodream_run_handler, get_channel_runtime_handler, get_channels_handler,
-    get_config_handler, get_cron_job_handler, get_mcps_handler, get_memory_record_handler,
-    get_memrules_handler, get_persona_document_handler, get_persona_history_revision_handler,
-    get_persona_status_handler, get_provider_handler, get_provider_models_handler,
-    get_providers_handler, get_self_evolution_config_handler, get_session_history_handler,
-    get_sessions_handler, get_skill_handler, get_skill_history_revision_handler,
-    get_skill_request_handler, get_skills_handler, get_tools_handler, get_workspace_handler,
-    health_handler, heartbeat_handler, initialize_persona_handler,
-    install_marketplace_skill_handler, list_actmem_capsules_handler,
-    list_autodream_run_events_handler, list_autodream_runs_handler, list_cron_jobs_handler,
-    list_memory_records_handler, list_persona_history_handler, list_persona_requests_handler,
-    list_recall_feedback_handler, list_skill_history_handler, list_skill_requests_handler,
-    logs_routes, put_actmem_handler, put_memrules_handler, refresh_mcp_status_handler,
-    reject_persona_request_handler, reject_skill_request_handler, repair_persona_handler,
-    reset_session_handler, resolve_provider_handler, run_cron_job_handler,
-    save_persona_document_handler, search_marketplace_skills_handler, set_cron_job_enabled_handler,
-    set_mcp_enabled_handler, stop_chat_handler, stop_cron_job_handler, todo_routes,
-    token_stats_routes, trigger_autodream_run_handler, update_channel_handler,
-    update_config_handler, update_cron_job_handler, update_mcp_handler,
-    update_memory_record_handler, update_provider_handler, update_self_evolution_config_handler,
-    update_session_title_handler, update_skill_handler, update_tools_handler, upload_file_handler,
-    upload_skill_handler,
+    delete_channel_handler, delete_cron_job_handler, delete_mcp_handler,
+    delete_memory_record_handler, delete_provider_handler, delete_provider_model_handler,
+    delete_session_handler, delete_skill_handler, disable_skill_handler,
+    featured_marketplace_skills_handler, generate_session_title_handler,
+    get_actmem_capsule_handler, get_actmem_handler, get_audit_events_handler,
+    get_audit_log_handler, get_autodream_live_text_handler, get_autodream_run_handler,
+    get_channel_runtime_handler, get_channels_handler, get_config_handler, get_cron_job_handler,
+    get_mcps_handler, get_memory_record_handler, get_memrules_handler,
+    get_persona_document_handler, get_persona_history_revision_handler, get_persona_status_handler,
+    get_provider_handler, get_provider_models_handler, get_providers_handler,
+    get_self_evolution_config_handler, get_session_history_handler, get_sessions_handler,
+    get_skill_handler, get_skill_history_revision_handler, get_skill_request_handler,
+    get_skills_handler, get_tools_handler, get_workspace_handler, health_handler,
+    heartbeat_handler, initialize_persona_handler, install_marketplace_skill_handler,
+    list_actmem_capsules_handler, list_autodream_run_events_handler, list_autodream_runs_handler,
+    list_cron_jobs_handler, list_memory_records_handler, list_persona_history_handler,
+    list_persona_requests_handler, list_recall_feedback_handler, list_skill_history_handler,
+    list_skill_requests_handler, logs_routes, probe_channel_handler, put_actmem_handler,
+    put_memrules_handler, refresh_mcp_status_handler, reject_persona_request_handler,
+    reject_skill_request_handler, repair_persona_handler, reset_session_handler,
+    resolve_provider_handler, run_cron_job_handler, save_persona_document_handler,
+    search_marketplace_skills_handler, set_cron_job_enabled_handler, set_mcp_enabled_handler,
+    stop_chat_handler, stop_cron_job_handler, todo_routes, token_stats_routes,
+    trigger_autodream_run_handler, update_channel_handler, update_config_handler,
+    update_cron_job_handler, update_mcp_handler, update_memory_record_handler,
+    update_provider_handler, update_self_evolution_config_handler, update_session_title_handler,
+    update_skill_handler, update_tools_handler, upload_file_handler, upload_skill_handler,
 };
 use crate::state::AppState;
 
@@ -245,6 +245,8 @@ fn runtime_routes() -> Router<AppState> {
             get(get_channels_handler).post(update_channel_handler),
         )
         .route("/api/channels/runtime", get(get_channel_runtime_handler))
+        .route("/api/channels/:name/probe", post(probe_channel_handler))
+        .route("/api/channels/:name", delete(delete_channel_handler))
         .route(
             "/api/tools",
             get(get_tools_handler).post(update_tools_handler),
@@ -445,8 +447,12 @@ mod tests {
             }
         });
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -475,11 +481,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn channel_probe_and_delete_routes_preserve_typed_error_contracts() {
+        let (api_tx, mut api_rx) = tokio::sync::mpsc::channel(2);
+        tokio::spawn(async move {
+            while let Some(command) = api_rx.recv().await {
+                match command {
+                    ManagerCommand::ProbeChannel(name, _config, reply) => {
+                        let _ = reply.send(Err(
+                            agent_diva_channels::ChannelProbeError::UnknownChannel {
+                                channel: name,
+                            },
+                        ));
+                    }
+                    ManagerCommand::DeleteChannel(name, reply) => {
+                        let _ = reply.send(Err(format!("Unknown channel: {name}")));
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let temp = tempfile::tempdir().unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
+        let app = build_router(state);
+
+        let (probe_status, probe_body) = json_response(
+            app.clone(),
+            Request::builder()
+                .method("POST")
+                .uri("/api/channels/slack/probe")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"config":{}}"#))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(probe_status, StatusCode::BAD_REQUEST);
+        assert_eq!(probe_body["code"], "unknown_channel");
+        assert_eq!(probe_body["message"], "invalid channel probe request");
+        assert!(probe_body.get("secret").is_none());
+
+        let (delete_status, delete_body) = json_response(
+            app,
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/channels/slack")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(delete_status, StatusCode::BAD_REQUEST);
+        assert_eq!(delete_body["code"], "unknown_channel");
+        assert_eq!(delete_body["message"], "Unknown channel: slack");
+    }
+
+    #[tokio::test]
     async fn legacy_chat_and_sse_routes_are_removed() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state);
         for uri in ["/api/chat", "/api/chat/stop", "/api/events"] {
             let response = app
@@ -495,8 +564,12 @@ mod tests {
     async fn skill_evolution_http_routes_enforce_zip_cas_history_and_review() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state.clone());
 
         let zip = skill_zip("zip-skill");
@@ -647,8 +720,12 @@ mod tests {
     async fn persona_api_initializes_reads_and_enforces_cas() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state);
 
         let status = app
@@ -737,8 +814,12 @@ mod tests {
         let fixture: serde_json::Value = serde_json::from_str(G0_RUNTIME_CONTRACT).unwrap();
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let app = build_router(state.clone());
 
         for route in fixture["routes"].as_array().unwrap() {
@@ -762,8 +843,12 @@ mod tests {
     async fn build_router_keeps_legacy_laputa_governance_routes_removed() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -794,8 +879,12 @@ mod tests {
     async fn evolution_workspace_exposes_payload_free_recall_feedback() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         let response = build_router(state)
             .oneshot(
                 Request::builder()
@@ -816,8 +905,12 @@ mod tests {
     async fn autodream_manual_run_executes_worker_and_returns_terminal_failure() {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
         let temp = tempfile::tempdir().unwrap();
-        let state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
 
         let app = build_router(state.clone());
 
@@ -878,8 +971,12 @@ mod tests {
         session.add_message("user", "verified local E0 session evidence");
         let saved = session.clone();
         sessions.save(&saved).unwrap();
-        let mut state =
-            AppState::new(api_tx, agent_diva_core::bus::MessageBus::new(), temp.path()).unwrap();
+        let mut state = AppState::new(
+            api_tx,
+            agent_diva_core::bus::AgentEventBus::new(),
+            temp.path(),
+        )
+        .unwrap();
         // Keep the S3/S4 vertical deterministic: no provider-backed skill engine.
         state.autodream = state.autodream.clone().with_skill_reflection_engine(None);
         let app = build_router(state.clone());
@@ -949,7 +1046,7 @@ mod tests {
 
         let mut state = AppState::new_with_runtime_memory(
             api_tx,
-            agent_diva_core::bus::MessageBus::new(),
+            agent_diva_core::bus::AgentEventBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),

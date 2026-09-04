@@ -127,6 +127,27 @@ impl Correlation {
     }
 }
 
+/// Typed routing identity inherited by runtime work that must announce a
+/// result back to the originating conversation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChannelRoute {
+    pub address: ChannelAddress,
+    pub correlation: Correlation,
+    pub origin: ChannelOrigin,
+}
+
+impl ChannelRoute {
+    /// Construct a route from the authoritative envelope identities.
+    pub fn new(address: ChannelAddress, correlation: Correlation, origin: ChannelOrigin) -> Self {
+        Self {
+            address,
+            correlation,
+            origin,
+        }
+    }
+}
+
 /// A bounded cursor into a durable projection stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -362,6 +383,19 @@ impl ChannelEnvelopeV1 {
         if self.correlation.session_key.trim().is_empty() {
             return Err(ChannelContractError::EmptyField("correlation.session_key"));
         }
+        if let ChannelPayloadV1::Message { context, .. } = &self.payload {
+            match (self.origin, context.is_some()) {
+                (ChannelOrigin::OwnerFrontend, false) => {
+                    return Err(ChannelContractError::MissingOwnerTurnContext)
+                }
+                (ChannelOrigin::ExternalUser | ChannelOrigin::Runtime, true) => {
+                    return Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                        origin: self.origin,
+                    })
+                }
+                _ => {}
+            }
+        }
         for key in self.extensions.keys() {
             if !is_namespaced_extension(key) {
                 return Err(ChannelContractError::InvalidExtensionKey(key.clone()));
@@ -399,6 +433,107 @@ pub enum ChannelContractError {
     EmptyField(&'static str),
     #[error("extension key is not namespaced: {0}")]
     InvalidExtensionKey(String),
+    #[error("owner frontend message requires typed turn context")]
+    MissingOwnerTurnContext,
+    #[error("{origin:?} messages must not carry owner turn context")]
+    UnexpectedOwnerTurnContext { origin: ChannelOrigin },
+}
+
+impl ChannelEnvelopeV1 {
+    /// Return the typed message parts when this envelope carries a message.
+    pub fn message_parts(&self) -> Option<&[ContentPart]> {
+        match &self.payload {
+            ChannelPayloadV1::Message { parts, .. } => Some(parts),
+            _ => None,
+        }
+    }
+
+    /// Render message parts into a stable, transport-neutral text form.
+    ///
+    /// Rich parts remain typed on the envelope; this representation is only
+    /// the deterministic provider prompt projection. Attachment bytes are
+    /// resolved separately through the shared attachment authority.
+    pub fn rendered_message_text(&self) -> Option<String> {
+        self.message_parts().map(render_content_parts)
+    }
+}
+
+impl ChannelRoute {
+    /// Capture only the typed address/correlation authority needed by a
+    /// deferred runtime task. Payload and owner policy never cross this seam.
+    pub fn from_envelope(envelope: &ChannelEnvelopeV1) -> Self {
+        Self::new(
+            envelope.address.clone(),
+            envelope.correlation.clone(),
+            envelope.origin,
+        )
+    }
+}
+
+/// Deterministically render typed content for a provider prompt.
+pub fn render_content_parts(parts: &[ContentPart]) -> String {
+    parts
+        .iter()
+        .map(render_content_part)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn render_content_part(part: &ContentPart) -> String {
+    match part {
+        ContentPart::Text { text } => text.clone(),
+        ContentPart::Markdown { markdown } => markdown.clone(),
+        ContentPart::Image { attachment } => format!(
+            "[Image: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::Audio {
+            attachment,
+            transcript,
+        } => transcript.clone().unwrap_or_else(|| {
+            format!(
+                "[Audio: {} ({} bytes, {})]",
+                attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+                attachment.size_bytes,
+                attachment.media_type
+            )
+        }),
+        ContentPart::Video { attachment } => format!(
+            "[Video: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::File { attachment } => format!(
+            "[File: {} ({} bytes, {})]",
+            attachment.file_name.as_deref().unwrap_or(&attachment.uri),
+            attachment.size_bytes,
+            attachment.media_type
+        ),
+        ContentPart::Location {
+            latitude,
+            longitude,
+            label,
+        } => match label {
+            Some(label) => format!("Location: {latitude:.6}, {longitude:.6} ({label})"),
+            None => format!("Location: {latitude:.6}, {longitude:.6}"),
+        },
+        ContentPart::Card { schema, body } => format!("Card ({schema}): {body}"),
+        ContentPart::Reference {
+            uri,
+            title,
+            media_type,
+        } => {
+            let title = title.as_deref().unwrap_or("reference");
+            match media_type {
+                Some(media_type) => format!("Reference: {title} <{uri}> ({media_type})"),
+                None => format!("Reference: {title} <{uri}>"),
+            }
+        }
+    }
 }
 
 /// JSON-RPC request ID accepted by Neuro-Link v1.
@@ -735,12 +870,142 @@ mod tests {
                 }],
                 subject: None,
                 locale: None,
-                context: None,
+                context: Some(OwnerTurnContextV1 {
+                    intent: OwnerTurnIntent::Agent,
+                    approval_policy: None,
+                    execution: None,
+                }),
             },
         );
 
         assert_eq!(envelope.schema_version, CHANNEL_SCHEMA_VERSION_V1);
         assert!(envelope.validate().is_ok());
+    }
+
+    #[test]
+    fn trust_matrix_requires_owner_context_and_rejects_it_elsewhere() {
+        let message = |origin, context| {
+            ChannelEnvelopeV1::new(
+                ChannelDirection::Ingress,
+                ChannelAddress::new("channel", "chat"),
+                Correlation::new("session"),
+                origin,
+                ChannelPayloadV1::Message {
+                    parts: vec![ContentPart::Text {
+                        text: "hello".to_string(),
+                    }],
+                    subject: None,
+                    locale: None,
+                    context,
+                },
+            )
+        };
+        let owner_context = Some(OwnerTurnContextV1 {
+            intent: OwnerTurnIntent::Agent,
+            approval_policy: None,
+            execution: None,
+        });
+
+        assert!(matches!(
+            message(ChannelOrigin::OwnerFrontend, None).validate(),
+            Err(ChannelContractError::MissingOwnerTurnContext)
+        ));
+        assert!(message(ChannelOrigin::OwnerFrontend, owner_context.clone())
+            .validate()
+            .is_ok());
+        assert!(message(ChannelOrigin::ExternalUser, None)
+            .validate()
+            .is_ok());
+        assert!(matches!(
+            message(ChannelOrigin::ExternalUser, owner_context.clone()).validate(),
+            Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                origin: ChannelOrigin::ExternalUser
+            })
+        ));
+        assert!(message(ChannelOrigin::Runtime, None).validate().is_ok());
+        assert!(matches!(
+            message(ChannelOrigin::Runtime, owner_context).validate(),
+            Err(ChannelContractError::UnexpectedOwnerTurnContext {
+                origin: ChannelOrigin::Runtime
+            })
+        ));
+    }
+
+    #[test]
+    fn typed_content_renders_deterministically_and_preserves_subject() {
+        let attachment = |name: &str, media_type: &str| AttachmentRef {
+            uri: format!("sha256:{name}"),
+            media_type: media_type.to_string(),
+            size_bytes: 3,
+            sha256: name.to_string(),
+            file_name: Some(name.to_string()),
+        };
+        let envelope = ChannelEnvelopeV1::new(
+            ChannelDirection::Ingress,
+            ChannelAddress::new("email", "thread-1"),
+            Correlation::new("external/email/thread-1"),
+            ChannelOrigin::ExternalUser,
+            ChannelPayloadV1::Message {
+                parts: vec![
+                    ContentPart::Text {
+                        text: "plain".to_string(),
+                    },
+                    ContentPart::Markdown {
+                        markdown: "**markdown**".to_string(),
+                    },
+                    ContentPart::Image {
+                        attachment: attachment("photo.png", "image/png"),
+                    },
+                    ContentPart::Audio {
+                        attachment: attachment("voice.ogg", "audio/ogg"),
+                        transcript: None,
+                    },
+                    ContentPart::Video {
+                        attachment: attachment("clip.mp4", "video/mp4"),
+                    },
+                    ContentPart::File {
+                        attachment: attachment("report.pdf", "application/pdf"),
+                    },
+                    ContentPart::Location {
+                        latitude: 1.25,
+                        longitude: 2.5,
+                        label: Some("office".to_string()),
+                    },
+                    ContentPart::Card {
+                        schema: "application/vnd.card+json".to_string(),
+                        body: serde_json::json!({"title": "Card"}),
+                    },
+                    ContentPart::Reference {
+                        uri: "https://example.test/docs/1".to_string(),
+                        title: Some("docs".to_string()),
+                        media_type: Some("text/html".to_string()),
+                    },
+                ],
+                subject: Some("Subject".to_string()),
+                locale: Some("en-US".to_string()),
+                context: None,
+            },
+        );
+
+        assert_eq!(
+            envelope.rendered_message_text().as_deref(),
+            Some(
+                "plain\n**markdown**\n[Image: photo.png (3 bytes, image/png)]\n[Audio: voice.ogg (3 bytes, audio/ogg)]\n[Video: clip.mp4 (3 bytes, video/mp4)]\n[File: report.pdf (3 bytes, application/pdf)]\nLocation: 1.250000, 2.500000 (office)\nCard (application/vnd.card+json): {\"title\":\"Card\"}\nReference: docs <https://example.test/docs/1> (text/html)"
+            )
+        );
+        match envelope.payload {
+            ChannelPayloadV1::Message {
+                subject,
+                locale,
+                context,
+                ..
+            } => {
+                assert_eq!(subject.as_deref(), Some("Subject"));
+                assert_eq!(locale.as_deref(), Some("en-US"));
+                assert!(context.is_none());
+            }
+            payload => panic!("unexpected payload: {payload:?}"),
+        }
     }
 
     #[test]

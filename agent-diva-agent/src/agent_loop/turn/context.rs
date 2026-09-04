@@ -1,5 +1,6 @@
 use agent_diva_core::audit::{self, AuditEvent};
-use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::bus::AgentEvent;
+use agent_diva_core::channel::{AttachmentRef, ChannelEnvelopeV1, ContentPart};
 use agent_diva_core::memory::{PrefetchRequest, PrefetchStatus};
 use agent_diva_core::planning::{
     ExecutionContextBoundary, ExecutionContextPolicy, ExecutionInitializationStatus,
@@ -94,41 +95,54 @@ impl AgentLoop {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prepare_runtime_context(
         &mut self,
-        message: &InboundMessage,
+        message: &ChannelEnvelopeV1,
         model: &str,
-        execution_start: bool,
+        execution_continuation: bool,
         session_key: &str,
         active_execution: &mut Option<ExecutionSession>,
         plan_guard_active: bool,
-        approved_plan_markdown: Option<&str>,
+        execution_plan_markdown: Option<&str>,
         read_only: bool,
         active_mask: Option<&MaskFile>,
         scheduled: bool,
         trace_id: &str,
         event_tx: Option<&tokio::sync::mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<RuntimeTurnContext, Box<dyn std::error::Error>> {
+    ) -> Result<RuntimeTurnContext, Box<dyn std::error::Error + Send + Sync>> {
         // A pending reactive update belongs to one turn only.  If the prior
         // turn was cancelled before finalize, discard it before starting a
         // fresh snapshot.
         self.pending_checkpoint_updates.remove(session_key);
-        let processed_media = if message.media.is_empty() {
+        let attachments = message
+            .message_parts()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|part| match part {
+                ContentPart::Image { attachment }
+                | ContentPart::Video { attachment }
+                | ContentPart::File { attachment }
+                | ContentPart::Audio { attachment, .. } => Some(attachment.clone()),
+                _ => None,
+            })
+            .collect::<Vec<AttachmentRef>>();
+        let rendered_message = message.rendered_message_text().unwrap_or_default();
+        let processed_media = if attachments.is_empty() {
             ProcessedInboundMedia::default()
         } else {
-            self.load_attachment_contents(&message.media).await?
+            self.load_attachment_contents(&attachments).await?
         };
         let message_content = if processed_media.prompt_text.is_empty() {
-            message.content.clone()
+            rendered_message.clone()
         } else {
             format!(
                 "{}\n\n[Attachments]\n{}\n[/Attachments]",
-                message.content, processed_media.prompt_text
+                rendered_message, processed_media.prompt_text
             )
         };
         let security_context = SecurityContext {
             source_type: "channel".to_string(),
             workspace_id: Some(self.workspace.display().to_string()),
             run_id: None,
-            channel_id: Some(message.channel.clone()),
+            channel_id: Some(message.address.channel.clone()),
             tool_name: None,
         };
         let message_content = match check_security(&message_content, &security_context) {
@@ -137,7 +151,7 @@ impl AgentLoop {
             SecurityDecision::Block { reason, .. }
             | SecurityDecision::Quarantine { reason, .. } => {
                 audit::emit(AuditEvent::ChannelMessageBlocked {
-                    channel_id: message.channel.clone(),
+                    channel_id: message.address.channel.clone(),
                     reason: reason.clone(),
                 });
                 return Err(
@@ -155,7 +169,7 @@ impl AgentLoop {
         let current_turn_message =
             build_current_turn_message(&message_content, &processed_media.image_parts);
 
-        if execution_start {
+        if execution_continuation {
             if let (Some(planning), Some(execution)) =
                 (&self.tool_config.planning, active_execution.as_ref())
             {
@@ -445,7 +459,7 @@ impl AgentLoop {
                 .prefetch(PrefetchRequest {
                     workspace_root: self.workspace.clone(),
                     intent: prefetch_intent,
-                    current_room: Some(message.channel.clone()),
+                    current_room: Some(message.address.channel.clone()),
                     user_message: Some(message_content.clone()),
                 })
                 .await
@@ -476,17 +490,17 @@ impl AgentLoop {
             }
         }
 
-        dynamic_sections.push(
-            self.context
-                .build_volatile_meta_section(Some(&message.channel), Some(&message.chat_id)),
-        );
+        dynamic_sections.push(self.context.build_volatile_meta_section(
+            Some(&message.address.channel),
+            Some(&message.address.chat_id),
+        ));
         if scheduled {
             dynamic_sections.push(PromptSection::new(
                 ContextSection::VolatileMeta,
                 prompt::scheduled_turn().content,
             ));
         }
-        if let Some(markdown) = approved_plan_markdown {
+        if let Some(markdown) = execution_plan_markdown {
             dynamic_sections.push(PromptSection::new(
                 ContextSection::PlanGuard,
                 prompt::approved_plan(markdown).content,

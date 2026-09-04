@@ -111,7 +111,7 @@ agent-diva/
 
 - Rust **1.80+** (MSRV; install via rustup)
 - Optional: `just` for convenient workspace commands
-- GUI only: Node.js v18+ and npm/pnpm
+- GUI only: Node.js v18+ and pnpm 10.34.5
 
 ## Quick start
 
@@ -292,13 +292,13 @@ Agent Diva includes a desktop GUI built with Tauri + Vue 3.
 
 - Node.js v18+
 - Rust (latest stable)
-- pnpm (recommended) or npm
+- pnpm 10.34.5
 
 ### Run the GUI
 
 ```bash
 cd agent-diva-gui
-pnpm install
+pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 

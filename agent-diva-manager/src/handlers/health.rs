@@ -113,7 +113,7 @@ fn component_from_option(ready: Option<bool>, critical: bool) -> ComponentHealth
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::body::to_bytes;
     use axum::http::Request;
     use axum::Router;
@@ -128,7 +128,7 @@ mod tests {
         std::mem::forget(temp);
         let state = AppState::new_with_runtime_memory(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             workspace,
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
@@ -163,7 +163,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let state = AppState::new_with_runtime_memory(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),

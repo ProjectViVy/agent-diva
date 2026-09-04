@@ -10,7 +10,7 @@ default:
 
 # Start the GUI with its embedded Gateway
 start:
-    cd agent-diva-gui; npm run tauri dev
+    cd agent-diva-gui; pnpm tauri dev
 
 # Start Gateway only
 diva-gate:
@@ -62,10 +62,14 @@ channel-clean-break-check:
 bml-boundary-check:
     cargo test -p agent-diva-laputa --test bml_boundary_guard
 
+# Verify the GUI package manager, lockfile, and dependency override policy.
+gui-package-policy-check:
+    python scripts/ci/check_gui_dependency_policy.py
+
 # Automated desktop gates; this intentionally does not claim real-desktop G2D+.
-gui-automated-check:
-    cd agent-diva-gui; npm test
-    cd agent-diva-gui; npm run build
+gui-automated-check: gui-package-policy-check
+    cd agent-diva-gui; pnpm test
+    cd agent-diva-gui; pnpm run build
     cargo check --manifest-path agent-diva-gui/src-tauri/Cargo.toml
 
 # Final automated E7 candidate gate. Manual desktop acceptance remains separate.

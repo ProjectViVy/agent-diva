@@ -7,7 +7,8 @@ use agent_diva_agent::tool_config::network::{
     NetworkToolConfig, WebFetchRuntimeConfig, WebRuntimeConfig, WebSearchRuntimeConfig,
 };
 use agent_diva_channels::runtime::ChannelRuntime;
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
+use agent_diva_core::channel::FabricHandle;
 use agent_diva_core::config::{ConfigLoader, CustomProviderConfig};
 use agent_diva_core::cron::CronService;
 use agent_diva_core::governance::ApprovalCoordinator;
@@ -26,7 +27,7 @@ use tokio::sync::oneshot;
 
 pub struct Manager {
     api_rx: mpsc::Receiver<ManagerCommand>,
-    bus: MessageBus,
+    bus: AgentEventBus,
     provider: Arc<DynamicProvider>,
     loader: ConfigLoader,
     // Current config state
@@ -35,7 +36,11 @@ pub struct Manager {
     current_api_base: Option<String>,
     current_api_key: Option<String>,
     channel_runtime: Option<Arc<ChannelRuntime>>,
-    runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+    /// Owns channel update/delete transactions independently of the Manager
+    /// actor so a caller or actor cancellation cannot split disk and runtime.
+    channel_mutations: Arc<runtime_control::ChannelMutationRegistry>,
+    runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
+    fabric_handle: Option<FabricHandle>,
     cron_service: Arc<CronService>,
     file_manager: Arc<FileManager>,
     workspace: PathBuf,
@@ -68,7 +73,7 @@ impl Manager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         api_rx: mpsc::Receiver<ManagerCommand>,
-        bus: MessageBus,
+        bus: AgentEventBus,
         provider: Arc<DynamicProvider>,
         loader: ConfigLoader,
         initial_provider: Option<String>,
@@ -76,7 +81,8 @@ impl Manager {
         api_key: Option<String>,
         api_base: Option<String>,
         channel_runtime: Option<Arc<ChannelRuntime>>,
-        runtime_control_tx: Option<mpsc::UnboundedSender<RuntimeControlCommand>>,
+        runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
+        fabric_handle: Option<FabricHandle>,
         cron_service: Arc<CronService>,
         file_manager: Arc<FileManager>,
         workspace: PathBuf,
@@ -94,7 +100,9 @@ impl Manager {
             current_api_base: api_base,
             current_api_key: api_key,
             channel_runtime,
+            channel_mutations: runtime_control::ChannelMutationRegistry::new(),
             runtime_control_tx,
+            fabric_handle,
             cron_service,
             file_manager,
             workspace,
@@ -149,7 +157,7 @@ impl Manager {
             error!("Failed to load config for MCP runtime update");
             return;
         };
-        if let Err(e) = tx.send(RuntimeControlCommand::UpdateMcp {
+        if let Err(e) = tx.try_send(RuntimeControlCommand::UpdateMcp {
             servers: config.tools.active_mcp_servers(),
         }) {
             error!("Failed to send runtime MCP update: {}", e);
@@ -160,7 +168,7 @@ impl Manager {
         let Some(tx) = &self.runtime_control_tx else {
             return;
         };
-        if let Err(error) = tx.send(runtime_skills_reload_command(operation, skill_name)) {
+        if let Err(error) = tx.try_send(runtime_skills_reload_command(operation, skill_name)) {
             error!(
                 operation,
                 skill_name,
@@ -278,7 +286,7 @@ impl Manager {
                         }
                     };
                     match cmd {
-                        ManagerCommand::Chat(req) => self.handle_chat(req),
+                        ManagerCommand::Chat(req) => self.handle_chat(*req),
                         ManagerCommand::StopChat(req, reply) => {
                             self.handle_stop_chat(req, reply);
                         }
@@ -382,6 +390,16 @@ impl Manager {
                         ManagerCommand::UpdateChannel(update, reply) => {
                             self.handle_update_channel(update, reply).await;
                         }
+                        ManagerCommand::ProbeChannel(name, config, reply) => {
+                            // Probes have their own bounded admission and
+                            // cleanup ownership.  Keep the single Manager
+                            // actor available for stop/status/update commands
+                            // while a network probe spends its 35s deadline.
+                            self.handle_probe_channel(name, config, reply);
+                        }
+                        ManagerCommand::DeleteChannel(name, reply) => {
+                            self.handle_delete_channel(name, reply).await;
+                        }
                         ManagerCommand::GetChannelRuntime(reply) => {
                             let statuses = match &self.channel_runtime {
                                 Some(runtime) => runtime.statuses().await,
@@ -456,6 +474,7 @@ impl Manager {
                     title: new_title,
                     reply_tx,
                 })
+                .await
                 .map_err(|e| format!("failed to send UpdateSessionTitle command: {}", e))?;
                 reply_rx
                     .await
@@ -493,6 +512,7 @@ impl Manager {
                     fallback_title: fallback,
                     reply_tx,
                 })
+                .await
                 .map_err(|e| format!("failed to send GenerateSessionTitle command: {}", e))?;
                 reply_rx
                     .await

@@ -5,7 +5,7 @@ use agent_diva_core::channel::{
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 #[derive(Debug, Error)]
 pub enum AdapterRegistryError {
@@ -24,8 +24,13 @@ pub enum AdapterRegistryError {
 /// Thread-safe native adapter registry with deterministic listing and routing.
 #[derive(Default)]
 pub struct AdapterRegistry {
-    adapters: RwLock<BTreeMap<ChannelId, Arc<dyn ChannelAdapter>>>,
-    running: RwLock<BTreeSet<ChannelId>>,
+    state: Mutex<RegistryState>,
+}
+
+#[derive(Default)]
+struct RegistryState {
+    adapters: BTreeMap<ChannelId, Arc<dyn ChannelAdapter>>,
+    running: BTreeSet<ChannelId>,
 }
 
 impl std::fmt::Debug for AdapterRegistry {
@@ -46,49 +51,51 @@ impl AdapterRegistry {
         adapter: Arc<dyn ChannelAdapter>,
     ) -> Result<(), AdapterRegistryError> {
         let id = adapter.name();
-        let mut adapters = self.adapters.write().await;
-        if adapters.contains_key(&id) {
+        let mut state = self.state.lock().await;
+        if state.adapters.contains_key(&id) {
             return Err(AdapterRegistryError::Duplicate(id));
         }
-        adapters.insert(id, adapter);
+        state.adapters.insert(id, adapter);
         Ok(())
     }
 
     pub async fn unregister(&self, id: &ChannelId) -> Result<(), AdapterRegistryError> {
-        if self.running.read().await.contains(id) {
+        let mut state = self.state.lock().await;
+        if state.running.contains(id) {
             return Err(AdapterRegistryError::Running(id.clone()));
         }
-        self.adapters
-            .write()
-            .await
+        state
+            .adapters
             .remove(id)
             .map(|_| ())
             .ok_or_else(|| AdapterRegistryError::Unknown(id.clone()))
     }
 
     pub async fn mark_running(&self, id: &ChannelId) -> Result<(), AdapterRegistryError> {
-        if !self.adapters.read().await.contains_key(id) {
+        let mut state = self.state.lock().await;
+        if !state.adapters.contains_key(id) {
             return Err(AdapterRegistryError::Unknown(id.clone()));
         }
-        self.running.write().await.insert(id.clone());
+        state.running.insert(id.clone());
         Ok(())
     }
 
     pub async fn mark_stopped(&self, id: &ChannelId) {
-        self.running.write().await.remove(id);
+        self.state.lock().await.running.remove(id);
     }
 
     pub async fn list(&self) -> Vec<ChannelId> {
-        self.adapters.read().await.keys().cloned().collect()
+        self.state.lock().await.adapters.keys().cloned().collect()
     }
 
     pub async fn get(
         &self,
         id: &ChannelId,
     ) -> Result<Arc<dyn ChannelAdapter>, AdapterRegistryError> {
-        self.adapters
-            .read()
+        self.state
+            .lock()
             .await
+            .adapters
             .get(id)
             .cloned()
             .ok_or_else(|| AdapterRegistryError::Unknown(id.clone()))

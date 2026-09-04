@@ -484,6 +484,8 @@ pub fn run() {
             commands::save_self_evolution_config,
             commands::get_channels,
             commands::get_channel_runtime,
+            commands::probe_channel,
+            commands::delete_channel,
             commands::compact_session,
             commands::update_channel,
             commands::check_health,

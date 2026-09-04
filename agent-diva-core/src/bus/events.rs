@@ -1,4 +1,4 @@
-//! Event types for the message bus
+//! AgentEvent projection and lifecycle event types.
 
 use crate::planning::model::{PlanPhase, PlanStatus, TodoPriority, TodoStatus};
 use crate::planning::update_plan::UpdatePlanArgs;
@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::planning::ApprovalReceipt;
 use crate::planning::PlanReportDetail;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanRuntimeStep {
@@ -234,79 +233,6 @@ pub struct AgentBusEvent {
     pub event: AgentEvent,
 }
 
-/// Message received from a chat channel
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboundMessage {
-    /// Channel identifier (e.g., "telegram", "discord")
-    pub channel: String,
-    /// User identifier
-    pub sender_id: String,
-    /// Chat/channel identifier
-    pub chat_id: String,
-    /// Message text content
-    pub content: String,
-    /// Message timestamp
-    pub timestamp: DateTime<Utc>,
-    /// Media URLs (if any)
-    pub media: Vec<String>,
-    /// Channel-specific metadata
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-impl InboundMessage {
-    /// Create a new inbound message
-    pub fn new(
-        channel: impl Into<String>,
-        sender_id: impl Into<String>,
-        chat_id: impl Into<String>,
-        content: impl Into<String>,
-    ) -> Self {
-        Self {
-            channel: channel.into(),
-            sender_id: sender_id.into(),
-            chat_id: chat_id.into(),
-            content: content.into(),
-            timestamp: Utc::now(),
-            media: Vec::new(),
-            metadata: HashMap::new(),
-        }
-    }
-
-    /// Get the unique session key for this message
-    pub fn session_key(&self) -> String {
-        // Typed Fabric ingress carries an authoritative session identity that
-        // may not be expressible as `channel:chat_id` (for example a desktop
-        // frontend can use an opaque profile key).  The internal override is
-        // only written by the AgentLoop typed-envelope adapter; ordinary
-        // channel callers retain the historical derivation below.
-        if let Some(session_key) = self
-            .metadata
-            .get("agent_diva.session_key_override")
-            .and_then(serde_json::Value::as_str)
-            .filter(|session_key| !session_key.trim().is_empty())
-        {
-            return session_key.to_owned();
-        }
-        format!("{}:{}", self.channel, self.chat_id)
-    }
-
-    /// Add media URL to the message
-    pub fn with_media(mut self, url: impl Into<String>) -> Self {
-        self.media.push(url.into());
-        self
-    }
-
-    /// Add metadata to the message
-    pub fn with_metadata(
-        mut self,
-        key: impl Into<String>,
-        value: impl Into<serde_json::Value>,
-    ) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,25 +363,6 @@ mod tests {
     }
 }
 
-/// Message to send to a chat channel
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OutboundMessage {
-    /// Channel identifier
-    pub channel: String,
-    /// Target chat/channel identifier
-    pub chat_id: String,
-    /// Message text content
-    pub content: String,
-    /// Optional message to reply to
-    pub reply_to: Option<String>,
-    /// Media URLs to attach
-    pub media: Vec<String>,
-    /// Reasoning content (if any)
-    pub reasoning_content: Option<String>,
-    /// Channel-specific metadata
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
 /// Lifecycle and audit events for the poke 8 event chain.
 ///
 /// These events supplement the streaming `AgentEvent` variants with
@@ -469,8 +376,11 @@ pub enum PokeEvent {
     ChatSend { content: String },
     /// A chat message was successfully sent.
     ChatSent { content: String, message_id: String },
-    /// A new chat message arrived from a channel.
-    ChatReceived { content: String, sender_id: String },
+    /// Identity-only user activity; message content is never exposed.
+    UserActivity {
+        session_key: String,
+        sender_id: Option<String>,
+    },
     /// Reasoning/thought content received from the LLM.
     ReasoningReceived { content: String, model: String },
     /// A chat turn or conversation ended.
@@ -489,45 +399,4 @@ pub enum PokeEvent {
         /// Dot-separated field paths that require restart.
         fields: Vec<String>,
     },
-}
-
-impl OutboundMessage {
-    /// Create a new outbound message
-    pub fn new(
-        channel: impl Into<String>,
-        chat_id: impl Into<String>,
-        content: impl Into<String>,
-    ) -> Self {
-        Self {
-            channel: channel.into(),
-            chat_id: chat_id.into(),
-            content: content.into(),
-            reply_to: None,
-            media: Vec::new(),
-            reasoning_content: None,
-            metadata: HashMap::new(),
-        }
-    }
-
-    /// Set the reply-to message ID
-    pub fn reply_to(mut self, message_id: impl Into<String>) -> Self {
-        self.reply_to = Some(message_id.into());
-        self
-    }
-
-    /// Add media URL to the message
-    pub fn with_media(mut self, url: impl Into<String>) -> Self {
-        self.media.push(url.into());
-        self
-    }
-
-    /// Add metadata to the message
-    pub fn with_metadata(
-        mut self,
-        key: impl Into<String>,
-        value: impl Into<serde_json::Value>,
-    ) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
-    }
 }

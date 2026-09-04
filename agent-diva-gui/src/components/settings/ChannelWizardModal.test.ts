@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 import ChannelWizardModal from './ChannelWizardModal.vue';
 
 vi.mock('vue-i18n', () => ({
@@ -40,6 +41,180 @@ const mountWizard = (props: Record<string, unknown>) =>
   });
 
 describe('ChannelWizardModal', () => {
+  it('runs the real async test step and still permits saving after failure', async () => {
+    const onTest = vi.fn(async () => ({ success: false, message: 'offline' }));
+    const onComplete = vi.fn(async () => undefined);
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+      onComplete,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('bot-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(onTest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'telegram',
+        credentials: expect.objectContaining({ token: 'bot-token' }),
+      }),
+    );
+    expect(wrapper.find('.test-result.failed').text()).toContain('offline');
+
+    const testNext = wrapper.find('.wizard-footer .wizard-btn-primary');
+    expect((testNext.element as HTMLButtonElement).disabled).toBe(false);
+    expect(testNext.text()).toContain('channels.wizardSave');
+    await testNext.trigger('click');
+    await flushPromises();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('channels.wizardDone');
+
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
+    wrapper.unmount();
+  });
+
+  it('shows a local saving state while persisting from the test step', async () => {
+    let resolveSave: (() => void) | undefined;
+    const onTest = vi.fn(async () => ({ success: true, message: 'ok' }));
+    const onComplete = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+      onComplete,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('bot-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+
+    const saveButton = wrapper.find('.wizard-footer .wizard-btn-primary');
+    const saveClick = saveButton.trigger('click');
+    await nextTick();
+
+    expect(saveButton.text()).toContain('channels.wizardSaving');
+    expect((saveButton.element as HTMLButtonElement).disabled).toBe(true);
+    expect(saveButton.find('.animate-spin').exists()).toBe(true);
+
+    expect(resolveSave).toBeTypeOf('function');
+    resolveSave?.();
+    await saveClick;
+    await flushPromises();
+    expect(wrapper.text()).toContain('channels.wizardDone');
+    wrapper.unmount();
+  });
+
+  it('invalidates a completed test when credentials change', async () => {
+    const onTest = vi.fn(async () => ({ success: true, message: 'ok' }));
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('first-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.test-result.success').exists()).toBe(true);
+
+    await wrapper.find('.wizard-footer .wizard-btn-secondary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('second-token');
+    await flushPromises();
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(onTest).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('.test-result.success').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('invalidates an in-flight test when credentials change and releases pending state', async () => {
+    let resolveTest!: (result: { success: boolean; message: string }) => void;
+    const onTest = vi.fn(
+      () =>
+        new Promise<{ success: boolean; message: string }>((resolve) => {
+          resolveTest = resolve;
+        }),
+    );
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('first-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await nextTick();
+
+    expect((wrapper.vm as any).isTesting).toBe(true);
+    (wrapper.vm as any).formData.credentials.token = 'second-token';
+    await nextTick();
+
+    expect((wrapper.vm as any).isTesting).toBe(false);
+    resolveTest({ success: true, message: 'stale result' });
+    await flushPromises();
+    expect(wrapper.find('.test-result.success').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('keeps the form open when the completion callback fails', async () => {
+    const onTest = vi.fn(async () => ({ success: true, message: 'ok' }));
+    const onComplete = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('save failed'))
+      .mockResolvedValueOnce(undefined);
+    const wrapper = mountWizard({
+      open: true,
+      availablePlatforms: ['telegram'],
+      onTest,
+      onComplete,
+    });
+    await flushPromises();
+
+    await wrapper.find('.platform-card').trigger('click');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await wrapper.find('input[type="password"]').setValue('bot-token');
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('save failed');
+    expect(wrapper.find('.wizard-overlay').exists()).toBe(true);
+
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    await flushPromises();
+    expect(onComplete).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain('channels.wizardDone');
+
+    await wrapper.find('.wizard-footer .wizard-btn-primary').trigger('click');
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
+    wrapper.unmount();
+  });
+
   it('hydrates credentials and skips the platform step when opened for edit', async () => {
     const wrapper = mountWizard({
       open: true,

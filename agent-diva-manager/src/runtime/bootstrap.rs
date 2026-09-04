@@ -1,5 +1,6 @@
 use super::*;
 use agent_diva_core::bus::PokeEvent;
+use agent_diva_core::channel::capacity;
 use agent_diva_core::config::{Config, ConfigDiff};
 use agent_diva_core::governance::{ApprovalCoordinator, SqliteGovernanceLedger};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -36,7 +37,7 @@ use std::sync::Arc;
 /// for each registered module.  Until then, hot-reloadable changes are
 /// applied to the shared config `Arc`, and any modules that read from
 /// it will see updated values.
-fn handle_config_diff(diff: ConfigDiff, _new_config: Config, bus: &MessageBus) {
+fn handle_config_diff(diff: ConfigDiff, _new_config: Config, bus: &AgentEventBus) {
     let restart_fields: Vec<String> = diff
         .restart_required
         .iter()
@@ -84,7 +85,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     } = runtime;
     let workspace_root = workspace.root.clone();
 
-    let bus = MessageBus::new();
+    let bus = AgentEventBus::new();
     let (fabric_handle, fabric_consumer) = FabricKernel::new().into_parts();
     let bus_for_hotreload = bus.clone();
     let run_store_root = supervised_store_root_from_cron_store(&cron_store);
@@ -126,7 +127,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         handle_config_diff(diff, new_config, &bus_for_hotreload);
     });
 
-    let cron_service = start_cron_service(cron_store, bus.clone(), workspace_root.clone()).await;
+    let cron_service =
+        start_cron_service(cron_store, workspace_root.clone(), fabric_handle.clone()).await;
     ensure_notebook_monthly_cron_job(&cron_service).await?;
     let dynamic_provider = Arc::new(DynamicProvider::new(build_provider(
         &config,
@@ -138,7 +140,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     let file_config = FileConfig::with_path(&storage_path);
     let file_manager = Arc::new(FileManager::new(file_config).await?);
 
-    let (runtime_control_tx, runtime_control_rx) = mpsc::unbounded_channel();
+    let (runtime_control_tx, runtime_control_rx) = mpsc::channel(capacity::CONTROL);
+    let (egress_tx, egress_rx) = mpsc::channel(capacity::ADAPTER_EGRESS);
     let ask_user = agent_diva_core::ask_user::AskUserCoordinator::default();
     let memory_home = agent_diva_laputa::MemoryHome::with_l1_budget(
         loader.config_dir(),
@@ -159,7 +162,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
     if let Err(error) = memory_home.warmup().await {
         tracing::warn!(%error, "BML startup index unavailable; ACTMEM remains available");
     }
-    let agent = build_agent_loop(
+    let mut agent = build_agent_loop(
         &config,
         bus.clone(),
         dynamic_provider.clone(),
@@ -175,6 +178,8 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         governance.clone(),
     )
     .await?;
+    agent.set_egress_sender(egress_tx);
+    agent.set_fabric_handle(fabric_handle.clone()).await;
     let (provider_api_key, provider_api_base) = resolve_provider_credentials(&config)?;
 
     Ok(GatewayBootstrap {
@@ -197,6 +202,7 @@ pub(super) async fn bootstrap_runtime(runtime: GatewayRuntimeConfig) -> Result<G
         memory_home,
         fabric_handle,
         fabric_consumer,
+        egress_rx,
     })
 }
 

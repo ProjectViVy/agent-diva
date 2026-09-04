@@ -1,6 +1,6 @@
 //! AgentEvent to Neuro-Link projection fan-out.
 //!
-//! The AgentLoop remains the owner of execution and the MessageBus remains a
+//! The AgentLoop remains the owner of execution and the AgentEventBus remains a
 //! compatibility observation surface.  This module gives the typed gateway a
 //! single, process-wide projection stream: correlated AgentBusEvents are
 //! converted into bounded Fabric envelopes, appended to the profile-local
@@ -8,7 +8,7 @@
 //! are intentionally not replayed after reconnect; durable lifecycle and state
 //! changes are.
 
-use agent_diva_core::bus::{AgentBusEvent, AgentEvent, MessageBus, PlanRuntimeState};
+use agent_diva_core::bus::{AgentBusEvent, AgentEvent, AgentEventBus, PlanRuntimeState};
 use agent_diva_core::channel::{
     ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
     ChannelRuntimeProjectionV1, ContentPart, Correlation, ProjectionEventV1, StreamPhase,
@@ -35,12 +35,12 @@ pub struct NeuroLinkProjectionHub {
 }
 
 impl NeuroLinkProjectionHub {
-    /// Start one journal/broadcast pump for the supplied MessageBus.
+    /// Start one journal/broadcast pump for the supplied AgentEventBus.
     ///
     /// AppState is also used by synchronous handler fixtures.  In that case
     /// there is no Tokio runtime to host a pump, so the hub remains inert
     /// rather than panicking during fixture construction.
-    pub fn new(bus: MessageBus, data_root: impl Into<PathBuf>) -> Arc<Self> {
+    pub fn new(bus: AgentEventBus, data_root: impl Into<PathBuf>) -> Arc<Self> {
         let (submit_tx, submit_rx) = mpsc::unbounded_channel();
         let (events_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         let hub = Arc::new(Self {
@@ -65,7 +65,7 @@ impl NeuroLinkProjectionHub {
 
     /// Submit a pre-built projection for persistence and live fan-out.
     ///
-    /// The AgentLoop path normally enters through the MessageBus observer; a
+    /// The AgentLoop path normally enters through the AgentEventBus observer; a
     /// direct submitter is retained for future Fabric producers and makes the
     /// boundary explicit without exposing the SQLite handle to them.
     pub fn submit(
@@ -829,7 +829,7 @@ mod tests {
     #[tokio::test]
     async fn bus_events_are_persisted_once_and_broadcast_to_live_subscribers() {
         let temp = tempfile::tempdir().unwrap();
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let hub = NeuroLinkProjectionHub::new(bus.clone(), temp.path());
         let mut events = hub.subscribe();
         bus.publish_correlated_event(

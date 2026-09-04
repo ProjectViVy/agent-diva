@@ -183,19 +183,34 @@
     - [x] **C6-C：频道队列有界化与 callback subscriber 删除**（2026-09-03）
       Agent 消息队列改为固定容量 256，满载显式失败；生产 egress 由单一 receiver 顺序转入
       adapter pacing lane，不再使用 callback subscriber 或无界 ingress/egress。
-    - [ ] **C6-D：物理删除 AgentLoop 旧 InboundMessage/OutboundMessage DTO** `sev-P1`
-      生产外部 ingress 与平台 egress 已走 typed Fabric/ChannelCommand，但 AgentLoop 内部结果仍
-      使用旧 DTO 后再转为 typed command。需直接以 typed envelope/command 贯通 AgentLoop，删除
-      `agent-diva-core/src/bus/events.rs` 中旧 DTO 及所有构造点后，才能满足架构 §15.2/§19.10。
+    - [x] **C6-D：物理删除 AgentLoop 旧 InboundMessage/OutboundMessage DTO** `sev-P1`（2026-09-04）
+      已按架构 §15.2/§19.10 完成 strict Clean Break：AgentLoop 直接接收
+      `ChannelEnvelopeV1` 并返回 `Option<ChannelCommand>`，旧 DTO、旧 inbound/outbound queue、
+      publish/take receiver API、callback subscriber 和 metadata shim 均已从 active source
+      删除。OwnerFrontend 只产生 AgentEvent projection；ExternalUser/Runtime 严格要求
+      context 为 None 并走 typed adapter egress；Manager、六个 external adapter、Cron、
+      Subagent、Presence、message tool 和 CLI SSE 均已迁移。trust matrix、correlation/
+      reply_to、typed content/media、attachment admission、stop/reset/backpressure/shutdown
+      与 worker recovery 均有回归证据；clean-break gate 和全 workspace Rust gates 通过。
+      `supervised_runs.context` 采用 nullable additive SQLite migration，旧表自动补列、旧行
+      保持不变，缺少 typed route 的旧记录由 Subagent handler fail-closed；完整迁移/回滚影响
+      见 iteration verification/release。
+      证据：[C6-D iteration log](docs/logs/2026-09-channel-epic/v0.3.1-c6-d-typed-agent-loop/)。
     - [ ] **C6-E：切换后真实平台/桌面验收与全工作区 MSRV** `sev-P1`
       C6 已按用户明确指令于 2026-09-03 通过 `8cc6580b` 本地合入 `dev`，且合并后 workspace、
-      TCK 与 clean-break 门禁通过；仍需至少一个真实平台完成入站、最终 receipt，并在新生产
-      路径复测桌面断线恢复。C6-D/C6-E 完成前不得关闭 C6；本地合入不等于完整验收或已推送。
+      TCK 与 clean-break 门禁通过；C6-D strict clean-break 已通过本轮 `1a195be9` 纳入交付链，
+      但仍需至少一个真实平台完成入站、最终 receipt，并在新生产路径复测桌面断线恢复。
+      2026-09-04 最终 QA 的 Rust 1.80 channel-scoped check 已通过，broad 全工作区 MSRV 证明
+      仍由 `WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS` 跟踪。真实平台/桌面和 broad MSRV
+      条件满足后再关闭；本地合入不等于完整验收或已推送。
 
-  - [ ] **GUI 依赖安全审计基线** `sev-P2`
-    C1 同步 GUI npm lock 时，npm 报告依赖图存在 11 个 audit vulnerabilities（2 moderate、9 high）。
-    本项不属于 Neuro-Link 合同实现，且没有运行 `audit fix`；需单独评估升级、兼容性和 pnpm/npm
-    lock 策略后处理。相关文件：`agent-diva-gui/package.json`、`agent-diva-gui/package-lock.json`。
+  - [x] **GUI 依赖安全审计基线** `sev-P2`（2026-09-04）
+    已统一为 pnpm 10.34.5 单 lockfile，删除并忽略 `package-lock.json`；将 postcss 固定到
+    8.5.23，并以 overrides 固定 brace-expansion 2.1.4、browserslist 4.28.7、nanoid
+    3.3.18、postcss 8.5.23。修复时联网 `pnpm audit --audit-level=moderate` 返回零漏洞；
+    CI 新增独立、带超时、fail-closed 的 `gui-audit` job，release 必须依赖它，静态策略门禁
+    防止 npm/yarn 或双 lockfile 回流。证据：
+    [`v0.4.11-gui-audit-remediation`](docs/logs/2026-09-gui-channel-recovery/v0.4.11-gui-audit-remediation/)。
 
 ### L1-B：频道能力与 Agent 互操作
 
@@ -205,10 +220,23 @@
 
 #### WBS-03：既有频道页面能力补齐
 
-- [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
-  `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
-  （两处既有 TODO）；需后端真实连接测试 API 与通道删除 API。2026-08-17 频道页
-  修复时确认仍缺；真机冒烟已过，本条另行迭代。
+- [x] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`（2026-09-04）
+  已接入 Manager HTTP/Tauri 的真实候选配置 probe 和删除 API；probe 不持久化候选配置，
+  delete 重置凭据、禁用频道并写入 `channels.removed` tombstone，卡片刷新后隐藏。向导连接
+  失败后允许用户显式保存，测试/保存/删除状态具有 stale-result、重复提交和关闭保护；后端
+  的探测、停止与跨 runtime/config mutation 均有硬并发上限和取消安全 owner。证据：
+  [`v0.4.12-channel-settings-recovery`](docs/logs/2026-09-gui-channel-recovery/v0.4.12-channel-settings-recovery/)。
+
+- [ ] **CHANNELS-WIZARD-METADATA-I18N：频道静态元数据本地化** `sev-P3`
+  英文 locale 下，`channel-platforms.ts` 与 `channel-wizard-fields.ts` 的平台展示名、快速指南、
+  字段标签和 placeholder 仍有中文静态文本；应迁入 `locales/en.ts` / `locales/zh.ts` 并以
+  稳定 key 投影，不能只翻译页面壳层。
+
+- [ ] **CHANNELS-WIZARD-UX-HARDENING：频道页剩余交互韧性** `sev-P3`
+  独立前端复核确认的非阻断项：小屏嵌套滚动与 skeleton 高度、程序化改凭据后旧 probe
+  虽会丢弃结果但仍在后台运行、runtime DTO 对新增字段只做必要字段验证、加载错误存在重复
+  呈现。应以窄屏桌面烟测、可取消 probe transport 和严格 DTO schema 分批收敛；相关文件：
+  `ChannelsSettings.vue`、`ChannelWizardModal.vue`、`api/desktop.ts`。
 
 #### WBS-04：A2A Agent-to-Agent 互操作
 
@@ -294,6 +322,25 @@
   步骤见 `docs/logs/2026-08-pet-to-mate-rename/v0.1.0-pet-to-mate-rename/acceptance.md`。
 
 ## L0-可靠性与测试债务
+
+- [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES：GUI 全量测试在默认 worker 下复发** `sev-P2`
+  2026-09-04 本轮两次默认 worker 全量运行分别出现 1 个 `DesktopMateOverlay` 超时和 3 个
+  Mate 相关超时，另一次嵌入式 health 启动时序失败在串行复跑后通过；固定
+  `--maxWorkers=2` 后 77 个文件、562 个测试全绿，最终 QA 未再复现。该条按 2026-08-23
+  “复发即重开”约定重新开启；应隔离共享渲染/计时资源并给 CI 明确 worker 预算，而不是依赖
+  人工复跑。相关：`agent-diva-gui/src/features/diva-mate/**`、Vitest 配置与 GUI CI job。
+
+- [ ] **CHANNEL-PROBE-REQUEST-BACKPRESSURE：探测请求 wrapper 前置背压** `sev-P2`
+  原生 probe 与 cleanup 已有 global=4、per-channel=1 的硬上限，但 Manager 仍为每个请求
+  `tokio::spawn` wrapper，且候选 adapter 在 admission 前构造；高频无效/重复请求可积累等待
+  wrapper。应在 Manager/API 边界增加有界 admission，并保持现有 `probe_busy` 429 语义。
+  相关：`agent-diva-manager/src/manager/runtime_control.rs`、`agent-diva-channels/src/adapter.rs`。
+
+- [ ] **CHANNEL-CLEANUP-REGISTRY-HOUSEKEEPING：完成任务表形式化上限** `sev-P3`
+  probe/stop registry 对仍在运行的原生任务已有 semaphore 硬上限，finished JoinHandle 由
+  reaper/下一次 admission 清理；突发完成阶段的表大小尚未用独立容量断言形式化。后续可把
+  finished-owner 回收与 admission 计数纳入统一 invariant/压力测试。相关：
+  `agent-diva-channels/src/adapter.rs`、`agent-diva-channels/src/runtime/supervisor.rs`。
 
 - [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE-RECURRENCE** `sev-P2`
   2026-08-29 HQ-00 全量 `just test` 再次在

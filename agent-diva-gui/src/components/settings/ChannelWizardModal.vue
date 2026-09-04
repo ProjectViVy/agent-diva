@@ -10,6 +10,7 @@ import {
   Lightbulb,
 } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
+import { errorMessage } from '../../utils/errorMessage';
 import {
   PLATFORM_ICONS,
   PLATFORM_DISPLAY_NAMES,
@@ -29,19 +30,25 @@ const { t } = useI18n();
 interface ChannelWizardData {
   platform: string;
   name: string;
-  credentials: Record<string, any>;
-  extra?: Record<string, any>;
+  credentials: Record<string, unknown>;
+  extra?: Record<string, unknown>;
+}
+
+interface ChannelProbeResult {
+  success: boolean;
+  message: string;
 }
 
 const props = defineProps<{
   open: boolean;
   initialData?: Partial<ChannelWizardData>;
+  availablePlatforms?: string[];
+  onTest?: (data: ChannelWizardData) => Promise<ChannelProbeResult>;
+  onComplete?: (data: ChannelWizardData) => Promise<void> | void;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void;
-  (e: 'test', data: ChannelWizardData): Promise<{ success: boolean; message: string }>;
-  (e: 'complete', data: ChannelWizardData): void;
 }>();
 
 type StepKey = 'platform' | 'credentials' | 'test' | 'done';
@@ -51,11 +58,12 @@ interface Step {
   title: string;
 }
 
-const steps: Step[] = [
+const steps = computed<Step[]>(() => [
   { key: 'platform', title: t('channels.wizardStepPlatform') },
   { key: 'credentials', title: t('channels.wizardStepCredentials') },
+  { key: 'test', title: t('channels.wizardStepTest') },
   { key: 'done', title: t('channels.wizardStepDone') },
-];
+]);
 
 const currentStep = ref<StepKey>('platform');
 const isEditMode = ref(false);
@@ -70,16 +78,19 @@ const formData = ref<ChannelWizardData>({
 const isTesting = ref(false);
 const testResult = ref<'idle' | 'success' | 'failed'>('idle');
 const testMessage = ref('');
+const isSaving = ref(false);
+const saveError = ref('');
+const testGeneration = ref(0);
 
-const currentStepIndex = computed(() => steps.findIndex((s) => s.key === currentStep.value));
+const currentStepIndex = computed(() => steps.value.findIndex((s) => s.key === currentStep.value));
 
 const canNext = computed(() => {
-  if (currentStep.value === 'platform') return formData.value.platform;
+  if (currentStep.value === 'platform') return Boolean(formData.value.platform);
   if (currentStep.value === 'credentials') {
     const { valid } = validateConfig(formData.value.platform, formData.value.credentials);
     return valid;
   }
-  if (currentStep.value === 'test') return testResult.value === 'success';
+  if (currentStep.value === 'test') return !isTesting.value && testResult.value !== 'idle';
   return false;
 });
 
@@ -89,13 +100,16 @@ const currentPlatform = computed<ChannelPlatformInfo | null>(() => {
 });
 
 // 仅向导支持（有凭据字段）的平台可选；matrix 等无字段平台不进向导
-const wizardPlatforms = computed(() =>
-  Object.entries(CHANNEL_PLATFORMS).map(([platform, info]) => ({
-    platform,
-    info,
-    icon: PLATFORM_ICONS[platform],
-  }))
-);
+const wizardPlatforms = computed(() => {
+  const available = props.availablePlatforms;
+  return Object.entries(CHANNEL_PLATFORMS)
+    .filter(([platform]) => isEditMode.value || available === undefined || available.includes(platform))
+    .map(([platform, info]) => ({
+      platform,
+      info,
+      icon: PLATFORM_ICONS[platform],
+    }));
+});
 
 const tutorialOpen = ref(false);
 
@@ -103,52 +117,100 @@ const openTutorial = () => {
   tutorialOpen.value = true;
 };
 
-const nextStep = () => {
+const saveConfiguration = async () => {
+  if (isSaving.value || isTesting.value || !canNext.value) return;
+
+  isSaving.value = true;
+  saveError.value = '';
+  const payload = {
+    ...formData.value,
+    credentials: { ...formData.value.credentials },
+  };
+
+  try {
+    if (!props.onComplete) {
+      throw new Error(t('channels.saveUnavailable'));
+    }
+    await props.onComplete(payload);
+    currentStep.value = 'done';
+  } catch (error) {
+    saveError.value = errorMessage(error, t('channels.saveFailed'));
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const nextStep = async () => {
+  if (!canNext.value || isTesting.value || isSaving.value) return;
+
+  if (currentStep.value === 'test') {
+    await saveConfiguration();
+    return;
+  }
+
   const currentIndex = currentStepIndex.value;
-  if (currentIndex < steps.length - 1) {
-    currentStep.value = steps[currentIndex + 1].key;
+  if (currentIndex < steps.value.length - 1) {
+    currentStep.value = steps.value[currentIndex + 1].key;
     if (currentStep.value === 'test') {
       // Auto-test on enter test step
-      testConnection();
+      void testConnection();
     }
   }
 };
 
 const prevStep = () => {
+  if (isTesting.value || isSaving.value) return;
+  if (currentStep.value === 'test' && isEditMode.value) {
+    currentStep.value = 'credentials';
+    return;
+  }
   const currentIndex = currentStepIndex.value;
   if (currentIndex > 0) {
-    currentStep.value = steps[currentIndex - 1].key;
+    currentStep.value = steps.value[currentIndex - 1].key;
   }
 };
 
 const testConnection = async () => {
+  if (isTesting.value || isSaving.value || !formData.value.platform || !props.onTest) {
+    if (!props.onTest) {
+      testResult.value = 'failed';
+      testMessage.value = t('channels.testUnavailable');
+    }
+    return;
+  }
+
+  const generation = ++testGeneration.value;
   isTesting.value = true;
   testResult.value = 'idle';
   testMessage.value = '';
+  saveError.value = '';
 
   try {
-    const result = await emit('test', { ...formData.value });
+    const result = await props.onTest({
+      ...formData.value,
+      credentials: { ...formData.value.credentials },
+    });
+    if (generation !== testGeneration.value) return;
     testResult.value = result.success ? 'success' : 'failed';
     testMessage.value = result.message;
   } catch (error) {
+    if (generation !== testGeneration.value) return;
     testResult.value = 'failed';
-    testMessage.value = error instanceof Error ? error.message : t('channels.testFailed');
+    testMessage.value = errorMessage(error, t('channels.testFailed', { error: t('channels.testUnknownError') }));
   } finally {
-    isTesting.value = false;
+    if (generation === testGeneration.value) isTesting.value = false;
   }
 };
 
-const complete = () => {
-  emit('complete', { ...formData.value });
-  emit('update:open', false);
-};
-
 const close = () => {
+  if (isTesting.value || isSaving.value) return;
   emit('update:open', false);
   resetForm();
 };
 
 const resetForm = () => {
+  testGeneration.value += 1;
+  isTesting.value = false;
   currentStep.value = 'platform';
   isEditMode.value = false;
   formData.value = {
@@ -159,6 +221,7 @@ const resetForm = () => {
   };
   testResult.value = 'idle';
   testMessage.value = '';
+  saveError.value = '';
 };
 
 const applyInitialData = (data?: Partial<ChannelWizardData>) => {
@@ -174,6 +237,9 @@ const applyInitialData = (data?: Partial<ChannelWizardData>) => {
     };
     isEditMode.value = true;
     currentStep.value = 'credentials';
+    testResult.value = 'idle';
+    testMessage.value = '';
+    saveError.value = '';
     return;
   }
   resetForm();
@@ -184,9 +250,24 @@ const selectPlatform = (platform: string) => {
   formData.value.name = PLATFORM_DISPLAY_NAMES[platform] || platform;
   formData.value.credentials = {
     ...fieldDefaults(platform),
-    ...formData.value.credentials,
   };
+  testResult.value = 'idle';
+  testMessage.value = '';
+  saveError.value = '';
 };
+
+watch(
+  () => JSON.stringify({ platform: formData.value.platform, credentials: formData.value.credentials }),
+  () => {
+    testGeneration.value += 1;
+    if (isTesting.value) isTesting.value = false;
+    if (testResult.value !== 'idle') {
+      testResult.value = 'idle';
+      testMessage.value = '';
+    }
+    if (saveError.value) saveError.value = '';
+  },
+);
 
 watch(
   () => props.open,
@@ -209,7 +290,7 @@ watch(
           <!-- Header -->
           <div class="wizard-header">
             <h3 class="wizard-title">{{ isEditMode ? t('channels.wizardEditTitle') : t('channels.wizardTitle') }}</h3>
-            <button class="wizard-close" @click="close">
+            <button class="wizard-close" :disabled="isTesting || isSaving" @click="close">
               <X :size="18" />
             </button>
           </div>
@@ -251,17 +332,20 @@ watch(
                   <span class="platform-desc">{{ PLATFORM_DESCRIPTIONS[entry.platform] }}</span>
                 </div>
               </div>
+              <p v-if="wizardPlatforms.length === 0" class="wizard-empty">
+                {{ t('channels.noRecoverableChannels') }}
+              </p>
             </div>
 
             <!-- Step 2: Credentials -->
             <div v-if="currentStep === 'credentials'" class="wizard-step">
               <label class="wizard-label">{{ t('channels.enterCredentials') }}</label>
               
-              <!-- 快速获取凭证指引 -->
+              <!-- Quick credential guide -->
               <div v-if="currentPlatform" class="quick-guide-panel">
                 <div class="quick-guide-header">
                   <Lightbulb :size="18" />
-                  <h4>如何获取 {{ currentPlatform.displayName }} 凭证？</h4>
+                  <h4>{{ t('channels.wizardQuickGuideTitle', { platform: currentPlatform.displayName }) }}</h4>
                 </div>
                 <div class="quick-guide-steps">
                   <ol>
@@ -271,7 +355,8 @@ watch(
                   </ol>
                 </div>
                 <button class="view-full-tutorial-btn" @click="openTutorial">
-                  📖 查看完整配置教程（含截图）
+                  <span aria-hidden="true">📖</span>
+                  {{ t('channels.wizardFullTutorial') }}
                 </button>
               </div>
               
@@ -279,6 +364,7 @@ watch(
                 v-if="formData.platform"
                 :platform="formData.platform"
                 :config="formData.credentials"
+                :disabled="isTesting || isSaving"
               />
             </div>
 
@@ -289,7 +375,7 @@ watch(
                 <button
                   class="test-btn"
                   @click="testConnection"
-                  :disabled="isTesting"
+                  :disabled="isTesting || isSaving"
                 >
                   <LoaderCircle v-if="isTesting" :size="16" class="animate-spin" />
                   <PlugZap v-else :size="16" />
@@ -304,6 +390,10 @@ watch(
                   <CircleAlert :size="16" />
                   <span>{{ testMessage }}</span>
                 </div>
+                <p v-if="testResult === 'failed'" class="test-save-hint">
+                  {{ t('channels.testFailureSaveHint') }}
+                </p>
+                <p v-if="saveError" class="save-error" role="alert">{{ saveError }}</p>
               </div>
             </div>
 
@@ -322,37 +412,34 @@ watch(
           <!-- Footer -->
           <div class="wizard-footer">
             <button
-              v-if="currentStepIndex > 0 && currentStep !== 'done' && !isEditMode"
+              v-if="currentStepIndex > 0 && currentStep !== 'done' && (!isEditMode || currentStep === 'test')"
               class="wizard-btn wizard-btn-secondary"
+              :disabled="isTesting || isSaving"
               @click="prevStep"
             >
               {{ t('channels.wizardBack') }}
             </button>
 
             <button
-              v-if="currentStep !== 'done' && currentStep !== 'test'"
+              v-if="currentStep !== 'done'"
               class="wizard-btn wizard-btn-primary"
-              :disabled="!canNext"
+              :disabled="!canNext || isTesting || isSaving"
               @click="nextStep"
             >
-              {{ t('channels.wizardNext') }}
-              <ChevronRight :size="16" />
-            </button>
-
-            <button
-              v-if="currentStep === 'test'"
-              class="wizard-btn wizard-btn-primary"
-              :disabled="testResult !== 'success'"
-              @click="nextStep"
-            >
-              {{ t('channels.wizardNext') }}
-              <ChevronRight :size="16" />
+              <template v-if="isSaving">
+                <LoaderCircle :size="16" class="animate-spin" />
+                {{ t('channels.wizardSaving') }}
+              </template>
+              <template v-else>
+                {{ currentStep === 'test' ? t('channels.wizardSave') : t('channels.wizardNext') }}
+                <ChevronRight v-if="currentStep !== 'test'" :size="16" />
+              </template>
             </button>
 
             <button
               v-if="currentStep === 'done'"
               class="wizard-btn wizard-btn-primary"
-              @click="complete"
+              @click="close"
             >
               {{ t('channels.wizardFinish') }}
             </button>
@@ -425,6 +512,11 @@ watch(
 .wizard-close:hover {
   background: var(--accent-bg-light);
   color: var(--accent);
+}
+
+.wizard-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .wizard-progress {
@@ -551,6 +643,11 @@ watch(
   font-size: 0.75rem;
   color: var(--text-muted);
   text-align: center;
+}
+
+.wizard-empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 /* Credential Form */
@@ -752,6 +849,11 @@ watch(
   color: white;
 }
 
+.test-save-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
 /* Done Area */
 .done-area {
   display: flex;
@@ -783,6 +885,17 @@ watch(
 .done-desc {
   font-size: 0.875rem;
   color: var(--text-muted);
+}
+
+.save-error {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: 0.875rem;
+  text-align: left;
 }
 
 .wizard-footer {

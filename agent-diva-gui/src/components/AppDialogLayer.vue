@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import {
   getAppDialogOpen,
   dismissAppDialogConfirm,
+  submitAppDialogConfirm,
   dismissAppDialogAlert,
   dismissAppDialogPrompt,
 } from '../utils/appDialog';
@@ -33,7 +34,7 @@ function onBackdropClick() {
   const d = open.value;
   if (!d) return;
   if (d.kind === 'confirm') {
-    dismissAppDialogConfirm(false);
+    if (!d.pending) dismissAppDialogConfirm(false);
   } else if (d.kind === 'prompt') {
     dismissAppDialogPrompt(null);
   }
@@ -42,7 +43,7 @@ function onBackdropClick() {
 function onEscape(e: KeyboardEvent) {
   if (e.key !== 'Escape' || !open.value) return;
   if (open.value.kind === 'confirm') {
-    dismissAppDialogConfirm(false);
+    if (!open.value.pending) dismissAppDialogConfirm(false);
   } else if (open.value.kind === 'prompt') {
     dismissAppDialogPrompt(null);
   }
@@ -84,6 +85,12 @@ onUnmounted(() => {
           >
             {{ open.message }}
           </p>
+          <p
+            v-if="open.kind === 'confirm' && open.error"
+            class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {{ open.error }}
+          </p>
           <textarea
             v-if="open.kind === 'prompt'"
             v-model="promptValue"
@@ -100,17 +107,20 @@ onUnmounted(() => {
           <template v-if="open.kind === 'confirm'">
             <button
               type="button"
-              class="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 transition hover:bg-white hover:border-pink-200 hover:text-pink-800"
+              class="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 transition hover:bg-white hover:border-pink-200 hover:text-pink-800 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="open.pending"
               @click="dismissAppDialogConfirm(false)"
             >
               {{ open.cancelLabel || t('appDialog.cancel') }}
             </button>
             <button
               type="button"
-              class="px-4 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold shadow-sm shadow-pink-500/25 transition hover:bg-pink-600"
-              @click="dismissAppDialogConfirm(true)"
+              class="px-4 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold shadow-sm shadow-pink-500/25 transition hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="open.pending"
+              :aria-busy="open.pending || undefined"
+              @click="submitAppDialogConfirm"
             >
-              {{ open.confirmLabel || t('appDialog.confirm') }}
+              {{ open.pending ? t('appDialog.processing') : (open.confirmLabel || t('appDialog.confirm')) }}
             </button>
           </template>
           <template v-else-if="open.kind === 'prompt'">
