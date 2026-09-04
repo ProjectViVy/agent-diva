@@ -590,6 +590,7 @@ export default {
   },
   channels: {
     channels: '频道',
+    refresh: '刷新',
     enabled: '已启用',
     disabled: '已禁用',
     status: '状态',

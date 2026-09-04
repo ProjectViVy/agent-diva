@@ -138,7 +138,7 @@ describe('ChannelsSettings', () => {
     await flushPromises();
 
     channelLoadError = new Error('temporary load error');
-    await wrapper.find('button[title="topbar.refresh"]').trigger('click');
+    await wrapper.find('button[title="channels.refresh"]').trigger('click');
     await flushPromises();
 
     expect(wrapper.find('.channels-load-error').text()).toContain('temporary load error');

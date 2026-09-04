@@ -554,7 +554,7 @@ const handleRefresh = async () => {
             class="toolbar-btn"
             @click="handleRefresh"
             :disabled="isLoading"
-            :title="t('topbar.refresh')"
+            :title="t('channels.refresh')"
           >
             <RefreshCw :size="16" :class="{ 'animate-spin': isLoading }" />
           </button>

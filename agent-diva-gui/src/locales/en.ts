@@ -828,6 +828,7 @@ export default {
   },
   channels: {
     channels: 'Channels',
+    refresh: 'Refresh',
     activate: 'Activate',
     deactivate: 'Deactivate',
     enabled: 'Enabled',
