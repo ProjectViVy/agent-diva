@@ -24,10 +24,10 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, RwLock as StdRwLock};
+use std::sync::{Arc, Mutex as StdMutex, RwLock as StdRwLock};
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
@@ -81,8 +81,6 @@ enum BlockingTaskError {
     AtCapacity,
     #[error("blocking task did not return a result")]
     MissingResult,
-    #[error("blocking task panicked: {diagnosis}")]
-    Join { diagnosis: String },
 }
 
 /// Owns every `spawn_blocking` handle created by one adapter.
@@ -94,14 +92,22 @@ struct BlockingTaskRegistry {
     closed: AtomicBool,
     next_id: AtomicU64,
     tasks: Mutex<HashMap<u64, JoinHandle<()>>>,
+    /// Exactly one owner drains all native workers. Listener cancellation and
+    /// supervisor stop only wait for this owner; neither caller takes or drops
+    /// its local JoinHandle while another drain may be in progress.
+    drain_owner: StdMutex<Option<JoinHandle<Result<(), String>>>>,
+    drain_done: watch::Sender<Option<Result<(), String>>>,
 }
 
 impl Default for BlockingTaskRegistry {
     fn default() -> Self {
+        let (drain_done, _receiver) = watch::channel(None);
         Self {
             closed: AtomicBool::new(false),
             next_id: AtomicU64::new(1),
             tasks: Mutex::new(HashMap::new()),
+            drain_owner: StdMutex::new(None),
+            drain_done,
         }
     }
 }
@@ -132,18 +138,48 @@ impl BlockingTaskRegistry {
         tasks.insert(id, handle);
         drop(tasks);
 
-        let result = receiver.await.map_err(|_| BlockingTaskError::MissingResult);
-        let handle = self.tasks.lock().await.remove(&id);
-        if let Some(handle) = handle {
-            handle.await.map_err(|error| BlockingTaskError::Join {
-                diagnosis: error.to_string(),
-            })?;
-        }
-        result
+        // Keep the JoinHandle in the registry even after the waiter receives
+        // its result. A cancelled waiter therefore cannot race with a
+        // remove-and-join step and detach the native operation. Completed
+        // handles are purged before the next admission, and all remaining
+        // handles are joined by the single drain owner below.
+        receiver.await.map_err(|_| BlockingTaskError::MissingResult)
     }
 
-    async fn close_and_drain(&self) -> Result<(), String> {
+    async fn close_and_drain(self: &Arc<Self>) -> Result<(), String> {
         self.closed.store(true, Ordering::Release);
+
+        let mut done = self.drain_done.subscribe();
+        {
+            let mut owner = self
+                .drain_owner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if owner.is_none() && self.drain_done.borrow().is_none() {
+                let registry = Arc::clone(self);
+                let result_sender = self.drain_done.clone();
+                *owner = Some(tokio::spawn(async move {
+                    let result = registry.drain_owned().await;
+                    let _ = result_sender.send(Some(result.clone()));
+                    result
+                }));
+            }
+        }
+
+        if let Some(result) = done.borrow().clone() {
+            return result;
+        }
+        loop {
+            if done.changed().await.is_err() {
+                return Err("blocking drain owner stopped unexpectedly".to_string());
+            }
+            if let Some(result) = done.borrow().clone() {
+                return result;
+            }
+        }
+    }
+
+    async fn drain_owned(&self) -> Result<(), String> {
         let handles = self
             .tasks
             .lock()
@@ -2198,6 +2234,82 @@ mod tests {
             .run(|| ())
             .await
             .expect("completed orphan must be purged before admission");
+    }
+
+    #[tokio::test]
+    async fn listener_abort_keeps_single_registry_drain_owner_for_stop() {
+        let registry = Arc::new(BlockingTaskRegistry::default());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let completed = Arc::new(AtomicBool::new(false));
+        let worker_registry = registry.clone();
+        let worker_completed = completed.clone();
+        let worker = tokio::spawn(async move {
+            worker_registry
+                .run(move || {
+                    let _ = release_rx.recv();
+                    worker_completed.store(true, Ordering::Release);
+                })
+                .await
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.tasks.lock().await.len() == 1 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocking worker admitted");
+
+        // The listener starts the drain, but a supervisor may abort its
+        // waiter. The JoinHandle must remain owned by the registry itself.
+        let listener_registry = registry.clone();
+        let listener = tokio::spawn(async move { listener_registry.close_and_drain().await });
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if registry
+                    .drain_owner
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_some()
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("listener installed the unique drain owner");
+        listener.abort();
+        assert!(listener
+            .await
+            .expect_err("listener waiter was cancelled")
+            .is_cancelled());
+
+        let stop_registry = registry.clone();
+        let mut stop = tokio::spawn(async move { stop_registry.close_and_drain().await });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut stop)
+                .await
+                .is_err(),
+            "stop must wait for the registry owner instead of returning early"
+        );
+        release_tx.send(()).expect("release blocking worker");
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !completed.load(Ordering::Acquire) {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("registry-owned blocking worker completed");
+        assert!(stop.await.expect("stop drain task").is_ok());
+        assert!(registry.tasks.lock().await.is_empty());
+        worker
+            .await
+            .expect("blocking waiter task")
+            .expect("worker result");
     }
 
     impl EmailTransport for FakeEmailTransport {
