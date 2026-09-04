@@ -36,6 +36,9 @@ pub struct Manager {
     current_api_base: Option<String>,
     current_api_key: Option<String>,
     channel_runtime: Option<Arc<ChannelRuntime>>,
+    /// Owns channel update/delete transactions independently of the Manager
+    /// actor so a caller or actor cancellation cannot split disk and runtime.
+    channel_mutations: Arc<runtime_control::ChannelMutationRegistry>,
     runtime_control_tx: Option<mpsc::Sender<RuntimeControlCommand>>,
     fabric_handle: Option<FabricHandle>,
     cron_service: Arc<CronService>,
@@ -97,6 +100,7 @@ impl Manager {
             current_api_base: api_base,
             current_api_key: api_key,
             channel_runtime,
+            channel_mutations: runtime_control::ChannelMutationRegistry::new(),
             runtime_control_tx,
             fabric_handle,
             cron_service,

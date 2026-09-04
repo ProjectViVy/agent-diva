@@ -9,8 +9,9 @@ use agent_diva_core::config::ConfigLoader;
 use agent_diva_providers::{
     build_llm_provider, LlmProviderBuildOptions, ProviderAccess, ProviderCatalogService,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
 use super::Manager;
@@ -20,6 +21,248 @@ use crate::state::{
 };
 
 const CHANNEL_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(35);
+
+/// Owns one channel update/delete transaction independently of the Manager
+/// actor.  The single slot deliberately fails fast while a transaction is in
+/// progress: queueing a second candidate would make its snapshot stale and
+/// could interleave runtime generations with config saves.
+pub(super) struct ChannelMutationRegistry {
+    state: StdMutex<ChannelMutationOwnerState>,
+}
+
+struct ChannelMutationOwnerState {
+    reserved: bool,
+    /// Set only after the owner has sent its result and no transaction work
+    /// remains.  This closes the small race between that point and Tokio
+    /// marking the JoinHandle finished.
+    releasable: bool,
+    task: Option<JoinHandle<()>>,
+}
+
+impl ChannelMutationRegistry {
+    pub(super) fn new() -> Arc<Self> {
+        Arc::new(Self {
+            state: StdMutex::new(ChannelMutationOwnerState {
+                reserved: false,
+                releasable: false,
+                task: None,
+            }),
+        })
+    }
+
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, ChannelMutationOwnerState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Reserve before spawning so there is no unowned spawn-to-registry gap.
+    fn try_reserve(&self) -> bool {
+        let mut state = self.lock_state();
+        if state.releasable {
+            state.task.take();
+            state.releasable = false;
+        }
+        if state
+            .task
+            .as_ref()
+            .is_some_and(tokio::task::JoinHandle::is_finished)
+        {
+            state.task.take();
+        }
+        if state.reserved || state.task.is_some() {
+            return false;
+        }
+        state.reserved = true;
+        true
+    }
+
+    fn adopt(&self, task: JoinHandle<()>) {
+        let mut state = self.lock_state();
+        debug_assert!(state.reserved);
+        debug_assert!(state.task.is_none());
+        state.reserved = false;
+        state.releasable = false;
+        state.task = Some(task);
+    }
+
+    fn mark_releasable(&self) {
+        let mut state = self.lock_state();
+        debug_assert!(!state.reserved);
+        debug_assert!(state.task.is_some());
+        state.releasable = true;
+    }
+
+    /// Start a transaction whose complete lifetime is retained by this
+    /// registry.  The owner also keeps the registry alive, so dropping the
+    /// Manager actor cannot detach an in-flight mutation from its slot.
+    pub(super) fn start(
+        self: &Arc<Self>,
+        loader: ConfigLoader,
+        runtime: Option<Arc<agent_diva_channels::runtime::ChannelRuntime>>,
+        mutation: ChannelMutation,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        if !self.try_reserve() {
+            let _ = reply.send(Err("channel mutation is busy; retry later".to_string()));
+            return;
+        }
+
+        let owner_registry = Arc::clone(self);
+        let owner = tokio::spawn(async move {
+            let result = run_channel_mutation(loader, runtime, mutation, &reply).await;
+            // Sending is best effort.  The transaction has already reached a
+            // definite terminal state, even if the caller disconnected.
+            let _ = reply.send(result);
+            owner_registry.mark_releasable();
+        });
+        self.adopt(owner);
+    }
+
+    #[cfg(test)]
+    fn is_owned(&self) -> bool {
+        let state = self.lock_state();
+        state.reserved || state.task.is_some()
+    }
+
+    #[cfg(test)]
+    fn is_releasable(&self) -> bool {
+        self.lock_state().releasable
+    }
+
+    #[cfg(test)]
+    fn is_finished(&self) -> bool {
+        self.lock_state()
+            .task
+            .as_ref()
+            .is_some_and(tokio::task::JoinHandle::is_finished)
+    }
+}
+
+pub(super) enum ChannelMutation {
+    Update(ChannelUpdate),
+    Delete { name: String },
+}
+
+impl ChannelMutation {
+    fn operation(&self) -> &'static str {
+        match self {
+            Self::Update(_) => "channel configuration",
+            Self::Delete { .. } => "channel deletion",
+        }
+    }
+
+    fn candidate(&self, previous: &Config) -> Result<Config, String> {
+        let mut candidate = previous.clone();
+        match self {
+            Self::Update(update) => Manager::apply_channel_update(&mut candidate, update),
+            Self::Delete { name } => reset_channel(&mut candidate, name),
+        }
+        .map_err(|error| {
+            let message = error.to_string();
+            if message.starts_with("Unknown channel:") {
+                message
+            } else {
+                "invalid channel configuration".to_string()
+            }
+        })?;
+        Ok(candidate)
+    }
+}
+
+/// Execute the complete cross-layer transaction in the retained owner.
+///
+/// Runtime installation is provisional until the save below begins.  A
+/// disconnected caller before that commit point causes a runtime rollback and
+/// no disk write.  Once the atomic save is entered, receiver state is ignored:
+/// the owner finishes persistence (or its rollback) so disk and runtime cannot
+/// be left split by a late caller cancellation.
+async fn run_channel_mutation(
+    loader: ConfigLoader,
+    runtime: Option<Arc<agent_diva_channels::runtime::ChannelRuntime>>,
+    mutation: ChannelMutation,
+    reply: &oneshot::Sender<Result<(), String>>,
+) -> Result<(), String> {
+    let operation = mutation.operation();
+    let previous = loader.load().map_err(|error| {
+        error!(operation, %error, "failed to load channel configuration");
+        "channel configuration is unavailable".to_string()
+    })?;
+    let candidate = mutation.candidate(&previous)?;
+
+    if reply.is_closed() {
+        info!(
+            operation,
+            "channel mutation cancelled before runtime transition"
+        );
+        return Err(format!("{operation} cancelled before commit"));
+    }
+
+    if let Some(runtime) = &runtime {
+        if let Err(error) = reconfigure_channel_runtime(runtime, &candidate).await {
+            error!(operation, %error, "failed to reload channel runtime");
+            return Err(error);
+        }
+    }
+
+    if reply.is_closed() {
+        let runtime_rollback_failed = if let Some(runtime) = &runtime {
+            rollback_channel_runtime(runtime, &previous, operation).await
+        } else {
+            false
+        };
+        if runtime_rollback_failed {
+            return Err(persistence_failure_message(operation, false, true));
+        }
+        info!(operation, "channel mutation cancelled before persistence");
+        return Err(format!("{operation} cancelled before commit"));
+    }
+
+    // Commit point: this owner is no longer cancellation-sensitive.  The
+    // atomic ConfigLoader save and any rollback run to completion even when
+    // the receiver or Manager actor has already gone away.
+    if let Err(error) = loader.save(&candidate) {
+        error!(operation, %error, "failed to persist channel mutation");
+        let config_rollback_failed = match loader.save(&previous) {
+            Ok(()) => false,
+            Err(rollback_error) => {
+                error!(
+                    operation,
+                    %rollback_error,
+                    "failed to restore channel config after persistence failure"
+                );
+                true
+            }
+        };
+        let runtime_rollback_failed = if let Some(runtime) = &runtime {
+            rollback_channel_runtime(runtime, &previous, operation).await
+        } else {
+            false
+        };
+        return Err(persistence_failure_message(
+            operation,
+            config_rollback_failed,
+            runtime_rollback_failed,
+        ));
+    }
+
+    info!(operation, "channel mutation committed");
+    Ok(())
+}
+
+async fn rollback_channel_runtime(
+    runtime: &Arc<agent_diva_channels::runtime::ChannelRuntime>,
+    previous: &Config,
+    operation: &str,
+) -> bool {
+    match reconfigure_channel_runtime(runtime, previous).await {
+        Ok(()) => false,
+        Err(error) => {
+            error!(operation, %error, "failed to restore channel runtime");
+            true
+        }
+    }
+}
 
 /// Run one runtime transition to a definite terminal result.  The transition
 /// is intentionally awaited directly: a caller timeout must not drop a future
@@ -466,76 +709,12 @@ impl Manager {
         reply: oneshot::Sender<Result<(), String>>,
     ) {
         info!("Processing UpdateChannel request: {}", update.name);
-        let channel_name = update.name.clone();
-
-        let mut config = match self.loader.load() {
-            Ok(config) => config,
-            Err(e) => {
-                error!("Failed to load config: {}", e);
-                let _ = reply.send(Err("channel configuration is unavailable".to_string()));
-                return;
-            }
-        };
-        let previous = config.clone();
-
-        if let Err(e) = Self::apply_channel_update(&mut config, &update) {
-            error!("Failed to update channel config: {}", e);
-            let message = if e.to_string().starts_with("Unknown channel:") {
-                e.to_string()
-            } else {
-                "invalid channel configuration".to_string()
-            };
-            let _ = reply.send(Err(message));
-            return;
-        }
-
-        if let Some(runtime) = &self.channel_runtime {
-            if let Err(e) = reconfigure_channel_runtime(runtime, &config).await {
-                error!(channel = %channel_name, error = %e, "failed to reload channel");
-                // Persistence has not started yet, so a failed runtime
-                // transition cannot leave a late config rollback behind.
-                let _ = reply.send(Err(e));
-                return;
-            }
-        }
-
-        if let Err(e) = self.loader.save(&config) {
-            error!(channel = %channel_name, error = %e, "failed to persist channel config");
-            let config_rollback_failed = match self.loader.save(&previous) {
-                Ok(()) => false,
-                Err(rollback_error) => {
-                    error!(
-                        channel = %channel_name,
-                        error = %rollback_error,
-                        "failed to restore channel config after persistence failure"
-                    );
-                    true
-                }
-            };
-            let runtime_rollback_failed = if let Some(runtime) = &self.channel_runtime {
-                match reconfigure_channel_runtime(runtime, &previous).await {
-                    Ok(()) => false,
-                    Err(restore_error) => {
-                        error!(
-                            channel = %channel_name,
-                            error = %restore_error,
-                            "failed to restore channel runtime after persistence failure"
-                        );
-                        true
-                    }
-                }
-            } else {
-                false
-            };
-            let _ = reply.send(Err(persistence_failure_message(
-                "channel configuration",
-                config_rollback_failed,
-                runtime_rollback_failed,
-            )));
-            return;
-        }
-        info!("Channel {} reloaded successfully", channel_name);
-        let _ = reply.send(Ok(()));
+        self.channel_mutations.start(
+            self.loader.clone(),
+            self.channel_runtime.clone(),
+            ChannelMutation::Update(update),
+            reply,
+        );
     }
 
     pub(super) fn handle_probe_channel(
@@ -607,63 +786,12 @@ impl Manager {
         reply: oneshot::Sender<Result<(), String>>,
     ) {
         let channel_name = name.trim().to_string();
-        let response = self.delete_channel_transaction(&channel_name).await;
-        let _ = reply.send(response);
-    }
-
-    async fn delete_channel_transaction(&self, name: &str) -> Result<(), String> {
-        if !is_fixed_channel(name) {
-            return Err(format!("Unknown channel: {name}"));
-        }
-
-        let mut config = self.loader.load().map_err(|error| error.to_string())?;
-        let previous = config.clone();
-        reset_channel(&mut config, name).map_err(|error| error.to_string())?;
-
-        if let Some(runtime) = &self.channel_runtime {
-            if let Err(error) = reconfigure_channel_runtime(runtime, &config).await {
-                error!(channel = %name, error = %error, "failed to reload channel for deletion");
-                // The tombstone is not persisted until the final runtime
-                // generation is known to be installed.
-                return Err("channel deletion could not be applied".to_string());
-            }
-        }
-
-        if let Err(error) = self.loader.save(&config) {
-            error!(channel = %name, error = %error, "failed to persist channel deletion");
-            let config_rollback_failed = match self.loader.save(&previous) {
-                Ok(()) => false,
-                Err(rollback_error) => {
-                    error!(
-                        channel = %name,
-                        error = %rollback_error,
-                        "failed to restore channel config after deletion persistence failure"
-                    );
-                    true
-                }
-            };
-            let runtime_rollback_failed = if let Some(runtime) = &self.channel_runtime {
-                match reconfigure_channel_runtime(runtime, &previous).await {
-                    Ok(()) => false,
-                    Err(restore_error) => {
-                        error!(
-                            channel = %name,
-                            error = %restore_error,
-                            "failed to restore channel runtime after deletion persistence failure"
-                        );
-                        true
-                    }
-                }
-            } else {
-                false
-            };
-            return Err(persistence_failure_message(
-                "channel deletion",
-                config_rollback_failed,
-                runtime_rollback_failed,
-            ));
-        }
-        Ok(())
+        self.channel_mutations.start(
+            self.loader.clone(),
+            self.channel_runtime.clone(),
+            ChannelMutation::Delete { name: channel_name },
+            reply,
+        );
     }
 
     async fn apply_provider_selection_update(
@@ -954,9 +1082,72 @@ fn reset_channel(config: &mut Config, name: &str) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_diva_channels::{ChannelAttachmentStore, IngressAttachment, StoredAttachment};
     use agent_diva_core::bus::AgentEventBus;
     use tokio::sync::mpsc;
-    use tokio::time::{advance, Duration};
+    use tokio::time::{advance, timeout, Duration};
+
+    #[derive(Default)]
+    struct TestAttachments;
+
+    #[async_trait::async_trait]
+    impl ChannelAttachmentStore for TestAttachments {
+        async fn put(
+            &self,
+            _input: IngressAttachment,
+        ) -> Result<
+            agent_diva_core::channel::AttachmentRef,
+            agent_diva_channels::AttachmentStoreError,
+        > {
+            Err(agent_diva_channels::AttachmentStoreError::Backend {
+                diagnosis: "test attachment store does not persist values".to_string(),
+            })
+        }
+
+        async fn get(
+            &self,
+            reference: &agent_diva_core::channel::AttachmentRef,
+        ) -> Result<StoredAttachment, agent_diva_channels::AttachmentStoreError> {
+            Err(agent_diva_channels::AttachmentStoreError::NotFound {
+                uri: reference.uri.clone(),
+            })
+        }
+    }
+
+    async fn wait_for_owner_releasable(registry: &ChannelMutationRegistry) {
+        timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.is_releasable() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("channel mutation owner did not reach a terminal state");
+    }
+
+    async fn wait_for_owner_finished(registry: &ChannelMutationRegistry) {
+        timeout(Duration::from_secs(1), async {
+            loop {
+                if registry.is_finished() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("channel mutation owner did not finish");
+    }
+
+    fn test_loader() -> (tempfile::TempDir, ConfigLoader) {
+        let directory = tempfile::tempdir().expect("temporary config directory");
+        let loader = ConfigLoader::with_dir(directory.path());
+        loader
+            .save(&Config::default())
+            .expect("write initial test config");
+        (directory, loader)
+    }
 
     #[tokio::test(start_paused = true)]
     async fn forward_chat_events_emits_stall_then_disconnect_error_when_idle() {
@@ -1307,5 +1498,200 @@ mod tests {
             persistence_failure_message("channel deletion", true, true),
             "channel deletion persistence failed; configuration and runtime rollback failed"
         );
+    }
+
+    #[tokio::test]
+    async fn channel_mutation_owner_stops_before_commit_when_receiver_closes() {
+        let (_directory, loader) = test_loader();
+        let registry = ChannelMutationRegistry::new();
+        let (reply_tx, reply_rx) = oneshot::channel();
+
+        registry.start(
+            loader.clone(),
+            None,
+            ChannelMutation::Delete {
+                name: "telegram".to_string(),
+            },
+            reply_tx,
+        );
+        drop(reply_rx);
+        wait_for_owner_releasable(&registry).await;
+
+        let unchanged = loader.load().expect("load unchanged config");
+        assert!(!unchanged.channels.telegram.enabled);
+        assert!(unchanged.channels.removed.is_empty());
+
+        // The owner slot is reusable immediately after its terminal result,
+        // even if Tokio has not observed the old JoinHandle as finished yet.
+        let (reply_tx, reply_rx) = oneshot::channel();
+        registry.start(
+            loader.clone(),
+            None,
+            ChannelMutation::Update(channel_update(
+                "telegram",
+                Some(true),
+                serde_json::json!({}),
+            )),
+            reply_tx,
+        );
+        assert_eq!(reply_rx.await.expect("mutation result"), Ok(()));
+        assert!(
+            loader
+                .load()
+                .expect("load committed config")
+                .channels
+                .telegram
+                .enabled
+        );
+    }
+
+    #[tokio::test]
+    async fn channel_mutation_owner_commits_after_handler_future_is_aborted() {
+        let (_directory, loader) = test_loader();
+        let registry = ChannelMutationRegistry::new();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let handler_registry = Arc::clone(&registry);
+        let handler_loader = loader.clone();
+        let handler = tokio::spawn(async move {
+            handler_registry.start(
+                handler_loader,
+                None,
+                ChannelMutation::Update(channel_update(
+                    "telegram",
+                    Some(true),
+                    serde_json::json!({}),
+                )),
+                reply_tx,
+            );
+            // Model the Manager actor being cancelled while the owner is
+            // already retained by its registry.
+            tokio::task::yield_now().await;
+        });
+
+        timeout(Duration::from_secs(1), async {
+            while !registry.is_owned() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("handler did not hand off mutation owner");
+        handler.abort();
+
+        assert_eq!(
+            timeout(Duration::from_secs(1), reply_rx)
+                .await
+                .expect("owner result timeout")
+                .expect("owner result channel closed"),
+            Ok(())
+        );
+        assert!(
+            loader
+                .load()
+                .expect("load committed config")
+                .channels
+                .telegram
+                .enabled
+        );
+    }
+
+    #[tokio::test]
+    async fn channel_mutation_actor_abort_keeps_runtime_and_disk_in_sync() {
+        let directory = tempfile::tempdir().expect("temporary config directory");
+        let loader = ConfigLoader::with_dir(directory.path());
+        let mut initial = Config::default();
+        initial.channels.discord.enabled = true;
+        initial.channels.discord.token = "test-token".to_string();
+        // A closed local port makes the listener fail deterministically while
+        // still exercising a real registered runtime entry.
+        initial.channels.discord.gateway_url = "ws://127.0.0.1:1".to_string();
+        loader.save(&initial).expect("write initial config");
+
+        let (fabric, _consumer) = agent_diva_core::channel::FabricKernel::new().into_parts();
+        let runtime = agent_diva_channels::ChannelRuntime::start(
+            &initial,
+            agent_diva_channels::AdapterServices::new(Arc::new(TestAttachments)),
+            fabric,
+        )
+        .await
+        .expect("start test channel runtime");
+        assert!(runtime
+            .statuses()
+            .await
+            .iter()
+            .any(|status| status.name == "discord"));
+
+        let registry = ChannelMutationRegistry::new();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let handler_registry = Arc::clone(&registry);
+        let handler_loader = loader.clone();
+        let handler_runtime = Arc::clone(&runtime);
+        let handler = tokio::spawn(async move {
+            handler_registry.start(
+                handler_loader,
+                Some(handler_runtime),
+                ChannelMutation::Update(channel_update(
+                    "discord",
+                    Some(false),
+                    serde_json::json!({}),
+                )),
+                reply_tx,
+            );
+            tokio::task::yield_now().await;
+        });
+        timeout(Duration::from_secs(1), async {
+            while !registry.is_owned() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("handler did not hand off runtime transaction");
+        handler.abort();
+
+        assert_eq!(
+            timeout(Duration::from_secs(8), reply_rx)
+                .await
+                .expect("runtime transaction timeout")
+                .expect("runtime transaction result channel closed"),
+            Ok(())
+        );
+        let saved = loader.load().expect("load committed config");
+        assert!(!saved.channels.discord.enabled);
+        assert!(!runtime
+            .statuses()
+            .await
+            .iter()
+            .any(|status| status.name == "discord"));
+        runtime.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn channel_mutation_registry_fails_fast_for_overlapping_transactions() {
+        let (_directory, loader) = test_loader();
+        let registry = ChannelMutationRegistry::new();
+        assert!(registry.try_reserve());
+
+        let release = Arc::new(tokio::sync::Notify::new());
+        let release_waiter = Arc::clone(&release);
+        let owner = tokio::spawn(async move {
+            release_waiter.notified().await;
+        });
+        registry.adopt(owner);
+
+        let (reply_tx, reply_rx) = oneshot::channel();
+        registry.start(
+            loader,
+            None,
+            ChannelMutation::Delete {
+                name: "telegram".to_string(),
+            },
+            reply_tx,
+        );
+        assert_eq!(
+            reply_rx.await.expect("busy response"),
+            Err("channel mutation is busy; retry later".to_string())
+        );
+
+        release.notify_one();
+        wait_for_owner_finished(&registry).await;
     }
 }
