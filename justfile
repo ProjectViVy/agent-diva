@@ -62,8 +62,12 @@ channel-clean-break-check:
 bml-boundary-check:
     cargo test -p agent-diva-laputa --test bml_boundary_guard
 
+# Verify the GUI package manager, lockfile, and dependency override policy.
+gui-package-policy-check:
+    python scripts/ci/check_gui_dependency_policy.py
+
 # Automated desktop gates; this intentionally does not claim real-desktop G2D+.
-gui-automated-check:
+gui-automated-check: gui-package-policy-check
     cd agent-diva-gui; pnpm test
     cd agent-diva-gui; pnpm run build
     cargo check --manifest-path agent-diva-gui/src-tauri/Cargo.toml

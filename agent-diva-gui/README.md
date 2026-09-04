@@ -16,7 +16,7 @@ Agent Diva 的图形化桌面客户端，基于 Tauri + Vue 3 构建。
 
 *   Node.js (推荐 v18+)
 *   Rust (最新稳定版)
-*   pnpm (推荐) 或 npm
+*   pnpm 10.34.5
 
 ### 启动开发环境
 
@@ -27,7 +27,7 @@ Agent Diva 的图形化桌面客户端，基于 Tauri + Vue 3 构建。
 
 2.  安装依赖:
     ```bash
-    pnpm install
+    pnpm install --frozen-lockfile
     ```
 
 3.  启动开发模式:

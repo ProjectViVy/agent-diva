@@ -202,6 +202,38 @@ jobs:
             agent-diva-gui/src-tauri/target/release/bundle/**/*.exe
           if-no-files-found: error
 
+  gui-audit:
+    name: GUI Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: agent-diva-gui/pnpm-lock.yaml
+
+      - name: Verify GUI package policy
+        run: python scripts/ci/check_gui_dependency_policy.py
+
+      - name: Install frontend dependencies
+        working-directory: agent-diva-gui
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit all frontend dependencies
+        working-directory: agent-diva-gui
+        timeout-minutes: 3
+        run: pnpm audit --audit-level=moderate
+
   coverage:
     name: Code Coverage
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_coverage == 'true'
@@ -236,7 +268,7 @@ jobs:
 
   release:
     name: Desktop release (tag)
-    needs: [gui-build]
+    needs: [gui-build, gui-audit]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:

@@ -160,8 +160,8 @@ try {
     Push-Location $GuiRoot
     try {
         if (-not $SkipPnpmInstall -and -not (Test-Path -LiteralPath (Join-Path $GuiRoot "node_modules"))) {
-            Write-Step "pnpm install (node_modules missing)"
-            pnpm install
+            Write-Step "pnpm install --frozen-lockfile (node_modules missing)"
+            pnpm install --frozen-lockfile
             if ($LASTEXITCODE -ne 0) { throw "pnpm install failed with exit code $LASTEXITCODE" }
         }
 

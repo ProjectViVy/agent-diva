@@ -14,7 +14,7 @@ python3 scripts/ci/prepare_gui_bundle.py \
 
 echo "[3/3] 构建 Tauri GUI（.app / .dmg）..."
 cd "$ROOT_DIR/agent-diva-gui"
-pnpm install
+pnpm install --frozen-lockfile
 pnpm tauri build
 
 echo
