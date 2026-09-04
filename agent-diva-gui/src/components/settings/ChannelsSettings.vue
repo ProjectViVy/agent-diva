@@ -141,6 +141,7 @@ async function loadChannels(): Promise<boolean> {
     ]);
     if (requestGeneration !== loadGeneration) return false;
     const parsed = parseChannelsResponse(fetchedChannels);
+    const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
     normalizeDiscordConfig(parsed.channels.discord);
     const remoteChannels = cloneValue(parsed.channels);
     const remoteSavedChannels = cloneValue(parsed.channels);
@@ -171,14 +172,10 @@ async function loadChannels(): Promise<boolean> {
         nextRemovedChannels.delete(name);
       }
     }
-    draftChannels.value = nextChannels;
-    savedChannels.value = nextSavedChannels;
-    removedChannels.value = nextRemovedChannels;
-    const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
     const configStatusMap = new Map(configStatus.channels.map((item) => [item.name, item]));
     const runtimeStatusMap = new Map(runtimeStatuses.map((item) => [item.name, item]));
     const existingStatusMap = new Map(channelStatuses.value.map((item) => [item.name, item]));
-    channelStatuses.value = Object.entries(nextChannels)
+    const nextStatuses = Object.entries(nextChannels)
       .filter(([name]) => !nextRemovedChannels.has(name))
       .map(([name, channel]) => {
         if (mutationChangedNames.has(name) && existingStatusMap.has(name)) {
@@ -195,6 +192,10 @@ async function loadChannels(): Promise<boolean> {
         };
       });
     const visibleNames = Object.keys(nextChannels).filter((name) => !nextRemovedChannels.has(name));
+    draftChannels.value = nextChannels;
+    savedChannels.value = nextSavedChannels;
+    removedChannels.value = nextRemovedChannels;
+    channelStatuses.value = nextStatuses;
     if (!selectedChannel.value || !nextChannels[selectedChannel.value] || nextRemovedChannels.has(selectedChannel.value)) {
       selectedChannel.value = visibleNames[0] ?? null;
     }
@@ -270,9 +271,12 @@ const markChannelStatusPending = (name: string) => {
 
 const refreshChannelStatus = async (name: string, mutationVersion: number) => {
   const requestGeneration = ++channelStatusRequestGeneration;
+  const loadSnapshot = loadGeneration;
   channelStatusRequests.set(name, requestGeneration);
   const isCurrent = () =>
-    channelStatusRequests.get(name) === requestGeneration && channelMutationVersions.get(name) === mutationVersion;
+    loadGeneration === loadSnapshot &&
+    channelStatusRequests.get(name) === requestGeneration &&
+    channelMutationVersions.get(name) === mutationVersion;
 
   try {
     const [rawRuntimeStatuses, configStatus] = await Promise.all([

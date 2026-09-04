@@ -11,7 +11,7 @@ const rawChannels = {
   feishu: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
   dingtalk: { enabled: false, client_id: '', client_secret: '' },
   email: { enabled: false, imap_host: '', smtp_host: '' },
-  qq: { enabled: false, app_id: '', client_secret: '' },
+  qq: { enabled: false, app_id: '', secret: '' },
 };
 
 const runtimeChannels = [
@@ -64,6 +64,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     }
     if (cmd === 'get_channel_runtime') {
       const queued = runtimeResponses.shift();
+      if (queued instanceof Promise) return queued.then((value) => structuredClone(value));
       return Promise.resolve(structuredClone(queued ?? runtimeChannels));
     }
     if (cmd === 'delete_channel') return Promise.resolve(null);
@@ -166,6 +167,32 @@ describe('ChannelsSettings', () => {
     const { wrapper } = mountSettings();
     await flushPromises();
 
+    expect(wrapper.find('.channels-load-error').text()).toContain('channels.invalidResponse');
+    wrapper.unmount();
+  });
+
+  it('keeps committed channel state when a refresh returns malformed runtime statuses', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    let resolveChannels!: (value: unknown) => void;
+    channelLoadQueue.push(
+      new Promise((resolve) => {
+        resolveChannels = resolve;
+      }),
+    );
+    runtimeResponses.push([{ name: 'telegram', registered: true }]);
+
+    const refresh = (wrapper.vm as any).handleRefresh();
+    await flushPromises();
+    resolveChannels({ ...rawChannels, telegram: { enabled: false, token: 'invalid-runtime-refresh' } });
+    await refresh;
+    await flushPromises();
+
+    const state = wrapper.vm as any;
+    expect(state.draftChannels.telegram.token).toBe('abc');
+    expect(state.savedChannels.telegram.token).toBe('abc');
+    expect(state.channelStatuses.find((item: any) => item.name === 'telegram').ready).toBe(true);
     expect(wrapper.find('.channels-load-error').text()).toContain('channels.invalidResponse');
     wrapper.unmount();
   });
@@ -319,6 +346,48 @@ describe('ChannelsSettings', () => {
     const status = (wrapper.vm as any).channelStatuses.find((item: any) => item.name === 'telegram');
     expect(status.ready).toBe(false);
     expect(status.notes).toContain('down');
+    wrapper.unmount();
+  });
+
+  it('invalidates a pending channel status response when a global load starts', async () => {
+    const { wrapper } = mountSettings();
+    await flushPromises();
+
+    let resolveStatus!: (value: unknown) => void;
+    runtimeResponses.push(
+      new Promise((resolve) => {
+        resolveStatus = resolve;
+      }),
+    );
+    const toggle = wrapper.find('.toggle-telegram').trigger('click');
+    await flushPromises();
+
+    runtimeResponses.push([
+      {
+        name: 'telegram',
+        registered: true,
+        lifecycle: 'down',
+        health: 'down',
+        diagnosis: 'global refresh snapshot',
+      },
+    ]);
+    await (wrapper.vm as any).handleRefresh();
+
+    resolveStatus([
+      {
+        name: 'telegram',
+        registered: true,
+        lifecycle: 'running',
+        health: 'healthy',
+        diagnosis: null,
+      },
+    ]);
+    await toggle;
+    await flushPromises();
+
+    const status = (wrapper.vm as any).channelStatuses.find((item: any) => item.name === 'telegram');
+    expect(status.ready).toBe(false);
+    expect(status.notes).not.toContain('running');
     wrapper.unmount();
   });
 

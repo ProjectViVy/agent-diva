@@ -3621,6 +3621,22 @@ pub async fn get_channels(state: State<'_, AgentState>) -> Result<serde_json::Va
     Ok(channels)
 }
 
+fn parse_channel_runtime_response(payload: serde_json::Value) -> Result<serde_json::Value, String> {
+    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
+        return Err(payload
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("channel runtime unavailable")
+            .to_string());
+    }
+
+    match payload.get("channels") {
+        Some(channels) if channels.is_array() => Ok(channels.clone()),
+        Some(_) => Err("Invalid channel runtime response: channels must be an array".to_string()),
+        None => Err("Invalid channel runtime response: missing channels".to_string()),
+    }
+}
+
 #[tauri::command]
 pub async fn get_channel_runtime(
     state: State<'_, AgentState>,
@@ -3640,17 +3656,7 @@ pub async fn get_channel_runtime(
         .json()
         .await
         .map_err(|error| format!("Invalid channel runtime JSON: {error}"))?;
-    if payload.get("status").and_then(serde_json::Value::as_str) != Some("ok") {
-        return Err(payload
-            .get("message")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("channel runtime unavailable")
-            .to_string());
-    }
-    Ok(payload
-        .get("channels")
-        .cloned()
-        .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+    parse_channel_runtime_response(payload)
 }
 
 #[tauri::command]
@@ -3772,7 +3778,10 @@ async fn read_channel_operation_response(
 
 #[cfg(test)]
 mod channel_command_tests {
-    use super::{channel_endpoint, channel_response_error, CHANNEL_OPERATION_TIMEOUT};
+    use super::{
+        channel_endpoint, channel_response_error, parse_channel_runtime_response,
+        CHANNEL_OPERATION_TIMEOUT,
+    };
     use std::time::Duration;
 
     #[test]
@@ -3806,6 +3815,29 @@ mod channel_command_tests {
             channel_response_error(&serde_json::json!({}), "fallback"),
             "fallback"
         );
+    }
+
+    #[test]
+    fn channel_runtime_response_requires_a_channels_array() {
+        assert_eq!(
+            parse_channel_runtime_response(serde_json::json!({
+                "status": "ok",
+                "channels": []
+            }))
+            .expect("valid runtime response"),
+            serde_json::json!([])
+        );
+
+        let missing = parse_channel_runtime_response(serde_json::json!({ "status": "ok" }))
+            .expect_err("missing channels must fail");
+        assert!(missing.contains("missing channels"));
+
+        let malformed = parse_channel_runtime_response(serde_json::json!({
+            "status": "ok",
+            "channels": {}
+        }))
+        .expect_err("non-array channels must fail");
+        assert!(malformed.contains("channels must be an array"));
     }
 }
 
