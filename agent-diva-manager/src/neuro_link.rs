@@ -4,7 +4,7 @@
 //! owns JSON-RPC framing, protocol/session validation, durable projection
 //! replay, and command idempotency.  AgentLoop/Fabric ingress is represented
 //! by [`NeuroLinkRuntime`]; the gateway deliberately does not reach through
-//! the legacy `MessageBus` path.
+//! the legacy `AgentEventBus` path.
 
 use agent_diva_core::channel::{
     ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
@@ -90,12 +90,12 @@ pub enum NeuroLinkRuntimeError {
 /// admission reply; no HTTP handler or legacy bus object crosses this seam.
 #[derive(Clone)]
 pub struct AgentLoopNeuroLinkRuntime {
-    control_tx: mpsc::UnboundedSender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
+    control_tx: mpsc::Sender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
 }
 
 impl AgentLoopNeuroLinkRuntime {
     pub fn new(
-        control_tx: mpsc::UnboundedSender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
+        control_tx: mpsc::Sender<agent_diva_agent::runtime_control::RuntimeControlCommand>,
     ) -> Self {
         Self { control_tx }
     }
@@ -118,6 +118,7 @@ impl NeuroLinkRuntime for AgentLoopNeuroLinkRuntime {
                     reply_tx,
                 },
             )
+            .await
             .map_err(|_| {
                 NeuroLinkRuntimeError::Unavailable("AgentLoop control lane is closed".to_string())
             })?;
@@ -159,6 +160,7 @@ impl NeuroLinkRuntime for AgentLoopNeuroLinkRuntime {
                     reply_tx,
                 },
             )
+            .await
             .map_err(|_| {
                 NeuroLinkRuntimeError::Unavailable("AgentLoop control lane is closed".to_string())
             })?;
@@ -740,6 +742,7 @@ async fn handle_turn_cancel(
                     reply_tx,
                 },
             )
+            .await
             .is_err()
         {
             return send_error(
@@ -1305,7 +1308,8 @@ mod tests {
         };
         use tokio::sync::mpsc;
 
-        let (control_tx, mut control_rx) = mpsc::unbounded_channel();
+        let (control_tx, mut control_rx) =
+            mpsc::channel(agent_diva_core::channel::capacity::CONTROL);
         let adapter = AgentLoopNeuroLinkRuntime::new(control_tx);
         let mut correlation = Correlation::new("session-1");
         correlation.request_id = Some("request-1".to_string());
@@ -1321,7 +1325,11 @@ mod tests {
                 }],
                 subject: None,
                 locale: None,
-                context: None,
+                context: Some(agent_diva_core::channel::OwnerTurnContextV1 {
+                    intent: agent_diva_core::channel::OwnerTurnIntent::Agent,
+                    approval_policy: None,
+                    execution: None,
+                }),
             },
         );
         let task = tokio::spawn({
@@ -1356,7 +1364,7 @@ mod tests {
 
     #[tokio::test]
     async fn loopback_websocket_handshake_session_and_turn_smoke() {
-        use agent_diva_core::bus::MessageBus;
+        use agent_diva_core::bus::AgentEventBus;
         use futures::{SinkExt, StreamExt};
         use tempfile::TempDir;
         use tokio_tungstenite::tungstenite::Message as ClientMessage;
@@ -1371,7 +1379,7 @@ mod tests {
 
         let temp = TempDir::new().unwrap();
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(1);
-        let state = AppState::new(api_tx, MessageBus::new(), temp.path())
+        let state = AppState::new(api_tx, AgentEventBus::new(), temp.path())
             .unwrap()
             .with_neuro_link_runtime(std::sync::Arc::new(FakeRuntime));
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))

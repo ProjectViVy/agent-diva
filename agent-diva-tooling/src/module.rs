@@ -4,7 +4,7 @@
 //! and the `ModuleCtx` struct that provides dependency injection through
 //! shared `Arc`-wrapped services.
 
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
 use agent_diva_core::config::Config;
 use agent_diva_core::presence::PresenceState;
 use agent_diva_core::security::SharedSecurityPolicy;
@@ -19,7 +19,7 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct ModuleCtx {
     /// Event bus for inter-module communication.
-    pub bus: Arc<MessageBus>,
+    pub bus: Arc<AgentEventBus>,
     /// Security policy for PII/injection/tool authorization.
     pub security: SharedSecurityPolicy,
     /// Current system configuration (wrapped for hot-reload support).
@@ -31,7 +31,7 @@ pub struct ModuleCtx {
 impl ModuleCtx {
     /// Create a new `ModuleCtx` with all four `Arc`-wrapped services.
     pub fn new(
-        bus: Arc<MessageBus>,
+        bus: Arc<AgentEventBus>,
         security: SharedSecurityPolicy,
         config: Arc<RwLock<Config>>,
         presence: Arc<RwLock<PresenceState>>,
@@ -340,7 +340,7 @@ mod tests {
     /// AC2: ModuleCtx creation with all 4 Arcs.
     #[test]
     fn test_module_ctx_creation() {
-        let bus = Arc::new(MessageBus::new());
+        let bus = Arc::new(AgentEventBus::new());
         let security: SharedSecurityPolicy = Arc::new(SecurityPolicy::new(PathBuf::from("/tmp")));
         let config = Arc::new(RwLock::new(Config::default()));
         let presence = Arc::new(RwLock::new(PresenceState::default()));
@@ -380,7 +380,7 @@ mod tests {
         assert!(!m.started.load(std::sync::atomic::Ordering::SeqCst));
         assert!(!m.stopped.load(std::sync::atomic::Ordering::SeqCst));
 
-        let bus = Arc::new(MessageBus::new());
+        let bus = Arc::new(AgentEventBus::new());
         let security: SharedSecurityPolicy = Arc::new(SecurityPolicy::new(PathBuf::from("/tmp")));
         let config = Arc::new(RwLock::new(Config::default()));
         let presence = Arc::new(RwLock::new(PresenceState::default()));
@@ -473,7 +473,7 @@ mod tests {
     }
 
     fn make_ctx() -> ModuleCtx {
-        let bus = Arc::new(MessageBus::new());
+        let bus = Arc::new(AgentEventBus::new());
         let security: SharedSecurityPolicy = Arc::new(SecurityPolicy::new(PathBuf::from("/tmp")));
         let config = Arc::new(RwLock::new(Config::default()));
         let presence = Arc::new(RwLock::new(PresenceState::default()));

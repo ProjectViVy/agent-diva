@@ -37,9 +37,7 @@ impl RunHandler for SubagentRunHandler {
 
         info!(run_id = %run_id, task_len = task.len(), "handling subagent run");
 
-        // Parse optional metadata for channel/chat routing
-        let (origin_channel, origin_chat_id) = parse_routing(&record)?;
-        let context = parse_context(&record);
+        let context = parse_context(&record)?;
 
         // Delegate to the supervised execution path, which waits for the real
         // subagent work to finish before returning to TaskExecutor.
@@ -52,7 +50,7 @@ impl RunHandler for SubagentRunHandler {
 
         let run_result = self
             .subagent_manager
-            .run_supervised(task.clone(), label, origin_channel, origin_chat_id, context)
+            .run_supervised(task.clone(), label, context)
             .await;
 
         match run_result {
@@ -69,101 +67,57 @@ impl RunHandler for SubagentRunHandler {
     }
 }
 
-/// Extract routing information from the run record.
-///
-/// Priority:
-/// 1. `record.channel` / `record.metadata.chat_id`
-/// 2. Missing routing is treated as a malformed supervised run.
-fn parse_routing(record: &RunRecord) -> Result<(String, String), RunExecutionError> {
-    let Some(channel) = record.channel.clone() else {
-        return Err(RunExecutionError::HandlerError(
-            "subagent run missing channel metadata".to_string(),
-        ));
-    };
-
-    let Some(chat_id) = record
-        .metadata
-        .as_ref()
-        .and_then(|m: &serde_json::Value| m.get("chat_id"))
-        .and_then(|v: &serde_json::Value| v.as_str())
-        .map(str::to_string)
-    else {
-        return Err(RunExecutionError::HandlerError(
-            "subagent run missing chat_id metadata".to_string(),
-        ));
-    };
-
-    Ok((channel, chat_id))
-}
-
-fn parse_context(record: &RunRecord) -> SupervisedSubagentContext {
-    let metadata = record.metadata.as_ref();
-    SupervisedSubagentContext {
-        session_key: metadata
-            .and_then(|m| m.get("session_key"))
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        trace_id: metadata
-            .and_then(|m| m.get("trace_id"))
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        parent_run_id: metadata
-            .and_then(|m| m.get("parent_run_id"))
-            .and_then(|v| v.as_str())
-            .map(str::to_string),
-        token_budget_limit: metadata
-            .and_then(|m| m.get("token_budget_limit"))
-            .and_then(|v| v.as_u64()),
-        mask_config: metadata
-            .and_then(|m| m.get("mask_config"))
-            .and_then(|value| serde_json::from_value(value.clone()).ok()),
-    }
+fn parse_context(record: &RunRecord) -> Result<SupervisedSubagentContext, RunExecutionError> {
+    let context = record.context.clone().ok_or_else(|| {
+        RunExecutionError::HandlerError("subagent run missing typed context".to_string())
+    })?;
+    Ok(SupervisedSubagentContext::from_run_context(
+        context,
+        record.parent_id.clone(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_diva_core::supervised::types::{RunKind, SupervisedRunSpec};
+    use agent_diva_core::channel::{ChannelAddress, ChannelOrigin, ChannelRoute, Correlation};
+    use agent_diva_core::supervised::types::{RunKind, SupervisedRunContext, SupervisedRunSpec};
 
     #[tokio::test]
-    async fn test_parse_routing_requires_channel_and_chat_id() {
+    async fn test_parse_context_requires_typed_route() {
         let spec = SupervisedRunSpec::from_spec("test task").with_kind(RunKind::Subagent);
         let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
-        let error = parse_routing(&record).expect_err("missing routing should fail");
-        assert!(error.to_string().contains("missing channel metadata"));
+        let error = parse_context(&record).expect_err("missing typed context should fail");
+        assert!(error.to_string().contains("missing typed context"));
     }
 
     #[tokio::test]
-    async fn test_parse_routing_from_channel_and_metadata() {
-        let metadata = serde_json::json!({"chat_id": "room-42"});
+    async fn test_parse_context_preserves_opaque_route() {
+        let mut address = ChannelAddress::new("telegram", "room-42");
+        address.thread_id = Some("thread-7".to_string());
+        let mut correlation = Correlation::new("opaque-session");
+        correlation.request_id = Some("request-1".to_string());
+        correlation.trace_id = Some("trace-1".to_string());
+        correlation.message_id = Some("message-1".to_string());
         let spec = SupervisedRunSpec::from_spec("test task")
             .with_kind(RunKind::Subagent)
             .with_channel("telegram")
-            .with_metadata(metadata);
+            .with_context(SupervisedRunContext {
+                route: ChannelRoute::new(address, correlation, ChannelOrigin::ExternalUser),
+                token_budget_limit: Some(1234),
+                mask_config: None,
+            })
+            .with_parent_id("run-1");
         let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
-        let (ch, chat) = parse_routing(&record).expect("routing");
-        assert_eq!(ch, "telegram");
-        assert_eq!(chat, "room-42");
-    }
-
-    #[tokio::test]
-    async fn test_parse_context_from_metadata() {
-        let metadata = serde_json::json!({
-            "chat_id": "room-42",
-            "session_key": "telegram:room-42",
-            "trace_id": "trace-1",
-            "parent_run_id": "run-1",
-            "token_budget_limit": 1234
-        });
-        let spec = SupervisedRunSpec::from_spec("test task")
-            .with_kind(RunKind::Subagent)
-            .with_channel("telegram")
-            .with_metadata(metadata);
-        let record = agent_diva_core::supervised::types::RunRecord::from_spec(&spec);
-        let context = parse_context(&record);
-        assert_eq!(context.session_key.as_deref(), Some("telegram:room-42"));
-        assert_eq!(context.trace_id.as_deref(), Some("trace-1"));
-        assert_eq!(context.parent_run_id.as_deref(), Some("run-1"));
+        let context = parse_context(&record).expect("typed context");
+        assert_eq!(context.route.address.channel, "telegram");
+        assert_eq!(context.route.address.thread_id.as_deref(), Some("thread-7"));
+        assert_eq!(context.route.correlation.session_key, "opaque-session");
+        assert_eq!(
+            context.route.correlation.trace_id.as_deref(),
+            Some("trace-1")
+        );
+        assert_eq!(context.parent_id.as_deref(), Some("run-1"));
         assert_eq!(context.token_budget_limit, Some(1234));
     }
 }

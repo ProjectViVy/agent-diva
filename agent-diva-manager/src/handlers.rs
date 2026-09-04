@@ -59,7 +59,12 @@ pub use provider_companion::{
 };
 
 use agent_diva_agent::{runtime_control::RuntimeControlCommand, AgentEvent};
-use agent_diva_core::bus::{AgentBusEvent, InboundMessage};
+use agent_diva_core::bus::AgentBusEvent;
+use agent_diva_core::channel::{
+    AttachmentRef, ChannelAddress, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin,
+    ChannelPayloadV1, ContentPart, Correlation, OwnerApprovalPolicy, OwnerExecutionContextV1,
+    OwnerTurnContextV1, OwnerTurnIntent,
+};
 use agent_diva_core::config::schema::{ChannelsConfig, SelfEvolutionConfig};
 use agent_diva_core::config::ConfigLoader;
 use axum::{
@@ -97,7 +102,7 @@ pub struct ChatRequest {
     pub approval_policy: Option<String>,
 }
 
-fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
+fn normalized_owner_intent(mode: Option<&str>) -> Option<&'static str> {
     match mode.map(str::trim) {
         None => None,
         Some("agent") => Some("agent"),
@@ -105,6 +110,133 @@ fn normalized_exec_mode(mode: Option<&str>) -> Option<&'static str> {
         Some("ask") => Some("ask"),
         Some(_) => Some("ask"),
     }
+}
+
+fn owner_turn_intent(mode: Option<&str>) -> OwnerTurnIntent {
+    match normalized_owner_intent(mode) {
+        Some("plan") => OwnerTurnIntent::Plan,
+        Some("ask") => OwnerTurnIntent::Ask,
+        _ => OwnerTurnIntent::Agent,
+    }
+}
+
+fn owner_approval_policy(raw: Option<&str>) -> Option<OwnerApprovalPolicy> {
+    parse_approval_policy(raw).map(|policy| match policy {
+        agent_diva_sandbox::AskForApproval::OnRequest => OwnerApprovalPolicy::OnRequest,
+        agent_diva_sandbox::AskForApproval::OnFailure => OwnerApprovalPolicy::OnFailure,
+        agent_diva_sandbox::AskForApproval::UnlessTrusted => OwnerApprovalPolicy::UnlessTrusted,
+        agent_diva_sandbox::AskForApproval::Never => OwnerApprovalPolicy::Never,
+    })
+}
+
+async fn resolve_attachment_parts(
+    state: &AppState,
+    references: Option<Vec<String>>,
+) -> Result<Vec<ContentPart>, String> {
+    let Some(references) = references else {
+        return Ok(Vec::new());
+    };
+    let Some(authority) = state.attachment_authority.as_ref() else {
+        return Err("attachment authority is not initialized".to_string());
+    };
+    let mut parts = Vec::with_capacity(references.len());
+    for reference in references {
+        let id = reference.trim();
+        if id.is_empty() {
+            return Err("attachment reference must not be empty".to_string());
+        }
+        let handle = authority
+            .get(id)
+            .await
+            .map_err(|error| format!("invalid attachment reference {id}: {error}"))?;
+        let media_type = handle
+            .metadata
+            .mime_type
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        let sha256 = attachment_digest(&handle.id)?;
+        let attachment = AttachmentRef {
+            uri: handle.id.clone(),
+            media_type: media_type.clone(),
+            size_bytes: handle.metadata.size,
+            sha256: sha256.to_string(),
+            file_name: Some(handle.metadata.name.clone()),
+        };
+        parts.push(match media_type.as_str() {
+            value if value.starts_with("image/") => ContentPart::Image { attachment },
+            value if value.starts_with("audio/") => ContentPart::Audio {
+                attachment,
+                transcript: None,
+            },
+            value if value.starts_with("video/") => ContentPart::Video { attachment },
+            _ => ContentPart::File { attachment },
+        });
+    }
+    Ok(parts)
+}
+
+fn attachment_digest(handle_id: &str) -> Result<&str, String> {
+    handle_id
+        .strip_prefix("sha256:")
+        .filter(|digest| !digest.is_empty())
+        .ok_or_else(|| format!("attachment authority returned non-sha256 id: {handle_id}"))
+}
+
+async fn build_typed_chat_envelope(
+    state: &AppState,
+    channel: String,
+    chat_id: String,
+    request_id: String,
+    payload: ChatRequest,
+) -> Result<ChannelEnvelopeV1, String> {
+    let ChatRequest {
+        message,
+        attachments,
+        mode,
+        execution_start,
+        plan_id,
+        plan_revision,
+        execution_id,
+        approval_policy,
+        ..
+    } = payload;
+    let mut address = ChannelAddress::new(channel.clone(), chat_id.clone());
+    address.sender_id = Some("user".to_string());
+    let mut correlation = Correlation::new(format!("{channel}:{chat_id}"));
+    correlation.request_id = Some(request_id);
+    correlation.trace_id = Some(uuid::Uuid::new_v4().to_string());
+    correlation.message_id = Some(uuid::Uuid::new_v4().to_string());
+
+    let mut parts = vec![ContentPart::Text { text: message }];
+    parts.extend(resolve_attachment_parts(state, attachments).await?);
+    let execution = if execution_start.unwrap_or(false) {
+        Some(OwnerExecutionContextV1 {
+            plan_id: plan_id
+                .ok_or_else(|| "plan_id is required for execution continuation".to_string())?,
+            revision: plan_revision.ok_or_else(|| {
+                "plan_revision is required for execution continuation".to_string()
+            })?,
+            execution_id,
+        })
+    } else {
+        None
+    };
+    Ok(ChannelEnvelopeV1::new(
+        ChannelDirection::Ingress,
+        address,
+        correlation,
+        ChannelOrigin::OwnerFrontend,
+        ChannelPayloadV1::Message {
+            parts,
+            subject: None,
+            locale: None,
+            context: Some(OwnerTurnContextV1 {
+                intent: owner_turn_intent(mode.as_deref()),
+                approval_policy: owner_approval_policy(approval_policy.as_deref()),
+                execution,
+            }),
+        },
+    ))
 }
 
 pub(crate) fn parse_approval_policy(
@@ -141,8 +273,11 @@ pub async fn chat_handler(
     State(state): State<AppState>,
     Json(payload): Json<ChatRequest>,
 ) -> Sse<futures::stream::BoxStream<'static, Result<Event, Infallible>>> {
-    let channel = payload.channel.unwrap_or("api".to_string());
-    let chat_id = payload.chat_id.unwrap_or("default".to_string());
+    let channel = payload.channel.clone().unwrap_or_else(|| "api".to_string());
+    let chat_id = payload
+        .chat_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
     let request_id = payload
         .request_id
         .as_deref()
@@ -212,39 +347,28 @@ pub async fn chat_handler(
     }
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();
+    let envelope = match build_typed_chat_envelope(
+        &state,
+        channel,
+        chat_id,
+        request_id.clone(),
+        payload,
+    )
+    .await
+    {
+        Ok(envelope) => envelope,
+        Err(error) => {
+            let stream =
+                futures::stream::once(
+                    async move { Ok(Event::default().event("error").data(error)) },
+                )
+                .boxed();
+            return Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default());
+        }
+    };
+    let req = ApiRequest { envelope, event_tx };
 
-    let mut msg = InboundMessage::new(channel, "user", chat_id, payload.message);
-    msg = msg.with_metadata("request_id", request_id.clone());
-    if let Some(mode) = normalized_exec_mode(payload.mode.as_deref()) {
-        msg = msg.with_metadata("exec_mode", mode);
-    }
-    if let Some(policy) = parse_approval_policy(payload.approval_policy.as_deref()) {
-        msg = msg.with_metadata(
-            "approval_policy",
-            serde_json::to_string(&policy).unwrap_or_else(|_| "on-failure".to_string()),
-        );
-    }
-    if payload.execution_start.unwrap_or(false) {
-        msg = msg.with_metadata("execution_start", true);
-        if let Some(plan_id) = payload.plan_id {
-            msg = msg.with_metadata("plan_id", plan_id);
-        }
-        if let Some(revision) = payload.plan_revision {
-            msg = msg.with_metadata("plan_revision", revision);
-        }
-        if let Some(execution_id) = payload.execution_id {
-            msg = msg.with_metadata("execution_id", execution_id);
-        }
-    }
-    if let Some(attachments) = payload.attachments {
-        for attachment in attachments {
-            msg = msg.with_media(attachment);
-        }
-    }
-
-    let req = ApiRequest { msg, event_tx };
-
-    if let Err(e) = state.api_tx.send(ManagerCommand::Chat(req)).await {
+    if let Err(e) = state.api_tx.send(ManagerCommand::Chat(Box::new(req))).await {
         tracing::error!("Failed to send API request to manager: {}", e);
     }
 
@@ -1121,6 +1245,7 @@ pub async fn compact_session_handler(
             session_key,
             reply_tx,
         })
+        .await
         .is_err()
     {
         return Json(
@@ -1286,14 +1411,17 @@ pub async fn delete_cron_job_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        agent_bus_event_to_sse, chat_handler, generate_session_title_handler,
-        get_session_history_handler, get_sessions_handler, normalized_exec_mode,
-        parse_approval_policy, update_session_title_handler, AgentEvent, ChatRequest, Sse,
+        agent_bus_event_to_sse, attachment_digest, build_typed_chat_envelope, chat_handler,
+        generate_session_title_handler, get_session_history_handler, get_sessions_handler,
+        normalized_owner_intent, parse_approval_policy, update_session_title_handler, AgentEvent,
+        ChatRequest, Sse,
     };
     use crate::state::{AppState, GenerateSessionTitleResponse, ManagerCommand};
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use agent_diva_core::session::store::{ChatMessage, Session};
     use agent_diva_core::session::{SessionInfo, SessionKind};
+    use agent_diva_files::handle::FileMetadata;
+    use agent_diva_files::{FileConfig, FileManager};
     use axum::{
         body::to_bytes,
         extract::{Path, State},
@@ -1302,21 +1430,138 @@ mod tests {
         Json,
     };
     use chrono::Utc;
+    use std::sync::Arc;
     use tokio::sync::mpsc;
 
     #[test]
-    fn normalized_exec_mode_accepts_known_modes_only() {
-        assert_eq!(normalized_exec_mode(Some("plan")), Some("plan"));
-        assert_eq!(normalized_exec_mode(Some(" ask ")), Some("ask"));
-        assert_eq!(normalized_exec_mode(Some("agent")), Some("agent"));
-        assert_eq!(normalized_exec_mode(Some("execute")), Some("ask"));
-        assert_eq!(normalized_exec_mode(None), None);
+    fn normalized_owner_intent_accepts_known_modes_only() {
+        assert_eq!(normalized_owner_intent(Some("plan")), Some("plan"));
+        assert_eq!(normalized_owner_intent(Some(" ask ")), Some("ask"));
+        assert_eq!(normalized_owner_intent(Some("agent")), Some("agent"));
+        assert_eq!(normalized_owner_intent(Some("execute")), Some("ask"));
+        assert_eq!(normalized_owner_intent(None), None);
+    }
+
+    #[tokio::test]
+    async fn runtime_chat_resolves_typed_attachments_before_admission() {
+        let (api_tx, _api_rx) = mpsc::channel::<ManagerCommand>(1);
+        let bus = AgentEventBus::new();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
+        let files = Arc::new(
+            FileManager::new(FileConfig::with_path(temp_dir.path().join("files")))
+                .await
+                .unwrap(),
+        );
+        let handle = files
+            .store(
+                &[0x89, b'P', b'N', b'G'],
+                FileMetadata {
+                    name: "diagram.png".to_string(),
+                    size: 4,
+                    mime_type: Some("image/png".to_string()),
+                    source: Some("api".to_string()),
+                    created_at: Utc::now(),
+                    last_accessed_at: None,
+                    preview: None,
+                },
+            )
+            .await
+            .unwrap();
+        let state = state.with_attachment_authority(files);
+        let payload = ChatRequest {
+            message: "describe this".to_string(),
+            request_id: Some("request-1".to_string()),
+            channel: Some("api".to_string()),
+            chat_id: Some("chat-1".to_string()),
+            attachments: Some(vec![handle.id.clone()]),
+            mode: Some("plan".to_string()),
+            execution_start: None,
+            plan_id: None,
+            plan_revision: None,
+            execution_id: None,
+            approval_policy: None,
+        };
+        let envelope = build_typed_chat_envelope(
+            &state,
+            "api".to_string(),
+            "chat-1".to_string(),
+            "request-1".to_string(),
+            payload,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(envelope.correlation.session_key, "api:chat-1");
+        assert_eq!(
+            envelope.correlation.request_id.as_deref(),
+            Some("request-1")
+        );
+        assert_eq!(
+            envelope.origin,
+            agent_diva_core::channel::ChannelOrigin::OwnerFrontend
+        );
+        match envelope.payload {
+            agent_diva_core::channel::ChannelPayloadV1::Message {
+                parts,
+                context: Some(context),
+                ..
+            } => {
+                assert_eq!(
+                    context.intent,
+                    agent_diva_core::channel::OwnerTurnIntent::Plan
+                );
+                assert!(matches!(
+                    parts.as_slice(),
+                    [
+                        agent_diva_core::channel::ContentPart::Text { text },
+                        agent_diva_core::channel::ContentPart::Image { attachment }
+                    ] if text == "describe this"
+                        && attachment.media_type == "image/png"
+                        && attachment.file_name.as_deref() == Some("diagram.png")
+                        && attachment.uri == handle.id
+                        && attachment.sha256 == handle.id.strip_prefix("sha256:").unwrap()
+                ));
+            }
+            payload => panic!("unexpected typed HTTP payload: {payload:?}"),
+        }
+
+        let invalid = build_typed_chat_envelope(
+            &state,
+            "api".to_string(),
+            "chat-1".to_string(),
+            "request-2".to_string(),
+            ChatRequest {
+                message: "bad attachment".to_string(),
+                request_id: Some("request-2".to_string()),
+                channel: Some("api".to_string()),
+                chat_id: Some("chat-1".to_string()),
+                attachments: Some(vec!["sha256:not-found".to_string()]),
+                mode: None,
+                execution_start: None,
+                plan_id: None,
+                plan_revision: None,
+                execution_id: None,
+                approval_policy: None,
+            },
+        )
+        .await;
+        assert!(invalid
+            .expect_err("unknown attachment must fail before admission")
+            .contains("invalid attachment reference"));
+    }
+
+    #[test]
+    fn attachment_digest_requires_sha256_authority_id() {
+        assert_eq!(attachment_digest("sha256:abc").unwrap(), "abc");
+        assert!(attachment_digest("abc").is_err());
+        assert!(attachment_digest("sha256:").is_err());
     }
 
     #[tokio::test]
     async fn get_sessions_response_includes_title() {
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
 
@@ -1382,7 +1627,7 @@ mod tests {
     #[tokio::test]
     async fn get_session_history_response_includes_title() {
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
 
@@ -1414,7 +1659,7 @@ mod tests {
     #[tokio::test]
     async fn generate_session_title_response_includes_flags() {
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
 
@@ -1449,7 +1694,7 @@ mod tests {
     #[tokio::test]
     async fn update_session_title_returns_title_field() {
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(10);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         let state = AppState::new(api_tx, bus, temp_dir.path()).unwrap();
 
@@ -1478,7 +1723,7 @@ mod tests {
         use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
 
         let (api_tx, mut api_rx) = mpsc::channel::<ManagerCommand>(1);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         agent_diva_laputa::PersonaService::open(temp_dir.path())
             .unwrap()

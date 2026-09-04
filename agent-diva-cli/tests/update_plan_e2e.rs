@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use agent_diva_agent::AgentEvent;
 use agent_diva_cli::client::ApiClient;
-use agent_diva_core::bus::MessageBus;
+use agent_diva_core::bus::AgentEventBus;
 use agent_diva_core::bus::{SessionAdmissionObservation, SessionAdmissionPhase};
+use agent_diva_core::channel::{ChannelOrigin, ChannelPayloadV1, ContentPart};
 use agent_diva_core::planning::update_plan::{PlanItem, PlanItemStatus, UpdatePlanArgs};
 use agent_diva_manager::run_server_with_listener;
 use agent_diva_manager::state::{AppState, ManagerCommand};
@@ -39,7 +40,7 @@ async fn update_plan_end_to_end_client_sse() {
             world: "Local E2E".into(),
         })
         .expect("initialize Persona");
-    let state = AppState::new(api_tx, MessageBus::new(), temp_dir.path()).expect("build state");
+    let state = AppState::new(api_tx, AgentEventBus::new(), temp_dir.path()).expect("build state");
 
     let expected_args = UpdatePlanArgs {
         explanation: Some("e2e update plan".to_string()),
@@ -59,13 +60,31 @@ async fn update_plan_end_to_end_client_sse() {
     // Mock agent consumer: emits a plan update then finishes the turn.
     tokio::spawn(async move {
         if let Some(ManagerCommand::Chat(req)) = api_rx.recv().await {
-            let request_id = req
-                .msg
-                .metadata
-                .get("request_id")
-                .and_then(serde_json::Value::as_str)
-                .expect("manager chat request should carry request_id")
-                .to_string();
+            let envelope = &req.envelope;
+            assert_eq!(envelope.origin, ChannelOrigin::OwnerFrontend);
+            assert_eq!(envelope.correlation.session_key, "gui:chat-1");
+            let request_id = envelope
+                .correlation
+                .request_id
+                .clone()
+                .expect("manager chat request should carry request_id");
+            match &envelope.payload {
+                ChannelPayloadV1::Message {
+                    parts,
+                    context: Some(context),
+                    ..
+                } => {
+                    assert!(matches!(
+                        parts.as_slice(),
+                        [ContentPart::Text { text }] if text == "hello"
+                    ));
+                    assert_eq!(
+                        context.intent,
+                        agent_diva_core::channel::OwnerTurnIntent::Agent
+                    );
+                }
+                other => panic!("expected typed owner message, got {other:?}"),
+            }
             let _ = req.event_tx.send(AgentEvent::SessionAdmission {
                 observation: SessionAdmissionObservation {
                     code: None,

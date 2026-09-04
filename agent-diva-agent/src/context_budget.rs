@@ -210,6 +210,7 @@ pub fn check_context_budget(
 mod tests {
     use super::*;
     use chrono::Utc;
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn make_msg(content: &str) -> ChatMessage {
         ChatMessage {
@@ -443,6 +444,7 @@ mod tests {
     }
     #[test]
     fn from_env_or_model_uses_model_when_no_env() {
+        let _env_guard = ENV_LOCK.lock().expect("context budget env lock");
         // Ensure env var is not set
         std::env::remove_var("AGENT_DIVA_MAX_CONTEXT_TOKENS");
         let config = BudgetConfig::from_env_or_model("gpt-5");
@@ -450,6 +452,7 @@ mod tests {
     }
     #[test]
     fn from_env_or_model_env_overrides_model() {
+        let _env_guard = ENV_LOCK.lock().expect("context budget env lock");
         std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "500000");
         let config = BudgetConfig::from_env_or_model("deepseek-chat");
         assert_eq!(config.max_tokens, 500_000);
@@ -457,6 +460,7 @@ mod tests {
     }
     #[test]
     fn from_env_or_model_ignores_invalid_env() {
+        let _env_guard = ENV_LOCK.lock().expect("context budget env lock");
         std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "not-a-number");
         let config = BudgetConfig::from_env_or_model("gpt-4o");
         assert_eq!(config.max_tokens, 128_000); // Falls through to model table
@@ -464,6 +468,7 @@ mod tests {
     }
     #[test]
     fn from_env_or_model_ignores_zero_env() {
+        let _env_guard = ENV_LOCK.lock().expect("context budget env lock");
         std::env::set_var("AGENT_DIVA_MAX_CONTEXT_TOKENS", "0");
         let config = BudgetConfig::from_env_or_model("gpt-4o");
         assert_eq!(config.max_tokens, 128_000); // Zero is treated as invalid

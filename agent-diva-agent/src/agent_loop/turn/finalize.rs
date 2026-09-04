@@ -1,4 +1,8 @@
-use agent_diva_core::bus::{AgentEvent, InboundMessage, OutboundMessage};
+use agent_diva_core::bus::AgentEvent;
+use agent_diva_core::channel::{
+    ChannelCommand, ChannelDirection, ChannelEnvelopeV1, ChannelOrigin, ChannelPayloadV1,
+    ContentPart,
+};
 use agent_diva_core::planning::{
     normalize_report_markdown, report_validation_issues, resolve_plan_report_body,
     strip_proposed_plan_block, PlanRevisionAuthor,
@@ -7,6 +11,7 @@ use agent_diva_core::session::TokenUsage;
 use agent_diva_providers::Message;
 use tokio::sync::mpsc;
 use tracing::{error, info, trace, warn};
+use uuid::Uuid;
 
 use super::super::super::consolidation;
 use super::super::loop_turn::{fallback_session_title, save_turn, should_generate_session_title};
@@ -33,7 +38,7 @@ impl From<IterationOutcome> for FinalizationInput {
 
 /// Owned values needed after model iteration has committed to a final response.
 pub(crate) struct FinalizationContext {
-    pub message: InboundMessage,
+    pub message: ChannelEnvelopeV1,
     pub messages: Vec<Message>,
     pub session_key: String,
     pub message_content: String,
@@ -45,7 +50,7 @@ pub(crate) struct FinalizationContext {
 }
 
 pub(crate) struct FinalizationPreparation<'a> {
-    pub message: &'a InboundMessage,
+    pub message: &'a ChannelEnvelopeV1,
     pub event_tx: Option<&'a mpsc::UnboundedSender<AgentEvent>>,
     pub session_key: &'a str,
     pub plan_mode: bool,
@@ -121,7 +126,7 @@ impl AgentLoop {
         context: FinalizationContext,
         finalization: FinalizationInput,
         event_tx: Option<&mpsc::UnboundedSender<AgentEvent>>,
-    ) -> Result<Option<OutboundMessage>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<ChannelCommand>, Box<dyn std::error::Error + Send + Sync>> {
         let FinalizationContext {
             message,
             messages,
@@ -149,7 +154,9 @@ impl AgentLoop {
         };
         info!(
             "Response to {}:{}: {}",
-            message.channel, message.sender_id, preview
+            message.address.channel,
+            message.address.sender_id.as_deref().unwrap_or("unknown"),
+            preview
         );
 
         let event = AgentEvent::FinalResponse {
@@ -158,7 +165,7 @@ impl AgentLoop {
         if let Some(tx) = event_tx {
             let _ = tx.send(event.clone());
         }
-        super::super::publish_message_event(&self.bus, &message, event);
+        super::super::publish_envelope_event(&self.bus, &message, event);
 
         // The user-visible response is already emitted. ACTMEM failure is
         // therefore observable only as structured diagnostics and never
@@ -249,11 +256,6 @@ impl AgentLoop {
             }
         }
 
-        let reply_to = message
-            .metadata
-            .get("message_id")
-            .and_then(|value| value.as_str())
-            .map(str::to_string);
         trace!(
             trace_id = %trace_id,
             step_name = "msg_sent_to_channel",
@@ -265,14 +267,29 @@ impl AgentLoop {
             "Returning response to manager"
         );
 
-        Ok(Some(OutboundMessage {
-            channel: message.channel,
-            chat_id: message.chat_id,
-            content: finalization.content,
-            reply_to,
-            media: vec![],
-            reasoning_content: finalization.reasoning,
-            metadata: message.metadata,
+        if matches!(message.origin, ChannelOrigin::OwnerFrontend) {
+            return Ok(None);
+        }
+        let mut correlation = message.correlation.clone();
+        correlation.reply_to = message.correlation.message_id.clone();
+        correlation.message_id = Some(Uuid::new_v4().to_string());
+        let response = ChannelEnvelopeV1::new(
+            ChannelDirection::Egress,
+            message.address,
+            correlation,
+            ChannelOrigin::Runtime,
+            ChannelPayloadV1::Message {
+                parts: vec![ContentPart::Markdown {
+                    markdown: finalization.content,
+                }],
+                subject: None,
+                locale: None,
+                context: None,
+            },
+        );
+        Ok(Some(ChannelCommand::Send {
+            envelope: response,
+            idempotency_key: Some(Uuid::new_v4().to_string()),
         }))
     }
 }

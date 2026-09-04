@@ -67,11 +67,30 @@ impl RunStore {
                 claimed_by TEXT,
                 metadata TEXT,
                 parent_id TEXT,
-                tags TEXT
+                tags TEXT,
+                context TEXT
             );",
         )
         .execute(&pool)
         .await?;
+
+        // Keep existing profile-local run stores readable after the typed
+        // context column was introduced. Inspect the schema first instead of
+        // treating a duplicate-column error string as migration control flow.
+        let columns = sqlx::query("PRAGMA table_info(supervised_runs)")
+            .fetch_all(&pool)
+            .await?;
+        let column_names = columns
+            .iter()
+            .map(|row| row.try_get::<String, _>("name"))
+            .collect::<Result<Vec<_>, sqlx::Error>>()?;
+        if !column_names.iter().any(|name| name == "context") {
+            // Old rows remain intentionally context-free and are rejected by
+            // handlers that require a typed route.
+            sqlx::query("ALTER TABLE supervised_runs ADD COLUMN context TEXT")
+                .execute(&pool)
+                .await?;
+        }
 
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_supervised_runs_status ON supervised_runs(status);",
@@ -288,17 +307,33 @@ impl RunStore {
     pub async fn create(&self, spec: &SupervisedRunSpec) -> Result<RunRecord, RunStoreError> {
         let record = RunRecord::from_spec(spec);
         let metadata_str = record.metadata.as_ref().map(|m| m.to_string());
+        let context_str = record
+            .context
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| {
+                RunStoreError::SqlxError(format!(
+                    "failed to serialize supervised run context: {error}"
+                ))
+            })?;
         let tags_str = record
             .tags
             .as_ref()
-            .map(|t| serde_json::to_string(t).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| {
+                RunStoreError::SqlxError(format!(
+                    "failed to serialize supervised run tags: {error}"
+                ))
+            })?;
 
         sqlx::query(
             "INSERT INTO supervised_runs (
                 id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                 kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                error_message, result_summary, claimed_by, metadata, parent_id, tags
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+                error_message, result_summary, claimed_by, metadata, parent_id, tags, context
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
         )
         .bind(&record.id)
         .bind(record.status.as_str())
@@ -321,6 +356,7 @@ impl RunStore {
         .bind(metadata_str)
         .bind(&record.parent_id)
         .bind(tags_str)
+        .bind(context_str)
         .execute(&self.pool)
         .await
         .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
@@ -338,7 +374,7 @@ impl RunStore {
         let row = sqlx::query(
             "SELECT id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                     kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                    error_message, result_summary, claimed_by, metadata, parent_id, tags
+                    error_message, result_summary, claimed_by, metadata, parent_id, tags, context
              FROM supervised_runs WHERE id = ?1",
         )
         .bind(id)
@@ -377,7 +413,7 @@ impl RunStore {
              )
              RETURNING id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                        kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                       error_message, result_summary, claimed_by, metadata, parent_id, tags",
+                       error_message, result_summary, claimed_by, metadata, parent_id, tags, context",
         )
         .bind(worker_id)
         .bind(now_str.clone())
@@ -634,7 +670,7 @@ impl RunStore {
         let rows = sqlx::query(
             "SELECT id, status, message, channel, cron_job_id, heartbeat_at, created_at, updated_at,
                     kind, priority, attempt, max_attempts, timeout_secs, started_at, completed_at,
-                    error_message, result_summary, claimed_by, metadata, parent_id, tags
+                    error_message, result_summary, claimed_by, metadata, parent_id, tags, context
              FROM supervised_runs
              WHERE status = 'running' AND heartbeat_at IS NOT NULL AND heartbeat_at < ?1",
         )
@@ -831,6 +867,12 @@ impl RunStore {
             .transpose()
             .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
 
+        let context_str: Option<String> = row.get(21);
+        let context = context_str
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .map_err(|e| RunStoreError::SqlxError(e.to_string()))?;
+
         let tags_str: Option<String> = row.get(20);
         let tags = tags_str
             .map(|s| serde_json::from_str(&s))
@@ -861,6 +903,7 @@ impl RunStore {
             result_summary: row.get(16),
             claimed_by: row.get(17),
             metadata,
+            context,
             parent_id: row.get(19),
             tags,
         })
@@ -898,6 +941,8 @@ impl RunStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::channel::{ChannelAddress, ChannelOrigin, ChannelRoute, Correlation};
+    use crate::supervised::types::SupervisedRunContext;
     use tempfile::TempDir;
 
     /// Helper to create a store backed by a temp directory
@@ -1064,6 +1109,92 @@ mod tests {
         let (_dir, store) = setup().await;
         let found = store.get("nonexistent-id").await.expect("get");
         assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_existing_schema_migrates_context_and_round_trips_typed_route() {
+        let dir = TempDir::new().expect("tempdir");
+        let db_path = dir.path().join("runs.db");
+        let options = SqliteConnectOptions::new()
+            .filename(db_path)
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
+        let legacy_pool = SqlitePoolOptions::new()
+            .connect_with(options)
+            .await
+            .expect("legacy database");
+
+        sqlx::query(
+            "CREATE TABLE supervised_runs (
+                id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL,
+                channel TEXT,
+                cron_job_id TEXT,
+                heartbeat_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'generic',
+                priority INTEGER NOT NULL DEFAULT 0,
+                attempt INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 3,
+                timeout_secs INTEGER,
+                started_at TEXT,
+                completed_at TEXT,
+                error_message TEXT,
+                result_summary TEXT,
+                claimed_by TEXT,
+                metadata TEXT,
+                parent_id TEXT,
+                tags TEXT
+            )",
+        )
+        .execute(&legacy_pool)
+        .await
+        .expect("legacy schema");
+        let legacy_columns = sqlx::query("PRAGMA table_info(supervised_runs)")
+            .fetch_all(&legacy_pool)
+            .await
+            .expect("legacy columns");
+        assert!(!legacy_columns
+            .iter()
+            .map(|row| row.get::<String, _>("name"))
+            .any(|name| name == "context"));
+        legacy_pool.close().await;
+
+        let store = RunStore::new(dir.path()).await.expect("migrate store");
+        let migrated_columns = sqlx::query("PRAGMA table_info(supervised_runs)")
+            .fetch_all(&store.pool)
+            .await
+            .expect("migrated columns");
+        assert!(migrated_columns
+            .iter()
+            .map(|row| row.get::<String, _>("name"))
+            .any(|name| name == "context"));
+
+        let route = ChannelRoute::new(
+            ChannelAddress::new("telegram", "opaque-chat"),
+            Correlation::new("opaque-parent-session"),
+            ChannelOrigin::ExternalUser,
+        );
+        let context = SupervisedRunContext {
+            route,
+            token_budget_limit: Some(512),
+            mask_config: None,
+        };
+        let spec = SupervisedRunSpec::from_spec("migrated typed task")
+            .with_kind(RunKind::Subagent)
+            .with_context(context.clone())
+            .with_parent_id("parent-run");
+        let created = store.create(&spec).await.expect("create migrated record");
+        let loaded = store
+            .get_record(&created.id)
+            .await
+            .expect("load migrated record")
+            .expect("record");
+        assert_eq!(loaded.context, Some(context));
+        assert_eq!(loaded.parent_id.as_deref(), Some("parent-run"));
     }
 
     // =========================================================================

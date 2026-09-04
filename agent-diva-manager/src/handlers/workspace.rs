@@ -150,7 +150,7 @@ mod tests {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel::<crate::ManagerCommand>(4);
         AppState::new(
             api_tx,
-            agent_diva_core::bus::MessageBus::new(),
+            agent_diva_core::bus::AgentEventBus::new(),
             workspace_root,
         )
         .unwrap()

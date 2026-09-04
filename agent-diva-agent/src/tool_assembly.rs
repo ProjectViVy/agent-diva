@@ -3,6 +3,7 @@ use crate::planning::builtin_tool_capability;
 use crate::tool_config::PlanningConfig;
 use crate::tool_config::{builtin::BuiltInToolsConfig, network::NetworkToolConfig};
 use agent_diva_core::ask_user::AskUserCoordinator;
+use agent_diva_core::channel::ChannelRoute;
 use agent_diva_core::config::schema::MaskConfig;
 use agent_diva_core::config::MCPServerConfig;
 use agent_diva_core::cron::CronService;
@@ -34,8 +35,7 @@ pub trait SubagentSpawner: Send + Sync {
         &self,
         task: String,
         label: Option<String>,
-        channel: String,
-        chat_id: String,
+        route: ChannelRoute,
     ) -> Result<String, ToolError>;
 }
 
@@ -514,12 +514,24 @@ impl ToolAssembly {
 
         if self.builtin_config.spawn && !subagent_mode && !action_restricted {
             if let Some(spawner) = self.subagent_spawner {
-                registry.register(Arc::new(SpawnTool::new(
-                    move |task, label, channel, chat_id| {
+                let route = self
+                    .background_task_context
+                    .route
+                    .clone()
+                    .unwrap_or_else(|| {
+                        ChannelRoute::new(
+                            agent_diva_core::channel::ChannelAddress::new("cli", "direct"),
+                            agent_diva_core::channel::Correlation::new("cli:direct"),
+                            agent_diva_core::channel::ChannelOrigin::OwnerFrontend,
+                        )
+                    });
+                registry.register(Arc::new(
+                    SpawnTool::new(move |task, label, route| {
                         let spawner = spawner.clone();
-                        async move { spawner.spawn(task, label, channel, chat_id).await }
-                    },
-                )));
+                        async move { spawner.spawn(task, label, route).await }
+                    })
+                    .with_context(route),
+                ));
             }
         }
 

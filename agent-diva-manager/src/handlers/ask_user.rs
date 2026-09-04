@@ -122,7 +122,7 @@ mod tests {
     use super::*;
     use crate::state::AppState;
     use agent_diva_core::ask_user::AskUserCoordinator;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::{
         body::to_bytes,
         http::{Request, StatusCode},
@@ -132,7 +132,7 @@ mod tests {
 
     fn test_state() -> AppState {
         let (api_tx, _api_rx) = tokio::sync::mpsc::channel(10);
-        let bus = MessageBus::new();
+        let bus = AgentEventBus::new();
         let temp_dir = tempfile::tempdir().unwrap();
         AppState::new(api_tx, bus, temp_dir.path()).unwrap()
     }

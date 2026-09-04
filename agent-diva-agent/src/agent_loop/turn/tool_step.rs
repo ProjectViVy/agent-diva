@@ -1,4 +1,5 @@
-use agent_diva_core::bus::{AgentEvent, InboundMessage};
+use agent_diva_core::bus::AgentEvent;
+use agent_diva_core::channel::ChannelEnvelopeV1;
 use agent_diva_core::experience::{ExperienceJournal, OutcomeKind};
 use agent_diva_core::planning::model::PlanPhase;
 use agent_diva_core::planning::policy::{allows_for_phase, ToolCapability};
@@ -142,7 +143,7 @@ pub(crate) struct ToolRunSummary {
 }
 
 pub(crate) struct ToolOrchestrationContext<'a> {
-    pub message: &'a InboundMessage,
+    pub message: &'a ChannelEnvelopeV1,
     pub event_tx: Option<&'a mpsc::UnboundedSender<AgentEvent>>,
     pub session_key: &'a str,
     pub trace_id: &'a str,
@@ -199,7 +200,7 @@ impl AgentLoop {
         context: &ToolOrchestrationContext<'_>,
         turn_snapshot: &mut TurnSnapshot,
         messages: &mut Vec<Message>,
-    ) -> Result<Option<ToolOrchestrationResult>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<ToolOrchestrationResult>, Box<dyn std::error::Error + Send + Sync>> {
         self.drain_runtime_control_commands().await;
         if self.is_session_cancelled(context.session_key) {
             self.emit_error_event(
@@ -251,7 +252,7 @@ impl AgentLoop {
         if let Some(tx) = context.event_tx {
             let _ = tx.send(event.clone());
         }
-        super::super::publish_message_event(&self.bus, context.message, event);
+        super::super::publish_envelope_event(&self.bus, context.message, event);
 
         let mut force_inline_memory_rules = false;
         let (mut raw_result, is_error) = match serde_json::to_value(&tool_call.arguments) {
@@ -286,8 +287,8 @@ impl AgentLoop {
                             &arguments,
                             ToolExecutionContext {
                                 registry: &self.tools,
-                                channel: &context.message.channel,
-                                chat_id: &context.message.chat_id,
+                                channel: &context.message.address.channel,
+                                chat_id: &context.message.address.chat_id,
                                 session_key: context.session_key,
                                 cron_trigger: turn_snapshot.scheduled,
                             },
@@ -420,7 +421,7 @@ impl AgentLoop {
         if let Some(tx) = context.event_tx {
             let _ = tx.send(event.clone());
         }
-        super::super::publish_message_event(&self.bus, context.message, event);
+        super::super::publish_envelope_event(&self.bus, context.message, event);
 
         let mut stop_after_tool_call = false;
         if !is_error {

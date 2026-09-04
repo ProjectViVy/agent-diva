@@ -4,6 +4,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::channel::ChannelRoute;
+use crate::config::schema::MaskConfig;
+
 /// Status of a supervised run
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -108,6 +111,21 @@ pub enum RunKind {
     Generic,
 }
 
+/// Typed parent-turn authority carried by a deferred supervised run.
+///
+/// Routing and correlation are persisted as structured protocol values rather
+/// than being reconstructed from an untyped metadata map. The mask and budget
+/// are immutable snapshots of the parent turn's execution policy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SupervisedRunContext {
+    pub route: ChannelRoute,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_budget_limit: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask_config: Option<MaskConfig>,
+}
+
 impl RunKind {
     /// Convert to the string representation
     pub fn as_str(&self) -> &'static str {
@@ -144,6 +162,10 @@ pub struct SupervisedRunSpec {
     pub max_attempts: i32,
     pub timeout_secs: Option<i64>,
     pub metadata: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<SupervisedRunContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 impl SupervisedRunSpec {
@@ -158,6 +180,8 @@ impl SupervisedRunSpec {
             max_attempts: 3,
             timeout_secs: None,
             metadata: None,
+            context: None,
+            parent_id: None,
         }
     }
 
@@ -202,6 +226,18 @@ impl SupervisedRunSpec {
         self.metadata = Some(metadata);
         self
     }
+
+    /// Attach the typed parent-turn context used for result routing.
+    pub fn with_context(mut self, context: SupervisedRunContext) -> Self {
+        self.context = Some(context);
+        self
+    }
+
+    /// Set the dedicated supervised-run parent identifier.
+    pub fn with_parent_id(mut self, parent_id: impl Into<String>) -> Self {
+        self.parent_id = Some(parent_id.into());
+        self
+    }
 }
 
 /// Full record of a supervised run, extending RunItem with additional fields
@@ -239,6 +275,8 @@ pub struct RunRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<SupervisedRunContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
@@ -268,7 +306,8 @@ impl RunRecord {
             result_summary: None,
             claimed_by: None,
             metadata: spec.metadata.clone(),
-            parent_id: None,
+            context: spec.context.clone(),
+            parent_id: spec.parent_id.clone(),
             tags: None,
         }
     }

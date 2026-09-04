@@ -247,7 +247,7 @@ fn actmem_error_response(error: ActmemError) -> ApiError {
 mod tests {
     use super::*;
     use crate::server::memory_routes;
-    use agent_diva_core::bus::MessageBus;
+    use agent_diva_core::bus::AgentEventBus;
     use axum::{
         body::{to_bytes, Body},
         http::Request,
@@ -260,7 +260,7 @@ mod tests {
         let (api_tx, _api_rx) = mpsc::channel(1);
         let state = AppState::new_with_runtime_memory(
             api_tx,
-            MessageBus::new(),
+            AgentEventBus::new(),
             temp.path(),
             agent_diva_sandbox::CommandApprovalCoordinator::default(),
             agent_diva_core::ask_user::AskUserCoordinator::default(),
