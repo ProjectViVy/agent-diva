@@ -14,6 +14,7 @@ const props = defineProps<{
   channel: Channel;
   status?: ChannelStatusSummary;
   busy?: boolean;
+  error?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -83,6 +84,8 @@ const missingFields = computed(() => {
         <span class="missing-fields">{{ missingFields.slice(0, 2).join(', ') }}{{ missingFields.length > 2 ? '...' : '' }}</span>
       </div>
     </div>
+
+    <p v-if="props.error" class="channel-operation-error" role="alert">{{ props.error }}</p>
 
     <div class="card-actions">
       <button
@@ -223,6 +226,16 @@ const missingFields = computed(() => {
   gap: 0.5rem;
   justify-content: flex-end;
   margin-top: auto;
+}
+
+.channel-operation-error {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
 }
 
 .action-btn {

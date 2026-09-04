@@ -49,4 +49,38 @@ describe('appConfirmAsync', () => {
     await expect(result).resolves.toBe(true);
     expect(open.value).toBeNull();
   });
+
+  it('does not let a stale action close a replacement dialog', async () => {
+    let releaseAction!: () => void;
+    const staleResult = appConfirmAsync(
+      'Stale action?',
+      () =>
+        new Promise<void>((resolve) => {
+          releaseAction = resolve;
+        }),
+    );
+    const staleSubmit = submitAppDialogConfirm();
+    await Promise.resolve();
+    expect(getAppDialogOpen().value).toMatchObject({ kind: 'confirm', pending: true });
+
+    const replacementResult = appConfirmAsync('Replacement dialog?', async () => undefined);
+    await expect(staleResult).resolves.toBe(false);
+    expect(getAppDialogOpen().value).toMatchObject({
+      kind: 'confirm',
+      message: 'Replacement dialog?',
+      pending: false,
+    });
+
+    releaseAction();
+    await staleSubmit;
+    expect(getAppDialogOpen().value).toMatchObject({
+      kind: 'confirm',
+      message: 'Replacement dialog?',
+      pending: false,
+    });
+
+    await submitAppDialogConfirm();
+    await expect(replacementResult).resolves.toBe(true);
+    expect(getAppDialogOpen().value).toBeNull();
+  });
 });

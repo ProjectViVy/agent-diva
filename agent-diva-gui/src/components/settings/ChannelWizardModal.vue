@@ -58,12 +58,12 @@ interface Step {
   title: string;
 }
 
-const steps: Step[] = [
+const steps = computed<Step[]>(() => [
   { key: 'platform', title: t('channels.wizardStepPlatform') },
   { key: 'credentials', title: t('channels.wizardStepCredentials') },
   { key: 'test', title: t('channels.wizardStepTest') },
   { key: 'done', title: t('channels.wizardStepDone') },
-];
+]);
 
 const currentStep = ref<StepKey>('platform');
 const isEditMode = ref(false);
@@ -82,7 +82,7 @@ const isSaving = ref(false);
 const saveError = ref('');
 const testGeneration = ref(0);
 
-const currentStepIndex = computed(() => steps.findIndex((s) => s.key === currentStep.value));
+const currentStepIndex = computed(() => steps.value.findIndex((s) => s.key === currentStep.value));
 
 const canNext = computed(() => {
   if (currentStep.value === 'platform') return Boolean(formData.value.platform);
@@ -149,8 +149,8 @@ const nextStep = async () => {
   }
 
   const currentIndex = currentStepIndex.value;
-  if (currentIndex < steps.length - 1) {
-    currentStep.value = steps[currentIndex + 1].key;
+  if (currentIndex < steps.value.length - 1) {
+    currentStep.value = steps.value[currentIndex + 1].key;
     if (currentStep.value === 'test') {
       // Auto-test on enter test step
       void testConnection();
@@ -166,7 +166,7 @@ const prevStep = () => {
   }
   const currentIndex = currentStepIndex.value;
   if (currentIndex > 0) {
-    currentStep.value = steps[currentIndex - 1].key;
+    currentStep.value = steps.value[currentIndex - 1].key;
   }
 };
 
@@ -340,11 +340,11 @@ watch(
             <div v-if="currentStep === 'credentials'" class="wizard-step">
               <label class="wizard-label">{{ t('channels.enterCredentials') }}</label>
               
-              <!-- 快速获取凭证指引 -->
+              <!-- Quick credential guide -->
               <div v-if="currentPlatform" class="quick-guide-panel">
                 <div class="quick-guide-header">
                   <Lightbulb :size="18" />
-                  <h4>如何获取 {{ currentPlatform.displayName }} 凭证？</h4>
+                  <h4>{{ t('channels.wizardQuickGuideTitle', { platform: currentPlatform.displayName }) }}</h4>
                 </div>
                 <div class="quick-guide-steps">
                   <ol>
@@ -354,7 +354,8 @@ watch(
                   </ol>
                 </div>
                 <button class="view-full-tutorial-btn" @click="openTutorial">
-                  📖 查看完整配置教程（含截图）
+                  <span aria-hidden="true">📖</span>
+                  {{ t('channels.wizardFullTutorial') }}
                 </button>
               </div>
               

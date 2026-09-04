@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Plus, MessageSquarePlus } from '@lucide/vue';
+import { CircleAlert, LoaderCircle, Plus, MessageSquarePlus } from '@lucide/vue';
 import ChannelCard from './ChannelCard.vue';
 import type { ChannelStatusSummary } from '../../api/desktop';
 
@@ -16,6 +16,8 @@ const props = defineProps<{
   loading?: boolean;
   canAdd?: boolean;
   busyChannels?: string[];
+  errors?: Record<string, string>;
+  error?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -34,15 +36,26 @@ const channelList = computed(() =>
     .map(([name, raw]) => ({
       name,
       channel: { name, enabled: Boolean(raw?.enabled), config: raw } as Channel,
-      status: statusMap.value.get(name),
-    }))
+        status: statusMap.value.get(name),
+        error: props.errors?.[name],
+      }))
 );
 </script>
 
 <template>
   <div class="channel-card-view">
     <!-- Empty State -->
-    <div v-if="channelList.length === 0" class="channel-empty-state">
+    <div v-if="loading && channelList.length === 0" class="channel-loading-state" role="status">
+      <LoaderCircle :size="32" class="animate-spin" />
+      <span>{{ $t('channels.loading') }}</span>
+    </div>
+
+    <div v-else-if="error && channelList.length === 0" class="channel-error-state" role="alert">
+      <CircleAlert :size="32" />
+      <span>{{ error }}</span>
+    </div>
+
+    <div v-else-if="channelList.length === 0" class="channel-empty-state">
       <div class="empty-icon">
         <MessageSquarePlus :size="80" />
       </div>
@@ -59,11 +72,12 @@ const channelList = computed(() =>
     <!-- Card Grid -->
     <div v-else class="channel-card-grid">
       <ChannelCard
-        v-for="{ name, channel, status } in channelList"
+        v-for="{ name, channel, status, error: channelError } in channelList"
         :key="name"
         :channel="channel"
         :status="status"
         :busy="busyChannelSet.has(name)"
+        :error="channelError"
         @toggle="emit('toggle', name)"
         @edit="emit('edit', name)"
         @delete="emit('delete', name)"
@@ -77,6 +91,26 @@ const channelList = computed(() =>
   width: 100%;
   height: 100%;
   overflow-y: auto;
+}
+
+.channel-loading-state,
+.channel-error-state {
+  display: flex;
+  min-height: 14rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.channel-loading-state {
+  color: var(--text-muted);
+}
+
+.channel-error-state {
+  color: var(--danger);
 }
 
 .channel-empty-state {

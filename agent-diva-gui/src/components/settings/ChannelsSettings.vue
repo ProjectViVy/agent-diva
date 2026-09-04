@@ -31,7 +31,11 @@ const channelStatuses = ref<ChannelStatusSummary[]>([]);
 const selectedChannel = ref<string | null>(null);
 const isInitializing = ref(true);
 const busyChannels = ref<Set<string>>(new Set());
+const channelErrors = ref<Record<string, string>>({});
 const loadError = ref<string | null>(null);
+let loadGeneration = 0;
+let channelMutationGeneration = 0;
+const channelMutationVersions = new Map<string, number>();
 
 const cloneValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -60,20 +64,28 @@ function isRecord(value: unknown): value is Record<string, any> {
 }
 
 function parseRemovedNames(value: unknown): Set<string> {
+  if (value === undefined) return new Set();
   if (Array.isArray(value)) {
-    return new Set(value.filter((name): name is string => typeof name === 'string' && name.length > 0));
+    if (value.some((name) => typeof name !== 'string' || name.length === 0)) {
+      throw new Error(t('channels.invalidResponse'));
+    }
+    return new Set(value as string[]);
   }
   if (typeof value === 'string' && value.length > 0) return new Set([value]);
   if (isRecord(value)) return new Set(Object.keys(value));
-  return new Set();
+  throw new Error(t('channels.invalidResponse'));
 }
 
 function parseChannelsResponse(value: unknown): ParsedChannelsResponse {
-  const raw = isRecord(value) ? value : {};
-  const source = isRecord(raw.channels) ? raw.channels : raw;
+  if (!isRecord(value)) throw new Error(t('channels.invalidResponse'));
+  const raw = value;
+  const hasNestedChannels = Object.prototype.hasOwnProperty.call(raw, 'channels');
+  if (hasNestedChannels && !isRecord(raw.channels)) throw new Error(t('channels.invalidResponse'));
+  const source = hasNestedChannels ? raw.channels : raw;
   const channels: Record<string, Record<string, any>> = {};
   for (const [name, config] of Object.entries(source)) {
-    if (name === 'channels' || name === 'removed' || !isRecord(config)) continue;
+    if (name === 'channels' || name === 'removed') continue;
+    if (!isRecord(config)) throw new Error(t('channels.invalidResponse'));
     channels[name] = config;
   }
   return { channels, removed: parseRemovedNames(raw.removed) };
@@ -101,6 +113,8 @@ function normalizeDiscordConfig(d: Record<string, unknown> | undefined) {
 }
 
 async function loadChannels(): Promise<boolean> {
+  const requestGeneration = ++loadGeneration;
+  const mutationSnapshot = new Map(channelMutationVersions);
   isLoading.value = true;
   loadError.value = null;
   try {
@@ -109,17 +123,38 @@ async function loadChannels(): Promise<boolean> {
       getConfigStatus(),
       invoke<unknown>('get_channel_runtime'),
     ]);
+    if (requestGeneration !== loadGeneration) return false;
     const parsed = parseChannelsResponse(fetchedChannels);
     normalizeDiscordConfig(parsed.channels.discord);
-    const nextChannels = cloneValue(parsed.channels);
+    const remoteChannels = cloneValue(parsed.channels);
+    const remoteSavedChannels = cloneValue(parsed.channels);
+    const nextChannels = cloneValue(remoteChannels);
+    const nextSavedChannels = cloneValue(remoteSavedChannels);
+    for (const [name, draft] of Object.entries(draftChannels.value)) {
+      const mutationChanged = (channelMutationVersions.get(name) ?? 0) !== (mutationSnapshot.get(name) ?? 0);
+      const draftIsDirty = JSON.stringify(draft) !== JSON.stringify(savedChannels.value[name] ?? null);
+      if (mutationChanged) {
+        nextChannels[name] = cloneValue(draft);
+        if (savedChannels.value[name] === undefined) delete nextSavedChannels[name];
+        else nextSavedChannels[name] = cloneValue(savedChannels.value[name]);
+      } else if (isChannelBusy(name) || draftIsDirty) {
+        nextChannels[name] = cloneValue(draft);
+      }
+    }
+    const nextRemovedChannels = new Set(parsed.removed);
+    for (const [name, version] of channelMutationVersions) {
+      if (version === mutationSnapshot.get(name)) continue;
+      if (removedChannels.value.has(name)) nextRemovedChannels.add(name);
+      else nextRemovedChannels.delete(name);
+    }
     draftChannels.value = nextChannels;
-    savedChannels.value = cloneValue(nextChannels);
-    removedChannels.value = parsed.removed;
+    savedChannels.value = nextSavedChannels;
+    removedChannels.value = nextRemovedChannels;
     const runtimeStatuses = parseRuntimeStatuses(rawRuntimeStatuses);
     const configStatusMap = new Map(configStatus.channels.map((item) => [item.name, item]));
     const runtimeStatusMap = new Map(runtimeStatuses.map((item) => [item.name, item]));
     channelStatuses.value = Object.entries(nextChannels)
-      .filter(([name]) => !parsed.removed.has(name))
+      .filter(([name]) => !nextRemovedChannels.has(name))
       .map(([name, channel]) => {
         const runtime = runtimeStatusMap.get(name);
         const configured = configStatusMap.get(name);
@@ -131,18 +166,21 @@ async function loadChannels(): Promise<boolean> {
           notes: [runtime?.lifecycle, runtime?.diagnosis].filter(Boolean) as string[],
         };
       });
-    const visibleNames = Object.keys(nextChannels).filter((name) => !parsed.removed.has(name));
-    if (!selectedChannel.value || !nextChannels[selectedChannel.value] || parsed.removed.has(selectedChannel.value)) {
+    const visibleNames = Object.keys(nextChannels).filter((name) => !nextRemovedChannels.has(name));
+    if (!selectedChannel.value || !nextChannels[selectedChannel.value] || nextRemovedChannels.has(selectedChannel.value)) {
       selectedChannel.value = visibleNames[0] ?? null;
     }
     return true;
   } catch (e) {
+    if (requestGeneration !== loadGeneration) return false;
     console.error('Failed to load channels:', e);
     loadError.value = errorMessage(e, t('channels.loadFailed'));
     return false;
   } finally {
-    isInitializing.value = false;
-    isLoading.value = false;
+    if (requestGeneration === loadGeneration) {
+      isInitializing.value = false;
+      isLoading.value = false;
+    }
   }
 }
 
@@ -179,10 +217,74 @@ const setChannelBusy = (channelName: string, busy: boolean) => {
   busyChannels.value = next;
 };
 
+const setChannelError = (channelName: string, error: unknown) => {
+  const next = { ...channelErrors.value };
+  if (error) next[channelName] = errorMessage(error, t('channels.saveFailed'));
+  else delete next[channelName];
+  channelErrors.value = next;
+};
+
+const markChannelMutation = (channelName: string) => {
+  const version = ++channelMutationGeneration;
+  channelMutationVersions.set(channelName, version);
+  return version;
+};
+
+const valuesEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+
+const commitLocalChannelSave = (name: string, submittedConfig: Record<string, any>) => {
+  const submitted = cloneValue(submittedConfig);
+  const currentDraft = draftChannels.value[name];
+  const nextDraftChannels = { ...draftChannels.value };
+  if (currentDraft === undefined || valuesEqual(currentDraft, submitted)) {
+    nextDraftChannels[name] = cloneValue(submitted);
+  }
+  draftChannels.value = nextDraftChannels;
+  savedChannels.value = { ...savedChannels.value, [name]: cloneValue(submitted) };
+
+  const nextRemovedChannels = new Set(removedChannels.value);
+  nextRemovedChannels.delete(name);
+  removedChannels.value = nextRemovedChannels;
+
+  const existingStatus = channelStatuses.value.find((status) => status.name === name);
+  channelStatuses.value = existingStatus
+    ? channelStatuses.value.map((status) =>
+        status.name === name ? { ...status, enabled: Boolean(submitted.enabled) } : status,
+      )
+    : [
+        ...channelStatuses.value,
+        { name, enabled: Boolean(submitted.enabled), ready: false, missing_fields: [], notes: [] },
+      ];
+  if (!selectedChannel.value) selectedChannel.value = name;
+};
+
+const commitLocalChannelDelete = (name: string) => {
+  const nextDraftChannels = { ...draftChannels.value };
+  const nextSavedChannels = { ...savedChannels.value };
+  delete nextDraftChannels[name];
+  delete nextSavedChannels[name];
+  draftChannels.value = nextDraftChannels;
+  savedChannels.value = nextSavedChannels;
+
+  const nextRemovedChannels = new Set(removedChannels.value);
+  nextRemovedChannels.add(name);
+  removedChannels.value = nextRemovedChannels;
+  channelStatuses.value = channelStatuses.value.filter((status) => status.name !== name);
+  setChannelError(name, null);
+
+  if (selectedChannel.value === name) {
+    selectedChannel.value = Object.keys(nextDraftChannels).find((channelName) => !nextRemovedChannels.has(channelName)) ?? null;
+  }
+};
+
 const selectedChannelDraft = computed(() => {
   if (!selectedChannel.value) return null;
   return visibleDraftChannels.value[selectedChannel.value] ?? null;
 });
+
+const selectedChannelError = computed(() =>
+  selectedChannel.value ? channelErrors.value[selectedChannel.value] ?? null : null,
+);
 
 const isSaving = computed(() => Boolean(selectedChannel.value && isChannelBusy(selectedChannel.value)));
 
@@ -192,6 +294,7 @@ const isDirty = computed(() => {
 });
 
 const toggleChannelEnabled = (channelName: string) => {
+  if (isChannelBusy(channelName)) return;
   if (draftChannels.value[channelName]) {
     draftChannels.value[channelName].enabled = !draftChannels.value[channelName].enabled;
   }
@@ -199,15 +302,16 @@ const toggleChannelEnabled = (channelName: string) => {
 
 const persistChannel = async (name: string, config: Record<string, any>) => {
   if (isChannelBusy(name)) return;
+  const submitted = cloneValue(config);
+  markChannelMutation(name);
+  setChannelError(name, null);
   setChannelBusy(name, true);
   try {
-    await props.saveChannelConfigAction(name, cloneValue(config));
-    draftChannels.value[name] = cloneValue(config);
-    savedChannels.value[name] = cloneValue(config);
-    const refreshed = await loadChannels();
-    if (!refreshed) {
-      throw new Error(loadError.value || t('channels.loadFailed'));
-    }
+    await props.saveChannelConfigAction(name, submitted);
+    commitLocalChannelSave(name, submitted);
+  } catch (error) {
+    setChannelError(name, error);
+    throw error;
   } finally {
     setChannelBusy(name, false);
   }
@@ -215,7 +319,11 @@ const persistChannel = async (name: string, config: Record<string, any>) => {
 
 const saveCurrentChannel = async () => {
   if (!selectedChannel.value || !selectedChannelDraft.value || isSaving.value || !isDirty.value) return;
-  await persistChannel(selectedChannel.value, selectedChannelDraft.value);
+  try {
+    await persistChannel(selectedChannel.value, selectedChannelDraft.value);
+  } catch {
+    // The inline error remains next to the active editor and the draft stays editable.
+  }
 };
 
 // 向导相关函数
@@ -270,16 +378,18 @@ const handleCardDelete = async (name: string) => {
   return appConfirmAsync(
     t('channels.deleteConfirm', { name }),
     async () => {
+      markChannelMutation(name);
+      setChannelError(name, null);
       setChannelBusy(name, true);
       try {
         const result = await invoke<unknown>('delete_channel', { name });
         if (isRecord(result) && typeof result.status === 'string' && result.status.toLowerCase() === 'error') {
           throw new Error(typeof result.message === 'string' ? result.message : t('channels.deleteFailed'));
         }
-        const refreshed = await loadChannels();
-        if (!refreshed || visibleDraftChannels.value[name]) {
-          throw new Error(loadError.value || t('channels.deleteRefreshFailed'));
-        }
+        commitLocalChannelDelete(name);
+      } catch (error) {
+        setChannelError(name, error);
+        throw error;
       } finally {
         setChannelBusy(name, false);
       }
@@ -296,8 +406,8 @@ const handleCardToggle = async (name: string) => {
   toggleChannelEnabled(name);
   try {
     await persistChannel(name, draftChannels.value[name]);
-  } catch (e) {
-    console.error('Failed to save channel state:', e);
+  } catch {
+    // The failed draft and its inline error remain available for retry.
   }
 };
 
@@ -395,6 +505,8 @@ const handleRefresh = async () => {
           :loading="isInitializing"
           :can-add="canAddChannel"
           :busy-channels="busyChannelNames"
+          :errors="channelErrors"
+          :error="loadError"
           @add="openWizard"
           @edit="handleCardEdit"
           @delete="handleCardDelete"
@@ -428,6 +540,7 @@ const handleRefresh = async () => {
                     :title="selectedChannelDraft.enabled ? t('channels.enabled') : t('channels.disabled')"
                     class="channels-toggle"
                     :class="{ enabled: selectedChannelDraft.enabled }"
+                    :disabled="isChannelBusy(selectedChannel)"
                     @click.stop="toggleChannelEnabled(selectedChannel)"
                   >
                     <span class="channels-toggle-thumb" />
@@ -447,6 +560,9 @@ const handleRefresh = async () => {
           </div>
 
           <div class="channels-detail-body">
+            <p v-if="selectedChannelError" class="channel-operation-error" role="alert">
+              {{ selectedChannelError }}
+            </p>
             <div v-if="channelStatusMap.get(selectedChannel)" class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div class="channels-status-card">
                 <div class="channels-status-card-label">{{ t('channels.readiness') }}</div>
@@ -465,6 +581,7 @@ const handleRefresh = async () => {
             <ChannelEditorForm
               :platform="selectedChannel"
               :config="selectedChannelDraft"
+              :disabled="isChannelBusy(selectedChannel)"
             />
           </div>
         </div>
@@ -540,6 +657,15 @@ const handleRefresh = async () => {
   border: 1px solid var(--line);
   background: var(--accent-bg-light);
   min-width: 0;
+}
+
+.channel-operation-error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: 0.875rem;
 }
 
 /* 工具栏 */

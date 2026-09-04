@@ -2512,23 +2512,18 @@ async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
 }
 
 async function saveChannelConfig(channelName: string, channelConfig: Record<string, unknown>) {
-  try {
-    if (!isTauri()) {
-      showAppToast("保存成功");
-      return;
-    }
-
-    await invoke('update_channel', {
-      name: channelName,
-      enabled: Boolean(channelConfig.enabled),
-      config: channelConfig,
-    });
-
+  if (!isTauri()) {
     showAppToast("保存成功");
-  } catch (error) {
-    await appAlert(t('app.configUpdateError', { error }));
-    throw error;
+    return;
   }
+
+  await invoke('update_channel', {
+    name: channelName,
+    enabled: Boolean(channelConfig.enabled),
+    config: channelConfig,
+  });
+
+  showAppToast("保存成功");
 }
 
 async function handleWelcomeDone(payload: WelcomeDonePayload) {
