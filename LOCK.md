@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `agent-diva-core channel config; agent-diva-channels probe; agent-diva-manager channel API/runtime; agent-diva-gui dependency/Tauri/channel settings; .github/workflows/ci.yml; GUI packaging scripts; justfile; README.md; README.zh-CN.md; AGENTS-ARCH.MD; TODOLIST.md; docs/logs/2026-09-gui-channel-recovery/**`
 - Owner: `Codex / GPT-5.6-LUNA/MAX agent team`
 - Session/Task: `Local dev merge and closeout for GUI dependency audit/channel settings recovery`
 - Branch/Worktree: `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`
 - Started At: `2026-09-04T11:55:15+08:00`
-- Last Heartbeat: `2026-09-04T17:05:00+08:00`
-- Expires At: `2026-09-04T19:05:00+08:00`
-- Handoff Notes: `Feature HEAD 13c36dd9 is complete and clean; local no-ff merge into dev is in progress. LOCK.md is the only expected conflict and preserves the released feature record below while this merge lock remains HELD. Final sequential QA and independent review passed. Real-platform C5/C6-E remains open; no push is authorized.`
+- Last Heartbeat: `2026-09-04T17:14:32+08:00`
+- Expires At: `N/A`
+- Handoff Notes: `Feature HEAD 13c36dd9 was merged locally into dev as 7f51874c; post-merge validation and release records were committed as fc02dd7e. fmt, check, test, channel clean-break, and GUI dependency policy gates passed. Real-platform C5/C6-E remains open. No push was performed.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Local dev merge and closeout for GUI dependency audit/channel settings recovery` — **RELEASED 2026-09-04T17:14:32+08:00** by `Codex / GPT-5.6-LUNA/MAX agent team` on `dev / C:\Users\Administrator\Desktop\morediva\agent-diva`. Feature HEAD `13c36dd9` was merged as `7f51874c`; post-merge records are `fc02dd7e`. `just fmt-check`, `just check`, `just test`, channel clean-break, and GUI dependency policy gates passed. Real-platform C5/C6-E remains open. No push was performed.
 
 - `GUI dependency audit remediation and channel settings recovery` — **RELEASED 2026-09-04T17:05:00+08:00** by `Codex / GPT-5.6-LUNA/MAX agent team` on `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`. Implementation and v0.4.11/v0.4.12 records are complete through `bd583755`; final gates and independent review passed. Real-platform C5/C6-E evidence remains open. No push was performed.
 
