@@ -4,15 +4,15 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `GLOBAL — C6-D strict Clean Break (released)`
-- Owner: `none`
-- Session/Task: `CHANNEL-EPIC C6-D strict deletion of InboundMessage/OutboundMessage and old queue APIs (released)`
-- Branch/Worktree: `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`
-- Started At: `2026-09-04T02:29:56+08:00`
-- Last Heartbeat: `2026-09-04T06:03:26+08:00`
-- Expires At: `none`
-- Handoff Notes: `C6-D feature worktree is clean at final HEAD bccae24d; implementation, validation, iteration logs, and TODOLIST bookkeeping are complete. Feature branch was not merged to dev and nothing was pushed. C6-E remains open for real-platform/desktop/MSRV acceptance.`
+- Lock State: `HELD`
+- Scope: `GLOBAL — integrate C6-D and implement GUI audit/channel settings recovery`
+- Owner: `Codex / GPT-5.6-LUNA/MAX agent team`
+- Session/Task: `GUI dependency audit remediation and channel settings probe/delete restoration`
+- Branch/Worktree: `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`
+- Started At: `2026-09-04T11:55:15+08:00`
+- Last Heartbeat: `2026-09-04T11:55:15+08:00`
+- Expires At: `2026-09-04T15:55:15+08:00`
+- Handoff Notes: `Implementation authorized by the user. The isolated integration branch will start from dev, merge C6-D at bccae24d, then accept non-overlapping dependency, Manager/API, and GUI work from GPT-5.6-LUNA/MAX agents. No push is authorized.`
 
 ## Lock Rules
 
@@ -25,6 +25,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `GUI dependency audit remediation and channel settings recovery` — **HELD 2026-09-04T11:55:15+08:00** by `Codex / GPT-5.6-LUNA/MAX agent team` on `feat/gui-channel-recovery / C:\Users\Administrator\Desktop\morediva\agent-diva-gui-channel-recovery`. Scope is GLOBAL only while C6-D is integrated; afterward agent ownership is split across dependency metadata, Manager/Core/Channels APIs, and GUI components. No push is authorized.
 
 - `CHANNEL-EPIC C6-D strict Clean Break` — **RELEASED 2026-09-04T06:03:26+08:00** by
   `Codex / C6-D DTO Clean Break` on `feat/c6-delete-legacy-dto / C:\Users\Administrator\Desktop\morediva\agent-diva-c6-d-dto-cleanbreak`.
