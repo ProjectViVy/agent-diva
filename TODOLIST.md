@@ -380,6 +380,14 @@
 
 ## Archive Index
 
+> **2026-09-06 分支清理**：确认内容已被取代后，删除 7 个 7 月旧并行 lane 本地分支
+> （patch 未进 dev，属被放弃批次；tip SHA 备查）：
+> `wave3-parallel-remediation` `905e5eba`、`codex/rg-p0-gui-api` `d3bad784`、
+> `codex/rg-p0-gui-blockers` `9d025161`、`codex/rg-p0-gui-shell` `e74a201d`、
+> `feat/rg-e8-s3-report-notebook` `73910c79`、
+> `docs/memory-hitl-architecture-salvage` `9cae0d33`、
+> `codex/memory-interfaces-spec` `05a445a3`。
+
 归档目录：
 [`docs/dev/archive(old-docs-dont-read-me)/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/`](docs/dev/archive%28old-docs-dont-read-me%29/2026-08-docs-corpus-reset/legacy-docs/docs-archive/content/todolist/README.md)
 
