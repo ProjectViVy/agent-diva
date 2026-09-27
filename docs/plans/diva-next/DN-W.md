@@ -17,7 +17,7 @@
 
 - `@tauri-apps/api` + `@tauri-apps/plugin-opener` npm deps: frontend-only client packages keeping call sites typed and test mocks intact; every call now fails at runtime because no Tauri runtime exists. Removal happens per-domain in DN-1..DN-6 (tracked in TODOLIST `DEAD-INVOKE-SEAMS`).
 - `workspace/masks`: runtime prompt data, candidate migration source for DN-7 — not backend code.
-- Test fixture `approval_contract_v1.json` relocated to `src/api/__fixtures__/` (was imported from the deleted `agent-diva-manager` crate).
+- Test fixture `approval_contract_v1.json` relocated to `src/api/fixtures/` (was imported from the deleted `agent-diva-manager` crate).
 - Governance docs (AGENTS.md, CLAUDE.md, README bodies) still describe the Rust workspace — stale by design pending governance review (TODOLIST `GOVERNANCE-DOCS-STALE`); branch banners added to both READMEs.
 
 ## Verification evidence

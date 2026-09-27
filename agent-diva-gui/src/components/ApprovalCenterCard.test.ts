@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import fixture from '../api/__fixtures__/approval_contract_v1.json';
+import fixture from '../api/fixtures/approval_contract_v1.json';
 import ApprovalCenterCard from './ApprovalCenterCard.vue';
 import type { ApprovalView } from '../api/approvals';
 
