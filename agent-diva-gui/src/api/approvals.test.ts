@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import fixture from '../../../agent-diva-manager/tests/fixtures/approval_contract_v1.json';
+import fixture from './__fixtures__/approval_contract_v1.json';
 import { ApprovalEventGuard, isApprovalEventView, isApprovalView } from './approvals';
 
 describe('unified approval Rust fixture', () => {

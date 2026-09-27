@@ -25,6 +25,9 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
+- `DIVA Next wire-cut (DN-W)` — **RELEASED 2026-09-27T08:20:00+00:00**
+  by `Devin`; scope `GLOBAL` (deleted all Rust crates, `src-tauri`, Cargo/CI/scripts build closure) + `agent-diva-gui/**` + root docs. Branch `devin/1790495412-diva-next-planning`.
+
 - `DIVA Next planning package` — **RELEASED 2026-09-27T07:55:00+00:00**
   by `Devin`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-next-planning/**`, `LOCK.md`; docs only, no code. Branch `devin/1790495412-diva-next-planning` off `main` `0fd005a1`.
 

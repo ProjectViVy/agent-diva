@@ -5,6 +5,19 @@
 
 严重度：`sev-P0` 阻断，`sev-P1` 高，`sev-P2` 中，`sev-P3` 低。
 
+## DIVA Next 拆线遗留（本分支）
+
+- [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
+  拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
+  以免会话继续按 Rust 门槛（just ci / clippy / cargo）执行。见 `docs/plans/diva-next/index.md`。
+- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P1`
+  `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
+  调用会失败。按 DN-1..DN-6 逐域替换为 VIVY 调用后再移除包与调用点。
+- [ ] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
+  DN-8 需新增 `check_vivy_backend_boundary`（验证依赖图与打包内容，而非字符串搜索）。
+- [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
+  对应 DN-4/DN-6/DN-7 Blocked 状态；#63 落地前不得引入假成功适配器。
+
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
 - [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`

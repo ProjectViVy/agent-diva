@@ -10,7 +10,7 @@ Produces `docs/plans/diva-next/backend-separation-contracts.md` (proposed path f
 
 ## Tasks
 
-- [ ] Enumerate registered Tauri commands in `agent-diva-gui/src-tauri/src/{commands,lib,app_state,gateway_status,shutdown_manager,notebook,tray,process_utils,embedded_server}.rs`; map each to frontend `invoke` consumers in `agent-diva-gui/src/` (scan baseline: ~158 invoke sites across 18 files, 26 listen sites across 3 files — verify actual list, do not trust the counts).
+- [ ] Enumerate registered Tauri commands in `agent-diva-gui/src-tauri/src/{commands,lib,app_state,gateway_status,shutdown_manager,notebook,tray,process_utils,embedded_server}.rs` **at baseline `0fd005a1` (git history — the tree is deleted by DN-W)**; map each to frontend `invoke` consumers in `agent-diva-gui/src/` (scan baseline: ~158 invoke sites across 18 files, 26 listen sites across 3 files — verify actual list, do not trust the counts).
 - [ ] Enumerate Manager HTTP/SSE routes the frontend reaches, direct provider calls, native-only calls, stored data, and configuration secrets.
 - [ ] Classify each item: reuse presentation / replace by existing VIVY contract / blocked on #63 / native host / offline import / explicitly retired. Record consumer, target method/action, capability, input/output/error shape, backend revision, acceptance fixture.
 - [ ] Include all currently required channels/providers/native interactions; omissions get an explicit product disposition, not silent deletion.
