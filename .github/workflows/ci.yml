@@ -2,136 +2,35 @@ name: CI
 
 on:
   workflow_dispatch:
-    inputs:
-      run_tests:
-        description: "Run cargo test --all (slow; off by default for push/PR)"
-        required: false
-        default: false
-        type: boolean
-      run_coverage:
-        description: "Run tarpaulin + Codecov (implies full tests)"
-        required: false
-        default: false
-        type: boolean
   push:
     branches: [main, develop]
     tags:
       - "v*.*.*"
     paths:
-      - '**/*.rs'
-      - '**/Cargo.toml'
-      - 'Cargo.lock'
-      - 'justfile'
       - 'agent-diva-gui/**'
-      - 'scripts/feature-gate-check.py'
-      - 'scripts/feature-gate-check.ps1'
-      - 'scripts/ci/**'
-      - 'docs/app-building/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - '**/*.rs'
-      - '**/Cargo.toml'
-      - 'Cargo.lock'
-      - 'justfile'
       - 'agent-diva-gui/**'
-      - 'scripts/feature-gate-check.py'
-      - 'scripts/feature-gate-check.ps1'
-      - 'scripts/ci/**'
-      - 'docs/app-building/**'
       - '.github/workflows/ci.yml'
 
 env:
-  CARGO_TERM_COLOR: always
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
+  PNPM_VERSION: '10'
 
-# 显式声明后，未列出的权限为 none。上传/下载 artifact 需要 actions: write/read。
 permissions:
   contents: read
-  actions: write
 
+# Post wire-cut (DN-W): the Rust workspace and Tauri backend are removed.
+# The remaining gate is the Vue frontend test + build. The new product
+# build/package contract returns in DN-8 (docs/plans/diva-next/index.md).
 jobs:
-  rust-check:
-    name: Rust Check (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  gui-check:
+    name: GUI Test & Build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      # workspace 含 agent-diva-gui/src-tauri（Tauri）；clippy/test --all 会编 glib-sys，需与 gui-build 一致的 pkg-config 依赖
-      - name: Install Linux Tauri/GTK build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Cache cargo dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install just
-        run: cargo install just --locked
-
-      - name: Format, clippy, and build
-        run: |
-          just fmt-check
-          just check
-          just build
-
-      - name: Run Sprint 5 default-lane provider regressions
-        run: just memory-provider-check
-
-      - name: Run feature gate check
-        run: just feature-gate-check
-
-      - name: Run tests
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true'
-        run: just test
-
-      - name: Validate Windows service CLI (dry run)
-        if: runner.os == 'Windows'
-        run: |
-          cargo build -p agent-diva-cli -p agent-diva-service --release
-          .\target\release\agent-diva.exe service install --auto-start --dry-run
-          .\target\release\agent-diva.exe service status --dry-run
-          .\target\release\agent-diva.exe service uninstall --dry-run
-
-  gui-build:
-    name: GUI Build (${{ matrix.os_tag }})
-    needs: rust-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            os_tag: linux
-          - os: windows-latest
-            os_tag: windows
-          - os: macos-latest
-            os_tag: macos
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo dependencies
-        uses: Swatinem/rust-cache@v2
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -146,118 +45,14 @@ jobs:
           cache: pnpm
           cache-dependency-path: agent-diva-gui/pnpm-lock.yaml
 
-      - name: Install Linux GUI build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Build GUI companion CLI
-        shell: bash
-        run: cargo build -p agent-diva-cli --release
-
-      - name: Build optional service companion
-        shell: bash
-        run: |
-          if [ -f agent-diva-service/Cargo.toml ]; then
-            cargo build -p agent-diva-service --release
-          else
-            echo "agent-diva-service not present; continuing without service binary"
-          fi
-
-      - name: Stage GUI bundle resources
-        run: python scripts/ci/prepare_gui_bundle.py --gui-root agent-diva-gui
-
       - name: Install frontend dependencies
         working-directory: agent-diva-gui
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri bundles
+      - name: Test
         working-directory: agent-diva-gui
-        run: pnpm tauri build
+        run: pnpm test
 
-      # 只上传最终安装包。Tauri bundle 目录下还有 AppImage 的 AppDir、linuxdeploy 拷贝的 .so、
-      # deb 中间文件等；若用 bundle/** 整棵上传再在 release 里 ./artifacts/**/*，会把数百个无关文件挂到 Release。
-      - name: Upload GUI artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-diva-gui-${{ matrix.os_tag }}-${{ runner.arch }}-${{ github.sha }}
-          path: |
-            target/release/bundle/**/*.AppImage
-            target/release/bundle/**/*.appimage
-            target/release/bundle/**/*.deb
-            target/release/bundle/**/*.dmg
-            target/release/bundle/**/*.msi
-            target/release/bundle/**/*.exe
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.AppImage
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.appimage
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.deb
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.dmg
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.msi
-            agent-diva-gui/src-tauri/target/release/bundle/**/*.exe
-          if-no-files-found: error
-
-  coverage:
-    name: Code Coverage
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_coverage == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux Tauri/GTK build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
-
-      - name: Generate coverage
-        run: cargo tarpaulin --all --out xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./cobertura.xml
-          fail_ci_if_error: false
-
-  release:
-    name: Desktop release (tag)
-    needs: [gui-build]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download GUI artifacts (Linux, Windows, macOS)
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          # 与 upload-artifact 一致：仅安装包，避免把 AppDir / GTK 依赖等中间产物当作 Release 资源
-          files: |
-            ./artifacts/**/*.AppImage
-            ./artifacts/**/*.appimage
-            ./artifacts/**/*.deb
-            ./artifacts/**/*.dmg
-            ./artifacts/**/*.msi
-            ./artifacts/**/*.exe
-          generate_release_notes: true
+      - name: Build
+        working-directory: agent-diva-gui
+        run: pnpm build

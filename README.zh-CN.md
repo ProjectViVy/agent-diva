@@ -1,5 +1,7 @@
 # Agent Diva
 
+> **分支状态（DIVA Next 拆线）：** 下文描述的旧版 Rust workspace 与 Tauri 后端已在本分支移除（issue #13，计划 DN-P1）。仅剩 Vue 前端，等待改接 VIVY 后端。见 `docs/plans/diva-next/index.md`。
+
 <img src="docs/resources/diva.png" align="right" width="600" />
 
 QQ 群：788599177

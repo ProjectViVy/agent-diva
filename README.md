@@ -1,5 +1,7 @@
 # Agent Diva
 
+> **Branch status (DIVA Next wire-cut):** the legacy Rust workspace and Tauri backend described below have been removed on this branch (issue #13, plan DN-P1). Only the Vue frontend remains, pending rewiring to the VIVY backend. See `docs/plans/diva-next/index.md`.
+
 <img src="docs/resources/diva.png" align="right" width="500" />
 
 QQ GROUP: 788599177

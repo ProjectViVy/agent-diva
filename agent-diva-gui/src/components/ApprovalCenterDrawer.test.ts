@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import fixture from '../../../agent-diva-manager/tests/fixtures/approval_contract_v1.json';
+import fixture from '../api/fixtures/approval_contract_v1.json';
 import ApprovalCenterDrawer from './ApprovalCenterDrawer.vue';
 import type { ApprovalView } from '../api/approvals';
 
