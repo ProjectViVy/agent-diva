@@ -1,0 +1,5 @@
+# Verification
+
+Source inspection: DIVA d96e396; VIVY 5347032. Checked app lifecycle, loopback control tests, SDK pack/inspect, recipes and existing frontend/planning seams. Current Go command unavailable; no new Go/native/GUI runtime pass is claimed. Documentation link/DAG/diff checks are recorded after authoring. Historical DN-W test results remain historical evidence only.
+
+Fresh planning checks: git diff --check passed. A Python check parsed the index: 13 unique Story IDs, all immediate predecessor endpoints known, no self-edge/cycle; computed topological waves match the written schedule after removing historical Done DN-W. All local Markdown links in docs/plans/diva-next resolve. New/rewritten Story headers, checkbox tasks and verification sections are present. Manual self-review reconciled one Rust-owned event poller, retained native Tauri dependencies, exact lockfile path, per-domain blockers and separate P0 gates. GUI/Rust/Go builds were not run because only planning documents changed; runtime acceptance remains pending.

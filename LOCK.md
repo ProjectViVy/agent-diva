@@ -1,4 +1,4 @@
-﻿# LOCK
+# LOCK
 
 Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
@@ -24,6 +24,8 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DIVA P0 action planning` — **RELEASED**; owner `Codex`; branch `docs/diva-p0-action-plan`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-p0-plan/**`, `TODOLIST.md`, `LOCK.md`; documentation only. Started/heartbeat `2026-09-30T22:53:38Z`; released after documentation verification at `2026-09-30T23:01:10Z`; no implementation or external changes.
 
 - `DIVA Next wire-cut (DN-W)` — **RELEASED 2026-09-27T08:20:00+00:00**
   by `Devin`; scope `GLOBAL` (deleted all Rust crates, `src-tauri`, Cargo/CI/scripts build closure) + `agent-diva-gui/**` + root docs. Branch `devin/1790495412-diva-next-planning`.

@@ -1,32 +1,29 @@
-# DN-1 — Native VIVY protocol client and Vue state seam
+# DN-1 — VIVY client and Vue projection Implementation Plan
 
-- **Epic:** A · **Requirements:** R-2, R-3 · **Outcome:** browser client connects to a real pinned VIVY via `/rpc/bootstrap` + authenticated WebSocket JSON-RPC with `initialize`/capability discovery; Vue state projection exists.
-- **Authoritative design:** issue #13 DN-P1 §4 (Connection/State/Submission rules) · **Baseline:** `0fd005a1` · **Status:** Planned — becomes Ready when DN-0's `backend-separation-contracts.md` lands · **Index:** [index.md](index.md)
-- **In scope:** one connection lifecycle, state seam, dev proxy config, focused tests. **Out of scope:** migrating any business page (DN-2+); copying the React store. **Escalate:** missing transport contract in the pinned VIVY.
+> **For agentic workers:** Use `superpowers:executing-plans` after plan review and implementation authorization; no delegation is implied. Read both this plan and the shared design before execution.
 
-## Prerequisites / contracts
+**Spec:** [p0-design.md](p0-design.md), revision P0-D1. **State/dependencies:** [index.md](index.md) is authoritative.
+**Baselines:** DIVA `d96e396d1641a5e7636e30e1f6cdbd0e597b62c8`; VIVY `5347032d8f18a047b67e85761c0dcc48728bee7c`.
+**Global constraints:** one VIVY authority; no legacy Manager fallback; no production-data testing; do not change approved scope to close a gate. New paths below are proposed. Record actual commands/results and scoped commits; never claim mocks as live acceptance.
 
-- Consumes from DN-0: pinned VIVY artifact/revision; bootstrap/RPC/replay contract summary; named unresolved contracts.
-- Produces: `src/api/vivy/client.ts`, `src/api/vivy/contracts.ts`, `src/state/vivy-session.ts` (proposed paths); modified `src/api/capabilities.ts`, `agent-diva-gui/vite.config.ts`, `agent-diva-gui/package.json`.
-- Rules that bind the implementation: VIVY session/run/interaction IDs authoritative; replay cursor + dedup; subscription IDs are connection-scoped; never auto-resend a mutating call after ambiguous disconnect; missing capability = explicitly unavailable.
+**Goal:** Create a transport-neutral typed caller with authoritative replayable Vue state.
+**Architecture:** The desktop transport uses the accepted thin-shell commands; state projects VIVY snapshots/events instead of legacy deltas.
+**Tech stack:** Vue/TypeScript, Tauri/Rust, Go VIVY as applicable to this Story.
 
-## Tasks
+## Files and contracts
 
-- [ ] Implement bootstrap/connection lifecycle per the pinned contract: request correlation, connection errors, negotiated capabilities.
-- [ ] Add Vue session/run state projection with replay cursor and deduplication; backend truth never in localStorage (theme/layout prefs exempt per issue §3).
-- [ ] Configure the local dev proxy/origin deliberately in `vite.config.ts`; browser startup must reach actual VIVY.
-- [ ] Coordinate shared protocol extraction upstream if needed; thin typed caller + Vue adapter only, not a fork of VIVY wire definitions.
+Proposed: `agent-diva-gui/src/api/vivy/{client,contracts,transport}.ts`, corresponding `*.test.ts`, `agent-diva-gui/src/state/vivy-session.ts` and its test. Modify existing `src/api/capabilities.ts`. package/lock edits only if required. No desktop WebSocket bootstrap or browser dev-proxy requirement remains.
+
+Consumes DN-0 frozen wire schemas and DN-5 verified transport. Proposed client interface: `call<T>(method: string, params: unknown): Promise<T>`; `onEvent(handler: (event: VivyNotification) => void): () => void`; `close(): void` detaches frontend listeners only. The desktop transport handles request_id and envelope; method payloads remain VIVY-defined. Produces backend-ID-based session/run/interaction projection consumed by pages.
+
+## Ordered tasks
+
+- [ ] Add transport tests for correlation, RPC error preservation, incompatible ABI/capability, bridge close, and timeout after a mutation was accepted. Ensure the latter is never automatically retried.
+- [ ] Implement the thin caller and typed contracts from the frozen fixture; isolate all business-facing Tauri imports in this transport. Native presentation calls use desktop-host.ts.
+- [ ] Add reducer tests for repeated/late/out-of-order notifications, missing sequence, terminal-only answer, two windows and pending interaction snapshots. Implement listener-before-snapshot recovery and (run_id,seq) dedup from P0-D1. Never advance the contiguous cursor across a gap.
+- [ ] Replace the static capabilities ledger's Manager authority labels with negotiated VIVY capability state plus DN-0 dispositions. Distinguish absent, disconnected, failed and available; no fake-success fallback or localStorage domain authority.
+- [ ] Run a real native initialize/session-read/subscribe/log smoke through the DLL and shell. Tests may inject a transport, but the product path cannot select the old backend.
 
 ## Verification
 
-- Real VIVY `initialize` + session-read + replay smoke.
-- Deterministic projection tests: invalid/expired auth, reconnect, duplicate/out-of-order delivery, incompatible capability, ambiguous mutation outcome.
-- Commands: `pnpm --dir agent-diva-gui test`; `pnpm --dir agent-diva-gui build` (vue-tsc + Vite). Use the project-pinned package-manager version.
-
-## Evidence to supervisor
-
-Smoke output + test results; list of capabilities reported unavailable.
-
-## Notes
-
-Mocks alone do not pass this Story. A missing transport contract blocks it (Blocked, not improvised).
+`pnpm --dir agent-diva-gui test`; `pnpm --dir agent-diva-gui build`. Expected focused reducer/transport assertions and real native smoke both pass. Return core fixture version, recovery transcript and tests. Review focus is the five adverse cases in the shared design; state reducer owns ordering/gap and ambiguous mutation tests.

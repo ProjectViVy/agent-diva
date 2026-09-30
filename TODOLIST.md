@@ -7,16 +7,27 @@
 
 ## DIVA Next 拆线遗留（本分支）
 
+- [ ] **DIVA-SHARED-BRIDGE：Go 共享库、DIVA Recipe 与 Tauri/vivy-bridge 未落地** `sev-P0`
+  按 `docs/plans/diva-next/p0-design.md` 与 DN-L/DN-5/DN-P 执行；覆盖聊天、流式、审批、取消、重开窗口恢复、退出。
+  SDK 当前打包/检查面向可执行文件；共享产物需保持 Generation 封装和身份校验。
+- [ ] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
+  已检查 VIVY `5347032` 的 App.Run 无网关分支关闭 errCh 后可提前返回；现有取消测试不验证取消前仍存活。
+  DN-L 补生命周期断言并落实唯一宿主所有权；本次为源码发现，Go 不可用，未运行验证。
+- [ ] **P0-NATIVE-VERIFICATION：共享库/原生打包验证环境未冻结** `sev-P1`
+  当前环境无 Go；DN-0 固定目标平台、Go/cgo/C 编译器与原生执行机。原生验证未通过前不关闭 P0。
+
 - [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
   拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
   以免会话继续按 Rust 门槛（just ci / clippy / cargo）执行。见 `docs/plans/diva-next/index.md`。
-- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P1`
+- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P0`
   `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
-  调用会失败。按 DN-1..DN-6 逐域替换为 VIVY 调用后再移除包与调用点。
+  调用会失败。按 DN-0 清单与 DN-1/2/3/4/6 逐域替换，DN-M 验收语义迁移；
+  保留新 Tauri 薄壳需要的客户端包，只删除旧业务命令。
 - [ ] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
   DN-8 需新增 `check_vivy_backend_boundary`（验证依赖图与打包内容，而非字符串搜索）。
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
-  对应 DN-4/DN-6/DN-7 Blocked 状态；#63 落地前不得引入假成功适配器。
+  对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
+  不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
