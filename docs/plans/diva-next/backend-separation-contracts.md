@@ -1,9 +1,11 @@
 # Backend Separation Contracts — DN-0 Ledger (proposed)
 
 Status: **PROPOSED — pending owner review**. This document freezes the DN-0
-inventory and the ABI v1 contract record. Fixture capture is **pending** (no Go
-runtime on the DN-0 host); `fixtures/core-rpc.json` asserts schema shape from
-source and is not a wire transcript.
+inventory and the ABI v1 contract record. `fixtures/core-rpc.json` is a **captured
+transcript**: recorded on a Linux host via an uncommitted `internal/app/
+dn0_capture_test.go` harness in the VIVY pin checkout (`DialControl` + gateway-less
+composition + scripted DeepSeek-shaped provider), 38 request/response frames +
+18 `run/event` notifications; redacted.
 
 Baselines: agent-diva `d96e396d` (frontend source), retired backend at
 `0fd005a1` (origin/dev), agent-vivy `5347032d8f` (checked out at
@@ -57,22 +59,24 @@ Verified against `internal/rpc/control.go` and `internal/rpc/protocol.go` at
 `JSONLTransport` (newline-delimited frames; `MaxFrameBytes` default 32 MiB,
 `OutgoingBuffer` default 64). All handlers return a result object or
 `*Error{code,message,data?}` with codes `-32700,-32600,-32601,-32602,-32603,
--32001` plus domain `CodeNotFound`/`CodeConflict` (`-32009` range family;
-verify exact constant values during fixture capture).
+-32001` plus domain `CodeNotFound = -32004`, `CodeConflict = -32009`
+(wire-verified: `question/respond` unknown id → `-32004 "runtime: question
+not found"`; `run/cancel` on inactive run → `-32004 "run is not active in
+this process"` — fixture records 52, 54).
 
 | Method | Params (source-verified) | Result | Errors / notes |
 |---|---|---|---|
 | `initialize` | none | `{protocol_version:"vivy.rpc.v1", capabilities:[...], code_mode_available}` | capabilities array is the face's contract-discrimination source |
 | `session/create` | `{title, workspace_path}` | `{id,title,created_at,updated_at,sandbox_mode,approval_policy,permission_preset,workspace_path}` | empty title → server-side auto-titler marks untitled |
 | `session/list` | — | `{sessions:[sessionResult…]}` | |
-| `session/get` | `{session_id}` | session metadata (not message history) | **not** a substitute for `session/messages` |
+| `session/get` | `{session_id}` | `{session:{…}, messages:[messageResult…]}` — returns metadata AND reconciled message history | wire-verified (fixture record 8) |
 | `session/messages` | `{session_id, include_attachment_data?}` | `{messages:[messageResult…]}` | reconciles + applies view truncations before returning |
-| `session/delete` | `{session_id}` | — | removal target; check residual-run behavior at capture |
+| `session/delete` | `{session_id}` | `{deleted:true}` | wire-verified (record 56) |
 | `session/rename` | `{session_id,title}` | — | |
 | `session/rewind`, `session/fork`, `session/edit`, `session/context`, `session/compactions`, `session/sidebar`, `session/set_permission`, `session/set_workspace`, `session/todos`, `session/todo/update` | per-handler | — | planning/work surface, §5 |
 | `turn/start` | `{session_id, text, mode?, attachments?, attachment_paths?, context_paths?}` | `{run_id, status:"accepted"}` | `RunAccepted` — accepted≠started; terminal arrives via events |
 | `run/get` | `{run_id}` | run record `{…,status}` | statuses include `cancelled` |
-| `run/cancel` | `{run_id}` | `{run_id,status:"cancelling"}` | `CodeNotFound` if run not active in this process — **restart window race**, see §7 |
+| `run/cancel` | `{run_id}` | `{run_id,status:"cancelling"}` | `-32004` if run not active in this process — **restart window race**, see §7 |
 | `run/log` | `{run_id, after_seq?}` | `{events:[…]}` (journal replay) | pure replay; no live tail |
 | `run/subscribe` | `{run_id, after_seq?}` | `{subscription_id, run_id, after_seq}` then `run/event` notifications | replay-then-live; see projection contract below |
 | `run/unsubscribe` | `{subscription_id}` | — | |
@@ -329,25 +333,35 @@ retirement candidates recorded in TODOLIST `DEAD-INVOKE-SEAMS`.
   (`SealManifest`, `inspect` parses `EmbeddedManifest` from the binary). The
   shared-library target must extend the same pack/inspect surface (manifest +
   digest + header) — DN-L must not bypass sealed admission.
-- Fixture capture + `go test ./internal/app ./internal/rpc -run
-  'LoopbackControl|Gatewayless|Subscribe' -count=1` are **pending**: no Go,
-  `just`, or node on this host. Recorded as `P0-NATIVE-VERIFICATION` —
-  DN-L stays Blocked until a provisioned host runs them.
+- Fixture capture + `go test -tags vivy_headless ./internal/app -run
+  'LoopbackControl|Gatewayless|DN0Capture' -count=1` **executed** on Go 1.26.8
+  linux/amd64 (toolchain at `~/toolchains/go`); transcript committed as
+  `fixtures/core-rpc.json`. Remaining pending: Windows `c-shared` build,
+  header/FFI verification, packaged acceptance (`P0-NATIVE-VERIFICATION`,
+  native half only).
 
 ## 9. Blockers that keep DN-1/DN-L out of Ready
 
-1. Wire-transcript fixture capture (this doc asserts source schemas only).
+1. ~~Wire-transcript fixture capture~~ — **done**: fixture is a captured
+   transcript; `go test -tags vivy_headless ./internal/app -run
+   'LoopbackControl|Gatewayless|DN0Capture' -count=1` passed on Go 1.26.8
+   linux/amd64 (`internal/app` ok 0.398s; `internal/rpc` no matching tests —
+   subscribe coverage lives in `internal/app` + `work_subscription_test.go`).
 2. Gatewayless lifetime + sweeper/cron ownership (§7.1, §7.2) — needs a VIVY
    composition decision: either the embedded bridge runs `App.Run`-equivalent
-   startup without the listener, or DN-L ships a dedicated embedded entrypoint.
-3. DN-4 domain surfaces (mask/persona/memory/evolution), DN-6 voice
+   startup without the listener, or DN-L ships a dedicated embedded
+   entrypoint. The gatewayless tests above do **not** cover this.
+3. Windows `-buildmode=c-shared` build + Rust FFI verification host — the
+   captured evidence is Linux-only; `windows/amd64` DLL + header + packaged
+   acceptance remain unverified (`P0-NATIVE-VERIFICATION` narrows to the
+   native half).
+4. DN-4 domain surfaces (mask/persona/memory/evolution), DN-6 voice
    credentials — `VIVY-CONTRACT-BLOCKED`.
-4. Plan/work DTO mapping design (§3.4), `reset_session` semantics,
+5. Plan/work DTO mapping design (§3.4), `reset_session` semantics,
    `cancel_approval` decision mapping, `generate_session_title` gap call —
    recorded; owners in DN-1/DN-3.
-5. c-shared build of `./cmd/vivy`-equivalent entry: no `main`-exportable
-   package exists today for the shared target — DN-L adds it and re-pins via
-   pack/inspect.
+6. c-shared entry point: no `main`-exportable package exists today for the
+   shared target — DN-L adds it and re-pins via pack/inspect.
 
 ## 10. Amendments applied downstream
 

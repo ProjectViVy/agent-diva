@@ -38,11 +38,23 @@ Deliverables: `docs/plans/diva-next/backend-separation-contracts.md`,
 ## Verification performed / pending
 
 - `python -m json.tool fixtures/core-rpc.json` — valid.
-- Pending (no Go/just/node on host): wire fixture capture;
-  `go test ./internal/app ./internal/rpc -run 'LoopbackControl|Gatewayless|Subscribe' -count=1`.
-  DN-1/DN-L stay out of Ready per contract doc §9.
+- **Executed after env provisioning** (Go 1.26.8 at `~/toolchains/go`):
+  `go test -tags vivy_headless ./internal/app -run
+  'LoopbackControl|Gatewayless|DN0Capture' -count=1` → `ok agent-vivy/internal/app
+  0.398s`. `internal/rpc` has no tests matching that pattern (subscribe
+  coverage lives in `internal/app` and `work_subscription_test.go`).
+- Fixture `core-rpc.json` is now a real captured transcript (38
+  request/response records + 18 `run/event` notifications) via uncommitted
+  harness `internal/app/dn0_capture_test.go` in the VIVY pin checkout.
+- Capture corrections applied: `session/get` returns `{session, messages}`;
+  `CodeNotFound = -32004`; `session/delete` → `{deleted:true}`.
+- Still pending: Windows `windows/amd64` c-shared build + header/FFI +
+  packaged acceptance; `just`/node not installed (not needed for this Story).
 
 ## Governance
 
 - LOCK.md held for DN-0 scope during work; released on commit.
-- No implementation code touched; ledger doc + fixture + TODOLIST + index only.
+- agent-diva: docs only (ledger doc + fixture + TODOLIST + index + logs).
+- agent-vivy checkout: one uncommitted test harness
+  `internal/app/dn0_capture_test.go` used to produce the fixture; left in the
+  working tree as generation evidence — owner decides adopt-or-delete.

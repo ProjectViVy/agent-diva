@@ -12,9 +12,13 @@
   SDK 当前打包/检查面向可执行文件；共享产物需保持 Generation 封装和身份校验。
 - [ ] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
   已检查 VIVY `5347032` 的 App.Run 无网关分支关闭 errCh 后可提前返回；现有取消测试不验证取消前仍存活。
-  DN-L 补生命周期断言并落实唯一宿主所有权；本次为源码发现，Go 不可用，未运行验证。
-- [ ] **P0-NATIVE-VERIFICATION：共享库/原生打包验证环境未冻结** `sev-P1`
-  当前环境无 Go；DN-0 固定目标平台、Go/cgo/C 编译器与原生执行机。原生验证未通过前不关闭 P0。
+  DN-L 补生命周期断言并落实唯一宿主所有权。Go 已可用后仍仅源码发现：
+  gatewayless `App.Run` 立即返回 + sweeper/cron 不启动，见
+  EMBEDDED-SWEEPER-OWNERSHIP。
+- [ ] **P0-NATIVE-VERIFICATION：Windows c-shared 构建与 FFI 验收仍未验证** `sev-P1`
+  Go 1.26.8 (linux) 已装于 `~/toolchains/go`；`go test -tags vivy_headless
+  ./internal/app` 通过，core-rpc fixture 已真实抓取。剩余：windows/amd64
+  `-buildmode=c-shared` DLL+头文件、Rust FFI、打包验收。原生验证未通过前不关闭 P0。
 
 - [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
   拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
