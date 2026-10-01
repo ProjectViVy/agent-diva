@@ -1,0 +1,8 @@
+# Staged sealed artifact: only ABI/pin metadata is committed.
+*
+!.gitignore
+!.keep
+!README.md
+!vivy_abi.h
+!vivy-shared.h
+!generation.json
