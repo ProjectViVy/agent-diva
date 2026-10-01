@@ -1,0 +1,88 @@
+{
+  "fixture": "core-rpc",
+  "status": "capture_pending",
+  "reason": "DN-0 ran without a Go toolchain; this file asserts source-verified schemas at agent-vivy 5347032d8f18a047b67e85761c0dcc48728bee7c, not a wire transcript. Replace with a redacted capture from a provisioned host before DN-1 starts.",
+  "capture_procedure": [
+    "On a Go-provisioned host, in agent-vivy run: go test ./internal/app ./internal/rpc -run 'LoopbackControl|Gatewayless|Subscribe' -count=1",
+    "Compose a gatewayless app (WithoutEars, WithoutGateway), DialControl, and record each listed method's request and response frames verbatim.",
+    "Redact session ids, workspace paths, and any provider/credential material before committing."
+  ],
+  "protocol_version": "vivy.rpc.v1",
+  "transport": "JSONLTransport (newline-delimited JSON-RPC 2.0 frames, MaxFrameBytes default 32MiB, OutgoingBuffer 64)",
+  "methods": {
+    "initialize": {
+      "params": {},
+      "result": {"protocol_version": "vivy.rpc.v1", "capabilities": ["<strings>"], "code_mode_available": "bool"}
+    },
+    "session/create": {
+      "params": {"title": "string", "workspace_path": "string"},
+      "result": {"id": "string", "title": "string", "created_at": "string", "updated_at": "string", "sandbox_mode": "string", "approval_policy": "string", "permission_preset": "string", "workspace_path": "string"}
+    },
+    "session/list": {"params": {}, "result": {"sessions": ["sessionResult"]}},
+    "session/get": {"params": {"session_id": "string"}, "result": "sessionResult (metadata only, NOT message history)"},
+    "session/messages": {"params": {"session_id": "string", "include_attachment_data": "bool?"}, "result": {"messages": ["messageResult"]}},
+    "session/delete": {"params": {"session_id": "string"}},
+    "session/rename": {"params": {"session_id": "string", "title": "string"}},
+    "turn/start": {
+      "params": {"session_id": "string", "text": "string", "mode": "string?", "attachments": "array?", "attachment_paths": "array?", "context_paths": "array?"},
+      "result": {"run_id": "string", "status": "accepted"}
+    },
+    "run/get": {"params": {"run_id": "string"}, "result": {"status": "string", "...": "run record"}},
+    "run/cancel": {
+      "params": {"run_id": "string"},
+      "result": {"run_id": "string", "status": "cancelling"},
+      "errors": [{"code": "CodeNotFound", "when": "run is not active in this process"}]
+    },
+    "run/log": {"params": {"run_id": "string", "after_seq": "int?"}, "result": {"events": ["replay entries, journal order"]}},
+    "run/subscribe": {
+      "params": {"run_id": "string", "after_seq": "int?"},
+      "result": {"subscription_id": "string", "run_id": "string", "after_seq": "int"},
+      "notifications": {
+        "run/event": {"subscription_id": "string", "event": {"run_id": "string", "seq": "int", "type": "string", "created_at": "string", "payload_version": "int", "payload": "object"}},
+        "run/stream_error": {"subscription_id": "string", "reason": "string"}
+      }
+    },
+    "run/unsubscribe": {"params": {"subscription_id": "string"}},
+    "approval/list": {"params": {}, "result": {"approvals": [{"id": "string", "run_id": "string", "tool_call_id": "string", "decision": "string", "expires_at": "string"}]}},
+    "approval/respond": {
+      "params": {"approval_id": "string", "decision": "approved|denied", "reason": "string?"},
+      "result": {"approval_id": "string", "decision": "string"}
+    },
+    "question/list": {"params": {}, "result": {"questions": [{"id": "string", "run_id": "string", "tool_call_id": "string", "prompt": "string", "status": "string", "expires_at": "string"}]}},
+    "question/respond": {"params": {"question_id": "string", "answer": "string"}, "result": {"question_id": "string", "answer": "string"}},
+    "review/list": {"params": {}, "result": {"reviews": ["reviewResult"]}},
+    "review/respond": {
+      "params": {"review_id": "string", "action": "approve|deny (approval kind) OR answer|cancel (question kind)", "answer": "string?", "reason": "string?"},
+      "result": {"review_id": "string", "status": "string"}
+    },
+    "background/list": {}, "background/recover": {}, "background/attach": {},
+    "session/work/get": {}, "session/work/subscribe": {"notifications": {"session/work/event": {}, "session/work/stream_error": {}}},
+    "session/todos": {}, "session/todo/update": {},
+    "plan/get": {}, "plan/enter": {}, "plan/leave": {}, "plan/decide": {},
+    "settings/get": {}, "settings/update": {},
+    "settings/providers": {}, "settings/providers/upsert": {}, "settings/providers/delete": {}, "settings/providers/refresh": {}, "settings/model/select": {},
+    "settings/mcp": {}, "settings/mcp/upsert": {}, "settings/mcp/delete": {}, "settings/mcp/probe": {},
+    "skills/list": {}, "skills/get": {}, "skills/set-enabled": {}, "skills/revisions/list": {},
+    "skills/marketplace/search": {}, "skills/marketplace/featured": {}, "skills/marketplace/install": {}, "skills/marketplace/check": {},
+    "channel/get": {}, "channel/inspect": {}, "channel/update": {},
+    "stats/tokens": {"params": {"period": "string", "tz_offset_minutes": "int", "session_limit": "int"}},
+    "cron/list": {}, "cron/create": {}, "cron/update": {}, "cron/delete": {}, "cron/trigger": {}, "cron/stop": {},
+    "tools/list": {}, "tools/set-active": {},
+    "workspace/list": {}, "workspace/read": {}, "workspace/browse": {},
+    "history/search": {}, "history/read": {}, "history/trace": {},
+    "child/list": {},
+    "commands/list": {}, "commands/expand": {},
+    "deliverables/list": {}, "deliverables/get": {}, "deliverables/read": {}, "deliverables/close": {},
+    "generations/list": {}, "generations/get": {}, "generations/create": {}, "generations/reject": {},
+    "evals/list": {}, "evals/get": {}, "evals/create": {},
+    "promotions/list": {}, "promotions/get": {}, "promotions/create": {},
+    "species/inspect": {},
+    "goal/*": {}, "inofy.*": {}, "workflow/*": {}
+  },
+  "error_codes": {
+    "-32700": "ParseError", "-32600": "InvalidRequest", "-32601": "MethodNotFound",
+    "-32602": "InvalidParams", "-32603": "InternalError", "-32001": "ServerOverload",
+    "domain": ["CodeNotFound", "CodeConflict (verify exact integers at capture)"]
+  },
+  "terminal_event_types": ["run.completed", "run.failed", "run.cancelled", "child.completed", "child.failed", "child.cancelled"]
+}

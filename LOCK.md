@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-laputa/src/cognitive/`; `agent-diva-laputa/src/layout.rs`; `agent-diva-laputa/src/frozen_core.rs`; `agent-diva-laputa/src/service.rs`; `agent-diva-laputa/tests/`; `agent-diva-manager/src/handlers/laputa.rs`; `TODOLIST.md`; `docs/logs/2026-08-cognitive-workspace-reset-implementation/`
-- Owner: `Codex`
-- Session/Task: `I1-S1 stop legacy cognitive seed writes (complete)`
-- Branch/Worktree: `agent-diva-pro / C:\Users\Administrator\Desktop\morediva\agent-diva`
-- Started At: `2026-08-14T00:00:00+08:00`
-- Last Heartbeat: `2026-08-14T00:30:00+08:00`
+- Scope: `—`
+- Owner: `—`
+- Session/Task: `—`
+- Branch/Worktree: `DIVA-NEXT-P0 / /home/ubuntu/repos/agent-diva`
+- Started At: `—`
+- Last Heartbeat: `2026-09-30T23:59:00Z`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DN-0 inventory and contract freeze` — **RELEASED 2026-09-30T23:59:00Z**
+  by `Devin`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-next-dn0/`,
+  `TODOLIST.md`, `LOCK.md`; documentation only. Delivered
+  `backend-separation-contracts.md` + `fixtures/core-rpc.json` (capture pending),
+  TODOLIST additions, index state update.
 
 - `DIVA P0 action planning` — **RELEASED**; owner `Codex`; branch `docs/diva-p0-action-plan`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-p0-plan/**`, `TODOLIST.md`, `LOCK.md`; documentation only. Started/heartbeat `2026-09-30T22:53:38Z`; released after documentation verification at `2026-09-30T23:01:10Z`; no implementation or external changes.
 

@@ -28,6 +28,19 @@
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
   对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
   不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
+  DN-0 已确认 mask 无专用控制 RPC（仅 maskcontract 经 module action 暴露错误码），
+  全部仍属 gap 待 DN-4 设计。
+- [ ] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
+  DN-0 发现：`StartInteractionSweeper`/`StartCronScheduler` 只在 `App.Run` 内启动
+  （app.go:1704-1710），而 gatewayless `App.Run` 立即返回；`New`+`DialControl`+`Close`
+  路径永远不启动二者 → 审批/问题过期与 cron 在嵌入式下不工作。
+  DN-L 必须选定宿主所有权方案（bridge init 启动或专用嵌入入口）。
+- [ ] **RUN-CANCEL-RESTART-NOTFOUND：重启后 run/cancel 返回 CodeNotFound** `sev-P2`
+  重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
+  （配合 background/recover），不得当异常。DN-1 落实。
+- [ ] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
+  VIVY 审批动作仅 approve/deny（review/respond 的 question 才支持 cancel）。
+  旧 `cancel_approval` 语义 → deny+reason 或依赖 expires_at；待 owner 裁定，DN-1。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 

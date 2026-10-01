@@ -11,7 +11,7 @@ P0-A delivers the shared library/bridge and packaged core lifecycle. P0-B delive
 | Story | Outcome / requirement | Immediate predecessors and required output | Plan | State | Evidence or blocker |
 | --- | --- | --- | --- | --- | --- |
 | DN-W | Retired Rust business backend deleted / R-2,R-8 | — | [DN-W](DN-W.md) | Done (historical) | Historical branch evidence: 485 GUI tests and Vue build; not rerun here |
-| DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Ready (investigation only) | Code baselines inspected; complete ledger/fixtures and target verification remain |
+| DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Complete (proposed; owner review) | Ledger + frozen ABI delivered in `backend-separation-contracts.md`; fixture capture + Go-side verification pending host provisioning; new sev-P0 `EMBEDDED-SWEEPER-OWNERSHIP` recorded |
 | DN-L | Sealed DIVA DLL + safe embedding / A1 | DN-0: ABI, recipe needs, target/toolchain | [DN-L](DN-L.md) | Blocked | Core contract/platform freeze; Go unavailable in current environment; shared artifact format review if needed |
 | DN-5 | Tauri shell + vivy-bridge / A2 | DN-L: accepted DLL/header/manifest | [DN-5](DN-5.md) | Planned | Native target runner and accepted ABI producer required |
 | DN-1 | Typed client + state/event projection / A3,B2 | DN-5: verified call/event transport | [DN-1](DN-1.md) | Planned | Core schemas from DN-0 remain binding |
