@@ -7,18 +7,18 @@
 
 ## DIVA Next 拆线遗留（本分支）
 
-- [ ] **DIVA-SHARED-BRIDGE：Go 共享库、DIVA Recipe 与 Tauri/vivy-bridge 未落地** `sev-P0`
-  按 `docs/plans/diva-next/p0-design.md` 与 DN-L/DN-5/DN-P 执行；覆盖聊天、流式、审批、取消、重开窗口恢复、退出。
-  SDK 当前打包/检查面向可执行文件；共享产物需保持 Generation 封装和身份校验。
-- [ ] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
-  已检查 VIVY `5347032` 的 App.Run 无网关分支关闭 errCh 后可提前返回；现有取消测试不验证取消前仍存活。
-  DN-L 补生命周期断言并落实唯一宿主所有权。Go 已可用后仍仅源码发现：
-  gatewayless `App.Run` 立即返回 + sweeper/cron 不启动，见
-  EMBEDDED-SWEEPER-OWNERSHIP。
+- [ ] **DIVA-SHARED-BRIDGE：Tauri/vivy-bridge 未落地（DN-L 共享库侧已交付）** `sev-P0`
+  DN-L 已在 agent-vivy `feat/diva-embedded` 交付：`internal/embedded` 宿主、ABI v1
+  c-shared 导出、`--target shared` pack/inspect、`recipes/diva.vivy.yml`、C smoke。
+  剩余：DN-5 Tauri 薄壳 + vivy-bridge，覆盖聊天、流式、审批、取消、重开窗口恢复、退出。
+- [x] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
+  已在 DN-L 解决：gatewayless `App.Run` 提前返回缺陷由
+  `TestGatewaylessRunBlocksUntilContextCancel` 红→绿证明并修复（errCh 只由
+  httpServer goroutine 关闭）；宿主所有权 = `internal/embedded.Open` 唯一持有。
 - [ ] **P0-NATIVE-VERIFICATION：Windows c-shared 构建与 FFI 验收仍未验证** `sev-P1`
-  Go 1.26.8 (linux) 已装于 `~/toolchains/go`；`go test -tags vivy_headless
-  ./internal/app` 通过，core-rpc fixture 已真实抓取。剩余：windows/amd64
-  `-buildmode=c-shared` DLL+头文件、Rust FFI、打包验收。原生验证未通过前不关闭 P0。
+  Go 1.26.8 + Node 22.20/pnpm 10.18.3 已装于 `~/toolchains`；linux/amd64
+  `-buildmode=c-shared` + C smoke（init→turn→approval→cancel→poll→shutdown）已绿。
+  剩余：windows/amd64 DLL+头文件、Rust FFI、打包验收。原生验证未通过前不关闭 P0。
 
 - [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
   拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
@@ -34,11 +34,10 @@
   不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
   DN-0 已确认 mask 无专用控制 RPC（仅 maskcontract 经 module action 暴露错误码），
   全部仍属 gap 待 DN-4 设计。
-- [ ] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
-  DN-0 发现：`StartInteractionSweeper`/`StartCronScheduler` 只在 `App.Run` 内启动
-  （app.go:1704-1710），而 gatewayless `App.Run` 立即返回；`New`+`DialControl`+`Close`
-  路径永远不启动二者 → 审批/问题过期与 cron 在嵌入式下不工作。
-  DN-L 必须选定宿主所有权方案（bridge init 启动或专用嵌入入口）。
+- [x] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
+  已在 DN-L 解决：新增 `App.StartEmbeddedServices()`（sweeper + cron），由
+  `internal/embedded.Open` 在 `New`+`DialControl` 后启动，`Host.Close` 统一回收；
+  `TestStartEmbeddedServicesExpiresApprovals` 实测 400ms 审批过期生效。
 - [ ] **RUN-CANCEL-RESTART-NOTFOUND：重启后 run/cancel 返回 CodeNotFound** `sev-P2`
   重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
   （配合 background/recover），不得当异常。DN-1 落实。

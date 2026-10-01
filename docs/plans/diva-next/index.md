@@ -11,8 +11,8 @@ P0-A delivers the shared library/bridge and packaged core lifecycle. P0-B delive
 | Story | Outcome / requirement | Immediate predecessors and required output | Plan | State | Evidence or blocker |
 | --- | --- | --- | --- | --- | --- |
 | DN-W | Retired Rust business backend deleted / R-2,R-8 | — | [DN-W](DN-W.md) | Done (historical) | Historical branch evidence: 485 GUI tests and Vue build; not rerun here |
-| DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Complete (proposed; owner review) | Ledger + frozen ABI + captured core-rpc transcript delivered; gatewayless Go tests pass on linux (Go 1.26.8 installed); Windows c-shared + FFI verification still pending; new sev-P0 `EMBEDDED-SWEEPER-OWNERSHIP` recorded |
-| DN-L | Sealed DIVA DLL + safe embedding / A1 | DN-0: ABI, recipe needs, target/toolchain | [DN-L](DN-L.md) | Blocked | Core contract/platform freeze; Go unavailable in current environment; shared artifact format review if needed |
+| DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Complete (proposed; owner review) | Ledger + frozen ABI + captured core-rpc transcript delivered; gatewayless Go tests pass on linux (Go 1.26.8 installed); `EMBEDDED-SWEEPER-OWNERSHIP` resolved in DN-L |
+| DN-L | Sealed DIVA DLL + safe embedding / A1 | DN-0: ABI, recipe needs, target/toolchain | [DN-L](DN-L.md) | Complete (proposed; owner review) | `internal/embedded` host + ABI v1 c-shared exports + `--target shared` pack/inspect + `recipes/diva.vivy.yml` landed on `feat/diva-embedded`; C ABI smoke (init→turn→approval→cancel→poll→shutdown) green on linux/amd64; windows/amd64 c-shared + Rust FFI acceptance still pending |
 | DN-5 | Tauri shell + vivy-bridge / A2 | DN-L: accepted DLL/header/manifest | [DN-5](DN-5.md) | Planned | Native target runner and accepted ABI producer required |
 | DN-1 | Typed client + state/event projection / A3,B2 | DN-5: verified call/event transport | [DN-1](DN-1.md) | Planned | Core schemas from DN-0 remain binding |
 | DN-2 | Real chat/session/approval/cancel / A3,B2 | DN-1: client and recovery projection | [DN-2](DN-2.md) | Planned | Live model and safe gated tool required for acceptance |
@@ -59,4 +59,4 @@ These are topological batches, not promises of parallel staffing or permission t
 
 ## Next action
 
-Execute DN-0's bounded inventory/contract freeze. Do not release DN-L until ABI/Generation/native-host prerequisites have evidence. Current artifacts are concrete reviewable plans, not a claim that the two P0s are implemented.
+DN-0 and DN-L are delivered and awaiting owner review. Next wave: DN-5 (Tauri thin shell + `vivy-bridge` consuming the sealed shared artifact on `feat/diva-embedded`), then DN-1 (typed client over the verified call/event transport). Windows/amd64 c-shared + FFI acceptance remains the outstanding native gate.
