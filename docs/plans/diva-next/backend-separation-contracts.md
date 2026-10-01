@@ -219,7 +219,10 @@ raw API keys in the frontend; P0 requires credentials owned by VIVY → DN-6.
 
 `search_notebook_session_evidence_command` → `history/search`;
 `get_notebook_reports`/`trigger_notebook_report_generation` →
-`deliverables/*` + history; workspace browsing → `workspace/list|read|browse`.
+`deliverables/*` + history; workspace browsing → `workspace/browse`
+(`{path}` host dirs) + `workspace/list|read` (**`{run_id}`-scoped** per-run
+workspaces — old notebook session browsing must carry a run, or use
+`workspace/browse`; shape differs from old session-scoped file list).
 `get_sandbox_config`/`save_sandbox_config` → `session/set_permission`
 (preset) + settings — detailed sandbox fields → gap check at DN-2.
 `wipe_local_data` → `native` (shell deletes local dirs) pending owner call.
