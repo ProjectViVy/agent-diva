@@ -7,10 +7,14 @@
 
 ## DIVA Next 拆线遗留（本分支）
 
-- [ ] **DIVA-SHARED-BRIDGE：Tauri/vivy-bridge 未落地（DN-L 共享库侧已交付）** `sev-P0`
-  DN-L 已在 agent-vivy `feat/diva-embedded` 交付：`internal/embedded` 宿主、ABI v1
-  c-shared 导出、`--target shared` pack/inspect、`recipes/diva.vivy.yml`、C smoke。
-  剩余：DN-5 Tauri 薄壳 + vivy-bridge，覆盖聊天、流式、审批、取消、重开窗口恢复、退出。
+- [x] **DIVA-SHARED-BRIDGE：Tauri/vivy-bridge（DN-L + DN-5 已交付）** `sev-P0`
+  DN-L：`internal/embedded` 宿主、ABI v1 c-shared 导出、`--target shared`
+  pack/inspect、`recipes/diva.vivy.yml`、C smoke。DN-5：vivy-bridge
+  （dlopen + owned-return + 单事件泵）+ Tauri v2 薄壳（vivy_call/vivy:event、
+  close-hide + tray Quit、single-instance）；工作区测试 10/10、clippy 净、
+  deb 含 vivy-runtime；原生转录：真 .so 开窗→关窗隐藏→重启聚焦→SIGINT
+  有序退出（linux/amd64）。剩余验收：真实流式对话 + 审批挂起时重开窗口、
+  Windows 原生 runner。
 - [x] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
   已在 DN-L 解决：gatewayless `App.Run` 提前返回缺陷由
   `TestGatewaylessRunBlocksUntilContextCancel` 红→绿证明并修复（errCh 只由

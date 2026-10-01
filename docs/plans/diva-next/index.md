@@ -13,7 +13,7 @@ P0-A delivers the shared library/bridge and packaged core lifecycle. P0-B delive
 | DN-W | Retired Rust business backend deleted / R-2,R-8 | — | [DN-W](DN-W.md) | Done (historical) | Historical branch evidence: 485 GUI tests and Vue build; not rerun here |
 | DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Complete (proposed; owner review) | Ledger + frozen ABI + captured core-rpc transcript delivered; gatewayless Go tests pass on linux (Go 1.26.8 installed); `EMBEDDED-SWEEPER-OWNERSHIP` resolved in DN-L |
 | DN-L | Sealed DIVA DLL + safe embedding / A1 | DN-0: ABI, recipe needs, target/toolchain | [DN-L](DN-L.md) | Complete (proposed; owner review) | `internal/embedded` host + ABI v1 c-shared exports + `--target shared` pack/inspect + `recipes/diva.vivy.yml` landed on `feat/diva-embedded`; C ABI smoke (init→turn→approval→cancel→poll→shutdown) green on linux/amd64; windows/amd64 c-shared + Rust FFI acceptance still pending |
-| DN-5 | Tauri shell + vivy-bridge / A2 | DN-L: accepted DLL/header/manifest | [DN-5](DN-5.md) | Planned | Native target runner and accepted ABI producer required |
+| DN-5 | Tauri shell + vivy-bridge / A2 | DN-L: accepted DLL/header/manifest | [DN-5](DN-5.md) | Complete (proposed; owner review) | `vivy-bridge` (dlopen, owned-return guards, single event pump) + Tauri v2 shell (vivy_call/vivy:event, close-hide + tray Quit, single-instance) landed on DIVA-NEXT-P0; workspace tests 10/10, clippy clean, deb bundles the staged runtime; native transcript: real .so window open, close->hide, relaunch focus, SIGINT ordered exit on linux/amd64; live streaming/approval-reopen + Windows runner still pending |
 | DN-1 | Typed client + state/event projection / A3,B2 | DN-5: verified call/event transport | [DN-1](DN-1.md) | Planned | Core schemas from DN-0 remain binding |
 | DN-2 | Real chat/session/approval/cancel / A3,B2 | DN-1: client and recovery projection | [DN-2](DN-2.md) | Planned | Live model and safe gated tool required for acceptance |
 | DN-P | Packaged P0-A acceptance + runtime boundary gate / A1–A3 | DN-2: accepted native core chain | [DN-P](DN-P.md) | Planned | Does not wait for unrelated domain migration |
@@ -59,4 +59,4 @@ These are topological batches, not promises of parallel staffing or permission t
 
 ## Next action
 
-DN-0 and DN-L are delivered and awaiting owner review. Next wave: DN-5 (Tauri thin shell + `vivy-bridge` consuming the sealed shared artifact on `feat/diva-embedded`), then DN-1 (typed client over the verified call/event transport). Windows/amd64 c-shared + FFI acceptance remains the outstanding native gate.
+DN-0, DN-L and DN-5 are delivered and awaiting owner review. Next wave: DN-1 (typed client over the verified call/event transport, replaying through the real bridge), then DN-2. Outstanding native gates: live chat stream + pending-approval window reopen (needs a provider), and the Windows/amd64 c-shared + FFI acceptance runner.
