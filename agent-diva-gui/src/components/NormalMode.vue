@@ -68,7 +68,8 @@ type SettingsSubview =
   | 'about'
   | 'theme'
   | 'sandbox'
-  | 'compaction';
+  | 'compaction'
+  | 'masks';
 
 interface SavedModel {
   id: string;

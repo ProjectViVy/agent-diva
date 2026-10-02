@@ -13,6 +13,7 @@ import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
+import MasksSettings from './settings/MasksSettings.vue'
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -65,7 +66,8 @@ type SettingsSubview =
   | 'about'
   | 'theme'
   | 'sandbox'
-  | 'compaction';
+  | 'compaction'
+  | 'masks';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -101,6 +103,7 @@ const pageTitle = computed(() => {
     theme: t('dashboard.theme'),
     sandbox: t('dashboard.sandbox'),
     compaction: t('dashboard.compaction'),
+    masks: t('dashboard.masks'),
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -198,6 +201,9 @@ watch(
                 :current-session-key="currentSessionKey"
                 :current-messages="currentMessages"
               />
+            </div>
+            <div v-else-if="currentView === 'masks'">
+              <MasksSettings :current-session-key="currentSessionKey" />
             </div>
           </div>
        </Transition>
