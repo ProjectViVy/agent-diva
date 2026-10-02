@@ -127,19 +127,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
         model: 'deepseek-chat',
       },
       providerConfigs: {},
-      toolsConfig: {
-        web: {
-          search: {
-            provider: '',
-            enabled: false,
-            api_key: '',
-            max_results: 5,
-          },
-          fetch: {
-            enabled: false,
-          },
-        },
-      },
       savedModels: [],
       sessions: [],
       chatDisplayPrefs: {
@@ -149,7 +136,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
         showRawMetaByDefault: false,
       },
       saveConfigAction: vi.fn(() => Promise.resolve()),
-      saveToolsConfigAction: vi.fn(() => Promise.resolve()),
       saveChannelConfigAction: vi.fn(() => Promise.resolve()),
       ...propOverrides,
     },

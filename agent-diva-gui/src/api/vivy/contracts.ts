@@ -383,9 +383,9 @@ export interface VivySettingsResult {
   config_execute_max_timeout_seconds?: number
   execute_max_timeout_seconds?: number
   provider_profiles?: VivyProviderProfileStatus[]
-  network_search?: Record<string, unknown>
+  network_search?: VivyNetworkSearchResult
   sandbox?: Record<string, unknown>
-  compaction?: Record<string, unknown>
+  compaction?: VivyCompactionResult
   http?: Record<string, unknown>
   locale?: string
   generation_locale?: string
@@ -401,9 +401,9 @@ export interface SettingsUpdateParams {
   base_url?: string
   /** Write-only credential for the global key overlay. */
   api_key?: string
-  network_search?: { provider?: string; [key: string]: unknown }
+  network_search?: { provider?: string }
   sandbox?: Record<string, unknown>
-  compaction?: Record<string, unknown>
+  compaction?: CompactionUpdateParams
   http?: Record<string, unknown>
   execute_max_timeout_seconds?: number
   [key: string]: unknown
@@ -450,6 +450,167 @@ export interface ModelSelectParams {
   provider: string
   model: string
   base_url?: string
+}
+
+/** `tools/list` entry — one catalog tool with its effective active flag. */
+export interface VivyToolEntry {
+  name: string
+  description: string
+  readonly: boolean
+  active: boolean
+}
+
+/** `tools/list` result. */
+export interface VivyToolsResult {
+  tools: VivyToolEntry[]
+  /** Effective active set (operator overlay or config fallback). */
+  active: string[]
+  /** Config-file default used when no overlay was written. */
+  config_enabled: string[]
+  overlay_written: boolean
+}
+
+/** `settings/mcp` entry — endpoint is echoed only when credential-free. */
+export interface VivyMcpServer {
+  name: string
+  transport: string
+  endpoint?: string
+  command?: string
+  args?: string[]
+  env_from?: Record<string, string>
+  cwd?: string
+  /** Host environment variable NAME holding the credential, never a value. */
+  auth_env?: string
+  resource_bridge: boolean
+  auth_env_set: boolean
+  enabled: boolean
+  env_missing?: string[]
+  tool_count: number
+  /** ready | unavailable | unconfigured | deferred | inactive | not_compiled */
+  state: string
+  deferred_reason?: string
+  /** Compatibility alias for state; prefer state. */
+  status: string
+  error?: string
+}
+
+/** `settings/mcp` result. */
+export interface VivyMcpListResult {
+  servers: VivyMcpServer[]
+  read_only: boolean
+}
+
+/**
+ * `settings/mcp/upsert` params — full-replace by name: every field the
+ * server should keep must be sent (empty fields wipe stored values).
+ */
+export interface McpUpsertParams {
+  name: string
+  transport?: 'http' | 'stdio'
+  endpoint?: string
+  command?: string
+  args?: string[]
+  env_from?: Record<string, string>
+  cwd?: string
+  auth_env?: string
+  resource_bridge?: boolean
+  enabled?: boolean
+}
+
+/** `skills/list` summary entry. */
+export interface VivySkillSummary {
+  name: string
+  description: string
+  context?: string
+  agent?: string
+  model?: string
+  user_invocable?: boolean
+  origin?: string
+  enabled: boolean
+  /** Content hash — required as compare-and-swap base for set-enabled. */
+  hash: string
+  warnings: string[]
+}
+
+/** `skills/get` view = summary + document body. */
+export interface VivySkillView extends VivySkillSummary {
+  content: string
+  relative_path: string
+  supporting_files: string[]
+}
+
+/** `skills/revisions/list` entry — a pending HITL skill mutation. */
+export interface VivySkillRevision {
+  id: string
+  run_id?: string
+  skill_name: string
+  action: string
+  target_path: string
+  preview: string
+  warnings: string[]
+  status: string
+  created_at: number
+}
+
+/** `skills/marketplace/*` directory entry. */
+export interface VivyMarketplaceSkill {
+  id: string
+  name: string
+  source: string
+  installs: number
+}
+
+/** `skills/marketplace/featured` result. */
+export interface VivyMarketplaceFeatured {
+  generated_at?: string
+  source?: string
+  metric?: string
+  skills: VivyMarketplaceSkill[]
+}
+
+/** `skills/marketplace/install` result. */
+export interface VivyMarketplaceInstallResult {
+  skill: VivySkillView
+  /** created | upgraded | up_to_date */
+  outcome: string
+  skipped_files?: string[]
+  warnings?: string[]
+}
+
+/** `settings/get` network_search provider roster entry. */
+export interface VivyNetworkSearchProvider {
+  name: string
+  keyless: boolean
+  /** Whether the provider's env credential is present (value never exposed). */
+  configured: boolean
+  env_key?: string
+}
+
+/** `settings/get` network_search section. */
+export interface VivyNetworkSearchResult {
+  provider: string
+  config_provider: string
+  providers: VivyNetworkSearchProvider[]
+}
+
+/** `settings/get` compaction section (effective + config fallbacks). */
+export interface VivyCompactionResult {
+  enabled: boolean
+  max_tokens: number
+  trigger_percent: number
+  keep_recent: number
+  config_enabled: boolean
+  config_max_tokens: number
+  config_trigger_percent: number
+  config_keep_recent: number
+}
+
+/** `settings/update` compaction overlay params. */
+export interface CompactionUpdateParams {
+  enabled?: boolean
+  max_tokens?: number
+  trigger_percent?: number
+  keep_recent?: number
 }
 
 /** A backend notification forwarded on `vivy:event` ({kind:'vivy'}). */

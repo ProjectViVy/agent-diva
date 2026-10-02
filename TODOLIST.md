@@ -444,6 +444,33 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   重启 gateway 后用真实模型走 `memory_list` → 新增 → `memory_update` /
   `memory_remove`；`id` 与邮箱/手机等原文必须原样可见。
 
+## DN-3 backend-capability gaps (slice B, deferred)
+
+- [ ] **SKILL-MANAGEMENT-GAP** `sev-P2`
+  VIVY has no RPC for skill upload / delete / content edit / revision history /
+  skill-request list+decide. GUI dropped the upload/delete UI in slice B;
+  EvolutionView still consumes legacy `get_skills`/`delete_skill` (slice D
+  residual). Decide backend surface or retire the workflows.
+
+- [ ] **SEARCH-PROVIDER-ROSTER-GAP** `sev-P3`
+  `settings.get.network_search` roster is fixed to bing/google/duckduckgo/
+  searxng/wikipedia with env-var-only credentials. Legacy bocha/brave/zhipu
+  options, in-UI api_key entry, and max_results have no VIVY knob — dropped
+  from NetworkSettings. Restore only if backend adds them.
+
+- [ ] **MCP-TOOL-TIMEOUT-NO-KNOB** `sev-P3`
+  Legacy per-server `tool_timeout` has no `settings/mcp` field — dropped from
+  the MCP form. `cwd` / `auth_env` / `resource_bridge` are preserved silently
+  in the spec but have no dedicated UI yet.
+
+- [ ] **BUDGET-SYSTEM-RATIO-NO-KNOB** `sev-P3`
+  VIVY compaction config has no `system_budget_ratio`; the context-budget ring
+  hardcodes 0.15. Remove or restore when backend exposes it.
+
+- [ ] **DN3-DEAD-LOCALE-KEYS** `sev-P3`
+  `general.uploadSkill`/`deleteSkill*`/`skillSource*`/`welcome.*bocha*` and the
+  i18n.ts zhPatched fallbacks are unreferenced after slice B — sweep on close.
+
 ## Reliability / Test Debt
 
 - [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`

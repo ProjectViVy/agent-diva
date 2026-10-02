@@ -35,6 +35,16 @@ import {
   type VivyProvidersResult,
   type VivySettingsResult,
   type SettingsUpdateParams,
+  type McpUpsertParams,
+  type VivyMarketplaceFeatured,
+  type VivyMarketplaceInstallResult,
+  type VivyMarketplaceSkill,
+  type VivyMcpListResult,
+  type VivyMcpServer,
+  type VivySkillRevision,
+  type VivySkillSummary,
+  type VivySkillView,
+  type VivyToolsResult,
 } from './contracts'
 import type { VivyTransport } from './transport'
 
@@ -215,6 +225,56 @@ export class VivyClient {
   /** Atomic active-model change; -32009 conflict while runs are active. */
   modelSelect(params: ModelSelectParams): Promise<VivyProvidersResult> {
     return this.call('settings/model/select', params, { mutation: true })
+  }
+
+  // --- Source-verified tools / MCP / skills / marketplace surface ---
+
+  toolsList(): Promise<VivyToolsResult> {
+    return this.call('tools/list')
+  }
+  /** Replaces the operator tools_enabled overlay with the given set. */
+  toolsSetActive(tools: string[]): Promise<unknown> {
+    return this.call('tools/set-active', { tools }, { mutation: true })
+  }
+  mcpList(): Promise<VivyMcpListResult> {
+    return this.call('settings/mcp')
+  }
+  /** Full-replace by name — every field the server keeps must be sent. */
+  mcpUpsert(params: McpUpsertParams): Promise<VivyMcpServer> {
+    return this.call('settings/mcp/upsert', params, { mutation: true })
+  }
+  mcpDelete(name: string): Promise<{ deleted: boolean; name: string }> {
+    return this.call('settings/mcp/delete', { name }, { mutation: true })
+  }
+  /** Live tools-listing probe; unreachable server reports state unavailable. */
+  mcpProbe(name: string): Promise<VivyMcpServer> {
+    return this.call('settings/mcp/probe', { name }, { mutation: true })
+  }
+  skillsList(): Promise<{ skills: VivySkillSummary[] }> {
+    return this.call('skills/list')
+  }
+  skillGet(name: string): Promise<VivySkillView> {
+    return this.call('skills/get', { name })
+  }
+  /** Compare-and-swap on the content hash; stale hash returns -32009. */
+  skillSetEnabled(name: string, enabled: boolean, baseHash: string): Promise<VivySkillSummary> {
+    return this.call('skills/set-enabled', { name, enabled, base_hash: baseHash }, { mutation: true })
+  }
+  /** Pending HITL skill mutations (decisions stay in the run review flow). */
+  skillRevisionsList(): Promise<{ revisions: VivySkillRevision[] }> {
+    return this.call('skills/revisions/list')
+  }
+  marketplaceSearch(q: string, limit?: number): Promise<{ skills: VivyMarketplaceSkill[] }> {
+    return this.call('skills/marketplace/search', { q, limit })
+  }
+  marketplaceFeatured(): Promise<VivyMarketplaceFeatured> {
+    return this.call('skills/marketplace/featured')
+  }
+  marketplaceInstall(id: string, mode?: 'create' | 'upgrade'): Promise<VivyMarketplaceInstallResult> {
+    return this.call('skills/marketplace/install', { id, mode }, { mutation: true })
+  }
+  marketplaceCheck(name: string): Promise<{ name: string; status: string; marketplace_id?: string; snapshot_hash?: string }> {
+    return this.call('skills/marketplace/check', { name })
   }
 }
 

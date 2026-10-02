@@ -3,14 +3,12 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Store, Search, Download, CheckCircle } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
-import {
-  searchMarketplaceSkills,
-  installMarketplaceSkill,
-  featuredMarketplaceSkills,
-  getSkills,
-  isTauriRuntime,
-  type MarketplaceSkillEntry,
-} from '../../api/desktop';
+import { isTauriRuntime } from '../../api/desktop';
+import { vivyClient } from '../../api/vivy/instance';
+import { loadInstalledSkills } from '../../api/settings';
+import type { VivyMarketplaceSkill } from '../../api/vivy/contracts';
+
+type MarketplaceSkillEntry = VivyMarketplaceSkill;
 
 const { t } = useI18n();
 
@@ -43,10 +41,10 @@ function isAlreadyInstalled(skill: MarketplaceSkillEntry): boolean {
   return installedSkillNames.value.has(slugOf(skill));
 }
 
-async function loadInstalledSkills() {
+async function loadInstalled() {
   if (previewMode.value) return;
   try {
-    const skills = await getSkills();
+    const skills = await loadInstalledSkills();
     installedSkillNames.value = new Set(skills.map((s) => s.name));
   } catch {
     // Ignore errors, just won't show installed status
@@ -69,8 +67,8 @@ async function searchMarketplace() {
   loading.value = true;
   error.value = '';
   try {
-    const skills = await searchMarketplaceSkills(query, 20);
-    marketplaceSkills.value = [...skills].sort((a, b) => b.installs - a.installs);
+    const result = await vivyClient.marketplaceSearch(query, 20);
+    marketplaceSkills.value = [...result.skills].sort((a, b) => b.installs - a.installs);
     hasSearched.value = true;
   } catch (err) {
     error.value = String(err);
@@ -98,8 +96,8 @@ async function installSkill(skill: MarketplaceSkillEntry) {
   installingSkillId.value = skill.id;
   error.value = '';
   try {
-    await installMarketplaceSkill(skill.id);
-    await loadInstalledSkills();
+    await vivyClient.marketplaceInstall(skill.id, 'create');
+    await loadInstalled();
   } catch (err) {
     error.value = t('general.installFailed', { error: String(err) });
   } finally {
@@ -110,7 +108,7 @@ async function installSkill(skill: MarketplaceSkillEntry) {
 async function loadFeatured() {
   if (previewMode.value) return;
   try {
-    const featured = await featuredMarketplaceSkills();
+    const featured = await vivyClient.marketplaceFeatured();
     featuredSkills.value = [...(featured.skills || [])].sort(
       (a, b) => b.installs - a.installs
     );
@@ -129,7 +127,7 @@ onUnmounted(() => {
 });
 
 onMounted(() => {
-  loadInstalledSkills();
+  loadInstalled();
   loadFeatured();
 });
 </script>

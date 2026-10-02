@@ -20,7 +20,6 @@ import MaskSelectorPanel from './MaskSelectorPanel.vue';
 import MaskEditor from './MaskEditor.vue';
 import { useMasks } from '../composables/useMasks';
 import { useI18n } from 'vue-i18n';
-import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { MaskEntryDto, MaskPayload } from '../api/desktop';
 
 const { t } = useI18n();
@@ -82,7 +81,6 @@ type SettingsSubview =
 const props = defineProps<{
   config: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
-  toolsConfig: ToolsConfigShape;
   currentSessionKey?: string;
   currentMessages: SettingsMessage[];
   savedModels?: SavedModel[];
@@ -90,7 +88,6 @@ const props = defineProps<{
   themeMode?: string;
   initialView?: SettingsSubview;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
-  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
   saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }>();
 
@@ -199,8 +196,6 @@ watch(
             <GeneralSettings
               v-else-if="currentView === 'general'"
               :chat-display-prefs="chatDisplayPrefs"
-              :tools-config="toolsConfig"
-              :save-tools-config-action="saveToolsConfigAction"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
             />
 
@@ -228,8 +223,6 @@ watch(
 
             <NetworkSettings
               v-else-if="currentView === 'network'"
-              :tools-config="toolsConfig"
-              :save-tools-config-action="saveToolsConfigAction"
             />
             
             <LanguageSettings 
@@ -255,10 +248,8 @@ watch(
             </div>
             <div v-else-if="currentView === 'compaction'">
               <CompactionSettings
-                :tools-config="toolsConfig"
                 :current-session-key="currentSessionKey"
                 :current-messages="currentMessages"
-                :save-tools-config-action="saveToolsConfigAction"
               />
             </div>
             <div v-else-if="currentView === 'audit'" class="h-full min-h-0 overflow-y-auto">

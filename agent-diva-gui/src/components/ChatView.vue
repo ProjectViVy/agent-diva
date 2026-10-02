@@ -29,7 +29,8 @@ import type {
   ChatGovernanceCard as ChatGovernanceCardModel,
   ChatGovernanceDeepLink,
 } from './chat/governanceCards';
-import type { ToolsConfigShape } from '../types/toolsConfig';
+import type { BudgetConfigShape } from '../types/toolsConfig';
+import { budgetShapeFromCompaction, loadCompactionConfig } from '../api/settings';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
@@ -198,7 +199,6 @@ const props = defineProps<{
   themeMode?: string;
   historyPrefs?: HistoryPrefs;
   sessions?: Session[];
-  toolsConfig?: ToolsConfigShape;
   activeSessionKey?: string;
   activePlanRuntime?: PlanRuntimeState | null;
   pendingApprovalPlan?: PlanRuntimeState | null;
@@ -304,8 +304,15 @@ const reconcileExpansionStates = () => {
   });
 };
 
+const contextBudgetShape = ref<BudgetConfigShape | undefined>(undefined);
+onMounted(() => {
+  loadCompactionConfig()
+    .then((cfg) => { contextBudgetShape.value = budgetShapeFromCompaction(cfg); })
+    .catch(() => {});
+});
+
 const contextBudgetStatus = computed(() =>
-  computeBudgetStatus(props.messages, props.toolsConfig?.budget)
+  computeBudgetStatus(props.messages, contextBudgetShape.value)
 );
 
 const contextUsagePercent = computed(() =>

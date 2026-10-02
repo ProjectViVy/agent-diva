@@ -95,37 +95,6 @@ export interface FileAttachmentDto {
   ref_count: number;
 }
 
-export interface McpConnectionStatusDto {
-  state: 'connected' | 'degraded' | 'disabled' | 'invalid' | string;
-  connected: boolean;
-  applied: boolean;
-  tool_count: number;
-  error?: string | null;
-  checked_at?: string | null;
-}
-
-export interface McpServerDto {
-  name: string;
-  enabled: boolean;
-  transport: 'stdio' | 'http' | 'invalid' | string;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  url: string;
-  tool_timeout: number;
-  status: McpConnectionStatusDto;
-}
-
-export interface McpServerPayload {
-  name: string;
-  enabled: boolean;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  url: string;
-  tool_timeout: number;
-}
-
 export interface StatusPathReport {
   config_path: string;
   config_dir: string;
@@ -273,23 +242,6 @@ export const acceptSkillRequest = (id: string) =>
 
 export const rejectSkillRequest = (id: string) =>
   invoke<SkillRequest>('reject_skill_request', { id });
-
-export const getMcps = () => invoke<McpServerDto[]>("get_mcps");
-
-export const createMcp = (payload: McpServerPayload) =>
-  invoke<McpServerDto>("create_mcp", { payload });
-
-export const updateMcp = (name: string, payload: McpServerPayload) =>
-  invoke<McpServerDto>("update_mcp", { name, payload });
-
-export const deleteMcp = (name: string) =>
-  invoke<void>("delete_mcp", { name });
-
-export const setMcpEnabled = (name: string, enabled: boolean) =>
-  invoke<McpServerDto>("set_mcp_enabled", { name, enabled });
-
-export const refreshMcpStatus = (name: string) =>
-  invoke<McpServerDto>("refresh_mcp_status", { name });
 
 export const uploadSkill = (fileName: string, bytes: number[]) =>
   invoke<SkillDto>("upload_skill", { fileName, bytes });
@@ -737,47 +689,6 @@ export async function deleteCommandRule(
   rule: Pick<CommandRule, 'id' | 'revision'>,
 ): Promise<void> {
   return invoke('delete_command_rule', { ruleId: rule.id, revision: rule.revision });
-}
-
-// ============================================================
-// Marketplace API (skills.sh via gateway adapter)
-// ============================================================
-
-export interface MarketplaceSkillEntry {
-  /** Fully qualified id: owner/repo/slug. */
-  id: string;
-  /** Skill name as listed by the directory. */
-  name: string;
-  /** Source repository: owner/repo. */
-  source: string;
-  /** Reported install count. */
-  installs: number;
-}
-
-export async function searchMarketplaceSkills(
-  query: string,
-  limit?: number
-): Promise<MarketplaceSkillEntry[]> {
-  return invoke<MarketplaceSkillEntry[]>("search_marketplace_skills", {
-    query,
-    limit: limit ?? null,
-  });
-}
-
-export async function installMarketplaceSkill(id: string): Promise<SkillDto> {
-  return invoke<SkillDto>("install_marketplace_skill", { id });
-}
-
-export interface MarketplaceFeaturedResponse {
-  skills: MarketplaceSkillEntry[];
-  total?: number;
-  generated_at?: string;
-  source?: string;
-  metric?: string;
-}
-
-export async function featuredMarketplaceSkills(): Promise<MarketplaceFeaturedResponse> {
-  return invoke<MarketplaceFeaturedResponse>("featured_marketplace_skills");
 }
 
 // ============================================================

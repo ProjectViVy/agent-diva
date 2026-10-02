@@ -502,3 +502,265 @@ export async function saveActiveProvider(
   })
   lastSnapshot = null
 }
+
+// ---------------------------------------------------------------------------
+// DN-3 slice B — tools / MCP / skills / marketplace / network / compaction
+// ---------------------------------------------------------------------------
+import type {
+  VivyMcpServer,
+  VivyNetworkSearchProvider,
+  VivySkillSummary,
+  VivyToolsResult,
+} from './vivy/contracts'
+
+/** One MCP server as the settings UI edits it. `env_from` maps a child-side
+ * variable name to a HOST environment variable name — VIVY stores variable
+ * names only, never credential values. */
+export interface McpServerSpec {
+  name: string
+  enabled: boolean
+  transport: 'stdio' | 'http'
+  endpoint: string
+  command: string
+  args: string[]
+  envFrom: Record<string, string>
+  cwd: string
+  authEnv: string
+  resourceBridge: boolean
+  /** Live state: ready | unavailable | unconfigured | deferred | inactive |
+   * not_compiled. */
+  state: string
+  deferredReason: string
+  envMissing: string[]
+  authEnvSet: boolean
+  toolCount: number
+  error: string
+}
+
+export interface McpListState {
+  servers: McpServerSpec[]
+  readOnly: boolean
+}
+
+function toMcpSpec(server: VivyMcpServer): McpServerSpec {
+  return {
+    name: server.name,
+    enabled: server.enabled,
+    transport: server.transport === 'http' ? 'http' : 'stdio',
+    endpoint: server.endpoint ?? '',
+    command: server.command ?? '',
+    args: server.args ?? [],
+    envFrom: server.env_from ?? {},
+    cwd: server.cwd ?? '',
+    authEnv: server.auth_env ?? '',
+    resourceBridge: server.resource_bridge,
+    state: server.state,
+    deferredReason: server.deferred_reason ?? '',
+    envMissing: server.env_missing ?? [],
+    authEnvSet: server.auth_env_set,
+    toolCount: server.tool_count,
+    error: server.error ?? '',
+  }
+}
+
+function specToUpsert(spec: McpServerSpec) {
+  // settings/mcp/upsert replaces the whole named entry — always send the
+  // complete spec so a partial edit never wipes stored fields.
+  return {
+    name: spec.name,
+    transport: spec.transport,
+    endpoint: spec.transport === 'http' ? spec.endpoint.trim() : '',
+    command: spec.transport === 'stdio' ? spec.command.trim() : '',
+    args: spec.transport === 'stdio' ? spec.args : [],
+    env_from: spec.transport === 'stdio' ? spec.envFrom : {},
+    cwd: spec.cwd.trim(),
+    auth_env: spec.authEnv.trim(),
+    resource_bridge: spec.resourceBridge,
+    enabled: spec.enabled,
+  }
+}
+
+export async function loadMcpServers(): Promise<McpListState> {
+  const result = await vivyClient.mcpList()
+  return { servers: result.servers.map(toMcpSpec), readOnly: result.read_only }
+}
+
+/** Create or update a server; the returned spec carries fresh live status. */
+export async function saveMcpServer(spec: McpServerSpec): Promise<McpServerSpec> {
+  const saved = await vivyClient.mcpUpsert(specToUpsert(spec))
+  return toMcpSpec(saved)
+}
+
+/** Toggle one server: upsert is full-replace, so the stored entry is merged
+ * with the flipped flag before being re-sent. */
+export async function setMcpServerEnabled(name: string, enabled: boolean): Promise<void> {
+  const { servers } = await loadMcpServers()
+  const target = servers.find((s) => s.name.toLowerCase() === name.toLowerCase())
+  if (!target) throw new Error(`mcp server ${name} not found`)
+  await vivyClient.mcpUpsert(specToUpsert({ ...target, enabled }))
+}
+
+export async function deleteMcpServer(name: string): Promise<void> {
+  await vivyClient.mcpDelete(name)
+}
+
+/** Live connectivity probe (tools listing) for one configured server. */
+export async function probeMcpServer(name: string): Promise<McpServerSpec> {
+  return toMcpSpec(await vivyClient.mcpProbe(name))
+}
+
+// --- skills ---
+
+export interface InstalledSkill {
+  name: string
+  description: string
+  origin: string
+  enabled: boolean
+  /** Compare-and-swap base for set-enabled. */
+  hash: string
+  warnings: string[]
+  userInvocable: boolean
+}
+
+function toInstalledSkill(item: VivySkillSummary): InstalledSkill {
+  return {
+    name: item.name,
+    description: item.description,
+    origin: item.origin ?? 'workspace',
+    enabled: item.enabled,
+    hash: item.hash,
+    warnings: item.warnings ?? [],
+    userInvocable: item.user_invocable ?? false,
+  }
+}
+
+export async function loadInstalledSkills(): Promise<InstalledSkill[]> {
+  const result = await vivyClient.skillsList()
+  return result.skills.map(toInstalledSkill)
+}
+
+/** Flip a skill's enabled flag under CAS on its content hash. A -32009
+ * conflict means the document changed under the caller — re-list and retry. */
+export async function setSkillEnabled(
+  name: string,
+  enabled: boolean,
+  baseHash: string,
+): Promise<InstalledSkill> {
+  return toInstalledSkill(await vivyClient.skillSetEnabled(name, enabled, baseHash))
+}
+
+// --- tools catalog / network search / compaction ---
+
+export interface NetworkToolsState {
+  /** Saved provider preference; '' means automatic. */
+  searchProvider: string
+  configProvider: string
+  /** Backend roster in preference order; env_key + configured describe the
+   * host-env credential presence — VIVY has no UI key-write surface. */
+  providers: VivyNetworkSearchProvider[]
+  /** Whether the network_search tool is in the effective active set. */
+  searchEnabled: boolean
+  /** Whether the web_fetch tool is in the effective active set. */
+  fetchEnabled: boolean
+}
+
+const NETWORK_SEARCH_TOOL = 'network_search'
+const WEB_FETCH_TOOL = 'web_fetch'
+
+export async function loadNetworkToolsState(): Promise<NetworkToolsState> {
+  const [settings, tools] = await Promise.all([
+    vivyClient.settingsGet(),
+    vivyClient.toolsList(),
+  ])
+  const search = settings.network_search
+  const active = new Set(tools.active)
+  return {
+    searchProvider: search?.provider ?? '',
+    configProvider: search?.config_provider ?? '',
+    providers: search?.providers ?? [],
+    searchEnabled: active.has(NETWORK_SEARCH_TOOL),
+    fetchEnabled: active.has(WEB_FETCH_TOOL),
+  }
+}
+
+/** Saves the search provider preference and the two tool toggles in one
+ * tools/set-active write. Empty provider clears back to automatic. */
+export async function saveNetworkToolsState(next: {
+  searchProvider: string
+  searchEnabled: boolean
+  fetchEnabled: boolean
+}): Promise<void> {
+  await vivyClient.settingsUpdate({
+    network_search: { provider: next.searchProvider.trim() },
+  })
+  const tools = await vivyClient.toolsList()
+  const active = new Set(tools.active)
+  if (next.searchEnabled) active.add(NETWORK_SEARCH_TOOL)
+  else active.delete(NETWORK_SEARCH_TOOL)
+  if (next.fetchEnabled) active.add(WEB_FETCH_TOOL)
+  else active.delete(WEB_FETCH_TOOL)
+  await vivyClient.toolsSetActive([...active])
+}
+
+export interface CompactionConfigShape {
+  enabled: boolean
+  maxTokens: number
+  triggerPercent: number
+  keepRecent: number
+  configEnabled: boolean
+  configMaxTokens: number
+  configTriggerPercent: number
+  configKeepRecent: number
+}
+
+export async function loadCompactionConfig(): Promise<CompactionConfigShape> {
+  const settings = await vivyClient.settingsGet()
+  const c = settings.compaction
+  return {
+    enabled: c?.enabled ?? true,
+    maxTokens: c?.max_tokens ?? 0,
+    triggerPercent: c?.trigger_percent ?? 80,
+    keepRecent: c?.keep_recent ?? 12,
+    configEnabled: c?.config_enabled ?? true,
+    configMaxTokens: c?.config_max_tokens ?? 0,
+    configTriggerPercent: c?.config_trigger_percent ?? 80,
+    configKeepRecent: c?.config_keep_recent ?? 12,
+  }
+}
+
+/** Merge-writes the compaction overlay; explicit zeros keep the config
+ * values on the backend. */
+export async function saveCompactionConfig(cfg: {
+  enabled: boolean
+  maxTokens: number
+  triggerPercent: number
+  keepRecent: number
+}): Promise<void> {
+  await vivyClient.settingsUpdate({
+    compaction: {
+      enabled: cfg.enabled,
+      max_tokens: cfg.maxTokens,
+      trigger_percent: cfg.triggerPercent,
+      keep_recent: cfg.keepRecent,
+    },
+  })
+}
+
+/** Display-only budget shape for the context-budget pressure estimate. The
+ * legacy system_budget_ratio has no VIVY knob — the estimator keeps its
+ * default. */
+export function budgetShapeFromCompaction(cfg: CompactionConfigShape): {
+  max_tokens: number
+  system_budget_ratio: number
+  compact_threshold_ratio: number
+  keep_recent_count: number
+} {
+  return {
+    max_tokens: cfg.maxTokens,
+    system_budget_ratio: 0.15,
+    compact_threshold_ratio: cfg.triggerPercent / 100,
+    keep_recent_count: cfg.keepRecent,
+  }
+}
+
+export type { VivyToolsResult }

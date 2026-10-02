@@ -1,11 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import InstalledSkillsTab from './InstalledSkillsTab.vue';
+import type { InstalledSkill } from '../../api/settings';
 
-const getSkills = vi.fn();
-const deleteSkill = vi.fn();
-const appConfirm = vi.fn();
-const showAppToast = vi.fn();
+const loadInstalledSkills = vi.fn();
+const setSkillEnabled = vi.fn();
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -14,36 +13,23 @@ vi.mock('vue-i18n', () => ({
 }));
 
 vi.mock('../../api/desktop', () => ({
-  getSkills: (...args: unknown[]) => getSkills(...args),
-  deleteSkill: (...args: unknown[]) => deleteSkill(...args),
-  uploadSkill: vi.fn(),
   isTauriRuntime: () => true,
 }));
 
-vi.mock('../../utils/appDialog', () => ({
-  appConfirm: (...args: unknown[]) => appConfirm(...args),
+vi.mock('../../api/settings', () => ({
+  loadInstalledSkills: (...args: unknown[]) => loadInstalledSkills(...args),
+  setSkillEnabled: (...args: unknown[]) => setSkillEnabled(...args),
 }));
 
-vi.mock('../../utils/appToast', () => ({
-  showAppToast: (...args: unknown[]) => showAppToast(...args),
-}));
-
-function skillFixture(overrides: Record<string, unknown> = {}) {
+function skillFixture(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
-    slug: 'evolution',
-    name: 'evolution',
+    name: 'demo-skill',
     description: 'Demo skill',
-    source: 'home',
+    origin: 'workspace',
     enabled: true,
-    always: false,
-    available: true,
-    active: true,
-    content_hash: 'hash-1',
-    updated_at: '2026-08-21T00:00:00Z',
-    can_hard_delete: true,
-    evolution_managed: false,
-    path: '',
-    can_delete: true,
+    hash: 'hash-1',
+    warnings: [],
+    userInvocable: true,
     ...overrides,
   };
 }
@@ -55,69 +41,70 @@ function mountTab() {
 describe('InstalledSkillsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    deleteSkill.mockResolvedValue(undefined);
-    appConfirm.mockResolvedValue(true);
+    loadInstalledSkills.mockResolvedValue([]);
+    setSkillEnabled.mockResolvedValue(undefined);
   });
 
-  it('shows the evolution-managed hint and no delete button for evolution skills', async () => {
-    getSkills.mockResolvedValue([skillFixture({ evolution_managed: true })]);
-
-    const wrapper = mountTab();
-    await flushPromises();
-
-    expect(wrapper.text()).toContain('general.skillManagedByEvolution');
-    expect(wrapper.find('button.skills-btn-danger').exists()).toBe(false);
-  });
-
-  it('shows a delete button for marketplace/manual skills', async () => {
-    getSkills.mockResolvedValue([skillFixture()]);
-
-    const wrapper = mountTab();
-    await flushPromises();
-
-    expect(wrapper.text()).not.toContain('general.skillManagedByEvolution');
-    const button = wrapper.find('button.skills-btn-danger');
-    expect(button.exists()).toBe(true);
-    expect(button.text()).toContain('general.deleteSkill');
-  });
-
-  it('deletes after confirmation and refreshes the list', async () => {
-    getSkills.mockResolvedValue([skillFixture()]);
-
-    const wrapper = mountTab();
-    await flushPromises();
-
-    await wrapper.find('button.skills-btn-danger').trigger('click');
-    await flushPromises();
-
-    expect(appConfirm).toHaveBeenCalledTimes(1);
-    expect(deleteSkill).toHaveBeenCalledWith('evolution', 'hash-1');
-    expect(getSkills).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not delete when the confirmation is cancelled', async () => {
-    appConfirm.mockResolvedValue(false);
-    getSkills.mockResolvedValue([skillFixture()]);
-
-    const wrapper = mountTab();
-    await flushPromises();
-
-    await wrapper.find('button.skills-btn-danger').trigger('click');
-    await flushPromises();
-
-    expect(deleteSkill).not.toHaveBeenCalled();
-    expect(getSkills).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows no action for builtin skills', async () => {
-    getSkills.mockResolvedValue([
-      skillFixture({ slug: 'built', name: 'built', source: 'builtin', can_hard_delete: false, can_delete: false }),
+  it('lists installed skills with enabled state', async () => {
+    loadInstalledSkills.mockResolvedValue([
+      skillFixture({ name: 'caveman', enabled: true }),
+      skillFixture({ name: 'off-skill', enabled: false }),
     ]);
-
     const wrapper = mountTab();
     await flushPromises();
 
-    expect(wrapper.find('button.skills-btn-danger').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain('general.skillManagedByEvolution');
+    expect(loadInstalledSkills).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('caveman');
+    expect(wrapper.text()).toContain('off-skill');
+    expect(wrapper.text()).toContain('general.skillStatusActive');
+    expect(wrapper.text()).toContain('general.skillStatusAvailable');
+  });
+
+  it('toggles a skill with its base hash', async () => {
+    loadInstalledSkills.mockResolvedValue([skillFixture({ name: 'caveman', enabled: true, hash: 'h-7' })]);
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.skills-list-item .skills-btn').trigger('click');
+    await flushPromises();
+
+    expect(setSkillEnabled).toHaveBeenCalledWith('caveman', false, 'h-7');
+  });
+
+  it('shows the backend error and re-lists when the toggle conflicts', async () => {
+    loadInstalledSkills.mockResolvedValue([skillFixture()]);
+    setSkillEnabled.mockRejectedValue(new Error('conflict (-32009): stale hash'));
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.skills-list-item .skills-btn').trigger('click');
+    await flushPromises();
+
+    expect(setSkillEnabled).toHaveBeenCalled();
+    expect(loadInstalledSkills.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(wrapper.text()).toContain('stale hash');
+  });
+
+  it('shows backend warnings on the skill row', async () => {
+    loadInstalledSkills.mockResolvedValue([
+      skillFixture({ warnings: ['unrecognized frontmatter key'] }),
+    ]);
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('unrecognized frontmatter key');
+  });
+
+  it('filters by search query', async () => {
+    loadInstalledSkills.mockResolvedValue([
+      skillFixture({ name: 'alpha', description: 'first' }),
+      skillFixture({ name: 'beta', description: 'second' }),
+    ]);
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('input.skills-search-input').setValue('beta');
+    expect(wrapper.text()).toContain('beta');
+    expect(wrapper.text()).not.toContain('alpha');
   });
 });

@@ -24,7 +24,6 @@ import ChatView, { type AskUserQuestionView, type CompactionStatus } from './Cha
 import { listSkillRequests } from '../api/desktop';
 import type { FileAttachmentDto } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
-import type { ToolsConfigShape } from '../types/toolsConfig';
 import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
@@ -115,7 +114,6 @@ interface Props {
   currentEmotion?: string;
   config?: AppConfigShape;
   providerConfigs?: Record<string, ProviderConfigEntry>;
-  toolsConfig?: ToolsConfigShape;
   activePlanRuntime?: PlanRuntimeState | null;
   pendingApprovalPlan?: PlanRuntimeState | null;
   executingPlan?: PlanRuntimeState | null;
@@ -140,7 +138,6 @@ interface Props {
   }[];
   chatDisplayPrefs: ChatDisplayPrefs;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
-  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
   saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }
 
@@ -1046,7 +1043,6 @@ defineExpose({
               :theme-mode="themeMode"
               :history-prefs="chatDisplayPrefs"
               :sessions="sessions"
-              :tools-config="toolsConfig"
               :active-session-key="activeSessionKey"
               :active-plan-runtime="activePlanRuntime"
               :pending-approval-plan="pendingApprovalPlan"
@@ -1078,10 +1074,9 @@ defineExpose({
           </div>
           <div v-else class="h-full min-h-0">
             <SettingsView
-              v-if="config && toolsConfig"
+              v-if="config"
               :config="config"
               :provider-configs="providerConfigs"
-              :tools-config="toolsConfig"
               :saved-models="savedModels"
               :chat-display-prefs="chatDisplayPrefs"
               :theme-mode="themeMode"
@@ -1089,7 +1084,6 @@ defineExpose({
               :current-messages="messages"
               :initial-view="settingsInitialView"
               :save-config-action="saveConfigAction"
-              :save-tools-config-action="saveToolsConfigAction"
               :save-channel-config-action="saveChannelConfigAction"
               @update-saved-models="handleUpdateSavedModels"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"

@@ -20,7 +20,6 @@ import {
 import {
   type PlanRuntimeState,
 } from "./api/planning";
-import type { ToolsConfigShape } from "./types/toolsConfig";
 import {
   type ApprovalGrant,
   type ApprovalView,
@@ -118,26 +117,6 @@ const config = ref({
   apiBase: DEFAULT_DEEPSEEK_API_BASE,
   apiKey: "",
   model: DEFAULT_DEEPSEEK_MODEL
-});
-
-const toolsConfig = ref<ToolsConfigShape>({
-  web: {
-    search: {
-      provider: 'bocha',
-      enabled: true,
-      api_key: '',
-      max_results: 5
-    },
-    fetch: {
-      enabled: true
-    }
-  },
-  budget: {
-    max_tokens: 180000,
-    system_budget_ratio: 0.15,
-    compact_threshold_ratio: 0.8,
-    keep_recent_count: 10,
-  },
 });
 
 const savedModels = ref<SavedModel[]>([]);
@@ -289,7 +268,6 @@ function onApprovalCenterOpenChange(open: boolean) {
 type WelcomeDonePayload = {
   skipped: boolean;
   deepseekApiKey: string;
-  bochaApiKey: string;
   navigate: 'chat' | 'providers' | 'network' | 'console';
 };
 
@@ -658,25 +636,6 @@ async function saveConfig(newConfig: typeof config.value) {
   }
 }
 
-async function saveToolsConfig(newToolsConfig: typeof toolsConfig.value) {
-  try {
-    toolsConfig.value = JSON.parse(JSON.stringify(newToolsConfig));
-    if (!isTauri()) {
-      showAppToast("保存成功");
-      return;
-    }
-
-    await invoke("update_tools_config", {
-      tools: newToolsConfig
-    });
-
-    showAppToast("保存成功");
-  } catch (error) {
-    await appAlert(t('app.configUpdateError', { error }));
-    throw error;
-  }
-}
-
 async function saveChannelConfig(channelName: string, channelConfig: Record<string, unknown>) {
   try {
     if (!isTauri()) {
@@ -709,14 +668,8 @@ async function handleWelcomeDone(payload: WelcomeDonePayload) {
 
   if (!payload.skipped) {
     const dk = payload.deepseekApiKey.trim();
-    const bk = payload.bochaApiKey.trim();
     if (dk) {
       await saveConfig(buildWelcomeDeepSeekConfig(config.value, dk));
-    }
-    if (bk) {
-      const nextTools = JSON.parse(JSON.stringify(toolsConfig.value)) as typeof toolsConfig.value;
-      nextTools.web.search.api_key = bk;
-      await saveToolsConfig(nextTools);
     }
   }
 
@@ -839,17 +792,6 @@ onMounted(async () => {
     }
 
     try {
-      const fetchedTools = await withTimeout(
-        invoke<typeof toolsConfig.value>("get_tools_config"),
-        STARTUP_TASK_TIMEOUT_MS,
-        "get_tools_config"
-      );
-      toolsConfig.value = fetchedTools;
-    } catch (e) {
-      console.warn("Failed to load tools config:", e);
-    }
-
-    try {
       if (typeof localStorage !== 'undefined' && !localStorage.getItem(WELCOME_STORAGE_KEY)) {
         showWelcomeWizard.value = true;
       }
@@ -875,7 +817,6 @@ onUnmounted(() => {
     <WelcomeWizard
       :open="showWelcomeWizard"
       :config="config"
-      :tools-config="toolsConfig"
       @done="handleWelcomeDone"
     />
     <PersonaSetupGate v-if="!showWelcomeWizard" />
@@ -887,7 +828,6 @@ onUnmounted(() => {
       :current-emotion="currentEmotion"
       :config="config"
       :provider-configs="providerConfigs"
-      :tools-config="toolsConfig"
       :saved-models="savedModels"
       :sessions="sessions"
       :chat-display-prefs="chatDisplayPrefs"
@@ -902,7 +842,6 @@ onUnmounted(() => {
       :ask-user-questions="pendingQuestions"
       :compaction-status="compactionStatus"
       :save-config-action="saveConfig"
-      :save-tools-config-action="saveToolsConfig"
       :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"

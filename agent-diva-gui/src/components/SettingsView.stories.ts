@@ -173,19 +173,6 @@ export const Default: Story = {
       apiKey: 'sk-proj-1234567890abcdef1234567890abcdef',
       model: 'gpt-4o',
     },
-    toolsConfig: {
-      web: {
-        search: {
-          provider: 'bocha',
-          enabled: true,
-          api_key: '',
-          max_results: 5,
-        },
-        fetch: {
-          enabled: true,
-        },
-      },
-    },
     savedModels: [
       {
         id: 'openai:gpt-4o',
@@ -206,19 +193,6 @@ export const LocalProvider: Story = {
       apiBase: 'http://localhost:11434',
       apiKey: '',
       model: 'llama3',
-    },
-    toolsConfig: {
-      web: {
-        search: {
-          provider: 'bocha',
-          enabled: true,
-          api_key: '',
-          max_results: 5,
-        },
-        fetch: {
-          enabled: true,
-        },
-      },
     },
     savedModels: [],
   },
