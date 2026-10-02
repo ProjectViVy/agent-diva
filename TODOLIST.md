@@ -471,6 +471,27 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   `general.uploadSkill`/`deleteSkill*`/`skillSource*`/`welcome.*bocha*` and the
   i18n.ts zhPatched fallbacks are unreferenced after slice B — sweep on close.
 
+- [ ] **COMMAND-RULES-GAP** `sev-P2`
+  Legacy `get_command_rules`/`set_command_rule_enabled`/`delete_command_rule`
+  have no VIVY counterpart — `commands/list` is dynamic slash commands, not
+  approval rules. Command-rules UI deleted in slice D; needs a backend
+  approval-rule surface or stays retired.
+
+- [ ] **BACKEND-WIPE-GAP** `sev-P2`
+  `wipe_local_data` has no VIVY RPC. GeneralSettings danger zone is now
+  localStorage-only + window reload (backend data unaffected, copy updated).
+  Restore a real backend wipe only when VIVY exposes one.
+
+- [ ] **GUI-STATUS-PATHS-GAP** `sev-P3`
+  Derived `ConfigStatusReport` has no backend for resolved paths / channel /
+  cron counts — GeneralSettings runtime card shows doctor + providers only.
+  Re-add columns when VIVY exposes a status endpoint.
+
+- [ ] **GUI-PET-SEAM-DORMANT** `sev-P2`
+  `pet_*` invokes (DivaPetView / DesktopPetOverlay / voice services) are
+  runtime-dead under the thin shell (only `vivy_call` registered). DN-6 owns
+  the native disposition — restore native commands or retire the surface.
+
 ## Reliability / Test Debt
 
 - [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`

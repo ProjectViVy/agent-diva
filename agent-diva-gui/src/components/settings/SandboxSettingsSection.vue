@@ -3,480 +3,261 @@ import { ref, computed, onMounted } from 'vue';
 import { ShieldCheck, LoaderCircle, AlertTriangle, Plus, X } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import { showAppToast } from '../../utils/appToast';
-import { appConfirm } from '../../utils/appDialog';
-import {
-  deleteCommandRule,
-  getCommandRules,
-  getSandboxConfig,
-  saveSandboxConfig,
-  setCommandRuleEnabled,
-  type CommandRule,
-  type SandboxConfig,
-} from '../../api/desktop';
+import { loadSandboxSettings, saveSandboxSettings } from '../../api/settings';
+import type { VivySandboxResult } from '../../api/vivy/contracts';
 
 const { t } = useI18n();
 
-const SANDBOX_MODES: SandboxConfig['mode'][] = ['danger_full_access', 'read_only', 'workspace_write'];
-const APPROVAL_POLICIES: SandboxConfig['approval_policy'][] = ['never', 'on_failure', 'on_request', 'unless_trusted'];
+const PRESETS = ['cautious', 'smart', 'trusted'] as const;
 
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const saving = ref(false);
-// Computed textarea model: join/split deny_patterns array on newlines
-const denyPatternsText = computed({
-  get: () => config.value.deny_patterns.join('\n'),
-  set: (val: string) => {
-    config.value.deny_patterns = val.split('\n').map(s => s.trim()).filter(Boolean);
-  },
-});
+const effective = ref<VivySandboxResult | null>(null);
 
-const config = ref<SandboxConfig>({
-  mode: 'read_only',
-  approval_policy: 'on_failure',
-  network_access: true,
-  writable_roots: [],
-  protected_paths: [],
-  deny_patterns: [],
-  timeout_seconds: 30,
-});
+const preset = ref<string>('smart');
+const denyPrivateIps = ref(true);
+const allowedDomains = ref<string[]>([]);
+const approvalTimeoutSeconds = ref(0);
+const newDomain = ref('');
+
 const originalSnapshot = ref('');
-const originalMode = ref('');
 
-const newWritableRoot = ref('');
-const newProtectedPath = ref('');
-const commandRules = ref<CommandRule[]>([]);
-const rulesLoading = ref(true);
-const rulesError = ref<string | null>(null);
-const updatingRuleIds = ref<string[]>([]);
+const formSnapshot = () => JSON.stringify({
+  preset: preset.value,
+  denyPrivateIps: denyPrivateIps.value,
+  allowedDomains: allowedDomains.value,
+  approvalTimeoutSeconds: approvalTimeoutSeconds.value,
+});
+const isDirty = computed(() => formSnapshot() !== originalSnapshot.value);
 
-const isDirty = computed(() => JSON.stringify(config.value) !== originalSnapshot.value);
-const modeChanged = computed(() => config.value.mode !== originalMode.value);
+const applyView = (view: VivySandboxResult) => {
+  effective.value = view;
+  preset.value = view.default_preset;
+  denyPrivateIps.value = view.deny_private_ips;
+  allowedDomains.value = [...view.allowed_domains];
+  approvalTimeoutSeconds.value = view.approval_timeout_seconds;
+  originalSnapshot.value = formSnapshot();
+};
 
-const loadConfig = async () => {
+const load = async () => {
   loading.value = true;
   loadError.value = null;
   try {
-    const data = await getSandboxConfig();
-    config.value = {
-      mode: data.mode ?? 'read_only',
-      approval_policy: data.approval_policy ?? 'on_failure',
-      network_access: data.network_access ?? true,
-      writable_roots: data.writable_roots ?? [],
-      protected_paths: data.protected_paths ?? [],
-      deny_patterns: data.deny_patterns ?? [],
-      timeout_seconds: data.timeout_seconds ?? 30,
-    };
-    originalSnapshot.value = JSON.stringify(config.value);
-    originalMode.value = config.value.mode;
-  } catch {
-    // Backend command may not exist yet; use defaults so UI is still usable
-    config.value = {
-      mode: 'read_only',
-      approval_policy: 'on_failure',
-      network_access: true,
-      writable_roots: [],
-      protected_paths: [],
-      deny_patterns: [],
-      timeout_seconds: 30,
-    };
-    originalSnapshot.value = JSON.stringify(config.value);
-    originalMode.value = config.value.mode;
+    applyView(await loadSandboxSettings());
+  } catch (error) {
+    loadError.value = String(error);
   } finally {
     loading.value = false;
   }
 };
 
-const saveConfig = async () => {
+const save = async () => {
   if (saving.value || !isDirty.value) return;
   saving.value = true;
-  const rawTimeout = Number(config.value.timeout_seconds);
-  config.value.timeout_seconds = Number.isFinite(rawTimeout) && rawTimeout >= 1
-    ? Math.min(600, Math.floor(rawTimeout))
-    : 60;
+  const timeout = Number(approvalTimeoutSeconds.value);
+  const clamped = Number.isFinite(timeout) && timeout >= 0 ? Math.floor(timeout) : 0;
   try {
-    await saveSandboxConfig({ ...config.value });
-    originalSnapshot.value = JSON.stringify(config.value);
-    originalMode.value = config.value.mode;
+    applyView(await saveSandboxSettings({
+      default_preset: preset.value,
+      deny_private_ips: denyPrivateIps.value,
+      allowed_domains: allowedDomains.value,
+      approval_timeout_seconds: clamped,
+    }));
     showAppToast(t('sandbox.saved'), 'success');
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    showAppToast(`${t('sandbox.saveFailed')}: ${detail}`, 'error');
+    showAppToast(`${t('sandbox.saveFailed')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
   } finally {
     saving.value = false;
   }
 };
 
-const addWritableRoot = () => {
-  const val = newWritableRoot.value.trim();
-  if (val && !config.value.writable_roots.includes(val)) {
-    config.value.writable_roots.push(val);
-    newWritableRoot.value = '';
+const addDomain = () => {
+  const val = newDomain.value.trim();
+  if (val && !allowedDomains.value.includes(val)) {
+    allowedDomains.value.push(val);
+    newDomain.value = '';
   }
 };
 
-const removeWritableRoot = (idx: number) => {
-  config.value.writable_roots.splice(idx, 1);
+const removeDomain = (idx: number) => {
+  allowedDomains.value.splice(idx, 1);
 };
 
-const addProtectedPath = () => {
-  const val = newProtectedPath.value.trim();
-  if (val && !config.value.protected_paths.includes(val)) {
-    config.value.protected_paths.push(val);
-    newProtectedPath.value = '';
-  }
-};
-
-const removeProtectedPath = (idx: number) => {
-  config.value.protected_paths.splice(idx, 1);
-};
-
-const loadCommandRules = async () => {
-  rulesLoading.value = true;
-  rulesError.value = null;
-  try {
-    commandRules.value = await getCommandRules();
-  } catch (error) {
-    rulesError.value = String(error);
-  } finally {
-    rulesLoading.value = false;
-  }
-};
-
-const setRuleEnabled = async (rule: CommandRule, enabled: boolean) => {
-  if (updatingRuleIds.value.includes(rule.id)) return;
-  updatingRuleIds.value = [...updatingRuleIds.value, rule.id];
-  try {
-    const updated = await setCommandRuleEnabled(rule, enabled);
-    commandRules.value = commandRules.value.map((item) => item.id === rule.id ? updated : item);
-  } catch {
-    showAppToast(t('sandbox.rulesUpdateFailed'), 'error');
-    await loadCommandRules();
-  } finally {
-    updatingRuleIds.value = updatingRuleIds.value.filter((id) => id !== rule.id);
-  }
-};
-
-const removeCommandRule = async (rule: CommandRule) => {
-  if (!(await appConfirm(t('sandbox.rulesDeleteConfirm')))) return;
-  if (updatingRuleIds.value.includes(rule.id)) return;
-  updatingRuleIds.value = [...updatingRuleIds.value, rule.id];
-  try {
-    await deleteCommandRule(rule);
-    commandRules.value = commandRules.value.filter((item) => item.id !== rule.id);
-  } catch {
-    showAppToast(t('sandbox.rulesDeleteFailed'), 'error');
-    await loadCommandRules();
-  } finally {
-    updatingRuleIds.value = updatingRuleIds.value.filter((id) => id !== rule.id);
-  }
-};
-
-onMounted(() => {
-  void loadConfig();
-  void loadCommandRules();
-});
+onMounted(load);
 </script>
 
 <template>
-  <div class="p-6 space-y-6 fade-in">
-    <!-- Header -->
-    <div class="flex items-start justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div class="settings-dashboard-icon">
-          <ShieldCheck :size="20" />
-        </div>
-        <div>
-          <h3 class="settings-dashboard-title">{{ t('sandbox.title') }}</h3>
-          <p class="settings-dashboard-desc">{{ t('sandbox.desc') }}</p>
-        </div>
-      </div>
-      <button
-        type="button"
-        class="settings-btn settings-btn-primary inline-flex min-w-[112px] items-center justify-center gap-2"
-        :disabled="saving || !isDirty"
-        @click="saveConfig"
-      >
-        <LoaderCircle v-if="saving" :size="16" class="animate-spin" />
-        <span>{{ saving ? t('sandbox.saving') : t('sandbox.save') }}</span>
-      </button>
+  <div class="sandbox-settings space-y-6">
+    <div class="flex items-center gap-2">
+      <ShieldCheck :size="18" class="text-emerald-500" />
+      <h3 class="text-base font-semibold">{{ t('sandbox.title') }}</h3>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center py-12">
-      <LoaderCircle :size="24" class="animate-spin" :style="{ color: 'var(--accent)' }" />
-      <span class="ml-3 settings-muted">{{ t('sandbox.loading') }}</span>
+    <div v-if="loading" class="flex items-center gap-2 settings-muted text-sm">
+      <LoaderCircle :size="14" class="animate-spin" />
+      {{ t('sandbox.loading') }}
+    </div>
+    <div v-else-if="loadError" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--danger)' }">
+      <AlertTriangle :size="14" />
+      {{ loadError }}
     </div>
 
-    <!-- Error -->
-    <div v-else-if="loadError" class="settings-section" :style="{ borderColor: 'var(--danger)' }">
-      <p class="text-sm" :style="{ color: 'var(--danger)' }">{{ t('sandbox.loadError') }}: {{ loadError }}</p>
-      <button type="button" class="settings-btn settings-btn-secondary mt-3" @click="loadConfig">
-        {{ t('sandbox.retry') }}
-      </button>
-    </div>
-
-    <!-- Content -->
     <template v-else>
-      <!-- Mode Change Warning -->
-      <div v-if="modeChanged" class="sandbox-warning-banner">
-        <AlertTriangle :size="16" class="shrink-0" />
-        <span>{{ t('sandbox.modeChangeWarning') }}</span>
+      <!-- Permission preset -->
+      <div class="settings-section space-y-3">
+        <div class="settings-section-header">
+          <span>{{ t('sandbox.preset') }}</span>
+        </div>
+        <p class="text-xs settings-muted">{{ t('sandbox.presetHint') }}</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="p in PRESETS"
+            :key="p"
+            type="button"
+            class="sandbox-preset-btn"
+            :class="{ active: preset === p }"
+            @click="preset = p"
+          >
+            {{ t(`sandbox.presets.${p}`) }}
+          </button>
+        </div>
+        <p v-if="preset === 'custom'" class="text-xs settings-muted">
+          {{ t('sandbox.customReadonly') }}
+        </p>
+        <p class="text-xs settings-muted">
+          {{ t('sandbox.configDefault') }}: {{ effective?.config_default_preset }}
+        </p>
       </div>
 
-      <!-- Core Settings -->
-      <div class="settings-section space-y-5">
+      <!-- Network -->
+      <div class="settings-section space-y-3">
         <div class="settings-section-header">
-          <ShieldCheck :size="16" />
-          <span>{{ t('sandbox.coreGroup') }}</span>
+          <span>{{ t('sandbox.network') }}</span>
         </div>
-
-        <!-- Sandbox Mode Dropdown -->
-        <div class="space-y-1">
-          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">
-            {{ t('sandbox.sandboxMode') }}
-          </label>
-          <select v-model="config.mode" class="settings-input">
-            <option v-for="mode in SANDBOX_MODES" :key="mode" :value="mode">
-              {{ t(`sandbox.modes.${mode}`) }}
-            </option>
-          </select>
-          <p class="text-xs settings-muted mt-1">{{ t('sandbox.sandboxModeHint') }}</p>
-        </div>
-
-        <!-- Approval Policy Dropdown -->
-        <div class="space-y-1">
-          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">
-            {{ t('sandbox.approvalPolicy') }}
-          </label>
-          <select v-model="config.approval_policy" class="settings-input">
-            <option v-for="policy in APPROVAL_POLICIES" :key="policy" :value="policy">
-              {{ t(`sandbox.policies.${policy}`) }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Network Toggle -->
-        <label class="settings-label flex items-center justify-between cursor-pointer">
-          <span>{{ t('sandbox.networkEnabled') }}</span>
+        <label class="flex items-center gap-2 text-sm">
           <button
             type="button"
             role="switch"
-            :aria-checked="config.network_access"
+            :aria-checked="denyPrivateIps"
             class="sandbox-toggle"
-            :class="{ active: config.network_access }"
-            @click="config.network_access = !config.network_access"
+            :class="{ active: denyPrivateIps }"
+            @click="denyPrivateIps = !denyPrivateIps"
           >
             <span class="sandbox-toggle-thumb" />
           </button>
+          {{ t('sandbox.denyPrivateIps') }}
         </label>
+        <p class="text-xs settings-muted">{{ t('sandbox.denyPrivateIpsHint') }}</p>
 
-        <!-- Timeout -->
-        <div class="space-y-1">
-          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">
-            {{ t('sandbox.timeout') }}
-          </label>
-          <input
-            v-model.number="config.timeout_seconds"
-            type="number"
-            min="1"
-            max="600"
-            class="settings-input"
-          />
-        </div>
-      </div>
-
-      <!-- Writable Roots -->
-      <div class="settings-section space-y-3">
         <div class="settings-section-header">
-          <span>{{ t('sandbox.writableRoots') }}</span>
+          <span>{{ t('sandbox.allowedDomains') }}</span>
         </div>
-        <p class="text-xs settings-muted">{{ t('sandbox.writableRootsHint') }}</p>
-
+        <p class="text-xs settings-muted">{{ t('sandbox.allowedDomainsHint') }}</p>
         <div class="sandbox-tag-list">
           <span
-            v-for="(root, idx) in config.writable_roots"
-            :key="'w-' + idx"
+            v-for="(domain, idx) in allowedDomains"
+            :key="'d-' + idx"
             class="sandbox-tag"
           >
-            <span class="sandbox-tag-text">{{ root }}</span>
-            <button type="button" class="sandbox-tag-remove" @click="removeWritableRoot(idx)">
+            <span class="sandbox-tag-text">{{ domain }}</span>
+            <button type="button" class="sandbox-tag-remove" @click="removeDomain(idx)">
               <X :size="12" />
             </button>
           </span>
         </div>
-
         <div class="flex gap-2">
           <input
-            v-model="newWritableRoot"
+            v-model="newDomain"
             type="text"
             class="settings-input flex-1"
-            :placeholder="t('sandbox.addPathPlaceholder')"
-            @keydown.enter.prevent="addWritableRoot"
+            :placeholder="t('sandbox.addDomainPlaceholder')"
+            @keydown.enter.prevent="addDomain"
           />
-          <button type="button" class="settings-btn settings-btn-secondary" @click="addWritableRoot">
+          <button type="button" class="settings-btn settings-btn-secondary" @click="addDomain">
             <Plus :size="14" />
           </button>
         </div>
       </div>
 
-      <div class="settings-section space-y-3">
-        <div class="settings-section-header flex items-center justify-between">
-          <span>{{ t('sandbox.commandRules') }}</span>
-          <button type="button" class="settings-btn settings-btn-secondary" @click="loadCommandRules">
-            {{ t('sandbox.rulesRefresh') }}
-          </button>
-        </div>
-        <p class="text-xs settings-muted">{{ t('sandbox.commandRulesHint') }}</p>
-        <div v-if="rulesLoading" class="settings-muted text-sm">{{ t('sandbox.rulesLoading') }}</div>
-        <div v-else-if="rulesError" class="text-sm" :style="{ color: 'var(--danger)' }">
-          {{ t('sandbox.rulesLoadFailed') }}: {{ rulesError }}
-        </div>
-        <div v-else-if="commandRules.length === 0" class="settings-muted text-sm">
-          {{ t('sandbox.rulesEmpty') }}
-        </div>
-        <div v-else class="command-rule-list">
-          <div v-for="rule in commandRules" :key="rule.id" class="command-rule-row">
-            <div class="min-w-0">
-              <code>{{ rule.pattern.join(' ') }}</code>
-              <div class="text-xs settings-muted">
-                {{ t(`sandbox.ruleSource.${rule.source}`) }} · {{ new Date(rule.created_at).toLocaleString() }}
-              </div>
-              <div v-if="rule.justification" class="text-xs settings-muted">{{ rule.justification }}</div>
-            </div>
-            <div class="rule-actions">
-              <button
-                type="button"
-                role="switch"
-                :aria-checked="rule.enabled"
-                :disabled="updatingRuleIds.includes(rule.id)"
-                class="sandbox-toggle"
-                :class="{ active: rule.enabled }"
-                @click="setRuleEnabled(rule, !rule.enabled)"
-              >
-                <span class="sandbox-toggle-thumb" />
-              </button>
-              <button
-                type="button"
-                class="sandbox-tag-remove"
-                :disabled="updatingRuleIds.includes(rule.id)"
-                @click="removeCommandRule(rule)"
-              >
-                <X :size="14" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Protected Paths -->
+      <!-- Approval timeout -->
       <div class="settings-section space-y-3">
         <div class="settings-section-header">
-          <span>{{ t('sandbox.protectedPaths') }}</span>
+          <span>{{ t('sandbox.approvalTimeout') }}</span>
         </div>
-        <p class="text-xs settings-muted">{{ t('sandbox.protectedPathsHint') }}</p>
-
-        <div class="sandbox-tag-list">
-          <span
-            v-for="(path, idx) in config.protected_paths"
-            :key="'p-' + idx"
-            class="sandbox-tag sandbox-tag-protected"
-          >
-            <span class="sandbox-tag-text">{{ path }}</span>
-            <button type="button" class="sandbox-tag-remove" @click="removeProtectedPath(idx)">
-              <X :size="12" />
-            </button>
-          </span>
-        </div>
-
-        <div class="flex gap-2">
-          <input
-            v-model="newProtectedPath"
-            type="text"
-            class="settings-input flex-1"
-            :placeholder="t('sandbox.addPathPlaceholder')"
-            @keydown.enter.prevent="addProtectedPath"
-          />
-          <button type="button" class="settings-btn settings-btn-secondary" @click="addProtectedPath">
-            <Plus :size="14" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Deny Patterns -->
-      <div class="settings-section space-y-3">
-        <div class="settings-section-header">
-          <span>{{ t('sandbox.denyPatterns') }}</span>
-        </div>
-        <p class="text-xs settings-muted">{{ t('sandbox.denyPatternsHint') }}</p>
-        <textarea
-          v-model="denyPatternsText"
-          class="settings-input sandbox-textarea"
-          rows="4"
-          :placeholder="t('sandbox.denyPatternsPlaceholder')"
+        <p class="text-xs settings-muted">{{ t('sandbox.approvalTimeoutHint') }}</p>
+        <input
+          v-model.number="approvalTimeoutSeconds"
+          type="number"
+          min="0"
+          class="settings-input w-32"
         />
+        <p class="text-xs settings-muted">
+          {{ t('sandbox.approvalTimeoutMeta', {
+            config: effective?.config_approval_timeout_seconds,
+            ceiling: effective?.approval_expiration_seconds || '—',
+          }) }}
+        </p>
+      </div>
+
+      <!-- Read-only runtime facts -->
+      <div class="settings-section space-y-3">
+        <div class="settings-section-header">
+          <span>{{ t('sandbox.runtimeFacts') }}</span>
+        </div>
+        <p class="text-xs settings-muted">{{ t('sandbox.runtimeFactsHint') }}</p>
+        <dl class="sandbox-facts">
+          <div class="sandbox-fact">
+            <dt>{{ t('sandbox.workspaceRoot') }}</dt>
+            <dd><code>{{ effective?.workspace_root || '—' }}</code></dd>
+          </div>
+          <div class="sandbox-fact">
+            <dt>{{ t('sandbox.allowedCommands') }}</dt>
+            <dd>
+              <code v-if="effective?.execute_allowed_commands?.length">
+                {{ effective.execute_allowed_commands.join(', ') }}
+              </code>
+              <span v-else>—</span>
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- Save -->
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="settings-btn"
+          :disabled="saving || !isDirty"
+          @click="save"
+        >
+          <LoaderCircle v-if="saving" :size="14" class="animate-spin" />
+          {{ t('sandbox.save') }}
+        </button>
       </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.fade-in {
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-.sandbox-warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: var(--warning);
-  font-size: 0.875rem;
+.sandbox-preset-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 500;
+  border-radius: 9999px;
+  background: var(--accent-bg-light);
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.2s;
 }
 
-.sandbox-toggle {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  background: var(--line);
-  flex-shrink: 0;
+.sandbox-preset-btn:hover {
+  background: var(--nav-hover);
 }
 
-.command-rule-list { display: grid; gap: 8px; }
-.command-rule-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.command-rule-row code { color: var(--text); overflow-wrap: anywhere; }
-.rule-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-.sandbox-toggle.active {
-  background: var(--accent);
-}
-
-.sandbox-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: white;
-  transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-.sandbox-toggle.active .sandbox-toggle-thumb {
-  transform: translateX(20px);
+.sandbox-preset-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .sandbox-tag-list {
@@ -488,50 +269,67 @@ onMounted(() => {
 .sandbox-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 9999px;
   background: var(--accent-bg-light);
-  border: 1px solid var(--accent-border);
-  font-size: 0.8rem;
   color: var(--text);
-}
-
-.sandbox-tag-protected {
-  background: var(--danger-bg);
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-.sandbox-tag-text {
-  font-family: monospace;
-  word-break: break-all;
 }
 
 .sandbox-tag-remove {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
   color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  padding: 0;
 }
 
 .sandbox-tag-remove:hover {
-  background: var(--danger-bg);
   color: var(--danger);
 }
 
-.sandbox-textarea {
-  resize: vertical;
-  min-height: 80px;
-  font-family: monospace;
-  font-size: 0.8rem;
-  line-height: 1.5;
+.sandbox-toggle {
+  position: relative;
+  width: 2rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  background: var(--line);
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.sandbox-toggle.active {
+  background: var(--accent);
+}
+
+.sandbox-toggle-thumb {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: white;
+  transition: transform 0.2s;
+}
+
+.sandbox-toggle.active .sandbox-toggle-thumb {
+  transform: translateX(0.875rem);
+}
+
+.sandbox-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.sandbox-fact {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: 0.5rem;
+}
+
+.sandbox-fact dt {
+  color: var(--text-muted);
 }
 </style>

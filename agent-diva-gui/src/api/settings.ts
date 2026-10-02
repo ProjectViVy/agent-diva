@@ -513,6 +513,8 @@ import type {
   VivyCronJob,
   VivyMcpServer,
   VivyNetworkSearchProvider,
+  VivySandboxResult,
+  VivySandboxUpdate,
   VivySkillSummary,
   VivyToolsResult,
 } from './vivy/contracts'
@@ -804,4 +806,23 @@ export async function saveChannel(params: ChannelUpdateParams): Promise<VivyChan
 
 export async function listCronJobs(): Promise<VivyCronJob[]> {
   return (await vivyClient.cronList()).jobs
+}
+
+/**
+ * Load the VIVY sandbox overlay view (`settings/get` sandbox section).
+ */
+export async function loadSandboxSettings(): Promise<VivySandboxResult> {
+  const res = await vivyClient.settingsGet()
+  if (!res.sandbox) throw new Error('settings/get returned no sandbox section')
+  return res.sandbox
+}
+
+/**
+ * Write the sandbox overlay via `settings/update`; absent fields keep the
+ * stored overlay value. Re-reads the effective view afterwards.
+ */
+export async function saveSandboxSettings(update: VivySandboxUpdate): Promise<VivySandboxResult> {
+  const res = await vivyClient.settingsUpdate({ sandbox: update })
+  if (!res.sandbox) throw new Error('settings/update returned no sandbox section')
+  return res.sandbox
 }

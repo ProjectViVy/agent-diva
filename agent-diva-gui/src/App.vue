@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import type { AskUserQuestionView, CompactionStatus } from './components/ChatView.vue';
 import NormalMode from "./components/NormalMode.vue";
 import ApprovalCenterDrawer from "./components/ApprovalCenterDrawer.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
-import PersonaSetupGate from "./components/PersonaSetupGate.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
@@ -700,14 +698,6 @@ function syncFromController() {
 }
 
 onMounted(async () => {
-  const markSplashComplete = () => {
-    if (isTauri()) {
-      invoke('set_splash_complete', { task: 'frontend' }).catch((e) =>
-        console.warn('set_splash_complete failed:', e)
-      );
-    }
-  };
-
   try {
     const storedModels = localStorage.getItem(SAVED_MODELS_KEY);
     if (storedModels) savedModels.value = JSON.parse(storedModels);
@@ -780,8 +770,6 @@ onMounted(async () => {
     }
   } catch (e) {
     console.error("App initialization error:", e);
-  } finally {
-    markSplashComplete();
   }
 });
 
@@ -799,7 +787,6 @@ onUnmounted(() => {
       :config="config"
       @done="handleWelcomeDone"
     />
-    <PersonaSetupGate v-if="!showWelcomeWizard" />
     <NormalMode
       ref="normalModeRef"
       :messages="messages"

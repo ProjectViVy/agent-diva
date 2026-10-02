@@ -50,6 +50,7 @@ import {
   type VivySkillRevision,
   type VivySkillSummary,
   type VivySkillView,
+  type VivyTokenUsageSnapshot,
   type VivyToolsResult,
 } from './contracts'
 import type { VivyTransport } from './transport'
@@ -308,6 +309,10 @@ export class VivyClient {
   cronTrigger(id: string): Promise<{ job: VivyCronJob }> {
     return this.call('cron/trigger', { id }, { mutation: true })
   }
+  statsTokens(params: { period?: string; tz_offset_minutes?: number; session_limit?: number } = {}): Promise<VivyTokenUsageSnapshot> {
+    return this.call<VivyTokenUsageSnapshot>('stats/tokens', params)
+  }
+
   cronStop(id: string): Promise<{ stopped: boolean }> {
     return this.call('cron/stop', { id }, { mutation: true })
   }

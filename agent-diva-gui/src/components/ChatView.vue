@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Paperclip, Mic, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, Cat, GitBranch, ClipboardList } from '@lucide/vue';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Mic, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, ClipboardList } from '@lucide/vue';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -11,24 +10,17 @@ import DecisionCard from './DecisionCard.vue';
 import TodoCard from './TodoCard.vue';
 import AskUserQuestionCard from './AskUserQuestionCard.vue';
 export type { AskUserQuestionView } from './AskUserQuestionCard.vue';
-import ChatGovernanceCard from './chat/ChatGovernanceCard.vue';
 import ThinkingBlock from './chat/ThinkingBlock.vue';
 import ThinkingToggle from './chat/ThinkingToggle.vue';
 import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import AgentMessageBody from './planning/AgentMessageBody.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
-import {
-  triggerAutoDream,
-  uploadFile,
+import type {
   FileAttachmentDto,
-  type UiCard,
+  UiCard,
 } from '../api/desktop';
 import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
 import type { PlanRuntimeState } from '../api/planning';
-import type {
-  ChatGovernanceCard as ChatGovernanceCardModel,
-  ChatGovernanceDeepLink,
-} from './chat/governanceCards';
 import type { BudgetConfigShape } from '../types/toolsConfig';
 import { budgetShapeFromCompaction, loadCompactionConfig } from '../api/settings';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
@@ -225,7 +217,6 @@ const emit = defineEmits<{
   (e: 'new-session'): void;
   (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename-session', sessionKey: string, title: string): void;
-  (e: 'open-evolution', payload: ChatGovernanceDeepLink): void;
   (e: 'regenerate', messageId: string): void;
   (e: 'update:approval-center-open', open: boolean): void;
   (e: 'answer-ask-user', payload: { question_id: string; selected_index: number | null; other_text: string | null }): void;
@@ -235,10 +226,7 @@ const emit = defineEmits<{
 const input = ref('');
 const chatListRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const attachments = ref<FileAttachmentDto[]>([]);
-const uploading = ref(false);
-const uploadingPastes = ref(false);
+
 const inputHeight = ref(24); // 动态输入框高度
 
 // 右侧会话侧边栏状态
@@ -265,15 +253,7 @@ watch(permissionMode, (mode) => {
 const isRecording = ref(false);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
-interface AutoDreamTriggerNotice {
-  state: 'success' | 'error';
-  message: string;
-  error?: string;
-  runId?: string;
-}
 
-const autoDreamNotice = ref<AutoDreamTriggerNotice | null>(null);
-const autoDreamTriggering = ref(false);
 
 const effectiveHistoryPrefs = computed<HistoryPrefs>(() => ({
   ...defaultHistoryPrefs,
@@ -409,7 +389,6 @@ watch(
   () => props.activeSessionKey,
   (activeSessionKey, previousSessionKey) => {
     if (activeSessionKey !== previousSessionKey) {
-      autoDreamNotice.value = null;
       scrollToBottom(true);
     }
   },
@@ -428,19 +407,16 @@ onBeforeUnmount(() => {
 
 const handleSend = () => {
   if (props.isTyping) return;
-  if (!input.value.trim() && attachments.value.length === 0) return;
+  if (!input.value.trim()) return;
   scrollToBottom(true);
-  const currentAttachments = [...attachments.value];
-  const text = input.value.trim() || (currentAttachments.length > 0 ? t('chat.filePlaceholder') : '');
   emit(
     'send',
-    text,
-    currentAttachments.length > 0 ? currentAttachments : undefined,
+    input.value.trim(),
+    undefined,
     execMode.value,
     permissionMode.value,
   );
   input.value = '';
-  attachments.value = [];
   nextTick(() => {
     adjustInputHeight();
   });
@@ -465,64 +441,8 @@ watch(
   },
 );
 
-const handleFileSelect = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const files = target.files;
-  if (!files || files.length === 0) return;
-  uploading.value = true;
-  try {
-    for (const file of Array.from(files)) {
-      const buffer = await file.arrayBuffer();
-      const bytes = Array.from(new Uint8Array(buffer));
-      const dto = await uploadFile(file.name, bytes, 'gui');
-      attachments.value.push(dto);
-    }
-  } catch (err) {
-    console.error('Failed to upload file:', err);
-  } finally {
-    uploading.value = false;
-    if (fileInputRef.value) fileInputRef.value.value = '';
-  }
-};
-
-const handlePaste = async (event: ClipboardEvent) => {
-  if (!event.clipboardData) return;
-  const items = Array.from(event.clipboardData.items);
-  const imageItems = items.filter((item) => item.type.startsWith('image/'));
-  if (imageItems.length === 0) return;
-  event.preventDefault();
-  uploadingPastes.value = true;
-  try {
-    for (const item of imageItems) {
-      const blob = item.getAsFile();
-      if (!blob) continue;
-      const buffer = await blob.arrayBuffer();
-      const bytes = Array.from(new Uint8Array(buffer));
-      const fileName = blob.name || 'pasted-image.png';
-      const dto = await uploadFile(fileName, bytes, 'gui');
-      attachments.value.push(dto);
-    }
-  } catch (err) {
-    console.error('Failed to upload pasted image:', err);
-    alert(t('chat.pasteUploadFailed') || 'Failed to upload pasted image');
-  } finally {
-    uploadingPastes.value = false;
-  }
-};
-
-const removeAttachment = (index: number) => {
-  attachments.value.splice(index, 1);
-};
-
-const handleClear = async () => {
-  try {
-    await invoke('reset_session', { channel: 'gui', chatId: 'main' });
-  } catch (error) {
-    console.error('Failed to reset session on backend:', error);
-  } finally {
-    autoDreamNotice.value = null;
-    emit('clear');
-  }
+const handleClear = () => {
+  emit('clear');
 };
 
 const handleStop = () => {
@@ -530,38 +450,7 @@ const handleStop = () => {
   emit('stop');
 };
 
-const normalizeError = (error: unknown) => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as { message: unknown }).message);
-  }
-  if (error instanceof Error) return error.message;
-  if (error === null || error === undefined) return t('chatGovernance.backendUnavailable');
-  return String(error);
-};
 
-const handleAutoDreamTrigger = async () => {
-  if (autoDreamTriggering.value) return;
-  autoDreamTriggering.value = true;
-
-  try {
-    const run = await triggerAutoDream('manual');
-    autoDreamNotice.value = {
-      state: 'success',
-      message: t('chatGovernance.triggerNotice'),
-      runId: run.id,
-    };
-    scrollToBottom();
-  } catch (error) {
-    autoDreamNotice.value = {
-      state: 'error',
-      message: t('chatGovernance.backendUnavailable'),
-      error: normalizeError(error),
-    };
-    scrollToBottom();
-  } finally {
-    autoDreamTriggering.value = false;
-  }
-};
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -709,20 +598,8 @@ const parseCard = (content: string): Record<string, unknown> | null => {
   }
 };
 
-const asGovernanceCard = (card: Record<string, unknown> | null): ChatGovernanceCardModel | null => {
-  if (!card || (card.kind !== 'autodream_run' && card.kind !== 'skill_request')) {
-    return null;
-  }
-  return card as unknown as ChatGovernanceCardModel;
-};
 
-const isGovernanceCard = (card: Record<string, unknown> | null) => {
-  return card?.kind === 'autodream_run' || card?.kind === 'skill_request';
-};
 
-const emitOpenEvolution = (payload: ChatGovernanceDeepLink) => {
-  emit('open-evolution', payload);
-};
 
 /** Cache for parseCard results, keyed by message id. Cleared on message reset. */
 const cardCache = new Map<string, Record<string, unknown> | null>();
@@ -737,8 +614,7 @@ const getCachedCard = (messageId: string, content: string): Record<string, unkno
 
 const hasInteractiveToolCard = (msg: Message) => {
   const card = getCachedCard(msg.id, msg.content);
-  return isGovernanceCard(card)
-    || ((msg.toolName === 'plan_create' || msg.toolName === 'todo_write' || msg.toolName === 'update_plan') && !!card);
+  return (msg.toolName === 'plan_create' || msg.toolName === 'todo_write' || msg.toolName === 'update_plan') && !!card;
 };
 
 const isCleanProcessMessage = (msg: Message) => {
@@ -912,18 +788,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <!-- Tool Message -->
             <template v-if="msg.role === 'tool'">
               <!-- Card rendering: plan_create / todo_write / approval_request -->
-              <template v-if="isGovernanceCard(getCachedCard(msg.id, msg.content))">
-                <div class="min-w-0">
-                  <div v-if="!cleanMode && msg.toolName" class="tool-call-caption">
-                    {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
-                  </div>
-                  <ChatGovernanceCard
-                    :card="asGovernanceCard(getCachedCard(msg.id, msg.content))!"
-                    @open-evolution="emitOpenEvolution"
-                  />
-                </div>
-              </template>
-              <template v-else-if="msg.toolName === 'plan_create' && getCachedCard(msg.id, msg.content)">
+              <template v-if="msg.toolName === 'plan_create' && getCachedCard(msg.id, msg.content)">
                 <div class="min-w-0">
                   <div v-if="!cleanMode" class="tool-call-caption">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
@@ -1210,27 +1075,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
       </template>
 
-      <div v-if="autoDreamNotice" class="flex mb-4 justify-start">
-        <div class="flex max-w-[85%] items-start space-x-2">
-          <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-100">
-            <GitBranch :size="16" />
-          </div>
-          <div class="autodream-trigger-notice">
-            <p>{{ autoDreamNotice.message }}</p>
-            <p v-if="autoDreamNotice.error" class="autodream-trigger-notice__error">{{ autoDreamNotice.error }}</p>
-            <button
-              v-if="autoDreamNotice.state === 'success' && autoDreamNotice.runId"
-              type="button"
-              class="autodream-trigger-notice__action"
-              @click="emitOpenEvolution({ tab: 'autodream', sourceRunId: autoDreamNotice.runId })"
-            >
-              {{ t('chatGovernance.openAutodream') }}
-              <ChevronRight :size="14" />
-            </button>
-            <span class="text-[10px] text-gray-400 mt-1 text-left">{{ formatTime(Date.now()) }}</span>
-          </div>
-        </div>
-      </div>
 
 
       <PlanApprovalCard
@@ -1350,24 +1194,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
     <!-- Input Area - Cursor/OpenAkita 风格 -->
     <div class="chat-input-bar border-t z-20">
       <div class="chat-input-container">
-        <!-- 附件预览区 -->
-        <div v-if="attachments.length > 0 || uploadingPastes" class="flex flex-wrap gap-2 px-3 pt-2">
-          <div
-            v-for="(att, idx) in attachments"
-            :key="att.file_id"
-            class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs"
-          >
-            <Paperclip :size="12" class="shrink-0 opacity-60" />
-            <span class="truncate max-w-[100px]">{{ att.filename }}</span>
-            <button @click="removeAttachment(idx)" class="shrink-0 opacity-60 hover:opacity-100" :title="t('chat.removeAttachment')">
-              <X :size="12" />
-            </button>
-          </div>
-          <div v-if="uploadingPastes" class="flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-md px-2 py-1 text-xs">
-            <Loader2 :size="12" class="animate-spin opacity-60" />
-            <span class="truncate max-w-[100px]">{{ t('chat.pasting') || 'Pasting...' }}</span>
-          </div>
-        </div>
         <!-- 顶部工具栏 -->
         <div class="chat-input-toolbar">
           <!-- 执行模式选择 -->
@@ -1401,34 +1227,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </div>
           </div>
 
-          <button class="toolbar-btn" :title="uploading ? t('chat.uploading') : t('chat.attachFile')" @click="fileInputRef?.click()" :disabled="uploading">
-            <Loader2 v-if="uploading" :size="14" class="animate-spin" />
-            <Paperclip v-else :size="14" />
-          </button>
-          <input type="file" ref="fileInputRef" @change="handleFileSelect" class="hidden" multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.zip,.tar.gz" />
-
           <!-- 语音按钮 -->
           <!-- 思考模式选择 -->
           <ThinkingToggle v-model="thinkingMode" />
-
-          <button
-            class="toolbar-btn"
-            :title="autoDreamTriggering ? t('chatGovernance.triggering') : t('chatGovernance.triggerManual')"
-            :disabled="autoDreamTriggering"
-            @click="handleAutoDreamTrigger"
-          >
-            <Loader2 v-if="autoDreamTriggering" :size="14" class="animate-spin" />
-            <GitBranch v-else :size="14" />
-          </button>
-
-          <!-- 桌面宠物按钮 -->
-          <button
-            class="toolbar-btn"
-            :title="t('chat.openPet')"
-            @click="invoke('open_desktop_pet')"
-          >
-            <Cat :size="14" />
-          </button>
 
           <!-- 权限模式选择 -->
           <div class="relative">
@@ -1498,7 +1299,6 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             v-model="input"
             @input="adjustInputHeight"
             @keydown="handleKeyDown"
-            @paste="handlePaste"
             :placeholder="getPlaceholder"
             class="chat-textarea"
             rows="1"
@@ -1559,9 +1359,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <button
               v-else
               @click="handleSend"
-              :disabled="!input.trim() && attachments.length === 0"
+              :disabled="!input.trim()"
               class="input-action-btn send"
-              :class="{ disabled: !input.trim() && attachments.length === 0 }"
+              :class="{ disabled: !input.trim() }"
               :title="t('chat.send')"
             >
               <Send :size="18" />

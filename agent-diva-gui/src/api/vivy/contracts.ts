@@ -384,9 +384,9 @@ export interface VivySettingsResult {
   execute_max_timeout_seconds?: number
   provider_profiles?: VivyProviderProfileStatus[]
   network_search?: VivyNetworkSearchResult
-  sandbox?: Record<string, unknown>
+  sandbox?: VivySandboxResult
   compaction?: VivyCompactionResult
-  http?: Record<string, unknown>
+  http?: VivyHttpResult
   locale?: string
   generation_locale?: string
   workspace_locale?: string
@@ -402,9 +402,9 @@ export interface SettingsUpdateParams {
   /** Write-only credential for the global key overlay. */
   api_key?: string
   network_search?: { provider?: string }
-  sandbox?: Record<string, unknown>
+  sandbox?: VivySandboxUpdate
   compaction?: CompactionUpdateParams
-  http?: Record<string, unknown>
+  http?: VivyHttpUpdate
   execute_max_timeout_seconds?: number
   [key: string]: unknown
 }
@@ -741,4 +741,99 @@ export interface CronJobWriteParams {
     to?: string
   }
   delete_after_run?: boolean
+}
+
+/** stats/tokens result snapshot. */
+export interface VivyTokenUsageTotal {
+  total_input: number
+  total_output: number
+  total_tokens: number
+  total_reasoning: number
+  total_cached: number
+  request_count: number
+  total_cost_usd: number
+  cost_known: boolean
+}
+
+export interface VivyTokenModelShare {
+  model: string
+  percentage: number
+  total_tokens: number
+  cost_usd: number
+  cost_known: boolean
+}
+
+export interface VivyTokenProviderGroup {
+  key: string
+  total_tokens: number
+  request_count: number
+}
+
+export interface VivyTokenTimelinePoint {
+  time_bucket: string
+  label: string
+  total_input: number
+  total_output: number
+  total_tokens: number
+}
+
+export interface VivyTokenSessionUsage {
+  id: string
+  title: string
+  model: string
+  request_count: number
+  total_input: number
+  total_output: number
+  total_tokens: number
+  cost_usd: number
+  cost_known: boolean
+}
+
+export interface VivyTokenUsageSnapshot {
+  period: string
+  scope: string
+  total: VivyTokenUsageTotal
+  models: VivyTokenModelShare[]
+  providers: VivyTokenProviderGroup[]
+  timeline: VivyTokenTimelinePoint[]
+  sessions: VivyTokenSessionUsage[]
+}
+
+/** `settings/get` sandbox section: effective values + config fallbacks. */
+export interface VivySandboxResult {
+  /** cautious | smart | trusted | custom */
+  default_preset: string
+  config_default_preset: string
+  deny_private_ips: boolean
+  allowed_domains: string[]
+  workspace_root: string
+  execute_allowed_commands: string[]
+  /** 0 = timed auto-approval disabled. */
+  approval_timeout_seconds: number
+  config_approval_timeout_seconds: number
+  /** Hard expiration bounding the approval review window. */
+  approval_expiration_seconds: number
+}
+
+/** `settings/update` sandbox overlay; absent fields keep prior value. */
+export interface VivySandboxUpdate {
+  default_preset?: string
+  deny_private_ips?: boolean
+  allowed_domains?: string[]
+  approval_timeout_seconds?: number
+}
+
+/** `settings/get` http section. */
+export interface VivyHttpResult {
+  allowed_hosts: string[]
+  timeout_seconds: number
+  config_allowed_hosts: string[]
+  config_timeout_seconds: number
+  overlay_set: boolean
+}
+
+/** `settings/update` http overlay. */
+export interface VivyHttpUpdate {
+  allowed_hosts?: string[]
+  timeout_seconds?: number
 }

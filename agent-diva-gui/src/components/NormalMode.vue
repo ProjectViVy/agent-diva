@@ -2,42 +2,30 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   AlarmClock,
-  BookOpen,
-  BookUser,
   Bot,
   Cat,
   Check,
   ChevronDown,
-  Database,
-  GitBranch,
   Menu,
   MessageSquare,
   Server,
   Settings,
-  Sparkles,
   Trash2,
   WandSparkles,
   Wrench,
   X,
 } from '@lucide/vue';
 import ChatView, { type AskUserQuestionView, type CompactionStatus } from './ChatView.vue';
-import { listSkillRequests } from '../api/desktop';
 import type { FileAttachmentDto } from '../api/desktop';
 import type { PlanRuntimeState } from '../api/planning';
-import type { ChatGovernanceDeepLink } from './chat/governanceCards';
 import SettingsView from './SettingsView.vue';
 import CronTaskManagementView from './CronTaskManagementView.vue';
 import ConsoleView from './ConsoleView.vue';
 import McpSettings from './settings/McpSettings.vue';
 import SkillsSettings from './settings/SkillsSettings.vue';
-import NotebookView from './NotebookView.vue';
-import EvolutionView from './EvolutionView.vue';
-import PersonaMemoryView from './PersonaMemoryView.vue';
-import MemoryView from './memory/MemoryView.vue';
 import DivaPetView from '../features/diva-pet/components/DivaPetView.vue';
 import AppDialogLayer from './AppDialogLayer.vue';
 import AppToastLayer from './AppToastLayer.vue';
-import MaskSelectorButton from './MaskSelectorButton.vue';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../composables/useTheme';
 
@@ -77,13 +65,10 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
-  | 'pet'
   | 'about'
   | 'theme'
-  | 'self-evolution'
   | 'sandbox'
-  | 'compaction'
-  | 'masks';
+  | 'compaction';
 
 interface SavedModel {
   id: string;
@@ -166,20 +151,15 @@ const emit = defineEmits<{
 type SidebarSection =
   | 'chat'
   | 'settings'
-  | 'evolution'
   | 'console'
-  | 'persona-memory'
-  | 'memory'
   | 'neuro'
   | 'cron'
   | 'mcp'
   | 'skills'
-  | 'notebook'
   | 'pet';
-type EvolutionBadgeTone = 'none' | 'accent' | 'warning' | 'danger';
 
 const activeTab = ref<'chat' | 'settings'>('chat');
-const activeMenu = ref<'evolution' | 'console' | 'persona-memory' | 'memory' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'notebook' | 'planning' | 'pet' | null>(null);
+const activeMenu = ref<'console' | 'neuro' | 'cron' | 'mcp' | 'skills' | 'planning' | 'pet' | null>(null);
 const settingsInitialView = ref<SettingsSubview>('dashboard');
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(true);
@@ -187,19 +167,13 @@ const sidebarAutoCollapsed = ref(false);
 const prePetSidebarCollapsed = ref<boolean | null>(null);
 const overlaySidebarOpen = ref(false);
 const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
-const groups = ref({ capabilities: true, tools: true });
+const groups = ref({ tools: true });
 const { theme: themeMode, setTheme } = useTheme();
 const isModelDropdownOpen = ref(false);
-const evolutionBadge = ref({
-  total: 0,
-  tone: 'none' as EvolutionBadgeTone,
-  tooltip: '',
-});
-const evolutionDeepLink = ref<ChatGovernanceDeepLink | null>(null);
 const mikuAvatarSrc = '/miku.svg';
 
 // 收缩状态下的弹出菜单
-const collapsedPopup = ref<{ type: 'capabilities' | 'tools' | null; x: number; y: number }>({
+const collapsedPopup = ref<{ type: 'tools' | null; x: number; y: number }>({
   type: null,
   x: 0,
   y: 0,
@@ -288,7 +262,7 @@ const toggleGroup = (groupName: keyof typeof groups.value) => {
   groups.value[groupName] = !groups.value[groupName];
 };
 
-const handleCollapsedGroupClick = (type: 'capabilities' | 'tools', event: MouseEvent) => {
+const handleCollapsedGroupClick = (type: 'tools', event: MouseEvent) => {
   if (sidebarCollapsed.value) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     collapsedPopup.value = {
@@ -334,7 +308,6 @@ watch(sidebarCollapsed, (collapsed) => {
 onMounted(() => {
   handleResize();
   window.addEventListener('resize', handleResize);
-  refreshEvolutionBadge();
 });
 
 onUnmounted(() => {
@@ -438,63 +411,8 @@ const isSectionActive = (section: SidebarSection) => {
   return activeMenu.value === section;
 };
 
-const navSectionLabel = (section: string) =>
-  t('nav.' + (section === 'persona-memory' ? 'personaMemory' : section));
+const navSectionLabel = (section: string) => t('nav.' + section);
 
-const openEvolutionDeepLink = (payload: ChatGovernanceDeepLink) => {
-  evolutionDeepLink.value = {
-    ...payload,
-    requestKey: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  };
-  navigateTo('evolution');
-};
-
-const openEvolutionDefault = () => {
-  evolutionDeepLink.value = null;
-  navigateTo('evolution');
-  closeCollapsedPopup();
-};
-
-const normalizeEvolutionCount = (count: number) => {
-  if (count > 99) {
-    return '99+';
-  }
-  return String(count);
-};
-
-const updateEvolutionBadge = (payload: {
-  total: number;
-  tone: EvolutionBadgeTone;
-  tooltip: string;
-}) => {
-  evolutionBadge.value = payload;
-};
-
-const refreshEvolutionBadge = async () => {
-  try {
-    const requests = await listSkillRequests();
-    const pendingCount = requests.filter((request) => request.status === 'pending').length;
-    if (pendingCount > 0) {
-      updateEvolutionBadge({
-        total: pendingCount,
-        tone: 'warning',
-        tooltip: t('evolution.badge.warning', { count: pendingCount }),
-      });
-    } else {
-      updateEvolutionBadge({
-        total: 0,
-        tone: 'none',
-        tooltip: t('evolution.badge.empty'),
-      });
-    }
-  } catch (_) {
-    updateEvolutionBadge({
-      total: 0,
-      tone: 'none',
-      tooltip: t('evolution.badge.unavailable'),
-    });
-  }
-};
 
 const hearts = [
   { left: '8%', top: '12%', size: 18, opacity: 0.35, delay: 0 },
@@ -659,59 +577,6 @@ defineExpose({
           <span v-if="!sidebarCollapsed">{{ t('cron.title') }}</span>
         </button>
 
-        <!-- NavGroup: Laputa (人格治理 + BML 记忆) -->
-        <div class="nav-group">
-          <div
-            class="nav-group-header"
-            :class="{ active: isSectionActive('persona-memory') || isSectionActive('evolution') || isSectionActive('memory') || isSectionActive('notebook') }"
-            @click.stop="handleCollapsedGroupClick('capabilities', $event)"
-          >
-            <Sparkles />
-            <span v-if="!sidebarCollapsed">{{ t('nav.laputa') }}</span>
-            <div v-if="!sidebarCollapsed" class="nav-group-chevron">
-              <ChevronDown v-if="groups.capabilities" />
-              <ChevronDown v-else class="rotate-[-90deg]" />
-            </div>
-          </div>
-          <div v-show="!sidebarCollapsed && groups.capabilities" class="nav-group-items">
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('persona-memory') }" @click="handleNavigateAndClose('persona-memory')">
-              <BookUser />
-              <span>{{ t('nav.persona') }}</span>
-            </button>
-            <button
-              class="nav-item nav-item-sub"
-              :class="{ active: isSectionActive('evolution') }"
-              :title="evolutionBadge.tooltip"
-              @click="openEvolutionDefault"
-            >
-              <GitBranch />
-              <span>{{ t('nav.evolution') }}</span>
-              <span
-                v-if="evolutionBadge.total > 0"
-                class="evolution-nav-badge ml-auto text-white text-[10px] rounded-full flex items-center justify-center leading-none"
-                :class="[
-                  evolutionBadge.total < 10 ? 'w-4 h-4 px-0' : 'min-w-[20px] h-4 px-2',
-                  evolutionBadge.tone === 'danger'
-                    ? 'bg-red-600'
-                    : evolutionBadge.tone === 'warning'
-                      ? 'bg-amber-500'
-                      : 'bg-blue-500',
-                ]"
-              >
-                {{ normalizeEvolutionCount(evolutionBadge.total) }}
-              </span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('memory') }" @click="handleNavigateAndClose('memory')">
-              <Database />
-              <span>{{ t('nav.memory') }}</span>
-            </button>
-            <button class="nav-item nav-item-sub" :class="{ active: isSectionActive('notebook') }" @click="handleNavigateAndClose('notebook')">
-              <BookOpen />
-              <span>{{ t('nav.notebook') }}</span>
-            </button>
-          </div>
-        </div>
-
         <!-- NavGroup: Tools -->
         <div class="nav-group">
           <div
@@ -756,41 +621,6 @@ defineExpose({
       @click.stop
     >
       <div class="py-1">
-        <!-- Laputa 菜单 -->
-        <template v-if="collapsedPopup.type === 'capabilities'">
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('persona-memory') }"
-            @click="handleNavigateAndClose('persona-memory')"
-          >
-            <BookUser class="popup-menu-icon" />
-            <span>{{ t('nav.persona') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('evolution') }"
-            @click="openEvolutionDefault"
-          >
-            <GitBranch class="popup-menu-icon" />
-            <span>{{ t('nav.evolution') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('memory') }"
-            @click="handleNavigateAndClose('memory')"
-          >
-            <Database class="popup-menu-icon" />
-            <span>{{ t('nav.memory') }}</span>
-          </button>
-          <button
-            class="popup-menu-item"
-            :class="{ active: isSectionActive('notebook') }"
-            @click="handleNavigateAndClose('notebook')"
-          >
-            <BookOpen class="popup-menu-icon" />
-            <span>{{ t('nav.notebook') }}</span>
-          </button>
-        </template>
         <!-- Tools 菜单 -->
         <template v-if="collapsedPopup.type === 'tools'">
           <button
@@ -848,8 +678,6 @@ defineExpose({
         </div>
 
         <div class="topbar-right no-drag">
-          <!-- Mask selector -->
-          <MaskSelectorButton @navigate-settings="navigateTo('settings', 'masks')" />
           <!-- Model下拉 -->
           <div class="relative flex items-center gap-2">
             <button
@@ -922,20 +750,8 @@ defineExpose({
 
       <!-- 内容区域 -->
       <div class="content-area">
-        <!-- Evolution视图 -->
-        <div v-if="activeMenu === 'evolution'" class="h-full">
-          <EvolutionView
-            :initial-tab="evolutionDeepLink?.tab"
-            :initial-proposal-id="evolutionDeepLink?.proposalId"
-            :initial-source-run-id="evolutionDeepLink?.sourceRunId"
-            :request-key="evolutionDeepLink?.requestKey"
-            @count-change="updateEvolutionBadge"
-            @open-settings="navigateTo('settings', $event)"
-            @open-chat="navigateTo('chat')"
-          />
-        </div>
         <!-- Console视图 -->
-        <div v-else-if="activeMenu === 'console'" class="h-full">
+        <div v-if="activeMenu === 'console'" class="h-full">
           <ConsoleView />
         </div>
         <!-- Cron视图 -->
@@ -958,16 +774,6 @@ defineExpose({
             <div class="flex-1 min-h-0 overflow-hidden">
               <div class="h-full min-h-0 w-full overflow-y-auto p-6">
                 <SkillsSettings />
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- Notebook视图 -->
-        <div v-else-if="activeMenu === 'notebook'" class="h-full">
-          <div class="h-full min-h-0 flex flex-col subview-container">
-            <div class="flex-1 min-h-0 overflow-hidden">
-              <div class="h-full min-h-0 w-full overflow-y-auto p-6">
-                <NotebookView />
               </div>
             </div>
           </div>
@@ -1006,7 +812,7 @@ defineExpose({
             </div>
             <nav class="sidebar-nav scrollbar-thin">
               <button
-                v-for="section in ['chat', 'persona-memory', 'evolution', 'memory', 'notebook', 'console', 'cron', 'planning', 'pet', 'mcp', 'skills']"
+                v-for="section in ['chat', 'console', 'cron', 'planning', 'pet', 'mcp', 'skills']"
                 :key="section"
                 class="nav-item"
                 :class="{ active: isSectionActive(section as SidebarSection) }"
@@ -1016,14 +822,6 @@ defineExpose({
               </button>
             </nav>
           </aside>
-        </div>
-        <!-- Persona 视图 -->
-        <div v-else-if="activeMenu === 'persona-memory'" class="h-full">
-          <PersonaMemoryView :session-key="activeSessionKey" @proposal-created="refreshEvolutionBadge" />
-        </div>
-        <!-- Memory (BML 仓库) 视图 -->
-        <div v-else-if="activeMenu === 'memory'" class="h-full">
-          <MemoryView />
         </div>
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
@@ -1068,7 +866,6 @@ defineExpose({
               @new-session="handleClearSession"
               @toggle-pin="(_key) => {}"
               @rename-session="handleRenameSession"
-              @open-evolution="openEvolutionDeepLink"
             />
           </div>
           <div v-else class="h-full min-h-0">

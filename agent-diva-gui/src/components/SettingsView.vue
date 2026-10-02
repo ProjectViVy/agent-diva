@@ -9,18 +9,11 @@ import ProvidersSettings from './settings/ProvidersSettings.vue';
 import ChannelsSettings from './settings/ChannelsSettings.vue';
 import NetworkSettings from './settings/NetworkSettings.vue';
 import LanguageSettings from './settings/LanguageSettings.vue';
-import PetSettings from './settings/PetSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
-import SelfEvolutionSettings from './settings/SelfEvolutionSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
-import AuditPage from './settings/audit/AuditPage.vue';
-import MaskSelectorPanel from './MaskSelectorPanel.vue';
-import MaskEditor from './MaskEditor.vue';
-import { useMasks } from '../composables/useMasks';
 import { useI18n } from 'vue-i18n';
-import type { MaskEntryDto, MaskPayload } from '../api/desktop';
 
 const { t } = useI18n();
 
@@ -69,14 +62,10 @@ type SettingsSubview =
   | 'channels'
   | 'network'
   | 'language'
-  | 'pet'
   | 'about'
   | 'theme'
-  | 'self-evolution'
   | 'sandbox'
-  | 'compaction'
-  | 'audit'
-  | 'masks';
+  | 'compaction';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -108,14 +97,10 @@ const pageTitle = computed(() => {
     channels: t('settings.channels'),
     network: t('settings.network'),
     language: t('settings.language'),
-    pet: t('settings.pet'),
     about: t('settings.about'),
     theme: t('dashboard.theme'),
-    'self-evolution': t('dashboard.selfEvolution'),
     sandbox: t('dashboard.sandbox'),
     compaction: t('dashboard.compaction'),
-    audit: t('dashboard.audit'),
-    masks: '🎭 Masks'
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -127,35 +112,6 @@ const handleNavigate = (view: Exclude<SettingsSubview, 'dashboard'>) => {
 const goBack = () => {
   currentView.value = 'dashboard';
 };
-
-// ---------------------------------------------------------------------------
-// Mask editor state
-// ---------------------------------------------------------------------------
-
-const showMaskEditor = ref(false);
-const editingMaskData = ref<MaskEntryDto | null>(null);
-const { create: createOrUpdateMask } = useMasks();
-
-function handleEditMask(mask: MaskEntryDto) {
-  editingMaskData.value = mask;
-  showMaskEditor.value = true;
-}
-
-function handleCreateMask() {
-  editingMaskData.value = null;
-  showMaskEditor.value = true;
-}
-
-async function handleSaveMask(payload: MaskPayload) {
-  await createOrUpdateMask(payload);
-  showMaskEditor.value = false;
-  editingMaskData.value = null;
-}
-
-function closeMaskEditor() {
-  showMaskEditor.value = false;
-  editingMaskData.value = null;
-}
 
 watch(
   () => props.initialView,
@@ -227,19 +183,12 @@ watch(
               v-else-if="currentView === 'language'"
             />
 
-            <PetSettings
-              v-else-if="currentView === 'pet'"
-            />
-            
             <AboutSettings
               v-else-if="currentView === 'about'"
             />
 
             <div v-else-if="currentView === 'theme'">
               <ThemeSettings :current-theme="themeMode || 'love'" @change-theme="emit('change-theme', $event)" />
-            </div>
-            <div v-else-if="currentView === 'self-evolution'">
-              <SelfEvolutionSettings />
             </div>
             <div v-else-if="currentView === 'sandbox'">
               <SandboxSettingsSection />
@@ -250,34 +199,10 @@ watch(
                 :current-messages="currentMessages"
               />
             </div>
-            <div v-else-if="currentView === 'audit'" class="h-full min-h-0 overflow-y-auto">
-              <AuditPage />
-            </div>
-            <div v-else-if="currentView === 'masks'" class="h-full min-h-0 overflow-y-auto p-6">
-              <MaskSelectorPanel
-                mode="manager"
-                @edit="handleEditMask"
-                @create="handleCreateMask"
-              />
-            </div>
           </div>
        </Transition>
     </div>
 
-    <!-- MaskEditor modal overlay -->
-    <Teleport to="body">
-      <div
-        v-if="showMaskEditor"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        @click.self="closeMaskEditor"
-      >
-        <MaskEditor
-          :mask="editingMaskData ?? undefined"
-          @save="handleSaveMask"
-          @cancel="closeMaskEditor"
-        />
-      </div>
-    </Teleport>
   </div>
 </template>
 
