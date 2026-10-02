@@ -686,6 +686,7 @@ export default {
     connectConfig: 'Connection Config',
     apiKey: 'API Key',
     enterApiKey: 'Enter API Key...',
+    apiKeyConfigured: 'Configured (enter to replace)',
     showApiKey: 'Show API Key',
     hideApiKey: 'Hide API Key',
     apiBaseUrl: 'API Base URL',

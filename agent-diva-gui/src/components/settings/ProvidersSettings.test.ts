@@ -39,25 +39,30 @@ vi.mock('@lucide/vue', () => {
   };
 });
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(() => Promise.resolve([provider])),
-}));
+vi.mock('../../api/desktop', () => ({}));
 
-vi.mock('../../api/desktop', () => ({
-  getConfigStatus: vi.fn(() => Promise.resolve({
-    config: {},
-    default_provider: 'deepseek',
-    default_model: 'deepseek-chat',
-    logging: {},
-    providers: [],
-    channels: [],
-    cron_jobs: 0,
-    mcp_servers: { configured: 0, disabled: 0 },
-    doctor: { valid: true, ready: true, errors: [], warnings: [] },
+vi.mock('../../api/settings', () => ({
+  loadProviderState: vi.fn(() => Promise.resolve({
+    providers: [provider],
+    statusReport: {
+      config: {},
+      default_provider: 'deepseek',
+      default_model: 'deepseek-chat',
+      logging: {},
+      providers: [],
+      channels: [],
+      cron_jobs: 0,
+      mcp_servers: { configured: 0, disabled: 0 },
+      doctor: { valid: true, ready: true, errors: [], warnings: [] },
+    },
+    providerConfigs: {},
+    runtime: { provider: 'deepseek', apiBase: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKeySet: true },
+    entryByName: {},
+    keySetByName: { deepseek: true },
+    readOnly: false,
+    frozen: false,
   })),
-}));
-
-vi.mock('../../api/providers', () => ({
+  saveActiveProvider: vi.fn(() => Promise.resolve()),
   addProviderModel: vi.fn(),
   createCustomProvider: vi.fn(),
   deleteCustomProvider: vi.fn(),

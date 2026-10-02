@@ -306,6 +306,152 @@ export interface WorkEventParams {
   work_version: number
 }
 
+/**
+ * Settings/providers surface: verified against `internal/rpc/control.go`
+ * (settingsResult/providersResult/catalogEntryResult/providerEntryResult and
+ * the settings/* handler block). Credentials are write-only on the wire:
+ * `api_key` goes in, `api_key_set` comes out — the backend never echoes a key.
+ */
+export interface VivyProviderEntryResult {
+  id: string
+  display_name: string
+  /** Adapter family or legacy vendor alias
+   * (openai-completions|openai-responses|anthropic-messages|deepseek|openai|anthropic). */
+  bundle: string
+  base_url: string
+  default_model: string
+  models: string[]
+  api_key_set: boolean
+  [key: string]: unknown
+}
+
+export interface VivyCatalogEndpoint {
+  adapter: string
+  base_url: string
+  default_model: string
+  models: string[]
+  /** False for a sealed adapter this Generation cannot construct. */
+  executable: boolean
+  state: string
+}
+
+export interface VivyCatalogEntry {
+  vendor: string
+  display_name: string
+  endpoints: VivyCatalogEndpoint[]
+}
+
+export interface VivyProviderProfileStatus {
+  id: string
+  adapter_family: string
+  endpoint_class: string
+  model_ids: string[]
+  state:
+    | 'COMPILED'
+    | 'UNCONFIGURED'
+    | 'READY'
+    | 'UNAVAILABLE'
+    | 'DEFERRED-INDEFINITE'
+    | string
+}
+
+export interface VivyProvidersResult {
+  entries: VivyProviderEntryResult[]
+  catalog: VivyCatalogEntry[]
+  profiles: VivyProviderProfileStatus[]
+  active_provider: string
+  active_model: string
+  active_base_url: string
+  read_only: boolean
+  frozen: boolean
+  config_provider: string
+  config_model: string
+  [key: string]: unknown
+}
+
+export interface VivySettingsResult {
+  /** Active bundle name or empty for the config default. */
+  provider: string
+  default_model: string
+  base_url: string
+  /** Presence flag only — the stored key value is never returned. */
+  api_key_set: boolean
+  frozen: boolean
+  read_only: boolean
+  config_provider: string
+  config_model: string
+  config_execute_max_timeout_seconds?: number
+  execute_max_timeout_seconds?: number
+  provider_profiles?: VivyProviderProfileStatus[]
+  network_search?: Record<string, unknown>
+  sandbox?: Record<string, unknown>
+  compaction?: Record<string, unknown>
+  http?: Record<string, unknown>
+  locale?: string
+  generation_locale?: string
+  workspace_locale?: string
+  locale_read_only?: boolean
+  [key: string]: unknown
+}
+
+/** `settings/update` merge-write params; every field optional. */
+export interface SettingsUpdateParams {
+  provider?: string
+  default_model?: string
+  base_url?: string
+  /** Write-only credential for the global key overlay. */
+  api_key?: string
+  network_search?: { provider?: string; [key: string]: unknown }
+  sandbox?: Record<string, unknown>
+  compaction?: Record<string, unknown>
+  http?: Record<string, unknown>
+  execute_max_timeout_seconds?: number
+  [key: string]: unknown
+}
+
+/**
+ * `settings/providers/upsert` params. On update-by-id the backend keeps any
+ * stored field the patch leaves empty (empty api_key never wipes the
+ * credential); a create requires bundle+base_url.
+ */
+export interface ProviderUpsertParams {
+  /** Update an existing entry when set; omitted creates a `custom-*` entry. */
+  id?: string
+  display_name?: string
+  bundle?: string
+  base_url?: string
+  default_model?: string
+  models?: string[]
+  /** Write-only credential; persisted but never returned. */
+  api_key?: string
+}
+
+/**
+ * `settings/providers/refresh` params: `{id}` refreshes a registry entry;
+ * `{bundle, base_url, display_name?, default_model?}` clones a catalog
+ * endpoint into the registry and refreshes it (OpenAI-compatible only —
+ * the backend live-fetches GET /models).
+ */
+export interface ProviderRefreshParams {
+  id?: string
+  bundle?: string
+  base_url?: string
+  display_name?: string
+  default_model?: string
+}
+
+/**
+ * `settings/model/select` params. `provider` accepts a registry bundle, a
+ * legacy vendor alias, or the config default; the target must be the config
+ * default, a registry entry model, or a catalog endpoint model — otherwise
+ * the backend rejects with InvalidParams.
+ */
+export interface ModelSelectParams {
+  provider: string
+  model: string
+  base_url?: string
+}
+
 /** A backend notification forwarded on `vivy:event` ({kind:'vivy'}). */
 export interface VivyNotification {
   method: string

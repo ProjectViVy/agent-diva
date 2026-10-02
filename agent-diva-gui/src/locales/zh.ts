@@ -500,6 +500,7 @@ export default {
     connectConfig: '连接配置',
     apiKey: 'API Key',
     enterApiKey: '请输入 API Key...',
+    apiKeyConfigured: '已配置（输入以更换）',
     apiBaseUrl: 'API Base URL',
     customApi: '自定义 API 地址',
     placeholderLocalCustom: '本地/自定义',

@@ -28,6 +28,13 @@ import {
   type WorkCommitResult,
   type VivySession,
   type WireEvent,
+  type ModelSelectParams,
+  type ProviderRefreshParams,
+  type ProviderUpsertParams,
+  type VivyProviderEntryResult,
+  type VivyProvidersResult,
+  type VivySettingsResult,
+  type SettingsUpdateParams,
 } from './contracts'
 import type { VivyTransport } from './transport'
 
@@ -182,6 +189,32 @@ export class VivyClient {
   /** Durable session compaction now; busy-session is a -32009 conflict. */
   contextCompact(sessionId: string): Promise<unknown> {
     return this.call('context/compact', { session_id: sessionId }, { mutation: true })
+  }
+
+  // --- Source-verified settings surface (internal/rpc/control.go) ---
+
+  settingsGet(): Promise<VivySettingsResult> {
+    return this.call('settings/get')
+  }
+  settingsUpdate(params: SettingsUpdateParams): Promise<VivySettingsResult> {
+    return this.call('settings/update', params, { mutation: true })
+  }
+  settingsProviders(): Promise<VivyProvidersResult> {
+    return this.call('settings/providers')
+  }
+  providerUpsert(params: ProviderUpsertParams): Promise<VivyProviderEntryResult> {
+    return this.call('settings/providers/upsert', params, { mutation: true })
+  }
+  providerDelete(id: string): Promise<{ deleted: boolean }> {
+    return this.call('settings/providers/delete', { id }, { mutation: true })
+  }
+  /** Live GET /models probe + registry persist (OpenAI-compatible only). */
+  providerRefresh(params: ProviderRefreshParams): Promise<VivyProviderEntryResult> {
+    return this.call('settings/providers/refresh', params, { mutation: true })
+  }
+  /** Atomic active-model change; -32009 conflict while runs are active. */
+  modelSelect(params: ModelSelectParams): Promise<VivyProvidersResult> {
+    return this.call('settings/model/select', params, { mutation: true })
   }
 }
 

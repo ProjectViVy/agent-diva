@@ -10,10 +10,13 @@ import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
 import {
-  getConfigStatus,
-  getRuntimeConfig,
   FileAttachmentDto,
 } from "./api/desktop";
+import {
+  loadProviderState,
+  saveActiveProvider,
+  type ProviderConfigEntry,
+} from "./api/settings";
 import {
   type PlanRuntimeState,
 } from "./api/planning";
@@ -70,24 +73,6 @@ interface ChatDisplayPrefs {
   showRawMetaByDefault: boolean;
 }
 
-
-interface RawProviderConfig {
-  api_key?: string;
-  api_base?: string | null;
-}
-
-interface RawConfigShape {
-  agents?: { defaults?: { provider?: string | null; model?: string | null } };
-  providers?: Record<string, RawProviderConfig> & {
-    custom_providers?: Record<string, RawProviderConfig>;
-  };
-}
-
-interface ProviderConfigEntry {
-  apiKey: string;
-  apiBase: string;
-  source: 'providers' | 'custom_providers';
-}
 
 const STARTUP_TASK_TIMEOUT_MS = 2500;
 const defaultChatDisplayPrefs: ChatDisplayPrefs = {
@@ -359,83 +344,6 @@ function syncCurrentConfigToSavedModels(currentConfig: typeof config.value) {
     nextSavedModels.splice(existingIndex, 1, merged);
     savedModels.value = nextSavedModels;
   }
-}
-
-function extractProviderConfigsFromRaw(parsed: RawConfigShape): Record<string, ProviderConfigEntry> {
-  const configMap: Record<string, ProviderConfigEntry> = {};
-
-  const builtins = (parsed.providers || {}) as Record<string, RawProviderConfig>;
-  for (const [name, raw] of Object.entries(builtins)) {
-    if (name === 'custom_providers' || !raw || typeof raw !== 'object') {
-      continue;
-    }
-    configMap[name] = {
-      apiKey: raw.api_key || '',
-      apiBase: raw.api_base || '',
-      source: 'providers',
-    };
-  }
-
-  const customProviders = parsed.providers?.custom_providers || {};
-  for (const [name, raw] of Object.entries(customProviders)) {
-    if (!raw || typeof raw !== 'object') {
-      continue;
-    }
-    configMap[name] = {
-      apiKey: raw.api_key || '',
-      apiBase: raw.api_base || '',
-      source: 'custom_providers',
-    };
-  }
-
-  return configMap;
-}
-
-function extractProviderConfigFromRaw(
-  parsed: RawConfigShape,
-  provider?: string | null
-): RawProviderConfig | undefined {
-  if (!provider) {
-    return undefined;
-  }
-
-  return parsed.providers?.[provider] || parsed.providers?.custom_providers?.[provider];
-}
-
-function patchProviderConfigInRaw(parsed: RawConfigShape, nextConfig: typeof config.value) {
-  const provider = nextConfig.provider?.trim();
-  if (!provider) {
-    return;
-  }
-
-  if (!parsed.agents) {
-    parsed.agents = {};
-  }
-  if (!parsed.agents.defaults) {
-    parsed.agents.defaults = {};
-  }
-  parsed.agents.defaults.provider = provider;
-  parsed.agents.defaults.model = nextConfig.model?.trim() || null;
-
-  if (!parsed.providers) {
-    parsed.providers = {};
-  }
-
-  const currentMap = extractProviderConfigsFromRaw(parsed);
-  const source =
-    currentMap[provider]?.source ||
-    (parsed.providers.custom_providers?.[provider] ? 'custom_providers' : 'providers');
-  const container =
-    source === 'custom_providers'
-      ? (parsed.providers.custom_providers ||= {})
-      : parsed.providers;
-
-  const existing = container[provider] || {};
-  container[provider] = {
-    ...existing,
-    api_key: nextConfig.apiKey?.trim() || undefined,
-    api_base: nextConfig.apiBase?.trim() || null,
-  };
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -718,41 +626,31 @@ async function renameSession(sessionKey: string, title: string) {
 
 async function saveConfig(newConfig: typeof config.value) {
   try {
-    console.log('[App] Saving config:', { 
-        ...newConfig, 
-        apiKey: newConfig.apiKey ? `${newConfig.apiKey.substring(0, 8)}...` : 'undefined' 
-    });
-
     if (!isTauri()) {
         console.warn('Running in browser, mocking saveConfig');
         showAppToast("保存成功");
         return;
     }
 
-    const rawConfig = await invoke<string>('load_config');
-    const parsed = JSON.parse(rawConfig) as RawConfigShape;
-    patchProviderConfigInRaw(parsed, newConfig);
-
-    await invoke('save_config', {
-      raw: JSON.stringify(parsed, null, 2),
+    // DN-3: VIVY owns provider configuration and credentials. The typed key
+    // is written once (write-only — never read back), then provider/model
+    // is selected atomically via settings/model/select.
+    await saveActiveProvider({
+      provider: newConfig.provider,
+      model: newConfig.model,
+      apiBase: newConfig.apiBase || undefined,
+      apiKey: newConfig.apiKey || undefined,
     });
 
-    await invoke("update_config", {
-      apiBase: newConfig.apiBase || null,
-      apiKey: newConfig.apiKey || null,
-      provider: newConfig.provider || null,
-      model: newConfig.model || null
-    });
-
-    const runtimeConfig = await getRuntimeConfig();
-    providerConfigs.value = extractProviderConfigsFromRaw(parsed);
+    const snapshot = await loadProviderState();
+    providerConfigs.value = snapshot.providerConfigs;
     config.value = {
-      provider: runtimeConfig.provider || newConfig.provider,
-      apiBase: runtimeConfig.api_base || newConfig.apiBase,
-      apiKey: newConfig.apiKey,
-      model: runtimeConfig.model || newConfig.model,
+      provider: newConfig.provider,
+      apiBase: newConfig.apiBase,
+      apiKey: '',
+      model: newConfig.model,
     };
-    
+
     showAppToast("保存成功");
   } catch (error) {
     await appAlert(t('app.configUpdateError', { error }));
@@ -912,47 +810,32 @@ onMounted(async () => {
     }
 
     try {
-      const [runtimeConfig, rawConfig, status] = await Promise.allSettled([
-        withTimeout(getRuntimeConfig(), STARTUP_TASK_TIMEOUT_MS, "getRuntimeConfig"),
-        withTimeout(invoke<string>("load_config"), STARTUP_TASK_TIMEOUT_MS, "load_config"),
-        withTimeout(getConfigStatus(), STARTUP_TASK_TIMEOUT_MS, "getConfigStatus"),
-      ]);
-      if (
-        runtimeConfig.status !== 'fulfilled' ||
-        rawConfig.status !== 'fulfilled' ||
-        status.status !== 'fulfilled'
-      ) {
-        throw new Error(
-          [
-            runtimeConfig.status === 'rejected' ? `runtime=${runtimeConfig.reason}` : null,
-            rawConfig.status === 'rejected' ? `config=${rawConfig.reason}` : null,
-            status.status === 'rejected' ? `status=${status.reason}` : null,
-          ]
-            .filter(Boolean)
-            .join('; ')
-        );
-      }
-      const parsed = JSON.parse(rawConfig.value) as RawConfigShape;
-      const provider =
-        runtimeConfig.value.provider ||
-        parsed.agents?.defaults?.provider ||
-        status.value.default_provider ||
+      // DN-3: provider/model state comes from the VIVY settings surface —
+      // the active spec name resolves through the status projection so the
+      // UI keeps vendor names (deepseek) even though the wire stores bundles.
+      const snapshot = await withTimeout(
+        loadProviderState(),
+        STARTUP_TASK_TIMEOUT_MS,
+        "loadProviderState"
+      );
+      providerConfigs.value = snapshot.providerConfigs;
+      const currentSpecName =
+        snapshot.statusReport.providers.find((p) => p.current)?.name ||
+        snapshot.runtime.provider ||
         config.value.provider;
-      const providerConfig = extractProviderConfigFromRaw(parsed, provider);
-      providerConfigs.value = extractProviderConfigsFromRaw(parsed);
+      const currentSpec = snapshot.providers.find((p) => p.name === currentSpecName);
       config.value = {
-        provider,
-        apiBase: runtimeConfig.value.api_base || providerConfig?.api_base || config.value.apiBase,
-        apiKey: providerConfig?.api_key || "",
-        model:
-          runtimeConfig.value.model ||
-          parsed.agents?.defaults?.model ||
-          status.value.default_model ||
-          config.value.model,
+        provider: currentSpecName,
+        apiBase:
+          snapshot.runtime.apiBase ||
+          currentSpec?.default_api_base ||
+          config.value.apiBase,
+        apiKey: '',
+        model: snapshot.runtime.model || config.value.model,
       };
       syncCurrentConfigToSavedModels(config.value);
     } catch (e) {
-      console.warn("Failed to load runtime config:", e);
+      console.warn("Failed to load provider settings:", e);
     }
 
     try {
