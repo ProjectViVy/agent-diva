@@ -75,3 +75,7 @@ P0-B cannot close with a required mapping marked blocked, merely hidden or mock-
 ## Review focus and measurement
 
 Most important adverse cases: duplicate/late events; window close during approval; cancel racing with completion; timeout after an accepted mutation; shutdown while FFI polling/calls are active. Each has a test owner in the Story plans. Measure stream lag, queue occupancy, startup and shutdown during native acceptance; no unmeasured SLA or speedup is promised. Known execution limitation: this environment has no Go command; no new Go/native/runtime verification is claimed by this plan.
+
+## OBS-D1 investigation update (2026-10-02)
+
+The environment-only “no Go command” observation above is historical: official Go 1.26.4 has now been installed locally and Eino v0.9.13 downloaded for source inspection. This is not a native runner, accepted ABI or Generation. The [observability extension](observability/architecture.md) supplies concrete DN-0/DN-3 log, call, usage and trajectory requirements against VIVY 8fc6bea; the selected binary pin remains DN-0/DN-L's responsibility. P0-D1 host/transport decisions are unchanged.

@@ -38,3 +38,7 @@ Consume P0-D1 ABI/transport and DN-0 per-domain exact schemas. Proposed tests `a
 - [ ] Run GUI test/build commands above and record ledger row IDs, source diff and backend readback. Commit one domain slice; stop on unknown action semantics rather than inventing an alias.
 
 Exact target action IDs are deliberately a DN-0 prerequisite, not guessed here. This plan cannot become Ready for a domain until its file/symbol/schema rows and fixtures are present. No additional service or generic legacy-command dispatcher is authorized.
+
+## OBS-D1 observability slice amendment
+
+Logging, usage statistics, trajectory and diagnostics now have [a concrete domain specification](observability/architecture.md) and [nine executable Stories](observability/index.md). Their delivery states live in the parent index. Use these plans for this slice instead of repeating the generic diagnostic/token tasks above. Other settings/operational slices remain in DN-3. Completion requires OBS-09 evidence and DN-0 ledger reconciliation; unresolved global audit or other required mappings remain parity blockers.

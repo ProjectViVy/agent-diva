@@ -19,6 +19,7 @@
 - [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
   拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
   以免会话继续按 Rust 门槛（just ci / clippy / cargo）执行。见 `docs/plans/diva-next/index.md`。
+  OBS-D1 validation also found inherited broken links to removed legacy documents in this backlog; reconcile them in that governance cleanup, without recreating retired architecture. New observability links are validated separately.
 - [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P0`
   `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
   调用会失败。按 DN-0 清单与 DN-1/2/3/4/6 逐域替换，DN-M 验收语义迁移；
@@ -28,6 +29,13 @@
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
   对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
   不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
+
+## Observability migration — OBS-D1 planning
+
+- [ ] **OBSERVABILITY-EXECUTION:** integrate prettylog console output, correct provider-call Journal capture, usage coverage, trajectory and DIVA diagnostics/console. `sev-P1`
+  Concrete specification and nine executable Stories: [plan map](docs/plans/diva-next/observability/index.md). Delivery states/dependencies are in [the authoritative parent index](docs/plans/diva-next/index.md). Spec review pending; no implementation or packaged acceptance is claimed.
+- [ ] **OBSERVABILITY-DEFERRED:** resolve global audit mapping, all-process auxiliary usage ownership and full historical trajectory pagination. `sev-P2`
+  Diagnostic files are not global audit, chat_runs is not provider invoice/all-process accounting, and the recent-run trajectory window is not full history. DN-0 records required-feature disposition; required unresolved audit remains a parity blocker. Title/manual compaction cannot be appended to a closed run or billed through a synthetic chat run. See OBS-D1 D3–D5.
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
