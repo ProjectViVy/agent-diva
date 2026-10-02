@@ -15,6 +15,15 @@
   deb 含 vivy-runtime；原生转录：真 .so 开窗→关窗隐藏→重启聚焦→SIGINT
   有序退出（linux/amd64）。剩余验收：真实流式对话 + 审批挂起时重开窗口、
   Windows 原生 runner。
+- [x] **VIVY-CLIENT-PROJECTION：typed client + 状态/事件投影（DN-1 已交付）** `sev-P0`
+  `api/vivy/{contracts,transport,client}`：信封保真（kind/code/message/data）、
+  永不重试、mutation 后 timeout/transport_lost 标 `unknownOutcome`；
+  `state/vivy-session` 投影：(run_id,seq) 去重、乱序缓冲不过缝推游标、
+  gap/lost 标 resync、快照权威回放、挂起审批/问题随重开存活；
+  capabilities 台账由 negotiated initialize 解析
+  available/absent/disconnected/failed。GUI 507/507 测试、构建净；
+  真实物 DN-1 冒烟（init/session/subscribe/cancel -32004/审批问题列表/
+  delete）绿于 linux/amd64。
 - [x] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
   已在 DN-L 解决：gatewayless `App.Run` 提前返回缺陷由
   `TestGatewaylessRunBlocksUntilContextCancel` 红→绿证明并修复（errCh 只由
@@ -44,7 +53,8 @@
   `TestStartEmbeddedServicesExpiresApprovals` 实测 400ms 审批过期生效。
 - [ ] **RUN-CANCEL-RESTART-NOTFOUND：重启后 run/cancel 返回 CodeNotFound** `sev-P2`
   重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
-  （配合 background/recover），不得当异常。DN-1 落实。
+  （配合 background/recover），不得当异常。DN-1 已完成信封保真
+  （-32004 原样穿透 typed client，真实物冒烟实测）；UI 侧语义映射属 DN-2。
 - [ ] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
   VIVY 审批动作仅 approve/deny（review/respond 的 question 才支持 cancel）。
   旧 `cancel_approval` 语义 → deny+reason 或依赖 expires_at；待 owner 裁定，DN-1。
