@@ -78,8 +78,13 @@
 - [ ] **PLAN-START-GOAL-NO-TRIGGER：plan/decide start_goal 无 UI 入口** `sev-P2`
   `start_goal`（arm goal loop）在 controller 已实现，但当前 UI 只有
   execute_once（批准按钮）/revise（退回）；goal-loop 卡片入口待设计。
-- [ ] **DN-2-TASK5-PROVIDER：打包真模型 chat + 门控安全工具链** `sev-P0`
-  需要 provider key；提供后跑完整原生验收（流式回答 + 审批挂起重开窗 + 取消）。
+- [x] **DN-2-TASK5-PROVIDER：打包真模型 chat + 门控安全工具链** `sev-P0`
+  已解决（linux/amd64）：sensenova-6.8-flash-lite 实测 16/16 检查全绿 —
+  流式回答入 Journal、write_file 审批门控（deny 无效果/approve 落 run 沙箱）、
+  run/cancel→run.cancelled、review 快照回读。证据见
+  `docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`。
+  注意：VIVY 读 env `SENSENOVA_API_KEY`（key 本体在 secret:personal:SHANGTANG_APIKEY）。
+  遗留：GUI 级窗口重开（活模型）+ Windows 原生验收仍开。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
