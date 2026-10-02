@@ -1,262 +1,330 @@
-export type CapabilityClass = 'MANAGER' | 'LOCAL' | 'DEFERRED' | 'REMOVED'
+/**
+ * GUI capability ledger (DN-1 revision). The old static `MANAGER`/`LOCAL`
+ * labels are replaced by the DN-0 disposition per entry plus a negotiated
+ * state resolved from the VIVY `initialize` capability set and transport
+ * connectivity. This remains descriptive evidence — authority lives in the
+ * VIVY backend; the ledger never substitutes a fake-success or a
+ * localStorage authority.
+ */
+
+export type CapabilityDisposition =
+  /** Verified VIVY RPC/action target (backend-separation-contracts §3). */
+  | 'existing-backend'
+  /** Shell-owned local op (window/tray/host files). */
+  | 'native'
+  /** No VIVY surface; mapped to a blocked Story (DN-3/4/6). */
+  | 'backend-gap'
+  /** Dead or removed entrypoint; retirement recorded pending owner call. */
+  | 'retire-pending'
+
+export type CapabilityState =
+  /** Negotiated VIVY capability present, or a shell-owned native op. */
+  | 'available'
+  /** No negotiated surface exists for this entry (gap or retired). */
+  | 'absent'
+  /** A negotiated capability exists but the transport is down. */
+  | 'disconnected'
+  /** A live call through the negotiated capability failed. */
+  | 'failed'
 
 export interface GuiCapability {
   id: string
   entrypoint: string
-  transport: 'tauri-manager-proxy' | 'tauri-local' | 'none'
-  classification: CapabilityClass
+  disposition: CapabilityDisposition
+  /**
+   * The `initialize` capability string this entry negotiates against.
+   * Null for native entries and entries without a backend surface.
+   */
+  vivyCapability: string | null
   authority: string
   risk: 'read' | 'write' | 'execute' | 'lifecycle'
   failure: string
   verification: string
 }
 
-/**
- * G0 ledger for the GUI's capability domains.
- *
- * This is descriptive evidence, not a runtime allowlist. Security and domain
- * authority remain in Manager/Core; LOCAL entries are limited to desktop-host
- * concerns.
- */
 export const GUI_CAPABILITIES: readonly GuiCapability[] = [
   {
     id: 'chat.turn',
-    entrypoint: 'send_message / start_background_stream / stop_generation',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'AgentLoop through Manager',
+    entrypoint: 'turn/start, run/cancel',
+    disposition: 'existing-backend',
+    vivyCapability: 'turn',
+    authority: 'VIVY runtime via turn/* + run/*',
     risk: 'execute',
-    failure: 'Surface Manager/SSE failure; never synthesize a completed turn.',
-    verification: 'ChatView.test.ts and Manager chat SSE characterization',
+    failure: 'Surface VIVY run/turn failure; never synthesize a completed turn.',
+    verification: 'vivy-session projection tests + DN-2 live turn',
   },
   {
     id: 'session.lifecycle',
-    entrypoint: 'get_sessions / get_session_history / reset_session / delete_session',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager session store',
+    entrypoint: 'session/list, session/get, session/messages, session/rename, session/delete',
+    disposition: 'existing-backend',
+    vivyCapability: 'session',
+    authority: 'VIVY session journal',
     risk: 'write',
     failure: 'Keep the last projection and expose refresh/error state.',
-    verification: 'ConversationSidebar.test.ts and GUI session smoke',
+    verification: 'vivy-session projection tests + native session smoke',
   },
   {
     id: 'plan.lifecycle',
-    entrypoint: 'get_active_plan / approve_active_plan_execution / return_active_plan_to_draft',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager PlanStore',
+    entrypoint: 'plan/get, plan/enter, plan/decide, plan/leave, session/work/*',
+    disposition: 'existing-backend',
+    vivyCapability: 'plan',
+    authority: 'VIVY plan mode + work view (semantics differ from old plan approval; DN-3 design)',
     risk: 'execute',
     failure: 'Fail closed and reconcile the authoritative revision.',
-    verification: 'PlanApprovalCard.test.ts and planning contract tests',
+    verification: 'DN-3 field mapping review',
   },
   {
     id: 'command.approval',
-    entrypoint: 'get_command_approvals / resolve_command_approval',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager command approval coordinator',
+    entrypoint: 'approval/list, approval/respond',
+    disposition: 'existing-backend',
+    vivyCapability: 'approval',
+    authority: 'VIVY approval coordinator',
     risk: 'execute',
-    failure: 'Preserve typed 404/409/422 semantics and reconcile pending state.',
-    verification: 'ApprovalCenterCard.test.ts and command approval contract tests',
+    failure: 'Preserve typed not-found semantics and reconcile pending state.',
+    verification: 'projection pending-interaction tests + DN-2 live approval',
   },
   {
     id: 'command.rules',
-    entrypoint: 'get_command_rules / set_command_rule_enabled / delete_command_rule',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Sandbox command rule store',
-    risk: 'write',
-    failure: 'Reject stale revisions; do not mutate optimistic state as fact.',
-    verification: 'SandboxSettingsSection.test.ts',
+    entrypoint: 'commands/list, commands/expand',
+    disposition: 'existing-backend',
+    vivyCapability: 'commands.list',
+    authority: 'VIVY commands surface',
+    risk: 'read',
+    failure: 'Expose list failure; do not mutate optimistic state as fact.',
+    verification: 'DN-3 commands surface review',
   },
   {
     id: 'config.runtime',
-    entrypoint: 'get_config / update_config / get_tools_config / update_tools_config',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager runtime configuration',
+    entrypoint: 'settings/get, settings/update',
+    disposition: 'existing-backend',
+    vivyCapability: 'settings.get',
+    authority: 'VIVY settings journal',
     risk: 'write',
     failure: 'Expose validation or availability failure.',
-    verification: 'ProvidersSettings.test.ts and settings smoke',
+    verification: 'DN-2 settings smoke',
   },
   {
     id: 'providers',
-    entrypoint: 'get_providers / create_custom_provider / test_provider_model',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager provider catalog',
+    entrypoint: 'settings/providers, settings/providers/upsert|delete|refresh, settings/model/select',
+    disposition: 'existing-backend',
+    vivyCapability: 'settings.providers',
+    authority: 'VIVY provider catalog',
     risk: 'write',
     failure: 'Preserve provider error and never report a false successful test.',
-    verification: 'ProvidersSettings.test.ts',
+    verification: 'DN-2 provider smoke',
   },
   {
     id: 'skills.files',
-    entrypoint: 'get_skills / upload_skill / delete_skill / upload_file',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager skill and file services',
+    entrypoint: 'skills/list, skills/get, skills/revisions',
+    disposition: 'existing-backend',
+    vivyCapability: 'skills.list',
+    authority: 'VIVY skills service (enable/upload gap recorded in DN-0)',
     risk: 'write',
-    failure: 'Expose upload/delete failure and retain server projection.',
-    verification: 'Manager skills route tests and GUI settings smoke',
+    failure: 'Expose failure and retain server projection.',
+    verification: 'DN-3 skills surface review',
   },
   {
     id: 'mcp.servers',
-    entrypoint: 'get_mcps / create_mcp / update_mcp / delete_mcp / refresh_mcp_status',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager MCP registry',
+    entrypoint: 'settings/mcp, settings/mcp/upsert|delete|probe',
+    disposition: 'existing-backend',
+    vivyCapability: 'settings.mcp',
+    authority: 'VIVY MCP registry',
     risk: 'execute',
     failure: 'Expose connection failure; never infer connected state locally.',
-    verification: 'Manager MCP route tests and GUI settings smoke',
+    verification: 'DN-2/3 MCP surface review',
   },
   {
     id: 'cron.jobs',
-    entrypoint: 'get_cron_jobs / create_cron_job / run_cron_job / stop_cron_job_run',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager cron service',
+    entrypoint: 'cron/list, cron/create, cron/update, cron/delete, cron/trigger, cron/stop',
+    disposition: 'existing-backend',
+    vivyCapability: 'cron.list',
+    authority: 'VIVY cron service',
     risk: 'execute',
     failure: 'Expose scheduler failure and refresh server state.',
-    verification: 'Manager cron tests and GUI cron smoke',
+    verification: 'DN-3 cron surface review',
   },
   {
     id: 'memory.home',
-    entrypoint: 'list_memory_records / create_memory_record / update_memory_record / delete_memory_record',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Machine-wide MemoryHome via /api/memory',
+    entrypoint: 'none — unresolved domain',
+    disposition: 'backend-gap',
+    vivyCapability: null,
+    authority: 'No VIVY memory RPC surface; DN-4 design required',
     risk: 'write',
-    failure: 'Preserve typed conflict/schema errors; never apply locally.',
-    verification: 'MemoryView.test.ts and Manager /api/memory tests',
+    failure: 'Report absent; never apply memory writes locally.',
+    verification: 'Capability state resolves absent; DN-4 contract review',
   },
   {
     id: 'memory.laputa',
     entrypoint: 'none',
-    transport: 'none',
-    classification: 'REMOVED',
+    disposition: 'retire-pending',
+    vivyCapability: null,
     authority: 'Retired Laputa proposal and section governance',
     risk: 'write',
-    failure: 'Surface is gone; memory writes go through MemoryHome.',
-    verification: 'Approval Center and capability ledger no longer expose domain=memory',
+    failure: 'Surface is gone; no replacement until DN-4.',
+    verification: 'Capability ledger test asserts retire classification',
   },
   {
     id: 'autodream',
-    entrypoint: 'trigger_autodream / get_autodream_run_status / cancel_autodream_run',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager AutoDream runtime',
+    entrypoint: 'none — unresolved domain',
+    disposition: 'backend-gap',
+    vivyCapability: null,
+    authority: 'Evolution domain shape-overlap only (generations/evals); DN-4',
     risk: 'execute',
-    failure: 'Expose unavailable/cancel failure and refresh run state.',
-    verification: 'EvolutionView.test.ts and Manager AutoDream tests',
+    failure: 'Report absent; never claim a run was started.',
+    verification: 'Capability state resolves absent; DN-4 contract review',
   },
   {
     id: 'todo.execution',
-    entrypoint: 'get_execution_todos / update_execution_todo',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager execution Todo projection',
+    entrypoint: 'session.todos, session.todo.update',
+    disposition: 'existing-backend',
+    vivyCapability: 'session.todos',
+    authority: 'VIVY work/todos projection',
     risk: 'write',
     failure: 'Preserve missing/conflict semantics.',
-    verification: 'TodoCard.checklist.test.ts and Manager Todo tests',
+    verification: 'DN-3 work surface review',
   },
   {
     id: 'audit.logs',
-    entrypoint: 'get_audit_events',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager audit store',
+    entrypoint: 'none',
+    disposition: 'backend-gap',
+    vivyCapability: null,
+    authority: 'No VIVY audit RPC (DN-0 §3.5)',
     risk: 'read',
-    failure: 'Show query error; do not substitute an empty successful result.',
-    verification: 'AuditPage.test.ts',
+    failure: 'Report absent; do not substitute an empty successful result.',
+    verification: 'Capability state resolves absent',
   },
   {
     id: 'token.statistics',
-    entrypoint: 'get_token_usage_*',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager token ledger',
+    entrypoint: 'stats/tokens',
+    disposition: 'existing-backend',
+    vivyCapability: 'stats.tokens',
+    authority: 'VIVY token ledger snapshot',
     risk: 'read',
     failure: 'Expose query failure and retain last known data.',
-    verification: 'tokenStats.test.ts',
+    verification: 'DN-2 stats smoke',
   },
   {
     id: 'mask.lifecycle',
-    entrypoint: 'list_masks / get_active_mask / switch_mask / create_or_update_mask / delete_mask',
-    transport: 'tauri-manager-proxy',
-    classification: 'MANAGER',
-    authority: 'Manager mask service',
+    entrypoint: 'none — unresolved domain',
+    disposition: 'backend-gap',
+    vivyCapability: null,
+    authority: 'maskcontract has no control RPC; DN-4 design required',
     risk: 'write',
-    failure: 'Expose validation failure and reconcile active mask.',
-    verification: 'MaskCard.test.ts and MaskSelectorButton.test.ts',
+    failure: 'Report absent; never switch mask locally.',
+    verification: 'Capability state resolves absent; DN-4 contract review',
   },
   {
     id: 'gateway.process',
-    entrypoint: 'get_gateway_process_status / start_gateway / stop_gateway',
-    transport: 'tauri-local',
-    classification: 'LOCAL',
-    authority: 'Tauri embedded gateway lifecycle',
+    entrypoint: 'none — embedded host IS the runtime',
+    disposition: 'retire-pending',
+    vivyCapability: null,
+    authority: 'No gateway exists to manage (DN-0 §3.5)',
     risk: 'lifecycle',
-    failure: 'Return explicit lifecycle error; shutdown remains bounded.',
-    verification: 'gateway_process_management_bugfix.rs and startup smoke',
+    failure: 'Surface is gone; bridge init envelope carries identity instead.',
+    verification: 'Capability ledger test asserts retire classification',
   },
   {
     id: 'desktop.service',
-    entrypoint: 'get_service_status / install_service / start_service / stop_service',
-    transport: 'tauri-local',
-    classification: 'LOCAL',
-    authority: 'Tauri host service controller',
+    entrypoint: 'none — embedded host IS the runtime',
+    disposition: 'retire-pending',
+    vivyCapability: null,
+    authority: 'No service install surface in the thin shell (DN-0 §3.5)',
     risk: 'lifecycle',
-    failure: 'Return operating-system error without changing domain state.',
-    verification: 'Tauri service command tests and Windows smoke',
+    failure: 'Surface is gone; no service controller to call.',
+    verification: 'Capability ledger test asserts retire classification',
   },
   {
     id: 'desktop.preferences',
-    entrypoint: 'get_gui_prefs / set_gui_prefs',
-    transport: 'tauri-local',
-    classification: 'LOCAL',
-    authority: 'Tauri GUI preference store',
+    entrypoint: 'desktop-host prefs (shell-owned)',
+    disposition: 'native',
+    vivyCapability: null,
+    authority: 'Tauri shell preference store',
     risk: 'write',
     failure: 'Keep current preferences and surface persistence error.',
-    verification: 'GUI close/tray lifecycle tests',
+    verification: 'Shell lifecycle tests',
   },
   {
     id: 'desktop.logs',
-    entrypoint: 'append_gui_log / get_gui_log_lines / get_gateway_log_lines',
-    transport: 'tauri-local',
-    classification: 'LOCAL',
+    entrypoint: 'desktop-host log append/read (shell-owned)',
+    disposition: 'native',
+    vivyCapability: null,
     authority: 'Tauri local log files',
     risk: 'write',
     failure: 'Report I/O failure without fabricating records.',
-    verification: 'AuditPage.test.ts and Tauri log tests',
+    verification: 'Shell lifecycle tests',
   },
   {
     id: 'desktop.pet',
-    entrypoint: 'pet_* / open_desktop_pet / close_desktop_pet',
-    transport: 'tauri-local',
-    classification: 'LOCAL',
+    entrypoint: 'desktop-host pet window ops (shell-owned)',
+    disposition: 'native',
+    vivyCapability: null,
     authority: 'Tauri desktop pet host',
     risk: 'lifecycle',
-    failure: 'Surface host/media failure without mutating Manager state.',
-    verification: 'DivaPetView.test.ts and desktop pet smoke',
+    failure: 'Surface host/media failure without mutating backend state.',
+    verification: 'DN-6 pet surface review',
   },
   {
     id: 'manager.direct-browser-http',
     entrypoint: 'none',
-    transport: 'none',
-    classification: 'DEFERRED',
-    authority: 'No authority assigned in G0',
+    disposition: 'retire-pending',
+    vivyCapability: null,
+    authority: 'No browser-direct Manager path exists',
     risk: 'execute',
-    failure: 'Unavailable; GUI continues through the Tauri Manager proxy.',
-    verification: 'Capability ledger test asserts fail-closed classification',
+    failure: 'Unavailable; GUI goes through the shell bridge only.',
+    verification: 'Capability ledger test asserts retire classification',
   },
   {
     id: 'plan.history.overlay',
     entrypoint: 'none',
-    transport: 'none',
-    classification: 'REMOVED',
+    disposition: 'retire-pending',
+    vivyCapability: null,
     authority: 'Removed from the product surface',
     risk: 'read',
     failure: 'No entrypoint; callers must not restore the obsolete overlay.',
-    verification: 'Capability ledger test and ChatView surface tests',
+    verification: 'Capability ledger test asserts retire classification',
   },
 ] as const
+
+/**
+ * Resolve the negotiated state for every ledger entry.
+ *
+ * @param initCaps capability strings reported by VIVY `initialize`
+ *   (null/undefined = no negotiated envelope seen yet).
+ * @param connected  transport state: false marks every existing-backend
+ *   entry `disconnected` regardless of the negotiated set.
+ */
+export function negotiateCapabilities(
+  initCaps: readonly string[] | null | undefined,
+  connected: boolean,
+): Map<string, CapabilityState> {
+  const negotiated = new Map<string, CapabilityState>()
+  const caps = new Set(initCaps ?? [])
+  for (const entry of GUI_CAPABILITIES) {
+    switch (entry.disposition) {
+      case 'native':
+        negotiated.set(entry.id, 'available')
+        break
+      case 'backend-gap':
+      case 'retire-pending':
+        negotiated.set(entry.id, 'absent')
+        break
+      case 'existing-backend':
+        if (!connected) negotiated.set(entry.id, 'disconnected')
+        else if (entry.vivyCapability === null || !caps.has(entry.vivyCapability))
+          negotiated.set(entry.id, 'absent')
+        else negotiated.set(entry.id, 'available')
+        break
+    }
+  }
+  return negotiated
+}
+
+/** Mark an entry failed after a live call through it errored. */
+export function markCapabilityFailed(
+  negotiated: Map<string, CapabilityState>,
+  id: string,
+): Map<string, CapabilityState> {
+  const next = new Map(negotiated)
+  if (next.has(id)) next.set(id, 'failed')
+  return next
+}

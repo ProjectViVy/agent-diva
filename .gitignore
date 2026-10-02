@@ -150,6 +150,7 @@ pnpm-debug.log*
 
 # Temporary state files
 state/
+!agent-diva-gui/src/state/
 
 # Workspace temporary staging area
 temp/
