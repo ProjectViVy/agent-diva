@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { Minimize2, LoaderCircle, RotateCcw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
-import { invoke } from '@tauri-apps/api/core';
+import { vivyClient } from '../../api/vivy/instance';
 import { showAppToast } from '../../utils/appToast';
 import type { BudgetConfigShape, ToolsConfigShape } from '../../types/toolsConfig';
 import { budgetPressurePercent, computeBudgetStatus } from '../../utils/contextBudget';
@@ -110,16 +110,8 @@ const runCompact = async () => {
   compactRunning.value = true;
   try {
     const sessionKey = props.currentSessionKey?.trim() || '';
-    const [channel, chatId] = sessionKey.includes(':')
-      ? [sessionKey.slice(0, sessionKey.indexOf(':')), sessionKey.slice(sessionKey.indexOf(':') + 1)]
-      : ['gui', sessionKey];
-    await invoke('send_message', {
-      message: '/compact',
-      channel: chatId ? channel : null,
-      chatId: chatId || null,
-      attachments: null,
-      streamRequestId: crypto.randomUUID(),
-    });
+    if (!sessionKey) throw new Error('no active session');
+    await vivyClient.contextCompact(sessionKey);
     showAppToast(t('compaction.compactSuccess'), 'success');
   } catch {
     showAppToast(t('compaction.compactError'), 'error');

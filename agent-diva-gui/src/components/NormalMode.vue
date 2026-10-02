@@ -20,7 +20,6 @@ import {
   Wrench,
   X,
 } from '@lucide/vue';
-import { invoke } from '@tauri-apps/api/core';
 import ChatView, { type AskUserQuestionView, type CompactionStatus } from './ChatView.vue';
 import { listSkillRequests } from '../api/desktop';
 import type { FileAttachmentDto } from '../api/desktop';
@@ -150,6 +149,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
+  (e: 'resume-plan'): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
   (e: 'refresh-sessions'): void;
@@ -164,6 +164,7 @@ const emit = defineEmits<{
   (e: 'update:approval-center-open', open: boolean): void;
   (e: 'answer-ask-user', payload: { question_id: string; selected_index: number | null; other_text: string | null }): void;
   (e: 'cancel-ask-user', questionId: string): void;
+  (e: 'rename-session', sessionKey: string, title: string): void;
 }>();
 
 type SidebarSection =
@@ -212,24 +213,8 @@ const handleClearSession = () => {
   emit('clear');
 };
 
-const handleRenameSession = async (sessionKey: string, title: string) => {
-  const session = props.sessions?.find((s) => s.session_key === sessionKey);
-  if (!session) return;
-
-  const originalTitle = session.title;
-
-  try {
-    const data = await invoke<{ title?: string }>('update_session_title', {
-      sessionKey,
-      title,
-    });
-    session.title = typeof data.title === 'string' ? data.title : title;
-    session.title_generated = false;
-    session.title_manually_set = true;
-  } catch (e) {
-    console.error('Failed to rename session:', e);
-    session.title = originalTitle;
-  }
+const handleRenameSession = (sessionKey: string, title: string) => {
+  emit('rename-session', sessionKey, title);
 };
 
 const activeSessionKey = computed(() => props.currentSessionKey || '');
@@ -1073,6 +1058,7 @@ defineExpose({
               :compaction-status="compactionStatus"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
+              @resume-plan="emit('resume-plan')"
               @revoke-plan="emit('revoke-plan', $event)"
               @refresh-plan="emit('refresh-plan')"
               @refresh-sessions="emit('refresh-sessions')"

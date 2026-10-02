@@ -2,6 +2,8 @@
  * Planning domain DTOs matching the Rust backend types in planning_service.rs.
  */
 
+import type { SessionTodo, SessionWorkResult } from './vivy/contracts';
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -126,26 +128,70 @@ export function planReportValidationIssues(markdown: string | undefined | null):
   return issues;
 }
 
-export interface PlanApprovalReceipt {
-  plan_id: string;
-  revision: number;
-  approved_at: string;
-  todo_policy: 'Never' | 'Optional' | 'Always';
-  todos_materialized: boolean;
+// ---------------------------------------------------------------------------
+// VIVY work adapter (DN-2): session/work + session/todos map onto the
+// drawer-facing PlanRuntimeState. Field vocabulary verified against the pinned
+// VIVY work_control source (activation "armed"|"disarmed", plan review_status
+// none|pending|accepted|rejected|cancelled).
+// ---------------------------------------------------------------------------
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
-export interface PlanApprovalResult {
-  plan: PlanRuntimeState;
-  receipt: PlanApprovalReceipt;
+const TODO_STATUS_TO_PLAN: Record<string, PlanRuntimeTodo['status']> = {
+  pending: 'pending',
+  in_progress: 'running',
+  completed: 'completed',
+  cancelled: 'failed',
+};
+
+/** Map one VIVY session todo to a plan-runtime todo row. */
+export function todoToPlanRuntime(todo: SessionTodo): PlanRuntimeTodo {
+  return {
+    id: todo.id,
+    plan_step_id: null,
+    title: todo.subject,
+    detail: todo.description ?? null,
+    status: TODO_STATUS_TO_PLAN[todo.status] ?? 'pending',
+    priority: 'normal',
+    evidence_ref: null,
+    block_reason: todo.blocked_by.length > 0 ? `blocked by ${todo.blocked_by.join(', ')}` : null,
+    updated_at: '',
+  };
 }
 
-export interface PlanSnapshotMetadata {
-  kind: 'plan_snapshot';
-  version: number;
-  plan: PlanRuntimeState;
-}
-
-export interface PlanStreamEvent {
-  plan: PlanRuntimeState;
-  todo?: PlanRuntimeTodo | null;
+/**
+ * Map a session/work snapshot to PlanRuntimeState. Returns null when no plan
+ * is active — the caller clears the plan surfaces rather than showing a
+ * fabricated idle card.
+ */
+export function workToPlanRuntime(work: SessionWorkResult): PlanRuntimeState | null {
+  if (!work.plan.active) return null;
+  const goal = asRecord(work.goal);
+  const phase = work.plan.review_status === 'pending'
+    ? 'AwaitingApproval'
+    : work.activation === 'armed'
+      ? 'Execute'
+      : work.plan.review_status === 'accepted'
+        ? 'Execute'
+        : 'Draft';
+  return {
+    plan_id: work.plan.submission_id || 'work',
+    revision: typeof work.version === 'number' ? work.version : undefined,
+    title: (goal && typeof goal.objective === 'string' && goal.objective) || 'Plan',
+    goal: (goal && typeof goal.objective === 'string' ? goal.objective : '') || '',
+    phase,
+    status: work.plan.review_status === 'pending' ? 'AwaitingApproval' : phase,
+    strategy: work.plan.feedback || null,
+    summary: work.plan.feedback || '',
+    markdown: work.plan.markdown || '',
+    validation_issues: [],
+    steps: [],
+    todos: [],
+    created_at: '',
+    updated_at: '',
+  };
 }

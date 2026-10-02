@@ -14,9 +14,18 @@ import {
   type RunSubscribeResult,
   type SessionGetResult,
   type SessionListResult,
+  type PlanDecideParams,
+  type PlanGetResult,
+  type ReviewListParams,
+  type ReviewListResult,
+  type ReviewRespondParams,
   type SessionMessagesResult,
   type SessionMessage,
+  type SessionTodosResult,
+  type SessionWorkResult,
+  type SessionWorkSubscribeResult,
   type TurnStartResult,
+  type WorkCommitResult,
   type VivySession,
   type WireEvent,
 } from './contracts'
@@ -122,6 +131,57 @@ export class VivyClient {
   }
   questionRespond(questionId: string, answer: string): Promise<unknown> {
     return this.call('question/respond', { question_id: questionId, answer }, { mutation: true })
+  }
+
+  // --- Source-verified work/review/todo methods (VIVY pinned rpc source) ---
+
+  reviewList(params?: ReviewListParams): Promise<ReviewListResult> {
+    return this.call('review/list', params ?? null)
+  }
+  reviewRespond(params: ReviewRespondParams): Promise<unknown> {
+    return this.call('review/respond', params, { mutation: true })
+  }
+  sessionTodos(sessionId: string): Promise<SessionTodosResult> {
+    return this.call('session/todos', { session_id: sessionId })
+  }
+  sessionTodoUpdate(sessionId: string, todoId: string, status: string): Promise<unknown> {
+    return this.call('session/todo/update', { session_id: sessionId, id: todoId, status }, { mutation: true })
+  }
+  sessionWork(sessionId: string): Promise<SessionWorkResult> {
+    return this.call('session/work', { session_id: sessionId })
+  }
+  sessionWorkSubscribe(sessionId: string, afterSeq = 0): Promise<SessionWorkSubscribeResult> {
+    return this.call('session/work/subscribe', { session_id: sessionId, after_seq: afterSeq })
+  }
+  planGet(sessionId: string, submissionId: string): Promise<PlanGetResult> {
+    return this.call('plan/get', { session_id: sessionId, submission_id: submissionId })
+  }
+  planDecide(params: PlanDecideParams): Promise<WorkCommitResult> {
+    return this.call('plan/decide', params, { mutation: true })
+  }
+  private workMutation(method: string, sessionId: string): Promise<WorkCommitResult> {
+    return this.call(
+      method,
+      { session_id: sessionId, request_id: crypto.randomUUID() },
+      { mutation: true },
+    )
+  }
+  planEnter(sessionId: string): Promise<WorkCommitResult> {
+    return this.workMutation('plan/enter', sessionId)
+  }
+  planLeave(sessionId: string): Promise<WorkCommitResult> {
+    return this.workMutation('plan/leave', sessionId)
+  }
+  goalResume(sessionId: string): Promise<WorkCommitResult> {
+    return this.workMutation('goal/resume', sessionId)
+  }
+  goalPause(sessionId: string): Promise<WorkCommitResult> {
+    return this.workMutation('goal/pause', sessionId)
+  }
+
+  /** Durable session compaction now; busy-session is a -32009 conflict. */
+  contextCompact(sessionId: string): Promise<unknown> {
+    return this.call('context/compact', { session_id: sessionId }, { mutation: true })
   }
 }
 

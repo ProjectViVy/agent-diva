@@ -88,8 +88,19 @@ export class VivySessionProjection {
   readonly sessions = new Map<string, VivySession>()
   readonly messages = new Map<string, SessionMessage[]>()
   private readonly runs = new Map<string, MutableRun>()
+  private readonly listeners = new Set<() => void>()
   private unsubscribe: (() => void) | null = null
   private client: VivyClient | null = null
+
+  /** Notify on applied events, snapshots, and connection state changes. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private emit(): void {
+    for (const listener of this.listeners) listener()
+  }
 
   /**
    * Register the event listener BEFORE any snapshot read. The returned
@@ -141,6 +152,7 @@ export class VivySessionProjection {
     if (event.method === 'run/event') {
       const params = event.params as RunEventParams
       this.applyRunEvent(params.event)
+      this.emit()
     }
     // Other notification methods are forwarded to domain reducers added by
     // later stories; unrecognized payloads are ignored, never fatal.
@@ -153,6 +165,7 @@ export class VivySessionProjection {
       this.connection = 'gap'
     }
     for (const run of this.runs.values()) run.needsResync = true
+    this.emit()
   }
 
   private runFor(runId: string): MutableRun {
@@ -213,22 +226,31 @@ export class VivySessionProjection {
         }
         break
       }
-      case 'tool.approval_decided': {
+      case 'tool.approval_decided':
+      case 'tool.approval_expired':
+      case 'tool.approval_cancelled': {
         const p = event.payload
         if (typeof p.approval_id === 'string') run.pendingApprovals.delete(p.approval_id)
         break
       }
-      case 'question.required':
-      case 'question.asked': {
+      case 'user.question_required': {
         const p = event.payload
         const id = (p.question_id ?? p.id) as string | undefined
         if (typeof id === 'string') {
-          run.pendingQuestions.set(id, { kind: 'question', id, runId: event.run_id })
+          run.pendingQuestions.set(id, {
+            kind: 'question',
+            id,
+            runId: event.run_id,
+            toolCallId: p.tool_call_id as string | undefined,
+            expiresAt: p.expires_at as number | undefined,
+            args: typeof p.prompt === 'string' ? { prompt: p.prompt } : undefined,
+          })
         }
         break
       }
-      case 'question.decided':
-      case 'question.answered': {
+      case 'user.question_answered':
+      case 'user.question_cancelled':
+      case 'user.question_expired': {
         const p = event.payload
         const id = (p.question_id ?? p.id) as string | undefined
         if (typeof id === 'string') run.pendingQuestions.delete(id)
@@ -258,26 +280,27 @@ export class VivySessionProjection {
     switch (kind.type) {
       case 'session/list':
         for (const s of kind.result.sessions) this.sessions.set(s.id, s)
-        return
+        break
       case 'session/get':
         this.sessions.set(kind.result.session.id, kind.result.session)
         this.messages.set(kind.result.session.id, kind.result.messages)
-        return
+        break
       case 'run/log':
         this.applyRunLog(kind.result.events)
-        return
+        break
       case 'run/get': {
         const run = this.runFor(kind.result.id)
         run.sessionId = kind.result.session_id
         if (kind.result.status !== 'active') {
           run.phase = (TERMINAL[kind.result.status] ?? kind.result.status) as RunPhase
         }
-        return
+        break
       }
       case 'approval/list':
         this.applyApprovalList(kind.result.approvals)
-        return
+        break
     }
+    this.emit()
   }
 
   private applyRunLog(events: RunEvent[]): void {
@@ -339,5 +362,6 @@ export class VivySessionProjection {
       this.applySnapshot({ type: 'run/get', result: get })
     }
     if (this.connection === 'gap') this.connection = 'connected'
+    this.emit()
   }
 }

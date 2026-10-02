@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { PlanApprovalResult, PlanRuntimeState } from "./planning";
+
 
 export interface GatewayProcessStatus {
   running: boolean;
@@ -218,25 +218,6 @@ export const wipeLocalData = () => invoke<WipeSummary>("wipe_local_data");
 
 export const getRuntimeConfig = () =>
   invoke<RuntimeConfigSnapshot>("get_config");
-
-export interface PlanApprovalRequest {
-  session_key: string;
-  plan_id?: string;
-  expected_revision: number;
-  markdown: string;
-  todo_policy: 'Never' | 'Optional' | 'Always';
-  materialize_todos: boolean;
-  context_policy?: 'retain' | 'compact' | 'clear';
-}
-
-export const approveActivePlanExecution = (request: PlanApprovalRequest) =>
-  invoke<PlanApprovalResult>("approve_active_plan_execution", { request });
-
-export const deletePlan = (planId: string) =>
-  invoke<void>("delete_plan", { planId });
-
-export const returnActivePlanToDraft = (sessionKey?: string) =>
-  invoke<PlanRuntimeState>("return_active_plan_to_draft", { sessionKey });
 
 export const saveRawConfig = (raw: string) =>
   invoke<void>("save_config", { raw });
