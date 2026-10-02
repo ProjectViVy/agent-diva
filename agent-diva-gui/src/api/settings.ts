@@ -507,6 +507,10 @@ export async function saveActiveProvider(
 // DN-3 slice B — tools / MCP / skills / marketplace / network / compaction
 // ---------------------------------------------------------------------------
 import type {
+  ChannelUpdateParams,
+  VivyChannelEnvelope,
+  VivyChannelStatus,
+  VivyCronJob,
   VivyMcpServer,
   VivyNetworkSearchProvider,
   VivySkillSummary,
@@ -764,3 +768,40 @@ export function budgetShapeFromCompaction(cfg: CompactionConfigShape): {
 }
 
 export type { VivyToolsResult }
+
+// ---- slice C: channels ----
+
+export interface ChannelView {
+  name: string
+  /** Document truth (channel/get folded with the settings overlay). */
+  envelope: VivyChannelEnvelope
+  /** Process truth (channel/inspect); null when the channel has no status row. */
+  status: VivyChannelStatus | null
+  /** True when the document differs from what is running — applies on restart. */
+  pendingRestart: boolean
+}
+
+export async function loadChannelsState(): Promise<ChannelView[]> {
+  const statuses = await vivyClient.channelInspect()
+  const views = await Promise.all(
+    statuses.map(async (status) => {
+      const envelope = await vivyClient.channelGet(status.name)
+      const pendingRestart =
+        envelope.enabled !== status.enabled ||
+        envelope.token_env !== status.token_env ||
+        JSON.stringify([...envelope.allow_from].sort()) !== JSON.stringify([...status.allow_from].sort())
+      return { name: status.name, envelope, status, pendingRestart }
+    }),
+  )
+  return views
+}
+
+export async function saveChannel(params: ChannelUpdateParams): Promise<VivyChannelEnvelope> {
+  return vivyClient.channelUpdate(params)
+}
+
+// ---- slice C: cron ----
+
+export async function listCronJobs(): Promise<VivyCronJob[]> {
+  return (await vivyClient.cronList()).jobs
+}

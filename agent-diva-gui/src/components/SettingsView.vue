@@ -88,7 +88,6 @@ const props = defineProps<{
   themeMode?: string;
   initialView?: SettingsSubview;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
-  saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -218,7 +217,6 @@ watch(
             
             <ChannelsSettings 
               v-else-if="currentView === 'channels'"
-              :save-channel-config-action="saveChannelConfigAction"
             />
 
             <NetworkSettings

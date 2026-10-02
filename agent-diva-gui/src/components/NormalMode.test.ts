@@ -136,7 +136,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
         showRawMetaByDefault: false,
       },
       saveConfigAction: vi.fn(() => Promise.resolve()),
-      saveChannelConfigAction: vi.fn(() => Promise.resolve()),
       ...propOverrides,
     },
   });

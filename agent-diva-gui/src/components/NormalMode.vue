@@ -138,7 +138,6 @@ interface Props {
   }[];
   chatDisplayPrefs: ChatDisplayPrefs;
   saveConfigAction: (config: AppConfigShape) => Promise<void>;
-  saveChannelConfigAction: (channelName: string, channelConfig: Record<string, unknown>) => Promise<void>;
 }
 
 const props = defineProps<Props>();
@@ -1084,7 +1083,6 @@ defineExpose({
               :current-messages="messages"
               :initial-view="settingsInitialView"
               :save-config-action="saveConfigAction"
-              :save-channel-config-action="saveChannelConfigAction"
               @update-saved-models="handleUpdateSavedModels"
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
               @change-theme="handleChangeTheme"

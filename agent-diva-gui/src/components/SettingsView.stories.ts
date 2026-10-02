@@ -53,24 +53,6 @@ const mockProviders = [
   },
 ];
 
-const mockChannels = {
-  telegram: { enabled: true, token: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11' },
-  discord: {
-    enabled: false,
-    token: '',
-    allow_from: [],
-    gateway_url: 'wss://gateway.discord.gg/?v=10&encoding=json',
-    intents: 37377,
-    guild_id: null,
-    mention_only: false,
-    listen_to_bots: false,
-    group_reply_allowed_sender_ids: [],
-  },
-  dingtalk: { enabled: true, client_id: 'ding123', client_secret: 'sec456' },
-  feishu: { enabled: false, app_id: '', app_secret: '', verification_token: '' },
-  email: { enabled: false, imap_host: '', imap_username: '' },
-  qq: { enabled: false, app_id: '', secret: '' },
-};
 
 // Mock invoke for Storybook
 (window as any).__TAURI_INTERNALS__ = {
@@ -139,11 +121,6 @@ const mockChannels = {
             : 'Connection test failed: upstream timeout',
         latency_ms: 612,
       };
-    }
-    if (cmd === 'get_channels') return mockChannels;
-    if (cmd === 'update_channel') {
-      console.log('Invoke update_channel', args);
-      return;
     }
     return null;
   },

@@ -636,26 +636,6 @@ async function saveConfig(newConfig: typeof config.value) {
   }
 }
 
-async function saveChannelConfig(channelName: string, channelConfig: Record<string, unknown>) {
-  try {
-    if (!isTauri()) {
-      showAppToast("保存成功");
-      return;
-    }
-
-    await invoke('update_channel', {
-      name: channelName,
-      enabled: Boolean(channelConfig.enabled),
-      config: channelConfig,
-    });
-
-    showAppToast("保存成功");
-  } catch (error) {
-    await appAlert(t('app.configUpdateError', { error }));
-    throw error;
-  }
-}
-
 async function handleWelcomeDone(payload: WelcomeDonePayload) {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -842,7 +822,6 @@ onUnmounted(() => {
       :ask-user-questions="pendingQuestions"
       :compaction-status="compactionStatus"
       :save-config-action="saveConfig"
-      :save-channel-config-action="saveChannelConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
       @resume-plan="resumePlanExecution"

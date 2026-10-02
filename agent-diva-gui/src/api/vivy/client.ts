@@ -36,6 +36,12 @@ import {
   type VivySettingsResult,
   type SettingsUpdateParams,
   type McpUpsertParams,
+  type ChannelUpdateParams,
+  type CronJobWriteParams,
+  type VivyChannelEnvelope,
+  type VivyChannelStatus,
+  type VivyCronJob,
+  type VivyCronListResult,
   type VivyMarketplaceFeatured,
   type VivyMarketplaceInstallResult,
   type VivyMarketplaceSkill,
@@ -275,6 +281,35 @@ export class VivyClient {
   }
   marketplaceCheck(name: string): Promise<{ name: string; status: string; marketplace_id?: string; snapshot_hash?: string }> {
     return this.call('skills/marketplace/check', { name })
+  }
+
+  // ---- slice C: channels / cron ----
+  channelInspect(): Promise<VivyChannelStatus[]> {
+    return this.call('channel/inspect')
+  }
+  channelGet(name: string): Promise<VivyChannelEnvelope> {
+    return this.call('channel/get', { name })
+  }
+  channelUpdate(params: ChannelUpdateParams): Promise<VivyChannelEnvelope> {
+    return this.call('channel/update', params, { mutation: true })
+  }
+  cronList(): Promise<VivyCronListResult> {
+    return this.call('cron/list')
+  }
+  cronCreate(params: CronJobWriteParams): Promise<{ job: VivyCronJob }> {
+    return this.call('cron/create', params, { mutation: true })
+  }
+  cronUpdate(id: string, params: CronJobWriteParams): Promise<{ job: VivyCronJob }> {
+    return this.call('cron/update', { id, ...params }, { mutation: true })
+  }
+  cronDelete(id: string): Promise<{ deleted: boolean }> {
+    return this.call('cron/delete', { id }, { mutation: true })
+  }
+  cronTrigger(id: string): Promise<{ job: VivyCronJob }> {
+    return this.call('cron/trigger', { id }, { mutation: true })
+  }
+  cronStop(id: string): Promise<{ stopped: boolean }> {
+    return this.call('cron/stop', { id }, { mutation: true })
   }
 }
 

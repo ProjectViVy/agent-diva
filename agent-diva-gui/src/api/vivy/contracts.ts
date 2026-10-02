@@ -623,3 +623,122 @@ export interface VivyNotification {
 export type WireEvent =
   | { kind: 'vivy'; method: string; params: unknown }
   | { kind: 'bridge'; status: 'gap' | 'lost' }
+
+// ---- slice C: channels / cron ----
+
+export interface VivyChannelCapabilities {
+  typing: boolean
+  edit: boolean
+  delete: boolean
+  reaction: boolean
+  placeholder: boolean
+  media: boolean
+  media_store: boolean
+  webhook: boolean
+  listen: boolean
+  stream: boolean
+  health: boolean
+}
+
+export interface VivyChannelHealth {
+  ok: boolean
+  class?: string
+  detail?: string
+}
+
+/** channel/inspect entry: process truth from the last StartAll. */
+export interface VivyChannelStatus {
+  name: string
+  capabilities: VivyChannelCapabilities
+  health?: VivyChannelHealth | null
+  configured: boolean
+  enabled: boolean
+  allow_from: string[]
+  started: boolean
+  token_env: string
+  token_env_set: boolean
+  note: string
+}
+
+/** channel/get + channel/update result: document truth folded with the overlay. */
+export interface VivyChannelEnvelope {
+  name: string
+  enabled: boolean
+  allow_from: string[]
+  token_env: string
+  configured: boolean
+}
+
+export interface ChannelUpdateParams {
+  name: string
+  enabled?: boolean
+  allow_from?: string[]
+  token_env?: string
+}
+
+export interface VivyCronSchedule {
+  kind: string
+  atMs?: number
+  everyMs?: number
+  expr?: string
+  tz?: string
+}
+
+export interface VivyCronPayload {
+  kind: string
+  message: string
+  deliver: boolean
+  channel?: string
+  to?: string
+}
+
+export interface VivyCronState {
+  nextRunAtMs?: number
+  lastRunAtMs?: number
+  lastStatus?: string
+  lastError?: string
+}
+
+export interface VivyCronActiveRun {
+  run_id: string
+  job_id: string
+  startedAtMs: number
+  lastHeartbeatAtMs: number
+  trigger: string
+  cancelable: boolean
+}
+
+export interface VivyCronJob {
+  id: string
+  name: string
+  enabled: boolean
+  schedule: VivyCronSchedule
+  payload: VivyCronPayload
+  sessionId?: string
+  state: VivyCronState
+  deleteAfterRun: boolean
+  createdAtMs: number
+  updatedAtMs: number
+  isRunning: boolean
+  activeRun?: VivyCronActiveRun | null
+  computedStatus: string
+}
+
+export interface VivyCronListResult {
+  jobs: VivyCronJob[]
+}
+
+/** cron/create + cron/update write params; update adds {id}. */
+export interface CronJobWriteParams {
+  name: string
+  enabled?: boolean
+  schedule: VivyCronSchedule
+  payload: {
+    kind?: string
+    message: string
+    deliver: boolean
+    channel?: string
+    to?: string
+  }
+  delete_after_run?: boolean
+}
