@@ -40,6 +40,11 @@
   `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
   调用会失败。按 DN-0 清单与 DN-1/2/3/4/6 逐域替换，DN-M 验收语义迁移；
   保留新 Tauri 薄壳需要的客户端包，只删除旧业务命令。
+  DN-2 进度：chat/session/approval/question/plan/compact 全部迁走；残留 =
+  配置类（load_config, getRuntimeConfig, getConfigStatus, get_tools_config,
+  save_config, update_config, update_tools_config, update_channel,
+  set_splash_complete）+ ChatView `reset_session`/`open_desktop_pet` +
+  ConsoleView `check_health` —— 归 DN-3/4。
 - [ ] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
   DN-8 需新增 `check_vivy_backend_boundary`（验证依赖图与打包内容，而非字符串搜索）。
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
@@ -55,9 +60,26 @@
   重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
   （配合 background/recover），不得当异常。DN-1 已完成信封保真
   （-32004 原样穿透 typed client，真实物冒烟实测）；UI 侧语义映射属 DN-2。
-- [ ] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
-  VIVY 审批动作仅 approve/deny（review/respond 的 question 才支持 cancel）。
-  旧 `cancel_approval` 语义 → deny+reason 或依赖 expires_at；待 owner 裁定，DN-1。
+- [x] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
+  DN-2 已落地：`review/respond {review_id, action:'cancel'}` 是真实的取消通道
+  （review 层对 approval/question 均支持 cancel），抽屉 cancel 按钮已接线。
+- [ ] **SEND-ATTACHMENTS-GAP：turn/start 仅文本，send 丢弃 FileAttachmentDto** `sev-P1`
+  VIVY `turn/start {session_id,text}` 无附件参数；GUI 输入框附件目前 warn+丢弃。
+  需要 VIVY 侧附件契约或本地文件->文本降级策略 —— blocked，不可假成功。
+- [ ] **SEND-PERMISSION-MODE-GAP：send 的 permissionMode/approvalPolicy 未接线** `sev-P2`
+  旧 send_message 带 approvalPolicy（on-request/on-failure/unless-trusted）；
+  VIVY 侧候选为 session 级 set_permission（未核实契约）。DN-3 核实后接线。
+- [ ] **REGENERATE-NO-REWIND：regenerate 重发新 turn，无原位回放** `sev-P2`
+  VIVY `session/rewind {session_id,message_id}` 已存在（journal 只读不删行）。
+  当前 regenerate = 找最近 user 消息重发为新 turn；接线 rewind 后可原位重放。
+- [ ] **TITLE-GENERATION-GAP：会话标题只靠后端，GUI 自动生成已删** `sev-P2`
+  旧 `generate_session_title` invoke 已死；VIVY 侧 session/title 由后端定。
+  若需 GUI 侧兜底标题，待 VIVY 标题契约核实（session/rename 已可用作手动改名）。
+- [ ] **PLAN-START-GOAL-NO-TRIGGER：plan/decide start_goal 无 UI 入口** `sev-P2`
+  `start_goal`（arm goal loop）在 controller 已实现，但当前 UI 只有
+  execute_once（批准按钮）/revise（退回）；goal-loop 卡片入口待设计。
+- [ ] **DN-2-TASK5-PROVIDER：打包真模型 chat + 门控安全工具链** `sev-P0`
+  需要 provider key；提供后跑完整原生验收（流式回答 + 审批挂起重开窗 + 取消）。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
