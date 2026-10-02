@@ -57,6 +57,9 @@ jobs:
         working-directory: agent-diva-gui
         run: pnpm build
 
+      - name: Legacy-call gate
+        run: node scripts/ci/check_legacy_frontend_calls.mjs --selftest
+
   shell-bridge-check:
     name: vivy-bridge FFI Tests
     runs-on: ubuntu-latest
@@ -69,3 +72,11 @@ jobs:
       - name: Bridge FFI tests
         working-directory: agent-diva-gui/src-tauri
         run: cargo test -p vivy-bridge
+
+  boundary-gate:
+    name: Backend boundary gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boundary check (dep graph + manifest)
+        run: python3 scripts/ci/check_vivy_backend_boundary.py
