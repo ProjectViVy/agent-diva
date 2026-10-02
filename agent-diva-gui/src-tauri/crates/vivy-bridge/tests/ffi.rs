@@ -216,3 +216,67 @@ fn real_artifact_init_call_shutdown() {
     assert_eq!(v["protocol_version"], "vivy.rpc.v1", "initialize returned {v}");
     host.shutdown().unwrap();
 }
+
+/// DN-1 real native smoke through the sealed DLL: initialize → session
+/// create/read → run subscribe/log on a missing run (RPC error envelope
+/// preserved) → approval/question list → session delete. Same env gate as
+/// the lifecycle test; skipped when the artifact is not staged.
+#[test]
+fn real_artifact_dn1_rpc_smoke() {
+    let _g = FAKE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (Ok(dir), Ok(cfg)) = (
+        std::env::var("DIVA_VIVY_RUNTIME"),
+        std::env::var("DIVA_VIVY_CONFIG"),
+    ) else {
+        eprintln!("DIVA_VIVY_RUNTIME/DIVA_VIVY_CONFIG unset; skipping real-artifact test");
+        return;
+    };
+    let lib = VivyLibrary::load(Path::new(&dir)).unwrap();
+    let host = Host::start(
+        lib,
+        &InitConfig { config_path: PathBuf::from(cfg), without_ears: Some(true) },
+    )
+    .unwrap();
+
+    let init = host.call("initialize", json!({}), Some(30_000)).unwrap();
+    assert_eq!(init["protocol_version"], "vivy.rpc.v1");
+    assert!(init["capabilities"].as_array().map(|c| !c.is_empty()).unwrap_or(false));
+
+    let sess = host
+        .call("session/create", json!({"title": "dn1-smoke"}), Some(30_000))
+        .unwrap();
+    let sid = sess["id"].as_str().unwrap().to_string();
+
+    let list = host.call("session/list", json!({}), Some(30_000)).unwrap();
+    assert!(list["sessions"].as_array().unwrap().iter().any(|s| s["id"] == sid));
+
+    let got = host.call("session/get", json!({"session_id": sid}), Some(30_000)).unwrap();
+    assert_eq!(got["session"]["id"], sid);
+    assert!(got["messages"].is_array());
+
+    // Subscribe attaches even to a missing run id (no existence check).
+    let sub = host
+        .call("run/subscribe", json!({"run_id": "run_missing"}), Some(30_000))
+        .unwrap();
+    assert_eq!(sub["run_id"], "run_missing");
+    assert!(sub["subscription_id"].as_str().unwrap().starts_with("sub_"));
+
+    // Missing/inactive run: the backend's RPC error must reach the caller
+    // intact (fixture observed -32004 for run/cancel on an inactive run).
+    let err = host
+        .call("run/cancel", json!({"run_id": "run_missing"}), Some(30_000))
+        .unwrap_err();
+    assert_eq!(err.code, -32004, "expected rpc error, got {err}");
+
+    let approvals = host.call("approval/list", json!({}), Some(30_000)).unwrap();
+    assert!(approvals["approvals"].is_array());
+    let questions = host.call("question/list", json!({}), Some(30_000)).unwrap();
+    assert!(questions["questions"].is_array());
+
+    let del = host
+        .call("session/delete", json!({"session_id": sid}), Some(30_000))
+        .unwrap();
+    assert_eq!(del["deleted"], true);
+
+    host.shutdown().unwrap();
+}
