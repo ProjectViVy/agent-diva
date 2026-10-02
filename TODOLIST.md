@@ -45,13 +45,22 @@
   save_config, update_config, update_tools_config, update_channel,
   set_splash_complete）+ ChatView `reset_session`/`open_desktop_pet` +
   ConsoleView `check_health` —— 归 DN-3/4。
-- [ ] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
-  DN-8 需新增 `check_vivy_backend_boundary`（验证依赖图与打包内容，而非字符串搜索）。
+- [x] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
+  DN-P 已交付：`scripts/ci/check_vivy_backend_boundary.py`（依赖图 + Cargo.toml +
+  bundle 资源 + 二进制/deb 内容清单，非字符串搜索）+ CI `boundary-gate` job，
+  另有 `check_legacy_frontend_calls.mjs` AST 门禁（DN-M）。
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
   对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
   不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
-  DN-0 已确认 mask 无专用控制 RPC（仅 maskcontract 经 module action 暴露错误码），
-  全部仍属 gap 待 DN-4 设计。
+  进展（本阶段核实）：
+  - masks：`vivy.masks.*` 经 module action 活体验证（catalog.list/get、selection.get/set、
+    catalog.create）+ GUI 已迁 — 此域已脱离本项。
+  - persona：`plugins/vivy-persona` 仅 UIExtensionPort，无运行时生产者 → 仍 blocked。
+  - memory/ACTMEM：`internal/modules/memory` 有 9 个 `vivy.memory.*` action 但未编进
+    diva recipe → 仍 blocked（改 recipe 即可解）。
+  - autodream/evolution、notebook/reports：GUI 级视图无后端生产者 → 仍 blocked。
+  - speech（STT/TTS）：agent-vivy 全仓无对应模块 → 仍 blocked。
+  - resource import/delete：仅 `mcp.resources.list|read` 探针 → 仍 blocked。
 - [x] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
   已在 DN-L 解决：新增 `App.StartEmbeddedServices()`（sweeper + cron），由
   `internal/embedded.Open` 在 `New`+`DialControl` 后启动，`Host.Close` 统一回收；
@@ -85,6 +94,15 @@
   `docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`。
   注意：VIVY 读 env `SENSENOVA_API_KEY`（key 本体在 secret:personal:SHANGTANG_APIKEY）。
   遗留：GUI 级窗口重开（活模型）+ Windows 原生验收仍开。
+- [ ] **MODULE-ACTION-GOVERNANCE：face 驱动的 module action 写入无嵌入式审批续接** `sev-P1`
+  `vivy.masks.selection.set`/`catalog.create|update|delete` 在 `governance.profile`
+  任何 preset 下都判 `module action is not authorized`（PolicyPrompt 无续接路由）。
+  验收已用 `vivy.yaml` governance rules 逐项 allow 解决；产品决策待 owner：
+  随 DIVA 默认配置模板发这些 allow 规则，或在 agent-vivy 增加 action 审批续接。
+- [ ] **VIVYSHUTDOWN-DEADLINE-UTIL：VivyShutdown 在后台 utility 生成中偶发 deadline** `sev-P3`
+  DN-P 验收中一次实测：auto-title utility 生成在飞时 VivyShutdown 返回
+  `context deadline exceeded`；空闲时 shutdown 即时。driver 已加 settle+retry，
+  后续全量复跑未复现。若产品化遇到需 agent-vivy 侧调查。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
