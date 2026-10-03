@@ -96,6 +96,16 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   present driver retries as a product fix.
 - [ ] **UI-COPY-CLEANUP** P3 — Sweep unused DN-3 locale keys and misleading
   controls only alongside touched flows; no unrelated broad frontend rewrite.
+- [ ] **LAPUTA-ACTMEM-EMPTY-RENDER** P3 — Upstream defect found by DN-4A:
+  laputa `evolution.ActmemDocument.Render()` emits `entries:` null for an
+  empty entry map, producing an ACTMEM head that its own reader rejects.
+  Deferred per DN-4A handoff (no ownership change); fix upstream in laputa.
+- [ ] **GARDEN-CONSOLE-DIST** P3 — laputa `garden/console` fails
+  `go build ./...` until the console UI build produces `dist/`; recorded in
+  `closure-build-inputs.json` captured_failures, not patched.
+- [ ] **DN-0S-PENDING-GATES** P2 — Windows WebView2 IPC/audio roundtrip,
+  Credential Manager store path, MSVC+cmake aws-lc-sys link, and
+  authenticated SiliconFlow/MiniMax calls remain pending; DN-6/DN-8C own.
 
 ## Recorded delivery and cancellation
 
