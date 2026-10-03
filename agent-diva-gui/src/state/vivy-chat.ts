@@ -126,6 +126,38 @@ export class VivyChatController {
     for (const listener of this.invalidators) listener(reason)
   }
 
+  /** DN-6C: run ids admitted to the fresh-primary-reply lane. Only runs
+   * this UI started (turn/start, session/edit) or that session/work still
+   * reports as the live run enter the set — replayed history runs and
+   * child runs never do, so auto-read can never fire for them. Entries
+   * drop on any terminal event, invalidation, or successful notify. */
+  private readonly freshPrimaryRuns = new Set<string>()
+  private readonly childRunIds = new Set<string>()
+  private readonly freshReplyListeners = new Set<(reply: { runId: string; text: string }) => void>()
+
+  onFreshReply(listener: (reply: { runId: string; text: string }) => void): () => void {
+    this.freshReplyListeners.add(listener)
+    return () => this.freshReplyListeners.delete(listener)
+  }
+
+  private markFreshPrimary(runId: string | null | undefined): void {
+    if (runId) this.freshPrimaryRuns.add(runId)
+  }
+
+  private handleRunTerminal(runId: string, type: string): void {
+    if (type !== 'run.completed' && type !== 'run.failed' && type !== 'run.cancelled') return
+    this.childRunIds.delete(runId)
+    const wasFresh = this.freshPrimaryRuns.delete(runId)
+    if (!wasFresh || type !== 'run.completed') return
+    if (this.runOwner.get(runId) !== this.currentSessionId) return
+    // A needsResync run's event chain is incomplete — a replayed terminal
+    // event from a resync can never count as a fresh reply.
+    if (this.projection.run(runId)?.needsResync) return
+    const text = this.projection.answer(runId)
+    if (!text) return
+    for (const listener of this.freshReplyListeners) listener({ runId, text })
+  }
+
   currentSessionId: string | null = null
   private activeRunId: string | null = null
   private ready = false
@@ -169,6 +201,15 @@ export class VivyChatController {
         if (runEvent && typeof runEvent.seq === 'number') {
           this.traj.applyRunEvent(runEvent as RunEvent)
           this.scheduleTrajectoryRefetch()
+        }
+        // DN-6C: a child run tags itself via child.started.parent_run_id —
+        // its terminal event never enters the fresh-primary lane.
+        if (type === 'child.started' && runEvent?.run_id) {
+          const parentId = (runEvent.payload as { parent_run_id?: unknown } | undefined)?.parent_run_id
+          if (typeof parentId === 'string' && parentId) this.childRunIds.add(runEvent.run_id)
+        }
+        if (runEvent?.run_id && !this.childRunIds.has(runEvent.run_id)) {
+          this.handleRunTerminal(runEvent.run_id, type)
         }
         if (type === 'context.compacted') {
           this.compaction = { at: Date.now() }
@@ -511,6 +552,7 @@ export class VivyChatController {
       const started = await this.client.turnStart(sessionId, content, attachments)
       this.activeRunId = started.run_id
       this.runOwner.set(started.run_id, sessionId)
+      this.markFreshPrimary(started.run_id)
       // A failed subscribe leaves the run without events; resync covers it.
       void this.client.runSubscribe(started.run_id).catch(() => undefined)
       this.emit()
@@ -588,6 +630,7 @@ export class VivyChatController {
       if (work?.current_run_id) {
         this.activeRunId = work.current_run_id
         this.runOwner.set(work.current_run_id, sessionId)
+        this.markFreshPrimary(work.current_run_id)
         void this.client.runSubscribe(work.current_run_id)
       }
       if (!landed && !work?.current_run_id) {
@@ -678,6 +721,7 @@ export class VivyChatController {
       const edited = await this.client.sessionEdit(sessionId, origin.id, origin.content)
       this.activeRunId = edited.run_id
       this.runOwner.set(edited.run_id, sessionId)
+      this.markFreshPrimary(edited.run_id)
       void this.client.runSubscribe(edited.run_id).catch(() => undefined)
       await this.refreshSessionView(sessionId)
       this.emit()
@@ -694,6 +738,7 @@ export class VivyChatController {
       const started = await this.client.turnStart(sessionId, origin.content, attachments)
       this.activeRunId = started.run_id
       this.runOwner.set(started.run_id, sessionId)
+      this.markFreshPrimary(started.run_id)
       void this.client.runSubscribe(started.run_id).catch(() => undefined)
       this.emit()
     } catch (e) {
@@ -875,7 +920,10 @@ export class VivyChatController {
       ])
       this.workBySession.set(sessionId, work)
       if (todos) this.todosBySession.set(sessionId, todos.todos.map(todoToPlanRuntime))
-      if (work.current_run_id) this.runOwner.set(work.current_run_id, sessionId)
+      if (work.current_run_id) {
+        this.runOwner.set(work.current_run_id, sessionId)
+        this.markFreshPrimary(work.current_run_id)
+      }
       this.emit()
     })().finally(() => {
       this.workRefresh.delete(sessionId)

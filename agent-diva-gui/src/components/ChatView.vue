@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Mic, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, ClipboardList, ImagePlus, X } from '@lucide/vue';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Mic, Volume2, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, ClipboardList, ImagePlus, X } from '@lucide/vue';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -30,6 +30,7 @@ import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
 import type { PlanRuntimeState } from '../api/planning';
 import type { BudgetConfigShape } from '../types/toolsConfig';
 import { budgetShapeFromCompaction, loadCompactionConfig } from '../api/settings';
+import { initVoice, voiceController } from '../state/voice';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
@@ -78,6 +79,8 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
+  /** Owning run for run-folded segments (DN-6C replay fencing). */
+  runId?: string;
 }
 
 export interface CompactionStatus {
@@ -258,7 +261,56 @@ watch(permissionMode, (mode) => {
   localStorage.setItem(PERMISSION_MODE_KEY, mode);
 });
 // const showAttachments = ref(false); // 预留
-const isRecording = ref(false);
+// DN-6C: voice state lives in the singleton controller — recording,
+// transcribing and speaking read through it; the mic click toggles record
+// and the same button interrupts playback while speaking.
+const voice = voiceController();
+const isRecording = computed(() => voice.state.value === 'recording');
+const isTranscribing = computed(() => voice.state.value === 'transcribing');
+const isSpeaking = computed(() => voice.state.value === 'speaking' || voice.playing.value);
+const micTitle = computed(() => {
+  if (isRecording.value) return t('chat.voiceTranscribing');
+  if (isTranscribing.value) return t('chat.voiceTranscribing');
+  if (isSpeaking.value) return t('chat.voiceSpeaking');
+  return t('chat.voice');
+});
+const handleMicClick = () => {
+  if (isRecording.value) {
+    void voice.stopRecording();
+  } else if (isTranscribing.value) {
+    voice.cancelRecording();
+  } else if (isSpeaking.value) {
+    voice.stopSpeaking();
+  } else {
+    void voice.startRecording();
+  }
+};
+// STT lands as an editable draft only — never an emit, never a send.
+watch(
+  () => voice.draft.value,
+  (draft) => {
+    if (!draft) return;
+    input.value = draft;
+    voice.draft.value = '';
+    nextTick(() => {
+      adjustInputHeight();
+      inputRef.value?.focus();
+    });
+  },
+);
+watch(
+  () => voice.error.value,
+  (err) => {
+    if (!err) return;
+    attachmentError.value =
+      err === 'voice_busy'
+        ? t('chat.voiceErrorBusy')
+        : err === 'native speech is unavailable in this context'
+          ? t('chat.voiceErrorUnavailable')
+          : t('chat.voiceErrorGeneric', { message: err });
+    voice.error.value = null;
+  },
+);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
 
@@ -407,6 +459,9 @@ onMounted(() => {
   window.addEventListener('resize', updateNarrowLayout);
   scrollToBottom();
   inputRef.value?.focus();
+  // DN-6C: init reads the native window generation + advances it via
+  // context_set; browser mode stays inert through native_unavailable.
+  void initVoice();
 });
 
 onBeforeUnmount(() => {
@@ -1113,6 +1168,15 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               >
                 <RefreshCw :size="12" />
               </button>
+              <!-- 朗读按钮（助手消息，DN-6C replay — 身份随 run 栅栏） -->
+              <button
+                v-if="msg.role === 'agent' && msg.content"
+                class="msg-action-btn"
+                :title="t('chat.voiceReplay')"
+                @click="void voice.requestReply(msg.runId, msg.content)"
+              >
+                <Volume2 :size="12" />
+              </button>
               <!-- 回退按钮（disabled占位） -->
               <button
                 class="msg-action-btn"
@@ -1430,11 +1494,13 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
             <button
               class="input-action-btn"
-              :class="{ recording: isRecording }"
-              :title="t('chat.voice')"
-              @click="isRecording = !isRecording"
+              :class="{ recording: isRecording, speaking: isSpeaking }"
+              :title="micTitle"
+              @click="handleMicClick"
             >
-              <Mic :size="18" />
+              <Loader2 v-if="isTranscribing" :size="18" class="spin" />
+              <Square v-else-if="isSpeaking" :size="18" />
+              <Mic v-else :size="18" />
             </button>
 
             <!-- 图片附件按钮 -->

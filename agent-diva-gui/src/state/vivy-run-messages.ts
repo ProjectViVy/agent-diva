@@ -242,6 +242,10 @@ export function reduceRunMessages(events: RunEvent[], opts: { now?: () => number
         break
     }
   }
+  // Every message in a segment belongs to the folded run — tag it so
+  // consumers (DN-6C replay) can fence back to the originating run.
+  const runId = events[0]?.run_id
+  if (runId) for (const m of messages) m.runId = runId
   return messages
 }
 

@@ -1369,6 +1369,29 @@
     box-shadow: 0 6px 16px var(--danger-bg);
   }
 
+  /* DN-6C mic button states: recording pulses, speaking shows interrupt. */
+  .input-action-btn.recording {
+    color: var(--danger);
+    animation: voice-recording-pulse 1.4s ease-in-out infinite;
+  }
+
+  .input-action-btn.speaking {
+    color: var(--accent);
+  }
+
+  @keyframes voice-recording-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  .spin {
+    animation: voice-spin 1s linear infinite;
+  }
+
+  @keyframes voice-spin {
+    to { transform: rotate(360deg); }
+  }
+
   /* 底部操作栏 */
   .chat-input-footer {
     display: flex;

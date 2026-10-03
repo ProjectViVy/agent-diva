@@ -12,6 +12,7 @@ import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
+import SpeechSettings from './settings/SpeechSettings.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
 import MasksSettings from './settings/MasksSettings.vue'
 import { useI18n } from 'vue-i18n';
@@ -67,7 +68,8 @@ type SettingsSubview =
   | 'theme'
   | 'sandbox'
   | 'compaction'
-  | 'masks';
+  | 'masks'
+  | 'voice';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -104,6 +106,7 @@ const pageTitle = computed(() => {
     sandbox: t('dashboard.sandbox'),
     compaction: t('dashboard.compaction'),
     masks: t('dashboard.masks'),
+    voice: t('dashboard.voice'),
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -195,6 +198,9 @@ watch(
             </div>
             <div v-else-if="currentView === 'sandbox'">
               <SandboxSettingsSection />
+            </div>
+            <div v-else-if="currentView === 'voice'">
+              <SpeechSettings />
             </div>
             <div v-else-if="currentView === 'compaction'">
               <CompactionSettings
