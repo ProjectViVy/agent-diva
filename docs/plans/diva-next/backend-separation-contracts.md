@@ -548,6 +548,38 @@ to passed.
   promptable tool fails the run at suspension admission (fail-closed,
   misleading "could not be paused" message).
 
+## C2-8. Scoped audit matrix (DN-M-C)
+
+Audited against the same immutable candidate as C2-7 (sha256 `d0155e26`,
+generation `331bb89d`). Every row carries evidence or an explicit residual;
+pending items pass to DN-8C, never masquerade as parity.
+
+| Req | Scoped engineering result | Evidence / residual |
+| --- | --- | --- |
+| R-1 | pass | every row below carries evidence or a visible TODOLIST residual; cancelled import recorded separately from any importer (none exists) |
+| R-2 | pass | `check_vivy_backend_boundary.py` clean: one Agent, no legacy crates in the 485-package graph, no sidecars, invoke handlers = 13-command native allowlist; only `desktop-host.ts` calls literal invokes/listen; no HTTP daemon |
+| R-3 | pass (recovery residual) | image/permission/regenerate/goal wired (DN-2A/B); candidate turn/approval/cancel proven (C2-7); recovery-after-unknown-outcome not re-driven on the candidate — owner scope |
+| R-4 | pass with findings | cognitive bundle armed, 20 actions reachable; findings OBS09-F2 (Bootstrap capture seam unwired — fresh-session first turn fails), F3 (per-process action grants) |
+| R-5 | engineering pass | DN-6A/B/C contracts landed; reachable speech code sits outside the dormant exemption and is scanned; live-provider/Windows gates pending → DN-8C |
+| R-6 | pending | install/package/Windows x64 gate unchanged → DN-8C |
+| R-7 | pass | no legacy-home importer exists anywhere in gui or shell; OBS-09 exercised a home born on the candidate; DN-7 stays cancelled |
+| R-8 | pass | deterministic pack→inspect→stage path with hash pins; `check_legacy_frontend_calls.mjs --selftest` 9/9 incl. seam-internal unlisted-command deny; boundary gate clean |
+| R-9 | pass with failure | C2-7 matrix: 12 passed / 1 failed (runtime log sink absent, OBS09-F1) / 3 pending (child, window reopen, rotation) |
+
+Dependency audit (tool + advisory-date recorded, no vulnerability-free claim):
+`cargo audit` 0.22.2, RustSec db 1290 advisories — src-tauri lock (539 deps):
+0 vulnerabilities, 2 warnings: `proc-macro-error` unmaintained
+(RUSTSEC-2024-0370) and `glib` 0.18.5 unsound `VariantStrIter`
+(RUSTSEC-2024-0429, Linux-GTK-only path, absent from the Windows target);
+vivy-bridge lock (28 deps): clean. `pnpm audit --prod` (npm feed): 8
+advisories — postcss ×2, nanoid ×2, pnpm ×3, markdown-it ×1, all
+transitive/dev-facing; dispositions kept open in TODOLIST
+OLD-SECURITY-ISSUE-DISPOSITION rather than patched blindly.
+
+DN-8C inherits: OBS09-F1/F2/F3/F4 dispositions, R9 pending rows (child run,
+window hide/reopen, log rotation), live-provider speech gates, recovery
+re-drive, GUI candidate exercise, Windows x64 packaging, owner acceptance.
+
 ---
 
 ## Historical DN-C1 amendment and initial inventory

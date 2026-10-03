@@ -11,7 +11,7 @@
     "specification_version": "vivy.module/v1",
     "abi_version": 1,
     "modules": 21,
-    "cognitive_actions": 19
+    "cognitive_actions": 20
   },
   "source_pins": {
     "agent_diva": "2916ba146a84 (feat/dn-closure-wave1)",

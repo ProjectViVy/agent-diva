@@ -155,7 +155,10 @@ if (process.argv.includes('--selftest')) {
   let fired = 0, expected = 0
   for (const name of readdirSync(fx)) {
     if (!name.endsWith('.ts')) continue
-    const v = scanFile(join(fx, name), `scripts/ci/fixtures/legacy-calls/${name}`)
+    // seam-* fixtures scan under the frozen INVOKE_FILE path so the
+    // inside-seam deny rule (non-allowlisted literal commands) is exercised.
+    const rel = name.startsWith('seam-') ? INVOKE_FILE : `scripts/ci/fixtures/legacy-calls/${name}`
+    const v = scanFile(join(fx, name), rel)
     expected++
     if (v.length > 0) fired++
     else violations.push(`selftest fixture ${name} produced NO violation`)
