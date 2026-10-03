@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Activity, Zap } from '@lucide/vue';
+import { Activity, ScrollText, Zap } from '@lucide/vue';
 import TokenStatsPanel from './console/TokenStatsPanel.vue';
 import TrajectoryPanel from './console/TrajectoryPanel.vue';
+import DiagnosticsPanel from './console/DiagnosticsPanel.vue';
 import { vivyChat } from '../state/chat-instance';
 import type { TrajectoryView } from '../state/vivy-trajectory';
 
@@ -60,6 +61,20 @@ onBeforeUnmount(() => {
 
         <TrajectoryPanel :view="trajView" :error="trajError" :connection-state="connState" />
       </section>
+
+      <section class="console-section">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="console-section-icon console-section-icon--green">
+            <ScrollText :size="20" />
+          </div>
+          <div>
+            <h3 class="console-section-title">{{ t('diagnostics.title', 'Diagnostics') }}</h3>
+            <p class="console-section-desc">{{ t('diagnostics.desc', 'Bounded runtime and GUI log tails') }}</p>
+          </div>
+        </div>
+
+        <DiagnosticsPanel />
+      </section>
     </div>
   </div>
 </template>
@@ -91,6 +106,11 @@ onBeforeUnmount(() => {
 .console-section-icon--blue {
   background: rgba(59, 130, 246, 0.15);
   color: #3b82f6;
+}
+
+.console-section-icon--green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
 .console-section-title {

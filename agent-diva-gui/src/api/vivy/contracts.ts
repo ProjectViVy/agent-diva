@@ -957,6 +957,58 @@ export interface ChildListResult {
   children: ChildRunRef[]
 }
 
+/** `diagnostics/logs` read row — stable file-offset identity
+ * `<date>:<offset>`; `truncated` marks a record clipped to 8 KiB. */
+export interface DiagnosticRecord {
+  id: string
+  at?: number
+  level?: string
+  component?: string
+  message: string
+  fields?: Record<string, unknown>
+  truncated: boolean
+}
+
+/** `diagnostics/logs` input — `source` is required
+ * (`runtime` | `gui`); `date` is strict YYYY-MM-DD; `after` is a
+ * server-issued cursor; `limit` caps at 500. */
+export interface DiagnosticQuery {
+  source: string
+  date?: string
+  after?: string
+  limit?: number
+  level?: string
+  query?: string
+}
+
+/** `diagnostics/logs` page — `gap` marks rotation/retention cursor
+ * invalidation; `has_more` + `next_cursor` resume a bound-stopped scan. */
+export interface DiagnosticPage {
+  source: string
+  records: DiagnosticRecord[] | null
+  next_cursor?: string
+  gap: boolean
+  has_more: boolean
+}
+
+/** `diagnostics/gui/append` record — no `id`/`truncated` (server-owned). */
+export interface GuiLogRecord {
+  at?: number
+  level?: string
+  component?: string
+  message: string
+  fields?: Record<string, unknown>
+}
+
+export interface GuiLogBatch {
+  records: GuiLogRecord[]
+}
+
+/** Accepted-prefix ack; a failed write is an error, never a silent ack. */
+export interface GuiLogAck {
+  accepted: number
+}
+
 /** `settings/get` sandbox section: effective values + config fallbacks. */
 export interface VivySandboxResult {
   /** cautious | smart | trusted | custom */

@@ -55,6 +55,10 @@ import {
   type VivyTokenUsageSnapshot,
   type TrajectorySession,
   type ChildListResult,
+  type DiagnosticQuery,
+  type DiagnosticPage,
+  type GuiLogBatch,
+  type GuiLogAck,
   type VivyToolsResult,
 } from './contracts'
 import type { VivyTransport } from './transport'
@@ -342,6 +346,12 @@ export class VivyClient {
   }
   childList(parentRunId: string): Promise<ChildListResult> {
     return this.call<ChildListResult>('child/list', { parent_run_id: parentRunId })
+  }
+  diagnosticsLogs(query: DiagnosticQuery): Promise<DiagnosticPage> {
+    return this.call<DiagnosticPage>('diagnostics/logs', query)
+  }
+  diagnosticsGuiAppend(batch: GuiLogBatch): Promise<GuiLogAck> {
+    return this.call<GuiLogAck>('diagnostics/gui/append', batch, { mutation: true })
   }
 
   cronStop(id: string): Promise<{ stopped: boolean }> {
