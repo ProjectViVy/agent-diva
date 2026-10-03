@@ -1,0 +1,392 @@
+{
+  "module_id": "vivy/diva-cognitive",
+  "owner": "vivy/diva-cognitive",
+  "peer": "face/embedded",
+  "action_count": 20,
+  "actions": [
+    {
+      "action_id": "diva.cognitive.status",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "error": {
+          "code": "capability_unavailable",
+          "message": "operation capability_unavailable",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.persona.initialize",
+      "input": {
+        "initialization": {
+          "identity": "i",
+          "redline": "x",
+          "relationship": "r",
+          "user": "u",
+          "world": "w"
+        },
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "document": {
+            "kind": "identity",
+            "file_name": "",
+            "exists": false,
+            "valid": false,
+            "content": "",
+            "revision": 0,
+            "content_hash": "",
+            "updated_at": null,
+            "pending_count": 0
+          },
+          "changed": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.persona.read",
+      "input": {
+        "kind": "identity",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "kind": "identity",
+          "file_name": "IDENTITY.MD",
+          "exists": true,
+          "valid": true,
+          "content": "i",
+          "revision": 1,
+          "content_hash": "sha256:de7d1b721a1e0632b7cf04edf5032c8ecffa9f9a08492152b926f1a5a7e765d7",
+          "updated_at": "2026-10-03T15:48:05.761020754Z",
+          "pending_count": 0
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.persona.save",
+      "input": {
+        "base_revision": 0,
+        "content": "c",
+        "kind": "identity",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "failed",
+        "value": null,
+        "error": {
+          "code": "persona_revision_conflict",
+          "message": "persona write failed",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.persona.reviews.list",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "items": []
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.persona.review.decide",
+      "input": {
+        "decision": "reject",
+        "review_id": "r",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "failed",
+        "value": null,
+        "error": {
+          "code": "internal",
+          "message": "operation internal",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.frozen.read",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "state": "not_captured"
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.actmem.read",
+      "input": {
+        "max_chars": 120,
+        "sections": [
+          "pulse"
+        ],
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "changed": false,
+          "revision": 0,
+          "entries": []
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.actmem.work.patch",
+      "input": {
+        "patch": {
+          "base_revision": 0,
+          "changes": []
+        },
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "changed": false,
+          "revision": 1,
+          "entries": null
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.actmem.owner.read",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "failed",
+        "value": {
+          "revision": 0,
+          "updated_at": "0001-01-01T00:00:00Z",
+          "pulse": "",
+          "recap": "",
+          "work": "",
+          "markdown": "",
+          "unclassified": false
+        },
+        "error": {
+          "code": "actmem_format_error",
+          "message": "ACTMEM read failed",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.actmem.owner.save",
+      "input": {
+        "base_revision": 0,
+        "markdown": "m",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "failed",
+        "value": {
+          "revision": 0,
+          "updated_at": "0001-01-01T00:00:00Z",
+          "pulse": "",
+          "recap": "",
+          "work": "",
+          "markdown": "",
+          "unclassified": false
+        },
+        "error": {
+          "code": "actmem_rejected",
+          "message": "laputa/actmem: actmem_format_error: entries must be a mapping",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.memory.search",
+      "input": {
+        "budget_chars": 100,
+        "limit": 1,
+        "query": "q",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "value": {
+          "items": null,
+          "next_cursor": ""
+        },
+        "error": {
+          "code": "unavailable",
+          "message": "selected memory backend unavailable: backend_unavailable: no memory backend for scope",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.memory.expand",
+      "input": {
+        "budget_chars": 100,
+        "card_id": "c",
+        "expected_revision": 0,
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "value": {
+          "items": null,
+          "truncated": false
+        },
+        "error": {
+          "code": "unavailable",
+          "message": "selected memory backend unavailable: backend_unavailable: no memory backend for scope",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.memory.mutate",
+      "input": {
+        "mutation": {
+          "body": "{}",
+          "operation": "put"
+        },
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "failed",
+        "value": {
+          "operation_id": "",
+          "payload_digest": "",
+          "status": "",
+          "target_ref": "",
+          "revision": 0,
+          "error_code": "",
+          "canonical_status": "",
+          "index_status": ""
+        },
+        "error": {
+          "code": "invalid_request",
+          "message": "invalid_schema: mutation record_id required",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.memory.receipt",
+      "input": {
+        "operation_id": "op",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "value": {
+          "operation_id": "",
+          "payload_digest": "",
+          "status": "",
+          "target_ref": "",
+          "revision": 0,
+          "error_code": "",
+          "canonical_status": "",
+          "index_status": ""
+        },
+        "error": {
+          "code": "unavailable",
+          "message": "selected memory backend unavailable: backend_unavailable: no memory backend for scope",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.policy.get",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "error": {
+          "code": "capability_unavailable",
+          "message": "operation capability_unavailable",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.policy.set",
+      "input": {
+        "base_revision": 0,
+        "enabled": true,
+        "min_interval_ms": 1,
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "error": {
+          "code": "capability_unavailable",
+          "message": "operation capability_unavailable",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.trigger",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "error": {
+          "code": "capability_unavailable",
+          "message": "operation capability_unavailable",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.cancel",
+      "input": {
+        "run_id": "r",
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "unavailable",
+        "error": {
+          "code": "capability_unavailable",
+          "message": "operation capability_unavailable",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "action_id": "diva.cognitive.results.list",
+      "input": {
+        "session_id": "sess_fdbf2c369b58ef34"
+      },
+      "result": {
+        "status": "ok",
+        "value": {
+          "items": []
+        }
+      }
+    }
+  ],
+  "denials": [
+    {
+      "action_id": "diva.cognitive.status",
+      "input": {
+        "session_id": "sess_nonexistent"
+      },
+      "error": "rpc error -32009: module action is not authorized"
+    }
+  ]
+}

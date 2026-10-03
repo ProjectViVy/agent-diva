@@ -129,7 +129,7 @@ provider identity and its current terminal event/field policies. Domain sink
 is armed before observer recovery; wake callback can attach afterward. Never
 append an unsealed observer subscription as an app-only exception.
 
-## C2-3. Proposed cognitive action inventory
+## C2-3. Cognitive action inventory (captured)
 
 Owner/module ID: `vivy/diva-cognitive`. Names below are intentionally separate
 from ordinary `vivy.memory.*` BML actions. Existing `module.action.invoke`
@@ -139,6 +139,22 @@ Each includes `session_id` for target correlation, verified against the
 transport-bound session and trusted registry; it grants no authority.
 Before Persona setup the host can create a setup session without starting a
 primary run, so the UI can obtain an authenticated bound control context.
+
+**Captured.** `fixtures/closure-cognitive-actions.json` records every one of
+the 20 action IDs invoked through the trusted `face/embedded` peer over
+`module.action.invoke` (VIVY `internal/app/cognitive_origin_test.go`
+re-emits it; identical handler/peer/token wiring to `App.DialControl`).
+Observed outcomes: `persona.initialize`, `persona.read`, `persona.reviews.list`,
+`frozen.read`, `actmem.read`, `actmem.work.patch`, `results.list` return
+`{status:"ok"}`; stale-revision `persona.save` and unknown-record
+`actmem.owner.*`/`memory.mutate`/`review.decide` return `{status:"failed"}`;
+backend-less `memory.*` and control-armed actions (`status`, `policy.*`,
+`trigger`, `cancel` without an attached runtime) return `{status:"unavailable"}`
+with retryable capability codes. A forged `session_id` (nonexistent or foreign
+to the bound session) is denied at transport `code -32009`, never reaching
+the dispatcher; the same holds before any `session/create` binds the peer.
+`{status:"unknown"}` is not reachable in this capture profile (no memory
+backend, no deadline injection) and remains a typed outcome, not a fixture.
 
 All these actions are human control-plane actions, never model tools. Agent
 reads/mutations use separately compiled scoped tools and the same domain
