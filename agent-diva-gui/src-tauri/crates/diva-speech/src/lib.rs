@@ -7,6 +7,10 @@
 pub mod assets;
 pub mod config;
 pub mod credentials;
+pub mod providers;
+pub mod registry;
+pub mod service;
+pub mod wav;
 
 use serde::Serialize;
 
@@ -16,13 +20,18 @@ use serde::Serialize;
 pub enum SpeechCode {
     NativeUnavailable,
     NotConfigured,
+    DeviceUnavailable,
     CredentialUnavailable,
+    ProviderError,
     InvalidAudio,
     UnsupportedReference,
     AssetNotFound,
+    StaleContext,
     InvalidInput,
     RevisionConflict,
     Busy,
+    Cancelled,
+    Timeout,
 }
 
 /// Error body surfaced to the frontend — SpeechFailure shape. Secrets,
@@ -56,6 +65,11 @@ impl SpeechError {
 
     pub fn provider(mut self, provider: config::SpeechProvider) -> Self {
         self.provider = Some(provider);
+        self
+    }
+
+    pub fn http_status(mut self, status: u16) -> Self {
+        self.http_status = Some(status);
         self
     }
 }

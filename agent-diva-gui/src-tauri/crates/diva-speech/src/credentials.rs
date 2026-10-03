@@ -98,6 +98,15 @@ impl<S: SecretStore> CredentialStore<S> {
             .map_err(|e| e.provider(provider))
     }
 
+    /// Secret readback for the request lane only — the key material is
+    /// handed to the provider adapter at admission and never logged,
+    /// echoed, or persisted outside the OS store.
+    pub(crate) fn get_secret(&self, provider: SpeechProvider) -> SpeechResult<Option<String>> {
+        self.store
+            .get(SERVICE, &slot(provider))
+            .map_err(|e| e.provider(provider))
+    }
+
     /// Presence-only readback for `speech_config_get` — no key material.
     pub fn presence(&self, provider: SpeechProvider) -> CredentialPresence {
         match self.store.get(SERVICE, &slot(provider)) {

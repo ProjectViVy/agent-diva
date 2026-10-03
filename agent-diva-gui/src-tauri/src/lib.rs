@@ -168,6 +168,10 @@ pub fn run() {
             speech::commands::voice_asset_list,
             speech::commands::voice_asset_read,
             speech::commands::voice_asset_delete,
+            speech::commands::speech_context_set,
+            speech::commands::speech_transcribe,
+            speech::commands::speech_synthesize,
+            speech::commands::speech_cancel,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -177,10 +181,18 @@ pub fn run() {
                 eprintln!("fatal: speech dir: {e}");
                 std::process::exit(1);
             });
-            let speech_state = speech::SpeechState::open(speech_dir).unwrap_or_else(|e| {
-                eprintln!("fatal: speech state: {e}");
-                std::process::exit(1);
-            });
+            // DN-6B: `speech:diagnostic` is emitted to the main window
+            // only — a nonexistent or closed main window just drops it.
+            let diag_handle = handle.clone();
+            let diagnostic_sink =
+                std::sync::Arc::new(move |d: diva_speech::service::Diagnostic| {
+                    let _ = diag_handle.emit_to("main", "speech:diagnostic", d);
+                });
+            let speech_state = speech::SpeechState::open(speech_dir, diagnostic_sink)
+                .unwrap_or_else(|e| {
+                    eprintln!("fatal: speech state: {e}");
+                    std::process::exit(1);
+                });
             app.manage(Arc::new(speech_state));
             let emit_handle = handle.clone();
             let sink = move |event: BridgeEvent| {
@@ -227,12 +239,28 @@ pub fn run() {
                         CloseAction::Hide => {
                             api.prevent_close();
                             let _ = window.hide();
+                            // Speech invalidation precedes resource close:
+                            // hide drops the context and aborts requests.
+                            if let Some(s) =
+                                window.app_handle().try_state::<Arc<speech::SpeechState>>()
+                            {
+                                s.service.invalidate_context();
+                            }
                         }
                         CloseAction::Quit => {
                             api.prevent_close();
                             let app = window.app_handle().clone();
                             let shell = shell.clone();
                             std::thread::spawn(move || {
+                                // Speech teardown first: reject admission,
+                                // abort + join in-flight provider requests
+                                // inside the grace bound before host close.
+                                if let Some(s) = app.try_state::<Arc<speech::SpeechState>>() {
+                                    let service = s.service.clone();
+                                    let _ = tauri::async_runtime::block_on(async move {
+                                        service.shutdown(std::time::Duration::from_secs(5)).await
+                                    });
+                                }
                                 shell.shutdown();
                                 app.exit(0);
                             });

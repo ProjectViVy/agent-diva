@@ -8,7 +8,7 @@ Verifies the new product's backend boundary at three layers:
 2. Loader/resource manifest (tauri.conf.json): resources are exactly the
    vivy-runtime staging dir; no externalBin sidecars; the only invoke
    handler list is the vivy_call passthrough plus the DN-6A native
-   speech surface (checked in src/lib.rs).
+   speech surface (DN-6A state + DN-6B request lane; checked in src/lib.rs).
 3. Packaged contents (.deb / --bundle dir): one shell binary, the sealed
    vivy-runtime set, no legacy executables, no extra domain databases.
 
@@ -158,7 +158,8 @@ def check_manifest(src_tauri: Path) -> None:
     lib = (src_tauri / "src" / "lib.rs").read_text()
     m = re.search(r"generate_handler!\[([^\]]+)\]", lib, re.S)
     handlers = [h.strip() for h in m.group(1).split(",") if h.strip()] if m else []
-    # Native allowlist: vivy_call passthrough + DN-6A speech state commands.
+    # Native allowlist: vivy_call passthrough + DN-6A speech state +
+    # DN-6B speech request-lane commands.
     # DN-6B adds transcribe/synthesize/cancel/context_set; any other
     # handler is a boundary violation.
     allowed = [
@@ -171,6 +172,10 @@ def check_manifest(src_tauri: Path) -> None:
         "speech::commands::voice_asset_list",
         "speech::commands::voice_asset_read",
         "speech::commands::voice_asset_delete",
+        "speech::commands::speech_context_set",
+        "speech::commands::speech_transcribe",
+        "speech::commands::speech_synthesize",
+        "speech::commands::speech_cancel",
     ]
     if sorted(handlers) != sorted(allowed):
         fail(f"invoke handlers {handlers} != allowed native surface {allowed}")

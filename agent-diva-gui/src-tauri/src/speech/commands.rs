@@ -7,9 +7,10 @@ use std::sync::Arc;
 use diva_speech::assets::{AssetDescriptor, AssetImportMeta};
 use diva_speech::config::{SpeechPreferences, SPEECH_SCHEMA};
 use diva_speech::credentials::CredentialPresence;
+use diva_speech::registry::SpeechContext;
+use diva_speech::service::{SpeechIdentity, TranscribeReply};
 use diva_speech::{SpeechCode, SpeechError, SpeechResult};
-use serde::Serialize;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::{InvokeBody, InvokeError, Request, Response};
 use tauri::{Manager, State, WebviewWindow};
 
@@ -53,7 +54,7 @@ pub struct SpeechConfigReadback {
     pub revision: u64,
     pub preferences: SpeechPreferences,
     pub credential_state: CredentialStateReadback,
-    pub window_context: Option<Value>,
+    pub window_context: Option<SpeechContext>,
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -64,7 +65,8 @@ pub async fn speech_config_get(
     (|| {
         require_main_window(&window)?;
         let config = state
-            .config
+            .service
+            .config()
             .lock()
             .map_err(|_| SpeechError::new(SpeechCode::InvalidInput, "config lock poisoned"))?;
         Ok(SpeechConfigReadback {
@@ -74,16 +76,18 @@ pub async fn speech_config_get(
             credential_state: CredentialStateReadback {
                 siliconflow: presence_str(
                     state
-                        .credentials
+                        .service
+                        .credentials()
                         .presence(diva_speech::config::SpeechProvider::SiliconFlow),
                 ),
                 minimax: presence_str(
                     state
-                        .credentials
+                        .service
+                        .credentials()
                         .presence(diva_speech::config::SpeechProvider::MiniMax),
                 ),
             },
-            window_context: state.window_context.lock().ok().and_then(|g| g.clone()),
+            window_context: state.service.context(),
         })
     })()
     .map_err(InvokeError::from)
@@ -99,10 +103,11 @@ pub async fn speech_config_update(
     (|| {
         require_main_window(&window)?;
         let mut config = state
-            .config
+            .service
+            .config()
             .lock()
             .map_err(|_| SpeechError::new(SpeechCode::InvalidInput, "config lock poisoned"))?;
-        let asset_exists = |id: &str| state.assets.exists(id);
+        let asset_exists = |id: &str| state.service.assets().exists(id);
         config.update(base_revision, preferences, &asset_exists)?;
         Ok(SpeechConfigReadback {
             schema: SPEECH_SCHEMA,
@@ -111,16 +116,18 @@ pub async fn speech_config_update(
             credential_state: CredentialStateReadback {
                 siliconflow: presence_str(
                     state
-                        .credentials
+                        .service
+                        .credentials()
                         .presence(diva_speech::config::SpeechProvider::SiliconFlow),
                 ),
                 minimax: presence_str(
                     state
-                        .credentials
+                        .service
+                        .credentials()
                         .presence(diva_speech::config::SpeechProvider::MiniMax),
                 ),
             },
-            window_context: state.window_context.lock().ok().and_then(|g| g.clone()),
+            window_context: state.service.context(),
         })
     })()
     .map_err(InvokeError::from)
@@ -150,7 +157,7 @@ pub async fn speech_credential_set(
                 "key must be 1..=4096 bytes",
             ));
         }
-        state.credentials.set(p, &key)?;
+        state.service.credentials().set(p, &key)?;
         Ok(CredentialMutationResult {
             provider: p.as_str(),
             present: true,
@@ -168,7 +175,7 @@ pub async fn speech_credential_delete(
     (|| {
         require_main_window(&window)?;
         let p = diva_speech::config::SpeechProvider::parse(&provider)?;
-        state.credentials.delete(p)?;
+        state.service.credentials().delete(p)?;
         Ok(CredentialMutationResult {
             provider: p.as_str(),
             present: false,
@@ -215,7 +222,7 @@ pub async fn voice_asset_import(
                 ))
             }
         };
-        state.assets.import(bytes, &meta)
+        state.service.assets().import(bytes, &meta)
     })()
     .map_err(InvokeError::from)
 }
@@ -227,7 +234,7 @@ pub async fn voice_asset_list(
 ) -> Result<Vec<AssetDescriptor>, InvokeError> {
     (|| {
         require_main_window(&window)?;
-        state.assets.list()
+        state.service.assets().list()
     })()
     .map_err(InvokeError::from)
 }
@@ -243,7 +250,7 @@ pub async fn voice_asset_read(
 ) -> Result<Response, InvokeError> {
     (|| {
         require_main_window(&window)?;
-        let lease = state.assets.read(&asset_id)?;
+        let lease = state.service.assets().read(&asset_id)?;
         Ok(Response::new(lease.bytes.clone()))
     })()
     .map_err(InvokeError::from)
@@ -259,7 +266,140 @@ pub async fn voice_asset_delete(
 ) -> Result<String, InvokeError> {
     (|| {
         require_main_window(&window)?;
-        state.assets.delete(&asset_id)
+        state.service.assets().delete(&asset_id)
+    })()
+    .map_err(InvokeError::from)
+}
+
+// ---------- DN-6B request lane ----------
+
+/// `speech_context_set` readback — the echoed trusted tuple.
+#[derive(Debug, Serialize)]
+pub struct SpeechContextReadback {
+    pub session_id: String,
+    pub generation: u64,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn speech_context_set(
+    state: State<'_, Arc<SpeechState>>,
+    window: WebviewWindow,
+    session_id: String,
+    generation: u64,
+) -> Result<SpeechContextReadback, InvokeError> {
+    (|| {
+        require_main_window(&window)?;
+        let ctx = state.service.set_context(&session_id, generation)?;
+        Ok(SpeechContextReadback {
+            session_id: ctx.session_id,
+            generation: ctx.generation,
+        })
+    })()
+    .map_err(InvokeError::from)
+}
+
+/// `x-diva-speech-meta` header for `speech_transcribe`:
+/// `{identity, mime_type}` — bounded at 2 KiB, IPC metadata only, never
+/// provider Authorization.
+const SPEECH_META_MAX_BYTES: usize = 2048;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TranscribeMeta {
+    identity: SpeechIdentity,
+    mime_type: String,
+}
+
+/// `speech_transcribe`: Raw WAV body + metadata header → JSON reply.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn speech_transcribe(
+    state: State<'_, Arc<SpeechState>>,
+    window: WebviewWindow,
+    request: Request<'_>,
+) -> Result<TranscribeReply, InvokeError> {
+    require_main_window(&window).map_err(InvokeError::from)?;
+    let meta_header = request.headers().get("x-diva-speech-meta").ok_or_else(|| {
+        InvokeError::from(SpeechError::new(
+            SpeechCode::InvalidInput,
+            "missing x-diva-speech-meta header",
+        ))
+    })?;
+    let meta_text = meta_header.to_str().map_err(|_| {
+        InvokeError::from(SpeechError::new(
+            SpeechCode::InvalidInput,
+            "x-diva-speech-meta is not UTF-8",
+        ))
+    })?;
+    if meta_text.len() > SPEECH_META_MAX_BYTES {
+        return Err(InvokeError::from(SpeechError::new(
+            SpeechCode::InvalidInput,
+            "x-diva-speech-meta exceeds 2 KiB",
+        )));
+    }
+    let meta: TranscribeMeta = serde_json::from_str(meta_text).map_err(|e| {
+        InvokeError::from(SpeechError::new(
+            SpeechCode::InvalidInput,
+            format!("bad x-diva-speech-meta: {e}"),
+        ))
+    })?;
+    if meta.mime_type != "audio/wav" {
+        return Err(InvokeError::from(SpeechError::new(
+            SpeechCode::InvalidAudio,
+            "x-diva-speech-meta mime_type must be audio/wav",
+        )));
+    }
+    let bytes = match request.body() {
+        InvokeBody::Raw(b) => b.clone(),
+        InvokeBody::Json(_) => {
+            return Err(InvokeError::from(SpeechError::new(
+                SpeechCode::InvalidInput,
+                "speech_transcribe requires a raw request body",
+            )))
+        }
+    };
+    state
+        .service
+        .transcribe(meta.identity, bytes)
+        .await
+        .map_err(InvokeError::from)
+}
+
+/// `speech_synthesize`: `{identity, text}` → raw MP3 via ipc::Response.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn speech_synthesize(
+    state: State<'_, Arc<SpeechState>>,
+    window: WebviewWindow,
+    identity: SpeechIdentity,
+    text: String,
+) -> Result<Response, InvokeError> {
+    require_main_window(&window).map_err(InvokeError::from)?;
+    let mp3 = state
+        .service
+        .synthesize(identity, text)
+        .await
+        .map_err(InvokeError::from)?;
+    Ok(Response::new(mp3))
+}
+
+/// `speech_cancel`: `{request_id}` → `{request_id, status}`.
+#[derive(Debug, Serialize)]
+pub struct SpeechCancelReply {
+    pub request_id: String,
+    pub status: &'static str,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn speech_cancel(
+    state: State<'_, Arc<SpeechState>>,
+    window: WebviewWindow,
+    request_id: String,
+) -> Result<SpeechCancelReply, InvokeError> {
+    (|| {
+        require_main_window(&window)?;
+        Ok(SpeechCancelReply {
+            status: state.service.cancel(&request_id),
+            request_id,
+        })
     })()
     .map_err(InvokeError::from)
 }

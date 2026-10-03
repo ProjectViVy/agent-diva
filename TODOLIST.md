@@ -106,6 +106,11 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
 - [ ] **DN-0S-PENDING-GATES** P2 — Windows WebView2 IPC/audio roundtrip,
   Credential Manager store path, MSVC+cmake aws-lc-sys link, and
   authenticated SiliconFlow/MiniMax calls remain pending; DN-6/DN-8C own.
+- [ ] **DN-6B-SHELL-COMPILE** P2 — `src/speech/{mod,commands}.rs` +
+  `src/lib.rs` wiring (4 new commands, diagnostic sink, Hide/Quit hooks)
+  is rustfmt-clean but compile-unverified: tauri cannot link
+  GTK/WebKitGTK on this VM. `just shell-test` / `just shell-clippy`
+  whole-workspace runs remain a DN-8C obligation.
 
 ## Recorded delivery and cancellation
 

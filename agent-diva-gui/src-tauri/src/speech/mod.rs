@@ -1,30 +1,28 @@
-//! DN-6A native speech state: the shell owns one `SpeechState` for the
+//! DN-6A/6B native speech state: the shell owns one `SpeechState` for the
 //! process lifetime. All logic lives in the tauri-free `diva-speech`
-//! crate; this module only resolves the on-disk location and wires the
-//! commands.
+//! crate; this module only resolves the on-disk location, wires the
+//! `speech:diagnostic` sink and the commands.
 
 pub mod commands;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::Arc;
 
-use diva_speech::assets::AssetStore;
-use diva_speech::config::ConfigStore;
-use diva_speech::credentials::CredentialStore;
+use diva_speech::service::{Diagnostic, SpeechService};
 use diva_speech::{SpeechCode, SpeechError, SpeechResult};
 
-/// Process speech state: config CAS store, OS credential handle, and the
-/// bounded voice-asset store. `window_context` is reserved for DN-6B's
-/// `speech_context_set`; config reads report it as `null` until then.
+/// Process speech state: the service owns the config CAS store, the OS
+/// credential handle, the bounded voice-asset store and the DN-6B
+/// admission/cancel registry.
 pub struct SpeechState {
-    pub config: Mutex<ConfigStore>,
-    pub credentials: CredentialStore,
-    pub assets: AssetStore,
-    pub window_context: Mutex<Option<serde_json::Value>>,
+    pub service: SpeechService,
 }
 
 impl SpeechState {
-    pub fn open(dir: PathBuf) -> SpeechResult<Self> {
+    pub fn open(
+        dir: PathBuf,
+        diagnostic: Arc<dyn Fn(Diagnostic) + Send + Sync>,
+    ) -> SpeechResult<Self> {
         std::fs::create_dir_all(&dir).map_err(|e| {
             SpeechError::new(
                 SpeechCode::InvalidInput,
@@ -32,10 +30,7 @@ impl SpeechState {
             )
         })?;
         Ok(Self {
-            config: Mutex::new(ConfigStore::open(dir.join("speech.json"))?),
-            credentials: CredentialStore::os(),
-            assets: AssetStore::open(dir.join("assets"))?,
-            window_context: Mutex::new(None),
+            service: SpeechService::open(dir, diagnostic)?,
         })
     }
 }
