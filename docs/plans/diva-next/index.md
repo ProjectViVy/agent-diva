@@ -31,7 +31,7 @@ New source/recipe/library pins require fresh package acceptance evidence.
 | Stage | Outcome | Immediate prerequisites | State / evidence |
 | --- | --- | --- | --- |
 | [DN-W](DN-W.md) | Old Rust business backend retired | — | Historical implementation delivered in #14; never restore as fallback |
-| [DN-0](DN-0.md) | Inventory and contract freeze | — | Initial ledger delivered; DN-0C/S/P plans now supplied, capture/probes pending |
+| [DN-0](DN-0.md) | Inventory and contract freeze | — | DN-0C capture delivered (fixture + C2-1 mappings); DN-0S/P probes pending |
 | [DN-L](DN-L.md) | Sealed shared library | DN-0 frozen contracts | Initial implementation merged in VIVY #28; new cognitive/OBS composition and repack pending; Windows evidence pending |
 | [DN-5](DN-5.md) | Tauri/FFI lifetime | DN-L artifact/header | Initial implementation merged in DIVA #16; Linux evidence recorded; online native services are a narrow DN-6 extension |
 | [DN-1](DN-1.md) | Typed client and state projection | DN-5 transport | Implemented on initial pin; extend only for newly frozen contracts |
@@ -117,7 +117,7 @@ residual disposition is audited by DN-M-C. DN-7 remains cancelled.
 
 | Story / Plan | Epic / requirements | Outcome | Immediate predecessor and exact output | State | Evidence / blocker |
 | --- | --- | --- | --- | --- | --- |
-| [DN-0C](closure/DN-0C.md) | DN-0 / R-2, R-3, R-9 | Capture current chat and console contracts | — | Ready | Concrete independent plan; execution not started |
+| [DN-0C](closure/DN-0C.md) | DN-0 / R-2, R-3, R-9 | Capture current chat and console contracts | — | Done | `fixtures/closure-chat-obs.json` + C2-1 source-pinned semantics table; `go test ./internal/app ./internal/rpc` green at pin; owner acceptance pending |
 | [DN-0S](closure/DN-0S.md) | DN-0 / R-5, R-6, R-8 | Probe native speech seams and provider mappings | — | Ready | Concrete independent plan; execution not started |
 | [DN-0P](closure/DN-0P.md) | DN-0 / R-2, R-6, R-8 | Inventory pinned build and native dependency closure | — | Ready | Concrete independent plan; execution not started |
 | [DN-4A](closure/DN-4A.md) | DN-4 / R-2, R-4 | Expose one owned Garden domain and selected backend | — | Ready | Concrete independent plan; execution not started |

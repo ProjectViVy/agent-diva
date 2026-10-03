@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/v0.3.0-execution-plans/**, TODOLIST.md, LOCK.md, Git refs for docs/diva-next-detailed-architecture-20261003`
-- Owner: `Codex`
-- Session/Task: `DN-C2 executable Story planning package; documentation only`
-- Branch/Worktree: `docs/diva-next-detailed-architecture-20261003 / /workspace/scratch/2a94a1beed0f/agent-diva`
-- Started At: `2026-10-03T09:55:32Z`
-- Last Heartbeat: `2026-10-03T10:27:02Z`
-- Expires At: `—`
+- Lock State: `HELD`
+- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
+- Owner: `Devin`
+- Session/Task: `DIVA Next closure wave 1 execution (DN-0C fixture + C2-1 mappings delivered; DN-4A/0P/0S pending); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
+- Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
+- Started At: `2026-10-03T12:40:00Z`
+- Last Heartbeat: `2026-10-03T12:40:00Z`
+- Expires At: `2026-10-04T00:00:00Z`
 
 ## Lock Rules
 
@@ -24,6 +24,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DIVA Next closure wave 1` — **HELD** by `Devin` (session
+  `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
+  heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
+  Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
+  C2-1 source mappings delivered. No PR/merge/release per execution contract.
 
 - `DN-C2-P1 executable Story package` — **RELEASED 2026-10-03T10:27:02Z** by `Codex`;
   branch `docs/diva-next-detailed-architecture-20261003`; 20 Plans, 9 waves,

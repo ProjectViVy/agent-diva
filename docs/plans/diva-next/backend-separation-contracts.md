@@ -81,6 +81,36 @@ at originating user message and normal `turn/start` with original images.
 Busy/failed/ambiguous stages reconcile; never silently convert image to text.
 A rewind succeeded/send failed state retains retryable draft and is visible.
 
+### DN-0C closure capture — source-pinned semantics
+
+Fixture: `fixtures/closure-chat-obs.json` (`capture_kind: source_host`,
+`vivy_pin: 1db8b55ce905ee4a212326e7801e0958e7f4376a`, `protocol_version:
+vivy.rpc.v1`, transport `App.DialControl` net.Pipe JSONL). Producer:
+`internal/app/dn0_capture_test.go::TestDN0CaptureClosureTranscript`, run with
+`DN0_CAPTURE_OUT=<path> go test ./internal/app -run
+TestDN0CaptureClosureTranscript -count=1 -v`. Historical
+`fixtures/core-rpc.json` and `TestDN0CaptureCoreTranscript` are unchanged.
+
+Exact symbols/fields confirmed by the capture (VIVY pin above):
+
+| Contract | Source symbol | Frozen semantics |
+| --- | --- | --- |
+| Error codes | `internal/rpc/protocol.go` + `control.go:48` | `InvalidParams=-32602`, `InternalError=-32603`, `CodeNotFound=-32004`, `CodeConflict=-32009` |
+| Permission preset | `controlHandler.setSessionPermission` | enum error `InvalidParams` "preset must be cautious, smart, or trusted" |
+| Attachment decode | `startTurn` param decode | bad base64 → `InvalidParams` "attachment N: data must be base64-encoded image bytes"; unsupported MIME → `InvalidParams` "unsupported type … (png, jpeg, gif, webp)" |
+| Busy session | `Service.rejectBusySession` | `session/rewind` during an active run → `CodeConflict` "runtime: session has an active run" |
+| Inclusive rewind | `Service.RewindSession` | `RewindResult{cutoff_message_id,remaining_count}`; cutoff message itself is removed (`remaining_count` counts strictly-before rows); missing message → `CodeNotFound` "cutoff message is not in the live session view" |
+| Atomic edit | `editSession`/`Service.EditSession` | `{run_id,status:"accepted"}` starts one run and replaces the message suffix; missing message_id → `InternalError` (-32603), not a typed not-found |
+| Cancel/reopen | `cancelRun` | `run/cancel` on a terminal run → `CodeNotFound` "run is not active in this process"; there is no reopen method — a fresh `turn/start` after a cancelled run is the admitted reopen path |
+| Fork | `forkSession` | `{session_id,fork_point_message_id,copied_count}`; copy is inclusive of the fork-point message |
+| Trajectory | `sessionTrajectory`/`Service.SessionTrajectory` | unknown session_id → empty projection (v2, `records:[]`), not an error; `watermarks` values are safe-integer run sequences |
+| Token stats | `statsTokens` | `projection_version:2` plus `coverage{active_calls,completed_with_usage,hidden_retries_observable,…}`; invalid `period` → `InvalidParams` "invalid period: <value>" |
+| Diagnostics | `diagnostics/gui/append` + `diagnostics/logs` | >500-record batch → `InvalidParams` "batch exceeds 500 records"; unknown `source` → `InvalidParams`; appended GUI records round-trip with server-assigned `id`,`at` |
+| Child reads | `child/list`,`child/get` | `child/list{parent_run_id}` → `{children:[]}`; missing run → `CodeNotFound` "child run not found" |
+| Plan→Goal | `plan/decide` action `start_goal` | decide *resumes* the interrupted plan run with a reviewer tool-result, then the Goal driver admits a separate round run; only the admitted run may `report_goal` ("only the admitted Goal run may report Goal state") |
+| Attachment replay | `session/messages` | `attachments[].data_url = data:<mime>;base64,<bytes>`; bytes are byte-identical to the sent payload; `include_attachment_data` defaults true |
+| Work projection | `session/work/get` | `{version, plan{active,review_status,submission_id,origin_run_id}, goal{phase,…}}`; `plan/enter`→`turn/start`→`plan/decide`→`plan/leave` is the full captured lifecycle |
+
 ## C2-2. Proposed same-owner library ports
 
 Reuse `agentapi.Open` and public DTOs. Exact new Go API names are proposals,

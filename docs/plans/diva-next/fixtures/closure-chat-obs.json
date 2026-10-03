@@ -1,0 +1,4460 @@
+{
+  "assertions": {
+    "attachment/bad-base64": {
+      "detail": "rpc error -32602: attachment 1: data must be base64-encoded image bytes",
+      "ok": true
+    },
+    "attachment/bytes-roundtrip": {
+      "detail": "stored data_url must equal the sent bytes",
+      "ok": true
+    },
+    "attachment/unsupported-mime": {
+      "detail": "rpc error -32602: attachment 1: unsupported type \"application/pdf\" (png, jpeg, gif and webp images only)",
+      "ok": true
+    },
+    "cancel/terminal-not-found": {
+      "detail": "rpc error -32004: run is not active in this process",
+      "ok": true
+    },
+    "children/list-shape": {
+      "detail": "map[children:[]]",
+      "ok": true
+    },
+    "children/not-found": {
+      "detail": "rpc error -32004: child run not found",
+      "ok": true
+    },
+    "diagnostics/gui-roundtrip": {
+      "detail": "[map[at:1.791030687631e+12 component:dn0 id:2026-10-03:0 level:info message:closure capture probe truncated:false]]",
+      "ok": true
+    },
+    "diagnostics/invalid-source": {
+      "detail": "rpc error -32602: logging: invalid diagnostic query: unknown source \"bogus\"",
+      "ok": true
+    },
+    "diagnostics/oversized-batch": {
+      "detail": "rpc error -32602: logging: invalid diagnostic query: batch exceeds 500 records",
+      "ok": true
+    },
+    "edit/missing-message": {
+      "detail": "rpc error -32603: internal error",
+      "ok": true
+    },
+    "edit/run-admitted": {
+      "detail": "map[run_id:run_cc81db5c8c56fcee status:accepted]",
+      "ok": true
+    },
+    "edit/suffix-replaced": {
+      "detail": "[map[attachments:[map[data_url:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg== mime_type:image/png name:dot.png size:70]] content:image echo created_at:1.791030687451e+12 id:msg_ea6fbe3e95840c08 role:user run_id:run_51d3a1f6d0418b40] map[content: created_at:1.791030687472e+12 id:msgp_run_51d3a1f6d0418b40_00000000000000000004_1 role:assistant run_id:run_51d3a1f6d0418b40 tool_call_id:pg-call-1 tool_name:write_note] map[content:edited echo created_at:1.791030687634e+12 id:msg_a7a01480933da5a3 role:user run_id:run_cc81db5c8c56fcee] map[content:edited answer created_at:1.791030687646e+12 id:msgp_run_cc81db5c8c56fcee_00000000000000000005_0 role:assistant run_id:run_cc81db5c8c56fcee]]",
+      "ok": true
+    },
+    "fork/inclusive-copy": {
+      "detail": "map[copied_count:1 fork_point_message_id:msg_ea6fbe3e95840c08 session_id:sess_426a5575c6ad1426]",
+      "ok": true
+    },
+    "permission/preset-enum": {
+      "detail": "rpc error -32602: preset must be cautious, smart, or trusted",
+      "ok": true
+    },
+    "rewind/busy-conflict": {
+      "detail": "rpc error -32009: runtime: session has an active run",
+      "ok": true
+    },
+    "rewind/inclusive-cutoff": {
+      "detail": "map[cutoff_message_id:msg_ea6fbe3e95840c08 remaining_count:0]",
+      "ok": true
+    },
+    "rewind/invalid-cutoff": {
+      "detail": "rpc error -32004: runtime: cutoff message is not in the live session view",
+      "ok": true
+    },
+    "rewind/view-empty": {
+      "detail": "[]",
+      "ok": true
+    },
+    "stats/coverage-shape": {
+      "detail": "map[active_calls:0 completed_with_usage:0 hidden_retries_observable:false legacy_usage_records:0 missing_usage_calls:3 observed_calls:3 partial_usage_calls:0 reported_calls:0 state:partial unknown_buckets:[]]",
+      "ok": true
+    },
+    "stats/invalid-period": {
+      "detail": "rpc error -32602: invalid period: bogus",
+      "ok": true
+    },
+    "stats/projection-v2": {
+      "detail": "2",
+      "ok": true
+    },
+    "trajectory/projection-v2": {
+      "detail": "2",
+      "ok": true
+    },
+    "trajectory/safe-watermarks": {
+      "detail": "map[run_51d3a1f6d0418b40:9 run_b5fb12aaed830e3f:19]",
+      "ok": true
+    },
+    "trajectory/unknown-session-empty": {
+      "detail": "err=\u003cnil\u003e records=0",
+      "ok": true
+    },
+    "turn/malformed-params": {
+      "detail": "rpc error -32602: session_id is required",
+      "ok": true
+    }
+  },
+  "capture_kind": "source_host",
+  "captured_at": "2026-10-03T12:31:27Z",
+  "notifications": null,
+  "protocol_version": "vivy.rpc.v1",
+  "provider_fixture": "newPlanGoalScriptServer (scripted DeepSeek/OpenAI SSE wire; write_note gated by prompt policy)",
+  "requests_responses": [
+    {
+      "seq": 1,
+      "direction": "request",
+      "method": "initialize"
+    },
+    {
+      "seq": 2,
+      "direction": "response",
+      "method": "initialize",
+      "result": {
+        "capabilities": [
+          "session",
+          "session.todos",
+          "session.todo.update",
+          "session.set_permission",
+          "turn",
+          "run",
+          "approval",
+          "question",
+          "review",
+          "run.subscribe",
+          "background.recover",
+          "background.list",
+          "background.attach",
+          "child.start",
+          "child.get",
+          "child.list",
+          "child.wait",
+          "child.cancel",
+          "child.followup",
+          "child.interrupt",
+          "child.history",
+          "child.mailbox",
+          "generations.list",
+          "generations.get",
+          "generations.create",
+          "evals.list",
+          "evals.record",
+          "evals.start",
+          "promotions.list",
+          "promotions.promote",
+          "generations.reject",
+          "species.inspect",
+          "settings.get",
+          "settings.update",
+          "settings.locale",
+          "settings.providers",
+          "settings.providers.upsert",
+          "settings.providers.delete",
+          "settings.providers.refresh",
+          "settings.model.select",
+          "settings.mcp",
+          "settings.mcp.upsert",
+          "settings.mcp.delete",
+          "settings.mcp.probe",
+          "settings.mcp.resources",
+          "settings.mcp.read",
+          "settings.mcp.resources.list",
+          "settings.mcp.resources.read",
+          "mcp.resources.list",
+          "mcp.resources.read",
+          "channel.inspect",
+          "channel.get",
+          "channel.update",
+          "channel.deliveries.list",
+          "channel.deliveries.redeliver",
+          "session.context",
+          "session.sidebar",
+          "context.compact",
+          "session.rewind",
+          "session.fork",
+          "session.edit",
+          "cron.list",
+          "cron.create",
+          "cron.update",
+          "cron.delete",
+          "cron.trigger",
+          "cron.stop",
+          "stats.tokens",
+          "skills.list",
+          "skills.get",
+          "workspace.browse",
+          "session.set_workspace",
+          "trajectory",
+          "trajectory.v2",
+          "diagnostics.logs",
+          "diagnostics.gui_append",
+          "session.work",
+          "session.work.subscribe",
+          "goal",
+          "plan",
+          "plan.get",
+          "commands.list",
+          "commands.expand",
+          "skills.revisions",
+          "history/search",
+          "history/read",
+          "history/trace",
+          "history/capabilities",
+          "history/sessions",
+          "reference/preview",
+          "reference/get",
+          "deliverables/list",
+          "deliverables/get",
+          "deliverables/read",
+          "deliverables/close"
+        ],
+        "code_mode_available": true,
+        "protocol_version": "vivy.rpc.v1"
+      }
+    },
+    {
+      "seq": 3,
+      "direction": "request",
+      "method": "session/create",
+      "params": {
+        "title": "dn0-closure"
+      }
+    },
+    {
+      "seq": 4,
+      "direction": "response",
+      "method": "session/create",
+      "result": {
+        "id": "sess_ad4142f525d3871f",
+        "title": "dn0-closure",
+        "created_at": 1791030687447,
+        "updated_at": 1791030687447,
+        "sandbox_mode": "workspace_write",
+        "approval_policy": "ask",
+        "permission_preset": "smart",
+        "workspace_path": ""
+      }
+    },
+    {
+      "seq": 5,
+      "direction": "request",
+      "method": "session/set_permission",
+      "params": {
+        "preset": "smart",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 6,
+      "direction": "response",
+      "method": "session/set_permission",
+      "result": {
+        "id": "sess_ad4142f525d3871f",
+        "title": "dn0-closure",
+        "created_at": 1791030687447,
+        "updated_at": 1791030687448,
+        "sandbox_mode": "workspace_write",
+        "approval_policy": "ask",
+        "permission_preset": "smart",
+        "workspace_path": ""
+      }
+    },
+    {
+      "seq": 7,
+      "direction": "request",
+      "method": "session/set_permission",
+      "params": {
+        "preset": "bogus",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 8,
+      "direction": "error",
+      "method": "session/set_permission",
+      "error": {
+        "code": -32602,
+        "message": "preset must be cautious, smart, or trusted"
+      }
+    },
+    {
+      "seq": 9,
+      "direction": "request",
+      "method": "session/set_permission",
+      "params": {
+        "preset": "cautious",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 10,
+      "direction": "response",
+      "method": "session/set_permission",
+      "result": {
+        "id": "sess_ad4142f525d3871f",
+        "title": "dn0-closure",
+        "created_at": 1791030687447,
+        "updated_at": 1791030687450,
+        "sandbox_mode": "read_only",
+        "approval_policy": "ask",
+        "permission_preset": "cautious",
+        "workspace_path": ""
+      }
+    },
+    {
+      "seq": 11,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "attachments": [
+          {
+            "data": "@@@",
+            "mime_type": "image/png"
+          }
+        ],
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "x"
+      }
+    },
+    {
+      "seq": 12,
+      "direction": "error",
+      "method": "turn/start",
+      "error": {
+        "code": -32602,
+        "message": "attachment 1: data must be base64-encoded image bytes"
+      }
+    },
+    {
+      "seq": 13,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "attachments": [
+          {
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            "mime_type": "application/pdf"
+          }
+        ],
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "x"
+      }
+    },
+    {
+      "seq": 14,
+      "direction": "error",
+      "method": "turn/start",
+      "error": {
+        "code": -32602,
+        "message": "attachment 1: unsupported type \"application/pdf\" (png, jpeg, gif and webp images only)"
+      }
+    },
+    {
+      "seq": 15,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "session_id": "",
+        "text": "x"
+      }
+    },
+    {
+      "seq": 16,
+      "direction": "error",
+      "method": "turn/start",
+      "error": {
+        "code": -32602,
+        "message": "session_id is required"
+      }
+    },
+    {
+      "seq": 17,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "attachments": [
+          {
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            "mime_type": "image/png",
+            "name": "dot.png"
+          }
+        ],
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "image echo"
+      }
+    },
+    {
+      "seq": 18,
+      "direction": "response",
+      "method": "turn/start",
+      "result": {
+        "run_id": "run_51d3a1f6d0418b40",
+        "status": "accepted"
+      }
+    },
+    {
+      "seq": 19,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 20,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": []
+      }
+    },
+    {
+      "seq": 21,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 22,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": [
+          {
+            "id": "apr_05bf06197eb48a3f",
+            "run_id": "run_51d3a1f6d0418b40",
+            "tool_call_id": "pg-call-1",
+            "decision": "pending",
+            "expires_at": 1791030987493
+          }
+        ]
+      }
+    },
+    {
+      "seq": 23,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "include_attachment_data": true,
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 24,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_ea6fbe3e95840c08",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "user",
+            "content": "image echo",
+            "attachments": [
+              {
+                "name": "dot.png",
+                "mime_type": "image/png",
+                "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "size": 70
+              }
+            ],
+            "created_at": 1791030687451
+          },
+          {
+            "id": "msgp_run_51d3a1f6d0418b40_00000000000000000004_1",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-1",
+            "created_at": 1791030687472
+          }
+        ]
+      }
+    },
+    {
+      "seq": 25,
+      "direction": "request",
+      "method": "session/rewind",
+      "params": {
+        "message_id": "msg_ea6fbe3e95840c08",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 26,
+      "direction": "error",
+      "method": "session/rewind",
+      "error": {
+        "code": -32009,
+        "message": "runtime: session has an active run"
+      }
+    },
+    {
+      "seq": 27,
+      "direction": "request",
+      "method": "run/cancel",
+      "params": {
+        "run_id": "run_51d3a1f6d0418b40"
+      }
+    },
+    {
+      "seq": 28,
+      "direction": "response",
+      "method": "run/cancel",
+      "result": {
+        "run_id": "run_51d3a1f6d0418b40",
+        "status": "cancelling"
+      }
+    },
+    {
+      "seq": 29,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_51d3a1f6d0418b40"
+      }
+    },
+    {
+      "seq": 30,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_51d3a1f6d0418b40",
+        "session_id": "sess_ad4142f525d3871f",
+        "status": "cancelled",
+        "created_at": 1791030687451
+      }
+    },
+    {
+      "seq": 31,
+      "direction": "request",
+      "method": "run/cancel",
+      "params": {
+        "run_id": "run_51d3a1f6d0418b40"
+      }
+    },
+    {
+      "seq": 32,
+      "direction": "error",
+      "method": "run/cancel",
+      "error": {
+        "code": -32004,
+        "message": "run is not active in this process"
+      }
+    },
+    {
+      "seq": 33,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "second turn"
+      }
+    },
+    {
+      "seq": 34,
+      "direction": "response",
+      "method": "turn/start",
+      "result": {
+        "run_id": "run_b5fb12aaed830e3f",
+        "status": "accepted"
+      }
+    },
+    {
+      "seq": 35,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 36,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": []
+      }
+    },
+    {
+      "seq": 37,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 38,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": [
+          {
+            "id": "apr_b5ea50d5e0738f37",
+            "run_id": "run_b5fb12aaed830e3f",
+            "tool_call_id": "pg-call-2",
+            "decision": "pending",
+            "expires_at": 1791030987550
+          }
+        ]
+      }
+    },
+    {
+      "seq": 39,
+      "direction": "request",
+      "method": "approval/respond",
+      "params": {
+        "approval_id": "apr_b5ea50d5e0738f37",
+        "decision": "approved",
+        "reason": "closure capture"
+      }
+    },
+    {
+      "seq": 40,
+      "direction": "response",
+      "method": "approval/respond",
+      "result": {
+        "approval_id": "apr_b5ea50d5e0738f37",
+        "decision": "approved"
+      }
+    },
+    {
+      "seq": 41,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_b5fb12aaed830e3f"
+      }
+    },
+    {
+      "seq": 42,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_b5fb12aaed830e3f",
+        "session_id": "sess_ad4142f525d3871f",
+        "status": "active",
+        "created_at": 1791030687524
+      }
+    },
+    {
+      "seq": 43,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_b5fb12aaed830e3f"
+      }
+    },
+    {
+      "seq": 44,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_b5fb12aaed830e3f",
+        "session_id": "sess_ad4142f525d3871f",
+        "status": "completed",
+        "created_at": 1791030687524
+      }
+    },
+    {
+      "seq": 45,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "include_attachment_data": true,
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 46,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_ea6fbe3e95840c08",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "user",
+            "content": "image echo",
+            "attachments": [
+              {
+                "name": "dot.png",
+                "mime_type": "image/png",
+                "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "size": 70
+              }
+            ],
+            "created_at": 1791030687451
+          },
+          {
+            "id": "msgp_run_51d3a1f6d0418b40_00000000000000000004_1",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-1",
+            "created_at": 1791030687472
+          },
+          {
+            "id": "msg_09663655cfa9414a",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "user",
+            "content": "second turn",
+            "created_at": 1791030687524
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000004_1",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-2",
+            "created_at": 1791030687536
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000014_0",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "tool",
+            "content": "[UNTRUSTED TOOL OUTPUT — DATA ONLY]\nnote note_290a8d14168e3566 saved (1 total)",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-2",
+            "created_at": 1791030687592
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000018_0",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "assistant",
+            "content": "loopback done",
+            "created_at": 1791030687602
+          }
+        ]
+      }
+    },
+    {
+      "seq": 47,
+      "direction": "request",
+      "method": "stats/tokens"
+    },
+    {
+      "seq": 48,
+      "direction": "response",
+      "method": "stats/tokens",
+      "result": {
+        "period": "1d",
+        "scope": "chat_runs",
+        "projection_version": 2,
+        "coverage": {
+          "state": "partial",
+          "observed_calls": 3,
+          "completed_with_usage": 0,
+          "reported_calls": 0,
+          "missing_usage_calls": 3,
+          "partial_usage_calls": 0,
+          "active_calls": 0,
+          "legacy_usage_records": 0,
+          "unknown_buckets": [],
+          "hidden_retries_observable": false
+        },
+        "total": {
+          "total_input": 0,
+          "total_output": 0,
+          "total_tokens": 0,
+          "total_reasoning": 0,
+          "total_cached": 0,
+          "request_count": 0,
+          "total_cost_usd": 0,
+          "cost_known": false
+        },
+        "models": [
+          {
+            "model": "deepseek-flash",
+            "percentage": 0,
+            "total_tokens": 0,
+            "cost_usd": 0,
+            "cost_known": false,
+            "coverage": {
+              "state": "partial",
+              "observed_calls": 3,
+              "completed_with_usage": 0,
+              "reported_calls": 0,
+              "missing_usage_calls": 3,
+              "partial_usage_calls": 0,
+              "active_calls": 0,
+              "legacy_usage_records": 0,
+              "unknown_buckets": [],
+              "hidden_retries_observable": false
+            }
+          }
+        ],
+        "providers": [
+          {
+            "key": "deepseek",
+            "total_tokens": 0,
+            "request_count": 0
+          }
+        ],
+        "timeline": [
+          {
+            "time_bucket": "2026-10-03T00:00:00Z",
+            "label": "00:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T00:30:00Z",
+            "label": "00:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T01:00:00Z",
+            "label": "01:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T01:30:00Z",
+            "label": "01:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T02:00:00Z",
+            "label": "02:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T02:30:00Z",
+            "label": "02:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T03:00:00Z",
+            "label": "03:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T03:30:00Z",
+            "label": "03:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T04:00:00Z",
+            "label": "04:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T04:30:00Z",
+            "label": "04:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T05:00:00Z",
+            "label": "05:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T05:30:00Z",
+            "label": "05:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T06:00:00Z",
+            "label": "06:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T06:30:00Z",
+            "label": "06:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T07:00:00Z",
+            "label": "07:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T07:30:00Z",
+            "label": "07:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T08:00:00Z",
+            "label": "08:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T08:30:00Z",
+            "label": "08:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T09:00:00Z",
+            "label": "09:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T09:30:00Z",
+            "label": "09:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T10:00:00Z",
+            "label": "10:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T10:30:00Z",
+            "label": "10:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T11:00:00Z",
+            "label": "11:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T11:30:00Z",
+            "label": "11:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T12:00:00Z",
+            "label": "12:00",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          },
+          {
+            "time_bucket": "2026-10-03T12:30:00Z",
+            "label": "12:30",
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0
+          }
+        ],
+        "sessions": [
+          {
+            "id": "sess_ad4142f525d3871f",
+            "title": "dn0-closure",
+            "model": "deepseek-flash",
+            "request_count": 0,
+            "total_input": 0,
+            "total_output": 0,
+            "total_tokens": 0,
+            "cost_usd": 0,
+            "cost_known": false,
+            "coverage": {
+              "state": "partial",
+              "observed_calls": 3,
+              "completed_with_usage": 0,
+              "reported_calls": 0,
+              "missing_usage_calls": 3,
+              "partial_usage_calls": 0,
+              "active_calls": 0,
+              "legacy_usage_records": 0,
+              "unknown_buckets": [],
+              "hidden_retries_observable": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "seq": 49,
+      "direction": "request",
+      "method": "stats/tokens",
+      "params": {
+        "period": "bogus"
+      }
+    },
+    {
+      "seq": 50,
+      "direction": "error",
+      "method": "stats/tokens",
+      "error": {
+        "code": -32602,
+        "message": "invalid period: bogus"
+      }
+    },
+    {
+      "seq": 51,
+      "direction": "request",
+      "method": "trajectory/session",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 52,
+      "direction": "response",
+      "method": "trajectory/session",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "projection_version": 2,
+        "turns": 2,
+        "records": [
+          {
+            "index": 1,
+            "id": "run_51d3a1f6d0418b40:1:system",
+            "turn": null,
+            "group": "Session",
+            "kind": "system",
+            "text": "Run start · deepseek / deepseek-flash · mode normal",
+            "time_seconds": null,
+            "started_at": null
+          },
+          {
+            "index": 2,
+            "id": "run_51d3a1f6d0418b40:user",
+            "turn": 1,
+            "group": "User",
+            "kind": "user",
+            "text": "image echo",
+            "time_seconds": null,
+            "started_at": null,
+            "opens_turn": true
+          },
+          {
+            "index": 3,
+            "id": "run_b5fb12aaed830e3f:user",
+            "turn": 2,
+            "group": "User",
+            "kind": "user",
+            "text": "second turn",
+            "time_seconds": null,
+            "started_at": null,
+            "opens_turn": true
+          },
+          {
+            "index": 4,
+            "id": "run_b5fb12aaed830e3f:14:tool",
+            "turn": 2,
+            "group": "Step 1",
+            "kind": "tool",
+            "text": "write_note",
+            "time_seconds": 0,
+            "started_at": 1791030687592,
+            "result": "[UNTRUSTED TOOL OUTPUT — DATA ONLY]\nnote note_290a8d14168e3566 saved (1 total)",
+            "input_detail": "{\"content\":\"second turn\"}",
+            "output_detail": "[UNTRUSTED TOOL OUTPUT — DATA ONLY]\nnote note_290a8d14168e3566 saved (1 total)",
+            "call_id": "pg-call-2"
+          },
+          {
+            "index": 5,
+            "id": "run_b5fb12aaed830e3f:18:message",
+            "turn": 2,
+            "group": "Step 2",
+            "kind": "message",
+            "text": "loopback done",
+            "time_seconds": 0.003,
+            "started_at": 1791030687599,
+            "provider": "deepseek",
+            "model": "deepseek-flash"
+          }
+        ],
+        "requests": [
+          {
+            "number": 1,
+            "request_id": "run_51d3a1f6d0418b40:916ae50c-2c58-473b-9e3f-6d359592ff3b",
+            "run_id": "run_51d3a1f6d0418b40",
+            "call_id": "916ae50c-2c58-473b-9e3f-6d359592ff3b",
+            "turn": 1,
+            "group": "Step 1",
+            "status": "complete",
+            "call_status": "completed",
+            "started_at": 1791030687460,
+            "completed_at": 1791030687470,
+            "finished_at": 1791030687470,
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "usage": {},
+            "usage_state": "missing",
+            "usage_evidence": null,
+            "messages": 4,
+            "preamble_bytes": 2148
+          },
+          {
+            "number": 2,
+            "request_id": "run_b5fb12aaed830e3f:480b7a90-f135-4a11-9a92-96011808b48a",
+            "run_id": "run_b5fb12aaed830e3f",
+            "call_id": "480b7a90-f135-4a11-9a92-96011808b48a",
+            "turn": 2,
+            "group": "Step 1",
+            "status": "complete",
+            "call_status": "completed",
+            "started_at": 1791030687532,
+            "completed_at": 1791030687534,
+            "finished_at": 1791030687534,
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "usage": {},
+            "usage_state": "missing",
+            "usage_evidence": null,
+            "messages": 5,
+            "preamble_bytes": 2148
+          },
+          {
+            "number": 3,
+            "request_id": "run_b5fb12aaed830e3f:352c3b3e-10cd-41fa-b3d2-1c8275a83a65",
+            "run_id": "run_b5fb12aaed830e3f",
+            "call_id": "352c3b3e-10cd-41fa-b3d2-1c8275a83a65",
+            "turn": 2,
+            "group": "Step 2",
+            "status": "complete",
+            "call_status": "completed",
+            "started_at": 1791030687599,
+            "completed_at": 1791030687601,
+            "finished_at": 1791030687601,
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "usage": {},
+            "usage_state": "missing",
+            "usage_evidence": null,
+            "messages": 7,
+            "preamble_bytes": 2148
+          }
+        ],
+        "run_activity": [
+          {
+            "run_id": "run_51d3a1f6d0418b40",
+            "status": "cancelled",
+            "activity_state": "cancelled"
+          },
+          {
+            "run_id": "run_b5fb12aaed830e3f",
+            "status": "completed",
+            "activity_state": "completed"
+          }
+        ],
+        "watermarks": {
+          "run_51d3a1f6d0418b40": 9,
+          "run_b5fb12aaed830e3f": 19
+        },
+        "has_older_runs": false
+      }
+    },
+    {
+      "seq": 53,
+      "direction": "request",
+      "method": "trajectory/session",
+      "params": {
+        "session_id": "sess_missing"
+      }
+    },
+    {
+      "seq": 54,
+      "direction": "response",
+      "method": "trajectory/session",
+      "result": {
+        "session_id": "sess_missing",
+        "projection_version": 2,
+        "turns": 0,
+        "records": [],
+        "requests": [],
+        "run_activity": [],
+        "watermarks": {},
+        "has_older_runs": false
+      }
+    },
+    {
+      "seq": 55,
+      "direction": "request",
+      "method": "diagnostics/gui/append",
+      "params": {
+        "records": [
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "closure capture probe"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 56,
+      "direction": "response",
+      "method": "diagnostics/gui/append",
+      "result": {
+        "accepted": 1
+      }
+    },
+    {
+      "seq": 57,
+      "direction": "request",
+      "method": "diagnostics/logs",
+      "params": {
+        "source": "gui"
+      }
+    },
+    {
+      "seq": 58,
+      "direction": "response",
+      "method": "diagnostics/logs",
+      "result": {
+        "source": "gui",
+        "records": [
+          {
+            "id": "2026-10-03:0",
+            "at": 1791030687631,
+            "level": "info",
+            "component": "dn0",
+            "message": "closure capture probe",
+            "truncated": false
+          }
+        ],
+        "next_cursor": "2026-10-03.2095586.1791030687630248366.99.99",
+        "gap": false,
+        "has_more": false
+      }
+    },
+    {
+      "seq": 59,
+      "direction": "request",
+      "method": "diagnostics/logs",
+      "params": {
+        "source": "bogus"
+      }
+    },
+    {
+      "seq": 60,
+      "direction": "error",
+      "method": "diagnostics/logs",
+      "error": {
+        "code": -32602,
+        "message": "logging: invalid diagnostic query: unknown source \"bogus\""
+      }
+    },
+    {
+      "seq": 61,
+      "direction": "request",
+      "method": "diagnostics/logs",
+      "params": {
+        "after": "bogus-cursor",
+        "source": "gui"
+      }
+    },
+    {
+      "seq": 62,
+      "direction": "error",
+      "method": "diagnostics/logs",
+      "error": {
+        "code": -32602,
+        "message": "logging: invalid diagnostic query: malformed cursor"
+      }
+    },
+    {
+      "seq": 63,
+      "direction": "request",
+      "method": "diagnostics/gui/append",
+      "params": {
+        "records": [
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-0"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-1"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-2"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-3"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-4"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-5"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-6"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-7"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-8"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-9"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-10"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-11"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-12"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-13"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-14"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-15"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-16"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-17"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-18"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-19"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-20"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-21"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-22"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-23"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-24"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-25"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-26"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-27"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-28"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-29"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-30"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-31"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-32"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-33"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-34"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-35"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-36"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-37"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-38"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-39"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-40"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-41"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-42"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-43"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-44"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-45"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-46"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-47"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-48"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-49"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-50"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-51"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-52"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-53"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-54"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-55"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-56"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-57"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-58"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-59"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-60"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-61"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-62"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-63"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-64"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-65"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-66"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-67"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-68"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-69"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-70"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-71"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-72"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-73"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-74"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-75"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-76"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-77"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-78"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-79"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-80"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-81"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-82"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-83"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-84"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-85"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-86"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-87"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-88"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-89"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-90"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-91"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-92"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-93"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-94"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-95"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-96"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-97"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-98"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-99"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-100"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-101"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-102"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-103"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-104"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-105"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-106"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-107"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-108"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-109"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-110"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-111"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-112"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-113"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-114"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-115"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-116"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-117"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-118"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-119"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-120"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-121"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-122"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-123"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-124"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-125"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-126"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-127"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-128"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-129"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-130"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-131"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-132"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-133"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-134"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-135"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-136"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-137"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-138"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-139"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-140"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-141"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-142"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-143"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-144"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-145"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-146"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-147"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-148"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-149"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-150"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-151"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-152"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-153"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-154"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-155"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-156"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-157"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-158"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-159"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-160"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-161"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-162"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-163"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-164"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-165"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-166"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-167"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-168"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-169"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-170"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-171"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-172"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-173"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-174"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-175"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-176"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-177"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-178"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-179"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-180"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-181"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-182"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-183"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-184"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-185"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-186"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-187"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-188"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-189"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-190"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-191"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-192"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-193"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-194"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-195"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-196"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-197"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-198"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-199"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-200"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-201"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-202"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-203"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-204"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-205"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-206"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-207"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-208"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-209"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-210"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-211"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-212"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-213"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-214"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-215"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-216"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-217"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-218"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-219"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-220"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-221"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-222"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-223"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-224"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-225"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-226"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-227"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-228"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-229"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-230"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-231"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-232"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-233"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-234"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-235"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-236"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-237"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-238"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-239"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-240"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-241"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-242"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-243"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-244"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-245"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-246"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-247"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-248"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-249"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-250"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-251"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-252"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-253"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-254"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-255"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-256"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-257"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-258"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-259"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-260"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-261"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-262"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-263"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-264"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-265"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-266"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-267"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-268"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-269"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-270"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-271"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-272"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-273"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-274"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-275"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-276"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-277"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-278"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-279"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-280"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-281"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-282"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-283"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-284"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-285"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-286"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-287"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-288"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-289"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-290"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-291"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-292"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-293"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-294"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-295"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-296"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-297"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-298"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-299"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-300"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-301"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-302"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-303"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-304"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-305"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-306"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-307"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-308"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-309"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-310"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-311"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-312"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-313"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-314"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-315"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-316"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-317"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-318"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-319"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-320"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-321"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-322"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-323"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-324"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-325"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-326"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-327"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-328"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-329"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-330"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-331"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-332"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-333"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-334"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-335"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-336"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-337"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-338"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-339"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-340"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-341"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-342"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-343"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-344"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-345"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-346"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-347"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-348"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-349"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-350"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-351"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-352"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-353"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-354"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-355"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-356"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-357"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-358"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-359"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-360"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-361"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-362"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-363"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-364"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-365"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-366"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-367"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-368"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-369"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-370"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-371"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-372"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-373"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-374"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-375"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-376"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-377"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-378"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-379"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-380"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-381"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-382"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-383"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-384"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-385"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-386"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-387"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-388"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-389"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-390"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-391"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-392"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-393"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-394"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-395"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-396"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-397"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-398"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-399"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-400"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-401"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-402"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-403"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-404"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-405"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-406"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-407"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-408"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-409"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-410"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-411"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-412"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-413"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-414"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-415"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-416"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-417"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-418"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-419"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-420"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-421"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-422"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-423"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-424"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-425"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-426"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-427"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-428"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-429"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-430"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-431"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-432"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-433"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-434"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-435"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-436"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-437"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-438"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-439"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-440"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-441"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-442"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-443"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-444"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-445"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-446"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-447"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-448"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-449"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-450"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-451"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-452"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-453"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-454"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-455"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-456"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-457"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-458"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-459"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-460"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-461"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-462"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-463"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-464"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-465"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-466"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-467"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-468"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-469"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-470"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-471"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-472"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-473"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-474"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-475"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-476"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-477"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-478"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-479"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-480"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-481"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-482"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-483"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-484"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-485"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-486"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-487"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-488"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-489"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-490"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-491"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-492"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-493"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-494"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-495"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-496"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-497"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-498"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-499"
+          },
+          {
+            "component": "dn0",
+            "level": "info",
+            "message": "overflow-500"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 64,
+      "direction": "error",
+      "method": "diagnostics/gui/append",
+      "error": {
+        "code": -32602,
+        "message": "logging: invalid diagnostic query: batch exceeds 500 records"
+      }
+    },
+    {
+      "seq": 65,
+      "direction": "request",
+      "method": "diagnostics/logs",
+      "params": {
+        "limit": 1,
+        "source": "runtime"
+      }
+    },
+    {
+      "seq": 66,
+      "direction": "response",
+      "method": "diagnostics/logs",
+      "result": {
+        "source": "runtime",
+        "records": null,
+        "gap": false,
+        "has_more": false
+      }
+    },
+    {
+      "seq": 67,
+      "direction": "request",
+      "method": "child/list",
+      "params": {
+        "parent_run_id": "run_b5fb12aaed830e3f"
+      }
+    },
+    {
+      "seq": 68,
+      "direction": "response",
+      "method": "child/list",
+      "result": {
+        "children": []
+      }
+    },
+    {
+      "seq": 69,
+      "direction": "request",
+      "method": "child/get",
+      "params": {
+        "run_id": "run_missing"
+      }
+    },
+    {
+      "seq": 70,
+      "direction": "error",
+      "method": "child/get",
+      "error": {
+        "code": -32004,
+        "message": "child run not found"
+      }
+    },
+    {
+      "seq": 71,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "include_attachment_data": true,
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 72,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_ea6fbe3e95840c08",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "user",
+            "content": "image echo",
+            "attachments": [
+              {
+                "name": "dot.png",
+                "mime_type": "image/png",
+                "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "size": 70
+              }
+            ],
+            "created_at": 1791030687451
+          },
+          {
+            "id": "msgp_run_51d3a1f6d0418b40_00000000000000000004_1",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-1",
+            "created_at": 1791030687472
+          },
+          {
+            "id": "msg_09663655cfa9414a",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "user",
+            "content": "second turn",
+            "created_at": 1791030687524
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000004_1",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-2",
+            "created_at": 1791030687536
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000014_0",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "tool",
+            "content": "[UNTRUSTED TOOL OUTPUT — DATA ONLY]\nnote note_290a8d14168e3566 saved (1 total)",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-2",
+            "created_at": 1791030687592
+          },
+          {
+            "id": "msgp_run_b5fb12aaed830e3f_00000000000000000018_0",
+            "run_id": "run_b5fb12aaed830e3f",
+            "role": "assistant",
+            "content": "loopback done",
+            "created_at": 1791030687602
+          }
+        ]
+      }
+    },
+    {
+      "seq": 73,
+      "direction": "request",
+      "method": "session/edit",
+      "params": {
+        "message_id": "msg_09663655cfa9414a",
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "edited echo"
+      }
+    },
+    {
+      "seq": 74,
+      "direction": "response",
+      "method": "session/edit",
+      "result": {
+        "run_id": "run_cc81db5c8c56fcee",
+        "status": "accepted"
+      }
+    },
+    {
+      "seq": 75,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_cc81db5c8c56fcee"
+      }
+    },
+    {
+      "seq": 76,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_cc81db5c8c56fcee",
+        "session_id": "sess_ad4142f525d3871f",
+        "status": "active",
+        "created_at": 1791030687634
+      }
+    },
+    {
+      "seq": 77,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_cc81db5c8c56fcee"
+      }
+    },
+    {
+      "seq": 78,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_cc81db5c8c56fcee",
+        "session_id": "sess_ad4142f525d3871f",
+        "status": "completed",
+        "created_at": 1791030687634
+      }
+    },
+    {
+      "seq": 79,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "include_attachment_data": true,
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 80,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_ea6fbe3e95840c08",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "user",
+            "content": "image echo",
+            "attachments": [
+              {
+                "name": "dot.png",
+                "mime_type": "image/png",
+                "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "size": 70
+              }
+            ],
+            "created_at": 1791030687451
+          },
+          {
+            "id": "msgp_run_51d3a1f6d0418b40_00000000000000000004_1",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "pg-call-1",
+            "created_at": 1791030687472
+          },
+          {
+            "id": "msg_a7a01480933da5a3",
+            "run_id": "run_cc81db5c8c56fcee",
+            "role": "user",
+            "content": "edited echo",
+            "created_at": 1791030687634
+          },
+          {
+            "id": "msgp_run_cc81db5c8c56fcee_00000000000000000005_0",
+            "run_id": "run_cc81db5c8c56fcee",
+            "role": "assistant",
+            "content": "edited answer",
+            "created_at": 1791030687646
+          }
+        ]
+      }
+    },
+    {
+      "seq": 81,
+      "direction": "request",
+      "method": "session/edit",
+      "params": {
+        "message_id": "msg_missing",
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "x"
+      }
+    },
+    {
+      "seq": 82,
+      "direction": "error",
+      "method": "session/edit",
+      "error": {
+        "code": -32603,
+        "message": "internal error"
+      }
+    },
+    {
+      "seq": 83,
+      "direction": "request",
+      "method": "session/fork",
+      "params": {
+        "message_id": "msg_ea6fbe3e95840c08",
+        "session_id": "sess_ad4142f525d3871f",
+        "title": "closure-fork"
+      }
+    },
+    {
+      "seq": 84,
+      "direction": "response",
+      "method": "session/fork",
+      "result": {
+        "session_id": "sess_426a5575c6ad1426",
+        "fork_point_message_id": "msg_ea6fbe3e95840c08",
+        "copied_count": 1
+      }
+    },
+    {
+      "seq": 85,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "session_id": "sess_426a5575c6ad1426"
+      }
+    },
+    {
+      "seq": 86,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_9cf6c7a9ad0486d6",
+            "run_id": "run_51d3a1f6d0418b40",
+            "role": "user",
+            "content": "image echo",
+            "attachments": [
+              {
+                "name": "dot.png",
+                "mime_type": "image/png",
+                "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "size": 70
+              }
+            ],
+            "created_at": 1791030687451
+          }
+        ]
+      }
+    },
+    {
+      "seq": 87,
+      "direction": "request",
+      "method": "session/rewind",
+      "params": {
+        "message_id": "msg_ea6fbe3e95840c08",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 88,
+      "direction": "response",
+      "method": "session/rewind",
+      "result": {
+        "cutoff_message_id": "msg_ea6fbe3e95840c08",
+        "remaining_count": 0
+      }
+    },
+    {
+      "seq": 89,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "include_attachment_data": true,
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 90,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": []
+      }
+    },
+    {
+      "seq": 91,
+      "direction": "request",
+      "method": "session/rewind",
+      "params": {
+        "message_id": "bogus",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 92,
+      "direction": "error",
+      "method": "session/rewind",
+      "error": {
+        "code": -32004,
+        "message": "runtime: cutoff message is not in the live session view"
+      }
+    },
+    {
+      "seq": 93,
+      "direction": "request",
+      "method": "plan/enter",
+      "params": {
+        "expected_version": 0,
+        "request_id": "enter-closure",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 94,
+      "direction": "response",
+      "method": "plan/enter",
+      "result": {
+        "work": {
+          "session_id": "sess_ad4142f525d3871f",
+          "version": 1,
+          "plan": {
+            "active": true,
+            "review_status": "none"
+          },
+          "activation": "disarmed",
+          "process_epoch": "epoch_a0da9ef30639d105"
+        },
+        "event": {
+          "seq": 1,
+          "kind": "plan.entered",
+          "request_id": "enter-closure",
+          "created_at": 1791030687698
+        },
+        "replayed": false
+      }
+    },
+    {
+      "seq": 95,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f",
+        "text": "prepare a plan"
+      }
+    },
+    {
+      "seq": 96,
+      "direction": "response",
+      "method": "turn/start",
+      "result": {
+        "run_id": "run_d0e5c6788515f413",
+        "status": "accepted"
+      }
+    },
+    {
+      "seq": 97,
+      "direction": "request",
+      "method": "session/work/get",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 98,
+      "direction": "response",
+      "method": "session/work/get",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "version": 1,
+        "plan": {
+          "active": true,
+          "review_status": "none"
+        },
+        "activation": "disarmed",
+        "process_epoch": "epoch_a0da9ef30639d105"
+      }
+    },
+    {
+      "seq": 99,
+      "direction": "request",
+      "method": "session/work/get",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 100,
+      "direction": "response",
+      "method": "session/work/get",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "version": 3,
+        "plan": {
+          "active": true,
+          "submission_id": "submission-6ef5a51df336a0838233e865",
+          "markdown": "1. capture plan step",
+          "review_status": "pending",
+          "origin_run_id": "run_d0e5c6788515f413",
+          "origin_tool_call_id": "pg-call-5"
+        },
+        "activation": "disarmed",
+        "process_epoch": "epoch_a0da9ef30639d105"
+      }
+    },
+    {
+      "seq": 101,
+      "direction": "request",
+      "method": "plan/decide",
+      "params": {
+        "action": "start_goal",
+        "expected_version": 3,
+        "goal_id": "goal-closure-capture",
+        "max_rounds": 2,
+        "objective": "capture the goal round",
+        "request_id": "decide-closure",
+        "session_id": "sess_ad4142f525d3871f",
+        "submission_id": "submission-6ef5a51df336a0838233e865"
+      }
+    },
+    {
+      "seq": 102,
+      "direction": "response",
+      "method": "plan/decide",
+      "result": {
+        "work": {
+          "session_id": "sess_ad4142f525d3871f",
+          "version": 4,
+          "goal": {
+            "id": "goal-closure-capture",
+            "revision": 1,
+            "objective": "capture the goal round",
+            "phase": "active",
+            "max_rounds": 2,
+            "rounds_started": 0
+          },
+          "plan": {
+            "active": false,
+            "submission_id": "submission-6ef5a51df336a0838233e865",
+            "markdown": "1. capture plan step",
+            "review_status": "accepted",
+            "origin_run_id": "run_d0e5c6788515f413",
+            "origin_tool_call_id": "pg-call-5"
+          },
+          "activation": "disarmed",
+          "process_epoch": "epoch_a0da9ef30639d105"
+        },
+        "event": {
+          "seq": 4,
+          "kind": "plan.decided",
+          "request_id": "decide-closure",
+          "created_at": 1791030687755
+        },
+        "replayed": false
+      }
+    },
+    {
+      "seq": 103,
+      "direction": "request",
+      "method": "session/work/get",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 104,
+      "direction": "response",
+      "method": "session/work/get",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "version": 4,
+        "goal": {
+          "id": "goal-closure-capture",
+          "revision": 1,
+          "objective": "capture the goal round",
+          "phase": "active",
+          "max_rounds": 2,
+          "rounds_started": 0
+        },
+        "plan": {
+          "active": false,
+          "submission_id": "submission-6ef5a51df336a0838233e865",
+          "markdown": "1. capture plan step",
+          "review_status": "accepted",
+          "origin_run_id": "run_d0e5c6788515f413",
+          "origin_tool_call_id": "pg-call-5"
+        },
+        "activation": "armed",
+        "process_epoch": "epoch_a0da9ef30639d105"
+      }
+    },
+    {
+      "seq": 105,
+      "direction": "request",
+      "method": "session/work/get",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 106,
+      "direction": "response",
+      "method": "session/work/get",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "version": 6,
+        "goal": {
+          "id": "goal-closure-capture",
+          "revision": 1,
+          "objective": "capture the goal round",
+          "phase": "completed",
+          "max_rounds": 2,
+          "rounds_started": 1,
+          "reason": "captured",
+          "evidence_run_id": "run_e4cbe7a9f694fda1"
+        },
+        "plan": {
+          "active": false,
+          "submission_id": "submission-6ef5a51df336a0838233e865",
+          "markdown": "1. capture plan step",
+          "review_status": "accepted",
+          "origin_run_id": "run_d0e5c6788515f413",
+          "origin_tool_call_id": "pg-call-5"
+        },
+        "activation": "disarmed",
+        "current_run_id": "run_e4cbe7a9f694fda1",
+        "process_epoch": "epoch_a0da9ef30639d105"
+      }
+    },
+    {
+      "seq": 107,
+      "direction": "request",
+      "method": "session/work/get",
+      "params": {
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 108,
+      "direction": "response",
+      "method": "session/work/get",
+      "result": {
+        "session_id": "sess_ad4142f525d3871f",
+        "version": 6,
+        "goal": {
+          "id": "goal-closure-capture",
+          "revision": 1,
+          "objective": "capture the goal round",
+          "phase": "completed",
+          "max_rounds": 2,
+          "rounds_started": 1,
+          "reason": "captured",
+          "evidence_run_id": "run_e4cbe7a9f694fda1"
+        },
+        "plan": {
+          "active": false,
+          "submission_id": "submission-6ef5a51df336a0838233e865",
+          "markdown": "1. capture plan step",
+          "review_status": "accepted",
+          "origin_run_id": "run_d0e5c6788515f413",
+          "origin_tool_call_id": "pg-call-5"
+        },
+        "activation": "disarmed",
+        "current_run_id": "run_e4cbe7a9f694fda1",
+        "process_epoch": "epoch_a0da9ef30639d105"
+      }
+    },
+    {
+      "seq": 109,
+      "direction": "request",
+      "method": "plan/leave",
+      "params": {
+        "request_id": "leave-closure",
+        "session_id": "sess_ad4142f525d3871f"
+      }
+    },
+    {
+      "seq": 110,
+      "direction": "error",
+      "method": "plan/leave",
+      "error": {
+        "code": -32009,
+        "message": "stale work version"
+      }
+    }
+  ],
+  "transport": "DialControl net.Pipe JSONLTransport",
+  "vivy_pin": "1db8b55ce905ee4a212326e7801e0958e7f4376a"
+}
