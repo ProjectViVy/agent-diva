@@ -7,10 +7,10 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `HELD`
 - Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
 - Owner: `Devin`
-- Session/Task: `DIVA Next closure wave 1 execution (DN-0C fixture + C2-1 mappings delivered; DN-4A/0P/0S pending); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
+- Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P delivered; DN-0S pending); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
 - Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
 - Started At: `2026-10-03T12:40:00Z`
-- Last Heartbeat: `2026-10-03T12:40:00Z`
+- Last Heartbeat: `2026-10-03T13:40:00Z`
 - Expires At: `2026-10-04T00:00:00Z`
 
 ## Lock Rules

@@ -1,0 +1,176 @@
+{
+  "schema": "diva-next/closure-build-inputs/v1",
+  "generated_at": "2026-10-03T13:30:00Z",
+  "generated_by": "DN-0P staging run on Linux x86_64 build VM",
+  "staging_root": "~/staging/dn-0p (build-only; reference checkout go.mod files untouched)",
+  "sources": {
+    "vivy": {
+      "repository": "github.com/ProjectViVy/agent-vivy",
+      "commit": "1db8b55ce905ee4a212326e7801e0958e7f4376a",
+      "module": "agent-vivy"
+    },
+    "laputa_repo": {
+      "repository": "github.com/ProjectViVy/laputa",
+      "commit": "dc6066e2bb983ebd6b31e53dec908a9a23366956",
+      "directory_tree_hashes": {
+        "laputa": "5eac83be66ecfda4971474b82bb795e68efd9aa0",
+        "garden": "d5332865fbe421669ec4beaaa6e9148ad28e5fce",
+        "mentle": "7a279f097a80ceab7aab5cf7cd0a62420f6c7b7b",
+        "examples/vivy-embed-smoke": "3bf8a3b71101e77a57e2a5e338cd4981850c43ec"
+      },
+      "modules": {
+        "garden": "github.com/dashimaki/garden",
+        "laputa": "github.com/dashimaki/laputa",
+        "mentle": "github.com/dashimaki/mentle"
+      }
+    },
+    "inofy": {
+      "repository": "github.com/ProjectViVy/INOFY",
+      "commit": "71e2c9bbe47d5d095b27d756e38eaff565d93d36",
+      "module": "github.com/ProjectViVy/inofy"
+    }
+  },
+  "toolchain": {
+    "go": "go1.26.4 linux/amd64",
+    "c_compiler": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo_enabled": "1",
+    "node": "v24.19.0",
+    "pnpm": "11.21.0",
+    "gosumdb": "off (pinned sibling replaces; sum-db not reachable for pinned pseudo-versions)"
+  },
+  "replacement_map": {
+    "agent-vivy/go.mod": {
+      "agent-vivy/plugins/telegram": "./plugins/telegram",
+      "agent-vivy/plugins/dingtalk": "./plugins/dingtalk",
+      "agent-vivy/plugins/discord": "./plugins/discord",
+      "agent-vivy/plugins/feishu": "./plugins/feishu",
+      "agent-vivy/plugins/qq": "./plugins/qq",
+      "agent-vivy/plugins/lsp": "./plugins/lsp",
+      "agent-vivy/plugins/scxreference": "./plugins/scx-reference",
+      "agent-vivy/plugins/vivy-persona": "./plugins/vivy-persona",
+      "agent-vivy/plugins/vivy-evolution": "./plugins/vivy-evolution",
+      "agent-vivy/plugins/vivy-memory": "./plugins/vivy-memory",
+      "agent-vivy/plugins/vivy-notebook": "./plugins/vivy-notebook",
+      "agent-vivy/plugins/vivy-masks-ui": "./plugins/vivy-masks-ui",
+      "agent-vivy/plugins/vivy-workflow": "./plugins/vivy-workflow",
+      "agent-vivy/faces/headless": "./faces/headless",
+      "agent-vivy/faces/tui": "./faces/tui",
+      "github.com/ProjectViVy/agent-vivy/bml": "./bml",
+      "github.com/dashimaki/laputa": "../laputa/laputa"
+    },
+    "laputa/laputa/go.mod": {
+      "github.com/ProjectViVy/inofy": "../../INOFY"
+    },
+    "laputa/garden/go.mod": {
+      "github.com/dashimaki/laputa": "../laputa",
+      "github.com/dashimaki/mentle": "../mentle"
+    },
+    "laputa/mentle/go.mod": {
+      "google.golang.org/genproto/googleapis/rpc": "google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de",
+      "google.golang.org/grpc": "google.golang.org/grpc v1.64.0"
+    },
+    "laputa/examples/vivy-embed-smoke/go.mod": {
+      "github.com/dashimaki/garden": "../../garden",
+      "github.com/dashimaki/laputa": "../../laputa",
+      "github.com/dashimaki/mentle": "../../mentle"
+    },
+    "note": "No go.work was needed: every transitive replace resolves inside the sibling staging layout (agent-vivy/, laputa/, INOFY/ side by side). go.mod files were not modified."
+  },
+  "module_graph": {
+    "build_list_modules": 271,
+    "dep_packages_cmd_vivy_shared": 1081,
+    "dep_modules_cmd_vivy_shared": 149,
+    "captures": {
+      "go_list_m_json_all_sha256": "a6177f9129ec9f45fcda20f560b9eafed514e677118f64e3f71679e925b8aade",
+      "go_list_deps_json_vivy_shared_sha256": "7627865ee41e9e357f072d9c89a2ca6924be387c0137ad2c5df5e85b52301ec6",
+      "inspect_artifact_json_sha256": "f6be09679c4826552df5d75fec05359493c9813db1ca0fbb2fde97ffc01ef478"
+    }
+  },
+  "native_dependencies": {
+    "cgo_packages": [
+      "runtime/cgo",
+      "net",
+      "os/user",
+      "agent-vivy/cmd/vivy-shared"
+    ],
+    "system_libraries": {
+      "platform": "linux/amd64",
+      "linked": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "note": "ldd on the baseline .so resolves libc only; no dlopen-time optional libraries detected in the recipe closure."
+    },
+    "onnx": "none in baseline recipe closure (no onnxruntime/hugot modules in the build list)",
+    "tokenizer": "none (no native tokenizer library in the build list)",
+    "tls": "crypto/tls — pure Go, no OpenSSL/native TLS linkage",
+    "sqlite": "modernc.org/sqlite — pure Go translation, no libsqlite3 linkage",
+    "exports": [
+      "VivyInit",
+      "VivyCall",
+      "VivyFree",
+      "VivyPollEvents",
+      "VivyShutdown"
+    ]
+  },
+  "staged_build": {
+    "recipe": "recipes/diva.vivy.yml",
+    "target": "shared",
+    "commands": [
+      "go run ./sdk stage-ui --recipe recipes/default.vivy.yml --out ui/src/generated  # required before ui vitest/conformance runs; stages gitignored ui/src/generated/ui/*",
+      "go run ./sdk pack --recipe recipes/diva.vivy.yml --target shared --output <task-artifact-dir>",
+      "go run ./sdk inspect-artifact <task-artifact-dir>"
+    ],
+    "baseline_artifacts": {
+      "vivy-shared.so": {
+        "sha256": "fe5b334fc88726837849c19e382ac77c6b6b290cc07bad7fb69154a12cfeb132",
+        "bytes": 92290312
+      },
+      "vivy-shared.h": {
+        "sha256": "b5145e94d54fc0871e3f09ecabe2f638e4bf2c211f52a1ccc87e9ad35e2369a0"
+      },
+      "vivy_abi.h": {
+        "sha256": "f1467ade0d3be4b9d05b982bfb3737b913cc93160db0b66d6aa2d2156c3a02ef"
+      },
+      "generation.json": {
+        "sha256": "ea3e76aefb1a6d67e03f341a5b28a1351c8a6d875845fb6e37d7f2397f48f273",
+        "generationId": "733127c6d9485900b86e3361b6628f521f02ce2338bb144276b406d3e7cf13a5",
+        "compilerVersion": "plg-p9",
+        "recipeDigest": "723eb0bc2f41f0b8aeab2970b04276f2639cb3655eca520dad4bf97cc4f7a6fb"
+      }
+    },
+    "compile_path_checks": {
+      "laputa/examples/vivy-embed-smoke": "go build ./... — pass",
+      "laputa/garden": "go build ./... — FAIL captured (see captured_failures)",
+      "laputa/mentle": "go build ./... — pass",
+      "vivy_sdk_gate": "go test ./sdk/internal/... ./internal/embedded ./cmd/vivy-shared -count=1 — pass (after stage-ui; sdk/internal 211.6s, assembly, conformance, embedded, vivy-shared all ok)"
+    }
+  },
+  "windows_amd64": {
+    "status": "pending",
+    "build_command": "on a windows/amd64 runner with MSVC gcc-equivalent toolchain: go run ./sdk pack --recipe recipes/diva.vivy.yml --target shared --output <task-artifact-dir>",
+    "cross_compile_command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -buildmode=c-shared -o vivy-shared.dll ./cmd/vivy-shared",
+    "blocker": "no windows/amd64 runner and no mingw-w64 cross compiler on this VM; linux gcc rejects -mthreads for the windows target. -buildmode=c-shared requires external cgo linking, so a pure-Go DLL is impossible.",
+    "load_command": "pending — must be exercised on Windows x64 owner host (Rust native loading / LoadLibrary probe) in DN-P-C packaging stage"
+  },
+  "captured_failures": [
+    {
+      "path": "laputa/garden console/embed.go:5",
+      "failure": "pattern dist: no matching files found — go:embed of console/dist fails until the console UI build produces dist",
+      "treatment": "captured, not patched; garden ./agentapi ./internal/... and embed-smoke compile path unaffected"
+    },
+    {
+      "path": "windows cross-compile",
+      "failure": "gcc: error: unrecognized command-line option '-mthreads' — linux gcc cannot cgo-link the windows target; mingw-w64 absent",
+      "treatment": "recorded pending; no runtime-model substitution performed"
+    },
+    {
+      "path": "ui vitest/conformance",
+      "failure": "Failed to resolve import ./ui/<module>/src/index.tsx from src/generated/assembly.ts in a fresh checkout",
+      "treatment": "resolved by running the sanctioned 'go run ./sdk stage-ui' projection first (gitignored ui/src/generated/ui/*); recorded because pack never writes it"
+    }
+  ],
+  "handoff": "DN-P-C reruns staged pack/inspect on final source pins; newer pins invalidate every hash and the baseline artifact recorded here. Inventory does not claim local-memory capability or Windows acceptance."
+}

@@ -384,6 +384,16 @@ New playback never drains a stale queued answer.
   speech is removed from the broad dormant pet exemption. Negative fixtures
   reject browser cloud fetch, dynamic/generic native invoke and old pet_*.
 
+**DN-0P evidence (2026-10-03):** the pinned build and native-dependency
+inventory is captured in
+[`fixtures/closure-build-inputs.json`](fixtures/closure-build-inputs.json) —
+exact VIVY/Laputa(garden, laputa, mentle dirs)/INOFY commits plus directory
+tree hashes, toolchain, full transitive replace map, module graph captures,
+CGO/system-library inventory (libc only; no ONNX/native tokenizer/OpenSSL/
+libsqlite3 in the baseline closure), staged pack/inspect commands, baseline
+artifact SHA-256s, and the Windows/amd64 build+load command recorded pending
+(no windows/amd64 runner, no mingw-w64 cross compiler).
+
 
 ## C2-6. Execution-plan producer seams (proposed)
 
