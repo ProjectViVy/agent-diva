@@ -54,10 +54,11 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
 - [ ] **VOICE-ASSET-BOUNDARY** P2 — DN-C2 specifies bounded reference-voice
   import/read/delete and leases; implement/probe it. General VRM asset management stays deferred.
   This is new media input, not cancelled historical database migration.
-- [ ] **RUNTIME-REPIN-AND-GATES** P1 — Bundled Generation `1fd14fb2…` predates
-  new cognitive/OBS integration. Repack/inspect/pin through VIVY; refresh
-  acceptance. Amend AST/command/dep/package gates for narrow native speech;
-  activated speech leaves the blanket dormant pet exemption.
+- [x] **RUNTIME-REPIN-AND-GATES** P1 — Repacked/inspected/staged under DN-P-C
+  (v0.4.11): Generation `331bb89d…` with `vivy/diva-cognitive` + 20 actions;
+  `vivy.default.yaml` gained the nine `diva.cognitive.*` write-action allow
+  rules; inventory `dn_pc_refresh` recorded. GUI-level/Windows candidate
+  exercise remains under NATIVE-ACCEPTANCE-HANDOFF.
 - [ ] **NATIVE-ACCEPTANCE-HANDOFF** P1 — Prepare fresh install, Windows/amd64
   DLL+header+FFI and packaging, real-model GUI reopen/pending approval,
   mic/STT/both TTS/cancel/Quit, cognition/restart and console scenarios. Owner

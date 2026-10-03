@@ -6,12 +6,12 @@
   "sources": {
     "vivy": {
       "repository": "github.com/ProjectViVy/agent-vivy",
-      "commit": "1db8b55ce905ee4a212326e7801e0958e7f4376a",
+      "commit": "db7f0c558d4e8fff52d044333cce6c81c9a210b2",
       "module": "agent-vivy"
     },
     "laputa_repo": {
       "repository": "github.com/ProjectViVy/laputa",
-      "commit": "dc6066e2bb983ebd6b31e53dec908a9a23366956",
+      "commit": "04b89324306099f913e8ab9d53195fb14fba3a16",
       "directory_tree_hashes": {
         "laputa": "5eac83be66ecfda4971474b82bb795e68efd9aa0",
         "garden": "d5332865fbe421669ec4beaaa6e9148ad28e5fce",
@@ -172,5 +172,49 @@
       "treatment": "resolved by running the sanctioned 'go run ./sdk stage-ui' projection first (gitignored ui/src/generated/ui/*); recorded because pack never writes it"
     }
   ],
-  "handoff": "DN-P-C reruns staged pack/inspect on final source pins; newer pins invalidate every hash and the baseline artifact recorded here. Inventory does not claim local-memory capability or Windows acceptance."
+  "handoff": "DN-P-C reruns staged pack/inspect on final source pins; newer pins invalidate every hash and the baseline artifact recorded here. Inventory does not claim local-memory capability or Windows acceptance.",
+  "dn_pc_refresh": {
+    "refreshed_at": "2026-10-03T16:45:00Z",
+    "refreshed_by": "DN-P-C closure pack run on Linux x86_64 build VM",
+    "note": "DN-0P baseline captures above are retained for provenance. This block records the closure candidate actually packed, inspected and staged.",
+    "agent_vivy_commit": "db7f0c558d4e8fff52d044333cce6c81c9a210b2",
+    "laputa_commit": "04b89324306099f913e8ab9d53195fb14fba3a16",
+    "internal_source_digest": "cc2b4dfa9bc9250992461a4ced3ae84288913e54c1f430afe054ee650ecd8552",
+    "commands": [
+      "go run ./sdk pack --recipe recipes/diva.vivy.yml --target shared --output <artifact-dir>",
+      "go run ./sdk inspect-artifact <artifact-dir>",
+      "just shell-stage-runtime <artifact-dir>"
+    ],
+    "closure_candidate_artifacts": {
+      "vivy-shared.so": {
+        "sha256": "d0155e26fddbb4426f7ddc2ab82615980a174d002bfc57d84c9386eac03659e5",
+        "bytes": 107489640
+      },
+      "vivy-shared.h": {
+        "sha256": "b5145e94d54fc0871e3f09ecabe2f638e4bf2c211f52a1ccc87e9ad35e2369a0"
+      },
+      "vivy_abi.h": {
+        "sha256": "f1467ade0d3be4b9d05b982bfb3737b913cc93160db0b66d6aa2d2156c3a02ef"
+      },
+      "generation.json": {
+        "sha256": "75bfaa1064124570b26b9fdc01e7fb8e8392b75251290567fd414cfefd278a54",
+        "generationId": "331bb89d975770edb9255e49c6d0e8496ed99f77a510bcb497733ec54d7e01f2",
+        "compilerVersion": "plg-p9",
+        "recipeDigest": "583d2b5a639781c8b0b8d3f75ae5d6448a78c88b4f82ca59d8676b2337649e82"
+      }
+    },
+    "repairs_required_by_pack_gate": [
+      "plugins/discord, plugins/qq, faces/tui: go mod tidy + repinned module source digests (vivy-module.yaml + embedded descriptor SHA256 + conformance_results.json + releaseSuiteCases) — committed 2f38c2e5",
+      "root go.mod: restored require entries for faces/headless, faces/tui, plugins/governance, plugins/lsp and added the missing governance replace — committed db7f0c55",
+      "ui: pnpm install + stage:ui regeneration of gitignored ui/src/generated (environment prerequisite, not a source change)"
+    ],
+    "exports_verified": [
+      "VivyInit",
+      "VivyCall",
+      "VivyPollEvents",
+      "VivyShutdown",
+      "VivyFree"
+    ],
+    "abi_version": 1
+  }
 }
