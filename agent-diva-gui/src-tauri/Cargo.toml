@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-shell"
-version = "0.4.10"
+version = "0.4.13"
 edition = "2021"
 description = "DIVA Next Tauri thin shell over the sealed VIVY shared library"
 license = "Apache-2.0"
