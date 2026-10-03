@@ -367,6 +367,19 @@ Promise and current generation. JSON STT echoes identity. Cancel/context changes
 always stop local playback first; late binary response is discarded/revoked.
 New playback never drains a stale queued answer.
 
+**DN-0S evidence (2026-10-03):** source-pinned compatibility record in
+[`fixtures/closure-speech.json`](fixtures/closure-speech.json). Pinned
+versions/features after proof: `tauri 2.12.1` (lockfile), `keyring 4.2.0`
+features `v1` + platform stores (`windows-native-keyring-store` compiles for
+x86_64-pc-windows-msvc; Linux stores map unavailable to
+`credential_unavailable`), `reqwest 0.13` minimal TLS set `default-features =
+false, features = ["rustls", "webpki-roots", "json", "multipart"]` — HTTPS to
+`api.siliconflow.cn` proven (HTTP 401 = TLS path good); `rustls` pulls the
+`aws-lc-rs` provider so Windows builds require MSVC + cmake. IPC Raw/Response
+seam verified at pinned source level plus Windows-target `cargo check`; live
+webview roundtrip, Windows WebView2 audio, OS store success and authenticated
+provider calls stay pending for DN-6/owner acceptance.
+
 ## C2-5. Contract proof required before Ready
 
 - Capture existing selected-artifact image/edit/rewind/permission/OBS fixtures;
