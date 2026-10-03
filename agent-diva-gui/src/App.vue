@@ -524,14 +524,41 @@ async function sendMessage(
   }
 }
 
-async function regenerateMessage(_messageId: string) {
+async function regenerateMessage(messageId: string) {
   if (isTyping.value) return;
-  // VIVY has no in-place rewind: resend the last user turn as a new turn.
-  const lastUser = [...messages.value].reverse().find(
-    (m) => m.role === 'user' && m.content?.trim(),
-  );
-  if (!lastUser) return;
-  await sendMessage(lastUser.content);
+  try {
+    // DN-2B: regenerate the ORIGINATING turn of the selected assistant
+    // message — atomic session/edit for text, validated rewind+resend
+    // for image turns. Never resends the last unrelated user turn.
+    await vivyChat.regenerate(messageId);
+  } catch (error) {
+    pushSystemNotice(`${t('app.errorPrefix')}${error}`);
+  }
+}
+
+async function startGoalExecution(payload: { max_rounds: number }) {
+  const plan = pendingApprovalPlan.value ?? activePlanRuntime.value;
+  const objective = (plan?.goal || plan?.title || '').trim();
+  if (!objective) {
+    pushSystemNotice(t('app.errorPrefix') + 'start_goal requires an objective');
+    return;
+  }
+  if (approvingPlan.value) return;
+  approvingPlan.value = true;
+  try {
+    // plan/decide 'start_goal' arms the goal loop through the same work
+    // controller — no second planner, budgets preserved.
+    await vivyChat.decidePlan('start_goal', undefined, {
+      objective,
+      max_rounds: payload.max_rounds,
+    });
+    planContinuationError.value = null;
+  } catch (error) {
+    planContinuationError.value = error instanceof Error ? error.message : String(error);
+    pushSystemNotice(`${t('app.errorPrefix')}${error}`);
+  } finally {
+    approvingPlan.value = false;
+  }
 }
 
 async function stopMessage() {
@@ -817,6 +844,7 @@ onUnmounted(() => {
       :save-config-action="saveConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
+      @start-goal="startGoalExecution"
       @resume-plan="resumePlanExecution"
       @revoke-plan="revokePlanExecution"
       @refresh-plan="restoreActivePlanRuntime"

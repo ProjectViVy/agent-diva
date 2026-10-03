@@ -213,6 +213,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: TurnAttachment[], mode?: 'agent' | 'plan' | 'ask', permissionMode?: PermissionPreset): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
+  (e: 'start-goal', payload: { max_rounds: number }): void;
   (e: 'resume-plan'): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
@@ -1150,6 +1151,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         :plan="approvalPlan"
         :approving="approvingPlan"
         @approve="handleApprovePlan"
+        @start-goal="emit('start-goal', $event)"
         @revoke="emit('revoke-plan', $event)"
         @refresh="emit('refresh-plan')"
       />

@@ -617,4 +617,211 @@ describe('VivyChatController planning/work', () => {
     expect(h.controller.currentSessionId).toBe('s1')
     await expect(h.controller.decidePlan('execute_once')).rejects.toThrow('no pending plan')
   })
+
+  it('goalUsesWorkController: start_goal goes through plan/decide with objective+budget', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+      'session/work': () => pendingWork(),
+      'plan/decide': () => ({
+        work: {
+          ...pendingWork(),
+          activation: 'armed',
+          plan: { ...pendingWork().plan, review_status: 'accepted' },
+          goal: { id: 'goal-1', revision: 1, objective: 'ship it', phase: 'running', max_rounds: 20, rounds_started: 0 },
+        },
+        event: { seq: 4, kind: 'plan.decided', request_id: 'req', created_at: 9 },
+        replayed: false,
+      }),
+    })
+    await connect(h)
+    await h.controller.decidePlan('start_goal', undefined, { objective: 'ship it', max_rounds: 20 })
+    const call = h.calls.find((c) => c.method === 'plan/decide')
+    expect(call?.params).toMatchObject({
+      session_id: 's1',
+      submission_id: 'sub-42',
+      action: 'start_goal',
+      objective: 'ship it',
+      max_rounds: 20,
+      expected_version: 7,
+    })
+    // No second planner, no invented RPC — the same work controller flow.
+    expect(h.calls.filter((c) => c.method === 'plan/decide')).toHaveLength(1)
+  })
+})
+
+describe('VivyChatController DN-2B regenerate & recovery', () => {
+  const PNG_B64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const imageAttachment = {
+    name: 'dot.png',
+    mime_type: 'image/png',
+    data_url: `data:image/png;base64,${PNG_B64}`,
+    size: 70,
+  }
+  const textHistory = [
+    { id: 'u1', run_id: 'r1', role: 'user', content: 'first q', created_at: 1 },
+    { id: 'a1', run_id: 'r1', role: 'assistant', content: 'first a', created_at: 2 },
+    { id: 'u2', run_id: 'r2', role: 'user', content: 'second q', created_at: 3 },
+    { id: 'a2', run_id: 'r2', role: 'assistant', content: 'second a', created_at: 4 },
+  ]
+  const imageHistory = [
+    { id: 'u1', run_id: 'r1', role: 'user', content: 'first q', created_at: 1 },
+    { id: 'a1', run_id: 'r1', role: 'assistant', content: 'first a', created_at: 2 },
+    {
+      id: 'u2',
+      run_id: 'r2',
+      role: 'user',
+      content: 'image q',
+      attachments: [imageAttachment],
+      created_at: 3,
+    },
+    { id: 'a2', run_id: 'r2', role: 'assistant', content: 'image a', created_at: 4 },
+  ]
+  const harnessWithHistory = (messages: unknown[], extra: Record<string, CallHandler> = {}) =>
+    makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+      'session/get': () => ({
+        session: { id: 's1', title: 't', created_at: 1, updated_at: 1 },
+        messages,
+      }),
+      ...extra,
+    })
+
+  it('regenerateSelectedTextAtomicEdit: atomic session/edit replays the ORIGINATING turn', async () => {
+    const h = harnessWithHistory(textHistory, {
+      'session/edit': () => ({ run_id: 'run-edit-1', status: 'accepted' }),
+    })
+    await connect(h)
+    await h.controller.regenerate('a1')
+    const edit = h.calls.find((c) => c.method === 'session/edit')
+    expect(edit?.params).toMatchObject({
+      session_id: 's1',
+      message_id: 'u1', // the originating user turn of a1 — not the last turn u2
+      text: 'first q',
+    })
+    expect(h.calls.filter((c) => c.method === 'turn/start')).toHaveLength(0)
+    expect(h.calls.filter((c) => c.method === 'session/rewind')).toHaveLength(0)
+    // The admitted run replaces activeRun and is subscribed.
+    const sub = h.calls.find((c) => c.method === 'run/subscribe')
+    expect((sub?.params as { run_id: string }).run_id).toBe('run-edit-1')
+    expect(h.controller.isTyping()).toBe(true)
+  })
+
+  it('regenerateImageInclusiveCutoff: image turn rewinds inclusively then resends original bytes', async () => {
+    const h = harnessWithHistory(imageHistory, {
+      'session/rewind': () => ({ cutoff_message_id: 'u2', remaining_count: 2 }),
+      'turn/start': () => ({ run_id: 'run-img-1', status: 'accepted' }),
+    })
+    await connect(h)
+    await h.controller.regenerate('a2')
+    const methods = h.calls.map((c) => c.method)
+    expect(methods.indexOf('session/rewind')).toBeGreaterThan(-1)
+    expect(methods.indexOf('session/rewind')).toBeLessThan(methods.indexOf('turn/start'))
+    expect(h.calls.find((c) => c.method === 'session/rewind')?.params).toEqual({
+      session_id: 's1',
+      message_id: 'u2',
+    })
+    const turn = h.calls.find((c) => c.method === 'turn/start')
+    expect(turn?.params).toEqual({
+      session_id: 's1',
+      text: 'image q',
+      // Original bytes re-encoded as wire attachments — never silently
+      // converted to a text-only resend, never a duplicated user message.
+      attachments: [{ name: 'dot.png', mime_type: 'image/png', data: PNG_B64 }],
+    })
+    expect(h.calls.filter((c) => c.method === 'session/edit')).toHaveLength(0)
+  })
+
+  it('rewindSucceededSendFailedDraft: failed resend keeps a retryable draft + rewound view', async () => {
+    let rewound = false
+    const h = harnessWithHistory(imageHistory, {
+      'session/rewind': () => {
+        rewound = true
+        return { cutoff_message_id: 'u2', remaining_count: 2 }
+      },
+      'session/get': () => ({
+        session: { id: 's1', title: 't', created_at: 1, updated_at: 1 },
+        messages: rewound ? imageHistory.slice(0, 2) : imageHistory,
+      }),
+      'turn/start': () => Promise.reject(new Error('send failed')),
+    })
+    await connect(h)
+    await expect(h.controller.regenerate('a2')).rejects.toThrow('send failed')
+    expect(h.calls.filter((c) => c.method === 'session/rewind')).toHaveLength(1)
+    // Retryable draft retains the original text + bytes for a manual resend.
+    const draft = h.controller.retryDraft
+    expect(draft?.content).toBe('image q')
+    expect(draft?.attachments).toEqual([
+      { name: 'dot.png', mime_type: 'image/png', data: PNG_B64 },
+    ])
+    // The visible timeline stays truthfully rewound — no re-appended copy.
+    const contents = h.controller.messages().map((m) => m.content)
+    expect(contents).not.toContain('image q')
+    expect(contents).not.toContain('image a')
+  })
+
+  it('cancelAfterRestartReconciles: not-found cancel reads back authoritative run state', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+      'run/cancel': () =>
+        Promise.reject(
+          new VivyCallError(
+            { kind: 'internal', code: -32004, message: 'run is not active in this process' },
+          ),
+        ),
+      'run/get': () => ({ id: 'run-1', session_id: 's1', status: 'completed', created_at: 1 }),
+    })
+    await connect(h)
+    await h.controller.send('q')
+    expect(h.controller.isTyping()).toBe(true)
+    await h.controller.stop() // must not throw: readback proves terminal
+    expect(h.calls.find((c) => c.method === 'run/get')?.params).toEqual({ run_id: 'run-1' })
+    expect(h.controller.isTyping()).toBe(false)
+    // Never claimed cancelled locally — the authoritative phase is 'completed'.
+    expect(h.controller.projection.run('run-1')?.phase).toBe('completed')
+  })
+
+  it('fork(messageId): inclusive fork opens the copied child session', async () => {
+    let childListed = false
+    const h = harnessWithHistory(textHistory, {
+      'session/fork': () => ({
+        session_id: 's2',
+        fork_point_message_id: 'u2',
+        copied_count: 3,
+      }),
+      'session/list': () => ({
+        sessions: [
+          { id: 's1', title: 't', created_at: 1, updated_at: 1 },
+          ...(childListed ? [{ id: 's2', title: 'fork', created_at: 2, updated_at: 2 }] : []),
+        ],
+      }),
+    })
+    h.setHandler('session/fork', () => {
+      childListed = true
+      return { session_id: 's2', fork_point_message_id: 'u2', copied_count: 3 }
+    })
+    await connect(h)
+    await h.controller.fork('u2')
+    expect(h.calls.find((c) => c.method === 'session/fork')?.params).toMatchObject({
+      session_id: 's1',
+      message_id: 'u2',
+    })
+    expect(h.controller.currentSessionId).toBe('s2')
+  })
+
+  it('invalidateConversation(reason) fires before session mutations', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/delete': () => ({ deleted: true }),
+    })
+    const reasons: string[] = []
+    h.controller.onConversationInvalidate((r) => reasons.push(r))
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.deleteSession('s1')
+    expect(reasons).toEqual(['session/load', 'session/delete'])
+  })
 })

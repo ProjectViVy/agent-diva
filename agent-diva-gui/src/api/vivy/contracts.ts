@@ -73,12 +73,22 @@ export interface TurnAttachment {
   data: string
 }
 
+/** History-carried image on a stored user message (DN-2B): the server
+ * returns data_url form; resends re-encode it to wire `data` base64. */
+export interface SessionMessageAttachment {
+  name?: string
+  mime_type: string
+  data_url: string
+  size?: number
+}
+
 export interface SessionMessage {
   id: string
   run_id?: string
   role: 'user' | 'assistant' | 'system' | string
   content: string
   created_at: number
+  attachments?: SessionMessageAttachment[]
   [key: string]: unknown
 }
 
@@ -98,6 +108,28 @@ export interface SessionMessagesResult {
 export interface TurnStartResult {
   run_id: string
   status: 'accepted' | string
+}
+
+/** `session/edit` (DN-2B): atomic replace of the cutoff message and its
+ * suffix plus a newly admitted run — the edit IS the regeneration. */
+export interface SessionEditResult {
+  run_id: string
+  status: 'accepted' | string
+}
+
+/** `session/rewind` (DN-2B): inclusive truncation at the cutoff message;
+ * rows stay on disk, the live view hides cutoff+suffix. */
+export interface SessionRewindResult {
+  cutoff_message_id: string
+  remaining_count: number
+}
+
+/** `session/fork` (DN-2B): inclusive copy into a new session; the source
+ * session keeps its full view. */
+export interface SessionForkResult {
+  session_id: string
+  fork_point_message_id: string
+  copied_count: number
 }
 
 export type RunStatus = 'active' | 'completed' | 'failed' | 'cancelled' | string

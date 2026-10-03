@@ -21,6 +21,9 @@ import {
   type ReviewRespondParams,
   type SessionMessagesResult,
   type SessionMessage,
+  type SessionEditResult,
+  type SessionForkResult,
+  type SessionRewindResult,
   type SessionTodosResult,
   type SessionWorkResult,
   type SessionWorkSubscribeResult,
@@ -165,6 +168,32 @@ export class VivyClient {
   }
   runCancel(runId: string): Promise<unknown> {
     return this.call('run/cancel', { run_id: runId }, { mutation: true })
+  }
+  /** Atomic selected-turn regeneration (DN-2B): replaces the cutoff
+   * message and its suffix and admits a new run in one call. Text-only
+   * turns — the edit params carry no attachments field. */
+  sessionEdit(sessionId: string, messageId: string, text: string): Promise<SessionEditResult> {
+    return this.call(
+      'session/edit',
+      { session_id: sessionId, message_id: messageId, text },
+      { mutation: true },
+    )
+  }
+  /** Inclusive truncation at the cutoff message (DN-2B). */
+  sessionRewind(sessionId: string, messageId: string): Promise<SessionRewindResult> {
+    return this.call(
+      'session/rewind',
+      { session_id: sessionId, message_id: messageId },
+      { mutation: true },
+    )
+  }
+  /** Inclusive copy of history into a new session (DN-2B). */
+  sessionFork(sessionId: string, messageId: string, title?: string): Promise<SessionForkResult> {
+    return this.call(
+      'session/fork',
+      { session_id: sessionId, message_id: messageId, ...(title ? { title } : {}) },
+      { mutation: true },
+    )
   }
   approvalList(): Promise<ApprovalListResult> {
     return this.call('approval/list')
