@@ -1,15 +1,17 @@
 # DN-6 — DIVA-native online speech and media
 
-Current scope: [DN-C1](p0-design.md); status/dependencies: [index.md](index.md).
+Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
 The owner's 2026-10-03 directive supersedes the VIVY-speech-module prerequisite.
-This is a preliminary work outline; detailed contracts/plans are not Ready.
+DN-C2 supplies detailed architecture and exact proposed commands in the
+ledger. Implementation/native/provider probes remain pending; not Ready.
 
 ## Outcome and ownership
 
 SiliconFlow STT plus SiliconFlow/MiniMax TTS work through Tauri native media
 services and the existing text Agent path. Vue captures/plays/subtitles/renders;
-Tauri owns cloud HTTP, speech secrets, temporary audio and required new media
-assets. VIVY remains sole Agent/run/approval authority. OLVRS/local ONNX and
+Tauri owns cloud HTTP, speech secrets and bounded reference assets. WAV
+uploads/MP3 replies use Raw/Response IPC; Vue owns temporary Blob audio.
+VIVY remains sole Agent/run/approval authority. OLVRS/local ONNX and
 pet window/neuro-link restoration are not prerequisites.
 
 ## Existing files and proposed additions
@@ -20,11 +22,13 @@ seam `src/platform/desktop-host.ts`, shell `src-tauri/src/lib.rs` and lifecycle,
 plus AST/native/boundary gates. Proposed native module `src-tauri/src/speech/`;
 proposed typed facade `src/api/speech.ts`. Do not restore old business crates.
 
-## Inputs to freeze before implementation
+## Required proof for designed contracts
 
-- Native command/config DTOs, secure credential store and masked readback.
-- Recording MIME and bounded binary IPC/audio resource transport on Windows /
-  Linux; exact media asset commands where existing references need them.
+- Implement ledger command/config DTOs and OS keyring adapter; probe secure
+  persistence/locked/unavailable states and presence-only readback.
+- Bundled Tauri Raw/Response IPC and WebView decode/resample to PCM16 WAV on
+  Windows/Linux; bounded reference-voice commands and leases. No audio handles
+  or speech_release_audio command; no general VRM manager.
 - Real provider request/error fixtures, supported region/base URL/model.
 - Request/session/run/utterance/generation correlation; abort and release.
 - Narrow native command allowlist; remove activated speech from dormant scope.

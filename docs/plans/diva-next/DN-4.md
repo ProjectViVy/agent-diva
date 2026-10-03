@@ -1,9 +1,9 @@
 # DN-4 — Bound cognition and companion handoff
 
-Current architecture: [DN-C1](p0-design.md). State/dependencies live in
+Current architecture: [DN-C2](p0-design.md). State/dependencies live in
 [index.md](index.md). Reuse the merged Laputa cognitive contracts/S08, not
-another competing domain plan. This amendment replaces the old blanket
-no-producer claim; it is an initial outline, not an executable Ready plan.
+another competing domain plan. DN-C2 supplies detailed architecture and
+proposed contracts. This stage retains implementation ownership; it is not an executable Ready plan.
 
 ## Reuse and remaining boundary
 
@@ -13,12 +13,15 @@ capture and wake/runtime seams. DIVA's bridge now exists, but its sealed
 Generation does not bind those authorities. Adding ordinary memory actions
 to a recipe alone does not deliver ACTMEM, Persona projection or reflection.
 
-Before frontend work is Ready, freeze the owning-library public facade,
-compiled DIVA adapter, primary-run FrozenCore/context projection, observer
+Before frontend work is Ready, implement/probe the same-owner Garden public
+facade extension, compiled DIVA adapter, primary-run FrozenCore/context projection, observer
 capture, real human identity/action governance and domain control/read DTOs.
 Use existing module actions/run/review paths; do not expose a second HTTP
 runtime or grant authority from payload actor fields. Embedded lifecycle must
-start/stop selected cognition as described in DN-C1.
+start/stop selected cognition as described in DN-C2. Integration also fixes
+per-run Mission pins, supervisor exclusion and unknown-outcome retry blocking.
+The first supported Garden memory adapter is explicitly selected Mentle,
+without ordinary BML fallback; native/build closure remains a required probe.
 
 ## DIVA consumer work
 

@@ -1,6 +1,6 @@
 # DN-8 — Clean package and final owner acceptance
 
-Current scope: [DN-C1](p0-design.md); status/dependencies: [index.md](index.md).
+Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
 Consumes scoped DN-M closure, refreshed DN-P artifact evidence and packaged
 OBS evidence. **DN-7 is cancelled and is not a predecessor.** This revises the
 old full-parity/import premise; it does not authorize release or claim checks.
@@ -26,8 +26,10 @@ preferences/credentials/assets are an explicitly admitted device boundary.
 - Prepare Windows/amd64 DLL/header/FFI/bundle checks. Run available native
   checks and identify unavailable ones; do not block independent implementation
   waiting for the owner's final desktop test.
-- Resolve governance-document conflicts only with explicit instruction-file
-  rewrite authorization. Record deferred residual surfaces honestly.
+- Reconcile stale governance descriptions against authorized Next scope;
+  do not revive retired crate rules. Record residual surfaces honestly.
+- Stage/hash transitive Laputa/Garden/Mentle/INOFY inputs without sibling-home
+  assumptions; verify compiled native/link/load dependencies on target.
 
 ## Final acceptance
 

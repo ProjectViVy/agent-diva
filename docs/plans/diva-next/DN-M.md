@@ -1,6 +1,6 @@
 # DN-M — Scoped semantic closure
 
-Spec: [DN-C1](p0-design.md). State/dependencies: [index.md](index.md).
+Spec: [DN-C2](p0-design.md). State/dependencies: [index.md](index.md).
 Consumes scoped DN-3 dispositions, DN-4 cognition, DN-6 native online speech,
 DN-2 chat additions, OBS consumers and refreshed DN-P artifact evidence.
 DN-7 import is cancelled and is not a predecessor.
@@ -13,7 +13,7 @@ cognitive/voice/console behavior or owner acceptance.
   persistence/event/error semantics and meaningful behavioral evidence.
 - Keep Agent calls on vivy_call. Admit only frozen DIVA-native speech/asset
   commands through platform/desktop-host.ts; native HTTP/secret ownership is
-  the explicit DN-C1 exception, not a permission for browser provider bypass.
+  the explicit DN-C2 exception, not a permission for browser provider bypass.
 - Activated voice files leave the wholesale dormant-pet exemption. Keep
   remaining pet-window/neuro-link code dormant; use negative fixtures for
   legacy/dynamic commands, direct frontend fetch and broad allowlist escape.

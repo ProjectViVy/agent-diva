@@ -2,19 +2,33 @@
 
 Active gaps and deferred work for DIVA Next. Stage state/dependencies live
 only in [the existing index](docs/plans/diva-next/index.md); current scope and
-closure rules are [DN-C1](docs/plans/diva-next/p0-design.md).
+closure rules are [DN-C2](docs/plans/diva-next/p0-design.md).
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
 ## Closure work
 
 - [ ] **COGNITIVE-COMPOSITION** P1 — Laputa #2 and VIVY #26 provide real
-  foundations, but DIVA's recipe has no bound domain. Freeze the minimum
-  exported Garden/Laputa facade, context/capture/domain actions and trusted
-  human identity; wire the existing runtime binding. No duplicate ACTMEM or
-  automatic BML/backend switch. See DN-4 and Laputa S08.
+  foundations, but DIVA's recipe has no bound domain. DN-C2 specifies the
+  same-owner Garden facade extension, generated factory/context/capture/actions and
+  trusted human origin; implement and prove the existing runtime binding.
+  No duplicate ACTMEM or automatic BML/backend switch. See DN-4 and Laputa S08.
 - [ ] **COGNITIVE-EMBEDDED-LIFECYCLE** P1 — VIVY `StartEmbeddedServices()` starts
   sweeper/cron but not the new cognitive loop. Start selected cognition once;
   stop/drain before cancelling runs and closing storage; prove restart dedupe.
+- [ ] **COGNITIVE-AUTHORITY-AND-RECOVERY** P0 — Current binding pins Mission
+  at Service construction and failed runs may receive a new automatic attempt.
+  Add per-run persisted authority/guard and durable unknown-outcome block;
+  serialize admission/state reconciliation. Never replay ambiguous ACTMEM /
+  Persona effects with a new key. DN-C2 sections 4.3–4.4.
+- [ ] **COGNITIVE-SUPERVISOR-CAPTURE** P1 — Supervisor uses primary kind while
+  current capture filters only non-primary kinds. Explicitly exclude its
+  stored origin/session from capture and automatic speech; prove restart
+  cannot feed strategy output back as fresh evidence. Source risk, not a
+  reproduced runtime failure in this design iteration.
+- [ ] **PINNED-NATIVE-BUILD-CLOSURE** P1 — VIVY/Garden/Laputa have sibling
+  replacements (Laputa/Mentle/INOFY). Stage/hash exact transitive source graph;
+  inspect native CGO/tokenizer/ONNX dependencies and loading on target. A
+  missing local model does not prove link-time dependencies absent. DN-C2 §9.
 - [ ] **CONSOLE-OBS-CONSUMERS** P1 — VIVY #27 producers exist; ConsoleView is
   still token-only. Consume actual `trajectory/session`, diagnostics and usage
   coverage via the typed client; preserve one subscription owner and gap /
@@ -28,11 +42,12 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
   must be verified and wired, not described as missing producers.
 - [ ] **ONLINE-SPEECH-NATIVE** P1 — Reuse existing SiliconFlow STT and
   SiliconFlow/MiniMax TTS wrappers, replacing dead pet_* config/commands and
-  frontend cloud fetch. Freeze native credential/media transport and command
-  fixtures; correlate request/run/utterance/generation; abort/drop late output,
+  frontend cloud fetch. DN-C2 specifies native Raw WAV/MP3, OS credentials
+  and exact commands. Implement/probe provider/native fixtures; correlate
+  request/run/utterance/generation; abort/drop late output,
   release audio and prevent history replay speech. Text mode remains usable.
-- [ ] **VOICE-ASSET-BOUNDARY** P2 — Existing reference voice and VRM media
-  paths need a scoped native import/read/delete/lifetime contract where used.
+- [ ] **VOICE-ASSET-BOUNDARY** P2 — DN-C2 specifies bounded reference-voice
+  import/read/delete and leases; implement/probe it. General VRM asset management stays deferred.
   This is new media input, not cancelled historical database migration.
 - [ ] **RUNTIME-REPIN-AND-GATES** P1 — Bundled Generation `1fd14fb2…` predates
   new cognitive/OBS integration. Repack/inspect/pin through VIVY; refresh
@@ -44,8 +59,9 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
   performs final product acceptance after all engineering work/checks.
 - [ ] **GOVERNANCE-DOCS-STALE** P1 — AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md /
   LAPUTA.md describe retired Rust crates, old memory rules and absent root
-  Cargo recipes. DN-C1 records the conflict; instruction-file rewrite needs
-  explicit authorization. Do not silently reuse obsolete rules for new code.
+  Cargo recipes. DN-C2 records the conflict; reconcile stale descriptions
+  against the authorized Next scope. Obsolete crate rules do not create a
+  new permission gate or justify resurrecting retired code.
 - [ ] **OLD-SECURITY-ISSUE-DISPOSITION** P2 — Issue #8 targets retired
   aws-lc-sys/rsa dependency chains. Neither package exists in the two current
   shell/bridge lockfiles; no fresh cargo audit has been run. Keep a clear

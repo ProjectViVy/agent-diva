@@ -1,3 +1,365 @@
+# DN-C2 closure contracts — 2026-10-03
+
+Architecture: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
+This section is the current ledger. **Existing** means inspected source at
+DIVA f5866a0 / VIVY 1db8b55 / Laputa dc6066e; selected artifact/runtime capture
+is separate. **Proposed** means designed here, not exported or Ready.
+Historical inventories below remain evidence only at their recorded pins.
+Do not edit captured `fixtures/core-rpc.json` to pretend new contracts ran.
+
+## C2-1. Existing transport and producer contracts
+
+| Surface | Existing wire / behavior | Consumer obligation |
+| --- | --- | --- |
+| C ABI init | `{abi_version,config_path,without_ears?}` -> `{abi_version,handle}` | Numeric handle stays native; generated header/hash proof |
+| C ABI call | `{method,params,timeout_ms?}` -> `{ok:true,value}` or `{ok:false,error:{kind,code,message,data?}}` | Timeout is not rollback; no replacement request_id ABI |
+| C ABI poll | Handle + uint32 max-events; five C exports including Free | Copy/free once; gap/refetch; no wait_ms argument |
+| Module action | `module.action.invoke` params `{module_id,action_id,input}` | Sealed definitions/grants, authenticated caller and host authorization |
+| Turn images | `turn/start` attachments `[{name?,mime_type,data}]`; data is base64 image bytes | Total call <=4 MiB including expansion/framing; reject unsupported files/model |
+| Session permission | `session/set_permission {session_id,preset}`; preset cautious/smart/trusted; returns session DTO | Confirm/read back before send; admitted policy remains authoritative |
+| Rewind | `session/rewind {session_id,message_id}` -> cutoff/remaining result | Inclusive cutoff; append-only underlying Journal; busy -> conflict |
+| Atomic text edit | `session/edit {session_id,message_id,text,mode?,face?,policy_profile?,thinking?,collaboration_mode?,collaboration_version?}` -> `{run_id,status}` | No attachments field at inspected pin; only text regeneration uses this path |
+| Run cancel | `run/cancel {run_id}` -> cancelling; inactive process run -> not-found | Read run/session to distinguish already terminal from stale/unavailable |
+| Trajectory | `trajectory/session {session_id,limit?}` -> v2 DTO | Default 20 runs, max 50; one projection owner |
+| Diagnostics | `diagnostics/logs` and `diagnostics/gui/append` | Bounded owned families; preserve gaps/truncation/partial ambiguity |
+| Token stats | `stats/tokens {period?,tz_offset_minutes?,session_limit?}` -> projection v2 and coverage | Source is chat_runs; request_count counts reports, not all billed requests |
+| Skills history | `skills/revisions/list` when backing dependency is bound | Capability proof required; upload/edit/delete/request remain residuals |
+
+Current ABI guards: 4 MiB input, event queue 10,000 with oldest-drop gap,
+poll <=500, default call timeout 120 s, shutdown grace 5 s. No incompatible
+ABI change for cognition or native audio. JSON integers consumed by Vue must
+be validated as safe integers; do not silently round revisions/sequences.
+
+Actual console DTOs, rather than PR shorthand:
+
+```typescript
+// Existing field names; detail row DTOs mirror owning Go structs.
+type TrajectorySession = {
+  session_id: string; projection_version: 2;
+  records: TrajectoryRecord[]; requests: TrajectoryRequest[];
+  run_activity: TrajectoryRunActivity[];
+  watermarks: Record<string, number>; has_older_runs: boolean;
+};
+type DiagnosticQuery = {
+  source: 'runtime' | 'gui'; date?: string; after?: string;
+  limit?: number; level?: string; query?: string;
+};
+type DiagnosticPage = {
+  source: string; records: DiagnosticRecord[];
+  next_cursor?: string; gap: boolean; has_more: boolean;
+};
+```
+
+Trajectory request rows retain legacy fields but v2 UI reads `call_status`,
+`finished_at`, `usage_state`, `usage_evidence`. Call states:
+active/completed/failed/cancelled/interrupted/legacy. Usage:
+missing/reported/partial/active/legacy. `usage_evidence` is nullable;
+reasoning/cached buckets may be absent. Run activity distinguishes
+queued/active/waiting/completed/failed/cancelled and authoritative wait_kind.
+Use actual `request_id`, `run_id`, `call_id` and stable record IDs, not array
+indices as identities.
+
+Diagnostic records: `id,at?,level?,component?,message,fields?,truncated`.
+GUI append: `{records:[{at?,level?,component?,message,fields?}]}` ->
+`{accepted:number}`. Source limit 500 records, 8 KiB per record, 4 MiB scan/batch.
+Frontend batches are deliberately smaller (<=50 records and <=256 KiB JSON)
+to leave ABI framing headroom. Current partial-write RPC error describes
+accepted prefix in text; it is not a structured dedupe receipt. Do not retry
+an ambiguous append blindly.
+
+Token coverage fields: state empty/complete/partial/legacy, observed_calls,
+completed_with_usage, reported_calls, missing_usage_calls, partial_usage_calls,
+active_calls, legacy_usage_records, unknown_buckets, hidden_retries_observable.
+Observed calls partition into completed-with-usage/partial/missing/active;
+reported_calls is not another disjoint partition. `total.cost_known=false`
+makes numeric cost a placeholder, not “free.” Do not claim hidden provider
+retry/billing observability.
+
+Regenerate design is now fixed: atomic `session/edit` for text turns; for image
+turns, preserve original bytes, validate before mutation, then inclusive rewind
+at originating user message and normal `turn/start` with original images.
+Busy/failed/ambiguous stages reconcile; never silently convert image to text.
+A rewind succeeded/send failed state retains retryable draft and is visible.
+
+## C2-2. Proposed same-owner library ports
+
+Reuse `agentapi.Open` and public DTOs. Exact new Go API names are proposals,
+with the following required signatures/semantics to freeze in owning library:
+
+```go
+// PROPOSED capability shape, not existing exported code.
+type EvolutionPorts struct {
+    Domain evolution.Domain
+    SourceID string
+    HighWatermark func(context.Context) (uint64, error)
+    MissionRevision func(context.Context) (uint64, error)
+}
+```
+
+These ports are constructed inside Garden from its one owned runtime, fixed
+to admitted scope/destination. Owner Close invalidates all derived capabilities;
+they never close shared authority independently. A public configuration
+extension selects a Backend/factory using existing `garden/memory.Backend`.
+It is mandatory for full memory capability; no implicit writer fallback.
+All retrieval/ingestion/effects use that selection. First supported adapter
+is existing Garden Mentle, explicitly selected in fresh setup, with no implicit
+BML replacement. Missing local embedding
+capability is explicit degradation; no implicit model download.
+
+Trusted VIVY composition validates a session against its own registry before
+asking the same client for session/workspace/principal-specific capability.
+The library preserves fixed profile and admitted scopes. Human operations are
+never available through the agent capability; public API presence itself is
+not runtime authorization. No `garden/internal` import by VIVY.
+
+VIVY factory provides these contract seams:
+
+| Seam | Input / output | Lifetime |
+| --- | --- | --- |
+| Primary prepare | Host session/run/workspace + budget -> FrozenCore v2 reference and bounded authority text | Before inference; immutable session snapshot |
+| Optional recall | Existing ContextSource query -> scoped bounded cards/evidence | Required profile bind; optional retrieval failure reported |
+| Capture sink | Existing CognitiveCapture -> existing receipt seq/status | Stable committed terminal identity, no supervisor input |
+| Strategy binding resolver | Fixed host domain + current authority -> existing RunBinding | Per admission; persist once and verify on recovery |
+| Run-bound domain guard | Persisted RunBinding -> existing Domain | Before effects; no authority refresh of admitted run |
+| Control resolver | Server-authenticated invocation origin/session -> human facade | No JSON authority or generic tool entry |
+| Close | No input | Stop observers/Service uses before closing one Garden owner |
+
+The generated observer inventory includes the existing cognitive capture
+provider identity and its current terminal event/field policies. Domain sink
+is armed before observer recovery; wake callback can attach afterward. Never
+append an unsealed observer subscription as an app-only exception.
+
+## C2-3. Proposed cognitive action inventory
+
+Owner/module ID: `vivy/diva-cognitive`. Names below are intentionally separate
+from ordinary `vivy.memory.*` BML actions. Existing `module.action.invoke`
+carries the result; no second transport. Inputs are strict closed schemas:
+reject unknown/duplicate fields, invalid enum/trailing JSON/unsafe numbers.
+Each includes `session_id` for target correlation, verified against the
+transport-bound session and trusted registry; it grants no authority.
+Before Persona setup the host can create a setup session without starting a
+primary run, so the UI can obtain an authenticated bound control context.
+
+All these actions are human control-plane actions, never model tools. Agent
+reads/mutations use separately compiled scoped tools and the same domain
+capability. Definitions remain schema/grant/Generation validated.
+
+| Action suffix (prefix `diva.cognitive.`) | Input beyond session_id | Successful value / owning operation |
+| --- | --- | --- |
+| `status` | none | CapabilityStatus below |
+| `persona.initialize` | `initialization` (existing typed Initialization), `reason` | Existing WriteOutcome/readiness; trusted human actor stamped by adapter |
+| `persona.read` | `kind` | Current authorized PersonaDocument; closed eight-kind roster |
+| `persona.save` | `kind,content,base_revision,reason` | Existing SaveUserDocument CAS; Mission allowed only through human path |
+| `persona.reviews.list` | `kind?,state?,limit?,cursor?` | Bounded existing ChangeRequest page; state pending/accepted/rejected/stale |
+| `persona.review.decide` | `review_id,decision:accept|reject` | Existing domain outcome; stale base never forced |
+| `frozen.read` | none | Existing FrozenCore v2 for target session, or explicit not-yet-captured |
+| `actmem.read` | `sections,max_chars` | Existing scoped ActivityResult; inherited projection caps |
+| `actmem.work.patch` | `patch` (existing WorkPatch) | Existing ActivityResult / revision conflict |
+| `actmem.owner.read` | none | Human whole-document Markdown/revision, never agent projection |
+| `actmem.owner.save` | `markdown,base_revision` | Validated whole-save result; parser/caps enforced |
+| `memory.search` | `query,collection?,cursor?,limit,budget_chars` | Existing CardPage from selected backend, admitted read-scope union |
+| `memory.expand` | `card_id,expected_revision,budget_chars` | Existing EvidencePage; record scope/revision verified |
+| `memory.mutate` | `mutation` | Existing AuthorizedMutation payload minus scope/destination; host stamps fixed writer, normalized digest and operation identity |
+| `memory.receipt` | `operation_id` | Existing scoped MutationReceipt lookup |
+| `policy.get` | none | Durable TriggerPolicy and policy_revision |
+| `policy.set` | `enabled,min_interval_ms,base_revision` | Durable policy CAS, not racing automatic admission |
+| `trigger` | none | Existing Eligibility plus actual active_run_id/window; blocked unknown remains blocked |
+| `cancel` | `run_id` | Validated current active strategy run; existing cancellation plus durable pause |
+| `results.list` | `cursor?,limit?` | Bounded reflection/effect receipts from existing domain ledger |
+
+Page limit defaults 20, maximum 100, with no hidden-scope totals. Cursor is
+opaque and bound to scope/query/revision; invalidation is explicit. Action
+input <=64 KiB, output <=256 KiB unless a tighter owning domain cap applies.
+Owner ACTMEM caps and Persona projection rules remain unchanged. No generic
+unlimited Markdown reader is admitted.
+
+The policy CAS revision is a safe numeric UI revision. Existing RunBinding
+policy_revision remains a string pin derived from that revision plus normalized
+policy digest; it is not relabelled as a numeric domain field.
+
+New policy revision/CAS and result paging are adapter extensions; current
+runtime UpdateCognitivePolicy/CognitiveStatus alone do not provide them.
+Do not claim those inputs are already accepted. Memory mutation returns the
+host-assigned operation identity for receipt lookup; if a transport timeout
+hides that identity, outcome remains unknown, and it is not resubmitted.
+Human CAS save ambiguity reads current authority/history; identical current
+content alone does not prove which operation committed.
+
+Proposed business-result envelope (ActionHost still owns auth/schema/runtime
+errors):
+
+```typescript
+type CognitiveOutcome<T> =
+  | { status: 'ok'; value: T }
+  | { status: 'unavailable' | 'failed' | 'unknown';
+      error: { code: string; message: string; retryable: boolean };
+      value?: T }; // only safe recovery receipt/state, never hidden authority
+
+type CapabilityStatus = {
+  profile_id: string;
+  scope: Scope; destination_id: string;
+  persona: { state: string; current_revisions: Record<PersonaKind, number> };
+  frozen: { state: 'not_captured' | 'ready' | 'recovery_required';
+            revisions?: Record<FrozenKind, number> };
+  memory: { backend_id: string; health: 'available' | 'degraded' | 'unavailable';
+            reason_code: string; canonical_state: string; index_state: string };
+  cognition: { enabled: boolean; policy_revision: number; min_interval_ms: number;
+    eligibility?: Eligibility; active_run_id: string; source_id: string;
+    watermark: number; pending_through: number;
+    phase: 'disabled' | 'idle' | 'running' | 'paused' | 'recovery_required';
+    block_reason: string };
+};
+```
+
+Domain DTOs Scope, WorkPatch, ActivityResult, FrozenCore, AuthorizedMutation /
+MutationReceipt, EffectReceipt and ChangeRequest map to owning library types;
+do not build a second domain DTO dialect. Guarded aliases are typed in Vue.
+`status:ok` only means action succeeded; EffectReceipt submitted is still not
+applied, and an asynchronous ingestion accepted is not completed.
+
+Stable domain codes are preserved (including revision/scope/conflict/Mission /
+ACTMEM/backend/recovery codes), not raw provider error strings. If ActionHost
+or ABI timeout/panic loses business result, read operations may retry explicitly;
+writes become unknown until authoritative reconciliation. `retryable` never
+means automatic replay of an ambiguous write. No generic force-clear-recovery
+endpoint exists; unsafe state remains blocked pending authoritative resolution.
+
+Proposed request example, not captured execution:
+
+```json
+{
+  "method": "module.action.invoke",
+  "params": {
+    "module_id": "vivy/diva-cognitive",
+    "action_id": "diva.cognitive.persona.save",
+    "input": {
+      "session_id": "session-demo",
+      "kind": "mission",
+      "content": "An explicitly human-authored mission.",
+      "base_revision": 3,
+      "reason": "Owner edit"
+    }
+  }
+}
+```
+
+It contains no actor/profile/scope/approval claim. Transport origin and domain
+human capability decide authorization; ordinary Agent full-auto permission
+does not grant Mission ownership.
+
+## C2-4. Proposed native speech command contract
+
+Frontend native seam: `src/platform/desktop-host.ts` only. Register exact
+commands in shell, mirrored in AST/backend-boundary gates. Use
+`#[tauri::command(rename_all = "snake_case")]` consistently for JSON command
+arguments. They never multiplex arbitrary URLs/methods/paths/provider commands.
+Main window only; caller label obtained natively. Plain browser mode reports
+native-unavailable, not a browser provider fallback.
+
+```typescript
+type SpeechIdentity = {
+  request_id: string; session_id: string; run_id?: string;
+  utterance_id: string; generation: number;
+};
+type SpeechFailure = {
+  identity?: SpeechIdentity;
+  code: 'native_unavailable' | 'not_configured' | 'device_unavailable'
+    | 'credential_unavailable' | 'provider_error' | 'invalid_audio'
+    | 'unsupported_reference' | 'asset_not_found' | 'stale_context'
+    | 'invalid_input' | 'revision_conflict' | 'busy' | 'cancelled' | 'timeout';
+  message: string; retryable: boolean;
+  provider?: 'siliconflow' | 'minimax'; http_status?: number;
+};
+```
+
+No SpeechFailure includes secret/audio/text/body/URL. Native rejects unsafe
+integers, unknown fields, invalid IDs/enums/lengths. generation is monotonic
+per native caller window for this host lifetime; controller reload obtains
+current generation in config_get, increments, then context_set. ID/generation
+is correlation/fencing, not a VIVY authority grant.
+
+| Command | Input | Success / rule |
+| --- | --- | --- |
+| `speech_config_get` | none | Versioned preferences/revision, credential presence/availability, current window context; no keys |
+| `speech_config_update` | `{base_revision,preferences}` | Updated safe config; full closed preferences schema and native CAS |
+| `speech_credential_set` | `{provider,key}` | `{provider,present:true}` after OS store success; no key echo |
+| `speech_credential_delete` | `{provider}` | `{provider,present:false}`; absent deletion idempotent |
+| `speech_context_set` | `{session_id,generation}` | Same context; strictly newer generation cancels old requests; identical current tuple idempotent, older/conflicting tuple rejects |
+| `speech_transcribe` | Raw WAV bytes; bounded metadata header described below | `{identity,status:'transcribed',text}` or `{identity,status:'no_speech',text:''}` |
+| `speech_synthesize` | `{identity,text}` | Raw MP3 ArrayBuffer through ipc::Response; native config selects provider/model/voice |
+| `speech_cancel` | `{request_id}` | `{request_id,status:'cancelled'|'settled'}`; window-scoped, does not claim remote refund |
+| `voice_asset_import` | Raw reference bytes + bounded metadata header | Asset descriptor; native ID and owned copy |
+| `voice_asset_list` | none | <=20 descriptors; no filesystem paths |
+| `voice_asset_read` | `{asset_id}` | Raw bytes for explicit local preview; known descriptor MIME |
+| `voice_asset_delete` | `{asset_id}` | `{asset_id,status:'deleted'|'pending'}`; read lease release completes pending delete |
+
+Raw transcribe invoke example (**proposed**, not tested on bundled artifact):
+
+```typescript
+invoke('speech_transcribe', wavArrayBuffer, {
+  headers: { 'x-diva-speech-meta': JSON.stringify({
+    identity, mime_type: 'audio/wav'
+  }) }
+});
+```
+
+Native accepts only Raw body, metadata <=2 KiB, valid identity, WAV PCM16 /
+mono/16kHz and <=120 s/8 MiB. Headers are IPC metadata, never provider
+Authorization. Reference import header `x-diva-asset-meta` carries only
+`{display_name,mime_type}` <=2 KiB; verify WAV/MP3 bytes, not extension alone.
+No source path/remote URL. Native derives safe filename from ID; caller name
+is display-only. Read/delete unknown ID is asset_not_found, never arbitrary
+path access. Manifest writes use atomic file replacement under native lock.
+
+Preference schema `diva.speech/v1`:
+
+- `stt: {provider:'siliconflow',base_url,model}`.
+- `tts: {provider:'siliconflow'|'minimax',siliconflow:{base_url,model,voice,
+  speed,reference},minimax:{base_url,model,voice_id,speed,volume}}`.
+- SiliconFlow reference is a strict union: system; reusable `{voice_id}`;
+  inline `{asset_id,transcript}`. Exact provider/model incompatibility rejects,
+  never drops configured reference. No speculative MiniMax cloning workflow.
+- `auto_read_replies:boolean`. Runtime bounds are fixed native guards, not
+  client-controlled timeout/size overrides. No audio translation option.
+- `credential_state` and `window_context` are native readback only; neither
+  can be written in preference payload. No PetConfig/localStorage speech key.
+
+Credentials keyed by fixed app/profile/provider. Provider HTTPS origin is
+configured by human settings, never per utterance. Validate no URL credentials /
+fragment/query; no cross-host redirects or automatic retries. Each operation
+freezes config revision. Release native request buffers on every path; Vue
+owns MP3 Blob URL and revokes it. **No speech_release_audio command or persistent
+native TTS cache.**
+
+Errors use rejected invoke Promise with SpeechFailure. Successful binary TTS
+contains no custom framing; identity remains tied to the call's captured
+Promise and current generation. JSON STT echoes identity. Cancel/context changes
+always stop local playback first; late binary response is discarded/revoked.
+New playback never drains a stale queued answer.
+
+## C2-5. Contract proof required before Ready
+
+- Capture existing selected-artifact image/edit/rewind/permission/OBS fixtures;
+  keep proposed examples labelled and separate from captured core transcript.
+- Implement public facade conformance and sealed factory/provider inventory
+  checks, origin rejection and required FrozenCore-to-model-input evidence.
+- Prove no supervisor/child capture, stable receipt replay, source namespace,
+  per-run Mission fence and no new-attempt replay after unknown outcome.
+- Probe bundled Tauri Raw/Response, WebView WAV/MP3, credential OS persistence /
+  unavailability, native memory/response caps and abort race.
+- Refresh provider region/model/reference request fixtures, especially MiniMax
+  whose current documentation fetch timed out. No real provider success or
+  quality claim is made by this ledger.
+- Amend existing native/AST/dependency gates for exact commands; activated
+  speech is removed from the broad dormant pet exemption. Negative fixtures
+  reject browser cloud fetch, dynamic/generic native invoke and old pet_*.
+
+---
+
+## Historical DN-C1 amendment and initial inventory
+
+The following records are superseded where DN-C2 explicitly changes them.
+
 # DN-C1 contract-ledger amendment — 2026-10-03
 
 Current scope: [DN-C1](p0-design.md); stage state: [index.md](index.md).

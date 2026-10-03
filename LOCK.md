@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/**, docs/archive/todolist/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md`
+- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/v0.2.0-detailed-architecture/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex`
-- Session/Task: `DIVA Next closure scope and preliminary architecture; documentation only`
+- Session/Task: `DN-C2 detailed architecture; documentation only`
 - Branch/Worktree: `docs/diva-next-closure-20261003 / /workspace/scratch/2a94a1beed0f/agent-diva`
-- Started At: `2026-10-03T07:11:34Z`
-- Last Heartbeat: `2026-10-03T07:27:34Z`
+- Started At: `2026-10-03T08:20:24Z`
+- Last Heartbeat: `2026-10-03T08:53:29Z`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DN-C2 detailed architecture` — **RELEASED 2026-10-03T08:53:29Z** by `Codex`;
+  existing isolated branch `docs/diva-next-closure-20261003`; design/ledger/
+  index, stage amendments, TODOLIST and v0.2.0 logs committed after static
+  checks. Docs only; no product/native/cloud tests, external mutation, push
+  or release. Detailed implementation and owner acceptance remain pending.
 
 - `DIVA Next closure scope and preliminary architecture` — **RELEASED 2026-10-03T07:27:34Z**
   by `Codex`; isolated local branch `docs/diva-next-closure-20261003`; scope
