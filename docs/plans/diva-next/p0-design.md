@@ -5,8 +5,10 @@ implemented or product-accepted**. This replaces DN-C1 in the same authority
 set. [The index](index.md) owns stage state and dependencies;
 [the contract ledger](backend-separation-contracts.md) owns existing versus
 proposed wire contracts; TODOLIST owns unfinished work. This is architecture,
-not a second Epic/Story plan package. Implementation plans follow review of
-this specification and the engineering probes in section 12.
+not a second architecture authority. The 2026-10-03 executable Story package
+now lives under this [same index](index.md#executable-story-package). It maps
+section 12 probes and implementation to existing DN/OBS stages; planning does
+not imply runtime proof, implementation or final owner acceptance.
 
 ## 1. Delivery goal and eight closure rules
 
@@ -320,8 +322,9 @@ remain real notes, not fabricated scheduled reports.
 
 ### 4.5 Cognitive UI
 
-Reuse PersonaMemoryView/PersonaSetupGate, MemoryView, EvolutionView and
-SelfEvolutionSettings. Proposed `src/api/cognitive.ts` consumes ledger actions
+Reuse the existing PersonaMarkdownEditor and current client/controller;
+DN-4D creates the absent scoped PersonaMemoryView/PersonaSetupGate, MemoryView
+and EvolutionView with policy controls. Proposed `src/api/cognitive.ts` consumes ledger actions
 through the existing client. Views own draft/selection/fetch state, not a
 business database.
 
@@ -628,7 +631,7 @@ Paths marked proposed are not existing APIs or implementation.
 | Laputa | garden/agentapi, evolution/domain, laputa/persona/actmem/evolution, memory/backend | Same-owner public domain/control capabilities; consistent explicit backend selection; bounded receipt/reflection reads |
 | VIVY | app/assembly observers/sources/masks, runtime cognitive/context/admission, ActionHost/compiler | internal/cognitivecontract/, modules/diva-cognitive/, app/assembly_cognitive.go; generated factory/adapters; primary context, per-run guards/recovery/lifecycle |
 | DIVA state | api/vivy, chat/session/controller | Actual OBS/chat DTOs; api/cognitive.ts and api/speech.ts; one projection/voice controller |
-| DIVA Vue | Existing Persona/Memory/Evolution/Console/chat/settings | Required wiring and truthful errors, voice reachable without pet |
+| DIVA Vue | Existing PersonaMarkdownEditor/Console/chat/settings; former Persona/Memory/Evolution views are absent at this pin | Proposed scoped views and real wiring; truthful errors; voice reachable without pet |
 | DIVA native | lib.rs/lifecycle.rs and vivy-bridge | src-tauri/src/speech/{mod,commands,config,credentials,assets,providers}.rs; narrow Cargo additions |
 | DIVA gates | check_legacy_frontend_calls.mjs/check_vivy_backend_boundary.py/staging/justfile | Exact native allowlist/Raw fixtures, activated voice outside dormant exemption, dependency/artifact/native evidence |
 
@@ -685,8 +688,10 @@ are verification inputs, not new product-scope questions or Ready assertions.
 Order: freeze same-owner facade/generated integration; capture contracts;
 implement cognition/chat/console/bounded speech; repack/inspect/pin; reconcile
 DN-M with evidence; prepare DN-8. Chat/console can proceed on real existing APIs
-without unrelated speech/report backends. Detailed Story execution plans follow
-architecture review; this iteration does not create them.
+without unrelated speech/report backends. The execution-plan iteration now
+maps each probe and implementation increment to a concrete Story in the
+[authoritative index](index.md#executable-story-package). Contracts stay
+proposed until producer evidence; only independent roots are plan-Ready.
 
 ## 13. Sources and dispositions
 

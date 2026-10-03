@@ -1,9 +1,13 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-6A](closure/DN-6A.md), [DN-6B](closure/DN-6B.md), [DN-6C](closure/DN-6C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
 # DN-6 — DIVA-native online speech and media
 
 Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
 The owner's 2026-10-03 directive supersedes the VIVY-speech-module prerequisite.
 DN-C2 supplies detailed architecture and exact proposed commands in the
-ledger. Implementation/native/provider probes remain pending; not Ready.
+ledger. Implementation/native/provider probes remain pending; child readiness is recorded only in the parent index.
 
 ## Outcome and ownership
 

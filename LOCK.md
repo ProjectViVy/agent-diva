@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/v0.2.0-detailed-architecture/**, TODOLIST.md, LOCK.md`
+- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/v0.3.0-execution-plans/**, TODOLIST.md, LOCK.md, Git refs for docs/diva-next-detailed-architecture-20261003`
 - Owner: `Codex`
-- Session/Task: `DN-C2 detailed architecture; documentation only`
-- Branch/Worktree: `docs/diva-next-closure-20261003 / /workspace/scratch/2a94a1beed0f/agent-diva`
-- Started At: `2026-10-03T08:20:24Z`
-- Last Heartbeat: `2026-10-03T08:53:29Z`
+- Session/Task: `DN-C2 executable Story planning package; documentation only`
+- Branch/Worktree: `docs/diva-next-detailed-architecture-20261003 / /workspace/scratch/2a94a1beed0f/agent-diva`
+- Started At: `2026-10-03T09:55:32Z`
+- Last Heartbeat: `2026-10-03T10:27:02Z`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DN-C2-P1 executable Story package` — **RELEASED 2026-10-03T10:27:02Z** by `Codex`;
+  branch `docs/diva-next-detailed-architecture-20261003`; 20 Plans, 9 waves,
+  9 requirements, source-path/link/contract/DAG checks recorded in v0.3.0 logs.
+  Docs only; no implementation, product/native/cloud tests or owner acceptance.
+  Publication uses the previously authorized design branch; no PR/merge/release.
 
 - `DN-C2 detailed architecture` — **RELEASED 2026-10-03T08:53:29Z** by `Codex`;
   existing isolated branch `docs/diva-next-closure-20261003`; design/ledger/

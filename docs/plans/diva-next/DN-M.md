@@ -1,3 +1,7 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-M-C](closure/DN-M-C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
 # DN-M — Scoped semantic closure
 
 Spec: [DN-C2](p0-design.md). State/dependencies: [index.md](index.md).

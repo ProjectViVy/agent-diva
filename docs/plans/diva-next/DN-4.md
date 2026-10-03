@@ -1,9 +1,13 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-4A](closure/DN-4A.md), [DN-4B](closure/DN-4B.md), [DN-4C](closure/DN-4C.md), [DN-4D](closure/DN-4D.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
 # DN-4 — Bound cognition and companion handoff
 
 Current architecture: [DN-C2](p0-design.md). State/dependencies live in
 [index.md](index.md). Reuse the merged Laputa cognitive contracts/S08, not
 another competing domain plan. DN-C2 supplies detailed architecture and
-proposed contracts. This stage retains implementation ownership; it is not an executable Ready plan.
+proposed contracts. This stage retains implementation ownership as an umbrella; executable child Plans are linked above.
 
 ## Reuse and remaining boundary
 
@@ -25,8 +29,9 @@ without ordinary BML fallback; native/build closure remains a required probe.
 
 ## DIVA consumer work
 
-Reuse PersonaMemoryView, PersonaSetupGate, MemoryView, EvolutionView,
-SelfEvolutionSettings and associated state/APIs. Display current versus
+Reuse PersonaMarkdownEditor and the current client/controller. DN-4D creates
+the absent scoped PersonaMemoryView, PersonaSetupGate, MemoryView and
+EvolutionView, including policy settings. Display current versus
 session-frozen revisions, scoped Pulse/Recap/Work, backend/scope, eligibility,
 active run, partial/unknown/recovery-required, and actual review/result
 receipts. Proposed `src/api/cognitive.ts` consumes frozen action fixtures

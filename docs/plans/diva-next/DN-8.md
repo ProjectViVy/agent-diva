@@ -1,3 +1,7 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-8C](closure/DN-8C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
 # DN-8 — Clean package and final owner acceptance
 
 Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).

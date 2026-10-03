@@ -7,6 +7,11 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
 ## Closure work
 
+The [DN-C2-P1 execution package](docs/plans/diva-next/index.md#executable-story-package)
+maps these gaps to 20 concrete Plans. Planning is complete; all implementation,
+captured contract/native/provider probes and owner acceptance remain unfinished.
+Four independent roots are plan-Ready; other readiness lives only in that index.
+
 - [ ] **COGNITIVE-COMPOSITION** P1 — Laputa #2 and VIVY #26 provide real
   foundations, but DIVA's recipe has no bound domain. DN-C2 specifies the
   same-owner Garden facade extension, generated factory/context/capture/actions and
@@ -93,6 +98,10 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
   controls only alongside touched flows; no unrelated broad frontend rewrite.
 
 ## Recorded delivery and cancellation
+
+- [x] **DN-C2-P1-PLANS** — 20 executable Story plans supplied under existing
+  DN/OBS stages with requirement coverage, immediate dependencies, waves,
+  file ownership, checks and handoff. This closes planning only, not product work.
 
 - [x] Initial shared host/bridge/core/settings/masks delivery: DIVA #16 and
   VIVY #28 merged; prior Linux evidence retained at its original pins.

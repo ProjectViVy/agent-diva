@@ -13,9 +13,10 @@ In scope: cognition, console observability, chat wiring, online SiliconFlow
 STT and SiliconFlow/MiniMax TTS through DIVA/Tauri, native package preparation.
 The owner performs final installed-product acceptance after engineering
 prepares code/checks/artifacts and reproducible steps. A green build or merged
-PR is not final acceptance. DN-C2 is detailed architecture and proposed
-contract design only, not product implementation or an executable plan package. The prior DN-C1 iteration also
-reconciled tracker wording; this revision makes no external issue mutations.
+PR is not final acceptance. DN-C2 remains the detailed architecture and proposed-contract authority.
+Its executable decomposition is now included below: **20 Story plans**, no
+product implementation or new acceptance. Prior DN-C1 reconciled tracker
+wording; this planning iteration makes no issue/PR/merge/release mutation.
 Local ONNX/OLVRS, broad report/resource systems and pet expansion
 are deferred. **Historical data import is cancelled; DN-7 is not a blocker.**
 
@@ -30,7 +31,7 @@ New source/recipe/library pins require fresh package acceptance evidence.
 | Stage | Outcome | Immediate prerequisites | State / evidence |
 | --- | --- | --- | --- |
 | [DN-W](DN-W.md) | Old Rust business backend retired | — | Historical implementation delivered in #14; never restore as fallback |
-| [DN-0](DN-0.md) | Inventory and contract freeze | — | Initial ledger delivered; closure-specific wire/action fixtures still need refresh |
+| [DN-0](DN-0.md) | Inventory and contract freeze | — | Initial ledger delivered; DN-0C/S/P plans now supplied, capture/probes pending |
 | [DN-L](DN-L.md) | Sealed shared library | DN-0 frozen contracts | Initial implementation merged in VIVY #28; new cognitive/OBS composition and repack pending; Windows evidence pending |
 | [DN-5](DN-5.md) | Tauri/FFI lifetime | DN-L artifact/header | Initial implementation merged in DIVA #16; Linux evidence recorded; online native services are a narrow DN-6 extension |
 | [DN-1](DN-1.md) | Typed client and state projection | DN-5 transport | Implemented on initial pin; extend only for newly frozen contracts |
@@ -39,7 +40,7 @@ New source/recipe/library pins require fresh package acceptance evidence.
 | [DN-3](DN-3.md) | Operational settings | DN-2 mutation/recovery | Initial slices delivered; scoped residuals in TODOLIST, not universal feature-parity acceptance |
 | [DN-4](DN-4.md) / Laputa S08 | Bound cognition and companion UI | DN-1/2; Laputa S07 + VIVY #26 domain/runtime contracts | Masks delivered; cognition needs same-owner public facade extension, generated binding, per-run authority/recovery guards, embedded start/stop and model-input projection; bridge-only blocker is stale |
 | OBS-06..09 | Console consumers and packaged OBS acceptance | VIVY #27 contracts; DN-1/2; DN-P for package gate | Backend producers merged; DIVA still token-only; exact contract freeze and consumer work pending; preserve the existing OBS track |
-| [DN-6](DN-6.md) | DIVA-native online speech/media | DN-2 run state, DN-5 host; DN-C2 native speech contract/probes | Architecture/command design supplied in DN-C2; Raw WAV/MP3, OS credential/provider/native probes and implementation pending |
+| [DN-6](DN-6.md) | DIVA-native online speech/media | DN-2 run state, DN-5 host; DN-C2 native speech contract/probes | DN-C2 + DN-6A/B/C plans supplied; DN-0S probes and native/provider implementation pending |
 | [DN-M](DN-M.md) | Scoped semantic closure | DN-3 scoped dispositions, DN-4, DN-6, DN-2 additions, OBS consumers, DN-P | Static gate delivered; behavior and newly allowed native speech boundaries still need evidence |
 | [DN-7](DN-7.md) | Historical import | — | **Cancelled by owner 2026-10-03**; no implementation and no release dependency |
 | [DN-8](DN-8.md) | Clean package and final owner acceptance | DN-M; OBS package evidence; DN-P refreshed artifact | Pending; no automatic release; excludes DN-7 |
@@ -88,10 +89,159 @@ readiness. Do not widen dormant pet exemptions to admit new voice code.
 2026-10-03 owner directive: cognition/console/chat/native closure approved;
 online DIVA/Tauri speech added; historical import cancelled because there are
 no current users to migrate; owner accepts the final product. Detailed DN-C2
-architecture/contract design supersedes DN-C1. Existing stages
-retain ownership; no second Epic/Story package or implementation is created.
+architecture/contract design supersedes DN-C1. Existing stages retain ownership.
+The 2026-10-03 execution decomposition adds child Story plans under those same
+stages; it creates neither a competing index nor product implementation.
 
 Prior evidence remains under `docs/logs/2026-10-diva-next-dn2/`, `-dn3/`,
 `-dn4/`, `-dnp/`, `-dnm/`. Current documentation-only evidence is under
 `docs/logs/2026-10-diva-next-closure/v0.1.0-scope-and-architecture/` and
 `v0.2.0-detailed-architecture/`.
+
+
+## Executable Story package
+
+Planning revision **DN-C2-P1**, 2026-10-03. This section is the only live
+Story status/dependency authority. Each linked file is an executable Plan,
+including blocked downstream work; a backlog row alone is not a plan.
+No Story is In progress/Done from document generation. **Ready** means a
+concrete independent implementation/probe plan can be released; no code work
+has started in this planning turn. **Blocked** identifies predecessor or
+native evidence still needed, not a missing user product decision.
+
+Epics reuse the existing stages: DN-0 (proof inputs), DN-4/DN-L (bound
+cognition), DN-2 (real chat), OBS-C/D (console), DN-6 (online voice),
+DN-P/DN-M/DN-8 (candidate/boundaries/owner handoff). DN-3 operational settings
+are changed only alongside their owning cognition/chat/voice/console Story;
+residual disposition is audited by DN-M-C. DN-7 remains cancelled.
+
+| Story / Plan | Epic / requirements | Outcome | Immediate predecessor and exact output | State | Evidence / blocker |
+| --- | --- | --- | --- | --- | --- |
+| [DN-0C](closure/DN-0C.md) | DN-0 / R-2, R-3, R-9 | Capture current chat and console contracts | — | Ready | Concrete independent plan; execution not started |
+| [DN-0S](closure/DN-0S.md) | DN-0 / R-5, R-6, R-8 | Probe native speech seams and provider mappings | — | Ready | Concrete independent plan; execution not started |
+| [DN-0P](closure/DN-0P.md) | DN-0 / R-2, R-6, R-8 | Inventory pinned build and native dependency closure | — | Ready | Concrete independent plan; execution not started |
+| [DN-4A](closure/DN-4A.md) | DN-4 / R-2, R-4 | Expose one owned Garden domain and selected backend | — | Ready | Concrete independent plan; execution not started |
+| [DN-LC](closure/DN-LC.md) | DN-L / R-2, R-4, R-8 | Generate and compose the selected cognitive factory | DN-4A: same-owner public facade/conformance | Blocked | Predecessor output/evidence pending |
+| [DN-4B](closure/DN-4B.md) | DN-4 / R-2, R-3, R-4, R-6 | Bind primary authority and safe cognitive runtime lifecycle | DN-LC: sealed factory/bundle/provider inventory | Blocked | Predecessor output/evidence pending |
+| [DN-4C](closure/DN-4C.md) | DN-4 / R-2, R-4 | Implement governed human cognitive actions | DN-4B: actual primary context, runtime guards/lifecycle | Blocked | Predecessor output/evidence pending |
+| [DN-4D](closure/DN-4D.md) | DN-4 / R-3, R-4 | Connect cognitive setup and scoped companion views | DN-4C: captured authenticated human action contracts | Blocked | Predecessor output/evidence pending |
+| [DN-2A](closure/DN-2A.md) | DN-2 / R-2, R-3 | Wire image send and admitted permission controls | DN-0C: captured chat/OBS source fixtures | Blocked | Predecessor output/evidence pending |
+| [DN-2B](closure/DN-2B.md) | DN-2 / R-3, R-4, R-5 | Fix selected-turn regeneration and recovery controls | DN-2A: image/policy payload and mutation lane | Blocked | Predecessor output/evidence pending |
+| [OBS-06](observability/OBS-06.md) | OBS-C / R-2, R-9 | Truthful token dashboard and host connection | DN-0C: captured chat/OBS source fixtures | Blocked | Predecessor output/evidence pending |
+| [OBS-07](observability/OBS-07.md) | OBS-C / R-2, R-3, R-9 | Single-owner trajectory and child references | DN-0C: captured chat/OBS source fixtures | Blocked | Predecessor output/evidence pending |
+| [OBS-08](observability/OBS-08.md) | OBS-C / R-2, R-9 | Bounded diagnostics and honest GUI persistence | DN-0C: captured chat/OBS source fixtures | Blocked | Predecessor output/evidence pending |
+| [DN-6A](closure/DN-6A.md) | DN-6 / R-2, R-5, R-8 | Native speech preferences, credentials and reference assets | DN-0S: accepted IPC/keyring/provider compatibility | Blocked | Predecessor output/evidence pending |
+| [DN-6B](closure/DN-6B.md) | DN-6 / R-2, R-5, R-6, R-9 | Bounded cloud providers and native request cancellation | DN-6A: native config/key/asset contracts | Blocked | Predecessor output/evidence pending |
+| [DN-6C](closure/DN-6C.md) | DN-6 / R-3, R-5, R-9 | Connect main-chat voice and generation-safe playback | DN-6B: provider/cancellation/IPC contracts; DN-2B: selected-turn/recovery/Goal/invalidation; OBS-08: diagnostic/recorder API and evidence | Blocked | Predecessor output/evidence pending |
+| [DN-P-C](closure/DN-P-C.md) | DN-P / R-2, R-6, R-8 | Repack and inspect the integrated closure Generation | DN-4D: accepted scoped cognitive UI code/evidence; OBS-06: token/connection consumer evidence; OBS-07: single-owner trajectory/child consumer evidence; DN-6C: generation-safe main-chat voice code/evidence; DN-0P: pinned clean staging/native inventory | Blocked | Predecessor output/evidence pending |
+| [OBS-09](observability/OBS-09.md) | OBS-D / R-6, R-8, R-9 | Verify observability in the new native candidate | DN-P-C: immutable candidate/hash/build matrix; OBS-06: token/connection consumer evidence; OBS-07: single-owner trajectory/child consumer evidence; OBS-08: diagnostic/recorder API and evidence | Blocked | Predecessor output/evidence pending |
+| [DN-M-C](closure/DN-M-C.md) | DN-M / R-1, R-2, R-3, R-4, R-5, R-7, R-8, R-9 | Audit scoped behavior and boundary closure | OBS-09: packaged OBS evidence on that candidate | Blocked | Predecessor output/evidence pending |
+| [DN-8C](closure/DN-8C.md) | DN-8 / R-1, R-3, R-4, R-5, R-6, R-7, R-8, R-9 | Prepare clean native installation and owner acceptance | DN-M-C: scoped requirement/boundary evidence | Blocked | Predecessor output/evidence pending; actual Windows x64 runner/device gate |
+
+OBS-06/07/08 retain their original **token/connection**, **trajectory** and
+**diagnostics** meanings. Their source producer prerequisites OBS-01…05 are
+already merged at VIVY `1db8b55`; DN-0C captures the current actual structs and
+replaces old pending-producer assumptions. The old DIVA plan branch
+[`364163e`](https://github.com/ProjectViVy/agent-diva/tree/364163e97c972cec9aef007f1be72005af60f25a/docs/plans/diva-next/observability)
+is provenance, not a competing execution map.
+
+OBS-09 deliberately retains direct edges to OBS-06/07/08 although DN-P-C
+also consumes their code (OBS-08 transitively via DN-6C): consumer evidence
+matrices are a separate acceptance input from the rebuilt candidate's identity.
+Other duplicated transitive edges are omitted. Logical dependency and
+shared-file scheduling are separate. Later-wave plans become Ready only
+after accepted exact predecessor outputs; a source merge or this wave table
+does not meet that gate.
+
+### Topological execution waves
+
+1. DN-0C, DN-0S, DN-0P, DN-4A.
+2. DN-LC, DN-2A, OBS-06, OBS-07, OBS-08, DN-6A.
+3. DN-4B, DN-2B, DN-6B.
+4. DN-4C, DN-6C.
+5. DN-4D.
+6. DN-P-C.
+7. OBS-09.
+8. DN-M-C.
+9. DN-8C.
+
+These are dependency waves, not duration/staffing/calendar promises. Root
+DN-4A can implement library conformance while DN-0C/S/P probe independent
+boundaries. Native access failures block the affected output; unaffected
+plans continue. Provider keys/owner audio quality are not needed to write
+offline contracts or source tests.
+
+### Requirement coverage
+
+| Requirement | Implementing / evidence Stories |
+| --- | --- |
+| R-1 | DN-M-C, DN-8C |
+| R-2 | DN-0C, DN-0P, DN-4A, DN-LC, DN-4B, DN-4C, DN-2A, OBS-06, OBS-07, OBS-08, DN-6A, DN-6B, DN-P-C, DN-M-C |
+| R-3 | DN-0C, DN-4B, DN-4D, DN-2A, DN-2B, OBS-07, DN-6C, DN-M-C, DN-8C |
+| R-4 | DN-4A, DN-LC, DN-4B, DN-4C, DN-4D, DN-2B, DN-M-C, DN-8C |
+| R-5 | DN-0S, DN-2B, DN-6A, DN-6B, DN-6C, DN-M-C, DN-8C |
+| R-6 | DN-0S, DN-0P, DN-4B, DN-6B, DN-P-C, OBS-09, DN-8C |
+| R-7 | DN-M-C, DN-8C |
+| R-8 | DN-0S, DN-0P, DN-LC, DN-6A, DN-P-C, OBS-09, DN-M-C, DN-8C |
+| R-9 | DN-0C, OBS-06, OBS-07, OBS-08, DN-6B, DN-6C, OBS-09, DN-M-C, DN-8C |
+
+R-1 applies additionally to every Story's evidence/disposition. R-2's authority
+and exact boundary constraints apply to all code even where a local table row
+lists only its direct user requirement. Final owner acceptance is distinct
+from every engineering row.
+
+## Execution contract
+
+Read root/local repository instructions, DN-C2, C2-1…6 ledger, this index and
+the selected Plan. Baseline code pins remain DIVA `f5866a0`, VIVY `1db8b55`,
+Laputa `dc6066e`; published architecture parent is `0e738dd`. A newer source
+pin requires readback and invalidates affected fixtures/package acceptance.
+New paths in plans are proposed, never evidence of existing code.
+
+**Plan/source corrections:** only PersonaMarkdownEditor currently exists;
+PersonaSetupGate/PersonaMemoryView/MemoryView/EvolutionView are new scoped
+views in DN-4D. Old AuditPage/guiLogger/SubAgentPanel assumptions are not
+used as existing paths. Existing voice recorder/player algorithms may be
+moved into active features/voice; their old provider fetch/pet_* wrappers
+are not an allowed product transport.
+
+| Shared surface | Integration order / ownership |
+| --- | --- |
+| Chat controller, contracts/client, App.vue | DN-2A → DN-2B; merge OBS read-only projection changes serially; then DN-4D, then DN-6C main composition |
+| ConsoleView, observability facade/DTOs | OBS-06 → OBS-07 → OBS-08 shared edits; domain code/tests may be prepared separately |
+| VIVY app/recipe/generated inventory | DN-LC → DN-4B → DN-4C; DN-P-C alone freezes/repackages final pins |
+| Source/context/capture/runtime state | DN-4B owns runtime changes; DN-4C consumes controls without a second scheduler |
+| Native lib/lifecycle, desktop-host, Cargo locks/gates | DN-6A → DN-6B → DN-6C; native/AST command gates accompany each activation |
+| Ledger/index/TODO and evidence | One supervisor integrates accepted outputs; preserve historical evidence and scope |
+
+No delegation is requested by this plan package. Use native task-by-task
+execution by default; if delegation is later authorized, resolve shared
+contracts/file ownership first and keep integration/review capacity bounded.
+
+Verification uses actual present commands: DIVA `just gui-test`, `gui-build`,
+`shell-bridge-test`, `shell-test`, `shell-clippy`, `tauri-build`, `ci` and the
+two Node/Python boundary gates. Root retired Rust `cargo test --all`/fmt/check
+recipes are absent; this planning turn changes Markdown only, so it runs
+document/DAG/path checks and no product tests. Implementation uses the owning
+current shell/Go/GUI gates. Root instruction files are not rewritten here;
+their stale descriptions remain a separately recorded governance follow-up.
+
+Each implementation task starts with meaningful failing assertions where
+behavior changes, then minimal code, focused proof, the necessary owning
+integration checks and one scoped English Conventional Commit. Probe/build/
+handoff-only tasks collect actual evidence rather than manufacture red tests.
+Do not turn mock/source/unit evidence into native or owner acceptance.
+
+Handoff for every Story includes Plan + DN-C2/ledger revision, predecessor
+commit/fixture/artifact hashes, permitted files, observed checks/failures,
+remaining environment limits and a clean scoped commit. Record results in
+existing versioned logs; update this index/TODO. Unknown mutation effects,
+authority changes, missing bound capabilities and artifact/hash mismatch
+stop affected execution. Reconcile upstream changes and all downstream plans
+before resuming; a local technical correction within scope needs no new
+product permission round.
+
+Scope/interface/acceptance/major-cost changes require a concrete user decision.
+No automatic issue messages, PR, merge or release. The existing explicit
+upload authorization covers publishing this documentation update to the same
+design branch; it is not product release authorization.

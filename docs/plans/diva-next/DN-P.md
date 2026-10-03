@@ -1,3 +1,7 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-P-C](closure/DN-P-C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
 > 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
 > take precedence over historical P0-D1 host/speech/import/acceptance premises.
 > Tasks/evidence below retain their original scope and artifact pins. New

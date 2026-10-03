@@ -354,6 +354,149 @@ New playback never drains a stale queued answer.
   speech is removed from the broad dormant pet exemption. Negative fixtures
   reject browser cloud fetch, dynamic/generic native invoke and old pet_*.
 
+
+## C2-6. Execution-plan producer seams (proposed)
+
+Added by the 2026-10-03 Story decomposition. These names resolve implementation
+handoffs within DN-C2; they are **not exported source, captured runtime proof,
+or a change to domain/wire authority**. DN-4A/DN-LC/DN-4B freeze actual
+implementations and fixtures here before dependent plans become Ready.
+
+### Garden public ownership and controls — DN-4A
+
+Extend `agentapi.Config` with `BackendID string`, `DestinationID string`,
+and `Backends map[string]memory.Backend`. The configured writer is explicit;
+`mentle` selects the existing adapter, with no second backend on failure.
+Validate exact fixed subject/write scope/destination and resource paths at
+Open. The owner may derive admitted personal/workspace read scope from trusted
+VIVY session metadata; wire payloads cannot issue that admission.
+
+Proposed Go surface in `garden/agentapi/embedded_domain.go`:
+
+```go
+func (c *Client) BindHumanSession(sessionID, workspaceID string) (*HumanClient, error)
+func (c *Client) BindAgentSession(sessionID, workspaceID string) (*BoundClient, error)
+func (c *Client) BindEvolution(scope evolution.Scope, destinationID string) (EvolutionPorts, error)
+func (h *HumanClient) InitializePersona(ctx context.Context, in persona.Initialization, reason string) (*persona.WriteOutcome, error)
+func (h *HumanClient) SavePersona(ctx context.Context, kind persona.Kind, content string, baseRevision uint64, reason string) (*persona.WriteOutcome, error)
+func (h *HumanClient) ListPersonaReviews(ctx context.Context, q ReviewQuery) (ReviewPage, error)
+func (h *HumanClient) DecidePersonaReview(ctx context.Context, id string, decision ReviewDecision) (*persona.WriteOutcome, error)
+func (h *HumanClient) SaveACTMEM(ctx context.Context, markdown string, baseRevision uint64) (ActmemDocument, error)
+func (h *HumanClient) SearchMemory(ctx context.Context, q memory.AuthorizedSearch) (memory.CardPage, error)
+func (h *HumanClient) ExpandMemory(ctx context.Context, q memory.AuthorizedExpansion) (memory.EvidencePage, error)
+func (h *HumanClient) MutateMemory(ctx context.Context, m memory.AuthorizedMutation) (memory.MutationReceipt, error)
+func (h *HumanClient) MemoryReceipt(ctx context.Context, operationID string) (memory.MutationReceipt, error)
+func (h *HumanClient) ReadFrozen(ctx context.Context) (FrozenCore, error)
+func (h *HumanClient) Results(ctx context.Context, q PageQuery) (ResultPage, error)
+```
+
+HumanClient is available only from a trusted `PrincipalUser` owner. Derived
+BoundClient stamps reduced `PrincipalAgent` per handle instead of reusing
+the owner's principal. Existing BindSession keeps its existing behavior for
+other consumers. Per-handle principal/scope is private host-issued state; it
+cannot be set in a read/write request. ReadPersona/ReadActivity/ReadACTMEM/
+ApplyWorkPatch remain typed public methods on the appropriate bound handle.
+All methods take the same owner's read/lifetime lock; derived capabilities
+never reopen or Close a second authority.
+
+`EvolutionPorts` is C2-2's shape, constructed internally with the already-open
+Persona/ACTMEM/ingest/backend and `garden/evolution.NewDomain`; source identity
+includes profile/scope/destination. Domain reads/effects use exactly that
+scope and the same host authority gate used by Mission human writes.
+
+That host gate belongs to the selected VIVY bundle: both the human-write
+adapter and run-bound effect wrapper acquire it before entering Garden's
+lifetime/domain locks. Library operations never call back into the host
+while holding those locks. This preserves one serialized check/write boundary
+without exporting a library mutex or holding a global lock over inference.
+
+Pagination structs live beside the public facade, not a new database:
+
+- `PageQuery`: `Cursor string`, `Limit int`; default 20/max 100.
+- `ReviewQuery`: optional `Kind *persona.Kind`, `State *persona.RequestState`,
+  plus PageQuery. `ReviewPage`: `Items []persona.ChangeRequest`, `NextCursor string`.
+- `ReviewDecision`: closed `accept|reject`. Call existing AcceptRequest/
+  RejectRequest; stale base is never forced.
+- `ResultPage`: bounded receipt/reflection projections of existing
+  `effects.jsonl` and `notes.jsonl`, plus `NextCursor string`. Each item retains
+  operation_id/payload_digest/status/kind/target_ref/revision/error_code;
+  reflection text/sources/at are returned only for an owned note.
+
+Cursors encode an opaque scope/query/ledger-version checkpoint. Scope/version
+change invalidates them; no hidden-scope totals. Memory methods validate the
+host-stamped Authorized DTO against the admitted reader/writer, never trust
+wire-provided scope/destination/operation identity. The adapter issues those
+fields before calling MutateMemory and returns the operation identity.
+Actor/source/reason policy uses trusted domain rules; Mission has no agent
+write path. Owner ACTMEM save reuses validated parser/CAS/caps.
+
+### Generated bundle and primary preparation — DN-LC / DN-4B
+
+Core-only `internal/cognitivecontract/ports.go` defines the narrow contracts.
+It must not import optional Garden implementation or `internal/runtime`.
+Move existing CognitiveCapture/Receipt/Source/Sink shapes there if necessary
+and keep aliases in runtime; do not duplicate or reinterpret their fields.
+The selected factory lives in `internal/modules/diva-cognitive/` and imports
+public Garden APIs. Core receives interfaces and existing Laputa DTOs.
+
+Proposed seams:
+
+| Seam | Fixed signature / contract |
+| --- | --- |
+| Assembly lookup | `CognitiveFactoryValue() any`; App strictly checks `cognitivecontract.Factory` |
+| Factory | `Factory(ctx context.Context, input FactoryInput) (Bundle, error)`; FactoryInput contains existing trusted config, Generation and owned storage dependencies |
+| Primary input | `PrimaryContextInput{SessionID domain.SessionID, RunID domain.RunID, WorkspaceID string, BudgetBytes int}` |
+| Primary prepare | `Prepare(context.Context, PrimaryContextInput) (PreparedPrimaryContext, error)` |
+| Primary output | `PreparedPrimaryContext{Frozen evolution.FrozenCoreV2, Digest string, Text string}`; no new snapshot store |
+| Per-admission binding | `ResolveBinding(context.Context) (evolution.RunBinding, error)`; source scope/destination fixed |
+| Effect/recovery guard | `BoundDomain(context.Context, evolution.RunBinding) (evolution.Domain, error)`; persisted binding, shared authority gate |
+| Bundle callbacks | `AttachRuntime(ControlPort) error`; single attachment to generated binding cells, not a new provider registry |
+| Bundle close | `Close() error`; after Service/observer admission stops; no derived close |
+
+FactoryInput's data is reused from config.Config/storage.Engine and existing
+host constructor dependencies. The enabling plan decides names/lifetime, not
+a parallel storage DTO scheme. The same generated adapters obtain this bundle;
+primary/sink/source/domain ports are armed before recovery, runtime callbacks
+after Service. Selected missing/type-mismatched/unarmed bindings fail init.
+
+ControlPort owns `GetState`, `SetPolicyCAS`, `Trigger`, `Cancel`. It uses the
+existing TriggerPolicy/Eligibility/RunBinding and new narrow control projection
+for phase/block/policy_revision/window. DN-4B adds:
+
+```go
+func (s *Service) CognitiveControlState(ctx context.Context) (cognitivecontract.ControlState, error)
+func (s *Service) UpdateCognitivePolicyCAS(ctx context.Context, policy evolution.TriggerPolicy, baseRevision uint64) (cognitivecontract.ControlState, error)
+func (s *Service) CancelCognitive(ctx context.Context, runID domain.RunID) (cognitivecontract.ControlState, error)
+```
+
+`ControlState` fields map C2-3 CapabilityStatus.cognition verbatim:
+enabled/min_interval_ms/policy_revision/eligibility/active_run_id/source_id/
+watermark/pending_through/phase/block_reason. No second scheduler/policy store.
+Numeric policy_revision is UI CAS; admitted RunBinding.policy_revision remains
+its string digest pin. Default policy disabled. Up to three proven-safe
+transient attempts; unknown/cancelled/authority-changed work does not auto-retry.
+
+DN-4C extends DialControl with a trusted host option while keeping existing
+two-argument calls valid. Only embedded.Host requests embedded-human origin;
+ActionHost authenticates its opaque peer and verifies session/registry plus
+exact action ID. Origin is private server state, never an RPC field, Face
+string alone, or model-tool capability. Human-origin checks do not bypass
+ordinary grants or domain restrictions.
+
+### Consumer handoffs
+
+- DN-2A/B own typed chat methods, retained originating bytes and local
+  `invalidateConversation(reason)` notification. OBS-07 reads the same event
+  owner; it never calls subscribeRun independently.
+- OBS-06/07/08 share one `src/api/vivy/observability.ts`. Only the parent index
+  coordinates shared-file order. OBS-08 recorder max 1000 rows/1 MiB queued;
+  each call max 50/256 KiB. These are bounded implementation guards, not measured
+  throughput. Errors/partial accepted-prefix uncertainty are not blindly retried.
+- DN-6A/B own C2-4 native command/diagnostic contracts and asset read leases.
+  DN-6C alone owns frontend media/Blob URLs and conversation generation.
+- New producer proof updates this ledger and downstream plans together;
+  illustrative code never becomes a captured fixture by renaming its label.
+
 ---
 
 ## Historical DN-C1 amendment and initial inventory
