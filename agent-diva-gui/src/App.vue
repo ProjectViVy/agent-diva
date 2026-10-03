@@ -35,6 +35,7 @@ import {
   buildWelcomeDeepSeekConfig,
 } from "./utils/welcomeConfig";
 import { vivyChat } from './state/chat-instance';
+import { vivyCognitive } from './state/vivy-cognitive';
 import { generateMessageId, type ChatMessage } from './state/chat-message';
 
 const { t } = useI18n();
@@ -711,6 +712,12 @@ function syncFromController() {
     : 'connecting';
   sessions.value = vivyChat.sessions();
   currentSessionKey.value = vivyChat.currentSessionId ?? '';
+  // DN-4D: keep the cognitive projection bound to the live session.
+  const cog = vivyCognitive();
+  const cogSession = vivyChat.currentSessionId;
+  if (cog.sessionId.value !== cogSession) {
+    void (cogSession ? cog.bind(cogSession) : cog.unbind());
+  }
   unifiedApprovals.value = vivyChat.approvals();
   approvalDetails.value = Object.fromEntries(
     unifiedApprovals.value.map((approval) => [approval.request_id, approval]),

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, ShieldCheck, Minimize2, Drama, Mic } from '@lucide/vue';
+import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, ShieldCheck, Minimize2, Drama, Mic, UserRound, BrainCircuit, Sparkles } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'sandbox' | 'compaction' | 'masks' | 'voice'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'sandbox' | 'compaction' | 'masks' | 'voice' | 'persona' | 'memory' | 'evolution'): void;
 }>();
 
 const cards = computed(() => [
@@ -20,6 +20,9 @@ const cards = computed(() => [
   { id: 'compaction', icon: Minimize2, title: t('dashboard.compaction'), desc: t('dashboard.compactionDesc') },
   { id: 'masks', icon: Drama, title: t('dashboard.masks'), desc: t('dashboard.masksDesc') },
   { id: 'voice', icon: Mic, title: t('dashboard.voice'), desc: t('dashboard.voiceDesc') },
+  { id: 'persona', icon: UserRound, title: t('dashboard.persona'), desc: t('dashboard.personaDesc') },
+  { id: 'memory', icon: BrainCircuit, title: t('dashboard.memory'), desc: t('dashboard.memoryDesc') },
+  { id: 'evolution', icon: Sparkles, title: t('dashboard.evolution'), desc: t('dashboard.evolutionDesc') },
   { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
   { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
   { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },

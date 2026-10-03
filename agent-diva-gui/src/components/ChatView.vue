@@ -31,6 +31,8 @@ import type { PlanRuntimeState } from '../api/planning';
 import type { BudgetConfigShape } from '../types/toolsConfig';
 import { budgetShapeFromCompaction, loadCompactionConfig } from '../api/settings';
 import { initVoice, voiceController } from '../state/voice';
+import { vivyCognitive } from '../state/vivy-cognitive';
+import PersonaSetupGate from './persona-memory/PersonaSetupGate.vue';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
@@ -265,6 +267,9 @@ watch(permissionMode, (mode) => {
 // transcribing and speaking read through it; the mic click toggles record
 // and the same button interrupts playback while speaking.
 const voice = voiceController();
+/** DN-4D: persona setup gates the primary send while settings/setup stay reachable. */
+const cog = vivyCognitive();
+const personaSetupRequired = computed(() => cog.needsSetup.value);
 const isRecording = computed(() => voice.state.value === 'recording');
 const isTranscribing = computed(() => voice.state.value === 'transcribing');
 const isSpeaking = computed(() => voice.state.value === 'speaking' || voice.playing.value);
@@ -522,7 +527,7 @@ const sendFrameTooLarge = (text: string, attachments: TurnAttachment[]): boolean
   }) + 128 > MAX_FRAME_BYTES;
 
 const handleSend = () => {
-  if (props.isTyping) return;
+  if (props.isTyping || personaSetupRequired.value) return;
   const content = input.value.trim();
   if (!content) return;
   const attachments = [...pendingImages.value];
@@ -1437,6 +1442,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           </div>
         </div>
         <div v-if="attachmentError" class="attachment-error">{{ attachmentError }}</div>
+        <PersonaSetupGate v-if="personaSetupRequired" />
         <input
           ref="fileInputRef"
           type="file"
@@ -1524,9 +1530,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <button
               v-else
               @click="handleSend"
-              :disabled="!input.trim()"
+              :disabled="!input.trim() || personaSetupRequired"
               class="input-action-btn send"
-              :class="{ disabled: !input.trim() }"
+              :class="{ disabled: !input.trim() || personaSetupRequired }"
               :title="t('chat.send')"
             >
               <Send :size="18" />
