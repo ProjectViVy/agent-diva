@@ -513,6 +513,41 @@ ordinary grants or domain restrictions.
 - New producer proof updates this ledger and downstream plans together;
   illustrative code never becomes a captured fixture by renaming its label.
 
+## C2-7. Packaged candidate observability evidence (OBS-09)
+
+Captured on the immutable DN-P-C candidate `vivy-shared.so`
+`sha256:d0155e26…`, generationId `331bb89d…`, ABI v1, 21 modules, via the five
+C exports only. Full row-by-row matrix and evidence keys live in
+[`fixtures/closure-packaged-obs.json`](fixtures/closure-packaged-obs.json).
+
+Result: 12 R-9 rows passed, 1 failed, 3 pending — none promote a pending row
+to passed.
+
+- Passed: candidate/source hash pins; bounded durable GUI diagnostics with
+  `[REDACTED]` secret readback; real configured model turn (`run_11f8…`,
+  completed); approval wait/resume preserving ids (`run_7acc…`,
+  `apr_906f…`, sandboxed `write_file` executed after approval); explicit
+  `run/cancel` terminal truth; trajectory v2 / token totals equal persisted
+  Journal evidence with honest coverage (`missing_usage_calls: 1` for the
+  cancelled mid-flight call, `unknown_buckets: [reasoning, cached]`);
+  replay/restart returns identical totals (read-only, no inflation);
+  `VivyPollEvents` bounded replay with `gap` flag; single journal writer,
+  no append recursion.
+- Failed: runtime log sink absent on the `.so` — `diagnostics/logs
+  source=runtime` returns `records: null`; daily/rotation logs do not exist
+  for the candidate (OBS09-F1).
+- Pending: live child run (needs a model-invoked spawn on an active parent;
+  conflict path verified), GUI window hide/reopen (needs a live Tauri
+  window), log rotation (blocked by F1).
+- Findings for DN-M-C: F1 log sink; F2 FrozenCore capture seam unwired
+  (nothing in the sealed composition calls `BoundClient.Bootstrap`, so a
+  fresh session's first turn fails `Prepare -> ReadFrozen -> not_found`
+  masked as -32603); F3 `module.action.invoke` grants are per-process
+  (-32009 on persisted sessions); F4 `VivyShutdown` cancels suspended runs
+  and drops pending approvals (no cross-process resume); F5 sandbox-denied
+  promptable tool fails the run at suspension admission (fail-closed,
+  misleading "could not be paused" message).
+
 ---
 
 ## Historical DN-C1 amendment and initial inventory

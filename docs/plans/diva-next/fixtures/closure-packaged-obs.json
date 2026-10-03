@@ -1,0 +1,62 @@
+{
+  "schema": "diva.closure-packaged-obs/v1",
+  "captured_at": "2026-10-03T09:55:00Z",
+  "capture_kind": "packaged_candidate_host",
+  "transport": "dlopen candidate .so; five C exports VivyInit/VivyCall/VivyPollEvents/VivyShutdown/VivyFree via C driver (JSONL scripts)",
+  "candidate": {
+    "path": "agent-diva-gui/src-tauri/vivy-runtime/vivy-shared.so",
+    "sha256": "d0155e26fddbb4426f7ddc2ab82615980a174d002bfc57d84c9386eac03659e5",
+    "size_bytes": 107489640,
+    "generation_id": "331bb89d975770edb9255e49c6d0e8496ed99f77a510bcb497733ec54d7e01f2",
+    "specification_version": "vivy.module/v1",
+    "abi_version": 1,
+    "modules": 21,
+    "cognitive_actions": 19
+  },
+  "source_pins": {
+    "agent_diva": "2916ba146a84 (feat/dn-closure-wave1)",
+    "agent_vivy": "db7f0c558d4e (feat/dn-closure-wave1)",
+    "laputa": "04b893243060 (feat/dn-closure-wave1)",
+    "vivy_baseline_pin": "1db8b55ce905ee4a212326e7801e0958e7f4376a"
+  },
+  "environment": {
+    "provider": "local OpenAI-compatible mock at 127.0.0.1:18080 (SSE + non-stream; scripted tool_call branch; usage 17/4/21 per call)",
+    "credentials": "DEEPSEEK_API_KEY + VIVY_PROVIDER=deepseek + VIVY_API_BASE=<mock> frozen-env trick (model.go freezeFromEnv); key material never persisted",
+    "vivy_home": "isolated scratch home with sqlite storage; sessions/settings persist across restarts",
+    "frozen_core": "captured via garden BoundClient.Bootstrap probe (7 sections) because no vivy path invokes Bootstrap — see findings",
+    "session": "sess_c26f0e43ab654679 (approval_policy=ask, permission_preset=smart, sandbox=workspace_write)"
+  },
+  "r9_rows": [
+    {"id": "R9-HASH", "row": "Predecessor source/candidate/fixture hashes verified before capture", "outcome": "passed", "evidence": "candidate sha256 + generationId + all three repo HEADs pinned above; closure-build-inputs.json staged tree matches"},
+    {"id": "R9-DIAG-GUI", "row": "GUI diagnostic append/readback bounded and durable", "outcome": "passed", "evidence": "diagnostics/logs source=gui returns persisted records across process restarts; bounded limit honored"},
+    {"id": "R9-REDACT", "row": "Secret sentinel redacted in GUI diagnostics and server-side surfaces", "outcome": "passed", "evidence": "sentinel written via diagnostics append returns [REDACTED] on readback; mock received raw key only over wire (sha256_8 logged), no key material in journal events"},
+    {"id": "R9-LOGS", "row": "Terminal vs redirected vs daily log comparison; runtime log readback", "outcome": "failed", "evidence": "diagnostics/logs source=runtime returns records:null on the .so — the shared/embedded composition never installs the logging file sink (no logging.Setup in cmd/vivy-shared or embedded path). GUI-visible runtime diagnostics are absent by design in the candidate; rotation/daily files therefore not exercisable", "disposition": "DN-M-C/DN-8C decision: wire a runtime log sink or accept CLI-only stderr"},
+    {"id": "R9-TURN", "row": "Real configured model turn completes on candidate", "outcome": "passed", "evidence": "run_11f8edc3bacf988e -> completed; assistant reply obs09-mock-ok projected; journal run_events: run.started/model.request/model.usage/model.call.finished/model.completed/run.completed"},
+    {"id": "R9-TOOL-APPROVAL", "row": "Safe tool follow-up with approval wait/resume preserves identities", "outcome": "passed", "evidence": "write_file tool_call -> tool.requested -> policy.evaluated prompt -> tool.approval_required apr_906fdc509c794c29 (durable row with diff preview) -> approval/respond approved -> tool.started/tool.finished (sandboxed write under workspace/run_<id>/) -> second model call -> run_7acc6a3cda7a2cd7 completed. Run and tool_call ids consistent end to end"},
+    {"id": "R9-TOOL-SANDBOX-DENY", "row": "Sandbox-denied tool does not suspend; fails the run honestly", "outcome": "passed", "evidence": "execute 'echo ...' -> policy prompt -> sandbox denied 'command not in allowlist' during suspension admission -> run.failed internal_error 'could not be paused' (run_e34de4e7205ead36). Fails closed, no hidden execution"},
+    {"id": "R9-CHILD", "row": "Child run linkage on candidate", "outcome": "pending", "evidence": "child/start under completed parent -> -32009 conflicts (expected: parent not active). A live child requires a model-invoked spawn during an active parent run, which the scripted mock cannot produce", "disposition": "DN-M-C: exercise via scripted two-step provider or GUI subagent UX"},
+    {"id": "R9-CANCEL", "row": "Explicit run/cancel preserves run identity and terminal truth", "outcome": "passed", "evidence": "run_ce3dac8782935a68: run/cancel -> cancelling -> cancelled; journal terminal run.cancelled user_requested"},
+    {"id": "R9-TRAJ-TOKENS", "row": "Trajectory/session v2 and token totals match persisted journal", "outcome": "passed", "evidence": "trajectory/session projection_version 2, turns 9 / records 12; stats/tokens totals 153/36/189 across 9 settled calls; coverage honest: observed 10 / completed_with_usage 9 / missing_usage_calls 1 (cancelled mid-flight call) / unknown_buckets [reasoning,cached] / hidden_retries_observable false"},
+    {"id": "R9-REPLAY", "row": "Repeated snapshot/replay cannot inflate totals or duplicate rows", "outcome": "passed", "evidence": "fresh process on same home returns identical totals (34/8/42 at checkpoint, then 153/36/189 after more turns) — replay is read-only over journal, no double count"},
+    {"id": "R9-BRIDGE-GAP", "row": "Bridge gap/reconnect, app restart, bounded event queries", "outcome": "passed", "evidence": "VivyPollEvents returns {events:[],gap:false} consistently; run/subscribe replays run/event stream on demand; sessions+settings+gui diagnostics+action.audit persist across multiple VivyInit/VivyShutdown cycles"},
+    {"id": "R9-WINDOW", "row": "Window hide/reopen event continuity in GUI", "outcome": "pending", "evidence": "requires a live Tauri window; not exercisable headless on this VM", "disposition": "DN-8C owner/GUI candidate exercise"},
+    {"id": "R9-ROTATION", "row": "Log rotation under size/date pressure", "outcome": "pending", "evidence": "no file log sink exists on the .so (see R9-LOGS); rotation behavior is unverifiable until a sink is wired", "disposition": "DN-M-C/DN-8C"},
+    {"id": "R9-SINGLE-OWNER", "row": "One event owner, no append recursion, bounded queries", "outcome": "passed", "evidence": "journal is the single writer (run_events seq monotonic per run); VivyPollEvents is a bounded replay (max N, gap flag); GUI diagnostics appended once via appendDiagnostics with id/date keying — no recursive appends observed"}
+  ],
+  "findings": [
+    {"id": "OBS09-F1", "severity": "high", "finding": "No runtime log sink on the sealed .so: logging.Setup is never invoked in the shared/embedded path, so diagnostics/logs source=runtime is permanently empty and rotation/daily logs do not exist for the candidate.", "evidence": "diagnostics/logs runtime -> records null on every probe", "disposition": "DN-M-C row; DN-8C must decide sink vs stderr-only contract"},
+    {"id": "OBS09-F2", "severity": "high", "finding": "FrozenCore capture seam unwired in the sealed composition: turn admission calls diva-cognitive Prepare -> ReadFrozen which is load-only (store.Get -> not_found -> masked -32603). Capture happens only via BoundClient.Bootstrap (personactx.SessionProvider.Get -> Store.Capture) and nothing in vivy invokes Bootstrap. A fresh session's first turn fails until a core is captured out-of-band.", "evidence": "garden probe on candidate data dir: ReadFrozen not_found -> Bootstrap captures 7 sections -> ReadFrozen OK; subsequent .so turns admit", "disposition": "DN-M-C: wire Bootstrap into session bind/GUI onboarding or document the gap"},
+    {"id": "OBS09-F3", "severity": "medium", "finding": "module.action.invoke grant is per-process: sessions persisted from an earlier process get -32009 'module action is not authorized' on diva-cognitive actions (action.audit Outcome denied); turn/start has no such restriction.", "evidence": "journal action.audit rows + direct probe", "disposition": "DN-M-C: durable grant or per-process re-grant on session resume"},
+    {"id": "OBS09-F4", "severity": "low", "finding": "Shutdown cancels in-flight and suspended runs: VivyShutdown -> CancelAll terminates active/suspended runs and drops pending approvals (observed: suspended run_ce3d.. / apr_5046.. cancelled at process exit). Cross-process resume of a suspended approval is not possible.", "evidence": "approval/list empty + run cancelled after driver exit", "disposition": "confirm intended; document if by design"},
+    {"id": "OBS09-F5", "severity": "info", "finding": "Sandbox-denied promptable tool fails the run at suspension admission instead of parking an approval (denial precedes suspension). Behavior is fail-closed but the run.failed message ('could not be paused') obscures the sandbox cause.", "disposition": "cosmetic error clarity; DN-M-C note"}
+  ],
+  "evidence_keys": {
+    "runs_completed": ["run_11f8edc3bacf988e", "run_7acc6a3cda7a2cd7"],
+    "run_cancelled": "run_ce3dac8782935a68",
+    "run_failed_sandbox": "run_e34de4e7205ead36",
+    "approval": "apr_906fdc509c794c29",
+    "token_totals_final": {"total_input": 153, "total_output": 36, "total_tokens": 189, "request_count": 9},
+    "coverage": {"observed_calls": 10, "completed_with_usage": 9, "missing_usage_calls": 1, "unknown_buckets": ["reasoning", "cached"]},
+    "gui_tests": "vitest run src/state/vivy-chat.test.ts -> 32/32 passed"
+  }
+}
