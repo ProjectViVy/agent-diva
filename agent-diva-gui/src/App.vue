@@ -34,8 +34,7 @@ import {
   DEFAULT_DEEPSEEK_PROVIDER,
   buildWelcomeDeepSeekConfig,
 } from "./utils/welcomeConfig";
-import { vivyClient } from './api/vivy/instance';
-import { VivyChatController } from './state/vivy-chat';
+import { vivyChat } from './state/chat-instance';
 import { generateMessageId, type ChatMessage } from './state/chat-message';
 
 const { t } = useI18n();
@@ -100,7 +99,7 @@ const approvingPlan = ref(false);
 const planContinuationError = ref<string | null>(null);
 
 /** DN-2: VIVY chat controller — the single orchestration authority. */
-const vivyChat = new VivyChatController(vivyClient);
+// vivyChat is the shared single-owner instance (state/chat-instance).
 let detachVivySync: (() => void) | null = null;
 
 const currentPlanContinuationError = computed(() => planContinuationError.value);

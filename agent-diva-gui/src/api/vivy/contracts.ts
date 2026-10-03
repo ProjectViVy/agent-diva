@@ -838,6 +838,125 @@ export interface VivyTokenUsageSnapshot {
   sessions: VivyTokenSessionUsage[]
 }
 
+/** `trajectory/session` v2 projection (OBS-04 producer). One run == one
+ * turn; every model call has a stable request_id and honest
+ * call_status/usage_state; watermarks name the last folded journal seq
+ * per run so subscribers dedup and detect gaps. */
+export interface TrajectoryTokens {
+  input?: number
+  output?: number
+  think?: number
+  cache_read?: number
+  cache_write?: number
+}
+
+/** Nullable usage block on a request row; a nil bucket means the
+ * provider did not report it — never zero. */
+export interface TrajectoryUsageEvidence {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  reasoning_tokens?: number | null
+  cached_tokens?: number | null
+  partial?: boolean
+}
+
+/** One ledger/timeline row; id is stable — derived from
+ * (run_id, seq, record_kind). `index` is positional, not an identity. */
+export interface TrajectoryRecord {
+  index: number
+  id: string
+  turn?: number | null
+  group: string
+  kind: string
+  text: string
+  time_seconds?: number | null
+  started_at?: number | null
+  tokens?: TrajectoryTokens
+  result?: string
+  is_error?: boolean
+  input_detail?: string
+  output_detail?: string
+  call_id?: string
+  provider?: string
+  model?: string
+  opens_turn?: boolean
+}
+
+/** One model call row. `status`/`completed_at`/`usage` are the legacy
+ * v1 fields; v2 reads call_status/finished_at/usage_state/usage_evidence. */
+export interface TrajectoryRequest {
+  number: number
+  request_id: string
+  run_id: string
+  call_id?: string
+  turn?: number | null
+  group: string
+  status: string
+  /** active | completed | failed | cancelled | interrupted | legacy */
+  call_status: string
+  started_at: number
+  completed_at: number
+  finished_at?: number | null
+  provider?: string
+  model?: string
+  usage: TrajectoryTokens
+  /** missing | reported | partial | active | legacy */
+  usage_state: string
+  usage_evidence: TrajectoryUsageEvidence | null
+  retry?: number
+  messages?: number
+  preamble_bytes?: number
+  error?: string
+}
+
+/** One run's authoritative status + activity; wait_kind only names a
+ * wait the journal itself parked the run on — never inferred. */
+export interface TrajectoryRunActivity {
+  run_id: string
+  status: string
+  /** queued | active | waiting | completed | failed | cancelled */
+  activity_state: string
+  /** approval | question | child | workflow */
+  wait_kind?: string
+  parent_run_id?: string
+  child_run_ids?: string[]
+  workflow_id?: string
+}
+
+export interface TrajectorySession {
+  session_id: string
+  projection_version: number
+  turns: number
+  records: TrajectoryRecord[]
+  requests: TrajectoryRequest[]
+  run_activity: TrajectoryRunActivity[]
+  /** last folded journal seq per run — dedup/resume cursor. */
+  watermarks: Record<string, number>
+  /** The window is bounded (default 20, max 50 runs); older runs exist. */
+  has_older_runs: boolean
+}
+
+/** `child/list` + `child/get` row — a run reference, not an authorization
+ * grant or terminal-state claim. */
+export interface ChildRunRef {
+  id: string
+  parent_run_id: string
+  root_run_id: string
+  session_id: string
+  status: string
+  depth: number
+  workspace_id?: string
+  child_mode?: string
+  result?: string
+  error?: string
+  created_at: number
+}
+
+export interface ChildListResult {
+  children: ChildRunRef[]
+}
+
 /** `settings/get` sandbox section: effective values + config fallbacks. */
 export interface VivySandboxResult {
   /** cautious | smart | trusted | custom */

@@ -20,6 +20,7 @@ import {
   VivyCallError,
   type PermissionPreset,
   type ReviewItem,
+  type RunEvent,
   type SessionMessage,
   type SessionWorkResult,
   type TurnAttachment,
@@ -39,8 +40,10 @@ import {
   assertFramedRequest,
   validateTurnAttachments,
 } from './chat-images'
+import { getSessionTrajectory } from '../api/vivy/observability'
 import { mapHistoryMessages, reduceRunMessages } from './vivy-run-messages'
 import { VivySessionProjection } from './vivy-session'
+import { TrajectoryProjection, type TrajectoryView } from './vivy-trajectory'
 
 export interface SessionInfo {
   session_key: string
@@ -121,13 +124,25 @@ export class VivyChatController {
   async connect(): Promise<void> {
     await this.projection.attach(this.client)
     this.detachProjection = this.projection.subscribe(() => {
+      const c = this.projection.connection
+      if (c === 'gap' || c === 'lost') {
+        this.traj.markGap()
+      } else if (c === 'connected' && this.trajNeedsRefresh) {
+        this.trajNeedsRefresh = false
+        void this.refreshTrajectory()
+      }
       this.emit()
     })
     this.detachEvents = await this.client.onEvent((event) => {
       if (event.kind !== 'vivy') return
       if (event.method === 'run/event') {
-        const runEvent = (event.params as { event?: { type?: string; run_id?: string } }).event
+        const runEvent = (event.params as { event?: Partial<RunEvent> }).event
         const type = runEvent?.type ?? ''
+        // OBS-07: the single owner also feeds the trajectory projection.
+        if (runEvent && typeof runEvent.seq === 'number') {
+          this.traj.applyRunEvent(runEvent as RunEvent)
+          this.scheduleTrajectoryRefetch()
+        }
         if (type === 'context.compacted') {
           this.compaction = { at: Date.now() }
           this.emit()
@@ -149,12 +164,21 @@ export class VivyChatController {
     if (!this.currentSessionId && sessions.sessions.length > 0) {
       const latest = [...sessions.sessions].sort((a, b) => b.updated_at - a.updated_at)[0]
       await this.loadSession(latest.id)
+    } else if (!this.currentSessionId) {
+      this.traj.clear()
     }
     this.ready = true
     this.emit()
   }
 
   disconnect(): void {
+    this.trajGen++
+    this.traj.clear()
+    this.trajError = null
+    if (this.trajRefetchTimer !== null) {
+      clearTimeout(this.trajRefetchTimer)
+      this.trajRefetchTimer = null
+    }
     this.detachProjection?.()
     this.detachProjection = null
     this.detachEvents?.()
@@ -281,8 +305,64 @@ export class VivyChatController {
     for (const runId of this.sessionRunIds(sessionId)) {
       if (this.projection.run(runId)?.needsResync) void this.client.runSubscribe(runId)
     }
+    void this.refreshTrajectory()
     this.emit()
     return true
+  }
+
+  // --- Trajectory (OBS-07, read-only consumer of this owner) -----------
+
+  private readonly traj = new TrajectoryProjection()
+  private trajGen = 0
+  private trajError: string | null = null
+  private trajRefetchTimer: ReturnType<typeof setTimeout> | null = null
+  private trajNeedsRefresh = false
+
+  trajectory(): TrajectoryView | null {
+    return this.traj.view()
+  }
+
+  trajectoryError(): string | null {
+    return this.trajError
+  }
+
+  /** Authoritative snapshot fetch, fenced by session + generation: a
+   * late response for a previous session or an older request is dropped. */
+  async refreshTrajectory(): Promise<void> {
+    const sessionId = this.currentSessionId
+    const gen = ++this.trajGen
+    if (!sessionId) {
+      this.traj.clear()
+      this.emit()
+      return
+    }
+    try {
+      const snap = await getSessionTrajectory(this.client, sessionId)
+      if (gen !== this.trajGen || this.currentSessionId !== sessionId) return
+      this.traj.load(snap)
+      this.trajError = null
+      this.emit()
+    } catch (e) {
+      if (gen !== this.trajGen) return
+      this.trajError = e instanceof Error ? e.message : String(e)
+      this.emit()
+    }
+  }
+
+  /** Live events mark retained rows stale; a debounced refetch
+   * reconciles — events never fabricate rows. */
+  private scheduleTrajectoryRefetch(): void {
+    const view = this.traj.view()
+    if (!view || !view.stale) return
+    if (this.projection.connection !== 'connected') {
+      this.trajNeedsRefresh = true
+      return
+    }
+    if (this.trajRefetchTimer !== null) return
+    this.trajRefetchTimer = setTimeout(() => {
+      this.trajRefetchTimer = null
+      void this.refreshTrajectory()
+    }, 400)
   }
 
   async deleteSession(sessionId: string): Promise<void> {

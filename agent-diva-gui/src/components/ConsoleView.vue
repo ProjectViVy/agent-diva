@@ -1,9 +1,33 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Zap } from '@lucide/vue';
+import { Activity, Zap } from '@lucide/vue';
 import TokenStatsPanel from './console/TokenStatsPanel.vue';
+import TrajectoryPanel from './console/TrajectoryPanel.vue';
+import { vivyChat } from '../state/chat-instance';
+import type { TrajectoryView } from '../state/vivy-trajectory';
 
 const { t } = useI18n();
+
+const trajView = ref<TrajectoryView | null>(null);
+const trajError = ref<string | null>(null);
+const connState = ref<string>('disconnected');
+
+function sync(): void {
+  trajView.value = vivyChat.trajectory();
+  trajError.value = vivyChat.trajectoryError();
+  connState.value = vivyChat.projection.connection;
+}
+
+let detach: (() => void) | null = null;
+onMounted(() => {
+  detach = vivyChat.subscribe(sync);
+  sync();
+});
+onBeforeUnmount(() => {
+  detach?.();
+  detach = null;
+});
 </script>
 
 <template>
@@ -21,6 +45,20 @@ const { t } = useI18n();
         </div>
 
         <TokenStatsPanel />
+      </section>
+
+      <section class="console-section">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="console-section-icon console-section-icon--blue">
+            <Activity :size="20" />
+          </div>
+          <div>
+            <h3 class="console-section-title">{{ t('trajectory.title', 'Session Activity') }}</h3>
+            <p class="console-section-desc">{{ t('trajectory.desc', 'Runs, model calls, and records for the selected session') }}</p>
+          </div>
+        </div>
+
+        <TrajectoryPanel :view="trajView" :error="trajError" :connection-state="connState" />
       </section>
     </div>
   </div>
@@ -48,6 +86,11 @@ const { t } = useI18n();
 .console-section-icon--purple {
   background: rgba(139, 92, 246, 0.15);
   color: #8b5cf6;
+}
+
+.console-section-icon--blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
 }
 
 .console-section-title {

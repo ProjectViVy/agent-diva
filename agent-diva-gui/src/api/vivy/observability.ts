@@ -6,7 +6,7 @@
  * a zero placeholder, never a free bill.
  */
 import type { VivyClient } from './client'
-import type { VivyTokenUsageSnapshot } from './contracts'
+import type { TrajectorySession, VivyTokenUsageSnapshot } from './contracts'
 
 export interface TokenUsageParams {
   period?: string
@@ -20,4 +20,13 @@ export function getTokenUsage(
   params: TokenUsageParams = {},
 ): Promise<VivyTokenUsageSnapshot> {
   return client.statsTokens(params)
+}
+
+/** `trajectory/session` request — bounded (default 20, max 50 runs). */
+export function getSessionTrajectory(
+  client: VivyClient,
+  sessionId: string,
+  limit?: number,
+): Promise<TrajectorySession> {
+  return client.sessionTrajectory(sessionId, limit)
 }

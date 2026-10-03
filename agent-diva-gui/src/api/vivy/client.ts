@@ -53,6 +53,8 @@ import {
   type VivySkillSummary,
   type VivySkillView,
   type VivyTokenUsageSnapshot,
+  type TrajectorySession,
+  type ChildListResult,
   type VivyToolsResult,
 } from './contracts'
 import type { VivyTransport } from './transport'
@@ -331,6 +333,15 @@ export class VivyClient {
   }
   statsTokens(params: { period?: string; tz_offset_minutes?: number; session_limit?: number } = {}): Promise<VivyTokenUsageSnapshot> {
     return this.call<VivyTokenUsageSnapshot>('stats/tokens', params)
+  }
+  sessionTrajectory(sessionId: string, limit?: number): Promise<TrajectorySession> {
+    return this.call<TrajectorySession>('trajectory/session', {
+      session_id: sessionId,
+      ...(limit ? { limit } : {}),
+    })
+  }
+  childList(parentRunId: string): Promise<ChildListResult> {
+    return this.call<ChildListResult>('child/list', { parent_run_id: parentRunId })
   }
 
   cronStop(id: string): Promise<{ stopped: boolean }> {
