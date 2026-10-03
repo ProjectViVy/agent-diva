@@ -1,0 +1,24 @@
+[package]
+name = "diva-speech"
+version = "0.4.10"
+edition = "2021"
+description = "DIVA Next native speech preferences, OS credentials, reference assets (DN-6A)"
+license = "Apache-2.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "4.2.0", default-features = false, features = ["v1", "windows-native-keyring-store"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "4.2.0", default-features = false, features = ["v1", "linux-keyutils-keyring-store"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "4.2.0", default-features = false, features = ["v1", "apple-native-keyring-store"] }
+
+[dev-dependencies]
+tempfile = "3"

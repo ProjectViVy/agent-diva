@@ -5,6 +5,7 @@
 //! allowlist added by their domain stories.
 
 mod lifecycle;
+mod speech;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -157,9 +158,30 @@ pub fn run() {
             }
         }))
         .manage(shell.clone() as Arc<Shell>)
-        .invoke_handler(tauri::generate_handler![vivy_call])
+        .invoke_handler(tauri::generate_handler![
+            vivy_call,
+            speech::commands::speech_config_get,
+            speech::commands::speech_config_update,
+            speech::commands::speech_credential_set,
+            speech::commands::speech_credential_delete,
+            speech::commands::voice_asset_import,
+            speech::commands::voice_asset_list,
+            speech::commands::voice_asset_read,
+            speech::commands::voice_asset_delete,
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            // DN-6A: speech state opens before any command can run; a
+            // failed open is a startup failure (never a lazy fallback).
+            let speech_dir = speech::speech_dir(&handle).unwrap_or_else(|e| {
+                eprintln!("fatal: speech dir: {e}");
+                std::process::exit(1);
+            });
+            let speech_state = speech::SpeechState::open(speech_dir).unwrap_or_else(|e| {
+                eprintln!("fatal: speech state: {e}");
+                std::process::exit(1);
+            });
+            app.manage(Arc::new(speech_state));
             let emit_handle = handle.clone();
             let sink = move |event: BridgeEvent| {
                 let wire = match event {

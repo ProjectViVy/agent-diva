@@ -7,7 +7,8 @@ Verifies the new product's backend boundary at three layers:
    closure — no legacy agent-diva-* business crates.
 2. Loader/resource manifest (tauri.conf.json): resources are exactly the
    vivy-runtime staging dir; no externalBin sidecars; the only invoke
-   handler is vivy_call (checked in src/lib.rs).
+   handler list is the vivy_call passthrough plus the DN-6A native
+   speech surface (checked in src/lib.rs).
 3. Packaged contents (.deb / --bundle dir): one shell binary, the sealed
    vivy-runtime set, no legacy executables, no extra domain databases.
 
@@ -155,12 +156,26 @@ def check_manifest(src_tauri: Path) -> None:
         ok("no externalBin sidecars")
 
     lib = (src_tauri / "src" / "lib.rs").read_text()
-    m = re.search(r"generate_handler!\[([^\]]+)\]", lib)
-    handlers = [h.strip() for h in m.group(1).split(",")] if m else []
-    if handlers != ["vivy_call"]:
-        fail(f"invoke handlers {handlers} != ['vivy_call']")
+    m = re.search(r"generate_handler!\[([^\]]+)\]", lib, re.S)
+    handlers = [h.strip() for h in m.group(1).split(",") if h.strip()] if m else []
+    # Native allowlist: vivy_call passthrough + DN-6A speech state commands.
+    # DN-6B adds transcribe/synthesize/cancel/context_set; any other
+    # handler is a boundary violation.
+    allowed = [
+        "vivy_call",
+        "speech::commands::speech_config_get",
+        "speech::commands::speech_config_update",
+        "speech::commands::speech_credential_set",
+        "speech::commands::speech_credential_delete",
+        "speech::commands::voice_asset_import",
+        "speech::commands::voice_asset_list",
+        "speech::commands::voice_asset_read",
+        "speech::commands::voice_asset_delete",
+    ]
+    if sorted(handlers) != sorted(allowed):
+        fail(f"invoke handlers {handlers} != allowed native surface {allowed}")
     else:
-        ok("only invoke handler: vivy_call")
+        ok(f"invoke handlers = native allowlist ({len(allowed)} commands)")
 
 
 def _list_deb(deb: Path) -> list[str]:
