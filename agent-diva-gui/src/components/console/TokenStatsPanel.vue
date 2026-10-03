@@ -10,19 +10,15 @@ import {
   TrendingUp,
   Zap
 } from '@lucide/vue';
+import { formatTokenCount, formatCost, type TimeRangePeriod } from '../../api/tokenStats';
+import { vivyClient } from '../../api/vivy/instance';
 import {
-  getTokenStats,
-  formatTokenCount,
-  formatCost,
-  type TimeRangePeriod
-} from '../../api/tokenStats';
-import type {
-  VivyTokenUsageTotal,
-  VivyTokenProviderGroup,
-  VivyTokenTimelinePoint,
-  VivyTokenSessionUsage,
-  VivyTokenModelShare,
-} from '../../api/vivy/contracts';
+  costDisplay,
+  usageView,
+  vivyObservability,
+  type HostConnectionState,
+} from '../../state/vivy-observability';
+import type { VivyTokenTimelinePoint } from '../../api/vivy/contracts';
 
 const { t } = useI18n();
 
@@ -32,17 +28,38 @@ const showDetail = ref(false);
 // State
 const period = ref<TimeRangePeriod>('1d');
 const loading = ref(false);
-const error = ref<string | null>(null);
 
-// Data
-const total = ref<VivyTokenUsageTotal | null>(null);
-const providers = ref<VivyTokenProviderGroup[]>([]);
-const timeline = ref<VivyTokenTimelinePoint[]>([]);
-const sessions = ref<VivyTokenSessionUsage[]>([]);
-const modelDistribution = ref<VivyTokenModelShare[]>([]);
+// Controller notifications — the observability lane owns snapshot,
+// error and stale state; this tick just re-reads it.
+const obsTick = ref(0);
+const obs = vivyObservability;
+const snap = computed(() => (obsTick.value, obs.snapshot()));
+const conn = computed(() => (obsTick.value, obs.connection()));
+const error = computed(() => (obsTick.value, obs.error()));
+const stale = computed(() => (obsTick.value, obs.stale()));
+const view = computed(() => (snap.value ? usageView(snap.value) : null));
+
+const total = computed(() => snap.value?.total ?? null);
+const providers = computed(() => snap.value?.providers ?? []);
+const timeline = computed(() => snap.value?.timeline ?? []);
+const sessions = computed(() => snap.value?.sessions ?? []);
+const modelDistribution = computed(() => snap.value?.models ?? []);
+
+const isPreview = computed(() => conn.value.state === 'preview');
+const HOST_STATE_KEYS: Record<HostConnectionState, string> = {
+  preview: 'tokenStats.hostPreview',
+  connecting: 'tokenStats.hostConnecting',
+  connected: 'tokenStats.hostConnected',
+  gap: 'tokenStats.hostGap',
+  lost: 'tokenStats.hostLost',
+  unavailable: 'tokenStats.hostUnavailable',
+  disconnected: 'tokenStats.hostDisconnected',
+};
+const connLabel = computed(() => t(HOST_STATE_KEYS[conn.value.state]));
 
 // Auto-refresh interval
 let refreshInterval: number | null = null;
+let detachObs: (() => void) | null = null;
 
 // Computed
 const maxTimelineValue = computed(() => {
@@ -53,20 +70,22 @@ const maxTimelineValue = computed(() => {
 // Methods
 async function fetchAllStats() {
   loading.value = true;
-  error.value = null;
-
   try {
-    const snapshot = await getTokenStats(period.value, 10);
-    total.value = snapshot.total;
-    providers.value = snapshot.providers;
-    timeline.value = snapshot.timeline;
-    sessions.value = snapshot.sessions;
-    modelDistribution.value = snapshot.models;
-  } catch (e) {
-    error.value = String(e);
+    // Coalesced + fenced inside the controller: a delayed response to a
+    // superseded request resolves null and never replaces totals.
+    await obs.refresh({
+      period: period.value,
+      tz_offset_minutes: new Date().getTimezoneOffset(),
+      session_limit: 10,
+    });
   } finally {
     loading.value = false;
   }
+}
+
+function costText(usd: number, costKnown: boolean): string {
+  const c = costDisplay(usd, costKnown);
+  return c.kind === 'known' ? formatCost(c.usd) : t('tokenStats.costUnknown');
 }
 
 function changePeriod(newPeriod: TimeRangePeriod) {
@@ -103,16 +122,8 @@ function formatTimeBucketTooltip(isoString: string): string {
 }
 
 function exportData() {
-  // Export stats as JSON
-  const data = {
-    period: period.value,
-    total: total.value,
-    providers: providers.value,
-    models: modelDistribution.value,
-    timeline: timeline.value,
-    sessions: sessions.value,
-    exportedAt: new Date().toISOString()
-  };
+  // Export the verbatim authoritative snapshot — coverage included.
+  const data = { ...snap.value, exportedAt: new Date().toISOString() };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -133,8 +144,11 @@ function backToOverview() {
 
 // Lifecycle
 onMounted(() => {
+  detachObs = obs.subscribe(() => obsTick.value++);
+  void obs.attach(vivyClient);
   fetchAllStats();
-  // Refresh every 30 seconds
+  // Refresh every 30 seconds; refresh is coalesced so the interval never
+  // duplicates an in-flight request.
   refreshInterval = window.setInterval(fetchAllStats, 30000);
 });
 
@@ -142,6 +156,10 @@ onUnmounted(() => {
   if (refreshInterval) {
     window.clearInterval(refreshInterval);
   }
+  detachObs?.();
+  // Listener teardown fences any in-flight response so it cannot land
+  // after the panel is gone.
+  obs.detach();
 });
 </script>
 
@@ -171,6 +189,9 @@ onUnmounted(() => {
               <span class="cache-value">{{ formatTokenCount(total.total_reasoning) }}</span>
             </div>
           </div>
+          <p v-if="view && !view.coverage.hidden_retries_observable" class="coverage-note">
+            {{ t('tokenStats.hiddenRetries') }}
+          </p>
         </div>
 
         <!-- Endpoint Breakdown -->
@@ -204,7 +225,7 @@ onUnmounted(() => {
               <span class="session-name">{{ session.title || session.id }}</span>
               <span>{{ formatTokenCount(session.total_input) }}</span>
               <span>{{ formatTokenCount(session.total_output) }}</span>
-              <span>{{ formatCost(session.cost_usd) }}</span>
+              <span>{{ costText(session.cost_usd, session.cost_known) }}</span>
             </div>
           </div>
         </div>
@@ -232,9 +253,45 @@ onUnmounted(() => {
         </button>
       </div>
 
+      <!-- Host connection chip — initialize/transport truth, not a health RPC -->
+      <div class="conn-row">
+        <span class="conn-chip" :class="`conn-chip--${conn.state}`">{{ connLabel }}</span>
+        <span v-if="conn.state === 'connected' && conn.protocolVersion" class="conn-meta">
+          ABI v{{ conn.protocolVersion }}
+        </span>
+        <span v-if="stale" class="stale-chip">{{ t('tokenStats.staleTotals') }}</span>
+      </div>
+
+      <!-- Preview shell: no live host metadata or totals -->
+      <div v-if="isPreview" class="coverage-banner coverage-banner--notice">
+        {{ t('tokenStats.previewNotice') }}
+      </div>
+
       <!-- Error Display -->
-      <div v-if="error" class="error-banner">
+      <div v-else-if="error && !snap" class="error-banner">
         {{ error }}
+      </div>
+
+      <!-- Coverage banners: nil / legacy / partial are distinct labels -->
+      <div v-else-if="view && view.state === 'empty'" class="coverage-banner coverage-banner--notice">
+        {{ t('tokenStats.coverageEmpty') }}
+      </div>
+      <div v-else-if="view && view.state === 'legacy'" class="coverage-banner coverage-banner--notice">
+        {{ t('tokenStats.coverageLegacy') }}
+      </div>
+      <div v-else-if="view && view.state === 'partial'" class="coverage-banner coverage-banner--partial">
+        {{ t('tokenStats.coveragePartial') }} —
+        {{
+          t('tokenStats.coveragePartialDetail', {
+            reported: view.coverage.reported_calls,
+            missing: view.coverage.missing_usage_calls,
+            partial: view.coverage.partial_usage_calls,
+            active: view.coverage.active_calls,
+          })
+        }}
+        <span v-if="view.unknownBuckets.length > 0">
+          · {{ t('tokenStats.unknownBuckets', { buckets: view.unknownBuckets.join(', ') }) }}
+        </span>
       </div>
 
       <!-- Stats Cards -->
@@ -274,7 +331,7 @@ onUnmounted(() => {
             <Coins :size="16" />
           </div>
           <div class="stat-content">
-            <div class="stat-value text-amber-400">{{ formatCost(total.total_cost_usd) }}</div>
+            <div class="stat-value text-amber-400">{{ costText(total.total_cost_usd, total.cost_known) }}</div>
             <div class="stat-label">{{ t('tokenStats.estimatedCost') }}</div>
           </div>
         </div>
@@ -340,7 +397,7 @@ onUnmounted(() => {
             </div>
             <div class="session-stats">
               <span class="session-tokens">{{ formatTokenCount(session.total_tokens) }}</span>
-              <span class="session-cost">{{ formatCost(session.cost_usd) }}</span>
+              <span class="session-cost">{{ costText(session.cost_usd, session.cost_known) }}</span>
             </div>
           </div>
         </div>
@@ -407,6 +464,73 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   color: #ef4444;
   font-size: 0.875rem;
+}
+
+.conn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.conn-chip {
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  background: var(--accent-bg-light);
+  color: var(--text-muted);
+}
+
+.conn-chip--connected {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.conn-chip--gap {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.conn-chip--lost,
+.conn-chip--unavailable {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.conn-meta {
+  color: var(--text-muted);
+}
+
+.stale-chip {
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.coverage-banner {
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+}
+
+.coverage-banner--notice {
+  background: var(--accent-bg-light);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+
+.coverage-banner--partial {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+}
+
+.coverage-note {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .stats-grid {

@@ -15,7 +15,20 @@ describe('token statistics API', () => {
   it('returns the stats/tokens snapshot for the requested period', async () => {
     const snapshot = {
       period: '1w',
-      scope: 'all',
+      scope: 'chat_runs',
+      projection_version: 2,
+      coverage: {
+        state: 'partial',
+        observed_calls: 3,
+        completed_with_usage: 0,
+        reported_calls: 0,
+        missing_usage_calls: 3,
+        partial_usage_calls: 0,
+        active_calls: 0,
+        legacy_usage_records: 0,
+        unknown_buckets: [],
+        hidden_retries_observable: false,
+      },
       total: {
         total_input: 12,
         total_output: 8,

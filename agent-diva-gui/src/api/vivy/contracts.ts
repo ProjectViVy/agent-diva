@@ -757,6 +757,27 @@ export interface CronJobWriteParams {
   delete_after_run?: boolean
 }
 
+/** `stats/tokens` coverage record (D3). observed_calls partitions as
+ * completed_with_usage + partial_usage_calls + missing_usage_calls +
+ * active_calls; reported_calls may also count active calls and is not
+ * part of that partition. `request_count` on the aggregates remains
+ * "usage reports" — reported calls plus legacy records — never total
+ * billed requests. */
+export interface VivyUsageCoverage {
+  /** empty | complete | partial | legacy */
+  state: string
+  observed_calls: number
+  completed_with_usage: number
+  reported_calls: number
+  missing_usage_calls: number
+  partial_usage_calls: number
+  active_calls: number
+  legacy_usage_records: number
+  unknown_buckets: string[]
+  /** Always false: provider-internal retries are not journaled. */
+  hidden_retries_observable: boolean
+}
+
 /** stats/tokens result snapshot. */
 export interface VivyTokenUsageTotal {
   total_input: number
@@ -775,6 +796,7 @@ export interface VivyTokenModelShare {
   total_tokens: number
   cost_usd: number
   cost_known: boolean
+  coverage: VivyUsageCoverage
 }
 
 export interface VivyTokenProviderGroup {
@@ -801,11 +823,14 @@ export interface VivyTokenSessionUsage {
   total_tokens: number
   cost_usd: number
   cost_known: boolean
+  coverage: VivyUsageCoverage
 }
 
 export interface VivyTokenUsageSnapshot {
   period: string
   scope: string
+  projection_version: number
+  coverage: VivyUsageCoverage
   total: VivyTokenUsageTotal
   models: VivyTokenModelShare[]
   providers: VivyTokenProviderGroup[]
