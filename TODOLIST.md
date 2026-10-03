@@ -7,16 +7,103 @@
 
 ## DIVA Next 拆线遗留（本分支）
 
+- [x] **DIVA-SHARED-BRIDGE：Tauri/vivy-bridge（DN-L + DN-5 已交付）** `sev-P0`
+  DN-L：`internal/embedded` 宿主、ABI v1 c-shared 导出、`--target shared`
+  pack/inspect、`recipes/diva.vivy.yml`、C smoke。DN-5：vivy-bridge
+  （dlopen + owned-return + 单事件泵）+ Tauri v2 薄壳（vivy_call/vivy:event、
+  close-hide + tray Quit、single-instance）；工作区测试 10/10、clippy 净、
+  deb 含 vivy-runtime；原生转录：真 .so 开窗→关窗隐藏→重启聚焦→SIGINT
+  有序退出（linux/amd64）。剩余验收：真实流式对话 + 审批挂起时重开窗口、
+  Windows 原生 runner。
+- [x] **VIVY-CLIENT-PROJECTION：typed client + 状态/事件投影（DN-1 已交付）** `sev-P0`
+  `api/vivy/{contracts,transport,client}`：信封保真（kind/code/message/data）、
+  永不重试、mutation 后 timeout/transport_lost 标 `unknownOutcome`；
+  `state/vivy-session` 投影：(run_id,seq) 去重、乱序缓冲不过缝推游标、
+  gap/lost 标 resync、快照权威回放、挂起审批/问题随重开存活；
+  capabilities 台账由 negotiated initialize 解析
+  available/absent/disconnected/failed。GUI 507/507 测试、构建净；
+  真实物 DN-1 冒烟（init/session/subscribe/cancel -32004/审批问题列表/
+  delete）绿于 linux/amd64。
+- [x] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
+  已在 DN-L 解决：gatewayless `App.Run` 提前返回缺陷由
+  `TestGatewaylessRunBlocksUntilContextCancel` 红→绿证明并修复（errCh 只由
+  httpServer goroutine 关闭）；宿主所有权 = `internal/embedded.Open` 唯一持有。
+- [ ] **P0-NATIVE-VERIFICATION：Windows c-shared 构建与 FFI 验收仍未验证** `sev-P1`
+  Go 1.26.8 + Node 22.20/pnpm 10.18.3 已装于 `~/toolchains`；linux/amd64
+  `-buildmode=c-shared` + C smoke（init→turn→approval→cancel→poll→shutdown）已绿。
+  剩余：windows/amd64 DLL+头文件、Rust FFI、打包验收。原生验证未通过前不关闭 P0。
+
 - [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
   拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
   以免会话继续按 Rust 门槛（just ci / clippy / cargo）执行。见 `docs/plans/diva-next/index.md`。
-- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P1`
+- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P0`
   `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
-  调用会失败。按 DN-1..DN-6 逐域替换为 VIVY 调用后再移除包与调用点。
-- [ ] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
-  DN-8 需新增 `check_vivy_backend_boundary`（验证依赖图与打包内容，而非字符串搜索）。
+  调用会失败。按 DN-0 清单与 DN-1/2/3/4/6 逐域替换，DN-M 验收语义迁移；
+  保留新 Tauri 薄壳需要的客户端包，只删除旧业务命令。
+  DN-2 进度：chat/session/approval/question/plan/compact 全部迁走；残留 =
+  配置类（load_config, getRuntimeConfig, getConfigStatus, get_tools_config,
+  save_config, update_config, update_tools_config, update_channel,
+  set_splash_complete）+ ChatView `reset_session`/`open_desktop_pet` +
+  ConsoleView `check_health` —— 归 DN-3/4。
+- [x] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
+  DN-P 已交付：`scripts/ci/check_vivy_backend_boundary.py`（依赖图 + Cargo.toml +
+  bundle 资源 + 二进制/deb 内容清单，非字符串搜索）+ CI `boundary-gate` job，
+  另有 `check_legacy_frontend_calls.mjs` AST 门禁（DN-M）。
 - [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
-  对应 DN-4/DN-6/DN-7 Blocked 状态；#63 落地前不得引入假成功适配器。
+  对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
+  不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
+  进展（本阶段核实）：
+  - masks：`vivy.masks.*` 经 module action 活体验证（catalog.list/get、selection.get/set、
+    catalog.create）+ GUI 已迁 — 此域已脱离本项。
+  - persona：`plugins/vivy-persona` 仅 UIExtensionPort，无运行时生产者 → 仍 blocked。
+  - memory/ACTMEM：`internal/modules/memory` 有 9 个 `vivy.memory.*` action 但未编进
+    diva recipe → 仍 blocked（改 recipe 即可解）。
+  - autodream/evolution、notebook/reports：GUI 级视图无后端生产者 → 仍 blocked。
+  - speech（STT/TTS）：agent-vivy 全仓无对应模块 → 仍 blocked。
+  - resource import/delete：仅 `mcp.resources.list|read` 探针 → 仍 blocked。
+- [x] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
+  已在 DN-L 解决：新增 `App.StartEmbeddedServices()`（sweeper + cron），由
+  `internal/embedded.Open` 在 `New`+`DialControl` 后启动，`Host.Close` 统一回收；
+  `TestStartEmbeddedServicesExpiresApprovals` 实测 400ms 审批过期生效。
+- [ ] **RUN-CANCEL-RESTART-NOTFOUND：重启后 run/cancel 返回 CodeNotFound** `sev-P2`
+  重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
+  （配合 background/recover），不得当异常。DN-1 已完成信封保真
+  （-32004 原样穿透 typed client，真实物冒烟实测）；UI 侧语义映射属 DN-2。
+- [x] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
+  DN-2 已落地：`review/respond {review_id, action:'cancel'}` 是真实的取消通道
+  （review 层对 approval/question 均支持 cancel），抽屉 cancel 按钮已接线。
+- [ ] **SEND-ATTACHMENTS-GAP：turn/start 仅文本，send 丢弃 FileAttachmentDto** `sev-P1`
+  VIVY `turn/start {session_id,text}` 无附件参数；GUI 输入框附件目前 warn+丢弃。
+  需要 VIVY 侧附件契约或本地文件->文本降级策略 —— blocked，不可假成功。
+- [ ] **SEND-PERMISSION-MODE-GAP：send 的 permissionMode/approvalPolicy 未接线** `sev-P2`
+  旧 send_message 带 approvalPolicy（on-request/on-failure/unless-trusted）；
+  VIVY 侧候选为 session 级 set_permission（未核实契约）。DN-3 核实后接线。
+- [ ] **REGENERATE-NO-REWIND：regenerate 重发新 turn，无原位回放** `sev-P2`
+  VIVY `session/rewind {session_id,message_id}` 已存在（journal 只读不删行）。
+  当前 regenerate = 找最近 user 消息重发为新 turn；接线 rewind 后可原位重放。
+- [ ] **TITLE-GENERATION-GAP：会话标题只靠后端，GUI 自动生成已删** `sev-P2`
+  旧 `generate_session_title` invoke 已死；VIVY 侧 session/title 由后端定。
+  若需 GUI 侧兜底标题，待 VIVY 标题契约核实（session/rename 已可用作手动改名）。
+- [ ] **PLAN-START-GOAL-NO-TRIGGER：plan/decide start_goal 无 UI 入口** `sev-P2`
+  `start_goal`（arm goal loop）在 controller 已实现，但当前 UI 只有
+  execute_once（批准按钮）/revise（退回）；goal-loop 卡片入口待设计。
+- [x] **DN-2-TASK5-PROVIDER：打包真模型 chat + 门控安全工具链** `sev-P0`
+  已解决（linux/amd64）：sensenova-6.8-flash-lite 实测 16/16 检查全绿 —
+  流式回答入 Journal、write_file 审批门控（deny 无效果/approve 落 run 沙箱）、
+  run/cancel→run.cancelled、review 快照回读。证据见
+  `docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`。
+  注意：VIVY 读 env `SENSENOVA_API_KEY`（key 本体在 secret:personal:SHANGTANG_APIKEY）。
+  遗留：GUI 级窗口重开（活模型）+ Windows 原生验收仍开。
+- [x] **MODULE-ACTION-GOVERNANCE：face 驱动的 module action 写入无嵌入式审批续接** `sev-P1`
+  已按 owner 裁定（“改成 vivy 的样式，必须对齐”）解决：governance rules 是 vivy
+  正统机制（嵌入式组合刻意无 action 审批续接，见 internal/app authorizeAction
+  注释）。shell 首启写 `resources/vivy.default.yaml` 出厂配置，内附
+  `vivy.masks.*` 写动作 allow 规则；既解决本项也补齐首启无配置必挂的缺口。
+  活体验证：封签 .so 用出厂配置 init + selection.set + catalog.create 全通。
+- [ ] **VIVYSHUTDOWN-DEADLINE-UTIL：VivyShutdown 在后台 utility 生成中偶发 deadline** `sev-P3`
+  DN-P 验收中一次实测：auto-title utility 生成在飞时 VivyShutdown 返回
+  `context deadline exceeded`；空闲时 shutdown 即时。driver 已加 settle+retry，
+  后续全量复跑未复现。若产品化遇到需 agent-vivy 侧调查。
 
 ## 总 EPIC：Laputa 认知工作区 Clean Break
 
@@ -375,6 +462,54 @@ S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、�
   `docs/logs/2026-08-memory-id-pii-redaction/v0.0.2-disable-runtime-pii-hiding/`。
   重启 gateway 后用真实模型走 `memory_list` → 新增 → `memory_update` /
   `memory_remove`；`id` 与邮箱/手机等原文必须原样可见。
+
+## DN-3 backend-capability gaps (slice B, deferred)
+
+- [ ] **SKILL-MANAGEMENT-GAP** `sev-P2`
+  VIVY has no RPC for skill upload / delete / content edit / revision history /
+  skill-request list+decide. GUI dropped the upload/delete UI in slice B;
+  EvolutionView still consumes legacy `get_skills`/`delete_skill` (slice D
+  residual). Decide backend surface or retire the workflows.
+
+- [ ] **SEARCH-PROVIDER-ROSTER-GAP** `sev-P3`
+  `settings.get.network_search` roster is fixed to bing/google/duckduckgo/
+  searxng/wikipedia with env-var-only credentials. Legacy bocha/brave/zhipu
+  options, in-UI api_key entry, and max_results have no VIVY knob — dropped
+  from NetworkSettings. Restore only if backend adds them.
+
+- [ ] **MCP-TOOL-TIMEOUT-NO-KNOB** `sev-P3`
+  Legacy per-server `tool_timeout` has no `settings/mcp` field — dropped from
+  the MCP form. `cwd` / `auth_env` / `resource_bridge` are preserved silently
+  in the spec but have no dedicated UI yet.
+
+- [ ] **BUDGET-SYSTEM-RATIO-NO-KNOB** `sev-P3`
+  VIVY compaction config has no `system_budget_ratio`; the context-budget ring
+  hardcodes 0.15. Remove or restore when backend exposes it.
+
+- [ ] **DN3-DEAD-LOCALE-KEYS** `sev-P3`
+  `general.uploadSkill`/`deleteSkill*`/`skillSource*`/`welcome.*bocha*` and the
+  i18n.ts zhPatched fallbacks are unreferenced after slice B — sweep on close.
+
+- [ ] **COMMAND-RULES-GAP** `sev-P2`
+  Legacy `get_command_rules`/`set_command_rule_enabled`/`delete_command_rule`
+  have no VIVY counterpart — `commands/list` is dynamic slash commands, not
+  approval rules. Command-rules UI deleted in slice D; needs a backend
+  approval-rule surface or stays retired.
+
+- [ ] **BACKEND-WIPE-GAP** `sev-P2`
+  `wipe_local_data` has no VIVY RPC. GeneralSettings danger zone is now
+  localStorage-only + window reload (backend data unaffected, copy updated).
+  Restore a real backend wipe only when VIVY exposes one.
+
+- [ ] **GUI-STATUS-PATHS-GAP** `sev-P3`
+  Derived `ConfigStatusReport` has no backend for resolved paths / channel /
+  cron counts — GeneralSettings runtime card shows doctor + providers only.
+  Re-add columns when VIVY exposes a status endpoint.
+
+- [ ] **GUI-PET-SEAM-DORMANT** `sev-P2`
+  `pet_*` invokes (DivaPetView / DesktopPetOverlay / voice services) are
+  runtime-dead under the thin shell (only `vivy_call` registered). DN-6 owns
+  the native disposition — restore native commands or retire the surface.
 
 ## Reliability / Test Debt
 

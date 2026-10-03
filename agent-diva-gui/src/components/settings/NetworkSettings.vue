@@ -1,102 +1,76 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Globe, LoaderCircle } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
-import { openExternalUrl } from '../../utils/openExternal';
-import type { ToolsConfigShape } from '../../types/toolsConfig';
+import {
+  loadNetworkToolsState,
+  saveNetworkToolsState,
+  type NetworkToolsState,
+} from '../../api/settings';
+import { showAppToast } from '../../utils/appToast';
 
 const { t } = useI18n();
 
-const props = defineProps<{
-  toolsConfig: ToolsConfigShape;
-  saveToolsConfigAction: (tools: ToolsConfigShape) => Promise<void>;
-}>();
+const state = ref<NetworkToolsState | null>(null);
+const draft = ref<{ provider: string; searchEnabled: boolean; fetchEnabled: boolean }>({
+  provider: '',
+  searchEnabled: false,
+  fetchEnabled: false,
+});
+const loading = ref(false);
+const saving = ref(false);
+const loadError = ref('');
 
-const localConfig = ref<ToolsConfigShape>(JSON.parse(JSON.stringify(props.toolsConfig)));
-const lastSavedSnapshot = ref(JSON.stringify(props.toolsConfig));
-const isSaving = ref(false);
-const bochaApiKeyGuideUrl = 'https://aq6ky2b8nql.feishu.cn/wiki/HmtOw1z6vik14Fkdu5uc9VaInBb';
-
-const isExtendedSearchProvider = (provider: string) =>
-  provider === 'zhipu' || provider === 'bocha';
-
-watch(
-  () => props.toolsConfig,
-  (val) => {
-    localConfig.value = JSON.parse(JSON.stringify(val));
-    lastSavedSnapshot.value = JSON.stringify(val);
-  },
-  { deep: true }
-);
-
-const sanitizeConfig = (source: ToolsConfigShape): ToolsConfigShape => {
-  const sanitized = JSON.parse(JSON.stringify(source)) as ToolsConfigShape;
-  const provider = sanitized.web.search.provider;
-  const maxLimit = isExtendedSearchProvider(provider) ? 50 : 10;
-  sanitized.web.search.max_results = Math.min(
-    maxLimit,
-    Math.max(1, Number(sanitized.web.search.max_results) || 5)
+const isDirty = computed(() => {
+  if (!state.value) return false;
+  return (
+    draft.value.provider !== state.value.searchProvider ||
+    draft.value.searchEnabled !== state.value.searchEnabled ||
+    draft.value.fetchEnabled !== state.value.fetchEnabled
   );
-  return sanitized;
-};
+});
 
-const syncSanitizedMaxResults = () => {
-  const sanitized = sanitizeConfig(localConfig.value);
-  if (sanitized.web.search.max_results !== localConfig.value.web.search.max_results) {
-    localConfig.value.web.search.max_results = sanitized.web.search.max_results;
-  }
-};
-
-const currentSnapshot = computed(() => JSON.stringify(sanitizeConfig(localConfig.value)));
-const isDirty = computed(() => currentSnapshot.value !== lastSavedSnapshot.value);
-
-const maxResultsLimit = computed(() =>
-  isExtendedSearchProvider(localConfig.value.web.search.provider) ? 50 : 10
+const selectedProvider = computed(() =>
+  state.value?.providers.find((p) => p.name === draft.value.provider) ?? null
 );
 
-const isBochaProvider = computed(() =>
-  localConfig.value.web.search.provider === 'bocha'
-);
-
-const apiKeyLabel = computed(() =>
-  isBochaProvider.value
-    ? t('network.apiKeyBocha')
-    : localConfig.value.web.search.provider === 'zhipu'
-      ? t('network.apiKeyZhipu')
-      : t('network.apiKeyBrave')
-);
-
-const apiKeyPlaceholder = computed(() =>
-  isBochaProvider.value
-    ? t('network.apiKeyPlaceholderBocha')
-    : localConfig.value.web.search.provider === 'zhipu'
-      ? t('network.apiKeyPlaceholderZhipu')
-      : t('network.apiKeyPlaceholderBrave')
-);
-
-watch(
-  () => localConfig.value.web.search.provider,
-  () => {
-    syncSanitizedMaxResults();
-  }
-);
-
-const saveConfig = async () => {
-  if (isSaving.value || !isDirty.value) return;
-  isSaving.value = true;
+async function refresh() {
+  loading.value = true;
+  loadError.value = '';
   try {
-    const sanitized = sanitizeConfig(localConfig.value);
-    localConfig.value = JSON.parse(JSON.stringify(sanitized));
-    await props.saveToolsConfigAction(sanitized);
-    lastSavedSnapshot.value = JSON.stringify(sanitized);
+    state.value = await loadNetworkToolsState();
+    draft.value = {
+      provider: state.value.searchProvider,
+      searchEnabled: state.value.searchEnabled,
+      fetchEnabled: state.value.fetchEnabled,
+    };
+  } catch (err) {
+    loadError.value = String(err);
   } finally {
-    isSaving.value = false;
+    loading.value = false;
   }
-};
+}
 
-const openBochaGuide = () => {
-  void openExternalUrl(bochaApiKeyGuideUrl);
-};
+async function save() {
+  if (saving.value || !isDirty.value) return;
+  saving.value = true;
+  try {
+    await saveNetworkToolsState({
+      searchProvider: draft.value.provider,
+      searchEnabled: draft.value.searchEnabled,
+      fetchEnabled: draft.value.fetchEnabled,
+    });
+    showAppToast(t('console.saved'), 'success');
+    await refresh();
+  } catch (err) {
+    loadError.value = String(err);
+    showAppToast(t('app.configUpdateError', { error: err }), 'error');
+  } finally {
+    saving.value = false;
+  }
+}
+
+onMounted(refresh);
 </script>
 
 <template>
@@ -114,65 +88,58 @@ const openBochaGuide = () => {
       <button
         type="button"
         class="btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
-        :disabled="isSaving || !isDirty"
-        @click="saveConfig"
+        :disabled="saving || !isDirty || loading"
+        @click="save"
       >
-        <LoaderCircle v-if="isSaving" :size="16" class="animate-spin" />
-        <span>{{ isSaving ? t('console.saving') : t('console.saveConfig') }}</span>
+        <LoaderCircle v-if="saving" :size="16" class="animate-spin" />
+        <span>{{ saving ? t('console.saving') : t('console.saveConfig') }}</span>
       </button>
     </div>
 
-    <div class="settings-section">
+    <p v-if="loadError" class="text-xs" style="color: var(--danger);">{{ loadError }}</p>
+
+    <div v-if="state" class="settings-section">
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
           <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.provider') }}</label>
-          <select v-model="localConfig.web.search.provider" class="settings-input">
-            <option value="bocha">{{ t('network.providerBocha') }}</option>
-            <option value="brave">{{ t('network.providerBrave') }}</option>
-            <option value="zhipu">{{ t('network.providerZhipu') }}</option>
+          <select v-model="draft.provider" class="settings-input">
+            <option value="">{{ t('network.providerAutomatic') }}</option>
+            <option
+              v-for="provider in state.providers"
+              :key="provider.name"
+              :value="provider.name"
+            >
+              {{ provider.name }}
+            </option>
           </select>
         </div>
-        <div class="space-y-1">
-          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.maxResults') }}</label>
-          <input v-model.number="localConfig.web.search.max_results" type="number" min="1" :max="maxResultsLimit" class="settings-input" />
+        <div class="space-y-1" v-if="selectedProvider">
+          <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.credential') }}</label>
+          <div class="settings-input flex items-center justify-between">
+            <span v-if="selectedProvider.keyless" class="settings-muted text-sm">{{ t('network.keylessProvider') }}</span>
+            <template v-else>
+              <code class="text-xs font-mono">{{ selectedProvider.env_key }}</code>
+              <span
+                class="text-xs font-medium"
+                :style="{ color: selectedProvider.configured ? 'var(--success, #16a34a)' : 'var(--warning, #d97706)' }"
+              >
+                {{ selectedProvider.configured ? t('network.envConfigured') : t('network.envMissing') }}
+              </span>
+            </template>
+          </div>
         </div>
       </div>
 
-      <div class="space-y-1">
-        <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ apiKeyLabel }}</label>
-        <input v-model="localConfig.web.search.api_key" type="password" class="settings-input font-mono" :placeholder="apiKeyPlaceholder" />
-        <button
-          v-if="isBochaProvider"
-          type="button"
-          class="inline-flex text-sm hover:underline bg-transparent border-0 p-0 cursor-pointer text-left mt-1"
-          :style="{ color: 'var(--accent)' }"
-          @click="openBochaGuide"
-        >
-          {{ t('network.apiKeyGuideBocha') }}
-        </button>
-      </div>
-
-      <div class="flex space-x-6">
+      <div class="flex space-x-6 mt-4">
         <label class="settings-label flex items-center space-x-2 cursor-pointer">
-          <input type="checkbox" v-model="localConfig.web.search.enabled" class="settings-checkbox" />
+          <input type="checkbox" v-model="draft.searchEnabled" class="settings-checkbox" />
           <span>{{ t('network.enableSearch') }}</span>
         </label>
         <label class="settings-label flex items-center space-x-2 cursor-pointer">
-          <input type="checkbox" v-model="localConfig.web.fetch.enabled" class="settings-checkbox" />
+          <input type="checkbox" v-model="draft.fetchEnabled" class="settings-checkbox" />
           <span>{{ t('network.enableFetch') }}</span>
         </label>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.fade-in {
-  animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-</style>

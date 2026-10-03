@@ -1,28 +1,29 @@
-# DN-2 — First usable Rust-free chat loop
+# DN-2 — Real desktop chat and approvals Implementation Plan
 
-- **Epic:** A · **Requirements:** R-2, R-3 · **Outcome:** browser → real VIVY → configured model → visible/persisted answer; approval gates affect real execution; no Rust Manager path in process/network inspection.
-- **Authoritative design:** issue #13 DN-P1 §4 · **Baseline:** `0fd005a1` · **Status:** Planned · **Predecessor:** DN-1 client + session projection · **Index:** [index.md](index.md)
-- **Files:** `agent-diva-gui/src/App.vue`, `src/components/ChatView.vue`, approval components, `src/api/approvals.ts`, `src/api/planning.ts`, `src/utils/streamingMessages.ts`, DN-1 state module. **Escalate:** approval/interaction semantics absent from the pinned VIVY contract.
+> **For agentic workers:** Use `superpowers:executing-plans` after plan review and implementation authorization; no delegation is implied. Read both this plan and the shared design before execution.
 
-## Prerequisites / contracts
+**Spec:** [p0-design.md](p0-design.md), revision P0-D1. **State/dependencies:** [index.md](index.md) is authoritative.
+**Baselines:** DIVA `d96e396d1641a5e7636e30e1f6cdbd0e597b62c8`; VIVY `5347032d8f18a047b67e85761c0dcc48728bee7c`.
+**Global constraints:** one VIVY authority; no legacy Manager fallback; no production-data testing; do not change approved scope to close a gate. New paths below are proposed. Record actual commands/results and scoped commits; never claim mocks as live acceptance.
 
-- Consumes DN-1 client, contracts, and session projection (accepted evidence required).
-- VIVY run/interaction IDs bind every decision; denial/timeout/pending-approval recovery per the pinned contract.
+**Goal:** Drive real sessions, streaming, approval/question decisions and cancellation from the existing Vue UI.
+**Architecture:** Keep presentation, replace the orchestration authority with DN-1 and real VIVY operations.
+**Tech stack:** Vue/TypeScript, Tauri/Rust, Go VIVY as applicable to this Story.
 
-## Tasks
+## Files and contracts
 
-- [ ] Replace send/history/session/stop and reasoning/tool event handling with native VIVY turn/run/session operations.
-- [ ] Move affected orchestration out of `App.vue` into the DN-1 state seam; preserve presentation; no unrelated refactoring.
-- [ ] Bind approval/question decisions to exact VIVY interaction IDs and supported review revisions; map errors visibly.
-- [ ] Remove the browser mock chat path and old business listeners for migrated flows.
-- [ ] Verify completed-only output, cancellation, refresh/reconnect, pending approval recovery, denial/timeout, follow-up turns.
+Modify existing `agent-diva-gui/src/App.vue`, `src/components/ChatView.vue`, `src/api/{approvals,planning}.ts`, `src/utils/streamingMessages.ts`, `src/components/planning/planExecutionState.ts` and associated tests; extend DN-1 state tests. Exact remaining approval consumers are enumerated in DN-0.
+
+Consumes DN-1 client/projection and DN-0 mappings. Produces the user-visible core chain for DN-P and a verified domain mutation pattern for DN-3/DN-4. session/messages supplies history; turn/start returns the authoritative run; run/cancel requests cancellation. Planning reviews use their actual frozen work/action contract, not an assumed approval alias.
+
+## Ordered tasks
+
+- [ ] Add behavior tests for send/history/switch-session, complete-only text, reasoning/tool progress, cancellation racing completion, and an ambiguous send timeout. Use the redacted real protocol fixture for contract cases.
+- [ ] Replace send_message, get_sessions, get_session_history, stop_generation and legacy core listeners with the frozen session/turn/run methods. Remove browser mock chat success and duplicate App.vue state orchestration for migrated flows.
+- [ ] Add approval/question tests for approve/deny/expire, stale review revision, double decision and reopening while pending. Bind decisions to backend IDs and display backend rejections; resolve statuses through snapshots/events.
+- [ ] Migrate planning/work surfaces only against verified schemas; leave any required missing capability recorded as blocked, never fake-complete. Delete the migrated legacy DTOs and stream startup commands.
+- [ ] Run packaged chat with a real configured model and a policy-gated safe test tool in a temporary workspace; demonstrate the operation cannot happen before approval and is not executed after denial/cancellation.
 
 ## Verification
 
-- `pnpm --dir agent-diva-gui test` and `build` pass.
-- Manual smoke: real model answer visible and persisted; approval gate blocks/releases real execution; `ps`/network inspection shows no Rust Manager/SSE path.
-- A deterministic provider fixture is acceptable development evidence but does not substitute the live-model gate.
-
-## Evidence to supervisor
-
-Smoke recording/log, test results, confirmation that no legacy executor is reachable for migrated flows.
+`pnpm --dir agent-diva-gui test`; `pnpm --dir agent-diva-gui build`; native live-model chain with safe test tool and Journal/session readback. Expected: text and persisted history agree, decisions govern actual execution, cancellation reaches an authoritative terminal, reopened window reconstructs the same run without resending it. Return transcript and removed-command ledger rows. No production credentials in evidence.

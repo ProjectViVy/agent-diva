@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Bot, Cat, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, Sparkles, ShieldCheck, Minimize2, FileText } from '@lucide/vue';
+import { Bot, Server, MessageSquare, Globe, Info, Search, SlidersHorizontal, WandSparkles, Palette, ShieldCheck, Minimize2, Drama } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'self-evolution' | 'sandbox' | 'compaction' | 'pet' | 'audit'): void;
+  (e: 'navigate', view: 'general' | 'mcp' | 'skills' | 'providers' | 'channels' | 'network' | 'language' | 'theme' | 'about' | 'sandbox' | 'compaction' | 'masks'): void;
 }>();
 
 const cards = computed(() => [
@@ -18,11 +18,9 @@ const cards = computed(() => [
   { id: 'sandbox', icon: ShieldCheck, title: t('dashboard.sandbox'), desc: t('dashboard.sandboxDesc') },
   { id: 'network', icon: Search, title: t('dashboard.network'), desc: t('dashboard.networkDesc') },
   { id: 'compaction', icon: Minimize2, title: t('dashboard.compaction'), desc: t('dashboard.compactionDesc') },
-  { id: 'self-evolution', icon: Sparkles, title: t('dashboard.selfEvolution'), desc: t('dashboard.selfEvolutionDesc') },
-  { id: 'audit', icon: FileText, title: t('dashboard.audit'), desc: t('dashboard.auditDesc') },
+  { id: 'masks', icon: Drama, title: t('dashboard.masks'), desc: t('dashboard.masksDesc') },
   { id: 'theme', icon: Palette, title: t('dashboard.theme'), desc: t('dashboard.themeDesc') },
   { id: 'language', icon: Globe, title: t('dashboard.language'), desc: t('dashboard.languageDesc') },
-  { id: 'pet', icon: Cat, title: t('dashboard.pet'), desc: t('dashboard.petDesc') },
   { id: 'about', icon: Info, title: t('dashboard.about'), desc: t('dashboard.aboutDesc') },
 ]);
 </script>

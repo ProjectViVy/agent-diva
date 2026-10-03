@@ -2,10 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MarketplaceTab from './MarketplaceTab.vue';
 
-const searchMarketplaceSkills = vi.fn();
-const installMarketplaceSkill = vi.fn();
-const featuredMarketplaceSkills = vi.fn();
-const getSkills = vi.fn();
+const marketplaceSearch = vi.fn();
+const marketplaceInstall = vi.fn();
+const marketplaceFeatured = vi.fn();
+const loadInstalledSkills = vi.fn();
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -14,11 +14,19 @@ vi.mock('vue-i18n', () => ({
 }));
 
 vi.mock('../../api/desktop', () => ({
-  searchMarketplaceSkills: (...args: unknown[]) => searchMarketplaceSkills(...args),
-  installMarketplaceSkill: (...args: unknown[]) => installMarketplaceSkill(...args),
-  featuredMarketplaceSkills: (...args: unknown[]) => featuredMarketplaceSkills(...args),
-  getSkills: (...args: unknown[]) => getSkills(...args),
   isTauriRuntime: () => true,
+}));
+
+vi.mock('../../api/vivy/instance', () => ({
+  vivyClient: {
+    marketplaceSearch: (...args: unknown[]) => marketplaceSearch(...args),
+    marketplaceInstall: (...args: unknown[]) => marketplaceInstall(...args),
+    marketplaceFeatured: (...args: unknown[]) => marketplaceFeatured(...args),
+  },
+}));
+
+vi.mock('../../api/settings', () => ({
+  loadInstalledSkills: (...args: unknown[]) => loadInstalledSkills(...args),
 }));
 
 function mountTab() {
@@ -29,10 +37,10 @@ describe('MarketplaceTab', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    getSkills.mockResolvedValue([]);
-    searchMarketplaceSkills.mockResolvedValue([]);
-    featuredMarketplaceSkills.mockResolvedValue({ skills: [], generated_at: '' });
-    installMarketplaceSkill.mockResolvedValue({ name: 'demo-skill' });
+    loadInstalledSkills.mockResolvedValue([]);
+    marketplaceSearch.mockResolvedValue({ skills: [] });
+    marketplaceFeatured.mockResolvedValue({ skills: [], generated_at: '' });
+    marketplaceInstall.mockResolvedValue({ outcome: 'created' });
   });
 
   afterEach(() => {
@@ -48,16 +56,16 @@ describe('MarketplaceTab', () => {
     vi.advanceTimersByTime(400);
     await flushPromises();
 
-    expect(searchMarketplaceSkills).not.toHaveBeenCalled();
+    expect(marketplaceSearch).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('general.marketplaceSearchPrompt');
   });
 
   it('searches, sorts by installs, and marks installed skills', async () => {
-    getSkills.mockResolvedValue([{ name: 'git-commit' }]);
-    searchMarketplaceSkills.mockResolvedValue([
+    loadInstalledSkills.mockResolvedValue([{ name: 'git-commit' }]);
+    marketplaceSearch.mockResolvedValue({ skills: [
       { id: 'a/b/less-popular', name: 'less-popular', source: 'a/b', installs: 5 },
       { id: 'github/awesome-copilot/git-commit', name: 'git-commit', source: 'github/awesome-copilot', installs: 42795 },
-    ]);
+    ] });
 
     const wrapper = mountTab();
     await flushPromises();
@@ -67,7 +75,7 @@ describe('MarketplaceTab', () => {
     vi.advanceTimersByTime(400);
     await flushPromises();
 
-    expect(searchMarketplaceSkills).toHaveBeenCalledWith('commit', 20);
+    expect(marketplaceSearch).toHaveBeenCalledWith('commit', 20);
     const cards = wrapper.findAll('.marketplace-card');
     expect(cards).toHaveLength(2);
     expect(cards[0].text()).toContain('git-commit');
@@ -78,9 +86,9 @@ describe('MarketplaceTab', () => {
   });
 
   it('installs a skill by its marketplace id and refreshes the installed list', async () => {
-    searchMarketplaceSkills.mockResolvedValue([
+    marketplaceSearch.mockResolvedValue({ skills: [
       { id: 'demo-owner/demo-repo/demo-skill', name: 'demo-skill', source: 'demo-owner/demo-repo', installs: 42 },
-    ]);
+    ] });
 
     const wrapper = mountTab();
     await flushPromises();
@@ -93,15 +101,15 @@ describe('MarketplaceTab', () => {
     await wrapper.find('.marketplace-card button').trigger('click');
     await flushPromises();
 
-    expect(installMarketplaceSkill).toHaveBeenCalledWith('demo-owner/demo-repo/demo-skill');
-    expect(getSkills).toHaveBeenCalledTimes(2);
+    expect(marketplaceInstall).toHaveBeenCalledWith('demo-owner/demo-repo/demo-skill', 'create');
+    expect(loadInstalledSkills).toHaveBeenCalledTimes(2);
   });
 
   it('surfaces install failures with a retryable error box', async () => {
-    installMarketplaceSkill.mockRejectedValue(new Error('conflict'));
-    searchMarketplaceSkills.mockResolvedValue([
+    marketplaceInstall.mockRejectedValue(new Error('conflict'));
+    marketplaceSearch.mockResolvedValue({ skills: [
       { id: 'demo-owner/demo-repo/demo-skill', name: 'demo-skill', source: 'demo-owner/demo-repo', installs: 42 },
-    ]);
+    ] });
 
     const wrapper = mountTab();
     await flushPromises();
@@ -118,7 +126,7 @@ describe('MarketplaceTab', () => {
   });
 
   it('shows the featured leaderboard sorted by installs when no search is active', async () => {
-    featuredMarketplaceSkills.mockResolvedValue({
+    marketplaceFeatured.mockResolvedValue({
       skills: [
         { id: 'a/b/less-popular', name: 'less-popular', source: 'a/b', installs: 5 },
         { id: 'vercel-labs/skills/find-skills', name: 'find-skills', source: 'vercel-labs/skills', installs: 846620 },
@@ -129,7 +137,7 @@ describe('MarketplaceTab', () => {
     const wrapper = mountTab();
     await flushPromises();
 
-    expect(featuredMarketplaceSkills).toHaveBeenCalled();
+    expect(marketplaceFeatured).toHaveBeenCalled();
     expect(wrapper.text()).toContain('general.marketplaceFeaturedTitle');
     expect(wrapper.text()).toContain('general.marketplaceFeaturedSnapshot');
     const cards = wrapper.findAll('.marketplace-card');
@@ -139,7 +147,7 @@ describe('MarketplaceTab', () => {
   });
 
   it('installs a featured skill by its marketplace id', async () => {
-    featuredMarketplaceSkills.mockResolvedValue({
+    marketplaceFeatured.mockResolvedValue({
       skills: [
         { id: 'demo-owner/demo-repo/demo-skill', name: 'demo-skill', source: 'demo-owner/demo-repo', installs: 42 },
       ],
@@ -152,6 +160,6 @@ describe('MarketplaceTab', () => {
     await wrapper.find('.marketplace-card button').trigger('click');
     await flushPromises();
 
-    expect(installMarketplaceSkill).toHaveBeenCalledWith('demo-owner/demo-repo/demo-skill');
+    expect(marketplaceInstall).toHaveBeenCalledWith('demo-owner/demo-repo/demo-skill', 'create');
   });
 });

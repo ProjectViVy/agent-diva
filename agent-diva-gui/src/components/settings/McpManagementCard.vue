@@ -20,17 +20,15 @@ import {
 } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
+import { isTauriRuntime } from '../../api/desktop';
 import {
-  createMcp,
-  deleteMcp,
-  getMcps,
-  isTauriRuntime,
-  refreshMcpStatus,
-  setMcpEnabled,
-  updateMcp,
-  type McpServerDto,
-  type McpServerPayload,
-} from '../../api/desktop';
+  deleteMcpServer,
+  loadMcpServers,
+  probeMcpServer,
+  saveMcpServer,
+  setMcpServerEnabled,
+  type McpServerSpec,
+} from '../../api/settings';
 import { appConfirm } from '../../utils/appDialog';
 import { showAppToast } from '../../utils/appToast';
 
@@ -45,13 +43,16 @@ interface FormState {
   transport: Transport;
   command: string;
   args: string[];
+  /** child env name -> HOST env var name (VIVY stores names, never values) */
   env: Array<{ key: string; value: string }>;
   url: string;
-  tool_timeout: number;
+  cwd: string;
+  authEnv: string;
+  resourceBridge: boolean;
 }
 
 // 核心状态
-const mcps = ref<McpServerDto[]>([]);
+const mcps = ref<McpServerSpec[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
@@ -84,11 +85,13 @@ function blankForm(): FormState {
     args: [],
     env: [],
     url: '',
-    tool_timeout: 30,
+    cwd: '',
+    authEnv: '',
+    resourceBridge: false,
   };
 }
 
-function dtoToForm(dto: McpServerDto): FormState {
+function dtoToForm(dto: McpServerSpec): FormState {
   return {
     originalName: dto.name,
     name: dto.name,
@@ -96,27 +99,38 @@ function dtoToForm(dto: McpServerDto): FormState {
     transport: dto.transport === 'http' ? 'http' : 'stdio',
     command: dto.command,
     args: [...dto.args],
-    env: Object.entries(dto.env).map(([key, value]) => ({ key, value })),
-    url: dto.url,
-    tool_timeout: dto.tool_timeout,
+    env: Object.entries(dto.envFrom).map(([key, value]) => ({ key, value })),
+    url: dto.endpoint,
+    cwd: dto.cwd,
+    authEnv: dto.authEnv,
+    resourceBridge: dto.resourceBridge,
   };
 }
 
-function formToPayload(state: FormState): McpServerPayload {
-  const env = Object.fromEntries(
+function formToSpec(state: FormState): McpServerSpec {
+  const envFrom = Object.fromEntries(
     state.env
-      .map((item) => [item.key.trim(), item.value] as const)
+      .map((item) => [item.key.trim(), item.value.trim()] as const)
       .filter(([key]) => key.length > 0)
   );
 
   return {
     name: state.name.trim(),
     enabled: state.enabled,
+    transport: state.transport,
+    endpoint: state.transport === 'http' ? state.url.trim() : '',
     command: state.transport === 'stdio' ? state.command.trim() : '',
     args: state.transport === 'stdio' ? parseArgsSmart(state.args) : [],
-    env: state.transport === 'stdio' ? env : {},
-    url: state.transport === 'http' ? state.url.trim() : '',
-    tool_timeout: Number(state.tool_timeout) || 30,
+    envFrom: state.transport === 'stdio' ? envFrom : {},
+    cwd: state.cwd.trim(),
+    authEnv: state.authEnv.trim(),
+    resourceBridge: state.resourceBridge,
+    state: 'inactive',
+    deferredReason: '',
+    envMissing: [],
+    authEnvSet: false,
+    toolCount: 0,
+    error: '',
   };
 }
 
@@ -165,18 +179,38 @@ function parseSingleArgLine(input: string): string[] {
 }
 
 function syncRawJsonFromForm() {
-  rawJson.value = JSON.stringify(formToPayload(form.value), null, 2);
+  rawJson.value = JSON.stringify(formToSpec(form.value), null, 2);
 }
 
-function normalizeSinglePayload(input: any): McpServerPayload {
+interface RawMcpPayload {
+  name: string;
+  enabled: boolean;
+  command: string;
+  args: string[];
+  envFrom: Record<string, string>;
+  url: string;
+  cwd: string;
+  authEnv: string;
+  resourceBridge: boolean;
+}
+
+function normalizeSinglePayload(input: any): RawMcpPayload {
+  const envSource =
+    typeof input.env_from === 'object' && input.env_from
+      ? input.env_from
+      : typeof input.env === 'object' && input.env
+        ? input.env
+        : {};
   return {
     name: String(input.name ?? '').trim(),
     enabled: input.enabled !== false,
     command: String(input.command ?? ''),
     args: Array.isArray(input.args) ? input.args.map((item: unknown) => String(item)) : [],
-    env: typeof input.env === 'object' && input.env ? input.env : {},
-    url: String(input.url ?? ''),
-    tool_timeout: Number(input.tool_timeout ?? input.toolTimeout ?? 30) || 30,
+    envFrom: envSource,
+    url: String(input.endpoint ?? input.url ?? ''),
+    cwd: String(input.cwd ?? ''),
+    authEnv: String(input.auth_env ?? ''),
+    resourceBridge: Boolean(input.resource_bridge),
   };
 }
 
@@ -190,16 +224,18 @@ function applyRawJsonToForm() {
       transport: payload.url ? 'http' : 'stdio',
       command: payload.command,
       args: payload.args,
-      env: Object.entries(payload.env).map(([key, value]) => ({ key, value: String(value) })),
+      env: Object.entries(payload.envFrom).map(([key, value]) => ({ key, value: String(value) })),
       url: payload.url,
-      tool_timeout: payload.tool_timeout,
+      cwd: payload.cwd,
+      authEnv: payload.authEnv,
+      resourceBridge: payload.resourceBridge,
     };
   } catch (e) {
     error.value = t('mcp.invalidJson');
   }
 }
 
-function extractImportPayloads(input: any): McpServerPayload[] {
+function extractImportPayloads(input: any): RawMcpPayload[] {
   if (input?.tools?.mcpServers && typeof input.tools.mcpServers === 'object') {
     return extractImportPayloads(input.tools.mcpServers);
   }
@@ -228,7 +264,7 @@ const filteredMcps = computed(() => {
       (item) =>
         item.name.toLowerCase().includes(query) ||
         item.command.toLowerCase().includes(query) ||
-        item.url.toLowerCase().includes(query)
+        item.endpoint.toLowerCase().includes(query)
     );
   }
 
@@ -242,10 +278,10 @@ const filteredMcps = computed(() => {
         result = result.filter((item) => !item.enabled);
         break;
       case 'connected':
-        result = result.filter((item) => item.status.connected);
+        result = result.filter((item) => displayState(item) === 'connected');
         break;
       case 'degraded':
-        result = result.filter((item) => item.enabled && !item.status.connected);
+        result = result.filter((item) => displayState(item) === 'degraded');
         break;
     }
   }
@@ -258,25 +294,32 @@ const filteredMcps = computed(() => {
     case 'status':
       result.sort((a, b) => {
         const order: Record<string, number> = { connected: 0, degraded: 1, disabled: 2, invalid: 3 };
-        return (order[a.status.state] ?? 99) - (order[b.status.state] ?? 99);
+        return (order[displayState(a)] ?? 99) - (order[displayState(b)] ?? 99);
       });
       break;
     case 'time':
-      result.sort((a, b) => {
-        if (!a.status.checked_at) return 1;
-        if (!b.status.checked_at) return -1;
-        return new Date(b.status.checked_at).getTime() - new Date(a.status.checked_at).getTime();
-      });
+      result.sort((a, b) => a.name.localeCompare(b.name));
       break;
   }
 
   return result;
 });
 
+// Maps a VIVY state onto the display vocabulary the badges/filters use.
+function displayState(item: McpServerSpec): 'connected' | 'degraded' | 'disabled' | 'invalid' {
+  if (!item.enabled) return 'disabled';
+  if (item.state === 'ready') return 'connected';
+  if (item.state === 'unavailable' || item.state === 'unconfigured' || item.state === 'deferred')
+    return 'degraded';
+  return 'invalid';
+}
+
 // 统计计算
-const onlineCount = computed(() => mcps.value.filter((item) => item.status.connected).length);
-const degradedCount = computed(() =>
-  mcps.value.filter((item) => item.enabled && !item.status.connected).length
+const onlineCount = computed(
+  () => mcps.value.filter((item) => displayState(item) === 'connected').length
+);
+const degradedCount = computed(
+  () => mcps.value.filter((item) => displayState(item) === 'degraded').length
 );
 const disabledCount = computed(() => mcps.value.filter((item) => !item.enabled).length);
 
@@ -290,7 +333,8 @@ async function refreshList() {
   loading.value = true;
   error.value = '';
   try {
-    mcps.value = await getMcps();
+    const result = await loadMcpServers();
+    mcps.value = result.servers;
   } catch (err) {
     error.value = String(err);
     showAppToast(t('mcp.operationFailed'), 'error');
@@ -306,7 +350,7 @@ function openCreate() {
   showEditor.value = true;
 }
 
-function openEdit(dto: McpServerDto) {
+function openEdit(dto: McpServerSpec) {
   editorMode.value = 'edit';
   form.value = dtoToForm(dto);
   syncRawJsonFromForm();
@@ -336,14 +380,15 @@ async function submitForm() {
   saving.value = true;
   error.value = '';
   try {
-    const payload = formToPayload(form.value);
-    if (editorMode.value === 'create') {
-      await createMcp(payload);
-      showAppToast(t('mcp.operationSuccess'), 'success');
-    } else {
-      await updateMcp(form.value.originalName, payload);
-      showAppToast(t('mcp.operationSuccess'), 'success');
+    const spec = formToSpec(form.value);
+    await saveMcpServer(spec);
+    // upsert keys on name: an edit that changed the name leaves the old
+    // entry behind — delete it so a rename does not duplicate the server.
+    const renamedFrom = form.value.originalName;
+    if (editorMode.value === 'edit' && renamedFrom && renamedFrom !== spec.name) {
+      await deleteMcpServer(renamedFrom);
     }
+    showAppToast(t('mcp.operationSuccess'), 'success');
     await refreshList();
     closeEditor();
   } catch (err) {
@@ -362,7 +407,7 @@ async function removeMcp(name: string) {
 
   busyServer.value = name;
   try {
-    await deleteMcp(name);
+    await deleteMcpServer(name);
     showAppToast(t('mcp.operationSuccess'), 'success');
     await refreshList();
   } catch (err) {
@@ -373,13 +418,13 @@ async function removeMcp(name: string) {
   }
 }
 
-async function toggleMcp(item: McpServerDto) {
+async function toggleMcp(item: McpServerSpec) {
   if (previewMode.value) return;
   if (busyServer.value) return;
 
   busyServer.value = item.name;
   try {
-    await setMcpEnabled(item.name, !item.enabled);
+    await setMcpServerEnabled(item.name, !item.enabled);
     showAppToast(t('mcp.operationSuccess'), 'success');
     await refreshList();
   } catch (err) {
@@ -396,7 +441,7 @@ async function refreshOne(name: string) {
 
   busyServer.value = name;
   try {
-    await refreshMcpStatus(name);
+    await probeMcpServer(name);
     await refreshList();
   } catch (err) {
     error.value = String(err);
@@ -412,10 +457,10 @@ function toggleExpand(name: string) {
 }
 
 // 复制命令
-async function copyCommand(item: McpServerDto) {
+async function copyCommand(item: McpServerSpec) {
   const cmd =
     item.transport === 'http'
-      ? item.url
+      ? item.endpoint
       : `${item.command} ${item.args.join(' ')}`;
   try {
     await navigator.clipboard.writeText(cmd);
@@ -436,13 +481,25 @@ async function onImportJson(event: Event) {
 
   try {
     const payloads = extractImportPayloads(JSON.parse(await file.text()));
-    const existing = new Set(mcps.value.map((item) => item.name));
     for (const payload of payloads) {
-      if (existing.has(payload.name)) {
-        await updateMcp(payload.name, payload);
-      } else {
-        await createMcp(payload);
-      }
+      await saveMcpServer({
+        name: payload.name,
+        enabled: payload.enabled,
+        transport: payload.url ? 'http' : 'stdio',
+        endpoint: payload.url,
+        command: payload.url ? '' : payload.command,
+        args: payload.url ? [] : payload.args,
+        envFrom: payload.url ? {} : payload.envFrom,
+        cwd: payload.cwd,
+        authEnv: payload.authEnv,
+        resourceBridge: payload.resourceBridge,
+        state: 'inactive',
+        deferredReason: '',
+        envMissing: [],
+        authEnvSet: false,
+        toolCount: 0,
+        error: '',
+      });
     }
     importMessage.value = t('mcp.importSuccess');
     showAppToast(t('mcp.importSuccess'), 'success');
@@ -464,9 +521,11 @@ function exportToJson() {
           [item.name]: {
             command: item.command,
             args: item.args,
-            env: item.env,
-            url: item.url,
-            tool_timeout: item.tool_timeout,
+            env_from: item.envFrom,
+            endpoint: item.endpoint,
+            cwd: item.cwd,
+            auth_env: item.authEnv,
+            resource_bridge: item.resourceBridge,
             enabled: item.enabled,
           },
         }),
@@ -675,14 +734,14 @@ onMounted(refreshList);
           <div class="card-header" @click="toggleExpand(item.name)">
             <div class="header-left">
               <!-- 状态指示器（SVG圆点） -->
-              <div class="status-dot" :class="item.status.state"></div>
+              <div class="status-dot" :class="displayState(item)"></div>
 
               <!-- 服务器名称 -->
               <span class="server-name">{{ item.name }}</span>
 
               <!-- 状态徽章 -->
-              <span class="mcp-status-badge" :class="stateClass(item.status.state)">
-                {{ stateLabel(item.status.state) }}
+              <span class="mcp-status-badge" :class="stateClass(displayState(item))">
+                {{ stateLabel(displayState(item)) }}
               </span>
 
               <!-- 传输协议标签 -->
@@ -691,9 +750,9 @@ onMounted(refreshList);
               </span>
 
               <!-- 工具数量徽章 -->
-              <span v-if="item.status.tool_count > 0" class="mcp-tools-badge">
+              <span v-if="item.toolCount > 0" class="mcp-tools-badge">
                 <Wrench :size="10" />
-                {{ item.status.tool_count }}
+                {{ item.toolCount }}
               </span>
             </div>
 
@@ -714,7 +773,7 @@ onMounted(refreshList);
               <div class="section-label">{{ t('mcp.connectionInfo') }}</div>
               <div class="connection-info">
                 <code class="command-code">
-                  {{ item.transport === 'http' ? item.url : `${item.command} ${item.args.join(' ')}` }}
+                  {{ item.transport === 'http' ? item.endpoint : `${item.command} ${item.args.join(' ')}` }}
                 </code>
                 <button
                   class="copy-btn"
@@ -729,18 +788,18 @@ onMounted(refreshList);
 
             <!-- 元数据 -->
             <div class="metadata-row">
-              <span class="metadata-item">
-                {{ t('mcp.timeout') }}: {{ item.tool_timeout }}s
+              <span v-if="item.state" class="metadata-item">
+                {{ t('mcp.backendState') }}: {{ item.state }}
               </span>
-              <span v-if="item.status.checked_at" class="metadata-item">
-                {{ t('mcp.checkedAt') }}: {{ item.status.checked_at }}
+              <span v-if="item.envMissing.length" class="metadata-item">
+                {{ t('mcp.envMissing') }}: {{ item.envMissing.join(', ') }}
               </span>
             </div>
 
             <!-- 错误信息 -->
-            <div v-if="item.status.error" class="error-box">
+            <div v-if="item.error" class="error-box">
               <CircleAlert :size="14" class="error-icon" />
-              <span class="error-text">{{ item.status.error }}</span>
+              <span class="error-text">{{ item.error }}</span>
             </div>
 
             <!-- 操作按钮组 -->
@@ -916,18 +975,18 @@ onMounted(refreshList);
                   />
                 </div>
               </label>
-            </template>
 
-            <label class="form-field">
-              <span class="field-label">{{ t('mcp.timeout') }}</span>
-              <input
-                v-model.number="form.tool_timeout"
-                type="number"
-                min="1"
-                class="field-input"
-                @input="syncRawJsonFromForm"
-              />
-            </label>
+              <label class="form-field">
+                <span class="field-label">{{ t('mcp.authEnv') }}</span>
+                <input
+                  v-model="form.authEnv"
+                  class="field-input"
+                  :placeholder="t('mcp.authEnvPlaceholder')"
+                  @input="syncRawJsonFromForm"
+                />
+                <p class="field-hint">{{ t('mcp.authEnvHint') }}</p>
+              </label>
+            </template>
           </div>
 
           <!-- JSON编辑区域 -->

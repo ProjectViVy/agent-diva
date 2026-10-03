@@ -2,7 +2,8 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { SlidersHorizontal, MessageSquareText, ShieldCheck, ShieldAlert, FolderTree, DatabaseZap, AlertTriangle } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
-import { getConfigStatus, startGateway, wipeLocalData, type ConfigStatusReport } from '../../api/desktop';
+import { loadProviderState } from '../../api/settings';
+import type { ConfigStatusReport } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';
 
 const { t } = useI18n();
@@ -44,7 +45,7 @@ const emitPrefs = () => {
 
 onMounted(async () => {
   try {
-    statusReport.value = await getConfigStatus();
+    statusReport.value = (await loadProviderState()).statusReport;
   } catch (error) {
     console.error('Failed to load config status:', error);
   }
@@ -52,10 +53,6 @@ onMounted(async () => {
 
 const readyProviders = computed(() =>
   statusReport.value?.providers.filter((item) => item.ready).length ?? 0
-);
-
-const readyChannels = computed(() =>
-  statusReport.value?.channels.filter((item) => item.enabled && item.ready).length ?? 0
 );
 
 const dangerConfirmWord = computed(() => t('general.dangerConfirmWord'));
@@ -89,17 +86,10 @@ async function runFullWipe() {
   wipeError.value = null;
   wiping.value = true;
   try {
-    await wipeLocalData();
     clearAgentDivaLocalStorage({ preserveLocale: preserveLocaleOnWipe.value });
-    try {
-      await startGateway(null);
-    } catch (gwErr) {
-      console.warn('start_gateway after wipe:', gwErr);
-    }
     window.location.reload();
   } catch (e) {
     wipeError.value = e instanceof Error ? e.message : String(e);
-  } finally {
     wiping.value = false;
   }
 }
@@ -195,20 +185,6 @@ async function runFullWipe() {
           <div class="text-sm font-semibold settings-label">{{ readyProviders }} / {{ statusReport.providers.length }}</div>
           <div class="text-xs settings-muted mt-1">{{ statusReport.default_provider || t('providers.unresolved') }}</div>
         </div>
-        <div class="settings-code-block">
-          <div class="text-xs uppercase tracking-wider settings-muted mb-2">{{ t('general.channelsReady') }}</div>
-          <div class="text-sm font-semibold settings-label">{{ readyChannels }} / {{ statusReport.channels.filter((item) => item.enabled).length }}</div>
-          <div class="text-xs settings-muted mt-1">{{ t('general.cronJobs', { count: statusReport.cron_jobs }) }}</div>
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <div class="text-xs uppercase tracking-wider settings-muted">{{ t('general.resolvedPaths') }}</div>
-        <div class="settings-code-block space-y-2">
-          <div>{{ statusReport.config.config_path }}</div>
-          <div>{{ statusReport.config.runtime_dir }}</div>
-          <div>{{ statusReport.config.workspace }}</div>
-        </div>
       </div>
     </div>
 
@@ -219,16 +195,6 @@ async function runFullWipe() {
         <span>{{ t('general.dangerZoneTitle') }}</span>
       </div>
       <p class="settings-danger-text leading-relaxed">{{ t('general.dangerZoneDesc') }}</p>
-      <p class="text-xs settings-danger-text opacity-80 leading-relaxed">{{ t('general.dangerServiceNote') }}</p>
-
-      <div v-if="statusReport" class="rounded-lg px-3 py-2 space-y-1" style="border: 1px solid var(--danger-bg); background: var(--danger-bg);">
-        <div class="text-xs font-medium settings-danger-text">{{ t('general.dangerPathsHint') }}</div>
-        <div class="text-xs font-mono settings-label break-all space-y-0.5">
-          <div>{{ statusReport.config.config_path }}</div>
-          <div>{{ statusReport.config.workspace }}</div>
-          <div>{{ statusReport.config.runtime_dir }}</div>
-        </div>
-      </div>
 
       <label class="flex items-center gap-2 settings-label cursor-pointer">
         <input v-model="preserveLocaleOnWipe" type="checkbox" class="settings-checkbox" />

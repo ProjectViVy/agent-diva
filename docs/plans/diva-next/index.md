@@ -1,77 +1,62 @@
-# DIVA Next — planning package index
+# DIVA Next — authoritative planning index
 
-Initiative: backend separation and Rust runtime retirement ("DIVA Next").
-Authoritative design: [ProjectViVy/agent-diva#13, plan comment DN-P1](https://github.com/ProjectViVy/agent-diva/issues/13#issuecomment-5853903385) (2026-09-27). This index tracks execution state only; the issue remains the design source of truth. Do not maintain a competing status table elsewhere.
+The existing DN-P1 issue design remains historical context. The user's two-P0 directive selects a **Tauri thin shell + Go shared library**, superseding its non-Rust-host and desktop WebSocket assumptions. Current review draft: [P0-D1 design](p0-design.md). Only this index owns status and dependencies; no external issue has been modified.
 
-- Baseline code revision: `0fd005a105d8987df02ae7b796a3c591e04b9ca3` (main).
-- Backend counterpart: [ProjectViVy/agent-vivy#63](https://github.com/ProjectViVy/agent-vivy/issues/63) and its [backend scope supplement](https://github.com/ProjectViVy/agent-vivy/issues/63#issuecomment-5851799141).
-- VIVY audit revision referenced by the issue: `f6fb11bc71be2d06946ff33b0462aa56f9ff51ef`; the actual integration revision is selected and recorded by DN-0.
+Inspected baselines: DIVA `d96e396d1641a5e7636e30e1f6cdbd0e597b62c8`; VIVY `5347032d8f18a047b67e85761c0dcc48728bee7c`. Retired Rust behavior remains available in DIVA git history `0fd005a1`/origin/dev. Source pins do not prove a shipped Generation.
 
-## Requirements (traceability to issue §8)
+## Scope and state
 
-| Req | Requirement (issue §8 definition of done) |
-| --- | --- |
-| R-1 | Every DN-0 required behavior has a verified VIVY/native replacement or explicit agreed scope disposition |
-| R-2 | No old Rust business chain, automatic legacy fallback, or competing persistence authority in the new product |
-| R-3 | New frontend performs real model/chat/tool/approval/recovery against the pinned VIVY Generation |
-| R-4 | Companion state is real, durable, and reflected in runtime behavior |
-| R-5 | Voice/avatar optional, follow run cancellation/replay/resource semantics |
-| R-6 | Native host lifecycle works on declared supported platforms |
-| R-7 | Historical data migration repeatable, preserves source data |
-| R-8 | Clean product build/package/CI independent of the retired Rust workspace |
+P0-A delivers the shared library/bridge and packaged core lifecycle. P0-B delivers complete semantic migration of required old frontend functions. Full DIVA Next release still includes historical DN-7/DN-8 obligations. Planning is authorized; implementation is not started. Windows x64 is the target candidate until DN-0 freezes the acceptance platform. No dates, staffing or duration estimates are asserted.
 
-## Story DAG
+| Story | Outcome / requirement | Immediate predecessors and required output | Plan | State | Evidence or blocker |
+| --- | --- | --- | --- | --- | --- |
+| DN-W | Retired Rust business backend deleted / R-2,R-8 | — | [DN-W](DN-W.md) | Done (historical) | Historical branch evidence: 485 GUI tests and Vue build; not rerun here |
+| DN-0 | Full mapping, core/ABI/platform contract freeze / A1,B1 | — | [DN-0](DN-0.md) | Complete (proposed; owner review) | Ledger + frozen ABI + captured core-rpc transcript delivered; gatewayless Go tests pass on linux (Go 1.26.8 installed); `EMBEDDED-SWEEPER-OWNERSHIP` resolved in DN-L |
+| DN-L | Sealed DIVA DLL + safe embedding / A1 | DN-0: ABI, recipe needs, target/toolchain | [DN-L](DN-L.md) | Complete (proposed; owner review) | `internal/embedded` host + ABI v1 c-shared exports + `--target shared` pack/inspect + `recipes/diva.vivy.yml` landed on `feat/diva-embedded`; C ABI smoke (init→turn→approval→cancel→poll→shutdown) green on linux/amd64; windows/amd64 c-shared + Rust FFI acceptance still pending |
+| DN-5 | Tauri shell + vivy-bridge / A2 | DN-L: accepted DLL/header/manifest | [DN-5](DN-5.md) | Complete (proposed; owner review) | `vivy-bridge` (dlopen, owned-return guards, single event pump) + Tauri v2 shell (vivy_call/vivy:event, close-hide + tray Quit, single-instance) landed on DIVA-NEXT-P0; workspace tests 10/10, clippy clean, deb bundles the staged runtime; native transcript: real .so window open, close->hide, relaunch focus, SIGINT ordered exit on linux/amd64; live streaming/approval-reopen + Windows runner still pending |
+| DN-1 | Typed client + state/event projection / A3,B2 | DN-5: verified call/event transport | [DN-1](DN-1.md) | Complete (proposed; owner review) | `api/vivy/{contracts,transport,client}` (envelope-preserving, never-retried, unknownOutcome on post-mutation timeout/transport loss) + `state/vivy-session` projection ((run_id,seq) dedup, gap-safe cursor, snapshot-authoritative resync, pending approval/question survival) + capability ledger resolved from negotiated initialize state; GUI tests 507/507, build clean, vivy-bridge 7/7 incl. real-artifact DN-1 smoke (initialize/session/subscribe/cancel -32004/approval+question lists/delete) |
+| DN-2 | Real chat/session/approval/cancel / A3,B2 | DN-1: client and recovery projection | [DN-2](DN-2.md) | Complete (proposed; owner review) | `VivyChatController` orchestration authority + App.vue rewiring (2761->1059 lines, legacy listeners/mock/DTOs deleted); review/respond interactions bound to backend ids; plan via session/work + plan/decide; GUI tests 519/519, vue-tsc + build clean. Task 5 native acceptance green on linux/amd64: real sensenova model streamed, write_file gated by policy (deny=no effect, approve=effect in run sandbox), run/cancel->run.cancelled, Journal + review snapshot readback — 16/16 checks (`docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`) |
+| DN-P | Packaged P0-A acceptance + runtime boundary gate / A1–A3 | DN-2: accepted native core chain | [DN-P](DN-P.md) | Complete (proposed; owner review) | sha256-verified bundled artifact == staged sealed pin (`83e8ee88…`, generationId `1fd14fb2…`, re-sealed after agent-vivy `2947c472` embedded-caller fix); deterministic lifecycle chain 21/21 on the shipped .so (chat→stream→approval→continue→cancel→pending-at-close→in-flight-close→reopen recovery→quit); installed-GUI window lifecycle proven; `scripts/ci/check_vivy_backend_boundary.py` + `boundary-gate` CI job green; live-model chain recorded (`docs/logs/2026-10-diva-next-dnp/v0.1.0-packaged-p0-acceptance/`) |
+| DN-3 | Settings/operational migration / B2,R-1,R-3 | DN-2: verified mutation/recovery path | [DN-3](DN-3.md) | Complete (proposed; owner review) | Slices A–D landed (ee01962b/204a9c23/ad33f349/011e493c): providers+model+credentials, tools/MCP/skills/marketplace, channels/cron, token stats+sandbox+dead-surface purge; zero non-vivy_call invokes outside the dormant pet feature; vitest 434/434, vue-tsc+build clean; live persist/reopen via sealed .so 10/10 (settings survive VivyShutdown→VivyInit; invalid preset -32602 fail-closed); gaps on TODOLIST (COMMAND-RULES, BACKEND-WIPE, SKILL-MANAGEMENT…) |
+| DN-4 | Companion migration / B2,R-4 | DN-2: verified mutation/recovery path | [DN-4](DN-4.md) | Blocked (partially migrated) | masks slice delivered end-to-end: `api/masks.ts` + MasksSettings UI wired into Settings, live `module.action.invoke` contract verified on the sealed .so (catalog.list/get, selection.get/set, catalog.create); remaining domains (persona, memory/ACTMEM, autodream/evolution, notebook/reports) stay Blocked with named missing producer contracts — no producer in the diva generation; no mocks shipped |
+| DN-6 | Speech/avatar/native domain migration / B2,R-5 | DN-2: accepted run/utterance/cancel projection | [DN-6](DN-6.md) | Blocked (dispositions recorded) | speech STT/TTS has no producer module anywhere in agent-vivy → blocked, not "optional"; resource import/delete blocked (only `mcp.resources.list\|read` probes exist); avatar VRM = native; pet = dormant by ruling (`docs/logs/2026-10-diva-next-dn6/v0.1.0-domain-dispositions/`) |
+| DN-M | Complete P0-B semantic closure / B1–B3 | DN-3,DN-4,DN-6: domain evidence; DN-P: runtime boundary gate | [DN-M](DN-M.md) | Blocked (gate delivered) | `check_legacy_frontend_calls.mjs` AST allowlist gate delivered + CI-wired + selftest 6/6: zero unclassified invoke/fetch/WebSocket/legacy-call sites outside `desktop-host.ts`/`openExternal.ts`/dormant pet; ledger reconciled (`docs/logs/2026-10-diva-next-dnm/v0.1.0-ledger-reconciliation/`); Story stays Blocked — green static scan cannot waive missing speech/persona/memory producer contracts |
+| DN-7 | Historical offline data handoff / R-7 | DN-3,DN-4: accepted domain schemas | [DN-7](DN-7.md) | Blocked | Import contracts not frozen; outside these two P0s unless required by a mapped function |
+| DN-8 | Full DIVA Next release / R-1,R-2,R-8 | DN-M: full semantic migration; DN-7: import acceptance | [DN-8](DN-8.md) | Planned | P0 closure alone does not close full release |
 
-| Story | Epic / requirement | Outcome | Immediate predecessors (required output) | Plan | Status | Evidence / blocker |
-| --- | --- | --- | --- | --- | --- | --- |
-| DN-W | A / R-2,R-8 | Legacy Rust backend fully removed from the branch (user-ordered phase 1) | — | [DN-W.md](DN-W.md) | Done | tests 485 pass, vue-tsc+Vite build pass, zero Rust sources in tree |
-| DN-0 | A / R-1 | Command/data inventory + VIVY compatibility baseline frozen | — | [DN-0.md](DN-0.md) | Ready | VIVY integration revision must be selected inside DN-0; inventory reads baseline `0fd005a1` from git history |
-| DN-1 | A / R-2,R-3 | Framework-neutral VIVY client + Vue state seam | DN-0 (contract freeze record, pinned revision) | [DN-1.md](DN-1.md) | Planned | needs DN-0 `backend-separation-contracts.md` |
-| DN-2 | A / R-2,R-3 | Rust-free chat/session/approval loop | DN-1 (client + session projection) | [DN-2.md](DN-2.md) | Planned | needs selected VIVY core runtime |
-| DN-3 | B / R-1,R-3 | Settings/operational pages on VIVY authority | DN-2 (verified VIVY mutation path) | [DN-3.md](DN-3.md) | Planned | per-domain VIVY APIs, individually gated |
-| DN-4 | B / R-4 | Companion pages on real persona/memory/evolution/report services | DN-2 | [DN-4.md](DN-4.md) | Blocked | #63 domain capabilities (persona projection, working memory, AutoDream/review, reports) |
-| DN-5 | C / R-6 | Non-Rust desktop host + lifecycle | DN-2 | [DN-5.md](DN-5.md) | Blocked | host/platform/origin capability probe (part of the Story) |
-| DN-6 | C / R-5 | Speech/avatar/resource chain on new host/backend | DN-5 | [DN-6.md](DN-6.md) | Blocked | VIVY speech/resource/event contracts under #63 |
-| DN-7 | D / R-7 | Offline data handoff with versioned import receipts | DN-3, DN-4 | [DN-7.md](DN-7.md) | Blocked | import contracts + asset schema from target domains |
-| DN-8 | D / R-1,R-2,R-8 | Accept packaged DIVA Next; boundary gate + parity sign-off | DN-6, DN-7 | [DN-8.md](DN-8.md) | Planned | deletion already done by DN-W; this is the final release gate |
+## Preserved full-product requirements
 
-```mermaid
-graph LR
-  DNW[DN-W] --> DN0[DN-0] --> DN1[DN-1] --> DN2[DN-2]
-  DN2 --> DN3[DN-3]
-  DN2 --> DN4[DN-4]
-  DN2 --> DN5[DN-5]
-  DN5 --> DN6[DN-6]
-  DN3 --> DN7[DN-7]
-  DN4 --> DN7
-  DN6 --> DN8[DN-8]
-  DN7 --> DN8
-```
+R-1: every required old behavior has accepted replacement/disposition. R-2: no old Rust business runtime or competing persistence. R-3: real model/chat/tool/approval/recovery against pinned VIVY. R-4: real durable companion state. R-5: optional voice/avatar obey run/cancel/replay semantics. R-6: native lifetime on declared platforms. R-7: repeatable source-preserving historical import. R-8: independent clean product package/CI. P0-D1 narrows the first closing gate without deleting these existing obligations.
 
-Execution waves: `{DN-W}` → `{DN-0}` → `{DN-1}` → `{DN-2}` → `{DN-3, DN-4, DN-5}` → `{DN-6, DN-7}` → `{DN-8}`.
+## Execution waves
 
-## Shared-file conflicts (serialize, not a logical dependency)
+1. DN-0: inventory and freeze; complete read-only work even where native verification is unavailable.
+2. DN-L: library, generated DIVA recipe, pack/inspect and C ABI smoke.
+3. DN-5: Tauri/vivy-bridge and native lifetime.
+4. DN-1: client/projection and replay through the real bridge.
+5. DN-2: core user flow and real approval/cancel.
+6. DN-P + DN-3 + DN-4 + DN-6: P0-A acceptance and domain migration are logically independent after their contracts are accepted; blocked domains remain blocked.
+7. DN-M + DN-7: P0-B closure and historical import.
+8. DN-8: whole-product release.
 
-- `agent-diva-gui/src/App.vue`: touched by DN-2, DN-3, DN-4 — sequential edits only.
-- `agent-diva-gui/package.json` + lockfile: touched by DN-1, DN-3, DN-6, DN-8 — sequential.
-- Build recipes (`justfile`, `scripts/`, `.github/workflows/`): touched by DN-5, DN-8 — sequential.
-- Parallel write lanes require isolated worktrees and the `LOCK.md` protocol (AGENTS.md).
+These are topological batches, not promises of parallel staffing or permission to delegate. Contract-based scaffolding may be prepared earlier, but no Story is accepted from a mock predecessor. DN-P is the first P0 closing point; DN-M is the second. A missing DN-4/DN-6 contract need not delay DN-P.
 
-## Authorized scope and exclusions (from issue §1)
+## Shared-file serialization
 
-- Vue presentation retained; VIVY is sole agent/backend authority via pinned artifact and native control protocol.
-- Incremental replacement on this migration branch with an independent data directory; old release remains a separately launched historical artifact only.
-- Excluded: keeping Rust Manager as protocol translator; deleting Rust code before parity; assuming a specific desktop shell before the DN-5 probe.
-- No dual-backend operation against the same mutable data; no silent legacy fallback.
+- App.vue: DN-2 first, then DN-3/DN-4/DN-6 one at a time.
+- desktop.ts/capabilities.ts: domain owners make scoped edits, DN-M performs final reconciliation.
+- package/lock: DN-5 owns initial shell dependencies; later edits serialized.
+- VIVY recipe/pack: DN-L owns; domain-driven capability additions review against DN-0, then rebuild/reinspect and invalidate old artifact acceptance.
+- justfile/CI/boundary scripts: DN-5 scaffolds, DN-P supplies runtime gate, DN-M extends consumer gate, DN-8 completes release.
+- A wire-schema change updates shared contract fixtures and all consuming plans before implementation resumes. No concurrent writers have been assigned.
 
-## Decision log (append-only)
+## Decision log
 
-| When | Decision / change | Source |
-| --- | --- | --- |
-| 2026-09-27 | Planning package created from issue comment DN-P1; all Stories Planned except DN-0 (Ready investigation) | this branch |
-| 2026-09-27 | Artifact layout follows issue-proposed `docs/plans/diva-next/`; DN-0 produces `backend-separation-contracts.md` here | issue §6 DN-0 |
-| 2026-09-27 | User directive: phase 1 is wire-cut only — legacy Rust backend deleted immediately (DN-W), ahead of DN-P1's delete-after-parity ordering. DN-8 rescoped to boundary gate + acceptance. Old code remains the reference via git history `0fd005a1`. | user message 2026-09-27 |
+- Historical 2026-09-27 DN-P1: inventory, migration, host probe and final release plan established.
+- Historical 2026-09-27 DN-W directive: delete old backend before parity; deletion is complete.
+- Current P0-D1 directive: use Tauri only as native shell and Go shared library as backend; keep the old business runtime retired. DN-5 moves before DN-1/DN-2 because desktop transport now depends on the DLL, not WebSocket.
+- P0-D1 adds DN-L, DN-P and DN-M; updates existing Stories instead of starting a competing planning package. Requires plan review before implementation.
 
-## Next executable work
+## Next action
 
-DN-0 (inventory + contract freeze against baseline `0fd005a1` in git history). DN-1 becomes Ready when DN-0's contract record lands and its named VIVY dependencies are confirmed. The full #63 backend backlog does not block DN-1/DN-2.
+DN-0, DN-L, DN-5, DN-1, DN-2, DN-3 and DN-P are delivered and awaiting owner review. DN-4 has one slice migrated (masks, live-verified); DN-6 has recorded dispositions; DN-M has its static gate delivered and the DN-0 ledger reconciled — all three stay Blocked on missing backend producer contracts (speech, persona, memory/ACTMEM, evolution, notebook/reports), which is backend work outside agent-diva. Outstanding native gates: GUI-level window reopen against a live model (RPC-level snapshot readback proven), and the Windows/amd64 c-shared + FFI acceptance runner. DN-7 stays Blocked on DN-3/DN-4 contracts; DN-8 needs DN-M + DN-7.

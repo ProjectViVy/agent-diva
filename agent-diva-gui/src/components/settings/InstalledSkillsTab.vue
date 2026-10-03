@@ -1,24 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCcw, Upload, ShieldCheck, CircleOff, Search, Trash2 } from '@lucide/vue';
+import { RefreshCcw, CircleOff, Search, Power, PowerOff } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
+import { isTauriRuntime } from '../../api/desktop';
 import {
-  deleteSkill,
-  getSkills,
-  isTauriRuntime,
-  uploadSkill,
-  type SkillDto,
-} from '../../api/desktop';
-import { appConfirm } from '../../utils/appDialog';
-import { showAppToast } from '../../utils/appToast';
+  loadInstalledSkills,
+  setSkillEnabled,
+  type InstalledSkill,
+} from '../../api/settings';
 
 const { t } = useI18n();
 
-const skills = ref<SkillDto[]>([]);
+const skills = ref<InstalledSkill[]>([]);
 const loading = ref(false);
-const uploading = ref(false);
-const deleting = ref('');
+const toggling = ref('');
 const error = ref('');
 const searchQuery = ref('');
 const previewMode = computed(() => !isTauriRuntime());
@@ -43,7 +39,7 @@ async function refreshSkills() {
   loading.value = true;
   error.value = '';
   try {
-    skills.value = await getSkills();
+    skills.value = await loadInstalledSkills();
   } catch (err) {
     error.value = String(err);
   } finally {
@@ -51,71 +47,33 @@ async function refreshSkills() {
   }
 }
 
-async function onUploadChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) {
-    return;
-  }
-
-  if (!file.name.toLowerCase().endsWith('.zip')) {
-    error.value = t('general.skillsZipOnly');
-    input.value = '';
-    return;
-  }
-
-  uploading.value = true;
+async function onToggle(skill: InstalledSkill) {
+  if (toggling.value) return;
+  toggling.value = skill.name;
   error.value = '';
   try {
-    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-    await uploadSkill(file.name, bytes);
+    await setSkillEnabled(skill.name, !skill.enabled, skill.hash);
     await refreshSkills();
   } catch (err) {
-    error.value = String(err);
+    // -32009 conflict: the document changed under us — re-list, then surface it.
+    const msg = String(err);
+    await refreshSkills();
+    error.value = msg;
   } finally {
-    uploading.value = false;
-    input.value = '';
+    toggling.value = '';
   }
 }
 
-async function onDelete(skill: SkillDto) {
-  if (deleting.value) return;
-  const confirmed = await appConfirm(
-    t('general.deleteSkillConfirmBody', { name: skill.name }),
-    {
-      title: t('general.deleteSkillConfirmTitle'),
-      confirmLabel: t('general.deleteSkill'),
-    }
-  );
-  if (!confirmed) return;
-
-  deleting.value = skill.slug;
-  error.value = '';
-  try {
-    await deleteSkill(skill.slug, skill.content_hash);
-    showAppToast(t('general.skillDeletedToast'), 'success');
-    await refreshSkills();
-  } catch (err) {
-    error.value = String(err);
-  } finally {
-    deleting.value = '';
-  }
-}
-
-const statusClass = (skill: SkillDto) => {
-  if (skill.active) {
+const statusClass = (skill: InstalledSkill) => {
+  if (skill.enabled) {
     return 'skills-status-badge active';
   }
-  if (skill.available) {
-    return 'skills-status-badge available';
-  }
-  return 'skills-status-badge unavailable';
+  return 'skills-status-badge available';
 };
 
-const statusLabel = (skill: SkillDto) => {
-  if (skill.active) return t('general.skillStatusActive');
-  if (skill.available) return t('general.skillStatusAvailable');
-  return t('general.skillStatusUnavailable');
+const statusLabel = (skill: InstalledSkill) => {
+  if (skill.enabled) return t('general.skillStatusActive');
+  return t('general.skillStatusAvailable');
 };
 
 onMounted(refreshSkills);
@@ -139,34 +97,12 @@ defineExpose({ refreshSkills });
 
       <button
         class="skills-btn"
-        :disabled="loading || uploading"
+        :disabled="loading"
         @click="refreshSkills"
       >
         <RefreshCcw :size="14" />
         {{ t('general.refreshSkills') }}
       </button>
-
-      <label
-        class="skills-btn skills-btn-primary"
-        :class="{ 'pointer-events-none opacity-60': previewMode || uploading }"
-      >
-        <Upload :size="14" />
-        {{ uploading ? t('general.uploadingSkill') : t('general.uploadSkill') }}
-        <input
-          class="hidden"
-          type="file"
-          accept=".zip,application/zip"
-          :disabled="previewMode || uploading"
-          @change="onUploadChange"
-        />
-      </label>
-    </div>
-
-    <!-- Hint Box -->
-    <div class="skills-hint-box">
-      <p>{{ t('general.skillsZipHint') }}</p>
-      <p class="mt-2">{{ t('general.skillsInstalledHint') }}</p>
-      <p v-if="previewMode" class="mt-2 skills-hint-box warning">{{ t('general.skillsPreviewOnly') }}</p>
     </div>
 
     <!-- Error Display -->
@@ -184,7 +120,7 @@ defineExpose({ refreshSkills });
     <div v-else class="space-y-3">
       <div
         v-for="skill in filteredSkills"
-        :key="`${skill.source}-${skill.name}`"
+        :key="`${skill.origin}-${skill.name}`"
         class="skills-list-item"
       >
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -199,33 +135,27 @@ defineExpose({ refreshSkills });
               </span>
               <span
                 class="skills-source-badge"
-                :class="{ builtin: skill.source === 'builtin' }"
+                :class="{ builtin: skill.origin === 'builtin' }"
               >
-                {{ skill.source === 'builtin' ? t('general.skillSourceBuiltin') : t('general.skillSourceWorkspace') }}
+                {{ skill.origin === 'builtin' ? t('general.skillSourceBuiltin') : t('general.skillSourceWorkspace') }}
               </span>
             </div>
             <p class="skills-item-desc">{{ skill.description }}</p>
           </div>
 
-          <span
-            v-if="skill.evolution_managed"
-            class="skills-btn pointer-events-none"
-          >
-            <ShieldCheck :size="14" />{{ t('general.skillManagedByEvolution') }}
-          </span>
           <button
-            v-else-if="skill.can_hard_delete"
-            class="skills-btn skills-btn-danger"
-            :disabled="Boolean(deleting) || previewMode"
-            @click="onDelete(skill)"
+            class="skills-btn"
+            :disabled="Boolean(toggling) || previewMode"
+            @click="onToggle(skill)"
           >
-            <Trash2 :size="14" />
-            {{ deleting === skill.slug ? t('general.deletingSkill') : t('general.deleteSkill') }}
+            <PowerOff v-if="skill.enabled" :size="14" />
+            <Power v-else :size="14" />
+            {{ skill.enabled ? t('general.disableSkill') : t('general.enableSkill') }}
           </button>
         </div>
-        <div v-if="!skill.available" class="mt-3 flex items-center gap-2 text-xs" style="color: var(--warning);">
+        <div v-if="skill.warnings.length" class="mt-3 flex items-center gap-2 text-xs" style="color: var(--warning);">
           <CircleOff :size="14" />
-          <span>{{ t('general.skillUnavailableHint') }}</span>
+          <span>{{ skill.warnings.join('; ') }}</span>
         </div>
       </div>
     </div>

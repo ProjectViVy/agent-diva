@@ -2,7 +2,6 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import NormalMode from './NormalMode.vue';
-import { listSkillRequests } from '../api/desktop';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -36,13 +35,6 @@ vi.mock('@lucide/vue', () => ({
 }));
 
 vi.mock('../api/desktop', () => ({
-  listSkillRequests: vi.fn(() =>
-    Promise.resolve([
-      { id: 'request-1', status: 'pending' },
-      { id: 'request-2', status: 'pending' },
-      { id: 'request-3', status: 'pending' },
-    ])
-  ),
   isTauriRuntime: () => false,
 }));
 
@@ -70,32 +62,8 @@ vi.mock('./settings/SkillsSettings.vue', () => ({
   default: { name: 'SkillsSettings', template: '<div class="skills-settings-stub" />' },
 }));
 
-vi.mock('./NotebookView.vue', () => ({
-  default: { name: 'NotebookView', template: '<div class="notebook-view-stub" />' },
-}));
 
-vi.mock('./EvolutionView.vue', () => ({
-  default: {
-    name: 'EvolutionView',
-    template: '<div class="evolution-view-stub" />',
-    emits: ['count-change'],
-    mounted() {
-      this.$emit('count-change', {
-        total: 3,
-        tone: 'warning',
-        tooltip: '3 pending reviews',
-      });
-    },
-  },
-}));
 
-vi.mock('./PersonaMemoryView.vue', () => ({
-  default: {
-    name: 'PersonaMemoryView',
-    template: '<button class="persona-proposal-stub" @click="$emit(\'proposal-created\', \'proposal-4\')" />',
-    emits: ['proposal-created'],
-  },
-}));
 
 vi.mock('../features/diva-pet/components/DivaPetView.vue', () => ({
   default: {
@@ -127,19 +95,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
         model: 'deepseek-chat',
       },
       providerConfigs: {},
-      toolsConfig: {
-        web: {
-          search: {
-            provider: '',
-            enabled: false,
-            api_key: '',
-            max_results: 5,
-          },
-          fetch: {
-            enabled: false,
-          },
-        },
-      },
       savedModels: [],
       sessions: [],
       chatDisplayPrefs: {
@@ -149,8 +104,6 @@ function mountNormalMode(propOverrides: Record<string, unknown> = {}) {
         showRawMetaByDefault: false,
       },
       saveConfigAction: vi.fn(() => Promise.resolve()),
-      saveToolsConfigAction: vi.fn(() => Promise.resolve()),
-      saveChannelConfigAction: vi.fn(() => Promise.resolve()),
       ...propOverrides,
     },
   });
@@ -225,39 +178,6 @@ describe('NormalMode pet focus layout', () => {
     expect(wrapper.find('.topbar').exists()).toBe(true);
   });
 
-  it('opens the Evolution workspace from the primary sidebar with a pending badge', async () => {
-    const wrapper = mountNormalMode();
-    await flushPromises();
-
-    await clickNav(wrapper, 'nav.evolution');
-    await flushPromises();
-
-    expect(wrapper.findComponent({ name: 'EvolutionView' }).exists()).toBe(true);
-    expect(wrapper.find('.evolution-nav-badge').text()).toBe('3');
-  });
-
-  it('refreshes the Evolution badge after Persona Memory creates a proposal', async () => {
-    const wrapper = mountNormalMode();
-    await flushPromises();
-    const callsAfterMount = vi.mocked(listSkillRequests).mock.calls.length;
-
-    await clickNav(wrapper, 'nav.persona');
-    await wrapper.find('.persona-proposal-stub').trigger('click');
-    await flushPromises();
-
-    expect(listSkillRequests).toHaveBeenCalledTimes(callsAfterMount + 1);
-  });
-
-  it('includes Evolution in the pet overlay navigation', async () => {
-    const wrapper = mountNormalMode();
-
-    await clickNav(wrapper, 'nav.pet');
-    wrapper.findComponent({ name: 'DivaPetView' }).vm.$emit('toggle-sidebar');
-    await nextTick();
-
-    const overlayItems = wrapper.findAll('.overlay-sidebar button.nav-item');
-    expect(overlayItems.some((button) => button.text() === 'nav.evolution')).toBe(true);
-  });
 });
 
 // describe('NormalMode backend disconnected indicator', () => {

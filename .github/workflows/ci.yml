@@ -22,9 +22,9 @@ env:
 permissions:
   contents: read
 
-# Post wire-cut (DN-W): the Rust workspace and Tauri backend are removed.
-# The remaining gate is the Vue frontend test + build. The new product
-# build/package contract returns in DN-8 (docs/plans/diva-next/index.md).
+# DN-5 adds the thin-shell gate: vivy-bridge is pure Rust with no webkit
+# dependency, so its FFI tests run in CI. The Tauri shell crate itself
+# (webkit2gtk, bundling) is verified on native runners per the plan.
 jobs:
   gui-check:
     name: GUI Test & Build
@@ -56,3 +56,27 @@ jobs:
       - name: Build
         working-directory: agent-diva-gui
         run: pnpm build
+
+      - name: Legacy-call gate
+        run: node scripts/ci/check_legacy_frontend_calls.mjs --selftest
+
+  shell-bridge-check:
+    name: vivy-bridge FFI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent-diva-gui/src-tauri
+      - name: Bridge FFI tests
+        working-directory: agent-diva-gui/src-tauri
+        run: cargo test -p vivy-bridge
+
+  boundary-gate:
+    name: Backend boundary gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Boundary check (dep graph + manifest)
+        run: python3 scripts/ci/check_vivy_backend_boundary.py

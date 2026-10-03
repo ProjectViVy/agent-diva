@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
 import {
   Pause,
@@ -18,56 +17,17 @@ import {
   AlertCircle,
 } from '@lucide/vue';
 import { appConfirm } from '../utils/appDialog';
+import { listCronJobs } from '../api/settings';
+import { vivyClient } from '../api/vivy/instance';
+import type { CronJobWriteParams, VivyCronJob, VivyCronSchedule } from '../api/vivy/contracts';
 
 const { t } = useI18n();
 
 type ScheduleKind = 'at' | 'every' | 'cron';
 type CronStatus = 'running' | 'scheduled' | 'paused' | 'completed' | 'failed';
 
-interface CronSchedule {
-  kind: ScheduleKind;
-  atMs?: number;
-  everyMs?: number;
-  expr?: string;
-  tz?: string | null;
-}
-
-interface CronPayload {
-  kind: string;
-  message: string;
-  deliver: boolean;
-  channel?: string | null;
-  to?: string | null;
-}
-
-interface CronRunSnapshot {
-  run_id: string;
-  job_id: string;
-  startedAtMs: number;
-  lastHeartbeatAtMs: number;
-  trigger: 'scheduled' | 'manual';
-  cancelable: boolean;
-}
-
-interface CronJobDto {
-  id: string;
-  name: string;
-  enabled: boolean;
-  schedule: CronSchedule;
-  payload: CronPayload;
-  state: {
-    nextRunAtMs?: number | null;
-    lastRunAtMs?: number | null;
-    lastStatus?: string | null;
-    lastError?: string | null;
-  };
-  createdAtMs: number;
-  updatedAtMs: number;
-  deleteAfterRun: boolean;
-  isRunning: boolean;
-  activeRun?: CronRunSnapshot | null;
-  computedStatus: CronStatus;
-}
+type CronJobDto = VivyCronJob;
+type CronSchedule = VivyCronSchedule;
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const loading = ref(false);
@@ -104,7 +64,7 @@ const ACTIVE_STATUSES = new Set<CronStatus>(['running']);
 const SCHEDULED_STATUSES = new Set<CronStatus>(['scheduled', 'paused']);
 
 function isInStatus(job: CronJobDto, statusSet: Set<CronStatus>): boolean {
-  return statusSet.has(job.computedStatus);
+  return statusSet.has(job.computedStatus as CronStatus);
 }
 
 // Filtered jobs
@@ -165,7 +125,7 @@ function getTriggerBadge(schedule: CronSchedule): { label: string; icon: any } {
   return { label: t('cron.schedule.cron'), icon: Clock };
 }
 
-function statusClass(status: CronStatus): string {
+function statusClass(status: string): string {
   switch (status) {
     case 'running':
       return 'bg-emerald-100 text-emerald-700';
@@ -180,7 +140,7 @@ function statusClass(status: CronStatus): string {
   }
 }
 
-function statusDotClass(status: CronStatus): string {
+function statusDotClass(status: string): string {
   switch (status) {
     case 'running':
       return 'bg-emerald-500';
@@ -197,13 +157,13 @@ function statusDotClass(status: CronStatus): string {
   }
 }
 
-function buildPayload() {
+function buildPayload(): CronJobWriteParams {
   const schedule =
     form.scheduleKind === 'at'
       ? { kind: 'at', atMs: new Date(form.atInput).getTime() }
       : form.scheduleKind === 'every'
         ? { kind: 'every', everyMs: Math.max(1, form.everySeconds) * 1000 }
-        : { kind: 'cron', expr: form.cronExpr.trim(), tz: form.timezone.trim() || null };
+        : { kind: 'cron', expr: form.cronExpr.trim(), tz: form.timezone.trim() || undefined };
 
   return {
     name: form.name.trim(),
@@ -212,10 +172,10 @@ function buildPayload() {
       kind: 'agent_turn',
       message: form.message,
       deliver: form.deliver,
-      channel: form.channel.trim() || null,
-      to: form.to.trim() || null,
+      channel: form.channel.trim() || undefined,
+      to: form.to.trim() || undefined,
     },
-    deleteAfterRun: form.deleteAfterRun,
+    delete_after_run: form.deleteAfterRun,
     enabled: form.enabled,
   };
 }
@@ -244,7 +204,7 @@ function openCreate() {
 function openEdit(job: CronJobDto) {
   editingJobId.value = job.id;
   form.name = job.name;
-  form.scheduleKind = job.schedule.kind;
+  form.scheduleKind = job.schedule.kind as ScheduleKind;
   form.atInput = job.schedule.atMs ? new Date(job.schedule.atMs).toISOString().slice(0, 16) : '';
   form.everySeconds = Math.max(1, Math.floor((job.schedule.everyMs || 0) / 1000) || 300);
   form.cronExpr = job.schedule.expr || '0 9 * * *';
@@ -263,8 +223,7 @@ async function fetchJobs() {
   loading.value = true;
   error.value = '';
   try {
-    const result = await invoke<CronJobDto[]>('get_cron_jobs');
-    jobs.value = Array.isArray(result) ? result : [];
+    jobs.value = await listCronJobs();
   } catch (err) {
     error.value = String(err);
   } finally {
@@ -278,9 +237,9 @@ async function submitForm() {
   try {
     const payload = buildPayload();
     if (editingJobId.value) {
-      await invoke('update_cron_job', { jobId: editingJobId.value, payload });
+      await vivyClient.cronUpdate(editingJobId.value, payload);
     } else {
-      await invoke('create_cron_job', { payload });
+      await vivyClient.cronCreate(payload);
     }
     showForm.value = false;
     resetForm();
@@ -305,21 +264,28 @@ async function withBusy(jobId: string, task: () => Promise<void>) {
 
 async function toggleJob(job: CronJobDto) {
   await withBusy(job.id, async () => {
-    await invoke('set_cron_job_enabled', { jobId: job.id, enabled: !job.enabled });
+    // cron/update is full-replace: resend the whole job with enabled flipped.
+    await vivyClient.cronUpdate(job.id, {
+      name: job.name,
+      enabled: !job.enabled,
+      schedule: job.schedule,
+      payload: job.payload,
+      delete_after_run: job.deleteAfterRun,
+    });
     await fetchJobs();
   });
 }
 
 async function runJob(job: CronJobDto) {
   await withBusy(job.id, async () => {
-    await invoke('run_cron_job', { jobId: job.id, force: true });
+    await vivyClient.cronTrigger(job.id);
     await fetchJobs();
   });
 }
 
 async function stopJob(job: CronJobDto) {
   await withBusy(job.id, async () => {
-    await invoke('stop_cron_job_run', { jobId: job.id });
+    await vivyClient.cronStop(job.id);
     await fetchJobs();
   });
 }
@@ -330,7 +296,7 @@ async function deleteJob(job: CronJobDto) {
     : t('cron.confirmDelete', { name: job.name });
   if (!(await appConfirm(message))) return;
   await withBusy(job.id, async () => {
-    await invoke('delete_cron_job', { jobId: job.id });
+    await vivyClient.cronDelete(job.id);
     await fetchJobs();
   });
 }

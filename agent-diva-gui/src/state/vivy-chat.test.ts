@@ -1,0 +1,481 @@
+import { describe, expect, it, vi } from 'vitest'
+import { VivyCallError, type RunEvent, type WireEvent } from '../api/vivy/contracts'
+import { VivyClient } from '../api/vivy/client'
+import type { VivyTransport } from '../api/vivy/transport'
+import { VivyChatController } from './vivy-chat'
+
+type CallHandler = (params: unknown) => unknown | Promise<unknown>
+
+interface FakeHarness {
+  client: VivyClient
+  controller: VivyChatController
+  calls: Array<{ method: string; params: unknown }>
+  push: (event: WireEvent) => void
+  setHandler: (method: string, handler: CallHandler) => void
+}
+
+function bridgeTimeout(): VivyCallError {
+  return new VivyCallError(
+    { kind: 'timeout', code: -32000, message: 'call timed out' },
+    true,
+  )
+}
+
+function makeHarness(handlers: Record<string, CallHandler> = {}): FakeHarness {
+  const calls: Array<{ method: string; params: unknown }> = []
+  const listeners = new Set<(event: WireEvent) => void>()
+  const transport: VivyTransport = {
+    call: (req) => {
+      calls.push({ method: req.method, params: req.params })
+      const handler = handlers[req.method]
+      if (!handler) return Promise.reject(new Error(`unexpected call ${req.method}`))
+      return Promise.resolve(handler(req.params))
+    },
+    onEvent: (handler) => {
+      listeners.add(handler)
+      return Promise.resolve(() => listeners.delete(handler))
+    },
+    close: () => {},
+  }
+  const client = new VivyClient(transport)
+  const controller = new VivyChatController(client)
+  return {
+    client,
+    controller,
+    calls,
+    push: (event) => {
+      for (const l of listeners) l(event)
+    },
+    setHandler: (method, handler) => {
+      handlers[method] = handler
+    },
+  }
+}
+
+function baseHandlers(): Record<string, CallHandler> {
+  return {
+    initialize: () => ({ protocol_version: 1, capabilities: [] }),
+    'session/list': () => ({ sessions: [] }),
+    'review/list': () => ({ reviews: [] }),
+    'session/get': () => ({
+      session: { id: 's1', title: 't', created_at: 1, updated_at: 1 },
+      messages: [],
+    }),
+    'session/work': () => ({
+      session_id: 's1',
+      version: 1,
+      plan: { active: false, submission_id: '', markdown: '', review_status: 'none' },
+      activation: 'disarmed',
+    }),
+    'session/todos': () => ({ todos: [] }),
+    'session/messages': () => ({ messages: [] }),
+    'run/subscribe': (p) => ({
+      subscription_id: 'sub-1',
+      run_id: (p as { run_id: string }).run_id,
+      after_seq: 0,
+    }),
+    'turn/start': () => ({ run_id: 'run-1', status: 'accepted' }),
+    'run/cancel': () => ({ cancelled: true }),
+  }
+}
+
+function runEvent(runId: string, seq: number, type: string, payload: Record<string, unknown> = {}): WireEvent {
+  return {
+    kind: 'vivy',
+    method: 'run/event',
+    params: { event: { run_id: runId, seq, type, created_at: seq, payload_version: 1, payload } },
+  }
+}
+
+async function connect(h: FakeHarness): Promise<void> {
+  await h.controller.connect()
+}
+
+describe('VivyChatController sessions & history', () => {
+  it('lists sessions, picks the latest, and renders history', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({
+        sessions: [
+          { id: 's1', title: 'old', created_at: 1, updated_at: 1 },
+          { id: 's2', title: 'new', created_at: 2, updated_at: 9 },
+        ],
+      }),
+      'session/get': (p) => {
+        const id = (p as { session_id: string }).session_id
+        return {
+          session: { id, title: 't', created_at: 1, updated_at: id === 's2' ? 9 : 1 },
+          messages: [
+            { id: 'm1', role: 'user', content: 'hi', created_at: 1 },
+            { id: 'm2', role: 'assistant', content: 'hello back', created_at: 2 },
+          ],
+        }
+      },
+    })
+    await connect(h)
+    expect(h.controller.currentSessionId).toBe('s2')
+    expect(h.controller.sessions().map((s) => s.session_key)).toEqual(['s2', 's1'])
+    const msgs = h.controller.messages()
+    expect(msgs.map((m) => [m.role, m.content])).toEqual([
+      ['user', 'hi'],
+      ['agent', 'hello back'],
+    ])
+    expect(msgs.every((m) => m.fromHistory)).toBe(true)
+  })
+
+  it('switches sessions and swaps the message timeline', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({
+        sessions: [
+          { id: 's1', title: 'one', created_at: 1, updated_at: 5 },
+          { id: 's2', title: 'two', created_at: 2, updated_at: 6 },
+        ],
+      }),
+      'session/get': (p) => {
+        const id = (p as { session_id: string }).session_id
+        return {
+          session: { id, title: id, created_at: 1, updated_at: 1 },
+          messages: [{ id: `m-${id}`, role: 'assistant', content: `from ${id}`, created_at: 1 }],
+        }
+      },
+    })
+    await connect(h)
+    expect(h.controller.messages()[0].content).toBe('from s2')
+    await h.controller.loadSession('s1')
+    expect(h.controller.currentSessionId).toBe('s1')
+    expect(h.controller.messages()[0].content).toBe('from s1')
+  })
+})
+
+describe('VivyChatController send & streaming', () => {
+  it('echoes the user message, subscribes the authoritative run, streams deltas', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    const send = h.controller.send('hello there')
+    // Echo is visible before turn/start resolves.
+    expect(h.controller.messages().at(-1)?.content).toBe('hello there')
+    await send
+    expect(h.calls.map((c) => c.method)).toContain('turn/start')
+    expect(h.calls.map((c) => c.method)).toContain('run/subscribe')
+    const sub = h.calls.find((c) => c.method === 'run/subscribe')
+    expect((sub?.params as { run_id: string }).run_id).toBe('run-1')
+
+    expect(h.controller.isTyping()).toBe(true)
+    h.push(runEvent('run-1', 1, 'run.started'))
+    h.push(runEvent('run-1', 2, 'model.delta', { delta: 'ans' }))
+    h.push(runEvent('run-1', 3, 'model.delta', { delta: 'wer' }))
+    const msgs = h.controller.messages()
+    const agent = msgs.find((m) => m.role === 'agent')
+    expect(agent?.content).toBe('answer')
+    expect(agent?.isStreaming).toBe(true)
+    h.push(runEvent('run-1', 4, 'run.completed', { summary: 'answer' }))
+    expect(h.controller.isTyping()).toBe(false)
+    expect(h.controller.messages().find((m) => m.role === 'agent')?.isStreaming).toBe(false)
+  })
+
+  it('renders a terminal-only answer when no deltas arrive', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('q')
+    h.push(runEvent('run-1', 1, 'run.started'))
+    h.push(runEvent('run-1', 2, 'run.completed', { summary: 'complete-only' }))
+    const agent = h.controller.messages().find((m) => m.role === 'agent')
+    expect(agent?.content).toBe('complete-only')
+    expect(agent?.isStreaming).toBeFalsy()
+  })
+
+  it('shows reasoning + tool progress and settles the tool card', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('q')
+    h.push(runEvent('run-1', 1, 'run.started'))
+    h.push(runEvent('run-1', 2, 'model.reasoning_delta', { delta: 'thinking' }))
+    h.push(runEvent('run-1', 3, 'tool.requested', { tool_call_id: 'c1', tool_name: 'shell', arguments: { cmd: 'ls' } }))
+    h.push(runEvent('run-1', 4, 'tool.started', { tool_call_id: 'c1' }))
+    let msgs = h.controller.messages()
+    const running = msgs.find((m) => m.role === 'tool')
+    expect(running?.toolName).toBe('shell')
+    expect(running?.toolStatus).toBe('running')
+    expect(running?.toolCallId).toBe('c1')
+    const agent = msgs.find((m) => m.role === 'agent')
+    expect(agent?.reasoning).toBe('thinking')
+    expect(agent?.isThinking).toBe(true)
+    h.push(runEvent('run-1', 5, 'tool.finished', { tool_call_id: 'c1', status: 'success', result: 'ok' }))
+    h.push(runEvent('run-1', 6, 'run.completed', { summary: 'done' }))
+    msgs = h.controller.messages()
+    expect(msgs.find((m) => m.role === 'tool')?.toolStatus).toBe('success')
+    expect(h.controller.isTyping()).toBe(false)
+  })
+
+  it('cancelling a running run calls run/cancel and resolves as cancelled', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('q')
+    h.push(runEvent('run-1', 1, 'run.started'))
+    h.push(runEvent('run-1', 2, 'model.delta', { delta: 'partial' }))
+    await h.controller.stop()
+    const cancel = h.calls.find((c) => c.method === 'run/cancel')
+    expect((cancel?.params as { run_id: string }).run_id).toBe('run-1')
+    h.push(runEvent('run-1', 3, 'run.cancelled', { reason: 'user' }))
+    const agent = h.controller.messages().find((m) => m.role === 'agent')
+    expect(agent?.content).toBe('partial')
+    expect(agent?.isStreaming).toBe(false)
+    expect(h.controller.isTyping()).toBe(false)
+  })
+
+  it('a completion racing the cancel wins; the cancel stays recorded', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('q')
+    h.push(runEvent('run-1', 1, 'run.started'))
+    const stop = h.controller.stop()
+    h.push(runEvent('run-1', 2, 'run.completed', { summary: 'finished first' }))
+    await stop
+    h.push(runEvent('run-1', 3, 'run.cancelled')) // backend processed cancel after completion
+    const agent = h.controller.messages().find((m) => m.role === 'agent')
+    expect(agent?.content).toBe('finished first')
+    expect(h.controller.isTyping()).toBe(false)
+  })
+
+  it('ambiguous send timeout reconciles through reads instead of resending', async () => {
+    let turnCalls = 0
+    const h = makeHarness({
+      ...baseHandlers(),
+      'turn/start': () => {
+        turnCalls += 1
+        return Promise.reject(bridgeTimeout())
+      },
+      'session/messages': () => ({
+        messages: [{ id: 'm1', role: 'user', content: 'echo me', created_at: 1 }],
+      }),
+      'session/work': () => ({
+        session_id: 's1',
+        version: 2,
+        plan: { active: false, submission_id: '', markdown: '', review_status: 'none' },
+        activation: 'armed',
+        current_run_id: 'run-9',
+      }),
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('echo me')
+    expect(turnCalls).toBe(1) // never resent
+    // Echo dropped because the backend persisted the message; run adopted.
+    const userMsgs = h.controller.messages().filter((m) => m.role === 'user')
+    expect(userMsgs).toHaveLength(1)
+    const subs = h.calls.filter((c) => c.method === 'run/subscribe')
+    expect(subs.map((c) => (c.params as { run_id: string }).run_id)).toContain('run-9')
+    expect(h.controller.isTyping()).toBe(true)
+  })
+
+  it('keeps the local echo when the backend never saw the send', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'turn/start': () => Promise.reject(bridgeTimeout()),
+      'session/messages': () => ({ messages: [] }),
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('lost?')
+    const msgs = h.controller.messages()
+    expect(msgs.at(-1)?.role).toBe('user')
+    expect(msgs.at(-1)?.content).toBe('lost?')
+    expect(h.controller.isTyping()).toBe(false)
+  })
+})
+
+describe('VivyChatController approvals & questions', () => {
+  function approvalReview(over: Record<string, unknown> = {}) {
+    return {
+      id: 'rev-1',
+      kind: 'approval',
+      status: 'pending',
+      session_id: 's1',
+      run_id: 'run-1',
+      tool_call_id: 'c1',
+      tool_name: 'write_note',
+      created_at: 10,
+      expires_at: 20,
+      prompt: 'allow writing?',
+      ...over,
+    }
+  }
+
+  it('lists pending approvals and approve/deny go through review/respond by id', async () => {
+    let reviews: unknown[] = [approvalReview()]
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews }),
+      'review/respond': () => {
+        reviews = [approvalReview({ status: 'approved' })]
+        return { ok: true }
+      },
+    })
+    await connect(h)
+    const approvals = h.controller.approvals()
+    expect(approvals).toHaveLength(1)
+    expect(approvals[0].request_id).toBe('rev-1')
+    expect(approvals[0].status).toBe('pending')
+    await h.controller.decideApproval('rev-1', true)
+    const call = h.calls.find((c) => c.method === 'review/respond')
+    expect(call?.params).toMatchObject({ review_id: 'rev-1', action: 'approve' })
+    // Authoritative list flipped the row to non-pending.
+    expect(h.controller.approvals()[0]?.status).toBe('allowed')
+  })
+
+  it('surfaces backend rejection on a decided review (double decision)', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews: [approvalReview()] }),
+      'review/respond': () =>
+        Promise.reject(
+          new VivyCallError({ kind: 'internal', code: -32009, message: 'review already decided' }),
+        ),
+    })
+    await connect(h)
+    await h.controller.decideApproval('rev-1', true)
+    expect(h.controller.actionErrors.get('rev-1')).toBe('review already decided')
+    expect(h.controller.isSubmitting('rev-1')).toBe(false)
+  })
+
+  it('marks the outcome unknown when a mutating respond call times out', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews: [approvalReview()] }),
+      'review/respond': () => Promise.reject(bridgeTimeout()),
+    })
+    await connect(h)
+    await h.controller.decideApproval('rev-1', false)
+    expect(h.controller.outcomeUnknown.has('rev-1')).toBe(true)
+  })
+
+  it('reopening with a pending approval keeps it visible from the snapshot', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews: [approvalReview()] }),
+    })
+    await connect(h)
+    expect(h.controller.approvals()[0]?.status).toBe('pending')
+  })
+
+  it('expiry events refresh the list and settle the approval', async () => {
+    let reviews: unknown[] = [approvalReview()]
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews }),
+    })
+    await connect(h)
+    expect(h.controller.approvals()[0]?.status).toBe('pending')
+    reviews = [approvalReview({ status: 'expired' })]
+    h.push(runEvent('run-1', 5, 'tool.approval_expired', { approval_id: 'rev-1' }))
+    await h.controller.refreshInteractions()
+    expect(h.controller.approvals()[0]?.status).toBe('expired')
+  })
+
+  it('answers and cancels free-text questions through review/respond', async () => {
+    const question = {
+      id: 'q-1',
+      kind: 'question',
+      status: 'pending',
+      session_id: 's1',
+      run_id: 'run-1',
+      tool_call_id: 'c2',
+      prompt: 'which file?',
+      created_at: 10,
+      expires_at: 30,
+    }
+    const h = makeHarness({
+      ...baseHandlers(),
+      'review/list': () => ({ reviews: [question] }),
+      'review/respond': () => ({ ok: true }),
+    })
+    await connect(h)
+    const qs = h.controller.questions()
+    expect(qs).toHaveLength(1)
+    expect(qs[0].question_id).toBe('q-1')
+    expect(qs[0].allow_other).toBe(true)
+    await h.controller.answerQuestion('q-1', 'src/main.ts')
+    expect(h.calls.find((c) => c.method === 'review/respond')?.params).toMatchObject({
+      review_id: 'q-1',
+      action: 'answer',
+      answer: 'src/main.ts',
+    })
+    await h.controller.cancelQuestion('q-1')
+    const cancel = h.calls.filter((c) => c.method === 'review/respond').at(-1)
+    expect(cancel?.params).toMatchObject({ review_id: 'q-1', action: 'cancel' })
+  })
+})
+
+describe('VivyChatController planning/work', () => {
+  function pendingWork() {
+    return {
+      session_id: 's1',
+      version: 7,
+      plan: {
+        active: true,
+        submission_id: 'sub-42',
+        markdown: '# Plan',
+        review_status: 'pending',
+        feedback: '',
+      },
+      activation: 'disarmed',
+      goal: { id: 'g1', revision: 1, objective: 'ship it' },
+    }
+  }
+
+  it('maps a pending plan review to the approval surface', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+      'session/work': () => pendingWork(),
+      'session/todos': () => ({
+        todos: [{ id: 't1', session_id: 's1', subject: 'do x', status: 'pending', blocks: [], blocked_by: [] }],
+      }),
+    })
+    await connect(h)
+    const plan = h.controller.plan()
+    expect(plan?.phase).toBe('AwaitingApproval')
+    expect(plan?.plan_id).toBe('sub-42')
+    expect(plan?.todos).toHaveLength(1)
+  })
+
+  it('decides a plan through plan/decide with the frozen work params', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+      'session/work': () => pendingWork(),
+      'plan/decide': () => ({
+        work: { ...pendingWork(), plan: { ...pendingWork().plan, review_status: 'accepted' } },
+        event: { seq: 3, kind: 'plan.decided', request_id: 'req', created_at: 9 },
+        replayed: false,
+      }),
+    })
+    await connect(h)
+    await h.controller.decidePlan('execute_once')
+    const call = h.calls.find((c) => c.method === 'plan/decide')
+    expect(call?.params).toMatchObject({
+      session_id: 's1',
+      submission_id: 'sub-42',
+      action: 'execute_once',
+      expected_version: 7,
+    })
+    expect(h.controller.plan()?.review_status ?? 'accepted').toBe('accepted')
+    expect(h.controller.plan()?.phase).toBe('Execute')
+  })
+
+  it('rejects a plan decision when no submission is pending', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/list': () => ({ sessions: [{ id: 's1', title: 't', created_at: 1, updated_at: 1 }] }),
+    })
+    await connect(h)
+    expect(h.controller.currentSessionId).toBe('s1')
+    await expect(h.controller.decidePlan('execute_once')).rejects.toThrow('no pending plan')
+  })
+})

@@ -1,0 +1,23 @@
+2026/10/02 14:35:48 INFO session auto-title skipped session=sess_417249ccb12472ec err="failed to create chat completion: Post \"https://token.sensenova.cn/v1/chat/completions\": context deadline exceeded"
+handle: 1
+session: sess_417249ccb12472ec
+[PASS] streamed run reaches terminal terminal=run.completed
+[PASS] run1 completed run.completed
+[PASS] model answered and Journal persisted it 
+
+PONG
+[PASS] tool approval required event tool.approval_required
+[PASS] write did NOT happen before approval 
+[PASS] pending review id captured apr_aa8a44f267541746
+[PASS] run settled after deny run.completed
+[PASS] deny: file still absent 
+[PASS] second approval required event tool.approval_required
+[PASS] still absent pre-approval 
+[PASS] run settled after approve run.completed
+[PASS] approve: file written with expected content 
+[PASS] cancelled run reaches cancelled terminal run.cancelled
+[PASS] run/get reports terminal {"id": "run_d92607c020517a9b", "session_id": "sess_417249ccb12472ec", "status": "cancelled", "created_at": 1790951747961
+[PASS] journal readback has all turns user msgs=4
+[PASS] review list shows settled decisions {"reviews": [{"id": "apr_33668236a047a4c0", "kind": "approval", "status": "approved", "session_id": "sess_417249ccb12472ec", "session_title": "Simple Ping Pong Interaction", "run_id": "run_be9d05f7122
+
+=== ALL CHECKS PASSED ===

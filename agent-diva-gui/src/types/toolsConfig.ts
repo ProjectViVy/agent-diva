@@ -4,18 +4,3 @@ export interface BudgetConfigShape {
   compact_threshold_ratio: number;
   keep_recent_count: number;
 }
-
-export interface ToolsConfigShape {
-  web: {
-    search: {
-      provider: string;
-      enabled: boolean;
-      api_key: string;
-      max_results: number;
-    };
-    fetch: {
-      enabled: boolean;
-    };
-  };
-  budget: BudgetConfigShape;
-}

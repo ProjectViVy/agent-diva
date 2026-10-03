@@ -4,36 +4,25 @@ import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2,
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,
-  getConfigStatus,
 } from '../../api/desktop';
 import {
   addProviderModel,
   createCustomProvider,
   deleteCustomProvider,
   getProviderModels,
+  loadProviderState,
   removeProviderModel,
   testProviderModel,
   type ProviderModelCatalog,
-  type ProviderModelTestResult
-} from '../../api/providers';
-import { invoke } from '@tauri-apps/api/core';
+  type ProviderModelTestResult,
+  type ProviderSpec,
+} from '../../api/settings';
 import { appConfirm } from '../../utils/appDialog';
 import { showAppToast } from '../../utils/appToast';
 import ProviderWizardModal from './ProviderWizardModal.vue';
 import ProviderListItem from './ProviderListItem.vue';
 
 const { t } = useI18n();
-
-interface ProviderSpec {
-  name: string;
-  api_type: string;
-  source?: string;
-  display_name: string;
-  default_model?: string | null;
-  default_api_base: string;
-  models: string[];
-  custom_models: string[];
-}
 
 interface SavedModel {
   id: string;
@@ -89,6 +78,8 @@ const emit = defineEmits<{
 
 const providers = ref<ProviderSpec[]>([]);
 const statusReport = ref<ConfigStatusReport | null>(null);
+/** api_key_set per provider name — credential state without the key itself. */
+const keySetByName = ref<Record<string, boolean>>({});
 const localConfig = ref({ ...props.config });
 const localSavedModels = ref<SavedModel[]>(JSON.parse(JSON.stringify(props.savedModels || [])));
 const selectedProvider = ref<ProviderSpec | null>(null);
@@ -192,10 +183,9 @@ const buildProviderStateFromDraft = () => {
   providerApiKeys.value = {};
   providerApiBases.value = {};
 
+  // Credentials are write-only: backend entries seed apiBase only; a key is
+  // populated solely from keys the user typed this session.
   Object.entries(props.providerConfigs || {}).forEach(([providerName, entry]) => {
-    if (entry.apiKey) {
-      providerApiKeys.value[providerName] = entry.apiKey;
-    }
     if (entry.apiBase) {
       providerApiBases.value[providerName] = entry.apiBase;
     }
@@ -240,8 +230,10 @@ const providerModelsFor = (provider: ProviderSpec | null) => {
 const refreshProviderState = async () => {
   isRefreshing.value = true;
   try {
-    providers.value = dedupeProviders(await invoke('get_providers'));
-    statusReport.value = await getConfigStatus();
+    const snapshot = await loadProviderState();
+    providers.value = dedupeProviders(snapshot.providers);
+    statusReport.value = snapshot.statusReport;
+    keySetByName.value = snapshot.keySetByName;
     buildProviderStateFromDraft();
 
     if (providers.value.length > 0) {
@@ -422,7 +414,9 @@ const createProvider = async () => {
     localConfig.value.apiKey = apiKey;
 
     upsertSavedModel(buildSavedModelEntry(createdProvider, defaultModel));
-    statusReport.value = await getConfigStatus();
+    const snapshot = await loadProviderState();
+    statusReport.value = snapshot.statusReport;
+    keySetByName.value = snapshot.keySetByName;
     closeCreateProviderDialog();
   } catch (error) {
     showAppToast(t('providers.createError'), 'error');
@@ -813,7 +807,9 @@ const saveProviderConfig = async () => {
     emit('update-saved-models', cloneSavedModels(localSavedModels.value));
     lastSavedConfigSnapshot.value = JSON.stringify(localConfig.value);
     lastSavedModelsSnapshot.value = JSON.stringify(localSavedModels.value);
-    statusReport.value = await getConfigStatus();
+    const snapshot = await loadProviderState();
+    statusReport.value = snapshot.statusReport;
+    keySetByName.value = snapshot.keySetByName;
   } finally {
     isSavingConfig.value = false;
   }
@@ -1016,7 +1012,7 @@ watch(searchTerm, () => {
                  :value="providerApiKeys[selectedProvider.name]"
                  @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
                  :type="isProviderApiKeyVisible(selectedProvider.name) ? 'text' : 'password'"
-                 :placeholder="`${t('providers.enterApiKey')} (${selectedProvider.display_name})`"
+                 :placeholder="providerApiKeys[selectedProvider.name] || !keySetByName[selectedProvider.name] ? `${t('providers.enterApiKey')} (${selectedProvider.display_name})` : t('providers.apiKeyConfigured')"
                  class="providers-input mono pr-11"
                />
                <button

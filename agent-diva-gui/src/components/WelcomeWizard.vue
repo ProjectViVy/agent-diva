@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   SkipForward,
   ExternalLink,
-  BookOpen,
   Heart,
   Sparkles,
 } from '@lucide/vue';
@@ -19,16 +18,12 @@ import {
 const { t } = useI18n();
 
 const DEEPSEEK_PLATFORM_URL = 'https://platform.deepseek.com/';
-const BOCHA_OPEN_URL = 'https://open.bocha.cn/';
-const BOCHA_GUIDE_FEISHU =
-  'https://aq6ky2b8nql.feishu.cn/wiki/HmtOw1z6vik14Fkdu5uc9VaInBb';
 
 type WelcomeNavigateTarget = 'chat' | 'providers' | 'network' | 'console';
 
 interface WelcomeDonePayload {
   skipped: boolean;
   deepseekApiKey: string;
-  bochaApiKey: string;
   navigate: WelcomeNavigateTarget;
 }
 
@@ -40,19 +35,6 @@ const props = defineProps<{
     apiKey: string;
     model: string;
   };
-  toolsConfig: {
-    web: {
-      search: {
-        provider: string;
-        enabled: boolean;
-        api_key: string;
-        max_results: number;
-      };
-      fetch: {
-        enabled: boolean;
-      };
-    };
-  };
 }>();
 
 const emit = defineEmits<{
@@ -61,19 +43,16 @@ const emit = defineEmits<{
 
 const step = ref(0);
 const deepseekKey = ref('');
-const bochaKey = ref('');
 const isTransitioning = ref(false);
 
 const steps = computed(() => [
   { id: 'intro', icon: Sparkles, label: t('welcome.stepIntro') },
   { id: 'deepseek', icon: Zap, label: t('welcome.stepDeepseek') },
-  { id: 'bocha', icon: Heart, label: t('welcome.stepBocha') },
   { id: 'done', icon: MessageSquare, label: t('welcome.stepDone') },
 ]);
 
 const resetFromProps = () => {
   deepseekKey.value = props.config.apiKey || '';
-  bochaKey.value = props.toolsConfig.web.search.api_key || '';
 };
 
 watch(
@@ -90,7 +69,6 @@ const finish = (payload: Omit<WelcomeDonePayload, 'skipped'> & { skipped?: boole
   emit('done', {
     skipped: payload.skipped ?? false,
     deepseekApiKey: payload.deepseekApiKey,
-    bochaApiKey: payload.bochaApiKey,
     navigate: payload.navigate,
   });
 };
@@ -99,7 +77,6 @@ const skipAll = () => {
   finish({
     skipped: true,
     deepseekApiKey: '',
-    bochaApiKey: '',
     navigate: 'chat',
   });
 };
@@ -128,19 +105,10 @@ const openDeepseekSite = () => {
   void openExternalUrl(DEEPSEEK_PLATFORM_URL);
 };
 
-const openBochaSite = () => {
-  void openExternalUrl(BOCHA_OPEN_URL);
-};
-
-const openBochaDoc = () => {
-  void openExternalUrl(BOCHA_GUIDE_FEISHU);
-};
-
 const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
   finish({
     skipped: false,
     deepseekApiKey: deepseekKey.value,
-    bochaApiKey: bochaKey.value,
     navigate,
   });
 };
@@ -286,50 +254,7 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
                   </div>
                 </template>
 
-                <!-- Step 2: Bocha -->
-                <template v-else-if="step === 2">
-                  <div class="welcome-provider">
-                    <div class="welcome-provider-header">
-                      <div class="welcome-provider-icon">
-                        <Heart :size="24" class="text-pink-500" />
-                      </div>
-                      <div>
-                        <h3 class="welcome-provider-title">{{ t('welcome.bochaTitle') }}</h3>
-                        <p class="welcome-provider-desc">{{ t('welcome.bochaBody') }}</p>
-                      </div>
-                    </div>
-                    <div class="welcome-provider-actions">
-                      <button
-                        type="button"
-                        class="welcome-btn welcome-btn-outline"
-                        @click="openBochaSite"
-                      >
-                        <ExternalLink :size="14" />
-                        {{ t('welcome.openInBrowser') }}
-                      </button>
-                      <button
-                        type="button"
-                        class="welcome-btn welcome-btn-ghost"
-                        @click="openBochaDoc"
-                      >
-                        <BookOpen :size="14" />
-                        {{ t('welcome.openBochaGuide') }}
-                      </button>
-                    </div>
-                    <div class="welcome-input-group">
-                      <label class="welcome-label">{{ t('welcome.bochaApiKey') }}</label>
-                      <input
-                        v-model="bochaKey"
-                        type="password"
-                        autocomplete="off"
-                        class="welcome-input"
-                        :placeholder="t('welcome.bochaPlaceholder')"
-                      />
-                    </div>
-                  </div>
-                </template>
-
-                <!-- Step 3: Done -->
+                <!-- Step 2: Done -->
                 <template v-else>
                   <div class="welcome-done">
                     <div class="welcome-done-icon">

@@ -1,0 +1,1186 @@
+{
+  "fixture": "core-rpc",
+  "status": "captured",
+  "captured_at": "2026-10-01T00:11:26Z",
+  "vivy_pin": "5347032d8f18a047b67e85761c0dcc48728bee7c",
+  "capture_host": "agent-vivy internal/app TestDN0CaptureCoreTranscript (harness file: internal/app/dn0_capture_test.go, uncommitted)",
+  "provider_fixture": "scriptedDeepSeekServer (OpenAI chat.completions wire; write_note gated by prompt policy)",
+  "transport": "DialControl net.Pipe JSONLTransport",
+  "protocol_version": "vivy.rpc.v1",
+  "redaction": "no absolute paths, credentials, or provider payloads in transcript; ids are throwaway test values",
+  "error_codes_observed": {
+    "-32004": "CodeNotFound (question not found; run is not active in this process)"
+  },
+  "requests_responses": [
+    {
+      "seq": 1,
+      "direction": "request",
+      "method": "initialize"
+    },
+    {
+      "seq": 2,
+      "direction": "response",
+      "method": "initialize",
+      "result": {
+        "capabilities": [
+          "session",
+          "session.todos",
+          "session.todo.update",
+          "session.set_permission",
+          "turn",
+          "run",
+          "approval",
+          "question",
+          "review",
+          "run.subscribe",
+          "background.recover",
+          "background.list",
+          "background.attach",
+          "child.start",
+          "child.get",
+          "child.list",
+          "child.wait",
+          "child.cancel",
+          "child.followup",
+          "child.interrupt",
+          "child.history",
+          "child.mailbox",
+          "generations.list",
+          "generations.get",
+          "generations.create",
+          "evals.list",
+          "evals.record",
+          "evals.start",
+          "promotions.list",
+          "promotions.promote",
+          "generations.reject",
+          "species.inspect",
+          "settings.get",
+          "settings.update",
+          "settings.locale",
+          "settings.providers",
+          "settings.providers.upsert",
+          "settings.providers.delete",
+          "settings.providers.refresh",
+          "settings.model.select",
+          "settings.mcp",
+          "settings.mcp.upsert",
+          "settings.mcp.delete",
+          "settings.mcp.probe",
+          "settings.mcp.resources",
+          "settings.mcp.read",
+          "settings.mcp.resources.list",
+          "settings.mcp.resources.read",
+          "mcp.resources.list",
+          "mcp.resources.read",
+          "channel.inspect",
+          "channel.get",
+          "channel.update",
+          "channel.deliveries.list",
+          "channel.deliveries.redeliver",
+          "session.context",
+          "session.sidebar",
+          "context.compact",
+          "session.rewind",
+          "session.fork",
+          "session.edit",
+          "cron.list",
+          "cron.create",
+          "cron.update",
+          "cron.delete",
+          "cron.trigger",
+          "cron.stop",
+          "stats.tokens",
+          "skills.list",
+          "skills.get",
+          "workspace.browse",
+          "session.set_workspace",
+          "session.work",
+          "session.work.subscribe",
+          "goal",
+          "plan",
+          "plan.get",
+          "commands.list",
+          "commands.expand",
+          "skills.revisions",
+          "history/search",
+          "history/read",
+          "history/trace",
+          "history/capabilities",
+          "history/sessions",
+          "reference/preview",
+          "reference/get",
+          "deliverables/list",
+          "deliverables/get",
+          "deliverables/read",
+          "deliverables/close"
+        ],
+        "code_mode_available": true,
+        "protocol_version": "vivy.rpc.v1"
+      }
+    },
+    {
+      "seq": 3,
+      "direction": "request",
+      "method": "session/create",
+      "params": {
+        "title": "dn0-capture"
+      }
+    },
+    {
+      "seq": 4,
+      "direction": "response",
+      "method": "session/create",
+      "result": {
+        "id": "sess_10c78cf518e8cca0",
+        "title": "dn0-capture",
+        "created_at": 1790813486499,
+        "updated_at": 1790813486499,
+        "sandbox_mode": "workspace_write",
+        "approval_policy": "ask",
+        "permission_preset": "smart",
+        "workspace_path": ""
+      }
+    },
+    {
+      "seq": 5,
+      "direction": "request",
+      "method": "session/list"
+    },
+    {
+      "seq": 6,
+      "direction": "response",
+      "method": "session/list",
+      "result": {
+        "sessions": [
+          {
+            "id": "sess_10c78cf518e8cca0",
+            "title": "dn0-capture",
+            "created_at": 1790813486499,
+            "updated_at": 1790813486499,
+            "sandbox_mode": "workspace_write",
+            "approval_policy": "ask",
+            "permission_preset": "smart",
+            "workspace_path": ""
+          }
+        ]
+      }
+    },
+    {
+      "seq": 7,
+      "direction": "request",
+      "method": "session/get",
+      "params": {
+        "session_id": "sess_10c78cf518e8cca0"
+      }
+    },
+    {
+      "seq": 8,
+      "direction": "response",
+      "method": "session/get",
+      "result": {
+        "messages": [],
+        "session": {
+          "id": "sess_10c78cf518e8cca0",
+          "title": "dn0-capture",
+          "created_at": 1790813486499,
+          "updated_at": 1790813486499,
+          "sandbox_mode": "workspace_write",
+          "approval_policy": "ask",
+          "permission_preset": "smart",
+          "workspace_path": ""
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "direction": "request",
+      "method": "turn/start",
+      "params": {
+        "session_id": "sess_10c78cf518e8cca0",
+        "text": "echo something"
+      }
+    },
+    {
+      "seq": 10,
+      "direction": "response",
+      "method": "turn/start",
+      "result": {
+        "run_id": "run_28acbc674905d37f",
+        "status": "accepted"
+      }
+    },
+    {
+      "seq": 11,
+      "direction": "request",
+      "method": "run/subscribe",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 12,
+      "direction": "response",
+      "method": "run/subscribe",
+      "result": {
+        "after_seq": 0,
+        "run_id": "run_28acbc674905d37f",
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 13,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 15,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_28acbc674905d37f",
+        "session_id": "sess_10c78cf518e8cca0",
+        "status": "active",
+        "created_at": 1790813486500
+      }
+    },
+    {
+      "seq": 16,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 17,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": []
+      }
+    },
+    {
+      "seq": 24,
+      "direction": "request",
+      "method": "approval/list"
+    },
+    {
+      "seq": 25,
+      "direction": "response",
+      "method": "approval/list",
+      "result": {
+        "approvals": [
+          {
+            "id": "apr_102f2347846e5a4d",
+            "run_id": "run_28acbc674905d37f",
+            "tool_call_id": "call_1",
+            "decision": "pending",
+            "expires_at": 1790813786543
+          }
+        ]
+      }
+    },
+    {
+      "seq": 26,
+      "direction": "request",
+      "method": "approval/respond",
+      "params": {
+        "approval_id": "apr_102f2347846e5a4d",
+        "decision": "approved",
+        "reason": "dn0 capture"
+      }
+    },
+    {
+      "seq": 27,
+      "direction": "response",
+      "method": "approval/respond",
+      "result": {
+        "approval_id": "apr_102f2347846e5a4d",
+        "decision": "approved"
+      }
+    },
+    {
+      "seq": 28,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 29,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_28acbc674905d37f",
+        "session_id": "sess_10c78cf518e8cca0",
+        "status": "active",
+        "created_at": 1790813486500
+      }
+    },
+    {
+      "seq": 41,
+      "direction": "request",
+      "method": "run/get",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 42,
+      "direction": "response",
+      "method": "run/get",
+      "result": {
+        "id": "run_28acbc674905d37f",
+        "session_id": "sess_10c78cf518e8cca0",
+        "status": "completed",
+        "created_at": 1790813486500
+      }
+    },
+    {
+      "seq": 43,
+      "direction": "request",
+      "method": "run/log",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 44,
+      "direction": "response",
+      "method": "run/log",
+      "result": {
+        "events": [
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 1,
+            "type": "run.started",
+            "created_at": 1790813486500,
+            "payload_version": 1,
+            "payload": {
+              "provider": "deepseek",
+              "model": "deepseek-flash",
+              "mode": "normal",
+              "face": "web",
+              "policy_profile": "default",
+              "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+              "sandbox_mode": "workspace_write",
+              "approval_policy": "ask"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 2,
+            "type": "model.request",
+            "created_at": 1790813486505,
+            "payload_version": 2,
+            "payload": {
+              "selected_tools": [
+                "write_note"
+              ],
+              "preamble_sha256": "623edc4b8ce64df19355804949198c1ccbda97b1a084c7a43ac648fd5b14406e",
+              "preamble_bytes": 25,
+              "messages": [
+                {
+                  "role": "system",
+                  "content_sha256": "623edc4b8ce64df19355804949198c1ccbda97b1a084c7a43ac648fd5b14406e",
+                  "byte_len": 25
+                },
+                {
+                  "role": "user",
+                  "content_sha256": "c7c5438c2bfda4bd41ab57e042459a3e2f5e54a090ee53882dd3ca9ddc17dbd0",
+                  "byte_len": 14
+                }
+              ],
+              "context_view": "fdc44784d488c80d95c9844c7c017923e27a40555b88dd56f451b2b3830a1822"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 3,
+            "type": "model.usage",
+            "created_at": 1790813486519,
+            "payload_version": 1,
+            "payload": {
+              "prompt_tokens": 1,
+              "completion_tokens": 1,
+              "total_tokens": 2,
+              "provider": "deepseek",
+              "model": "deepseek-flash",
+              "source": "main"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 4,
+            "type": "tool.requested",
+            "created_at": 1790813486519,
+            "payload_version": 1,
+            "payload": {
+              "tool_call_id": "call_1",
+              "tool_name": "write_note",
+              "args": {
+                "content": "loopback note"
+              }
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 5,
+            "type": "policy.evaluated",
+            "created_at": 1790813486521,
+            "payload_version": 1,
+            "payload": {
+              "tool_name": "write_note",
+              "decision": "prompt",
+              "profile": "default",
+              "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 6,
+            "type": "tool.operation",
+            "created_at": 1790813486528,
+            "payload_version": 1,
+            "payload": {
+              "operation_id": "call_1",
+              "tool_name": "write_note",
+              "state": "admitted",
+              "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 7,
+            "type": "tool.approval_required",
+            "created_at": 1790813486546,
+            "payload_version": 1,
+            "payload": {
+              "approval_id": "apr_102f2347846e5a4d",
+              "tool_call_id": "call_1",
+              "tool_name": "write_note",
+              "args": {
+                "content": "loopback note"
+              },
+              "expires_at": 1790813786543,
+              "selected_tools": [
+                "write_note"
+              ],
+              "mode": "normal",
+              "face": "web",
+              "policy_profile": "default",
+              "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+              "sandbox_mode": "workspace_write",
+              "approval_policy": "ask"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 8,
+            "type": "tool.approval_decided",
+            "created_at": 1790813486557,
+            "payload_version": 1,
+            "payload": {
+              "approval_id": "apr_102f2347846e5a4d",
+              "decision": "approved",
+              "actor": "local_user",
+              "reason": "dn0 capture",
+              "decided_at": 1790813486557
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 9,
+            "type": "policy.evaluated",
+            "created_at": 1790813486565,
+            "payload_version": 1,
+            "payload": {
+              "tool_name": "write_note",
+              "decision": "prompt",
+              "profile": "default",
+              "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 10,
+            "type": "policy.evaluated",
+            "created_at": 1790813486566,
+            "payload_version": 1,
+            "payload": {
+              "tool_name": "write_note",
+              "decision": "prompt",
+              "profile": "default",
+              "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+              "reason": "revalidated persisted tool operation"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 11,
+            "type": "tool.operation",
+            "created_at": 1790813486569,
+            "payload_version": 1,
+            "payload": {
+              "operation_id": "call_1",
+              "tool_name": "write_note",
+              "state": "claimed",
+              "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 12,
+            "type": "tool.operation",
+            "created_at": 1790813486573,
+            "payload_version": 1,
+            "payload": {
+              "operation_id": "call_1",
+              "tool_name": "write_note",
+              "state": "completed",
+              "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+              "result": "[UNTRUSTED TOOL OUTPUT \u2014 DATA ONLY]\nnote note_867594abc772b84d saved (1 total)"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 13,
+            "type": "tool.started",
+            "created_at": 1790813486573,
+            "payload_version": 1,
+            "payload": {
+              "tool_call_id": "call_1",
+              "tool_name": "write_note"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 14,
+            "type": "tool.finished",
+            "created_at": 1790813486574,
+            "payload_version": 1,
+            "payload": {
+              "tool_call_id": "call_1",
+              "tool_name": "write_note",
+              "result": "[UNTRUSTED TOOL OUTPUT \u2014 DATA ONLY]\nnote note_867594abc772b84d saved (1 total)"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 15,
+            "type": "model.delta",
+            "created_at": 1790813486581,
+            "payload_version": 1,
+            "payload": {
+              "delta": "loopback done"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 16,
+            "type": "model.usage",
+            "created_at": 1790813486582,
+            "payload_version": 1,
+            "payload": {
+              "prompt_tokens": 1,
+              "completion_tokens": 1,
+              "total_tokens": 2,
+              "provider": "deepseek",
+              "model": "deepseek-flash",
+              "source": "main"
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 17,
+            "type": "model.completed",
+            "created_at": 1790813486584,
+            "payload_version": 2,
+            "payload": {
+              "content_sha256": "ce5d7db2733f2408b66ea7ce052b3846a7baf4c29db1eaefaaa4ff368aef1747",
+              "byte_len": 13
+            }
+          },
+          {
+            "run_id": "run_28acbc674905d37f",
+            "seq": 18,
+            "type": "run.completed",
+            "created_at": 1790813486590,
+            "payload_version": 2,
+            "payload": {
+              "outcome": "completed",
+              "summary": "loopback done",
+              "view": "fdc44784d488c80d95c9844c7c017923e27a40555b88dd56f451b2b3830a1822",
+              "tenant_id": "local",
+              "workspace_id": "run_28acbc674905d37f",
+              "session_id": "sess_10c78cf518e8cca0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "seq": 45,
+      "direction": "request",
+      "method": "session/messages",
+      "params": {
+        "session_id": "sess_10c78cf518e8cca0"
+      }
+    },
+    {
+      "seq": 46,
+      "direction": "response",
+      "method": "session/messages",
+      "result": {
+        "messages": [
+          {
+            "id": "msg_4e5a151bbb3f6848",
+            "run_id": "run_28acbc674905d37f",
+            "role": "user",
+            "content": "echo something",
+            "created_at": 1790813486500
+          },
+          {
+            "id": "msgp_run_28acbc674905d37f_00000000000000000004_1",
+            "run_id": "run_28acbc674905d37f",
+            "role": "assistant",
+            "content": "",
+            "tool_name": "write_note",
+            "tool_call_id": "call_1",
+            "created_at": 1790813486519
+          },
+          {
+            "id": "msgp_run_28acbc674905d37f_00000000000000000014_0",
+            "run_id": "run_28acbc674905d37f",
+            "role": "tool",
+            "content": "[UNTRUSTED TOOL OUTPUT \u2014 DATA ONLY]\nnote note_867594abc772b84d saved (1 total)",
+            "tool_name": "write_note",
+            "tool_call_id": "call_1",
+            "created_at": 1790813486574
+          },
+          {
+            "id": "msgp_run_28acbc674905d37f_00000000000000000017_0",
+            "run_id": "run_28acbc674905d37f",
+            "role": "assistant",
+            "content": "loopback done",
+            "created_at": 1790813486584
+          }
+        ]
+      }
+    },
+    {
+      "seq": 47,
+      "direction": "request",
+      "method": "session/rename",
+      "params": {
+        "session_id": "sess_10c78cf518e8cca0",
+        "title": "dn0-renamed"
+      }
+    },
+    {
+      "seq": 48,
+      "direction": "response",
+      "method": "session/rename",
+      "result": {
+        "id": "sess_10c78cf518e8cca0",
+        "title": "dn0-renamed",
+        "created_at": 1790813486499,
+        "updated_at": 1790813486609,
+        "sandbox_mode": "workspace_write",
+        "approval_policy": "ask",
+        "permission_preset": "smart",
+        "workspace_path": ""
+      }
+    },
+    {
+      "seq": 49,
+      "direction": "request",
+      "method": "question/list"
+    },
+    {
+      "seq": 50,
+      "direction": "response",
+      "method": "question/list",
+      "result": {
+        "questions": []
+      }
+    },
+    {
+      "seq": 51,
+      "direction": "request",
+      "method": "question/respond",
+      "params": {
+        "answer": "x",
+        "question_id": "que_nonexistent"
+      }
+    },
+    {
+      "seq": 52,
+      "direction": "error",
+      "method": "question/respond",
+      "error": {
+        "code": -32004,
+        "message": "runtime: question not found"
+      }
+    },
+    {
+      "seq": 53,
+      "direction": "request",
+      "method": "run/cancel",
+      "params": {
+        "run_id": "run_28acbc674905d37f"
+      }
+    },
+    {
+      "seq": 54,
+      "direction": "error",
+      "method": "run/cancel",
+      "error": {
+        "code": -32004,
+        "message": "run is not active in this process"
+      }
+    },
+    {
+      "seq": 55,
+      "direction": "request",
+      "method": "session/delete",
+      "params": {
+        "session_id": "sess_10c78cf518e8cca0"
+      }
+    },
+    {
+      "seq": 56,
+      "direction": "response",
+      "method": "session/delete",
+      "result": {
+        "deleted": true
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "seq": 14,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 1,
+          "type": "run.started",
+          "created_at": 1790813486500,
+          "payload_version": 1,
+          "payload": {
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "mode": "normal",
+            "face": "web",
+            "policy_profile": "default",
+            "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+            "sandbox_mode": "workspace_write",
+            "approval_policy": "ask"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 18,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 2,
+          "type": "model.request",
+          "created_at": 1790813486505,
+          "payload_version": 2,
+          "payload": {
+            "selected_tools": [
+              "write_note"
+            ],
+            "preamble_sha256": "623edc4b8ce64df19355804949198c1ccbda97b1a084c7a43ac648fd5b14406e",
+            "preamble_bytes": 25,
+            "messages": [
+              {
+                "role": "system",
+                "content_sha256": "623edc4b8ce64df19355804949198c1ccbda97b1a084c7a43ac648fd5b14406e",
+                "byte_len": 25
+              },
+              {
+                "role": "user",
+                "content_sha256": "c7c5438c2bfda4bd41ab57e042459a3e2f5e54a090ee53882dd3ca9ddc17dbd0",
+                "byte_len": 14
+              }
+            ],
+            "context_view": "fdc44784d488c80d95c9844c7c017923e27a40555b88dd56f451b2b3830a1822"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 19,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 3,
+          "type": "model.usage",
+          "created_at": 1790813486519,
+          "payload_version": 1,
+          "payload": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2,
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "source": "main"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 20,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 4,
+          "type": "tool.requested",
+          "created_at": 1790813486519,
+          "payload_version": 1,
+          "payload": {
+            "tool_call_id": "call_1",
+            "tool_name": "write_note",
+            "args": {
+              "content": "loopback note"
+            }
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 21,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 5,
+          "type": "policy.evaluated",
+          "created_at": 1790813486521,
+          "payload_version": 1,
+          "payload": {
+            "tool_name": "write_note",
+            "decision": "prompt",
+            "profile": "default",
+            "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 22,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 6,
+          "type": "tool.operation",
+          "created_at": 1790813486528,
+          "payload_version": 1,
+          "payload": {
+            "operation_id": "call_1",
+            "tool_name": "write_note",
+            "state": "admitted",
+            "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 23,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 7,
+          "type": "tool.approval_required",
+          "created_at": 1790813486546,
+          "payload_version": 1,
+          "payload": {
+            "approval_id": "apr_102f2347846e5a4d",
+            "tool_call_id": "call_1",
+            "tool_name": "write_note",
+            "args": {
+              "content": "loopback note"
+            },
+            "expires_at": 1790813786543,
+            "selected_tools": [
+              "write_note"
+            ],
+            "mode": "normal",
+            "face": "web",
+            "policy_profile": "default",
+            "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+            "sandbox_mode": "workspace_write",
+            "approval_policy": "ask"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 30,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 8,
+          "type": "tool.approval_decided",
+          "created_at": 1790813486557,
+          "payload_version": 1,
+          "payload": {
+            "approval_id": "apr_102f2347846e5a4d",
+            "decision": "approved",
+            "actor": "local_user",
+            "reason": "dn0 capture",
+            "decided_at": 1790813486557
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 31,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 9,
+          "type": "policy.evaluated",
+          "created_at": 1790813486565,
+          "payload_version": 1,
+          "payload": {
+            "tool_name": "write_note",
+            "decision": "prompt",
+            "profile": "default",
+            "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 32,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 10,
+          "type": "policy.evaluated",
+          "created_at": 1790813486566,
+          "payload_version": 1,
+          "payload": {
+            "tool_name": "write_note",
+            "decision": "prompt",
+            "profile": "default",
+            "policy_hash": "5b93b4348e4271addb3f5fc056b55fd48962d9a5e1e078edea5fc5e42ef031e1",
+            "reason": "revalidated persisted tool operation"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 33,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 11,
+          "type": "tool.operation",
+          "created_at": 1790813486569,
+          "payload_version": 1,
+          "payload": {
+            "operation_id": "call_1",
+            "tool_name": "write_note",
+            "state": "claimed",
+            "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 34,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 12,
+          "type": "tool.operation",
+          "created_at": 1790813486573,
+          "payload_version": 1,
+          "payload": {
+            "operation_id": "call_1",
+            "tool_name": "write_note",
+            "state": "completed",
+            "request_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "middleware_input_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "arguments_digest": "74b9c392ff9f9aef6ed2d4dc320985b8b703025967154b41747bada2b0197e7e",
+            "result": "[UNTRUSTED TOOL OUTPUT \u2014 DATA ONLY]\nnote note_867594abc772b84d saved (1 total)"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 35,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 13,
+          "type": "tool.started",
+          "created_at": 1790813486573,
+          "payload_version": 1,
+          "payload": {
+            "tool_call_id": "call_1",
+            "tool_name": "write_note"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 36,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 14,
+          "type": "tool.finished",
+          "created_at": 1790813486574,
+          "payload_version": 1,
+          "payload": {
+            "tool_call_id": "call_1",
+            "tool_name": "write_note",
+            "result": "[UNTRUSTED TOOL OUTPUT \u2014 DATA ONLY]\nnote note_867594abc772b84d saved (1 total)"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 37,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 15,
+          "type": "model.delta",
+          "created_at": 1790813486581,
+          "payload_version": 1,
+          "payload": {
+            "delta": "loopback done"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 38,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 16,
+          "type": "model.usage",
+          "created_at": 1790813486582,
+          "payload_version": 1,
+          "payload": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2,
+            "provider": "deepseek",
+            "model": "deepseek-flash",
+            "source": "main"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 39,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 17,
+          "type": "model.completed",
+          "created_at": 1790813486584,
+          "payload_version": 2,
+          "payload": {
+            "content_sha256": "ce5d7db2733f2408b66ea7ce052b3846a7baf4c29db1eaefaaa4ff368aef1747",
+            "byte_len": 13
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    },
+    {
+      "seq": 40,
+      "direction": "notification",
+      "method": "run/event",
+      "params": {
+        "event": {
+          "run_id": "run_28acbc674905d37f",
+          "seq": 18,
+          "type": "run.completed",
+          "created_at": 1790813486590,
+          "payload_version": 2,
+          "payload": {
+            "outcome": "completed",
+            "summary": "loopback done",
+            "view": "fdc44784d488c80d95c9844c7c017923e27a40555b88dd56f451b2b3830a1822",
+            "tenant_id": "local",
+            "workspace_id": "run_28acbc674905d37f",
+            "session_id": "sess_10c78cf518e8cca0"
+          }
+        },
+        "subscription_id": "sub_158bddd22ecb3dfa"
+      }
+    }
+  ]
+}

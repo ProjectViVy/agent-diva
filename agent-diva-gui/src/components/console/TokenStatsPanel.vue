@@ -11,22 +11,18 @@ import {
   Zap
 } from '@lucide/vue';
 import {
-  getTokenUsageTotal,
-  getTokenUsageSummary,
-  getTokenUsageTimeline,
-  getTokenUsageSessions,
-  getTokenUsageModels,
-  getTokenUsageRealtime,
+  getTokenStats,
   formatTokenCount,
   formatCost,
-  type UsageTotal,
-  type UsageSummary,
-  type TimelinePoint,
-  type SessionUsage,
-  type ModelDistribution,
-  type InMemoryStats,
   type TimeRangePeriod
 } from '../../api/tokenStats';
+import type {
+  VivyTokenUsageTotal,
+  VivyTokenProviderGroup,
+  VivyTokenTimelinePoint,
+  VivyTokenSessionUsage,
+  VivyTokenModelShare,
+} from '../../api/vivy/contracts';
 
 const { t } = useI18n();
 
@@ -39,13 +35,11 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 // Data
-const total = ref<UsageTotal | null>(null);
-const byEndpoint = ref<UsageSummary[]>([]);
-const byModel = ref<UsageSummary[]>([]);
-const timeline = ref<TimelinePoint[]>([]);
-const sessions = ref<SessionUsage[]>([]);
-const modelDistribution = ref<ModelDistribution[]>([]);
-const realtimeStats = ref<InMemoryStats | null>(null);
+const total = ref<VivyTokenUsageTotal | null>(null);
+const providers = ref<VivyTokenProviderGroup[]>([]);
+const timeline = ref<VivyTokenTimelinePoint[]>([]);
+const sessions = ref<VivyTokenSessionUsage[]>([]);
+const modelDistribution = ref<VivyTokenModelShare[]>([]);
 
 // Auto-refresh interval
 let refreshInterval: number | null = null;
@@ -62,23 +56,12 @@ async function fetchAllStats() {
   error.value = null;
 
   try {
-    const [totalRes, endpointRes, modelRes, timelineRes, sessionsRes, modelsRes, realtimeRes] = await Promise.all([
-      getTokenUsageTotal(period.value),
-      getTokenUsageSummary(period.value, 'endpoint'),
-      getTokenUsageSummary(period.value, 'model'),
-      getTokenUsageTimeline(period.value),
-      getTokenUsageSessions(period.value, 10),
-      getTokenUsageModels(period.value),
-      getTokenUsageRealtime(),
-    ]);
-
-    total.value = totalRes;
-    byEndpoint.value = endpointRes;
-    byModel.value = modelRes;
-    timeline.value = timelineRes;
-    sessions.value = sessionsRes;
-    modelDistribution.value = modelsRes;
-    realtimeStats.value = realtimeRes;
+    const snapshot = await getTokenStats(period.value, 10);
+    total.value = snapshot.total;
+    providers.value = snapshot.providers;
+    timeline.value = snapshot.timeline;
+    sessions.value = snapshot.sessions;
+    modelDistribution.value = snapshot.models;
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -91,7 +74,7 @@ function changePeriod(newPeriod: TimeRangePeriod) {
   fetchAllStats();
 }
 
-function getTimelineBarHeight(point: TimelinePoint): string {
+function getTimelineBarHeight(point: VivyTokenTimelinePoint): string {
   const max = maxTimelineValue.value;
   if (max === 0) return '10%';
   return `${Math.max(10, (point.total_tokens / max) * 100)}%`;
@@ -124,8 +107,8 @@ function exportData() {
   const data = {
     period: period.value,
     total: total.value,
-    byEndpoint: byEndpoint.value,
-    byModel: byModel.value,
+    providers: providers.value,
+    models: modelDistribution.value,
     timeline: timeline.value,
     sessions: sessions.value,
     exportedAt: new Date().toISOString()
@@ -180,22 +163,22 @@ onUnmounted(() => {
           <h4 class="section-title">{{ t('tokenStats.cacheTokens') }}</h4>
           <div class="cache-grid">
             <div class="cache-item">
-              <span class="cache-label">{{ t('tokenStats.cacheCreation') }}</span>
-              <span class="cache-value">{{ formatTokenCount(total.total_cache_creation) }}</span>
+              <span class="cache-label">{{ t('tokenStats.cacheTokens') }}</span>
+              <span class="cache-value">{{ formatTokenCount(total.total_cached) }}</span>
             </div>
             <div class="cache-item">
-              <span class="cache-label">{{ t('tokenStats.cacheRead') }}</span>
-              <span class="cache-value">{{ formatTokenCount(total.total_cache_read) }}</span>
+              <span class="cache-label">{{ t('tokenStats.reasoningTokens') }}</span>
+              <span class="cache-value">{{ formatTokenCount(total.total_reasoning) }}</span>
             </div>
           </div>
         </div>
 
         <!-- Endpoint Breakdown -->
-        <div v-if="byEndpoint.length > 0" class="breakdown-section">
-          <h4 class="section-title">{{ t('tokenStats.endpoint') }}</h4>
+        <div v-if="providers.length > 0" class="breakdown-section">
+          <h4 class="section-title">{{ t('tokenStats.provider') }}</h4>
           <div class="breakdown-list">
-            <div v-for="item in byEndpoint" :key="item.group_key" class="breakdown-item">
-              <span class="breakdown-label">{{ item.group_key }}</span>
+            <div v-for="item in providers" :key="item.key" class="breakdown-item">
+              <span class="breakdown-label">{{ item.key }}</span>
               <div class="breakdown-bar-container">
                 <div
                   class="breakdown-bar"
@@ -217,11 +200,11 @@ onUnmounted(() => {
               <span>{{ t('tokenStats.outputTokens') }}</span>
               <span>{{ t('tokenStats.estimatedCost') }}</span>
             </div>
-            <div v-for="session in sessions" :key="session.session_id" class="sessions-table-row">
-              <span class="session-name">{{ session.session_id }}</span>
+            <div v-for="session in sessions" :key="session.id" class="sessions-table-row">
+              <span class="session-name">{{ session.title || session.id }}</span>
               <span>{{ formatTokenCount(session.total_input) }}</span>
               <span>{{ formatTokenCount(session.total_output) }}</span>
-              <span>{{ formatCost(session.total_cost) }}</span>
+              <span>{{ formatCost(session.cost_usd) }}</span>
             </div>
           </div>
         </div>
@@ -291,7 +274,7 @@ onUnmounted(() => {
             <Coins :size="16" />
           </div>
           <div class="stat-content">
-            <div class="stat-value text-amber-400">{{ formatCost(total.total_cost) }}</div>
+            <div class="stat-value text-amber-400">{{ formatCost(total.total_cost_usd) }}</div>
             <div class="stat-label">{{ t('tokenStats.estimatedCost') }}</div>
           </div>
         </div>
@@ -346,18 +329,18 @@ onUnmounted(() => {
         <div class="sessions-list">
           <div
             v-for="session in sessions.slice(0, 5)"
-            :key="session.session_id"
+            :key="session.id"
             class="session-item"
           >
             <div class="session-info">
-              <span class="session-id">{{ session.session_id.split(':').pop() }}</span>
+              <span class="session-id">{{ session.title || session.id.split(':').pop() }}</span>
               <span class="session-meta">
-                {{ session.request_count }} {{ t('tokenStats.requests') }} · {{ session.primary_model.split('/').pop() }}
+                {{ session.request_count }} {{ t('tokenStats.requests') }} · {{ session.model.split('/').pop() }}
               </span>
             </div>
             <div class="session-stats">
               <span class="session-tokens">{{ formatTokenCount(session.total_tokens) }}</span>
-              <span class="session-cost">{{ formatCost(session.total_cost) }}</span>
+              <span class="session-cost">{{ formatCost(session.cost_usd) }}</span>
             </div>
           </div>
         </div>
