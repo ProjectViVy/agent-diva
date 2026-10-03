@@ -103,12 +103,35 @@ fn runtime_dir<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, BridgeE
 }
 
 /// `vivy config` path: `DIVA_VIVY_CONFIG` (dev/test) or
-/// `<config_dir>/diva/vivy.yaml`.
+/// `<config_dir>/vivy.yaml`, written from the bundled default on first run.
+const DEFAULT_VIVY_CONFIG: &str = include_str!("../resources/vivy.default.yaml");
+
+fn ensure_vivy_config(path: &std::path::Path) -> Result<(), BridgeError> {
+    if path.exists() {
+        return Ok(());
+    }
+    let parent = path.parent().ok_or_else(|| BridgeError {
+        kind: ErrorKind::LoadFailed,
+        code: 0,
+        message: "config path has no parent dir".into(),
+        data: None,
+    })?;
+    std::fs::create_dir_all(parent).and_then(|_| std::fs::write(path, DEFAULT_VIVY_CONFIG)).map_err(|e| {
+        BridgeError {
+            kind: ErrorKind::LoadFailed,
+            code: 0,
+            message: format!("write default config {}: {e}", path.display()),
+            data: None,
+        }
+    })
+}
+
 fn config_path<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, BridgeError> {
     if let Ok(p) = std::env::var("DIVA_VIVY_CONFIG") {
         return Ok(PathBuf::from(p));
     }
-    app.path()
+    let path = app
+        .path()
         .app_config_dir()
         .map(|d| d.join("vivy.yaml"))
         .map_err(|e| BridgeError {
@@ -116,7 +139,9 @@ fn config_path<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, BridgeE
             code: 0,
             message: format!("config dir: {e}"),
             data: None,
-        })
+        })?;
+    ensure_vivy_config(&path)?;
+    Ok(path)
 }
 
 pub fn run() {
@@ -213,4 +238,25 @@ pub fn run() {
 fn fatal(e: BridgeError) -> ! {
     eprintln!("fatal: vivy startup: {e}");
     std::process::exit(1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_written_only_when_missing() {
+        let dir = std::env::temp_dir().join(format!("diva-cfg-test-{}", std::process::id()));
+        let path = dir.join("nested").join("vivy.yaml");
+        ensure_vivy_config(&path).expect("first write");
+        let written = std::fs::read_to_string(&path).expect("read back");
+        assert!(written.contains("vivy.masks.selection.set"));
+
+        std::fs::write(&path, "providers:\n  active: sensenova\n").expect("customize");
+        ensure_vivy_config(&path).expect("second call");
+        let kept = std::fs::read_to_string(&path).expect("read back");
+        assert_eq!(kept, "providers:\n  active: sensenova\n", "existing user config must not be overwritten");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

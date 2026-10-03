@@ -35,15 +35,4 @@ Driven against the shipped `vivy-shared.so` via `module.action.invoke`:
 ## Backend fixes required by live evidence (landed in agent-vivy)
 
 1. **`2947c472` embedded caller auth** — `DialControl`'s serving peer carried no Caller/Identity, so `module.action.invoke` always failed `action caller is not authenticated`. Fix binds the app session token + `face/embedded` identity on the host peer; ActionHost still validates `caller.Opaque == rpcToken`. Regression test `TestEmbeddedControlActionInvokesWithBoundCaller` added.
-2. **Effectful actions need governance authorization** — `vivy.masks.*` writes (`selection.set`, `catalog.create/update/delete`) evaluate policy against `governance.profile` and have NO embedded approval continuation route, so they return `module action is not authorized` under every preset. Resolved for acceptance by operator allow-rules in `vivy.yaml`:
-   ```yaml
-   governance:
-     profiles:
-       default:
-         rules:
-           - { tool: "vivy.masks.selection.set", decision: "allow" }
-           - { tool: "vivy.masks.catalog.create", decision: "allow" }
-           - { tool: "vivy.masks.catalog.update", decision: "allow" }
-           - { tool: "vivy.masks.catalog.delete", decision: "allow" }
-   ```
-   Product decision needed: ship these rules in the DIVA default config template, or add an action-approval continuation in agent-vivy. Tracked in TODOLIST `MODULE-ACTION-GOVERNANCE`.
+2. **Effectful actions need governance authorization** — `vivy.masks.*` writes (`selection.set`, `catalog.create/update/delete`) evaluate policy against `governance.profile` and have NO embedded approval continuation route, so they return `module action is not authorized` under every preset. Resolved by owner ruling ("align DIVA to vivy's style"): the shell writes `resources/vivy.default.yaml` on first launch when `<config_dir>/vivy.yaml` is absent; the template carries the four `vivy.masks.*` allow rules, which is the vivy-native mechanism (the embedded composition deliberately has no action-approval route). Live-verified: sealed .so boots on the shipped template and `selection.set` + `catalog.create` succeed; an existing user config is never overwritten (unit test `default_config_written_only_when_missing`).

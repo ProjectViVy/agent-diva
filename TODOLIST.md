@@ -94,11 +94,12 @@
   `docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`。
   注意：VIVY 读 env `SENSENOVA_API_KEY`（key 本体在 secret:personal:SHANGTANG_APIKEY）。
   遗留：GUI 级窗口重开（活模型）+ Windows 原生验收仍开。
-- [ ] **MODULE-ACTION-GOVERNANCE：face 驱动的 module action 写入无嵌入式审批续接** `sev-P1`
-  `vivy.masks.selection.set`/`catalog.create|update|delete` 在 `governance.profile`
-  任何 preset 下都判 `module action is not authorized`（PolicyPrompt 无续接路由）。
-  验收已用 `vivy.yaml` governance rules 逐项 allow 解决；产品决策待 owner：
-  随 DIVA 默认配置模板发这些 allow 规则，或在 agent-vivy 增加 action 审批续接。
+- [x] **MODULE-ACTION-GOVERNANCE：face 驱动的 module action 写入无嵌入式审批续接** `sev-P1`
+  已按 owner 裁定（“改成 vivy 的样式，必须对齐”）解决：governance rules 是 vivy
+  正统机制（嵌入式组合刻意无 action 审批续接，见 internal/app authorizeAction
+  注释）。shell 首启写 `resources/vivy.default.yaml` 出厂配置，内附
+  `vivy.masks.*` 写动作 allow 规则；既解决本项也补齐首启无配置必挂的缺口。
+  活体验证：封签 .so 用出厂配置 init + selection.set + catalog.create 全通。
 - [ ] **VIVYSHUTDOWN-DEADLINE-UTIL：VivyShutdown 在后台 utility 生成中偶发 deadline** `sev-P3`
   DN-P 验收中一次实测：auto-title utility 生成在飞时 VivyShutdown 返回
   `context deadline exceeded`；空闲时 shutdown 即时。driver 已加 settle+retry，

@@ -1,0 +1,28 @@
+# DIVA default configuration (vivy-style).
+# Written by the Tauri shell on first launch when <config_dir>/vivy.yaml is
+# absent. Provider keys are read from environment variables at request time —
+# NEVER put secrets in this file.
+#
+# Every omitted section falls back to agent-vivy's built-in defaults:
+#   storage   sqlite under the vivy user data root (~/.vivy/vivy.db)
+#   runtime   sandbox world, bounded run/event limits, workspace under the
+#             vivy user data root
+#   providers deepseek is the embedded-catalog default; select another vendor
+#             with `providers.active` (keys via that vendor's env var)
+
+providers:
+  active: deepseek
+
+# Face-driven module actions run through the embedded control pipe, which has
+# no action-approval continuation route (the composition is deliberate: see
+# internal/app authorizeAction). The vivy-native mechanism for declaring them
+# safe for the face is governance rules — mask management is a GUI-owned
+# surface, so its writes are allowed outright. Reads need no rule.
+governance:
+  profiles:
+    default:
+      rules:
+        - { tool: "vivy.masks.selection.set", decision: "allow", reason: "face-driven mask selection" }
+        - { tool: "vivy.masks.catalog.create", decision: "allow", reason: "face-driven mask catalog" }
+        - { tool: "vivy.masks.catalog.update", decision: "allow", reason: "face-driven mask catalog" }
+        - { tool: "vivy.masks.catalog.delete", decision: "allow", reason: "face-driven mask catalog" }
