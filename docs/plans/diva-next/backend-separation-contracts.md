@@ -1,3 +1,30 @@
+# DN-C1 contract-ledger amendment — 2026-10-03
+
+Current scope: [DN-C1](p0-design.md); stage state: [index.md](index.md).
+The initial inventory below is preserved as a historical baseline. Its old
+producer-gap/disposition conclusions are superseded by this amendment;
+exact existing core ABI bounds remain authoritative unless changed by evidence.
+New cognitive/native-speech IDs are proposed, not verified wire contracts.
+
+| Surface | Current verified source mapping | Remaining contract work |
+| --- | --- | --- |
+| C ABI init | VIVY cmd/vivy-shared/exports.go: abi_version, config_path, optional without_ears | Generated header and selected artifact proof |
+| C ABI call / poll | method, params, optional timeout_ms; poll max-events | No request_id/data_dir/wait-ms replacement ABI |
+| Image attachments | VIVY turn/start.attachments exists | Replace DIVA FileAttachmentDto IDs with bytes/MIME; frame bound; explicit unsupported-file error |
+| Permission / regeneration | session/set_permission and session/rewind exist | Freeze mappings/selected-message semantics and mutation recovery |
+| Skill history | skills/revisions/list exists when backing dependency is bound | Verify compiled capability; upload/delete/edit/request still unresolved |
+| Console | trajectory/session projection v2, diagnostics/logs, diagnostics/gui/append, stats/tokens coverage | DIVA typed DTOs and one subscription/readback owner |
+| Cognition | Laputa #2 domain libraries; VIVY #26 CognitiveBinding/status/policy/trigger/capture | Public facade, compiled binding, human/domain action fixtures, primary-run context and embedded start/stop |
+| Online speech | DIVA wrappers for SiliconFlow STT and SiliconFlow/MiniMax TTS | Tauri native request/config/credential/media/cancel contracts; not a missing VIVY-module dependency |
+| Legacy data import | Owner cancelled | No replacement/importer; DN-7 removed from release predecessors |
+
+Inspected pins: DIVA f5866a0, VIVY 1db8b55, Laputa dc6066e. Source availability
+does not establish selected Generation capability or real-cloud acceptance.
+
+---
+
+## Historical initial inventory (below)
+
 # Backend Separation Contracts — DN-0 Ledger (proposed)
 
 Status: **PROPOSED — pending owner review**. This document freezes the DN-0

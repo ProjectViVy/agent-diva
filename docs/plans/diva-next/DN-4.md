@@ -1,39 +1,42 @@
-# DN-4 — Companion-domain frontend handoff
+# DN-4 — Bound cognition and companion handoff
 
-- **Epic:** B · **Requirements:** R-4 · **Outcome:** persona edit reaches captured/live model input; memory persists/retrieves across restart; AutoDream can cancel/recover; accepted changes affect later runs; reports are real artifacts.
-- **Authoritative design:** issue #13 DN-P1 §3–§4 · **Baseline:** `0fd005a1` · **Status:** see index; per-domain verified contracts required · **Predecessor:** DN-2 · **Index:** [index.md](index.md)
-- **Files:** `src/components/PersonaMemoryView.vue`, `PersonaSetupGate.vue`, `components/memory/MemoryView.vue`, `EvolutionView.vue`, `NotebookView.vue`, `components/persona-memory/`, related service/state code. **Escalate:** any pressure to ship a fake-success adapter — forbidden by the issue.
+Current architecture: [DN-C1](p0-design.md). State/dependencies live in
+[index.md](index.md). Reuse the merged Laputa cognitive contracts/S08, not
+another competing domain plan. This amendment replaces the old blanket
+no-producer claim; it is an initial outline, not an executable Ready plan.
 
-## Prerequisites / contracts
+## Reuse and remaining boundary
 
-- Consumes per-domain #63 contracts as they land; DN-0 mappings for each companion surface.
-- VIVY prompt-only mask semantics preserved; old model/tool controls mapped separately.
+Masks already have recorded live evidence. Laputa #2 supplies real Mission,
+ACTMEM and evolution-domain foundations; VIVY #26 supplies trusted workflow,
+capture and wake/runtime seams. DIVA's bridge now exists, but its sealed
+Generation does not bind those authorities. Adding ordinary memory actions
+to a recipe alone does not deliver ACTMEM, Persona projection or reflection.
 
-## Tasks (per available domain only)
+Before frontend work is Ready, freeze the owning-library public facade,
+compiled DIVA adapter, primary-run FrozenCore/context projection, observer
+capture, real human identity/action governance and domain control/read DTOs.
+Use existing module actions/run/review paths; do not expose a second HTTP
+runtime or grant authority from payload actor fields. Embedded lifecycle must
+start/stop selected cognition as described in DN-C1.
 
-- [ ] Integrate persona and its actual prompt projection; expose revision conflicts/history and exact accepted edits.
-- [ ] Integrate memory + ACTMEM/MEMRULES/continuity per accepted backend contracts.
-- [ ] Bind AutoDream status/events/cancel/recovery, skill/persona review, notebook/report results.
-- [ ] Remove old Rust service consumers for each domain after real verification.
+## DIVA consumer work
 
-## Verification
+Reuse PersonaMemoryView, PersonaSetupGate, MemoryView, EvolutionView,
+SelfEvolutionSettings and associated state/APIs. Display current versus
+session-frozen revisions, scoped Pulse/Recap/Work, backend/scope, eligibility,
+active run, partial/unknown/recovery-required, and actual review/result
+receipts. Proposed `src/api/cognitive.ts` consumes frozen action fixtures
+through the existing client. No UI scheduler or local business store.
 
-- `pnpm --dir agent-diva-gui test` and `build` pass.
-- Per-domain evidence: persona edit visible in model input; memory survives restart; reflection cancel/recover works; reports resolve to real artifacts.
+## Evidence and disposition
 
-## Notes
+Engineering proves scoped access, human-only Mission, CAS/conflict handling,
+primary model-input projection, committed capture dedupe, exact domain review
+semantics, cancellation and restart without duplicated effects. Proposal is
+submitted, not applied. Memory/backend selection is explicit, never an
+automatic ordinary-BML substitution.
 
-Work may proceed per available domain; domains without a #63 contract stay Blocked with the missing API named — never mocked.
-
-## P0-D1 execution amendment (takes precedence)
-
-### Concrete P0 domain slices
-
-All frontend paths above are relative to `agent-diva-gui/`. Consume P0-D1 and DN-0's pinned schema/fixture for each of persona, memory/ACTMEM/MEMRULES, evolution/AutoDream/review, notebook/report and masks. Existing VIVY plugins are evidence to inspect, not proof of frontend semantic parity. The prior #63 reference is historical; inaccessible issue metadata is not evidence that code is missing.
-
-- [ ] For each domain, pin its actual frontend symbols in the ledger and add tests next to those components for read/edit/validation/conflict and missing capability. Test accepted edits against subsequent backend model input or persisted artifact as applicable.
-- [ ] Replace old desktop.ts/domain consumers with DN-1 calls; preserve distinct persona, memory and governed evolution authority. Do not route one domain's approval into another domain merely because names resemble each other.
-- [ ] Implement event/snapshot reconciliation with backend IDs; test restart and pending review recovery. AutoDream cancellation must cancel actual backend work; stale revisions must be rejected visibly.
-- [ ] Record model-input/readback/artifact evidence per required row and run GUI test/build. Remove mock-backed production branches only with accepted replacements.
-
-Readiness blocker: exact verified per-domain schemas, action IDs and acceptance fixtures from DN-0. If absent, record the producer contract needed and keep that slice Blocked; no speculative backend implementation is delegated by this plan.
+Owner accepts the installed cognitive UI after engineering delivery. Broader
+notebook/report scheduling stays deferred in TODOLIST; real reflection notes
+are retained. No fake report or empty-success page is a replacement.

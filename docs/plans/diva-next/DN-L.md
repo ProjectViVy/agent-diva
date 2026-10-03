@@ -1,3 +1,8 @@
+> 2026-10-03 scope amendment: [DN-C1](p0-design.md) and [index.md](index.md)
+> take precedence over historical P0-D1 host/speech/import/acceptance premises.
+> Tasks/evidence below retain their original scope and artifact pins. New
+> closure work is not proved by historical implementation or acceptance.
+
 # DN-L — Sealed Go shared library Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` after plan review and implementation authorization; no delegation is implied. Read both this plan and the shared design before execution.

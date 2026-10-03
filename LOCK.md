@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `—`
-- Owner: `—`
-- Session/Task: `—`
-- Branch/Worktree: `DIVA-NEXT-P0 / /home/ubuntu/repos/agent-diva`
-- Started At: `—`
-- Last Heartbeat: `2026-09-30T23:59:00Z`
+- Scope: `docs/plans/diva-next/**, docs/archive/todolist/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md`
+- Owner: `Codex`
+- Session/Task: `DIVA Next closure scope and preliminary architecture; documentation only`
+- Branch/Worktree: `docs/diva-next-closure-20261003 / /workspace/scratch/2a94a1beed0f/agent-diva`
+- Started At: `2026-10-03T07:11:34Z`
+- Last Heartbeat: `2026-10-03T07:27:34Z`
 - Expires At: `—`
 
 ## Lock Rules
@@ -24,6 +24,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DIVA Next closure scope and preliminary architecture` — **RELEASED 2026-10-03T07:27:34Z**
+  by `Codex`; isolated local branch `docs/diva-next-closure-20261003`; scope
+  `docs/plans/diva-next/**`, `docs/archive/todolist/**`,
+  `docs/logs/2026-10-diva-next-closure/**`, `TODOLIST.md`, `LOCK.md`.
+  Docs only; issue #15/#13/#8 and VIVY #18 wording read back. No code,
+  instruction-file rewrite, native test, branch push or release.
 
 - `DN-0 inventory and contract freeze` — **RELEASED 2026-09-30T23:59:00Z**
   by `Devin`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-next-dn0/`,
