@@ -56,7 +56,21 @@ export interface VivySession {
   created_at: number
   updated_at: number
   sandbox_mode?: string
+  approval_policy?: string
+  /** Admitted permission preset per `session/set_permission` (DN-2A). */
+  permission_preset?: PermissionPreset | string
   [key: string]: unknown
+}
+
+/** Frozen `session/set_permission` preset vocabulary (C2 fixture). */
+export type PermissionPreset = 'cautious' | 'smart' | 'trusted'
+
+/** `turn/start` inline image attachment — base64 bytes, sniffed MIME.
+ * Max 4 per turn, each ≤5 MiB decoded (internal/attachment, VIVY). */
+export interface TurnAttachment {
+  name?: string
+  mime_type: string
+  data: string
 }
 
 export interface SessionMessage {

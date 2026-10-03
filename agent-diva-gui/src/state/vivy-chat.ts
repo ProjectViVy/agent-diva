@@ -18,9 +18,11 @@
  */
 import {
   VivyCallError,
+  type PermissionPreset,
   type ReviewItem,
   type SessionMessage,
   type SessionWorkResult,
+  type TurnAttachment,
   type VivySession,
 } from '../api/vivy/contracts'
 import type { VivyClient } from '../api/vivy/client'
@@ -33,6 +35,10 @@ import {
 } from '../api/planning'
 import type { AskUserQuestionView } from '../components/AskUserQuestionCard.vue'
 import { generateMessageId, type ChatMessage } from './chat-message'
+import {
+  assertFramedRequest,
+  validateTurnAttachments,
+} from './chat-images'
 import { mapHistoryMessages, reduceRunMessages } from './vivy-run-messages'
 import { VivySessionProjection } from './vivy-session'
 
@@ -50,6 +56,13 @@ export interface SessionInfo {
 }
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error'
+
+/** DN-2A send options: already-encoded image attachments plus the
+ * permission preset to arm before the turn starts. */
+export interface SendOptions {
+  attachments?: TurnAttachment[]
+  preset?: PermissionPreset
+}
 
 /** Matches the tool.approval_* / user.question_* families in the domain. */
 const INTERACTION_EVENT_PREFIXES = ['tool.approval_', 'user.question_']
@@ -294,19 +307,45 @@ export class VivyChatController {
 
   // --- Turn lifecycle --------------------------------------------------------
 
-  async send(text: string): Promise<void> {
+  /** One mutation lane per controller: every send — including its
+   * permission preset write + readback — completes before the next one
+   * starts, so duplicate clicks or a session switch cannot interleave
+   * two mutation sequences. */
+  private sendChain: Promise<void> = Promise.resolve()
+
+  send(text: string, opts: SendOptions = {}): Promise<void> {
     const content = text.trim()
-    if (!content) return
-    if (!this.currentSessionId) {
-      const session = await this.client.sessionCreate()
-      await this.refreshSessions()
-      this.currentSessionId = session.id
-      this.projection.applySnapshot({
-        type: 'session/get',
-        result: { session, messages: [] },
-      })
-    }
+    if (!content) return Promise.resolve()
+    const attachments = opts.attachments ?? []
     const sessionId = this.currentSessionId
+    let echo: ChatMessage | null = null
+    try {
+      // Every validation runs before the first mutation — an unsupported
+      // or oversized payload preserves the draft and sends nothing.
+      validateTurnAttachments(attachments)
+      if (sessionId) {
+        assertFramedRequest('turn/start', this.turnStartParams(sessionId, content, attachments))
+        echo = this.pushEcho(sessionId, content)
+      }
+    } catch (e) {
+      return Promise.reject(e)
+    }
+    const task = this.sendChain.then(() =>
+      this.performSend(content, attachments, opts, sessionId, echo),
+    )
+    this.sendChain = task.catch(() => undefined)
+    return task
+  }
+
+  private turnStartParams(sessionId: string, content: string, attachments: TurnAttachment[]) {
+    return {
+      session_id: sessionId,
+      text: content,
+      ...(attachments.length ? { attachments } : {}),
+    }
+  }
+
+  private pushEcho(sessionId: string, content: string): ChatMessage {
     const echo: ChatMessage = {
       id: generateMessageId(),
       role: 'user',
@@ -318,25 +357,96 @@ export class VivyChatController {
     this.echoBySession.set(sessionId, echoes)
     this.sendFailed = false
     this.emit()
+    return echo
+  }
+
+  private dropEcho(sessionId: string, echoId: string): void {
+    this.echoBySession.set(
+      sessionId,
+      (this.echoBySession.get(sessionId) ?? []).filter((m) => m.id !== echoId),
+    )
+    this.emit()
+  }
+
+  private async performSend(
+    content: string,
+    attachments: TurnAttachment[],
+    opts: SendOptions,
+    knownSessionId: string | null,
+    echo: ChatMessage | null,
+  ): Promise<void> {
+    let sessionId = knownSessionId
     try {
-      const started = await this.client.turnStart(sessionId, content)
+      if (!sessionId) {
+        const session = await this.client.sessionCreate()
+        await this.refreshSessions()
+        this.currentSessionId = session.id
+        this.projection.applySnapshot({
+          type: 'session/get',
+          result: { session, messages: [] },
+        })
+        sessionId = session.id
+        assertFramedRequest(
+          'turn/start',
+          this.turnStartParams(sessionId, content, attachments),
+        )
+        echo = this.pushEcho(sessionId, content)
+      }
+      // The chosen preset is armed and confirmed before the turn starts; a
+      // mismatch or ambiguous outcome blocks the send on the authoritative
+      // session readback instead of sending under a stale policy.
+      if (opts.preset) {
+        await this.confirmPermission(sessionId, opts.preset)
+      }
+      const started = await this.client.turnStart(sessionId, content, attachments)
       this.activeRunId = started.run_id
       this.runOwner.set(started.run_id, sessionId)
       // A failed subscribe leaves the run without events; resync covers it.
       void this.client.runSubscribe(started.run_id).catch(() => undefined)
       this.emit()
     } catch (e) {
-      if (e instanceof VivyCallError && e.unknownOutcome) {
+      if (e instanceof VivyCallError && e.unknownOutcome && sessionId && echo) {
         await this.reconcileAmbiguousSend(sessionId, content, echo.id)
         return
       }
       this.sendFailed = true
-      this.echoBySession.set(
-        sessionId,
-        (this.echoBySession.get(sessionId) ?? []).filter((m) => m.id !== echo.id),
-      )
+      if (echo && sessionId) this.dropEcho(sessionId, echo.id)
       this.emit()
       throw e
+    }
+  }
+
+  /**
+   * Arm the chosen preset on the owning session and confirm it before the
+   * turn starts. The `session/set_permission` result is the admitted
+   * snapshot; a mismatch or an ambiguous outcome (timeout/transport loss
+   * after the write was submitted) is reconciled by an authoritative
+   * `session/get` readback — sending under an unconfirmed stale policy is
+   * never allowed. Throws to block the send when the preset is not
+   * admitted.
+   */
+  private async confirmPermission(sessionId: string, preset: PermissionPreset): Promise<void> {
+    try {
+      const session = await this.client.setSessionPermission(sessionId, preset)
+      if (session.permission_preset === preset) {
+        this.projection.sessions.set(sessionId, session)
+        this.emit()
+        return
+      }
+      // Definite response, wrong admitted value — fall through to the
+      // authoritative readback instead of trusting a transient projection.
+    } catch (e) {
+      if (!(e instanceof VivyCallError && e.unknownOutcome)) throw e
+      // Ambiguous outcome: the write may have landed — read, never rewrite.
+    }
+    const detail = await this.client.sessionGet(sessionId)
+    this.projection.applySnapshot({ type: 'session/get', result: detail })
+    if (detail.session.permission_preset !== preset) {
+      throw new Error(
+        `permission preset "${preset}" was not admitted (session reports ${
+          detail.session.permission_preset ?? 'unset'
+        })`,
+      )
     }
   }
 

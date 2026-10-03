@@ -412,6 +412,145 @@ describe('VivyChatController approvals & questions', () => {
   })
 })
 
+describe('VivyChatController DN-2A images & permission', () => {
+  const PNG_B64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const bigPngBase64 = () => {
+    const bytes = new Uint8Array((3 << 20) + 1024)
+    bytes.set([0x89, 0x50, 0x4e, 0x47])
+    let bin = ''
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+    }
+    return btoa(bin)
+  }
+  const sessionWith = (preset: string) => ({
+    id: 's1',
+    title: 't',
+    created_at: 1,
+    updated_at: 1,
+    permission_preset: preset,
+    sandbox_mode: preset === 'cautious' ? 'read_only' : 'workspace_write',
+    approval_policy: 'ask',
+  })
+
+  it('sendImageBytes: image reaches turn/start in the fixture wire shape', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('image echo', {
+      attachments: [{ name: 'dot.png', mime_type: 'image/png', data: PNG_B64 }],
+    })
+    const turn = h.calls.find((c) => c.method === 'turn/start')
+    expect(turn?.params).toEqual({
+      session_id: 's1',
+      text: 'image echo',
+      attachments: [{ name: 'dot.png', mime_type: 'image/png', data: PNG_B64 }],
+    })
+  })
+
+  it('rejectOversizeFramedRequest: a >4 MiB framed call mutates nothing', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await expect(
+      h.controller.send('huge', {
+        attachments: [{ name: 'big.png', mime_type: 'image/png', data: bigPngBase64() }],
+      }),
+    ).rejects.toThrow(/4 MiB/)
+    expect(h.calls.filter((c) => c.method === 'turn/start')).toHaveLength(0)
+    // The draft produced no echo — the timeline stays as history gave it.
+    expect(h.controller.messages()).toHaveLength(0)
+  })
+
+  it('unsupportedFileKeepsDraft: unsupported MIME performs no mutation', async () => {
+    const h = makeHarness(baseHandlers())
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await expect(
+      h.controller.send('draft stays', {
+        attachments: [{ name: 'x.png', mime_type: 'application/pdf', data: PNG_B64 }],
+      }),
+    ).rejects.toThrow()
+    expect(h.calls.filter((c) => c.method === 'turn/start')).toHaveLength(0)
+    expect(h.controller.messages()).toHaveLength(0)
+  })
+
+  it('permissionReadbackBeforeSend: preset is armed+admitted before the turn', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/set_permission': () => sessionWith('cautious'),
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('go', { preset: 'cautious' })
+    const methods = h.calls.map((c) => c.method)
+    expect(methods.indexOf('session/set_permission')).toBeGreaterThan(-1)
+    expect(methods.indexOf('session/set_permission')).toBeLessThan(methods.indexOf('turn/start'))
+    expect(
+      h.calls.find((c) => c.method === 'session/set_permission')?.params,
+    ).toEqual({ session_id: 's1', preset: 'cautious' })
+    // The admitted policy snapshot is published on the projection.
+    expect(h.controller.projection.sessions.get('s1')?.permission_preset).toBe('cautious')
+  })
+
+  it('permissionReadbackBeforeSend: admitted mismatch blocks the send after readback', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/set_permission': () => sessionWith('smart'),
+      'session/get': () => ({ session: sessionWith('smart'), messages: [] }),
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await expect(h.controller.send('go', { preset: 'cautious' })).rejects.toThrow(
+      /not admitted/,
+    )
+    expect(h.calls.filter((c) => c.method === 'turn/start')).toHaveLength(0)
+  })
+
+  it('permissionReadbackBeforeSend: ambiguous write reconciled by readback, then sends', async () => {
+    const h = makeHarness({
+      ...baseHandlers(),
+      'session/set_permission': () => Promise.reject(bridgeTimeout()),
+      'session/get': () => ({ session: sessionWith('cautious'), messages: [] }),
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    await h.controller.send('go', { preset: 'cautious' })
+    expect(h.calls.filter((c) => c.method === 'session/set_permission')).toHaveLength(1)
+    expect(h.calls.map((c) => c.method)).toContain('turn/start')
+  })
+
+  it('duplicateSendSerialized: concurrent sends run through one mutation lane', async () => {
+    const order: string[] = []
+    const release: Array<() => void> = []
+    const h = makeHarness({
+      ...baseHandlers(),
+      'turn/start': (p) => {
+        const text = (p as { text: string }).text
+        order.push(`start:${text}`)
+        return new Promise((resolve) => {
+          release.push(() => {
+            order.push(`end:${text}`)
+            resolve({ run_id: `run-${text}`, status: 'accepted' })
+          })
+        })
+      },
+    })
+    await connect(h)
+    await h.controller.loadSession('s1')
+    const first = h.controller.send('a')
+    const second = h.controller.send('b')
+    await Promise.resolve()
+    release[0]!()
+    await first
+    await Promise.resolve()
+    release[1]!()
+    await second
+    expect(order).toEqual(['start:a', 'end:a', 'start:b', 'end:b'])
+  })
+})
+
 describe('VivyChatController planning/work', () => {
   function pendingWork() {
     return {

@@ -7,9 +7,9 @@ import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import {
-  FileAttachmentDto,
-} from "./api/desktop";
+import type {
+  TurnAttachment,
+} from "./api/vivy/contracts";
 import {
   loadProviderState,
   saveActiveProvider,
@@ -499,20 +499,27 @@ async function revokePlanExecution(feedback = '') {
   }
 }
 
-async function sendMessage(content: string, attachments?: FileAttachmentDto[], _mode?: string, _permissionMode?: string) {
+async function sendMessage(
+  content: string,
+  attachments?: TurnAttachment[],
+  _mode?: string,
+  permissionMode?: 'cautious' | 'smart' | 'trusted',
+) {
   if (!content.trim()) return;
   if (isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
     return;
   }
-  if (attachments?.length) {
-    // VIVY turn/start is text-only; attachments are a recorded gap (TODOLIST).
-    console.warn('[App] send: attachments dropped — VIVY turn/start accepts text only');
-  }
   if (!isTauri()) return;
   try {
-    await vivyChat.send(content);
+    // DN-2A: the controller validates images/frame size, arms+confirms the
+    // preset through session/set_permission, then starts the turn — one
+    // serialized mutation lane per session.
+    await vivyChat.send(content, {
+      ...(attachments?.length ? { attachments } : {}),
+      ...(permissionMode ? { preset: permissionMode } : {}),
+    });
   } catch (error) {
     pushSystemNotice(`${t('app.errorPrefix')}${error}`);
   }

@@ -24,6 +24,8 @@ import {
   type SessionTodosResult,
   type SessionWorkResult,
   type SessionWorkSubscribeResult,
+  type PermissionPreset,
+  type TurnAttachment,
   type TurnStartResult,
   type WorkCommitResult,
   type VivySession,
@@ -125,8 +127,26 @@ export class VivyClient {
   sessionDelete(sessionId: string): Promise<{ deleted: boolean }> {
     return this.call('session/delete', { session_id: sessionId }, { mutation: true })
   }
-  turnStart(sessionId: string, text: string): Promise<TurnStartResult> {
-    return this.call('turn/start', { session_id: sessionId, text }, { mutation: true })
+  turnStart(sessionId: string, text: string, attachments?: TurnAttachment[]): Promise<TurnStartResult> {
+    return this.call(
+      'turn/start',
+      {
+        session_id: sessionId,
+        text,
+        ...(attachments?.length ? { attachments } : {}),
+      },
+      { mutation: true },
+    )
+  }
+  /** Mutating preset write; the returned session DTO is the authoritative
+   * admitted snapshot — callers must read `permission_preset` back before
+   * treating the choice as armed. */
+  setSessionPermission(sessionId: string, preset: PermissionPreset): Promise<VivySession> {
+    return this.call(
+      'session/set_permission',
+      { session_id: sessionId, preset },
+      { mutation: true },
+    )
   }
   runSubscribe(runId: string): Promise<RunSubscribeResult> {
     return this.call('run/subscribe', { run_id: runId })
