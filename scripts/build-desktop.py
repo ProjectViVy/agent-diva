@@ -75,6 +75,12 @@ def source_tree_hash(root: Path) -> str:
         full = root / rel
         st = os.lstat(full)
         mode = stat.S_IMODE(st.st_mode)
+        # Windows Python lstat marks regular files with executable
+        # extensions (.cmd/.bat/.exe) as +x while Go's os.Lstat reports
+        # plain 0666/0444. Strip the synthetic exec bits so the digest
+        # matches the SDK's hashSourceTree on Windows.
+        if os.name == "nt" and stat.S_ISREG(st.st_mode):
+            mode &= ~0o111
         h.update(rel.encode())
         h.update(b"\x00")
         h.update(("%o" % mode).encode())
