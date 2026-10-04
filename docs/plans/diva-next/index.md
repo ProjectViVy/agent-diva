@@ -59,7 +59,7 @@ implementation stories merely because this plan exists.
 | [W2](wails/W2.md) | Sealed Go-host package target and dependency closure | W1 | Done — vivy `867626a7`, diva `d3aacc2f`; evidence `docs/logs/2026-10-wails-migration/w2-1/` (vivy) | 3–5 |
 | [W3](wails/W3.md) | Wails desktop, frontend seam and window lifecycle | W0, W2 | Done on Linux — host+seam+sealed build+single-instance proven (`docs/logs/2026-10-wails-migration/w3-1/`); Windows candidate acceptance pending W0 leg | 2–4 |
 | [W4](wails/W4.md) | Go speech/credentials/assets and binary media route | W0 | Done on Linux — internal/speech port + dispatch + media routes green (`docs/logs/2026-10-wails-migration/w4-1/`); real-provider + Windows rows pending | 3–5 |
-| [W5](wails/W5.md) | Full integration, recovery and observability closure | W3, W4 | Ready — W3/W4 Linux legs landed | 3–5 |
+| [W5](wails/W5.md) | Full integration, recovery and observability closure | W3, W4 | Linux headless leg done — 8/17 rows pass (`docs/logs/2026-10-wails-migration/w5-1/`, fixture `wails-candidate-acceptance.json`); 9 rows pending owner E2E/Windows/credentials; promotion gate NOT met | 3–5 |
 | [W6](wails/W6.md) | Remove C ABI/Rust and replace CI/build/documentation | W5 | Blocked by W5 | 1–2 |
 | [W7](wails/W7.md) | Clean Windows package and final acceptance handoff | W6 | Blocked by W6 | 2–3 |
 

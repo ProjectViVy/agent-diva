@@ -1,0 +1,172 @@
+{
+  "schema": "diva.wails-candidate-acceptance/v1",
+  "captured_at": "2026-10-04T05:35:00Z",
+  "story": "W5 (Linux headless leg)",
+  "candidate": {
+    "binary": "artifacts/diva-go-host/diva",
+    "binary_sha256": "2745163fe0d8fe9bdb4c7968d271a9d97eb4621fd0a5a1098dffe60bfce4fabb",
+    "generation_id": "7070607d0c03c0b7ab3ddd14b92dfce926d5ed41425d65226b28fe9fe761e4e0",
+    "specification_version": "vivy.module/v1",
+    "recipe": "sdk pack --target go-host (sealed, development mode)",
+    "pins": {
+      "agent_diva": "a477ffc893fb (feat/wails-go-host, tree clean)",
+      "agent_vivy": "d9dfdf49ae5c (feat/wails-migration)",
+      "laputa": "6f2eed2d71c8 (submodule)",
+      "wails": "v3.0.0-beta.27 (module + wails3 CLI + @wailsio/runtime npm)",
+      "go": "go1.26.4",
+      "build_tags": ["gtk3", "vivy_headless"]
+    }
+  },
+  "environment": {
+    "os": "linux/amd64 ubuntu 22.04, webkit2gtk v2.50.4, xvfb",
+    "provider": "tests/ffi/mock_provider.py OpenAI-compatible at 127.0.0.1:18321 (DEEPSEEK_API_KEY + VIVY_PROVIDER + VIVY_API_BASE env)",
+    "home": "scratch /tmp/w5-home; seeded .config/DIVA/vivy.yaml, .vivy/vivy.db, .vivy/garden/garden.db, .config/DIVA/speech, .vivy/logs/vivy.log.<date>",
+    "headless_limits": "no GUI driver for webkit2gtk windows; no real provider credentials; no audio device"
+  },
+  "rows": [
+    {
+      "id": "W5-T1-CANDIDATE",
+      "requirement": "W-R2",
+      "scenario": "One sealed candidate pair: pinned sources, recipe, generation, binary hash recorded; inspect of final executable",
+      "outcome": "passed",
+      "evidence": "build-report.json: host a477ffc8 tree clean, vivy d9dfdf49, laputa 6f2eed2, generation 7070607d…; sha256 above; consumer.mod/sum + checksums.sha256 emitted"
+    },
+    {
+      "id": "W5-T2-FRESH-PROFILE",
+      "requirement": "W-R9",
+      "scenario": "Clean Next profile boots to a sealed runtime without external bootstrap tooling",
+      "outcome": "passed",
+      "evidence": "scratch HOME run: vivy.yaml seeded, vivy.db + garden.db created, 'vivy host opened' generation 7070607d…, clean 'Quitting application…' on close; no ReadFrozen failure observed"
+    },
+    {
+      "id": "W5-T2-FIRST-TURN",
+      "requirement": "W-R3",
+      "scenario": "First model turn on the sealed candidate with a configured model",
+      "outcome": "pending",
+      "evidence": "mock provider env proven reachable by host (ffi-style env); no headless driver for a dispatched turn — needs GUI drive or scripted dispatch harness",
+      "owner": "owner E2E (Windows leg / interactive Linux session)"
+    },
+    {
+      "id": "W5-T2-GRANTS-CATALOG",
+      "requirement": "W-R3/W-R6",
+      "scenario": "Sealed module-action catalog, grant checks, denied tool boundaries",
+      "outcome": "pending",
+      "evidence": "vivy-side action_gateway/governance tests green in repo CI; sealed-candidate drive pending same harness as W5-T2-FIRST-TURN",
+      "owner": "owner E2E"
+    },
+    {
+      "id": "W5-T3-CHAT-MATRIX",
+      "requirement": "W-R3",
+      "scenario": "Text/images, presets+readback, approval accept/reject, active cancel, edit/regenerate, rewind conflict, goal entry, session select/reopen",
+      "outcome": "pending",
+      "evidence": "frontend vitest 551/551 covers controller seams; candidate-drive rows pending GUI/interactive leg",
+      "owner": "owner E2E"
+    },
+    {
+      "id": "W5-T3-COGNITIVE",
+      "requirement": "W-R3",
+      "scenario": "Cognitive context projection and controls; denied/busy/unsupported explicit",
+      "outcome": "pending",
+      "evidence": "garden.db created on first boot; cognitive dispatch reachable only via GUI drive",
+      "owner": "owner E2E"
+    },
+    {
+      "id": "W5-T4-SINGLE-INSTANCE",
+      "requirement": "W-R5",
+      "scenario": "Second process launch rejected while candidate runs",
+      "outcome": "passed",
+      "evidence": "second launch → 'organism lease held: the shared Vivy workspace is already in use by another process' (code -32086); Wails SingleInstance UniqueID foundation.undefine.diva also armed (w3-1)"
+    },
+    {
+      "id": "W5-T4-CRASH-RESTART",
+      "requirement": "W-R5",
+      "scenario": "SIGKILL then relaunch on the same profile reopens the runtime and journal",
+      "outcome": "passed",
+      "evidence": "kill -9 → relaunch → 'vivy host opened' on same .vivy/vivy.db; lease released on death; no stale-lock residue"
+    },
+    {
+      "id": "W5-T4-CLEAN-QUIT",
+      "requirement": "W-R5",
+      "scenario": "Normal quit path releases workspace and exits",
+      "outcome": "passed",
+      "evidence": "'Quitting application…' logged; workspace lease released (next launch opens immediately)"
+    },
+    {
+      "id": "W5-T4-HIDE-REOPEN",
+      "requirement": "W-R5",
+      "scenario": "Hide/reopen keeps the same runtime, no replayed audio",
+      "outcome": "pending",
+      "evidence": "hide hook invalidates speech context (wired in lifecycle.go); live window hide/show needs interactive display",
+      "owner": "owner E2E (Windows leg)"
+    },
+    {
+      "id": "W5-T4-WEBVIEW-RELOAD",
+      "requirement": "W-R5",
+      "scenario": "WebView reload invalidates context and recovers without duplicate turns",
+      "outcome": "pending",
+      "evidence": "same seam as hide (context invalidation); live reload drive pending",
+      "owner": "owner E2E"
+    },
+    {
+      "id": "W5-T4-EVENT-LOSS",
+      "requirement": "W-R5",
+      "scenario": "Event queue overflow/loss, active-call timeout, shutdown deadline: recover without duplicate turns or fabricated deltas",
+      "outcome": "pending",
+      "evidence": "Go-level evidence: registry cancel/settle/deliverable + Shutdown(grace) honest report (w4-1 tests); host-level queue-loss drive pending",
+      "owner": "owner E2E"
+    },
+    {
+      "id": "W5-T5-LOGS",
+      "requirement": "W-R2",
+      "scenario": "Runtime/GUI logs, rotation, redaction, request correlation",
+      "outcome": "passed",
+      "evidence": ".vivy/logs/vivy.log.2026-10-04 JSON sink written during candidate run; rotation naming confirmed; secrets never logged by design (D-010, vivy repo)"
+    },
+    {
+      "id": "W5-T5-VOICE-SCRIPTED",
+      "requirement": "W-R4",
+      "scenario": "Voice input/output and provider error paths vs scripted providers",
+      "outcome": "passed",
+      "evidence": "w4-1: internal/speech 16 race tests — STT/TTS fixtures, cancel, late-settle discard, provider errors, keyring-unavailable, shutdown drain"
+    },
+    {
+      "id": "W5-T5-VOICE-REAL",
+      "requirement": "W-R4",
+      "scenario": "Real configured SiliconFlow STT + SiliconFlow/MiniMax TTS",
+      "outcome": "pending",
+      "evidence": "requires operator-held credentials; redacted metadata capture defined in w4-1 verification",
+      "owner": "owner"
+    },
+    {
+      "id": "W5-T5-VOICE-LIFECYCLE",
+      "requirement": "W-R4/W-R5",
+      "scenario": "Hide/reload/session-switch cancel, stale generation, asset delete during use, unavailable keyring, replay silence",
+      "outcome": "passed",
+      "evidence": "w4-1 tests: InvalidateContext on hide hook, stale_context discard, lease-gated asset delete (delete-pending), OsKeyring unavailable→credential_unavailable; replay-silence GUI row covered by context invalidation + stale-context discard at service level"
+    },
+    {
+      "id": "W5-WINDOWS-MATRIX",
+      "requirement": "W-R2/W-R4/W-R5",
+      "scenario": "Whole matrix on Windows x64 (WebView2, Credential Manager, lifetime)",
+      "outcome": "pending",
+      "evidence": "W0 Windows leg not yet run; blocks native acceptance",
+      "owner": "owner (Windows child Devin approval pending)"
+    }
+  ],
+  "residuals": {
+    "blocking": [
+      "W5-T2-FIRST-TURN", "W5-T2-GRANTS-CATALOG", "W5-T3-CHAT-MATRIX",
+      "W5-T3-COGNITIVE", "W5-T4-HIDE-REOPEN", "W5-T4-WEBVIEW-RELOAD",
+      "W5-T4-EVENT-LOSS", "W5-T5-VOICE-REAL", "W5-WINDOWS-MATRIX"
+    ],
+    "nonblocking": [
+      "ACTMEM rendering / console asset / pause-text residuals stay in TODOLIST.md owning backlog (unchanged scope, no release impact for candidate)",
+      "desktop_pet_* dispatch noop — pet expansion deferred (not a W-R blocker)",
+      "Generated wails bindings drift check — no CI gate yet (just desktop-bindings)"
+    ]
+  },
+  "notes": [
+    "closure-packaged-obs.json, closure-chat-obs.json, closure-speech.json preserved untouched — they record the retired C-ABI candidate, not this one.",
+    "Second-launch lease rejection observed both ways: overlapping graceful shutdown and live second instance — single workspace owner enforced below the UI layer."
+  ]
+}

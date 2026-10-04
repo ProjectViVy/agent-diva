@@ -152,6 +152,8 @@ implementation and makes no Ready/Done implementation claim.
 
 ## DN-W3 migration residuals (2026-10-04)
 
+- [ ] **W5 promotion gate** — 9 pending rows in `fixtures/wails-candidate-acceptance.json` (first turn, grants, chat/cognitive matrices, hide/reload, event-loss, real voice, Windows matrix) need owner E2E; `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
+
 - [ ] **W0 Windows x64 leg** — W0 Tasks 4/5 (lifetime, voice prereq, Credential Manager) need a Windows child Devin; GO/NO-GO blocked until then.
 - [ ] **W3 Windows candidate acceptance** — hide/reopen/Quit/single-instance on the sealed Windows build per w3-1 acceptance.md.
 - [ ] **W4 real-provider evidence** — SiliconFlow STT + SiliconFlow/MiniMax TTS need operator-held credentials; scripted fixtures landed (w4-1).
