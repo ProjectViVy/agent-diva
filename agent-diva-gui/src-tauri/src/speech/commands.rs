@@ -12,7 +12,7 @@ use diva_speech::service::{SpeechIdentity, TranscribeReply};
 use diva_speech::{SpeechCode, SpeechError, SpeechResult};
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{InvokeBody, InvokeError, Request, Response};
-use tauri::{Manager, State, WebviewWindow};
+use tauri::{State, WebviewWindow};
 
 use super::SpeechState;
 
@@ -62,7 +62,7 @@ pub async fn speech_config_get(
     state: State<'_, Arc<SpeechState>>,
     window: WebviewWindow,
 ) -> Result<SpeechConfigReadback, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<SpeechConfigReadback> {
         require_main_window(&window)?;
         let config = state
             .service
@@ -100,7 +100,7 @@ pub async fn speech_config_update(
     base_revision: u64,
     preferences: SpeechPreferences,
 ) -> Result<SpeechConfigReadback, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<SpeechConfigReadback> {
         require_main_window(&window)?;
         let mut config = state
             .service
@@ -148,7 +148,7 @@ pub async fn speech_credential_set(
     provider: String,
     key: String,
 ) -> Result<CredentialMutationResult, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<CredentialMutationResult> {
         require_main_window(&window)?;
         let p = diva_speech::config::SpeechProvider::parse(&provider)?;
         if key.is_empty() || key.len() > 4096 {
@@ -172,7 +172,7 @@ pub async fn speech_credential_delete(
     window: WebviewWindow,
     provider: String,
 ) -> Result<CredentialMutationResult, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<CredentialMutationResult> {
         require_main_window(&window)?;
         let p = diva_speech::config::SpeechProvider::parse(&provider)?;
         state.service.credentials().delete(p)?;
@@ -193,7 +193,7 @@ pub async fn voice_asset_import(
     window: WebviewWindow,
     request: Request<'_>,
 ) -> Result<AssetDescriptor, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<AssetDescriptor> {
         require_main_window(&window)?;
         let meta_header = request.headers().get("x-diva-asset-meta").ok_or_else(|| {
             SpeechError::new(SpeechCode::InvalidInput, "missing x-diva-asset-meta header")
@@ -232,7 +232,7 @@ pub async fn voice_asset_list(
     state: State<'_, Arc<SpeechState>>,
     window: WebviewWindow,
 ) -> Result<Vec<AssetDescriptor>, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<Vec<AssetDescriptor>> {
         require_main_window(&window)?;
         state.service.assets().list()
     })()
@@ -248,7 +248,7 @@ pub async fn voice_asset_read(
     window: WebviewWindow,
     asset_id: String,
 ) -> Result<Response, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<Response> {
         require_main_window(&window)?;
         let lease = state.service.assets().read(&asset_id)?;
         Ok(Response::new(lease.bytes.clone()))
@@ -264,9 +264,9 @@ pub async fn voice_asset_delete(
     window: WebviewWindow,
     asset_id: String,
 ) -> Result<String, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<String> {
         require_main_window(&window)?;
-        state.service.assets().delete(&asset_id)
+        state.service.assets().delete(&asset_id).map(String::from)
     })()
     .map_err(InvokeError::from)
 }
@@ -287,7 +287,7 @@ pub async fn speech_context_set(
     session_id: String,
     generation: u64,
 ) -> Result<SpeechContextReadback, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<SpeechContextReadback> {
         require_main_window(&window)?;
         let ctx = state.service.set_context(&session_id, generation)?;
         Ok(SpeechContextReadback {
@@ -394,7 +394,7 @@ pub async fn speech_cancel(
     window: WebviewWindow,
     request_id: String,
 ) -> Result<SpeechCancelReply, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<SpeechCancelReply> {
         require_main_window(&window)?;
         Ok(SpeechCancelReply {
             status: state.service.cancel(&request_id),
