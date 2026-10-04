@@ -750,8 +750,19 @@ onMounted(async () => {
   }
 
   if (!isTauri()) {
+    // The host injects window._wails.environment via execJS on
+    // NavigationCompleted, which can land after the app's mount — wait for
+    // the runtime-config-ready signal before declaring browser mode.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 3000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      window.addEventListener('wails:runtime-config-ready', done, { once: true });
+      if (isTauri()) done();
+    });
+    if (!isTauri()) {
       console.log("Running in browser mode - Tauri listeners skipped");
       return;
+    }
   }
 
   try {
