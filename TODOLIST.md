@@ -152,15 +152,15 @@ implementation and makes no Ready/Done implementation claim.
 
 ## DN-W3 migration residuals (2026-10-04)
 
-- [ ] **W5 promotion gate** — after w0-3: 5 pending + 2 failed rows in `fixtures/wails-candidate-acceptance.json` (grants catalog, cognitive matrix, event-loss, real voice, Windows matrix pending; first-turn + chat-matrix failed on F5/F6); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
-- [ ] **W0-F5 sealed turn/start frozen-core gate** — every fresh GUI session fails `runtime: prepare session authority: no captured frozen core for this session` (`internal/runtime/service.go:1014` → `diva-cognitive/factory.go:111` → `human.ReadFrozen`; sole writer `personactx.Store.Capture` via `recall.FastService.SessionProvider.Get` is never called on the vivy path; `frozen_core_sessions`=0). Proven workaround: `persona.Initialize` + `SessionProvider.Get` lazy capture → mock-provider turns complete (w0-3).
-- [ ] **W0-F6 GUI never binds/renders session** — `vivyChat.connect()` never reaches `loadSession` (status stuck connecting; post-restart send creates a new session instead of resuming latest; persisted messages + completed runs never render). All connect-path RPCs pass via embedded probe on the shared dispatch table — sealed-host/GUI-bridge-specific defect; needs a WebView2-devtools-capable build to finish diagnosis (w0-3).
+- [ ] **W5 promotion gate** — after w0-4: 13 passed / 4 pending / 0 failed in `fixtures/wails-candidate-acceptance.json` (grants-catalog + cognitive drives, real voice [no audio endpoints on VM], Windows rollup pending); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
+- [x] **W0-F5 sealed turn/start frozen-core gate** — FIXED upstream (vivy `e3b60280`: lazy capture on first Prepare on agentapi not_found); verified w0-4 — fresh-session GUI turn wrote `frozen_core_sessions` row at first Prepare and reached the model call.
+- [x] **W0-F6 GUI never binds/renders session** — FIXED in diva `dda9d7da`. Root cause (CDP capture, w0-4): wails3 injects `window._wails.environment` via execJS on NavigationCompleted, after mount; `isTauri()` sampled at mount was false → browser-mode return → `vivyChat.connect()` never ran. Fix waits for `wails:runtime-config-ready` (3s bound); verified: online on boot + history renders + reload/restart resync clean.
 - [x] **W0-F1 sealed frontend not embedded** — FIXED upstream (vivy `42c263f2`: pack overlays built dist into staged tree); verified live w0-3 (real Vue UI renders).
 - [x] **W0-F2 no reopen affordance** — FIXED upstream (diva `8db11f51`: tray AttachWindow + Show/Quit menu); verified live w0-3 (click toggles, Quit releases lease).
 - [x] **W0-F3 no explicit-Quit affordance** — FIXED upstream with F2 (tray Quit → graceful teardown + lease release); verified w0-3.
 - [ ] **W0-F4 mic/audio untestable on build VM** — Audiosrv disabled + zero PNP audio devices on Windows Server 2022; needs an audio-capable machine (plus operator credentials for real-provider rows).
 - [ ] **Windows deps-link gotcha** — `mklink /J` junctions break `hashSourceTree` (`Incorrect function`); real directory symlinks (`mklink /D`, elevated) work. Worth a setup note or scripted step for Windows builds.
-- [ ] **W3 Windows candidate acceptance** — lifetime rows all green on Windows (w0-2 + w0-3); UI/chat rows blocked by W0-F5/F6.
+- [ ] **W3 Windows candidate acceptance** — lifetime + UI/chat rows green on Windows (w0-2…w0-4); remaining pending rows are grants-catalog/cognitive drives + VOICE-REAL (no audio endpoints).
 - [ ] **W4 real-provider evidence** — SiliconFlow STT + SiliconFlow/MiniMax TTS need operator-held credentials; scripted fixtures landed (w4-1).
 - [ ] **W4 Windows speech leg** — Credential Manager proven (w0-2 Task 5); speech lifecycle on Windows blocked by W0-F4.
 - [ ] **`desktop_pet_*` dispatch noop** — pet commands still `not_ready`; pet lands with drag/expansion (deferred).
