@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use diva_speech::service::{Diagnostic, SpeechService};
 use diva_speech::{SpeechCode, SpeechError, SpeechResult};
+use tauri::Manager;
 
 /// Process speech state: the service owns the config CAS store, the OS
 /// credential handle, the bounded voice-asset store and the DN-6B
