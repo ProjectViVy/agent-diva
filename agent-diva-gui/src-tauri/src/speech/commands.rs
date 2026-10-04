@@ -193,7 +193,7 @@ pub async fn voice_asset_import(
     window: WebviewWindow,
     request: Request<'_>,
 ) -> Result<AssetDescriptor, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<AssetDescriptor> {
         require_main_window(&window)?;
         let meta_header = request.headers().get("x-diva-asset-meta").ok_or_else(|| {
             SpeechError::new(SpeechCode::InvalidInput, "missing x-diva-asset-meta header")
@@ -232,7 +232,7 @@ pub async fn voice_asset_list(
     state: State<'_, Arc<SpeechState>>,
     window: WebviewWindow,
 ) -> Result<Vec<AssetDescriptor>, InvokeError> {
-    (|| {
+    (|| -> SpeechResult<Vec<AssetDescriptor>> {
         require_main_window(&window)?;
         state.service.assets().list()
     })()

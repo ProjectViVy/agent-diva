@@ -104,6 +104,8 @@ jobs:
       - name: Whole-workspace compile check (shell included)
         working-directory: agent-diva-gui/src-tauri
         run: cargo check --workspace
+      - name: MSVC environment (cl on PATH for fake-artifact build)
+        uses: ilammy/msvc-dev-cmd@v1
       - name: Bridge FFI tests (fake artifact; real artifact env-gated)
         working-directory: agent-diva-gui/src-tauri
         run: cargo test -p vivy-bridge

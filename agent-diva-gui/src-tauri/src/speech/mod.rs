@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use diva_speech::service::{Diagnostic, SpeechService};
 use diva_speech::{SpeechCode, SpeechError, SpeechResult};
+use tauri::Manager;
 
 /// Process speech state: the service owns the config CAS store, the OS
 /// credential handle, the bounded voice-asset store and the DN-6B
@@ -36,8 +37,6 @@ impl SpeechState {
 }
 
 /// `DIVA_SPEECH_DIR` (dev/test) or `<app_config_dir>/speech`.
-use tauri::Manager;
-
 pub fn speech_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> SpeechResult<PathBuf> {
     if let Ok(dir) = std::env::var("DIVA_SPEECH_DIR") {
         return Ok(PathBuf::from(dir));

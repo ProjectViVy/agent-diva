@@ -10,6 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+#define VIVY_EXPORT __declspec(dllexport)
+#else
+#define VIVY_EXPORT __attribute__((visibility("default")))
+#endif
+
 static unsigned allocs = 0, frees = 0;
 static int open_flag = 0;
 static int arm_gap = 0;
@@ -43,7 +49,7 @@ static unsigned abi_of(const char *json) {
     return p ? (unsigned)atoi(p + 1) : 0;
 }
 
-__attribute__((visibility("default")))
+VIVY_EXPORT
 char *VivyInit(char *initJSON) {
     if (!initJSON) return fail("invalid_input", "init params required");
     if (open_flag) return fail("already_initialized", "a host is already initialized");
@@ -53,7 +59,7 @@ char *VivyInit(char *initJSON) {
     return ok("{\"abi_version\":1,\"handle\":42}");
 }
 
-__attribute__((visibility("default")))
+VIVY_EXPORT
 char *VivyCall(uint64_t handle, char *requestJSON) {
     (void)handle;
     if (!open_flag) return fail("closed", "unknown or closed handle");
@@ -88,7 +94,7 @@ char *VivyCall(uint64_t handle, char *requestJSON) {
     }
 }
 
-__attribute__((visibility("default")))
+VIVY_EXPORT
 char *VivyPollEvents(uint64_t handle, uint32_t maxEvents) {
     (void)handle; (void)maxEvents;
     if (!open_flag) return fail("closed", "unknown or closed handle");
@@ -99,7 +105,7 @@ char *VivyPollEvents(uint64_t handle, uint32_t maxEvents) {
     return ok("{\"events\":[],\"gap\":false}");
 }
 
-__attribute__((visibility("default")))
+VIVY_EXPORT
 char *VivyShutdown(uint64_t handle) {
     (void)handle;
     if (!open_flag) return fail("closed", "unknown or closed handle");
@@ -107,7 +113,7 @@ char *VivyShutdown(uint64_t handle) {
     return ok("{\"shutdown\":true}");
 }
 
-__attribute__((visibility("default")))
+VIVY_EXPORT
 void VivyFree(char *ptr) {
     if (ptr) { frees++; free(ptr); }
 }
