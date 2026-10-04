@@ -1,6 +1,6 @@
 # TODOLIST
 
-Active gaps and deferred work for DIVA Next. Stage state/dependencies live
+Active gaps and deferred work for DIVA Next. Mainline stage state/dependencies live
 only in [the existing index](docs/plans/diva-next/index.md); current scope and
 closure rules are [DN-C2](docs/plans/diva-next/p0-design.md).
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
@@ -127,3 +127,21 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   [2026-10-03-before-next-closure.md](docs/archive/todolist/2026-10-03-before-next-closure.md).
   Old Rust-specific tests/tasks are not active Next work by default; product
   residuals above remain visible. Historical boxes are not new acceptance.
+
+
+## MyGo observation branch
+
+- [ ] **MYGO-RESEARCH-HOST** P2 — Maintain the optional research/mygo lane over
+  the same accepted public VIVY Host and retained frontend. Wails remains the
+  delivery path. The [MY-P1 plan](docs/plans/diva-next/mygo/index.md) and
+  [MY-D1 design](docs/plans/diva-next/mygo/design.md) define scope, prerequisite
+  evidence and acceptance; this publication does not implement the prototype.
+- [ ] **MYGO-NATIVE-EVIDENCE** P2 — Compiler/generator closure, trusted native
+  caller/media, hide/reopen/Quit, VRM/microphone, configured providers and
+  installed Windows candidate have no experiment evidence yet. Await accepted
+  W1/W2/W3, W4/W6 and W7 outputs as specified in MY-P1; keep missing rows pending.
+- [ ] **MYGO-UPKEEP-DECISION** P3 — Use relevant upstream/mainline interface
+  changes as manual triggers. Record actual maintenance/build/native costs
+  before proposing a framework switch; no scheduled monitor or mainline
+  promotion is configured. Observation evidence lives in
+  [the ledger](docs/plans/diva-next/mygo/observations.md).

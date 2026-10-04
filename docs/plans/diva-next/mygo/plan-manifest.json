@@ -1,0 +1,151 @@
+{
+  "schema": "diva.mygo-observation-plan/v1",
+  "revision": "MY-P1",
+  "design": "MY-D1",
+  "branch": "research/mygo",
+  "authorization": "planning-only",
+  "deliveryFramework": "wails",
+  "researchFramework": "mygo",
+  "baseline": {
+    "diva": "5444795a2d9db31e158c2cf009d64697e6289e50",
+    "vivy": "fc559e6b03ce4e65c0099b9745855dccc4fb067e",
+    "wailsDocs": "1e9dca1aed557009f5d868c79e3c907d963ede42",
+    "mygoTag": "v0.2.4",
+    "mygoCommit": "154449f603ede999a1dfc8692717de62f7bacf12",
+    "mygoObservedMain": "5681bb2038eacf2e5563a8a2be945093e205ed70",
+    "researchGo": "1.27.1"
+  },
+  "requirements": [
+    "MY-R1",
+    "MY-R2",
+    "MY-R3",
+    "MY-R4",
+    "MY-R5",
+    "MY-R6"
+  ],
+  "stories": [
+    {
+      "id": "MY-0",
+      "plan": "MY-0.md",
+      "requires": [],
+      "external": [],
+      "requirements": [
+        "MY-R1",
+        "MY-R4",
+        "MY-R6"
+      ],
+      "taskCount": 2
+    },
+    {
+      "id": "MY-1",
+      "plan": "MY-1.md",
+      "requires": [
+        "MY-0"
+      ],
+      "external": [
+        "W1",
+        "W2",
+        "W3"
+      ],
+      "requirements": [
+        "MY-R2",
+        "MY-R3",
+        "MY-R4"
+      ],
+      "taskCount": 3
+    },
+    {
+      "id": "MY-2",
+      "plan": "MY-2.md",
+      "requires": [
+        "MY-1"
+      ],
+      "external": [
+        "W4",
+        "W6"
+      ],
+      "requirements": [
+        "MY-R3",
+        "MY-R4"
+      ],
+      "taskCount": 3
+    },
+    {
+      "id": "MY-3",
+      "plan": "MY-3.md",
+      "requires": [
+        "MY-2"
+      ],
+      "external": [
+        "W7"
+      ],
+      "requirements": [
+        "MY-R1",
+        "MY-R5",
+        "MY-R6"
+      ],
+      "taskCount": 2
+    }
+  ],
+  "waves": [
+    [
+      "MY-0"
+    ],
+    [
+      "MY-1"
+    ],
+    [
+      "MY-2"
+    ],
+    [
+      "MY-3"
+    ]
+  ],
+  "statusAuthority": "index.md",
+  "evidenceAuthority": "observations.md",
+  "files": {
+    "existing": [
+      "agent-diva-gui/src/platform/desktop-host.ts",
+      "agent-diva-gui/src/api/vivy/transport.ts",
+      "agent-diva-gui/src/api/vivy/client.ts",
+      "agent-diva-gui/src/api/vivy/instance.ts",
+      "agent-diva-gui/src/api/speech.ts",
+      "agent-diva-gui/src/features/voice/useVoiceController.ts",
+      "agent-diva-gui/src/features/voice/useVoiceController.test.ts",
+      "agent-diva-gui/src/state/vivy-session.test.ts",
+      "agent-diva-gui/src/App.vue",
+      "agent-diva-gui/package.json",
+      "agent-diva-gui/pnpm-lock.yaml"
+    ],
+    "proposed": [
+      "cmd/diva-mygo/main.go",
+      "internal/desktop/mygo/owner.go",
+      "internal/desktop/mygo/owner_test.go",
+      "internal/desktop/mygo/app.go",
+      "internal/desktop/mygo/app_test.go",
+      "internal/desktop/mygo/bindings.go",
+      "internal/desktop/mygo/bindings_test.go",
+      "internal/desktop/mygo/media_http.go",
+      "internal/desktop/mygo/media_http_test.go",
+      "agent-diva-gui/src/platform/mygo-host.ts",
+      "agent-diva-gui/src/platform/mygo-host.test.ts",
+      "agent-diva-gui/src/generated/mygo/client.ts",
+      "go.mod",
+      "go.sum",
+      "build/vivy-sources.lock.json",
+      "scripts/build-desktop.py",
+      "experiments/mygo/probe/go.mod",
+      "experiments/mygo/probe/main.go",
+      "experiments/mygo/probe/mygo.json",
+      "experiments/mygo/probe/frontend/index.html"
+    ],
+    "externalProduced": [
+      "W1:sdk/host/v1",
+      "W2:scripts/build-desktop.py",
+      "W3:Go desktop/frontend seam",
+      "W4:internal/speech",
+      "W6:Windows packaging-only pipeline",
+      "W7:installed owner-accepted Wails baseline"
+    ]
+  }
+}

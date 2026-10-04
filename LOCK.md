@@ -4,7 +4,31 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
+- Scope: `docs/plans/diva-next/mygo/**, docs/logs/2026-10-mygo-observation/**, TODOLIST.md, LOCK.md; research/mygo only`
+- Owner: `Codex on behalf of mastwet`
+- Session/Task: `MyGo observation branch planning; documentation only`
+- Branch/Worktree: `research/mygo / isolated publication snapshot`
+- Started At: `2026-10-04T07:11:22Z`
+- Last Heartbeat: `2026-10-04T07:25:05Z`
+- Released At: `2026-10-04T07:25:05Z`
+
+### Handoff
+The inherited Devin lease expired at 2026-10-04T00:00:00Z. Its record below
+is historical and expired for this isolated branch. No mainline or other
+working branch is modified. Preserve DIVA main at
+5444795a2d9db31e158c2cf009d64697e6289e50 and the Wails migration plan branch.
+
+
+### Planning handoff
+MY-P1 has four Story plans, six requirements and ten tasks. Static plan checks
+passed; source/native/product evidence remains distinct. Publication scope is
+fourteen documentation/bookkeeping files. No product code or mainline changes.
+All implementation authorization and runtime/native gates remain pending.
+
+## Inherited lease (expired on this isolated branch)
+
+- Lock State: `EXPIRED`
 - Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
 - Owner: `Devin`
 - Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P, DN-0S delivered; wave-1 delivered; awaiting owner gate before wave 2); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
@@ -25,7 +49,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `DIVA Next closure wave 1` — **HELD** by `Devin` (session
+- `DIVA Next closure wave 1` — **EXPIRED (inherited lease)** by `Devin` (session
   `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
   heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
   Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
@@ -633,3 +657,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
   `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
   Implementation still pending; see TODOLIST `审批三模式完善`.
+
