@@ -3,7 +3,7 @@
   "revision": "MY-P1",
   "design": "MY-D1",
   "branch": "research/mygo",
-  "authorization": "planning-only",
+  "authorization": "owner-authorized-inline-implementation-2026-10-04",
   "deliveryFramework": "wails",
   "researchFramework": "mygo",
   "baseline": {
@@ -115,7 +115,22 @@
       "agent-diva-gui/src/state/vivy-session.test.ts",
       "agent-diva-gui/src/App.vue",
       "agent-diva-gui/package.json",
-      "agent-diva-gui/pnpm-lock.yaml"
+      "agent-diva-gui/pnpm-lock.yaml",
+      "experiments/mygo/probe/go.sum",
+      "experiments/mygo/probe/state.go",
+      "experiments/mygo/probe/probe_test.go",
+      "experiments/mygo/probe/native_test.go",
+      "experiments/mygo/probe/verify.sh",
+      "experiments/mygo/probe/.gitignore",
+      "experiments/mygo/probe/package.json",
+      "experiments/mygo/probe/package-lock.json",
+      "experiments/mygo/probe/tsconfig.json",
+      "experiments/mygo/probe/frontend/client.ts",
+      "experiments/mygo/probe/go.mod",
+      "experiments/mygo/probe/main.go",
+      "experiments/mygo/probe/mygo.json",
+      "experiments/mygo/probe/frontend/index.html",
+      ".github/workflows/mygo-probe.yml"
     ],
     "proposed": [
       "cmd/diva-mygo/main.go",
@@ -133,11 +148,7 @@
       "go.mod",
       "go.sum",
       "build/vivy-sources.lock.json",
-      "scripts/build-desktop.py",
-      "experiments/mygo/probe/go.mod",
-      "experiments/mygo/probe/main.go",
-      "experiments/mygo/probe/mygo.json",
-      "experiments/mygo/probe/frontend/index.html"
+      "scripts/build-desktop.py"
     ],
     "externalProduced": [
       "W1:sdk/host/v1",

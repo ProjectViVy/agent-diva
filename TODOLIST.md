@@ -135,10 +135,12 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   the same accepted public VIVY Host and retained frontend. Wails remains the
   delivery path. The [MY-P1 plan](docs/plans/diva-next/mygo/index.md) and
   [MY-D1 design](docs/plans/diva-next/mygo/design.md) define scope, prerequisite
-  evidence and acceptance; this publication does not implement the prototype.
+  evidence and acceptance. Owner authorized implementation; the standalone
+  framework probe is delivered, while product adaptation awaits accepted inputs.
 - [ ] **MYGO-NATIVE-EVIDENCE** P2 — Compiler/generator closure, trusted native
-  caller/media, hide/reopen/Quit, VRM/microphone, configured providers and
-  installed Windows candidate have no experiment evidence yet. Await accepted
+  caller/media and hide/reopen/Quit have Linux probe evidence in
+  [run 001](docs/plans/diva-next/mygo/run-001.md). Windows/WebView2, actual
+  VIVY Host, VRM/microphone, providers and installed parity remain pending. Await accepted
   W1/W2/W3, W4/W6 and W7 outputs as specified in MY-P1; keep missing rows pending.
 - [ ] **MYGO-UPKEEP-DECISION** P3 — Use relevant upstream/mainline interface
   changes as manual triggers. Record actual maintenance/build/native costs

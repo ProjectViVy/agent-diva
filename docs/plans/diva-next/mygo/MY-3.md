@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: after implementation authorization,
 > use **superpowers:executing-plans** task by task. Delegation is not selected.
-> Steps use checkbox syntax; this planning publication does not start code work.
+> Steps use checkbox syntax; owner authorization is recorded in the index.
 
 **Goal:** Compare lifecycle cost and record the observation decision.
 **Architecture:** Use an accepted installed Wails baseline and the installed MyGo candidate; preserve historical evidence and make an owner-reviewable recommendation.
@@ -16,7 +16,8 @@ VIVY fc559e6b03ce4e65c0099b9745855dccc4fb067e.
 
 ## Global Constraints
 
-Planning only is authorized. Preserve Wails delivery, one Runtime/Journal,
+Owner authorized inline implementation on 2026-10-04. Respect the index
+readiness gates. Preserve Wails delivery, one Runtime/Journal,
 sealed Generation, public SDK-only embedding, native sender authority, existing
 DTOs and permissions. Root context differs from page context.
 Close budget is five seconds; Next batch maximum is 500 and Host queue capacity

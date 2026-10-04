@@ -4,8 +4,9 @@
 
 Maintain a small, rebuildable MyGo research branch while Wails remains the
 delivery path. The user requested a long-lived observation branch and a plan.
-This publication authorizes planning and branch documentation only; prototype
-implementation, scheduled monitoring and a framework switch are separate actions.
+The initial publication authorized planning. The owner authorized inline
+implementation on 2026-10-04. Scheduled monitoring and a framework switch remain
+separate actions.
 
 Choose a thin MyGo host over the same sealed VIVY public SDK and retained DIVA
 frontend. Documentation alone is cheaper but cannot answer native feasibility;
@@ -35,8 +36,9 @@ remain authoritative for public Host, RPC, event, speech and sealing semantics.
 Those Go interfaces/build facilities are proposed at the inspected baseline.
 The research branch does not implement missing mainline facilities.
 
-Before implementation, integrate the accepted Wails/Go-host baseline into this
-branch, reconcile repository rules and source drift, and record its exact commit.
+Before MY-1 product implementation, integrate the accepted Wails/Go-host baseline
+into this branch, reconcile repository rules/source drift and record its exact
+commit. MY-0 is a standalone framework probe and does not wait for this input.
 Retain observation history. Do not continuously merge every main commit.
 Use isolated checkouts for the Wails baseline and MyGo candidate; never start
 both against one profile/data root. Fresh disposable profiles contain no legacy

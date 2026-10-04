@@ -1,0 +1,9 @@
+{
+  "name": "diva-mygo-framework-probe",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "dependencies": {"mygo-runtime": "0.2.4"},
+  "devDependencies": {"typescript": "5.9.3"},
+  "scripts": {"typecheck": "tsc --noEmit"}
+}

@@ -45,6 +45,8 @@ Append one row per relevant trigger and link redacted evidence below it.
 | Run ID / trigger | Candidate + baseline commits | Evidence level | Affected gates | Result | Missing evidence | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | SOURCE-20261004 / user research request | Initial pins above | source-read | MY-0 through MY-3 | Source review only | Compile, native, installed/provider and owner acceptance | Keep Wails delivery; maintain the research branch |
+| MYGO-001 / owner implementation authorization | Initial pins; research base fcd9a583e99393d6410f1b798b50f895030aa04e | compile/unit + native-probe/Linux | MY-0; prerequisite readiness MY-1–MY-3 | Standalone compiler/generation and Linux native scenarios pass; MY-0 pending Windows | Windows/WebView2; W1/W2/W3; W4/W6; W7 | Park at reproducible probe; preserve Wails delivery |
+
 
 Each run supplies: date/operator; Go module/sum and frontend lock hashes; CLI/npm
 versions resolved from the pinned candidate; OS/arch/WebView2/native tools;
@@ -62,3 +64,11 @@ Host/speech interface changes. Preserve unchanged evidence, invalidate affected
 passes and perform focused rechecks. Pause a candidate that needs public contract
 weakening, an unsealed rebuild, a second runtime or unbounded upkeep; record the
 concrete issue and cheaper alternative. No automatic monitoring is configured.
+
+## MYGO-001 evidence
+
+See [run 001](run-001.md), [input hashes](run-001-inputs.json) and
+[v0.2.0 verification](../../../logs/2026-10-mygo-observation/v0.2.0-probe/verification.md).
+Historical source-read rows describe the planning publication; this run adds
+standalone compiler and Linux native evidence. Windows, public SDK, installed
+product, provider and comparison passes are not inferred.

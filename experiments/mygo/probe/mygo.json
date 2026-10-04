@@ -1,0 +1,9 @@
+{
+  "name": "DIVA MyGo Probe",
+  "identifier": "dev.projectvivy.diva.mygo.probe",
+  "version": "0.0.1",
+  "main": ".",
+  "frontendDist": "frontend",
+  "bindings": "frontend/client.ts",
+  "out": "build"
+}

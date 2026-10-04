@@ -1,0 +1,65 @@
+name: MyGo research probe
+
+on:
+  push:
+    branches: [research/mygo]
+    paths:
+      - experiments/mygo/probe/**
+      - .github/workflows/mygo-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mygo-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: experiments/mygo/probe
+    env:
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: experiments/mygo/probe/go.mod
+          cache: false
+      - name: Record native environment
+        run: |
+          go version
+          go env GOOS GOARCH CGO_ENABLED
+          Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber | ConvertTo-Json
+          $roots = @('HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\*', 'HKCU:\Software\Microsoft\EdgeUpdate\Clients\*')
+          Get-ItemProperty $roots -ErrorAction SilentlyContinue | Where-Object { $_.name -like '*WebView2*' } | Select-Object name, pv | ConvertTo-Json
+          node --version
+          npm --version
+      - name: Verify standalone module and tests
+        run: |
+          go mod download
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go mod verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go test -count=1 ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Generate and check typed client
+        run: |
+          go run github.com/egoist/mygo/cmd/mygo generate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- frontend/client.ts go.mod go.sum package-lock.json
+      - name: Exercise real WebView2 windows and coordinated Quit
+        env:
+          MYGO_PROBE_NATIVE: '1'
+        run: go test -count=1 -v -run '^TestNative' -timeout 60s ./...

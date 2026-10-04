@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>DIVA MyGo feasibility probe</title>
+<style>body{font:16px system-ui;margin:2rem;max-width:48rem}button{margin:.25rem;padding:.6rem}pre{white-space:pre-wrap}</style>
+<h1>MyGo framework probe</h1>
+<p>This isolated research probe uses synthetic bytes. It opens no VIVY Host and accesses no microphone, credentials or provider.</p>
+<button id="identity">Native identity</button><button id="raw">Raw synthetic WAV</button>
+<pre id="result">Use the Go native suite for automated scenarios. Quit the process explicitly to test coordinated shutdown.</pre>
+<script>
+const output=document.querySelector('#result');
+document.querySelector('#identity').onclick=async()=>{try{output.textContent=await mygo.call('Probe.Identity')}catch(e){output.textContent=String(e)}};
+document.querySelector('#raw').onclick=async()=>{try{
+ const cap=await mygo.call('Probe.Capability');
+ const bytes=new Uint8Array([82,73,70,70,38,0,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,64,31,0,0,128,62,0,0,2,0,16,0,100,97,116,97,2,0,0,0,255,0]);
+ const r=await fetch('/media',{method:'POST',headers:{'X-Diva-Media-Token':cap},body:bytes});
+ output.textContent=JSON.stringify({status:r.status,bytes:Array.from(new Uint8Array(await r.arrayBuffer()))});
+}catch(e){output.textContent=String(e)}};
+</script>

@@ -1,0 +1,26 @@
+{
+  "schema": "diva.mygo-probe-inputs/v1",
+  "run": "MYGO-001",
+  "researchBase": "fcd9a583e99393d6410f1b798b50f895030aa04e",
+  "frameworkTag": "v0.2.4",
+  "frameworkCommit": "154449f603ede999a1dfc8692717de62f7bacf12",
+  "probeInputsSha256": {
+    ".gitignore": "b36e395eddd3f0575cbb78b8063a9fc366db3ae34ace8fc1f172bd9dcfbc6939",
+    "frontend/client.ts": "ff97b2ec43786952c85523d131d8ba764aa0811acefac701ec8a8b5b3977ef99",
+    "frontend/index.html": "ad5a6471c5ce7790c2c6d93dd98d68cf7e28f85b1fd71071475f4c8bf5e99792",
+    "go.mod": "e7490a6e54dc203d9fbdff125eaada014f7879bca96d2fbec98c1c9008e479a0",
+    "go.sum": "4d1342cb626daa8b0b96b7143891ac83cf26b1af4eb6cf61097b24957f30380d",
+    "main.go": "2796b68c3b1f92875dfebee04de02c0a88ec0fd504a3373d64dec1053a767423",
+    "mygo.json": "5d7355d57757c771953808a83cdd75b17e39af6fbaf39c09d3b5b18f77db029c",
+    "native_test.go": "c263f395a29e6f6ac8085607efd7d3c502b00a3c7aa29e315efbb39e1ad4e024",
+    "package-lock.json": "bab388ace318791847d99ba94ec5621f04b115480211cd5b79c1e03d26ac5fbe",
+    "package.json": "b9f4f7414f98850b1f55dcacb09a0d9ae990c1c29ed9384b125f3decef0cc5bb",
+    "probe_test.go": "237c704174c7bd9b1cfba7e8bbed07f47461dac8607d0f764cc40ffa16cc5535",
+    "state.go": "cf577c06b14452aad4d12f71696ed59af6e444f9be8cd1d30a0ff93bedcdc98c",
+    "tsconfig.json": "c2f57e934c1d5ed9fc22c8082b586a7d65a4e8292fa2ff701130481609d1ca72",
+    "verify.sh": "d906285b032bd3725cc4311853eb16a29d7b564aa73df109f21b40aa597ea4b8"
+  },
+  "productGeneration": null,
+  "windowsNativeEvidence": "pending",
+  "ciWorkflowSha256": "4d4136e7bdd41ff2587b87bbb74ce5db18956dd5645a452cbe05bd2c3e24325c"
+}

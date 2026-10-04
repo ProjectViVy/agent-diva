@@ -4,27 +4,19 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/mygo/**, docs/logs/2026-10-mygo-observation/**, TODOLIST.md, LOCK.md; research/mygo only`
+- Lock State: `HELD`
+- Scope: `.github/workflows/mygo-probe.yml, experiments/mygo/**, docs/plans/diva-next/mygo/**, docs/logs/2026-10-mygo-observation/**, TODOLIST.md, LOCK.md; research/mygo only`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `MyGo observation branch planning; documentation only`
-- Branch/Worktree: `research/mygo / isolated publication snapshot`
-- Started At: `2026-10-04T07:11:22Z`
-- Last Heartbeat: `2026-10-04T07:25:05Z`
-- Released At: `2026-10-04T07:25:05Z`
+- Session/Task: `Authorized MyGo feasibility probe implementation (MY-0); inline execution`
+- Branch/Worktree: `research/mygo / isolated clone mygo-execution`
+- Started At: `2026-10-04T07:46:31Z`
+- Last Heartbeat: `2026-10-04T08:06:15Z`
 
 ### Handoff
-The inherited Devin lease expired at 2026-10-04T00:00:00Z. Its record below
-is historical and expired for this isolated branch. No mainline or other
-working branch is modified. Preserve DIVA main at
-5444795a2d9db31e158c2cf009d64697e6289e50 and the Wails migration plan branch.
-
-
-### Planning handoff
-MY-P1 has four Story plans, six requirements and ten tasks. Static plan checks
-passed; source/native/product evidence remains distinct. Publication scope is
-fourteen documentation/bookkeeping files. No product code or mainline changes.
-All implementation authorization and runtime/native gates remain pending.
+Owner authorized implementation on 2026-10-04. The earlier planning mutex
+was released; the inherited Devin lease remains expired. This dedicated clone
+contains no other session changes. Mainline and Wails migration branches remain
+outside scope. MY-1 through MY-3 remain gated by accepted predecessor outputs.
 
 ## Inherited lease (expired on this isolated branch)
 
@@ -34,7 +26,7 @@ All implementation authorization and runtime/native gates remain pending.
 - Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P, DN-0S delivered; wave-1 delivered; awaiting owner gate before wave 2); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
 - Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
 - Started At: `2026-10-03T12:40:00Z`
-- Last Heartbeat: `2026-10-03T14:45:00Z`
+- Last Heartbeat: `2026-10-04T08:06:15Z`
 - Expires At: `2026-10-04T00:00:00Z`
 
 ## Lock Rules
