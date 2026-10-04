@@ -17,6 +17,17 @@ use vivy_bridge::{
 /// Serializes access to the fake library's process-global state.
 static FAKE_LOCK: Mutex<()> = Mutex::new(());
 
+/// Platform artifact name — mirrors `library_path` in src/lib.rs.
+fn artifact_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "vivy-shared.dll"
+    } else if cfg!(target_os = "macos") {
+        "vivy-shared.dylib"
+    } else {
+        "vivy-shared.so"
+    }
+}
+
 fn build_fake_artifact(dir: &Path) {
     let src = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fake_vivy.c");
     for header in ["vivy-shared.h", "vivy_abi.h"] {
@@ -31,13 +42,13 @@ fn build_fake_artifact(dir: &Path) {
     let (cc, args, out) = (
         "cc",
         vec!["-shared", "-fPIC", "-O0"],
-        dir.join("vivy-shared.so"),
+        dir.join(artifact_name()),
     );
     #[cfg(target_os = "macos")]
     let (cc, args, out) = (
         "cc",
         vec!["-shared", "-fPIC", "-O0"],
-        dir.join("vivy-shared.dylib"),
+        dir.join(artifact_name()),
     );
     #[cfg(target_os = "windows")]
     let (cc, args, out) = {
@@ -76,8 +87,8 @@ fn load_missing_dir_is_load_failed() {
 #[test]
 fn load_missing_abi_header_is_load_failed() {
     let dir = tempfile::tempdir().unwrap();
-    // Library present, bundled vivy_abi.h absent.
-    std::fs::write(dir.path().join("vivy-shared.so"), b"elf-ish").unwrap();
+    // Library present (platform-named), bundled vivy_abi.h absent.
+    std::fs::write(dir.path().join(artifact_name()), b"elf-ish").unwrap();
     std::fs::write(dir.path().join("vivy-shared.h"), b"").unwrap();
     let err = VivyLibrary::load(dir.path()).unwrap_err();
     assert_eq!(err.kind, ErrorKind::LoadFailed);
