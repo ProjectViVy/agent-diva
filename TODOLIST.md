@@ -152,7 +152,7 @@ implementation and makes no Ready/Done implementation claim.
 
 ## DN-W3 migration residuals (2026-10-04)
 
-- [ ] **W5 promotion gate** — after w0-4: 13 passed / 4 pending / 0 failed in `fixtures/wails-candidate-acceptance.json` (grants-catalog + cognitive drives, real voice [no audio endpoints on VM], Windows rollup pending); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
+- [ ] **W5 promotion gate** — after w0-5: 15 passed / 2 pending / 0 failed in `fixtures/wails-candidate-acceptance.json` (VOICE-REAL [no audio endpoints on VM] + Windows rollup pending — both environmental); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
 - [x] **W0-F5 sealed turn/start frozen-core gate** — FIXED upstream (vivy `e3b60280`: lazy capture on first Prepare on agentapi not_found); verified w0-4 — fresh-session GUI turn wrote `frozen_core_sessions` row at first Prepare and reached the model call.
 - [x] **W0-F6 GUI never binds/renders session** — FIXED in diva `dda9d7da`. Root cause (CDP capture, w0-4): wails3 injects `window._wails.environment` via execJS on NavigationCompleted, after mount; `isTauri()` sampled at mount was false → browser-mode return → `vivyChat.connect()` never ran. Fix waits for `wails:runtime-config-ready` (3s bound); verified: online on boot + history renders + reload/restart resync clean.
 - [x] **W0-F1 sealed frontend not embedded** — FIXED upstream (vivy `42c263f2`: pack overlays built dist into staged tree); verified live w0-3 (real Vue UI renders).

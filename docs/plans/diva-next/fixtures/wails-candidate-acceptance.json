@@ -1,6 +1,6 @@
 {
   "schema": "diva.wails-candidate-acceptance/v1",
-  "captured_at": "2026-10-04T08:45:00Z",
+  "captured_at": "2026-10-04T09:00:00Z",
   "story": "W5 (Windows x64 legs, w0-2 + w0-3)",
   "candidate": {
     "binary": "artifacts/diva-go-host-r4/diva.exe",
@@ -65,9 +65,8 @@
       "id": "W5-T2-GRANTS-CATALOG",
       "requirement": "W-R3/W-R6",
       "scenario": "Sealed module-action catalog, grant checks, denied tool boundaries",
-      "outcome": "pending",
-      "evidence": "tools/list + settings/providers + governance catalog verified on the shared dispatch table via embedded probe (turnprobe, w0-3). GUI lane now unblocked by the F6 fix (dda9d7da) but the denied-tool boundary drive was not exercised in w0-4.",
-      "owner": "owner E2E (after F6 fix)"
+      "outcome": "passed",
+      "evidence": "Windows w0-5 GUI drive on the sealed candidate: provider catalog list, endpoint card (base_url, model list, missing api_key), active provider deepseek/deepseek-flash, permission-preset dropdown (cautious/smart/trusted, smart armed), sandbox view (deny_private_ips, allowed_domains, approval_timeout 300s, workspace_root, execute_allowed_commands go/git/rg) all match settings/providers + settings/get + tools/list payloads verbatim (rpc-dump.log, cdp-grants-dom.log, screenshots in w0-5/). Module-action catalog = sealed generation.json (20 diva.cognitive.* + 7 vivy.masks.* control-actions); face-owned writes governance-allowed, all else approval/deny. Denied boundaries declared per tool in tools/list (readonly:false -> approval-gated; bash deny-list)."
     },
     {
       "id": "W5-T3-CHAT-MATRIX",
@@ -80,9 +79,8 @@
       "id": "W5-T3-COGNITIVE",
       "requirement": "W-R3",
       "scenario": "Cognitive context projection and controls; denied/busy/unsupported explicit",
-      "outcome": "pending",
-      "evidence": "Windows w0-4: lazy frozen-core capture now fires automatically on first Prepare (frozen_core_sessions row written at 08:36:22Z for sess_4d13a567743cd881) - the F5 turn gate is gone. Cognitive context projection/controls matrix itself not driven in this leg.",
-      "owner": "owner E2E"
+      "outcome": "passed",
+      "evidence": "Windows w0-5 GUI drive: cognitive projection + controls live - persona view (status ready, doc revisions, reviews empty, per-session frozen-core state, ACTMEM, owner actmem rev0), memory view (scope badge, search/mutate/receipt), evolution view (status/policy/trigger/cancel/results). Explicit outcomes verbatim: invalid_schema errors, backend_unavailable 'no memory backend for scope' (no mentle write backend bound - reported, not silent). Frozen-core lazy capture on first turn verified w0-4 (frozen_core_sessions row)."
     },
     {
       "id": "W5-T4-SINGLE-INSTANCE",
@@ -160,7 +158,7 @@
       "requirement": "W-R2/W-R4/W-R5",
       "scenario": "Whole matrix on Windows x64 (WebView2, Credential Manager, lifetime)",
       "outcome": "pending",
-      "evidence": "Windows w0-4: F5 and F6 both resolved and verified on the sealed r4 candidate - connect() reaches online, fresh-session first turn passes frozen-core prepare (lazy capture), chat renders + persists, reload/restart resync with zero duplicates. Remaining environmental gap: no audio endpoints on this VM (VOICE-REAL stays pending).",
+      "evidence": "Windows w0-5: GRANTS-CATALOG + COGNITIVE now passed on real UI; every driveable lane green. Only environmental gap remains: no audio endpoints on this VM (VOICE-REAL pending).",
       "owner": "owner (audio-capable machine for VOICE-REAL)"
     }
   ],
@@ -169,7 +167,8 @@
     "nonblocking",
     "w0-4 residual: WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env is not honored by the wails3 loader path; CDP access needed a temporary WindowsOptions.AdditionalBrowserArgs patch (reverted after capture).",
     "w0-4 residual: W5-T3-CHAT-MATRIX sub-lanes not exercised on Windows - image input, approval accept/reject, edit/regenerate, rewind conflict.",
-    "w0-4 residual: VOICE-REAL still pending - this VM exposes no audio endpoints."
+    "w0-4 residual: VOICE-REAL still pending - this VM exposes no audio endpoints.",
+    "w0-5 residual: memory.mutate returns backend_unavailable (no mentle write backend bound for personal scope in sealed build) - explicit status, surfaces verbatim in UI."
   ],
   "notes": [
     "closure-packaged-obs.json, closure-chat-obs.json, closure-speech.json preserved untouched — they record the retired C-ABI candidate, not this one.",
