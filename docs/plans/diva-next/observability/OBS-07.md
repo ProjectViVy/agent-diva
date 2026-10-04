@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # OBS-07 — Single-owner trajectory and child references Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -66,3 +72,4 @@ C2-1 fields: projection_version 2, records/requests/run_activity/watermarks/has_
 Return trajectory/child DTO versions, listener/gap/replay evidence and view snapshots. Integrate contracts/client/App.vue serially with DN-2 and other OBS edits; file conflict is not an invented logical DAG dependency.
 
 OBS-D1 provenance: these IDs retain their original outcomes from `docs/observability-migration-plan` at `364163e97c972cec9aef007f1be72005af60f25a`. DN-C2 source DTOs and closure scope supersede obsolete file/producer assumptions; this is the same OBS track, not new OBS IDs.
+

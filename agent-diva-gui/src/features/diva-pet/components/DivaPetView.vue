@@ -28,12 +28,11 @@ let resolveModelRequestId = 0
 let invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
 
 async function getInvoke() {
-  const isTauri =
-    typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
-  if (!invoke && isTauri) {
-    const mod = await import('@tauri-apps/api/core')
-    invoke = mod.invoke
+  const isDesktop =
+    typeof window !== 'undefined' && (window as any)._wails?.environment != null
+  if (!invoke && isDesktop) {
+    const mod = await import('../../../platform/desktop-host')
+    invoke = mod.nativeCall
   }
   return invoke
 }

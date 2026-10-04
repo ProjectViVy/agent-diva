@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # Observability plan entry
 
 OBS-06 (token/connection), OBS-07 (trajectory), OBS-08 (diagnostics) and OBS-09
@@ -11,3 +17,4 @@ OBS dependency map or delivery authority here. OBS-01…05 are merged producer
 history at VIVY `1db8b55`, not duplicated implementation work in this package.
 Read [DN-C2](../p0-design.md) and the
 [ledger](../backend-separation-contracts.md), then the relevant Story.
+

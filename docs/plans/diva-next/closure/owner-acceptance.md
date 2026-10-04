@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # Owner acceptance — DIVA Next closure candidate
 
 This is the engineering handoff for the closure candidate. Product
@@ -143,3 +149,4 @@ evidence need.
   TODOLIST disposition.
 - Rejected: any parity claim above is visibly untrue, or a find-the-gap
   item (F1–F5) behaves differently than recorded.
+

@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-2A](closure/DN-2A.md), [DN-2B](closure/DN-2B.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -36,3 +42,4 @@ Consumes DN-1 client/projection and DN-0 mappings. Produces the user-visible cor
 ## Verification
 
 `pnpm --dir agent-diva-gui test`; `pnpm --dir agent-diva-gui build`; native live-model chain with safe test tool and Journal/session readback. Expected: text and persisted history agree, decisions govern actual execution, cancellation reaches an authoritative terminal, reopened window reconstructs the same run without resending it. Return transcript and removed-command ledger rows. No production credentials in evidence.
+

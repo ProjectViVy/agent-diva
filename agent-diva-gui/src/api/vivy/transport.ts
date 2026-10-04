@@ -8,6 +8,9 @@
 import { onVivyEvent, vivyCall, type VivyCallRequest, type WireEvent } from '../../platform/desktop-host'
 
 export interface VivyTransport {
+  // Wails transport: `call` -> bound RuntimeService.VivyCall (CallReply
+  // envelope), `onEvent` -> one Events.On('vivy:event') listener.
+
   call(request: VivyCallRequest): Promise<unknown>
   /**
    * Subscribe to bridge events; returns an unsubscribe function.
@@ -19,7 +22,7 @@ export interface VivyTransport {
   close(): void
 }
 
-export function createTauriTransport(): VivyTransport {
+export function createWailsTransport(): VivyTransport {
   const handlers = new Set<(event: WireEvent) => void>()
   let unlisten: (() => void) | null = null
   let closed = false

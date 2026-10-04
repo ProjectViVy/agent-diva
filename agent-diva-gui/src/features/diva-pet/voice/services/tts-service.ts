@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { nativeCall } from '../../../../platform/desktop-host'
 import { addVoiceLogEvent } from './voice-log'
 import { asSiliconFlowProviderHandler, createTTSProviderHandler } from './tts/provider-factory'
 import {
@@ -877,7 +877,7 @@ class TTSService {
       createAudioResponse: (base64Data, contentType, isCloned = false) =>
         this.createAudioResponse(base64Data, contentType, isCloned),
       invokeCommand: <TResponse>(command: string, payload: unknown) =>
-        invoke<TResponse>(command, { payload }),
+        nativeCall<TResponse>(command, { payload }),
       logEvent: addVoiceLogEvent,
       resolveProviderConfig: (provider, baseUrl, model) =>
         this.resolveProviderConfig(provider, baseUrl, model),

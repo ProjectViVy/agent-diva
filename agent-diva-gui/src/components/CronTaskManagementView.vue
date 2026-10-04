@@ -29,7 +29,7 @@ type CronStatus = 'running' | 'scheduled' | 'paused' | 'completed' | 'failed';
 type CronJobDto = VivyCronJob;
 type CronSchedule = VivyCronSchedule;
 
-const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const isTauri = () => typeof window !== 'undefined' && (window as any)._wails?.environment != null;
 const loading = ref(false);
 const error = ref('');
 const showForm = ref(false);

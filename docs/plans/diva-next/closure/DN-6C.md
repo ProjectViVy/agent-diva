@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-6C — Connect main-chat voice and generation-safe playback Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -69,3 +75,4 @@ Only desktop-host.ts calls literal invokes/listen, including Raw/header argument
 ### Acceptance and handoff
 
 Return copied/moved reusable source map, typed native facade, generation/cancel/resource tests, diagnostics redaction and available native smoke. DN-P-C bundles these exact commits. No realtime duplex, VAD, sentence queue, local voice or plugin framework is added.
+

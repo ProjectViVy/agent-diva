@@ -44,6 +44,9 @@ importers:
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
+      '@wailsio/runtime':
+        specifier: 3.0.0-beta.27
+        version: 3.0.0-beta.27
       avatar-runtime-vrm:
         specifier: file:./avatar-runtime-vrm
         version: file:avatar-runtime-vrm
@@ -830,6 +833,9 @@ packages:
     peerDependenciesMeta:
       '@vue/server-renderer':
         optional: true
+
+  '@wailsio/runtime@3.0.0-beta.27':
+    resolution: {integrity: sha512-QUXfpr04hXzQa/yGavoJTP1UAwpGzvwysoKGwdMIEmyHgwSHtF+k4MfHbV0olRdw0+nbDQtcBM/SkKqb8tvQsw==}
 
   abbrev@2.0.0:
     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
@@ -2258,6 +2264,8 @@ snapshots:
       vue-component-type-helpers: 3.3.6
     optionalDependencies:
       '@vue/server-renderer': 3.5.39(vue@3.5.39(typescript@5.6.3))
+
+  '@wailsio/runtime@3.0.0-beta.27': {}
 
   abbrev@2.0.0: {}
 

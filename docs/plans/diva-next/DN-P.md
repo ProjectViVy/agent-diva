@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-P-C](closure/DN-P-C.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -36,3 +42,4 @@ Consumes DN-2 accepted core chain (including DN-5 package and DN-L artifact prov
 Proposed command after implementation: `python scripts/ci/check_vivy_backend_boundary.py`; native package build from DN-5; deterministic and live scenario logs. Expected: installed artifact alone supplies the selected DLL and one VIVY authority; all lifecycle cases pass. Record actual startup/stream/exit timing without invented limits. Keep P0-A open for any missing mandatory case even if GUI tests are green.
 
 Review focus: terminal state before Journal close, blocked approval on reopen, different artifact loaded at installation, duplicate run on replay, hidden native failure. Return a criterion-by-criterion acceptance record. P0-B and DN-8 remain independently open.
+

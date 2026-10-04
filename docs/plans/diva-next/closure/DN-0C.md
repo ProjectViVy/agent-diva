@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-0C — Capture current chat and console contracts Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -62,3 +68,4 @@ From VIVY: `go test ./internal/app ./internal/rpc -count=1`. From DIVA: `python3
 ### Acceptance and handoff
 
 Accept only captured, redacted producer contracts and their digests. DN-2A and OBS-06/07/08 may then consume those source contracts; their final installed acceptance still requires the new artifact. Stop on contradictory producer semantics or missing captured data; do not guess an adapter.
+

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+vi.mock('../../../../platform/desktop-host', () => ({
+  nativeCall: vi.fn(),
 }))
 
-import { invoke } from '@tauri-apps/api/core'
+import { nativeCall } from '../../../../platform/desktop-host'
 import { DEFAULT_PET_CONFIG } from '../../types'
 import {
   DEFAULT_SILICONFLOW_ASR_BASE_URL,
@@ -15,7 +15,7 @@ import {
   savePetConfigToCore,
 } from './voice-api'
 
-const invokeMock = vi.mocked(invoke)
+const invokeMock = vi.mocked(nativeCall)
 
 describe('voice-api ASR config', () => {
   beforeEach(() => {

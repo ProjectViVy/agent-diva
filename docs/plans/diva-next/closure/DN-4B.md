@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-4B — Bind primary authority and safe cognitive runtime lifecycle Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -71,3 +77,4 @@ From VIVY: `go test ./internal/runtime ./internal/app ./internal/embedded ./inte
 ### Acceptance and handoff
 
 Return actual model-input fixture digest, authority/recovery test results, scoped state-key format and one-loop teardown evidence. DN-4C attaches human controls to these runtime ports. A failed persistence/reconciliation fence blocks affected execution; no force-clear recovery endpoint is introduced.
+

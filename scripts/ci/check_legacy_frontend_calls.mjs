@@ -128,7 +128,14 @@ function scanFile(absPath, rel) {
           }
         }
         if (ts.isIdentifier(callee) && callee.text === 'fetch') {
-          report(node.pos, 'direct fetch() — business traffic must go through vivy_call')
+          // W3-3 internal media seam: the ONLY sanctioned fetch site is
+          // mediaFetch() inside desktop-host.ts (token + native window-id
+          // headers; binary voice-asset/speech routes, not business RPC).
+          const fn = ts.findAncestor(node, ts.isFunctionDeclaration)
+          const sanctioned = rel === INVOKE_FILE && fn && fn.name && fn.name.text === 'mediaFetch'
+          if (!sanctioned) {
+            report(node.pos, 'direct fetch() — business traffic must go through vivy_call')
+          }
         }
       }
       if (ts.isNewExpression(node)) {

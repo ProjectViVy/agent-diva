@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
 > take precedence over historical P0-D1 host/speech/import/acceptance premises.
 > Tasks/evidence below retain their original scope and artifact pins. New
@@ -32,3 +38,4 @@ Consumes DN-0 frozen wire schemas and DN-5 verified transport. Proposed client i
 ## Verification
 
 `pnpm --dir agent-diva-gui test`; `pnpm --dir agent-diva-gui build`. Expected focused reducer/transport assertions and real native smoke both pass. Return core fixture version, recovery transcript and tests. Review focus is the five adverse cases in the shared design; state reducer owns ordering/gap and ambiguous mutation tests.
+

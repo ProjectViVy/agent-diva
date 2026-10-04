@@ -49,6 +49,44 @@ shell-stage-runtime ARTIFACT_DIR:
 tauri-build: gui-build
     pnpm --dir agent-diva-gui tauri build
 
+# --- DN-W3 sealed Go desktop host ---
+
+# Regenerate the frontend TS bindings after changing bound methods on
+# internal/desktop services. Committed output lives under
+# agent-diva-gui/src/generated/wails/. `gtk3` matches the Linux build tag
+# (Ubuntu 22.04 GTK4 lacks GtkFileDialog; no-op elsewhere).
+desktop-bindings:
+    wails3 generate bindings -ts -f '-tags=gtk3,vivy_headless' -d agent-diva-gui/src/generated/wails ./cmd/diva
+
+# Run the Wails desktop (GTK3 backend on Linux).
+desktop-dev:
+    go run -tags 'gtk3 vivy_headless' ./cmd/diva
+
+# Go tests for the Wails host seam (dev go.mod with local replaces).
+desktop-test:
+    go test -race -tags 'gtk3 vivy_headless' ./internal/desktop ./cmd/diva
+
+# Sealed go-host build: frozen frontend build + sdk pack --target go-host +
+# inspect. Release-clean sources by default; `just desktop-build-dev`
+# snapshots dirty inputs as non-release.
+desktop-build:
+    python3 scripts/build-desktop.py --mode build
+
+desktop-build-dev:
+    python3 scripts/build-desktop.py --mode build --development
+
+# Regenerate Wails bindings then rebuild (convenience).
+desktop-bindings-build: desktop-bindings desktop-build-dev
+
+# Go build + race tests under the resolved consumer modfile (plain
+# `go test` cannot resolve VIVY's local replacement closure).
+go-test:
+    python3 scripts/build-desktop.py --mode test
+
+# Repin build/vivy-sources.lock.json after dependency bumps.
+desktop-repin:
+    python3 scripts/build-desktop.py --mode repin
+
 # All current checks
 ci: gui-test gui-build shell-bridge-test
     @echo "All checks passed!"

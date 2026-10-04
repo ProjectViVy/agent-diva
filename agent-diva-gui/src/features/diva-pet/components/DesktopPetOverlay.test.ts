@@ -8,7 +8,7 @@ import { DEFAULT_PET_CONFIG } from '../types'
 //  Hoisted mocks — must be defined before vi.mock (hoisted) references them
 // ═══════════════════════════════════════════════════════════════════
 
-const { mockInvoke, mockGetCurrentWindowFn, mockListen, mockEmitTo, mockVoiceSetEnabled, mockVoiceInputOptions, mockVoiceState } = vi.hoisted(() => {
+const { mockInvoke, mockWindowMinimise, mockListen, mockEmitTo, mockVoiceSetEnabled, mockVoiceInputOptions, mockVoiceState } = vi.hoisted(() => {
   const mockVoiceState = {
     error: { value: null as string | null },
     isEnabled: { value: false },
@@ -17,12 +17,9 @@ const { mockInvoke, mockGetCurrentWindowFn, mockListen, mockEmitTo, mockVoiceSet
   }
   return {
     mockInvoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-    mockGetCurrentWindowFn: vi.fn(() => ({
-      startDragging: vi.fn(() => Promise.resolve()),
-      minimize: vi.fn(() => Promise.resolve()),
-    })),
+    mockWindowMinimise: vi.fn(() => Promise.resolve()),
     mockListen: vi.fn<(...args: unknown[]) => Promise<() => void>>(() => Promise.resolve(() => {})),
-    mockEmitTo: vi.fn(() => Promise.resolve(undefined)),
+    mockEmitTo: vi.fn(() => Promise.resolve(true)),
     mockVoiceSetEnabled: vi.fn((enabled: boolean) => {
       mockVoiceState.isEnabled.value = enabled
       return Promise.resolve(true)
@@ -32,11 +29,16 @@ const { mockInvoke, mockGetCurrentWindowFn, mockListen, mockEmitTo, mockVoiceSet
   }
 })
 
-// ── Tauri API mocks ──────────────────────────────────────────────
+// ── Wails/desktop-host mocks ─────────────────────────────────────
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
-vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: mockGetCurrentWindowFn }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: mockListen, emitTo: mockEmitTo }))
+vi.mock('@wailsio/runtime', () => ({
+  Events: { Emit: mockEmitTo },
+  Window: { Minimise: mockWindowMinimise },
+}))
+vi.mock('../../../platform/desktop-host', () => ({
+  nativeCall: mockInvoke,
+  nativeListen: mockListen,
+}))
 
 vi.mock('../voice/composables/useVoiceInput', () => ({
   useVoiceInput: (options: { onRecognizedText: (text: string) => Promise<void> | void }) => {
@@ -161,11 +163,8 @@ async function setup() {
   mockVoiceState.isListening.value = false
   mockVoiceState.isProcessing.value = false
   mockVoiceInputOptions.current = null
-  mockGetCurrentWindowFn.mockReset()
-  mockGetCurrentWindowFn.mockReturnValue({
-    startDragging: vi.fn(() => Promise.resolve()),
-    minimize: vi.fn(() => Promise.resolve()),
-  })
+  mockWindowMinimise.mockReset()
+  mockWindowMinimise.mockResolvedValue(undefined)
 
   // Reset config to initial state
   mockConfig.value = makeMockPetConfig()
@@ -173,7 +172,7 @@ async function setup() {
   // Default: all invoke calls succeed
   mockInvoke.mockResolvedValue(undefined)
   mockListen.mockImplementation(async (...args: unknown[]) => {
-    const [event, callback] = args as [string, (payload: { payload: unknown }) => void]
+    const [event, callback] = args as [string, (payload: unknown) => void]
     registeredListeners.set(event, callback)
     return () => {}
   })
@@ -277,7 +276,7 @@ describe('DesktopPetOverlay', () => {
 
     await mockVoiceInputOptions.current?.onRecognizedText('  hello diva  ')
 
-    expect(mockEmitTo).toHaveBeenCalledWith('main', 'desktop-pet-voice-message', 'hello diva')
+    expect(mockEmitTo).toHaveBeenCalledWith('desktop-pet-voice-message', 'hello diva')
   })
 
   it('flashes a received mood for one second and then resets to neutral', async () => {
@@ -286,7 +285,7 @@ describe('DesktopPetOverlay', () => {
     mockConfig.value.vrmExpressionEnabled = true
     await nextTick()
 
-    registeredListeners.get('desktop-pet-emotion')?.({ payload: 'happy' })
+    registeredListeners.get('desktop-pet-emotion')?.('happy')
     await nextTick()
 
     const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })
@@ -304,7 +303,7 @@ describe('DesktopPetOverlay', () => {
     mockConfig.value.vrmExpressionEnabled = false
     await nextTick()
 
-    registeredListeners.get('desktop-pet-emotion')?.({ payload: 'happy' })
+    registeredListeners.get('desktop-pet-emotion')?.('happy')
     await nextTick()
 
     const avatar = wrapper.getComponent({ name: 'DivaVrmAvatar' })

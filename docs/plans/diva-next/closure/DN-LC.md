@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-LC — Generate and compose the selected cognitive factory Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -70,3 +76,4 @@ From VIVY: `go test ./sdk/internal/assembly ./internal/app ./internal/observerho
 ### Acceptance and handoff
 
 Return sealed input/output inventories, generated binding test results and typed bundle signatures. DN-4B consumes this assembly seam; no product-ready cognitive module or new accepted DLL is claimed at this enabling boundary.
+

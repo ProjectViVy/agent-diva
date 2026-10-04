@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
 > take precedence over historical P0-D1 host/speech/import/acceptance premises.
 > Tasks/evidence below retain their original scope and artifact pins. New
@@ -43,3 +49,4 @@ Consume P0-D1 ABI/transport and DN-0 per-domain exact schemas. Proposed tests `a
 - [ ] Run GUI test/build commands above and record ledger row IDs, source diff and backend readback. Commit one domain slice; stop on unknown action semantics rather than inventing an alias.
 
 Exact target action IDs are deliberately a DN-0 prerequisite, not guessed here. This plan cannot become Ready for a domain until its file/symbol/schema rows and fixtures are present. No additional service or generic legacy-command dispatcher is authorized.
+

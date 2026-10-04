@@ -36,6 +36,8 @@ impl SpeechState {
 }
 
 /// `DIVA_SPEECH_DIR` (dev/test) or `<app_config_dir>/speech`.
+use tauri::Manager;
+
 pub fn speech_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> SpeechResult<PathBuf> {
     if let Ok(dir) = std::env::var("DIVA_SPEECH_DIR") {
         return Ok(PathBuf::from(dir));

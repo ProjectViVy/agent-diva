@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { nativeCall } from '../../../../platform/desktop-host'
 import type { PetConfig } from '../../types'
 import { DEFAULT_PET_CONFIG } from '../../types'
 import type { VoiceFileReader } from './tts-service'
@@ -175,39 +175,39 @@ function applyPetToCore(raw: CoreConfigPayload, pet: PetConfig): CoreConfigPaylo
 }
 
 export async function loadPetConfigFromCore(): Promise<PetConfig> {
-  const raw = await invoke<string>('load_config')
+  const raw = await nativeCall<string>('load_config')
   return petFromCore(JSON.parse(raw) as CoreConfigPayload)
 }
 
 export async function savePetConfigToCore(pet: PetConfig): Promise<void> {
-  const raw = await invoke<string>('load_config')
+  const raw = await nativeCall<string>('load_config')
   const nextConfig = applyPetToCore(JSON.parse(raw) as CoreConfigPayload, pet)
-  await invoke('save_config', { raw: JSON.stringify(nextConfig, null, 2) })
+  await nativeCall('save_config', { raw: JSON.stringify(nextConfig, null, 2) })
 }
 
 export function loadVoiceAssets(): Promise<LoadedVoiceAssets> {
-  return invoke<LoadedVoiceAssets>('pet_load_voice_assets')
+  return nativeCall<LoadedVoiceAssets>('pet_load_voice_assets')
 }
 
 export function saveVoiceSelection(payload: SaveVoiceSelectionPayload): Promise<LoadedVoiceAssets> {
-  return invoke<LoadedVoiceAssets>('pet_save_voice_selection', { payload })
+  return nativeCall<LoadedVoiceAssets>('pet_save_voice_selection', { payload })
 }
 
 export async function importVoiceFile(file: File): Promise<LoadedVoiceAssets> {
   const base64Data = await fileToBase64(file)
-  return invoke<LoadedVoiceAssets>('pet_import_voice_file', {
+  return nativeCall<LoadedVoiceAssets>('pet_import_voice_file', {
     payload: { base64Data, fileName: file.name },
   })
 }
 
 export function deleteVoiceFile(relativePath: string): Promise<LoadedVoiceAssets> {
-  return invoke<LoadedVoiceAssets>('pet_delete_voice_file', {
+  return nativeCall<LoadedVoiceAssets>('pet_delete_voice_file', {
     payload: { relativePath },
   })
 }
 
 export function readVoiceFile(relativePath: string): Promise<VoiceFileData> {
-  return invoke<VoiceFileData>('pet_read_voice_file', { relativePath })
+  return nativeCall<VoiceFileData>('pet_read_voice_file', { relativePath })
 }
 
 export function getAsrProviderDefaults(provider: PetConfig['asrProvider']) {

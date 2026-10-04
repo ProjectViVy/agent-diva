@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-0S — Probe native speech seams and provider mappings Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -64,3 +70,4 @@ Inspect current lockfiles; run `cargo check --manifest-path <disposable-probe>/C
 ### Acceptance and handoff
 
 Return official reference URLs/check dates, sanitized fixtures, exact versions/features and observed OS results. Portable fixture preparation may complete without cloud credentials. This Story is accepted for downstream implementation only when required IPC/dependency seams have proof; absent Windows evidence remains a later DN-8C gate.
+

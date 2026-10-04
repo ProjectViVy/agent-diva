@@ -5,13 +5,20 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
-- Owner: `Devin`
-- Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P, DN-0S delivered; wave-1 delivered; awaiting owner gate before wave 2); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
-- Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
-- Started At: `2026-10-03T12:40:00Z`
-- Last Heartbeat: `2026-10-03T14:45:00Z`
-- Expires At: `2026-10-04T00:00:00Z`
+- Scope: `scripts/build-desktop.py, build/vivy-sources.lock.json, justfile, LOCK.md, docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, go.mod, go.sum, tools/**, cmd/**, internal/**, deps/**, TODOLIST.md, agent-diva-gui/package.json, agent-diva-gui/pnpm-lock.yaml, agent-diva-gui/.gitignore, agent-diva-gui/assets.go, agent-diva-gui/src/**`
+- Owner: `Devin on behalf of mastwet`
+- Session/Task: `DN-W3 W0+W3+W4 Wails migration — pinned Wails probe, Go host, frontend seam, sealed packaging`
+- Branch/Worktree: `feat/wails-go-host`
+- Started At: `2026-10-04T05:35:00Z`
+- Last Heartbeat: `2026-10-04T09:05:00Z`
+- Expires At: `2026-10-08T05:35:00Z`
+
+### Handoff for this branch
+
+The inherited Devin wave-1 lease expired at 2026-10-04T00:00:00Z. Its
+historical record below is stale, not an active lock for this new docs branch.
+The mainline merge is preserved at 5444795a2d9db31e158c2cf009d64697e6289e50.
+No other working branch or live workspace is modified by this handoff.
 
 ## Lock Rules
 
@@ -25,9 +32,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `DIVA Next closure wave 1` — **HELD** by `Devin` (session
+- `DN-W3-P1 Go/Wails migration planning` — **RELEASED 2026-10-04T01:18:32Z** by
+  `Codex on behalf of mastwet`; branch `docs/wails-migration-20261004`.
+  Documentation, backlogs and source-reference archive only. Eight Story
+  plans, nine requirements and six waves statically verified. Archive branch
+  refs read back at exact paired SHAs; paired tags remain pending missing
+  tag-write access. No product code, main merge or product acceptance.
+
+- `DIVA Next closure wave 1` — **EXPIRED (historical)** by `Devin` (session
   `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
-  heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
+  heartbeat `2026-10-04T05:30:00Z`, expires `2026-10-08T00:00:00Z`.
   Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
   C2-1 source mappings delivered. No PR/merge/release per execution contract.
 
@@ -633,3 +647,18 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
   `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
   Implementation still pending; see TODOLIST `审批三模式完善`.
+
+
+### Handoff note — W1 evidence update (2026-10-04T02:30Z)
+
+Devin session (on behalf of mastwet) updated `docs/plans/diva-next/index.md`
+and `docs/plans/diva-next/wails/W1.md` to record W1 Done state with the
+agent-vivy evidence pointer; lock state remains RELEASED for the previously
+recorded scope.
+
+### Handoff note — W2 wrapper scope (2026-10-04T05:35Z)
+
+Devin session (on behalf of mastwet) took the lock on new branch
+`feat/wails-go-host` to implement W2 Task 6: `scripts/build-desktop.py`,
+`build/vivy-sources.lock.json` and `just` recipes. Product files outside the
+previous docs-only scope; created as new paths only.

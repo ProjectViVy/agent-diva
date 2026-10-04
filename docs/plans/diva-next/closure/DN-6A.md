@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-6A — Native speech preferences, credentials and reference assets Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -67,3 +73,4 @@ Key namespace fixed at startup from app/fresh profile/closed provider enum; pres
 ### Acceptance and handoff
 
 Return config/command schema version, dependency/features pin, available OS-store evidence and lease/asset fixtures. DN-6B owns admitted request references; DN-6C adds settings UI. Native checks not runnable here remain named DN-8C obligations.
+

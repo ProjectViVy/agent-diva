@@ -74,7 +74,7 @@ export interface ConfigStatusReport {
 }
 
 export const isTauriRuntime = () =>
-  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  typeof window !== 'undefined' && (window as any)._wails?.environment != null;
 
 export interface TodoItem {
   id: string;

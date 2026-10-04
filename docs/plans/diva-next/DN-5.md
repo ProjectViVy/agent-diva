@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
 > take precedence over historical P0-D1 host/speech/import/acceptance premises.
 > Tasks/evidence below retain their original scope and artifact pins. New
@@ -34,3 +40,4 @@ Consumes accepted DN-L DLL/header/manifest plus ABI. Produces Tauri command `viv
 `cargo test --manifest-path agent-diva-gui/src-tauri/Cargo.toml`; `cargo clippy --manifest-path agent-diva-gui/src-tauri/Cargo.toml --all-targets -- -D warnings`; `pnpm --dir agent-diva-gui build`. Proposed `pnpm --dir agent-diva-gui tauri build` is run only after adding that script. On the target, inspect the installed bundle, execute real DLL startup/close/reopen/quit, and verify process exit and no unrelated process termination. No gateway-port test is needed for a gatewayless product. Fatal DLL failure is a process failure; do not promise isolated backend restart inside the same process.
 
 Return package hash, dependency graph, bridge error tests and native lifecycle transcript. Review focus: loader path hijacking, UI-thread blocking, no-window event loss, late calls during shutdown, freeing memory after unloading.
+

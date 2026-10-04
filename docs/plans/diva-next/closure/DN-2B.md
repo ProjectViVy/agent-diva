@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-2B — Fix selected-turn regeneration and recovery controls Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -66,3 +72,4 @@ Resolve selected assistant → originating user/run/input; never resend the last
 ### Acceptance and handoff
 
 Return originating-input preservation, invalidation-hook signature and selected mutation/recovery evidence. DN-4D and DN-6C consume these stable session transitions; App.vue integration is serialized even where DAG lanes are independent.
+

@@ -1,0 +1,365 @@
+{
+  "schema": "diva.wails-migration-plan/v1",
+  "revision": "DN-W3-P1",
+  "date": "2026-10-04",
+  "implementation_authorized": false,
+  "freeze": {
+    "diva": "5444795a2d9db31e158c2cf009d64697e6289e50",
+    "vivy": "fc559e6b03ce4e65c0099b9745855dccc4fb067e"
+  },
+  "archive_branch": "archive/tauri-cabi",
+  "documentation_branch": "docs/wails-migration-20261004",
+  "tag": {
+    "name": "archive/tauri-cabi-20261004",
+    "diva": "pending-no-tag-write-operation",
+    "vivy": "pending-no-tag-write-operation"
+  },
+  "source_archive": true,
+  "binary_archive": false,
+  "candidate_framework": "v3.0.0-beta.27",
+  "requirements": [
+    "W-R1",
+    "W-R2",
+    "W-R3",
+    "W-R4",
+    "W-R5",
+    "W-R6",
+    "W-R7",
+    "W-R8",
+    "W-R9"
+  ],
+  "stories": [
+    {
+      "id": "W0",
+      "plan": "docs/plans/diva-next/wails/W0.md",
+      "immediate_prerequisites": [],
+      "requirements": [
+        "W-R4",
+        "W-R5",
+        "W-R8"
+      ],
+      "state": "Planned; implementation authorization is outside this documentation publication.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/package.json",
+          "agent-diva-gui/pnpm-lock.yaml",
+          "agent-diva-gui/src/platform/desktop-host.ts",
+          "agent-diva-gui/src-tauri/src/lifecycle.rs"
+        ],
+        "vivy": []
+      },
+      "proposed": {
+        "diva": [
+          "go.mod",
+          "go.sum",
+          "tools/wails-probe/main.go",
+          "tools/wails-probe/README.md",
+          "docs/plans/diva-next/fixtures/wails-native-probe.json"
+        ],
+        "vivy": []
+      }
+    },
+    {
+      "id": "W1",
+      "plan": "docs/plans/diva-next/wails/W1.md",
+      "immediate_prerequisites": [],
+      "requirements": [
+        "W-R1",
+        "W-R2",
+        "W-R5"
+      ],
+      "state": "Planned; implementation authorization is outside this documentation publication.",
+      "existing": {
+        "diva": [],
+        "vivy": [
+          "internal/embedded/host.go",
+          "internal/app/app.go",
+          "internal/app/facehost.go",
+          "internal/logging/logging.go",
+          "internal/embedded/abi/abi.go",
+          "internal/app/embedded_cognitive_lifecycle_test.go",
+          "sdk/generation/manifest.go"
+        ]
+      },
+      "proposed": {
+        "diva": [],
+        "vivy": [
+          "sdk/host/v1/host.go",
+          "sdk/host/v1/host_test.go",
+          "internal/embedded/host_lifecycle_test.go",
+          "internal/embedded/host_events_test.go"
+        ]
+      }
+    },
+    {
+      "id": "W2",
+      "plan": "docs/plans/diva-next/wails/W2.md",
+      "immediate_prerequisites": [
+        "W1"
+      ],
+      "requirements": [
+        "W-R2",
+        "W-R6"
+      ],
+      "state": "Blocked by W1 public host evidence.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/package.json",
+          "agent-diva-gui/pnpm-lock.yaml"
+        ],
+        "vivy": [
+          "sdk/internal/frontend_v1.go",
+          "sdk/internal/frontend_v1_test.go",
+          "sdk/internal/assembly/runtime_generate.go",
+          "sdk/internal/assembly/manifest.go",
+          "sdk/generation/manifest.go",
+          "sdk/internal/conformance/generation_test.go",
+          "go.mod",
+          "recipes/diva.vivy.yml"
+        ]
+      },
+      "proposed": {
+        "diva": [
+          "build/vivy-sources.lock.json",
+          "scripts/build-desktop.py"
+        ],
+        "vivy": [
+          "sdk/internal/go_host.go",
+          "sdk/internal/go_host_test.go",
+          "sdk/internal/testdata/go-host/main.go",
+          "sdk/internal/testdata/go-host/go.mod"
+        ]
+      }
+    },
+    {
+      "id": "W3",
+      "plan": "docs/plans/diva-next/wails/W3.md",
+      "immediate_prerequisites": [
+        "W0",
+        "W2"
+      ],
+      "requirements": [
+        "W-R1",
+        "W-R3",
+        "W-R5",
+        "W-R9"
+      ],
+      "state": "Blocked by W0 native GO and W2 sealed external build.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/src/platform/desktop-host.ts",
+          "agent-diva-gui/src/api/vivy/transport.ts",
+          "agent-diva-gui/src/state/vivy-session.ts",
+          "agent-diva-gui/src/state/vivy-session.test.ts",
+          "agent-diva-gui/src/App.vue",
+          "agent-diva-gui/vite.config.ts",
+          "agent-diva-gui/src-tauri/src/lib.rs",
+          "agent-diva-gui/src-tauri/src/lifecycle.rs"
+        ],
+        "vivy": []
+      },
+      "proposed": {
+        "diva": [
+          "cmd/diva/main.go",
+          "internal/desktop/app.go",
+          "internal/desktop/lifecycle.go",
+          "internal/desktop/runtime_service.go",
+          "internal/desktop/lifecycle_test.go",
+          "internal/desktop/runtime_service_test.go",
+          "agent-diva-gui/assets.go",
+          "agent-diva-gui/src/generated/wails/",
+          "agent-diva-gui/src/platform/desktop-host.test.ts"
+        ],
+        "vivy": []
+      }
+    },
+    {
+      "id": "W4",
+      "plan": "docs/plans/diva-next/wails/W4.md",
+      "immediate_prerequisites": [
+        "W0"
+      ],
+      "requirements": [
+        "W-R4",
+        "W-R5"
+      ],
+      "state": "Blocked by W0 native caller/media/keyring contract.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/config.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/credentials.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/assets.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/providers.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/registry.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/wav.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/src/service.rs",
+          "agent-diva-gui/src-tauri/crates/diva-speech/tests/speech_contract.rs",
+          "agent-diva-gui/src/api/speech.ts",
+          "agent-diva-gui/src/features/voice/useVoiceController.ts",
+          "agent-diva-gui/src/features/voice/useVoiceController.test.ts"
+        ],
+        "vivy": []
+      },
+      "proposed": {
+        "diva": [
+          "internal/speech/config.go",
+          "internal/speech/credentials.go",
+          "internal/speech/assets.go",
+          "internal/speech/providers.go",
+          "internal/speech/service.go",
+          "internal/speech/service_test.go",
+          "internal/speech/wav.go",
+          "internal/speech/wav_test.go",
+          "internal/desktop/media_http.go",
+          "internal/desktop/media_http_test.go"
+        ],
+        "vivy": []
+      }
+    },
+    {
+      "id": "W5",
+      "plan": "docs/plans/diva-next/wails/W5.md",
+      "immediate_prerequisites": [
+        "W3",
+        "W4"
+      ],
+      "requirements": [
+        "W-R2",
+        "W-R3",
+        "W-R4",
+        "W-R5",
+        "W-R6",
+        "W-R9"
+      ],
+      "state": "Blocked by W3 candidate and W4 Go speech.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/src/state/vivy-session.test.ts",
+          "agent-diva-gui/src/state/vivy-cognitive.test.ts",
+          "agent-diva-gui/src/api/cognitive.test.ts",
+          "agent-diva-gui/src/features/voice/useVoiceController.test.ts",
+          "docs/plans/diva-next/fixtures/closure-packaged-obs.json",
+          "docs/plans/diva-next/fixtures/closure-chat-obs.json",
+          "docs/plans/diva-next/fixtures/closure-speech.json",
+          "TODOLIST.md"
+        ],
+        "vivy": [
+          "internal/modules/diva-cognitive/factory.go",
+          "internal/modules/diva-cognitive/factory_test.go",
+          "internal/app/embedded_cognitive_lifecycle_test.go",
+          "internal/runtime/cognitive_recovery_test.go",
+          "internal/app/facehost.go",
+          "docs/TODO.md"
+        ]
+      },
+      "proposed": {
+        "diva": [
+          "docs/plans/diva-next/fixtures/wails-candidate-acceptance.json",
+          "scripts/ci/check_wails_candidate.py"
+        ],
+        "vivy": []
+      }
+    },
+    {
+      "id": "W6",
+      "plan": "docs/plans/diva-next/wails/W6.md",
+      "immediate_prerequisites": [
+        "W5"
+      ],
+      "requirements": [
+        "W-R1",
+        "W-R7"
+      ],
+      "state": "Blocked by W5 required parity gate and completed paired archive tags.",
+      "existing": {
+        "diva": [
+          "agent-diva-gui/src-tauri/",
+          "agent-diva-gui/package.json",
+          "agent-diva-gui/pnpm-lock.yaml",
+          "justfile",
+          ".github/workflows/ci.yml",
+          "scripts/ci/check_legacy_frontend_calls.mjs",
+          "scripts/ci/check_vivy_backend_boundary.py",
+          "scripts/ci/fixtures/legacy-calls/",
+          "README.md",
+          "README.zh-CN.md",
+          "AGENTS.md",
+          "AGENTS-ARCH.MD",
+          "TODOLIST.md"
+        ],
+        "vivy": [
+          "cmd/vivy-shared/",
+          "internal/embedded/abi/",
+          "tests/ffi/",
+          "sdk/internal/frontend_v1.go",
+          "sdk/internal/frontend_v1_test.go",
+          "internal/embedded/host.go",
+          "justfile",
+          "docs/TODO.md"
+        ]
+      },
+      "proposed": {
+        "diva": [
+          "scripts/ci/check_desktop_boundary.py"
+        ],
+        "vivy": []
+      }
+    },
+    {
+      "id": "W7",
+      "plan": "docs/plans/diva-next/wails/W7.md",
+      "immediate_prerequisites": [
+        "W6"
+      ],
+      "requirements": [
+        "W-R6",
+        "W-R8"
+      ],
+      "state": "Blocked by W6 clean cutover.",
+      "existing": {
+        "diva": [
+          "docs/plans/diva-next/closure/owner-acceptance.md",
+          "docs/plans/diva-next/fixtures/closure-build-inputs.json",
+          "docs/plans/diva-next/fixtures/closure-packaged-obs.json"
+        ],
+        "vivy": [
+          "sdk/generation/manifest.go"
+        ]
+      },
+      "proposed": {
+        "diva": [
+          "docs/plans/diva-next/wails/owner-acceptance.md",
+          "docs/plans/diva-next/fixtures/wails-package-acceptance.json"
+        ],
+        "vivy": []
+      }
+    }
+  ],
+  "waves": [
+    [
+      "W0",
+      "W1"
+    ],
+    [
+      "W2",
+      "W4"
+    ],
+    [
+      "W3"
+    ],
+    [
+      "W5"
+    ],
+    [
+      "W6"
+    ],
+    [
+      "W7"
+    ]
+  ],
+  "authority": {
+    "index": "docs/plans/diva-next/index.md",
+    "architecture": "docs/plans/diva-next/p0-design.md",
+    "contracts": "docs/plans/diva-next/backend-separation-contracts.md"
+  }
+}
