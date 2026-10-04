@@ -46,13 +46,13 @@ fn build_fake_artifact(dir: &Path) -> bool {
     let (cc, args, out) = (
         "cc",
         vec!["-shared", "-fPIC", "-O0"],
-        dir.join("vivy-shared.so"),
+        dir.join(shared_name()),
     );
     #[cfg(target_os = "macos")]
     let (cc, args, out) = (
         "cc",
         vec!["-shared", "-fPIC", "-O0"],
-        dir.join("vivy-shared.dylib"),
+        dir.join(shared_name()),
     );
     #[cfg(target_os = "windows")]
     let (cc, args, out) = {
@@ -73,7 +73,8 @@ fn build_fake_artifact(dir: &Path) -> bool {
     match cmd.output() {
         Ok(out) if out.status.success() => true,
         Ok(out) => panic!(
-            "fake library build failed: {}",
+            "fake library build failed: {}{}",
+            String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         ),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
