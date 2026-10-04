@@ -152,19 +152,20 @@ implementation and makes no Ready/Done implementation claim.
 
 ## DN-W3 migration residuals (2026-10-04)
 
-- [ ] **W5 promotion gate** — after w0-2: 8 pending + 1 failed row in `fixtures/wails-candidate-acceptance.json` (first turn, grants, chat/cognitive matrices, reload, event-loss, real voice, Windows matrix pending; hide-reopen failed); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
-
-- [x] **W0 Windows x64 leg** — executed w0-2 (`docs/logs/2026-10-wails-migration/w0-2/`): Task 5 keyring GO (wincred full cycle + production slot via cmdkey, no plaintext); Task 4 lifetime mostly proven. Residual findings below.
-- [ ] **W0-F1 sealed frontend not embedded** — `agent-diva-gui/dist/` is gitignored → `git ls-files` staging ships only `.gitkeep`; packaged `frontend/` payload is never served by `divagui.Frontend()` → sealed exe cannot render the Vue UI on any platform. Blocks all UI-driven acceptance rows.
-- [ ] **W0-F2 no reopen affordance** — tray created without `AttachWindow`/`SetMenu` (click inert, no menu); `d.reopen()` unreachable because `OnSecondInstanceLaunch` can't fire — `Compose()` opens the sealed host first and the organism lease kills instance 2 before Wails exists. Fix: `tray.AttachWindow(w)` and/or second-instance check before `hostv1.Open`.
-- [ ] **W0-F3 no explicit-Quit affordance** — no tray menu/quit item, no UI quit control; graceful teardown works only via console signal (CTRL_BREAK → `Quitting application...` → speech teardown → teardown complete). Add tray menu (Reopen/Quit) or UI quit.
+- [ ] **W5 promotion gate** — after w0-3: 5 pending + 2 failed rows in `fixtures/wails-candidate-acceptance.json` (grants catalog, cognitive matrix, event-loss, real voice, Windows matrix pending; first-turn + chat-matrix failed on F5/F6); `scripts/ci/check_wails_candidate.py --require-all-passed` is the gate.
+- [ ] **W0-F5 sealed turn/start frozen-core gate** — every fresh GUI session fails `runtime: prepare session authority: no captured frozen core for this session` (`internal/runtime/service.go:1014` → `diva-cognitive/factory.go:111` → `human.ReadFrozen`; sole writer `personactx.Store.Capture` via `recall.FastService.SessionProvider.Get` is never called on the vivy path; `frozen_core_sessions`=0). Proven workaround: `persona.Initialize` + `SessionProvider.Get` lazy capture → mock-provider turns complete (w0-3).
+- [ ] **W0-F6 GUI never binds/renders session** — `vivyChat.connect()` never reaches `loadSession` (status stuck connecting; post-restart send creates a new session instead of resuming latest; persisted messages + completed runs never render). All connect-path RPCs pass via embedded probe on the shared dispatch table — sealed-host/GUI-bridge-specific defect; needs a WebView2-devtools-capable build to finish diagnosis (w0-3).
+- [x] **W0-F1 sealed frontend not embedded** — FIXED upstream (vivy `42c263f2`: pack overlays built dist into staged tree); verified live w0-3 (real Vue UI renders).
+- [x] **W0-F2 no reopen affordance** — FIXED upstream (diva `8db11f51`: tray AttachWindow + Show/Quit menu); verified live w0-3 (click toggles, Quit releases lease).
+- [x] **W0-F3 no explicit-Quit affordance** — FIXED upstream with F2 (tray Quit → graceful teardown + lease release); verified w0-3.
 - [ ] **W0-F4 mic/audio untestable on build VM** — Audiosrv disabled + zero PNP audio devices on Windows Server 2022; needs an audio-capable machine (plus operator credentials for real-provider rows).
 - [ ] **Windows deps-link gotcha** — `mklink /J` junctions break `hashSourceTree` (`Incorrect function`); real directory symlinks (`mklink /D`, elevated) work. Worth a setup note or scripted step for Windows builds.
-- [ ] **W3 Windows candidate acceptance** — hide/single-instance/crash/quit proven on Windows (w0-2); reopen row FAILED (W0-F2); UI-dependent rows blocked by W0-F1.
+- [ ] **W3 Windows candidate acceptance** — lifetime rows all green on Windows (w0-2 + w0-3); UI/chat rows blocked by W0-F5/F6.
 - [ ] **W4 real-provider evidence** — SiliconFlow STT + SiliconFlow/MiniMax TTS need operator-held credentials; scripted fixtures landed (w4-1).
-- [ ] **W4 Windows speech leg** — Credential Manager proven (w0-2 Task 5); speech lifecycle on Windows blocked by W0-F1/F4.
+- [ ] **W4 Windows speech leg** — Credential Manager proven (w0-2 Task 5); speech lifecycle on Windows blocked by W0-F4.
 - [ ] **`desktop_pet_*` dispatch noop** — pet commands still `not_ready`; pet lands with drag/expansion (deferred).
 - [ ] **`desktop_pet_start_drag` noop** — DesktopPetOverlay drag calls a stub; Wails native drag (`--wails-draggable` regions) lands with pet expansion (deferred).
 - [ ] **`tauriVoiceFileReader`/`isTauri*` naming** — functional seam is Wails; leftover cosmetic names + locale strings ("Tauri 运行时") should be renamed in W4/W5 cleanup.
 - [ ] **W6 cleanup pending** — `src-tauri/`, `@tauri-apps/*` deps, Rust/tango recipes in justfile, `scripts/tauri` helpers all still present until W6 removal.
 - [ ] **Generated bindings drift** — `src/generated/wails/` must be regenerated (`just desktop-bindings`) after any bound-method change; no drift check in CI yet.
+

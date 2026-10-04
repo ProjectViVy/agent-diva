@@ -54,12 +54,12 @@ implementation stories merely because this plan exists.
 
 | Story | Outcome | Immediate prerequisites | State | Estimated engineering days |
 | --- | --- | --- | --- | --- |
-| [W0](wails/W0.md) | Pinned Wails native feasibility and security contract | None | In progress — Linux leg proven (`tools/wails-probe`, w0-1); Windows x64 leg executed (w0-2): Task 5 keyring GO, Task 4 lifetime mostly proven but NO-GO for sign-off — findings F1 sealed frontend not embedded (UI cannot load), F2 no reopen affordance, F3 no quit affordance, F4 mic/audio untestable on VM; GO/NO-GO pending F1–F3 fixes | 1–2 |
+| [W0](wails/W0.md) | Pinned Wails native feasibility and security contract | None | In progress — Linux leg proven (w0-1); Windows x64 legs done (w0-2, w0-3): Task 5 keyring GO; Task 4 lifetime proven incl. tray reopen/quit + reload after upstream F1/F2/F3 fixes (verified w0-3); F4 mic/audio untestable on VM; new upstream blockers F5 (sealed turn/start gates on uncaptured frozen core) + F6 (GUI never binds/renders session) block chat sign-off | 1–2 |
 | [W1](wails/W1.md) | Public Go host, single lifecycle, logging/admission baseline | None | Done on agent-vivy `feat/wails-migration` `256ddf4b`; evidence `docs/logs/2026-10-wails-migration/w1-1/` | 3–5 |
 | [W2](wails/W2.md) | Sealed Go-host package target and dependency closure | W1 | Done — vivy `867626a7`, diva `d3aacc2f`; evidence `docs/logs/2026-10-wails-migration/w2-1/` (vivy) | 3–5 |
 | [W3](wails/W3.md) | Wails desktop, frontend seam and window lifecycle | W0, W2 | Done on Linux — host+seam+sealed build+single-instance proven (`docs/logs/2026-10-wails-migration/w3-1/`); Windows candidate acceptance pending W0 leg | 2–4 |
 | [W4](wails/W4.md) | Go speech/credentials/assets and binary media route | W0 | Done on Linux — internal/speech port + dispatch + media routes green (`docs/logs/2026-10-wails-migration/w4-1/`); real-provider + Windows rows pending | 3–5 |
-| [W5](wails/W5.md) | Full integration, recovery and observability closure | W3, W4 | Windows x64 leg done — 8/17 passed, 8 pending, 1 failed (W5-T4-HIDE-REOPEN: no reopen affordance; `docs/logs/2026-10-wails-migration/w0-2/`, fixture `wails-candidate-acceptance.json`); promotion gate NOT met; UI rows blocked by F1 (sealed exe embeds only .gitkeep) | 3–5 |
+| [W5](wails/W5.md) | Full integration, recovery and observability closure | W3, W4 | Windows x64 legs done — 10/17 passed, 5 pending, 2 failed (F5: W5-T2-FIRST-TURN sealed frozen-core gate; F6: W5-T3-CHAT-MATRIX GUI never binds/renders session; `docs/logs/2026-10-wails-migration/w0-3/`, fixture `wails-candidate-acceptance.json`); promotion gate NOT met — F5/F6 are platform-independent upstream defects | 3–5 |
 | [W6](wails/W6.md) | Remove C ABI/Rust and replace CI/build/documentation | W5 | Blocked by W5 | 1–2 |
 | [W7](wails/W7.md) | Clean Windows package and final acceptance handoff | W6 | Blocked by W6 | 2–3 |
 

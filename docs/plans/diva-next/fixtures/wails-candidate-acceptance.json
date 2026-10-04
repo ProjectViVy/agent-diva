@@ -1,177 +1,190 @@
 {
-  "schema": "diva.wails-candidate-acceptance/v1",
-  "captured_at": "2026-10-04T07:15:00Z",
-  "story": "W5 (Windows x64 leg, w0-2)",
-  "candidate": {
-    "binary": "artifacts/diva-go-host/diva.exe",
-    "binary_sha256": "623bfc05cf70997f2163668da2646294de46f5ad8457aa3e8a29b2acc2052800",
-    "generation_id": "a24a62a2cd2b816528de07c2b5c19af88ab63f8138d8b97ee9a2e1dbc81bd033",
-    "specification_version": "vivy.module/v1",
-    "recipe": "sdk pack --target go-host (sealed, development mode)",
-    "pins": {
-      "agent_diva": "81c381f87a4e (feat/wails-go-host)",
-      "agent_vivy": "3862b768667d (feat/wails-migration)",
-      "laputa": "6f2eed2d71c8 (submodule)",
-      "wails": "v3.0.0-beta.27 (module + wails3 CLI + @wailsio/runtime npm)",
-      "go": "go1.26.8",
-      "build_tags": ["vivy_headless"]
-    },
-    "prior_leg": {
-      "story": "W5 Linux headless leg (w5-1)",
-      "binary_sha256": "2745163fe0d8fe9bdb4c7968d271a9d97eb4621fd0a5a1098dffe60bfce4fabb",
-      "generation_id": "7070607d0c03c0b7ab3ddd14b92dfce926d5ed41425d65226b28fe9fe761e4e0",
-      "pins": {"agent_diva": "a477ffc893fb", "agent_vivy": "d9dfdf49ae5c", "go": "go1.26.4", "build_tags": ["gtk3", "vivy_headless"]}
-    }
+ "schema": "diva.wails-candidate-acceptance/v1",
+ "captured_at": "2026-10-04T08:25:00Z",
+ "story": "W5 (Windows x64 legs, w0-2 + w0-3)",
+ "candidate": {
+  "binary": "artifacts/diva-go-host-r2/diva.exe",
+  "binary_sha256": "dfc85ae1e962b46e7bb8ada8aa555022b9d7d110b34f29fbb242c25f946683fa",
+  "generation_id": "8616618d1cde3914c85d5bd7b42a00e4b5dd3ddafc8ef4bbaf8dfa24639f5e30",
+  "specification_version": "vivy.module/v1",
+  "recipe": "sdk pack --target go-host (sealed, development mode)",
+  "pins": {
+   "agent_diva": "780237a54f53 (feat/wails-go-host)",
+   "agent_vivy": "42c263f2bd84 (feat/wails-migration)",
+   "laputa": "6f2eed2d71c8 (submodule)",
+   "wails": "v3.0.0-beta.27 (module + wails3 CLI + @wailsio/runtime npm)",
+   "go": "go1.26.8",
+   "build_tags": [
+    "vivy_headless"
+   ]
   },
-  "environment": {
-    "os": "windows/amd64 Windows Server 2022 Standard (Build 20348), interactive desktop session",
-    "webview2": "154.0.4258.53 (evergreen runtime installed during leg)",
-    "home": "Administrator profile; %APPDATA%\\DIVA\\vivy.yaml seeded, ~/.vivy/{vivy.db,garden,logs,transfers} created, .vivy/logs/vivy.log.2026-10-04",
-    "limits": "no audio endpoints (Audiosrv disabled, zero PNP audio devices) -> mic/playback untestable; no operator provider credentials; sealed binary embeds only dist/.gitkeep -> Vue UI cannot load (finding F1)"
-  },
-  "rows": [
-    {
-      "id": "W5-T1-CANDIDATE",
-      "requirement": "W-R2",
-      "scenario": "One sealed candidate pair: pinned sources, recipe, generation, binary hash recorded; inspect of final executable",
-      "outcome": "passed",
-      "evidence": "Windows build-report.json: host 81c381f8, vivy 3862b768, laputa 6f2eed2, generation a24a62a2…, sha256 above; consumer.mod/sum + checksums.sha256 emitted. Prior Linux candidate (7070607d…) recorded in candidate.prior_leg"
-    },
-    {
-      "id": "W5-T2-FRESH-PROFILE",
-      "requirement": "W-R9",
-      "scenario": "Clean Next profile boots to a sealed runtime without external bootstrap tooling",
-      "outcome": "passed",
-      "evidence": "Windows fresh profile: %APPDATA%\\DIVA\\vivy.yaml seeded on first launch, ~/.vivy/{vivy.db,garden,logs,transfers} created, 'vivy host opened' generation a24a62a2…; no ReadFrozen failure. Linux leg: scratch HOME equivalent proven (7070607d…)"
-    },
-    {
-      "id": "W5-T2-FIRST-TURN",
-      "requirement": "W-R3",
-      "scenario": "First model turn on the sealed candidate with a configured model",
-      "outcome": "pending",
-      "evidence": "Windows leg: GUI driven but sealed exe cannot render the Vue UI (dist gitignored -> embed ships only .gitkeep; finding F1) — turn drive blocked; also needs provider credentials",
-      "owner": "owner E2E (after F1 fix)"
-    },
-    {
-      "id": "W5-T2-GRANTS-CATALOG",
-      "requirement": "W-R3/W-R6",
-      "scenario": "Sealed module-action catalog, grant checks, denied tool boundaries",
-      "outcome": "pending",
-      "evidence": "vivy-side action_gateway/governance tests green in repo CI; sealed-candidate drive pending same harness as W5-T2-FIRST-TURN (blocked by F1 on Windows)",
-      "owner": "owner E2E"
-    },
-    {
-      "id": "W5-T3-CHAT-MATRIX",
-      "requirement": "W-R3",
-      "scenario": "Text/images, presets+readback, approval accept/reject, active cancel, edit/regenerate, rewind conflict, goal entry, session select/reopen",
-      "outcome": "pending",
-      "evidence": "frontend vitest 551/551 covers controller seams; candidate-drive rows pending — Windows GUI drive blocked by F1 (UI not sealed)",
-      "owner": "owner E2E"
-    },
-    {
-      "id": "W5-T3-COGNITIVE",
-      "requirement": "W-R3",
-      "scenario": "Cognitive context projection and controls; denied/busy/unsupported explicit",
-      "outcome": "pending",
-      "evidence": "Windows: ~/.vivy/garden created on first boot; cognitive dispatch needs working UI (blocked by F1)",
-      "owner": "owner E2E"
-    },
-    {
-      "id": "W5-T4-SINGLE-INSTANCE",
-      "requirement": "W-R5",
-      "scenario": "Second process launch rejected while candidate runs",
-      "outcome": "passed",
-      "evidence": "Windows w0-2: second launch → 'organism lease held: the shared Vivy workspace is already in use by another process' (code -32086), second process exits, primary unaffected. Note: lease fires inside Compose before Wails exists, so OnSecondInstanceLaunch→reopen() is unreachable (finding F2). Linux leg identical"
-    },
-    {
-      "id": "W5-T4-CRASH-RESTART",
-      "requirement": "W-R5",
-      "scenario": "SIGKILL then relaunch on the same profile reopens the runtime and journal",
-      "outcome": "passed",
-      "evidence": "Windows w0-2: taskkill /F → immediate relaunch correctly rejected (lease row survives; TTL 30s heartbeat 10s — crash-safety margin) → relaunch after TTL expiry → 'vivy host opened' on same .vivy/vivy.db, window renders. Linux leg: kill -9 → relaunch opened (TTL nuance not recorded there)"
-    },
-    {
-      "id": "W5-T4-CLEAN-QUIT",
-      "requirement": "W-R5",
-      "scenario": "Normal quit path releases workspace and exits",
-      "outcome": "passed",
-      "evidence": "Windows w0-2: CTRL_BREAK (Wails SIGINT/SIGTERM handler → a.Quit()) → 'Quitting application...' → 'speech teardown: inflight=0 joined=0' → 'teardown complete' → exit; lease released — immediate relaunch opens with no TTL wait. No UI quit affordance exists (finding F3): no tray menu/quit control; signal path is the only graceful quit"
-    },
-    {
-      "id": "W5-T4-HIDE-REOPEN",
-      "requirement": "W-R5",
-      "scenario": "Hide/reopen keeps the same runtime, no replayed audio",
-      "outcome": "failed",
-      "evidence": "Windows w0-2 live drive: hide works (window X and taskkill WM_CLOSE both hide; process + runtime stay alive; tray icon 'DIVA desktop' present; hide hook invalidates speech context). REOPEN FAILS: tray created without AttachWindow/SetMenu → click inert, no menu; d.reopen() only reachable via OnSecondInstanceLaunch which can never fire — Compose() opens the sealed host first and the organism lease kills instance 2 before the Wails app exists. Once hidden the window cannot be reopened except by killing the process. Fix: tray.AttachWindow(w) + reopen on second-instance before host open"
-    },
-    {
-      "id": "W5-T4-WEBVIEW-RELOAD",
-      "requirement": "W-R5",
-      "scenario": "WebView reload invalidates context and recovers without duplicate turns",
-      "outcome": "pending",
-      "evidence": "Windows w0-2: live F5 drive — webview reloads the embedded tree, runtime unaffected, no errors; context-invalidation/turn-dedup unverifiable without the real frontend (F1)",
-      "owner": "owner E2E (after F1 fix)"
-    },
-    {
-      "id": "W5-T4-EVENT-LOSS",
-      "requirement": "W-R5",
-      "scenario": "Event queue overflow/loss, active-call timeout, shutdown deadline: recover without duplicate turns or fabricated deltas",
-      "outcome": "pending",
-      "evidence": "Go-level evidence: registry cancel/settle/deliverable + Shutdown(grace) honest report (w4-1 tests); host-level queue-loss drive pending",
-      "owner": "owner E2E"
-    },
-    {
-      "id": "W5-T5-LOGS",
-      "requirement": "W-R2",
-      "scenario": "Runtime/GUI logs, rotation, redaction, request correlation",
-      "outcome": "passed",
-      "evidence": "Windows w0-2: .vivy/logs/vivy.log.2026-10-04 JSON sink written during candidate runs; console logs captured via stderr. Secrets never logged by design (D-010); Linux leg rotation naming confirmed"
-    },
-    {
-      "id": "W5-T5-VOICE-SCRIPTED",
-      "requirement": "W-R4",
-      "scenario": "Voice input/output and provider error paths vs scripted providers",
-      "outcome": "passed",
-      "evidence": "w4-1: internal/speech race tests — STT/TTS fixtures, cancel, late-settle discard, provider errors, keyring-unavailable, shutdown drain; re-verified green on Windows (go test -tags vivy_headless ./internal/speech ok)"
-    },
-    {
-      "id": "W5-T5-VOICE-REAL",
-      "requirement": "W-R4",
-      "scenario": "Real configured SiliconFlow STT + SiliconFlow/MiniMax TTS",
-      "outcome": "pending",
-      "evidence": "Windows VM has no audio endpoints (Audiosrv disabled, zero PNP audio devices) → capture/playback untestable even with credentials; operator-held credentials still required",
-      "owner": "owner (needs audio-capable Windows machine)"
-    },
-    {
-      "id": "W5-T5-VOICE-LIFECYCLE",
-      "requirement": "W-R4/W-R5",
-      "scenario": "Hide/reload/session-switch cancel, stale generation, asset delete during use, unavailable keyring, replay silence",
-      "outcome": "passed",
-      "evidence": "w4-1 tests: InvalidateContext on hide hook, stale_context discard, lease-gated asset delete (delete-pending), OsKeyring unavailable→credential_unavailable; replay-silence GUI row covered by context invalidation + stale-context discard at service level"
-    },
-    {
-      "id": "W5-WINDOWS-MATRIX",
-      "requirement": "W-R2/W-R4/W-R5",
-      "scenario": "Whole matrix on Windows x64 (WebView2, Credential Manager, lifetime)",
-      "outcome": "pending",
-      "evidence": "w0-2 Windows leg executed end-to-end (docs/logs/2026-10-wails-migration/w0-2): WebView2 154.0.4258.53 rendering, Credential Manager keyring fully green (wincred + real dev.projectivy.diva.speech/v1.siliconflow slot via cmdkey, no plaintext), lifetime proven (close-to-hide, lease single-instance, crash→TTL→relaunch, signal quit + clean lease release, F5 reload). Remaining gaps: F1 sealed exe embeds only .gitkeep (UI dead), F2 no reopen affordance (row failed), F3 no quit affordance, F4 no audio endpoints. Keyring sub-rows = GO; lifetime/UI sub-rows partially proven",
-      "owner": "owner (F1/F2/F3 fixes, then re-drive)"
-    }
-  ],
-  "residuals": {
-    "blocking": [
-      "W5-T2-FIRST-TURN", "W5-T2-GRANTS-CATALOG", "W5-T3-CHAT-MATRIX",
-      "W5-T3-COGNITIVE", "W5-T4-HIDE-REOPEN", "W5-T4-WEBVIEW-RELOAD",
-      "W5-T4-EVENT-LOSS", "W5-T5-VOICE-REAL", "W5-WINDOWS-MATRIX"
-    ],
-    "nonblocking": [
-      "ACTMEM rendering / console asset / pause-text residuals stay in TODOLIST.md owning backlog (unchanged scope, no release impact for candidate)",
-      "desktop_pet_* dispatch noop — pet expansion deferred (not a W-R blocker)",
-      "Generated wails bindings drift check — no CI gate yet (just desktop-bindings)"
+  "prior_leg": {
+   "story": "W5 Linux headless leg (w5-1)",
+   "binary_sha256": "2745163fe0d8fe9bdb4c7968d271a9d97eb4621fd0a5a1098dffe60bfce4fabb",
+   "generation_id": "7070607d0c03c0b7ab3ddd14b92dfce926d5ed41425d65226b28fe9fe761e4e0",
+   "pins": {
+    "agent_diva": "a477ffc893fb",
+    "agent_vivy": "d9dfdf49ae5c",
+    "go": "go1.26.4",
+    "build_tags": [
+     "gtk3",
+     "vivy_headless"
     ]
+   }
+  }
+ },
+ "environment": {
+  "os": "windows/amd64 Windows Server 2022 Standard (Build 20348), interactive desktop session",
+  "webview2": "154.0.4258.53 (evergreen runtime installed during leg)",
+  "home": "Administrator profile; %APPDATA%\\DIVA\\vivy.yaml seeded, ~/.vivy/{vivy.db,garden,logs,transfers} created, .vivy/logs/vivy.log.2026-10-04",
+  "limits": "no audio endpoints (Audiosrv disabled, zero PNP audio devices) -> mic/playback untestable; no operator provider credentials; sealed binary embeds only dist/.gitkeep -> Vue UI cannot load (finding F1)"
+ },
+ "rows": [
+  {
+   "id": "W5-T1-CANDIDATE",
+   "requirement": "W-R2",
+   "scenario": "One sealed candidate pair: pinned sources, recipe, generation, binary hash recorded; inspect of final executable",
+   "outcome": "passed",
+   "evidence": "Windows build-report.json: host 81c381f8, vivy 3862b768, laputa 6f2eed2, generation a24a62a2…, sha256 above; consumer.mod/sum + checksums.sha256 emitted. Prior Linux candidate (7070607d…) recorded in candidate.prior_leg"
   },
-  "notes": [
-    "closure-packaged-obs.json, closure-chat-obs.json, closure-speech.json preserved untouched — they record the retired C-ABI candidate, not this one.",
-    "Second-launch lease rejection observed both ways: overlapping graceful shutdown and live second instance — single workspace owner enforced below the UI layer."
+  {
+   "id": "W5-T2-FRESH-PROFILE",
+   "requirement": "W-R9",
+   "scenario": "Clean Next profile boots to a sealed runtime without external bootstrap tooling",
+   "outcome": "passed",
+   "evidence": "Windows fresh profile: %APPDATA%\\DIVA\\vivy.yaml seeded on first launch, ~/.vivy/{vivy.db,garden,logs,transfers} created, 'vivy host opened' generation a24a62a2…; no ReadFrozen failure. Linux leg: scratch HOME equivalent proven (7070607d…)"
+  },
+  {
+   "id": "W5-T2-FIRST-TURN",
+   "requirement": "W-R3",
+   "scenario": "First model turn on the sealed candidate with a configured model",
+   "outcome": "failed",
+   "evidence": "Windows w0-3 live drive + mock provider (127.0.0.1:18321): sealed turn/start on every fresh session fails - \"runtime: prepare session authority: no captured frozen core for this session\" (F5, root-caused: only writer Store.Capture via recall.FastService SessionProvider.Get is never called on the vivy path; frozen_core_sessions=0). After persona.Initialize + SessionProvider.Get capture, turns complete end-to-end via mock (runs run_42757e53/7498584d/ff97857f -> completed, msgs persisted)."
+  },
+  {
+   "id": "W5-T2-GRANTS-CATALOG",
+   "requirement": "W-R3/W-R6",
+   "scenario": "Sealed module-action catalog, grant checks, denied tool boundaries",
+   "outcome": "pending",
+   "evidence": "tools/list + settings/providers + governance catalog verified on the shared dispatch table via embedded probe (turnprobe, w0-3); sealed-GUI drive blocked by F6.",
+   "owner": "owner E2E (after F6 fix)"
+  },
+  {
+   "id": "W5-T3-CHAT-MATRIX",
+   "requirement": "W-R3",
+   "scenario": "Text/images, presets+readback, approval accept/reject, active cancel, edit/regenerate, rewind conflict, goal entry, session select/reopen",
+   "outcome": "failed",
+   "evidence": "Windows w0-3 (F6): backend runs complete and persist messages (vivy.db verified; audit log shows run.started -> ... -> run.completed) but the GUI renders no user echo and no assistant messages; connect() never binds (status stuck connecting; post-restart send created new session sess_4d13a567 instead of resuming latest). All connect-path RPCs verified OK via embedded probe - defect is sealed-host/GUI-bridge-specific."
+  },
+  {
+   "id": "W5-T3-COGNITIVE",
+   "requirement": "W-R3",
+   "scenario": "Cognitive context projection and controls; denied/busy/unsupported explicit",
+   "outcome": "pending",
+   "evidence": "Windows w0-3: ~/.vivy/garden created (garden.db, persona/); persona.Service.Initialize + frozen-core lazy capture proven via module-level probe (frozencap, garden cmd). Full cognitive matrix blocked by F5 (turn gate) + F6 (GUI render).",
+   "owner": "owner E2E"
+  },
+  {
+   "id": "W5-T4-SINGLE-INSTANCE",
+   "requirement": "W-R5",
+   "scenario": "Second process launch rejected while candidate runs",
+   "outcome": "passed",
+   "evidence": "Windows w0-2: second launch → 'organism lease held: the shared Vivy workspace is already in use by another process' (code -32086), second process exits, primary unaffected. Note: lease fires inside Compose before Wails exists, so OnSecondInstanceLaunch→reopen() is unreachable (finding F2). Linux leg identical"
+  },
+  {
+   "id": "W5-T4-CRASH-RESTART",
+   "requirement": "W-R5",
+   "scenario": "SIGKILL then relaunch on the same profile reopens the runtime and journal",
+   "outcome": "passed",
+   "evidence": "Windows w0-2: taskkill /F → immediate relaunch correctly rejected (lease row survives; TTL 30s heartbeat 10s — crash-safety margin) → relaunch after TTL expiry → 'vivy host opened' on same .vivy/vivy.db, window renders. Linux leg: kill -9 → relaunch opened (TTL nuance not recorded there)"
+  },
+  {
+   "id": "W5-T4-CLEAN-QUIT",
+   "requirement": "W-R5",
+   "scenario": "Normal quit path releases workspace and exits",
+   "outcome": "passed",
+   "evidence": "Windows w0-2: CTRL_BREAK (Wails SIGINT/SIGTERM handler → a.Quit()) → 'Quitting application...' → 'speech teardown: inflight=0 joined=0' → 'teardown complete' → exit; lease released — immediate relaunch opens with no TTL wait. No UI quit affordance exists (finding F3): no tray menu/quit control; signal path is the only graceful quit"
+  },
+  {
+   "id": "W5-T4-HIDE-REOPEN",
+   "requirement": "W-R5",
+   "scenario": "Hide/reopen keeps the same runtime, no replayed audio",
+   "outcome": "passed",
+   "evidence": "Windows w0-3 live drive on agent-diva 8db11f51 fix: tray AttachWindow + Show/Quit menu. Hide via X keeps process+runtime; tray left-click toggles reopen; menu Show reopens; Quit exits and releases organism lease (immediate relaunch accepted, no -32086). Screenshots docs/logs/2026-10-wails-migration/w0-3/tray-*.png"
+  },
+  {
+   "id": "W5-T4-WEBVIEW-RELOAD",
+   "requirement": "W-R5",
+   "scenario": "WebView reload invalidates context and recovers without duplicate turns",
+   "outcome": "passed",
+   "evidence": "Windows w0-3: F1 fix verified - pack overlays built dist into staged tree (vivy 42c263f2); sealed exe renders the real Vue UI. F5 reload re-renders the UI, runtime unaffected."
+  },
+  {
+   "id": "W5-T4-EVENT-LOSS",
+   "requirement": "W-R5",
+   "scenario": "Event queue overflow/loss, active-call timeout, shutdown deadline: recover without duplicate turns or fabricated deltas",
+   "outcome": "pending",
+   "evidence": "Windows w0-3: run/subscribe accepted (sub_834d..., seq replay) via embedded probe; host audit journal records ordered run events. Live GUI event lane (vivy:event -> projection) cannot be exercised while F6 persists. Go-level registry/Shutdown(grace) evidence from w4-1 stands.",
+   "owner": "owner E2E (after F6 fix)"
+  },
+  {
+   "id": "W5-T5-LOGS",
+   "requirement": "W-R2",
+   "scenario": "Runtime/GUI logs, rotation, redaction, request correlation",
+   "outcome": "passed",
+   "evidence": "Windows w0-2: .vivy/logs/vivy.log.2026-10-04 JSON sink written during candidate runs; console logs captured via stderr. Secrets never logged by design (D-010); Linux leg rotation naming confirmed"
+  },
+  {
+   "id": "W5-T5-VOICE-SCRIPTED",
+   "requirement": "W-R4",
+   "scenario": "Voice input/output and provider error paths vs scripted providers",
+   "outcome": "passed",
+   "evidence": "w4-1: internal/speech race tests — STT/TTS fixtures, cancel, late-settle discard, provider errors, keyring-unavailable, shutdown drain; re-verified green on Windows (go test -tags vivy_headless ./internal/speech ok)"
+  },
+  {
+   "id": "W5-T5-VOICE-REAL",
+   "requirement": "W-R4",
+   "scenario": "Real configured SiliconFlow STT + SiliconFlow/MiniMax TTS",
+   "outcome": "pending",
+   "evidence": "Windows VM has no audio endpoints (Audiosrv disabled, zero PNP audio devices) → capture/playback untestable even with credentials; operator-held credentials still required",
+   "owner": "owner (needs audio-capable Windows machine)"
+  },
+  {
+   "id": "W5-T5-VOICE-LIFECYCLE",
+   "requirement": "W-R4/W-R5",
+   "scenario": "Hide/reload/session-switch cancel, stale generation, asset delete during use, unavailable keyring, replay silence",
+   "outcome": "passed",
+   "evidence": "w4-1 tests: InvalidateContext on hide hook, stale_context discard, lease-gated asset delete (delete-pending), OsKeyring unavailable→credential_unavailable; replay-silence GUI row covered by context invalidation + stale-context discard at service level"
+  },
+  {
+   "id": "W5-WINDOWS-MATRIX",
+   "requirement": "W-R2/W-R4/W-R5",
+   "scenario": "Whole matrix on Windows x64 (WebView2, Credential Manager, lifetime)",
+   "outcome": "pending",
+   "evidence": "w0-2 + w0-3 Windows legs executed (docs/logs/2026-10-wails-migration/). w0-3: F1/F2/F3 verified fixed - real Vue UI embedded, tray reopen/quit, reload. Proven: keyring green, lifetime (hide, lease single-instance, crash -> TTL -> relaunch, clean quit + lease release), mock-provider turns complete after frozen-core capture. Blockers: F5 sealed turn gate on uncaptured sessions, F6 GUI never binds/renders session, F4 no audio endpoints.",
+   "owner": "owner (F5/F6 upstream fixes, then re-drive)"
+  }
+ ],
+ "residuals": {
+  "blocking": [
+   "W5-T2-FIRST-TURN",
+   "W5-T2-GRANTS-CATALOG",
+   "W5-T3-CHAT-MATRIX",
+   "W5-T3-COGNITIVE",
+   "W5-T4-HIDE-REOPEN",
+   "W5-T4-WEBVIEW-RELOAD",
+   "W5-T4-EVENT-LOSS",
+   "W5-T5-VOICE-REAL",
+   "W5-WINDOWS-MATRIX"
+  ],
+  "nonblocking": [
+   "ACTMEM rendering / console asset / pause-text residuals stay in TODOLIST.md owning backlog (unchanged scope, no release impact for candidate)",
+   "desktop_pet_* dispatch noop — pet expansion deferred (not a W-R blocker)",
+   "Generated wails bindings drift check — no CI gate yet (just desktop-bindings)"
   ]
+ },
+ "notes": [
+  "closure-packaged-obs.json, closure-chat-obs.json, closure-speech.json preserved untouched — they record the retired C-ABI candidate, not this one.",
+  "Second-launch lease rejection observed both ways: overlapping graceful shutdown and live second instance — single workspace owner enforced below the UI layer."
+ ]
 }
