@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-6A](closure/DN-6A.md), [DN-6B](closure/DN-6B.md), [DN-6C](closure/DN-6C.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -50,3 +56,4 @@ Scoped checks cover real request shape, redaction, bounds, cancel races,
 resource release and replay exclusion. Prepare installed mic -> STT -> Agent
 -> both TTS providers -> playback/VRM -> interrupt -> Quit scenarios for owner
 acceptance. No cloud quality/native success is claimed by this design.
+

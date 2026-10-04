@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-LC](closure/DN-LC.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -39,3 +45,4 @@ Consumes DN-0 core RPC/ABI/target freeze. Produces all five P0-D1 exports, gener
 From VIVY: `go test ./internal/embedded ./internal/app ./internal/rpc ./sdk/internal/... -count=1` (new embedded package after creation). Build SDK using `go build -o vivy-sdk.exe ./sdk`. Proposed command after implementing the flag: `vivy-sdk.exe pack --recipe recipes/diva.vivy.yml --target shared --output dist/diva-shared`; then existing `vivy-sdk.exe inspect-artifact dist/diva-shared`. The frozen target C compiler runs `tests/ffi/smoke.c` with generated includes/link inputs; DN-0 must record its exact command before Ready.
 
 Expected: native DLL loads, manifest agrees with initialize, memory ownership holds, events retain backend IDs/sequence, cancellation is durable, shutdown finishes within the existing policy. No test executed in this planning session. Stop on missing native toolchain, unresolved generation-format review, unsafe unload or unbounded close.
+

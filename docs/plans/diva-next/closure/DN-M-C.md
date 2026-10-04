@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-M-C — Audit scoped behavior and boundary closure Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -65,3 +71,4 @@ DN-6A/B/C amend native/AST gates in their own commits; this Story audits the com
 ### Acceptance and handoff
 
 Return requirement matrix, exact gate fixtures/inventories, current dependency-audit evidence and unchanged scope exclusions. DN-8C receives all pending native/owner rows. No rule-file rewrite, product release or final acceptance is authorized by this audit plan.
+

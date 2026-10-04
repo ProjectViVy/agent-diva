@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-0C](closure/DN-0C.md), [DN-0S](closure/DN-0S.md), [DN-0P](closure/DN-0P.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -37,3 +43,4 @@ Consumes current DIVA source and historical `0fd005a1`/origin/dev command regist
 Run `rg -n 'invoke|listen|@tauri-apps|fetch\(' agent-diva-gui/src` as a discovery aid; compare source rows with AST/import traversal and historical command inventory. Every production consumer must have a disposition, including indirect calls. Validate fixture JSON with `python -m json.tool docs/plans/diva-next/fixtures/core-rpc.json`. On a provisioned Go host run `go test ./internal/app ./internal/rpc -run 'LoopbackControl|Gatewayless|Subscribe' -count=1` from VIVY and capture the core transcript. Missing environment is recorded as pending, not success.
 
 Review focus: aliased invokes; direct network bypasses; similarly named but semantically different APIs; non-journaled events; required domains incorrectly marked optional. Return ledger coverage, frozen schemas, target/toolchain evidence and exact blockers. DN-1/DN-L do not become Ready from a ledger with unresolved core contracts.
+

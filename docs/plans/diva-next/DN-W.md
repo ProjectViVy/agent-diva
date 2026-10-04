@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-W — 拆线：immediate removal of the legacy Rust backend
 
 - **Epic:** A (reordered by user directive 2026-09-27: wire-cut is phase 1) · **Requirements:** R-2, R-8 · **Outcome:** the new branch contains no Rust workspace, no Tauri shell, and no Rust/Manager build path; the Vue frontend still typechecks, tests, and builds in browser mode.
@@ -31,3 +37,4 @@
 - DN-0's inventory now describes a deleted codebase — read it from git history at `0fd005a1`, not the working tree. The classification/contract record is still required.
 - DN-5/DN-8 shrink: no Rust build closure remains to delete; DN-8 becomes final packaging/boundary-gate + acceptance.
 - `isTauri()`/`isTauriRuntime()` guards now always evaluate false in the shipped artifact; browser paths are the only paths.
+

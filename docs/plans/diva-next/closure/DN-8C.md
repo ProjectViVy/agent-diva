@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-8C — Prepare clean native installation and owner acceptance Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -63,3 +69,4 @@ On the actual Windows x64 candidate run current `just shell-bridge-test`, `just 
 ### Acceptance and handoff
 
 Return immutable installer location/hash and requirement-by-requirement engineering versus owner states. Completion of this planning package creates no installer and supplies no final acceptance. Do not request owner final acceptance until the concrete build and engineering evidence are ready.
+

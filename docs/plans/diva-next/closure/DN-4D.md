@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-4D — Connect cognitive setup and scoped companion views Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -71,3 +77,4 @@ Before Persona setup, create a setup session via the existing controller and tru
 ### Acceptance and handoff
 
 Return action-fixture version, EN/ZH mappings, component results and sanitized developer smoke. Do not call newly created pages restored legacy parity; their scope is DN-C2 only. DN-P-C receives final UI/source commits for the packaged artifact.
+

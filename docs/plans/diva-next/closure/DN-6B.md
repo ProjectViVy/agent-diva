@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-6B — Bounded cloud providers and native request cancellation Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -67,3 +73,4 @@ DN-C2 guards: 120 s mono16k PCM16 WAV/8 MiB; JSON STT64 KiB/text16 KiB; TTS4000 
 ### Acceptance and handoff
 
 Return native command/event fixture version, stream-limit/cancel-race evidence and teardown contract. DN-6C may use it only after accepted IPC/provider fixtures. Do not claim cloud/model/audio quality from offline fixture success.
+

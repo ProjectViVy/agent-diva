@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 > 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-4A](closure/DN-4A.md), [DN-4B](closure/DN-4B.md), [DN-4C](closure/DN-4C.md), [DN-4D](closure/DN-4D.md).
 > [The parent index](index.md#executable-story-package) alone owns current
 > dependencies/readiness. Historical tasks and evidence below retain their pins.
@@ -48,3 +54,4 @@ automatic ordinary-BML substitution.
 Owner accepts the installed cognitive UI after engineering delivery. Broader
 notebook/report scheduling stays deferred in TODOLIST; real reflection notes
 are retained. No fake report or empty-success page is a replacement.
+

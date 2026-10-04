@@ -4,14 +4,21 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
-- Owner: `Devin`
-- Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P, DN-0S delivered; wave-1 delivered; awaiting owner gate before wave 2); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
-- Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
-- Started At: `2026-10-03T12:40:00Z`
-- Last Heartbeat: `2026-10-03T14:45:00Z`
-- Expires At: `2026-10-04T00:00:00Z`
+- Lock State: `RELEASED`
+- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, TODOLIST.md, LOCK.md; docs/wails-migration-20261004 only`
+- Owner: `Codex on behalf of mastwet`
+- Session/Task: `DN-W3 architecture and executable migration plans; source archive; no product edits`
+- Branch/Worktree: `docs/wails-migration-20261004 / isolated source snapshot`
+- Started At: `2026-10-04T00:53:00Z`
+- Last Heartbeat: `2026-10-04T01:18:32Z`
+- Released At: `2026-10-04T01:18:32Z`
+
+### Handoff for this branch
+
+The inherited Devin wave-1 lease expired at 2026-10-04T00:00:00Z. Its
+historical record below is stale, not an active lock for this new docs branch.
+The mainline merge is preserved at 5444795a2d9db31e158c2cf009d64697e6289e50.
+No other working branch or live workspace is modified by this handoff.
 
 ## Lock Rules
 
@@ -25,7 +32,14 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Active Lock
 
-- `DIVA Next closure wave 1` — **HELD** by `Devin` (session
+- `DN-W3-P1 Go/Wails migration planning` — **RELEASED 2026-10-04T01:18:32Z** by
+  `Codex on behalf of mastwet`; branch `docs/wails-migration-20261004`.
+  Documentation, backlogs and source-reference archive only. Eight Story
+  plans, nine requirements and six waves statically verified. Archive branch
+  refs read back at exact paired SHAs; paired tags remain pending missing
+  tag-write access. No product code, main merge or product acceptance.
+
+- `DIVA Next closure wave 1` — **EXPIRED (historical)** by `Devin` (session
   `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
   heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
   Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
@@ -633,3 +647,4 @@ Use this file to declare the current writer scope before mutating the workspace.
 - `2026-08-05T19:05:00+08:00`: Released after archiving sandbox+HITL approval proposal to
   `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
   Implementation still pending; see TODOLIST `审批三模式完善`.
+

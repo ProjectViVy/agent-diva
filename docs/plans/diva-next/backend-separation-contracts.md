@@ -1,4 +1,319 @@
-# DN-C2 closure contracts — 2026-10-03
+# DIVA Next contracts — DN-W3 / 2026-10-04
+
+## W3 Go-host contracts
+
+**Proposed interfaces, not currently exported.** The inspected source baseline
+is DIVA `5444795a2d9db31e158c2cf009d64697e6289e50` and VIVY
+`fc559e6b03ce4e65c0099b9745855dccc4fb067e`. The
+[architecture](p0-design.md) and [index](index.md) define ownership and order.
+This section replaces C ABI/native-host portions of C2-1 and C2-4 below.
+Existing business RPC schemas, limits, permissions and speech UX remain
+applicable unless explicitly amended here.
+
+### W3-1. VIVY public embedder
+
+New package `agent-vivy/sdk/host/v1` (package name `host`):
+
+```go
+type Options struct {
+    ConfigPath string
+    WithoutEars bool
+}
+type Notification struct {
+    Method string          `json:"method"`
+    Params json.RawMessage `json:"params"`
+}
+type EventBatch struct {
+    Events []Notification `json:"events"`
+    Gap    bool           `json:"gap"`
+}
+type Error struct {
+    Kind    string          `json:"kind"`
+    Code    int             `json:"code"`
+    Message string          `json:"message"`
+    Data    json.RawMessage `json:"data,omitempty"`
+}
+func (e *Error) Error() string
+func Open(ctx context.Context, options Options) (*Host, error)
+func (h *Host) Call(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error)
+func (h *Host) Next(ctx context.Context, limit int) (EventBatch, error)
+func (h *Host) Close(ctx context.Context) error
+```
+
+This is the trusted native embedding entry, not a grant of public-module
+capabilities. It exports no internal app/config/runtime/peer objects.
+Open reads/validates the config path and sealed embedded Generation,
+initializes owned logging and composes one runtime through generated
+assembly. Missing or mismatched manifest is a startup error. Partial Open
+closes every acquired resource and never returns a usable Host.
+
+Only one live Host may own a process/data root; a failed startup releases its
+claim. Close is idempotent/concurrent-safe. The first Close initiates teardown;
+later callers wait for the same result subject to their own deadlines.
+Timed-out teardown retains the claim; do not reopen over live resources.
+The implementation must not add a constructor path that bypasses sealing.
+
+Call retains existing method/params/result schemas and trusted DialControl
+authorization. At most 4 MiB encoded request (method plus params/envelope);
+validate before dispatch. The desktop applies a default 120-second deadline,
+bounded by explicit caller cancellation. A timeout after admission has
+unknown mutation outcome: reconcile by reads, never automatically retry
+a turn start, edit, approval or credential write.
+
+Errors normalize to kinds `invalid_input`, `not_ready`, `closed`,
+`already_initialized`, `timeout`, `cancelled`, `transport_lost`,
+`internal`, `incompatible_generation` or `rpc`. For `rpc`, preserve
+the existing numeric RPC error code in Code and preserve
+safe structured Data; do not translate authorization failure into transport
+loss. Remove ABI-only `incompatible_abi` and `load_failed` from the new
+consumer. No raw panic, key or secret-bearing config in error messages.
+The frontend keeps numeric error codes. Proposed native host codes are:
+invalid_input -32602, not_ready -32080, closed -32081,
+already_initialized -32082, timeout -32083, cancelled -32084,
+transport_lost -32085, internal -32086 and incompatible_generation -32087.
+Kind disambiguates host errors from an unchanged underlying RPC error.
+
+
+Next has exactly one owner (the desktop event pump). It blocks until an event,
+gap, close or context cancellation; then drains a batch. A zero limit means
+500; valid explicit limits are 1..500, others fail validation. Capacity is
+10,000; overflow drops oldest and sets a sticky gap until delivered. A gap
+can wake an otherwise empty reader. Producers never block waiting for Vue.
+Wakeup/close/overflow races need tests; no periodic polling goroutine.
+
+Events preserve runtime sequence IDs. Transport loss/gap triggers bounded
+authoritative re-fetch and subscription recovery; it is not success or an
+excuse to fabricate missing deltas. Browser numeric revisions and sequences
+must be safe integers or explicitly represented losslessly.
+
+Close initially uses one five-second desktop budget. Add context propagation
+through embedded/app teardown where needed; keep existing CLI Close behavior
+through a wrapper. On timeout report the unfinished component and return
+an error without claiming its goroutine/resource was terminated. The desktop
+records unclean exit and must not initialize another runtime in that process.
+
+### W3-2. Desktop seam and lifecycle
+
+New DIVA Go `RuntimeService.Call(ctx, CallRequest) CallReply` is bound by
+Wails. Only this service reaches the public host for Agent operations.
+
+```go
+type CallRequest struct {
+    Method string          `json:"method"`
+    Params json.RawMessage `json:"params"`
+    TimeoutMS int          `json:"timeoutMs,omitempty"`
+}
+type CallReply struct {
+    OK    bool            `json:"ok"`
+    Value json.RawMessage `json:"value,omitempty"`
+    Error *host.Error     `json:"error,omitempty"`
+}
+```
+
+Exactly one of Value or Error is meaningful according to OK. CallReply
+exists to keep stable typed frontend failures across generated bindings.
+UI components still use `vivyCall(request)`; the seam unwraps the reply.
+Generate bindings to a single checked path under
+`agent-diva-gui/src/generated/wails/` (new); CI regenerates and checks drift.
+
+Native event name remains `vivy:event`. Existing wire union remains:
+`{kind:"vivy",method,params}` or
+`{kind:"bridge",status:"gap"|"lost"}`. "bridge" here is a frontend
+transport DTO label, not C ABI compatibility. Keep it to avoid rewriting
+domain stores. One listener-install promise and one native event pump avoid
+duplicate listeners during concurrent first calls. Unsubscribe never closes
+the Host. GUI diagnostics remain redacted and bounded.
+
+Native framework service callbacks adapt to an explicit
+`Desktop.Start(ctx)` / `Desktop.Shutdown(ctx)` coordinator; they do not
+each own runtime teardown. W0 records the exact pinned upstream signatures.
+When Wails cancels its app context early, use an independently owned shutdown
+context. Ready publishes only after config, sealing, control, automatic
+services and event pump are initialized. On failure show a useful diagnostic
+without opening a second runtime.
+
+Only the primary application window receives privileged bindings/media
+capabilities. No pet window is added. No external navigation receives
+bindings, and external links use the OS opener through the seam. Caller
+identity comes from verified native framework context, never a browser
+`window_id` claim. W0 must prove the implementation before this contract
+can be marked executable for W3.
+
+### W3-3. Speech and media
+
+Public TypeScript functions and DTOs in `src/platform/desktop-host.ts`
+remain the frontend API. Go DTOs mirror current snake_case fields:
+`SpeechIdentity{request_id,session_id,run_id?,utterance_id,generation}`;
+`generation` is a safe nonnegative integer. Native sender is added by the
+host and is not a trusted payload field. Config schema remains
+`diva.speech/v1`; update uses `base_revision` with atomic compare-and-write.
+
+Keep config get/update, credential set/delete, context set, transcribe,
+synthesize, cancel, voice asset import/list/read/delete and diagnostic events.
+Go owns provider HTTP, keyring, asset paths and per-request cancellation.
+Do not forward STT/TTS through VIVY's Agent RPC or give the browser an API key.
+
+| Media request | Body/result | Validation |
+| --- | --- | --- |
+| POST /diva-media/transcribe | Raw WAV -> existing TranscribeReply JSON | Identity metadata, current context, bounded WAV |
+| POST /diva-media/synthesize | JSON identity/text -> raw WAV | Current context, provider limits, bounded response |
+| POST /diva-media/assets | Raw WAV + display metadata -> descriptor JSON | Verified WAV, quota, no caller filesystem path |
+| GET /diva-media/assets/{id} | Empty -> raw WAV | Opaque ID lookup, live asset lease |
+
+A new `SpeechService.MediaSession(ctx)` bound call returns an opaque
+random capability to the verified main-window caller. The seam sends it in
+`X-Diva-Media-Token`, never a URL/query or log. Native metadata is encoded
+as bounded JSON in `X-Diva-Speech-Meta` (max 2 KiB); the host verifies the
+token's window/lifecycle scope and current identity before admission and
+again before committing results. Header values are client input, not proof
+of scope. Issue/revoke per window lifecycle; no cross-window reuse, external
+Origin acceptance, path traversal or unauthenticated media read. W0 proves
+the same-origin handler is internal to Wails and creates no listening port.
+HTTP status maps to existing typed speech errors; bytes on error are JSON
+errors, never treated as audio. Set no-store; do not cache capabilities/audio.
+
+Keep current validated audio formats and provider-specific bounds from Rust
+`wav.rs`/`providers.rs`; W4 ports their test vectors and constants before
+removing them. Asset caps already verified: 10 MiB/file, 20 files,
+100 MiB total, display name 128 bytes. Enforce response limits while reading,
+not after allocating an unbounded body. Provider HTTP connect timeout is
+10 seconds; overall request timeout is 120 seconds, further limited by
+shutdown/user cancellation. Disable unreviewed redirect destinations.
+
+The OS credential service name is currently `dev.projectivy.diva.speech`.
+Keep that exact existing namespace unless W0 records an intentional
+fresh-profile naming change and its consequences. Availability is read back
+as a boolean; keys never return to Vue. OS keyring unavailable/locked remains
+an explicit error without plaintext fallback.
+
+Changing session/generation, hiding/reloading, explicit cancel or quitting
+invalidates in-flight speech. Check identity on admission, before persistence
+and before playback. Asset deletion respects active leases and returns
+deleted/pending as before. Late provider success must not persist or play
+stale audio. Historic/replayed assistant messages never auto-speak.
+
+### W3-4. Sealed build inputs and output
+
+New DIVA `build/vivy-sources.lock.json` schema `diva.go-host-inputs/v1`:
+
+- exact full VIVY, Laputa and INOFY dependency commit SHAs; no floating branch;
+- repository URLs plus source/tree content hashes, recipe hash;
+- Go toolchain (current VIVY requires 1.26.4), OS/arch/CGO/native tools;
+- Wails module/CLI/frontend-runtime exact versions;
+- DIVA/VIVY Go module/sum and frontend pnpm lock hashes;
+- selected keyring dependency version and platform capability evidence.
+
+At local development time dirty source requires an explicit non-release
+mode with its content digest. Release packing rejects dirty/floating/missing
+sources, replacement paths outside the staged source closure and an existing
+nonempty output directory. Do not recursively include build outputs in the
+host source hash. The tracked dependency lock does not pin its own DIVA commit. At build time,
+resolve the clean host checkout to its actual commit/tree digest and write
+that DIVA identity plus all resolved inputs to an untracked build report.
+This avoids a self-referential commit pin. Artifact hashes live in that
+separate report, never in the tracked source lock.
+
+New command (W2 implements it; run from staged VIVY root):
+
+```sh
+go run ./sdk pack --target go-host \
+  --recipe recipes/diva.vivy.yml \
+  --host-dir ../agent-diva --host-package ./cmd/diva \
+  --host-assets agent-diva-gui/dist \
+  --host-lock ../agent-diva/build/vivy-sources.lock.json \
+  --output ../artifacts/diva-go-host
+go run ./sdk inspect ../artifacts/diva-go-host
+```
+
+Relative host-package and host-assets resolve within host-dir; host-lock
+resolves against the command working directory. Source/recipe lookup keeps
+current SDK semantics. Preserve normal executable target behavior. The
+go-host target snapshots sources, creates a consumer modfile including
+VIVY's required local replacement closure, generates VIVY assembly/manifest
+overlays, consumes the already built host-assets tree without rebuilding it,
+binds those final asset bytes into the manifest, and compiles the actual
+desktop executable with VIVY headless. The DIVA wrapper installs/builds the
+frontend once before pack; SDK validates the supplied tree and its lock/hash.
+
+Pack output contains executable, `generation.json`, final frontend tree,
+resolved source/build report, and checksums. Add an optional typed `hostBuild` field to GenerationManifest/SealInputs
+and the public manifest reader, with required schema `vivy.go-host/v1` for
+this target. Module specificationVersion remains `vivy.module/v1`; the host
+schema is a separate build-metadata contract. The new SDK accepts legacy
+artifacts without hostBuild, while the go-host target rejects its absence or
+an unknown host schema. Old SDK readers are not acceptance authorities for
+new go-host artifacts. W2 must add the field to canonical hashing, validation
+and every relevant strict decoder together, before W3 consumes it.
+
+The exact hostBuild object is:
+
+```json
+{
+  "schema": "vivy.go-host/v1",
+  "modulePath": "github.com/ProjectViVy/agent-diva",
+  "package": "./cmd/diva",
+  "source": {"repository": "https://github.com/ProjectViVy/agent-diva", "commit": "<full SHA>", "treeSHA256": "<canonical tracked-source hash>"},
+  "assets": {"path": "agent-diva-gui/dist", "sha256": "<final asset-tree hash>"},
+  "dependencyLockSHA256": "<tracked input-lock hash>",
+  "consumerModfileSHA256": "<canonical resolved modfile hash>",
+  "consumerSumSHA256": "<resolved sum hash>",
+  "tools": {"go": "1.26.4", "wails": "v3.0.0-beta.27", "goos": "windows", "goarch": "amd64", "cgo": true}
+}
+```
+
+Values above are placeholders defining required fields, not captured evidence.
+Canonical source hashing excludes .git, ignored outputs and generated dist;
+assets are separately hashed after the single frontend build. Normalize
+staged replace paths to stable source identities before hashing the modfile.
+Use the existing SDK's canonical serialization/tree hashing conventions;
+never hash machine-specific temporary paths. hostBuild participates in the
+Generation ID. Executable/installer checksums are only in the separate
+`build-report.json` and `checksums.sha256`, avoiding a self-hash cycle.
+Inspect must read embedded metadata without executing the binary, recompute
+the relevant hashes and reject source/module/UI/manifest tampering.
+
+The DIVA wrapper exposes `python scripts/build-desktop.py --mode build`
+and `--mode test`. Build mode requires clean release sources by default,
+runs the frontend build once and invokes sealed pack/Inspect. An explicit
+`--development` mode may snapshot dirty inputs but labels the output
+non-release. Test mode stages the same dependency/modfile closure and runs
+Go race tests with that modfile and VIVY headless tags, without requiring an
+already built frontend or claiming a release artifact. This is necessary
+because plain root `go test` would not resolve VIVY's noncanonical module
+and sibling replacements. Replacement `just go-test` delegates to test mode.
+
+DIVA's `just desktop-build` stages pinned sources and invokes this pack
+path; Wails packaging must consume that exact executable, never rebuild an
+unsealed default binary behind the scenes. Final installed-binary identity
+must match the reported signed executable hash. No shared VIVY DLL/SO,
+C headers or Rust bridge are shipped after W6. Platform-native WebView/CGO
+dependencies are permitted and accurately documented.
+
+### W3-5. Acceptance semantics and authority
+
+A fresh configured conversation must work without an external FrozenCore
+bootstrap probe. If the supported upstream bootstrap operation is absent,
+record a narrowly scoped Laputa/Garden dependency and block that scenario;
+do not invent an API, mutate its database or weaken frozen-context checks.
+
+Persisted sessions after restart must get authorized host access through
+the existing admission mechanism. Existing run/approval/process semantics
+are reported honestly; no grant persistence or new durable resume guarantee
+is implied by this migration.
+
+Runtime diagnostics must be available from embedded startup, redacted and
+rotated; initialize logging exactly once for the single runtime. Keep
+generation, source pins, lifecycle phases, run/session/request correlation
+and unclean shutdown status. Old mock-provider fixtures and source-level
+tests cannot establish native real-provider acceptance.
+
+---
+
+## Historical DN-C2 contract inventory
+
+The ledger below preserves prior business schemas and captured evidence.
+Its C ABI/Rust/Tauri transport prescriptions and readiness statements are
+superseded by W3 above. Old fixtures retain their original pins and results.
 
 Architecture: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
 This section is the current ledger. **Existing** means inspected source at

@@ -1,3 +1,9 @@
+> **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+> contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
+> scheduling/readiness statements are inactive. Use the [current index](../index.md)
+> and its W0–W7 plans. Domain behavior and explicitly deferred scope remain
+> reference material; prior package evidence is not Wails acceptance.
+
 # DN-4A — Expose one owned Garden domain and selected backend Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task after implementation authorization. Use `superpowers:subagent-driven-development` only when delegation is explicitly authorized. Read the specification and this plan; check the parent index before starting.
@@ -73,3 +79,4 @@ From Garden: `go test ./agentapi ./internal/runtimecore ./internal/recall ./inte
 ### Acceptance and handoff
 
 Hand off public source commit, typed facade signatures, conformance fixture digest and known degraded/native requirements. Stop on a change to domain ownership, ACTMEM storage, Mission authority or selected backend policy; those require an architecture revision, not a local workaround.
+

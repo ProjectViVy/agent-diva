@@ -1,16 +1,38 @@
 # TODOLIST
 
-Active gaps and deferred work for DIVA Next. Stage state/dependencies live
-only in [the existing index](docs/plans/diva-next/index.md); current scope and
-closure rules are [DN-C2](docs/plans/diva-next/p0-design.md).
+Active gaps and deferred work for DIVA Next. Live status/dependencies live
+only in [the existing index](docs/plans/diva-next/index.md); current host
+architecture is [DN-W3](docs/plans/diva-next/p0-design.md). The previous
+Tauri/C ABI source line is frozen at the paired archive refs. Checked rows
+below describe prior delivered source, not acceptance of a Wails product.
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
-## Closure work
+## Approved migration work — planning delivered, execution not started
 
-The [DN-C2-P1 execution package](docs/plans/diva-next/index.md#executable-story-package)
-maps these gaps to 20 concrete Plans. Planning is complete; all implementation,
-captured contract/native/provider probes and owner acceptance remain unfinished.
-Four independent roots are plan-Ready; other readiness lives only in that index.
+- [ ] **WAILS-NATIVE-GATE** P0 — W0 must prove pinned Windows native caller,
+  media, lifecycle, keyring and WebView2 behavior before adoption.
+- [ ] **GO-HOST-AND-SEALED-PACK** P0 — W1/W2 public Go lifetime owner and
+  generated external host packaging; retain single Runtime/Journal/grants.
+- [ ] **GO-DESKTOP-AND-SPEECH** P1 — W3/W4 frontend seam and DIVA Go speech;
+  preserve raw audio, secret boundary, cancel and generation semantics.
+- [ ] **WAILS-PARITY-AND-RECOVERY** P0 — W5 fresh FrozenCore, persisted-session
+  admission, runtime logs, required chat/cognition/console/voice and truthful
+  hide/quit/crash/restart evidence. No language-change shortcut closes these.
+- [ ] **CABI-RUST-RETIREMENT** P1 — W6 remove retired host/ABI and replace
+  CI/instructions after W5. Blocked until paired archive tags exist.
+- [ ] **PAIRED-ARCHIVE-TAGS** P1 — archive/tauri-cabi branches created at
+  DIVA 5444795a / VIVY fc559e6b. Annotated archive/tauri-cabi-20261004 tags
+  remain pending tag-capable authenticated access; exact instructions in
+  [archive record](docs/plans/diva-next/wails/archive.md). Old ignored binary
+  is not preserved or reverified by the source freeze.
+- [ ] **WINDOWS-WAILS-ACCEPTANCE** P1 — W7 clean installed final Go product;
+  engineering preparation first, owner acceptance last.
+
+The index contains eight executable Story plans with immediate dependencies,
+six waves and verification gates. This publication authorizes no product
+implementation and makes no Ready/Done implementation claim.
+
+## Prior closure source deliveries and retained residuals
 
 - [x] **COGNITIVE-COMPOSITION** P1 — Landed via DN-4A/DN-LC/DN-4C + sealed in
   DN-P-C (`vivy/diva-cognitive`, 20 control actions, one Garden owner per
@@ -18,11 +40,10 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   capture seam unwired — first turn on a fresh session fails until a Frozen
   Core is captured), F3 (per-process action grants). See OBS-09 fixture;
   owner acceptance via NATIVE-ACCEPTANCE-HANDOFF.
-- [ ] **COGNITIVE-EMBEDDED-LIFECYCLE** P1 — Bundle arms on every `VivyInit`
-  from the sealed manifest (one lazy owner per handle); cognitive trigger
-  exists but is policy-disabled, so no autonomous loop runs. Shutdown drains
-  runs via CancelAll and closes the domain. Restart dedupe + drain-before-
-  cancel ordering not yet proven end-to-end.
+- [ ] **COGNITIVE-EMBEDDED-LIFECYCLE** P1 — Current merged VIVY source
+  already starts the cognitive loop through StartEmbeddedServices. W1/W5
+  must prove single startup, policy-disabled behavior, stop/drain ordering,
+  recovery and bounded close on the new Go host; do not add a duplicate loop.
 - [x] **COGNITIVE-AUTHORITY-AND-RECOVERY** P0 — DN-4B landed per-run
   persisted authority/guard (ActiveRunID/PendingThrough instead of
   Attempt++), durable `unknown_outcome` block (`recovery_required`), and
@@ -58,10 +79,10 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   `vivy.default.yaml` gained the nine `diva.cognitive.*` write-action allow
   rules; inventory `dn_pc_refresh` recorded. GUI-level/Windows candidate
   exercise remains under NATIVE-ACCEPTANCE-HANDOFF.
-- [ ] **NATIVE-ACCEPTANCE-HANDOFF** P1 — Prepare fresh install, Windows/amd64
-  DLL+header+FFI and packaging, real-model GUI reopen/pending approval,
-  mic/STT/both TTS/cancel/Quit, cognition/restart and console scenarios. Owner
-  performs final product acceptance after all engineering work/checks.
+- [ ] **NATIVE-ACCEPTANCE-HANDOFF** P1 — Superseded host procedure: W7
+  prepares the sealed Go/Wails Windows x64 package, real-model/mic/STT/TTS,
+  hide/reopen/Quit, cognition/restart and console checks. DLL/header/FFI are
+  archived requirements, not tasks for the new mainline product.
 - [ ] **GOVERNANCE-DOCS-STALE** P1 — AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md /
   LAPUTA.md describe retired Rust crates, old memory rules and absent root
   Cargo recipes. DN-C2 records the conflict; reconcile stale descriptions
@@ -127,3 +148,4 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   [2026-10-03-before-next-closure.md](docs/archive/todolist/2026-10-03-before-next-closure.md).
   Old Rust-specific tests/tasks are not active Next work by default; product
   residuals above remain visible. Historical boxes are not new acceptance.
+

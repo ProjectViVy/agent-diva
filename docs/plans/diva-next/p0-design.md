@@ -1,5 +1,229 @@
 # DIVA Next closure — detailed architecture
 
+## DN-W3: Go-owned desktop migration (2026-10-04)
+
+**Current architectural amendment; planned, not implemented.**
+The owner approved retiring the custom C ABI and Rust/Tauri desktop host.
+This section supersedes every DN-C2 host/transport/build/lifecycle choice
+below. DN-C2 domain behavior remains applicable where this section does not
+replace it. The [index](index.md) alone schedules work; the
+[W3 contract ledger](backend-separation-contracts.md#w3-go-host-contracts)
+owns exact shared interfaces. Do not introduce a second migration spec.
+
+### Goal and architecture classification
+
+This is a cross-repository host and build-boundary migration, not an Agent
+rewrite. The benefit is removing application-managed foreign memory,
+numeric handles, C string ownership, dynamic-library lifetime, Rust polling,
+and duplicated shutdown coordination. Go does not remove concurrency bugs,
+OS/WebView constraints, CGO, or the JavaScript-to-native boundary. Wails
+encapsulates native integration; our runtime lifecycle remains Go-owned.
+
+A C ABI can be engineered reliably, but this product currently pays that
+cost for one Go consumer reached through a Rust host. Maintaining five
+exports, error/JSON marshalling, allocation/free rules, race-safe shutdown,
+headers, native library packaging and two native test stacks provides
+little durable benefit for the accepted single-host product. The migration
+pays a one-time cost chiefly in sealed packaging, native speech and native
+acceptance; deleting glue is a small final step.
+
+```mermaid
+flowchart TD
+  UI["Vue / TypeScript / VRM"] --> Seam["Desktop seam"]
+  Seam --> Desktop["DIVA Go desktop host"]
+  Desktop --> Speech["DIVA Go speech / secrets / assets"]
+  Desktop --> SDK["VIVY public Go host"]
+  SDK --> Control["Trusted control dispatcher"]
+  Control --> Runtime["One Runtime / Journal / policy"]
+  Runtime --> Cognitive["Sealed cognitive composition"]
+```
+
+### Ownership and forbidden shortcuts
+
+| Component | Owns | Must not own |
+| --- | --- | --- |
+| Vue and VRM | Presentation, microphone capture, WAV encoding, playback, subtitles, lip sync, UI projection | Provider secrets, native file paths, Agent state authority |
+| DIVA Go desktop | Windows/tray, lifecycle coordinator, Wails services, frontend assets, native speech | Run scheduler, second Journal, direct tool/policy bypass |
+| VIVY public host | Opening a sealed runtime, trusted control peer, event queue, ordered close | Wails imports, desktop/window state, speech provider clients |
+| VIVY runtime/Hosts | Runs, sessions, tools, permissions, approvals, diagnostics and cognitive scheduling | Browser/window lifetime |
+| Laputa/Garden/INOFY | Existing bound cognitive domain/frozen context/capture/evolution | A new DIVA-owned parallel cognitive store |
+| SDK pack/compiler | Recipe/source resolution, generated assembly, conformance, manifest/Inspect | Unverified dynamic plugins or hand-created runtime registry |
+
+Keep the existing authenticated in-process control path through
+`internal/app/facehost.go`. Go calls replace C ABI marshalling; they do not
+grant blanket access to internal storage or skip ActionHost grants. The
+public host is a trusted process embedder, not a new module capability.
+One sealed RuntimeAssembly remains authoritative. Do not rename VIVY's
+entire Go module or move its internal packages into DIVA.
+
+### Repository layout
+
+DIVA gains a root Go module and `cmd/diva/main.go`, plus
+`internal/desktop/` and `internal/speech/`. The existing
+`agent-diva-gui/` remains the frontend. The package name is
+`github.com/ProjectViVy/agent-diva`; the consumer imports
+`agent-vivy/sdk/host/v1`. These are proposed new paths, not existing code.
+
+VIVY adds `sdk/host/v1/` over `internal/embedded/`. Its public API uses
+standard-library types and its own exported DTOs, with no exposed app.Config,
+RPC peer, storage handles or Eino types. The VIVY module remains `agent-vivy`.
+Normal VIVY CLI/server and executable Generation builds remain supported.
+
+Retain `desktop-host.ts` as the sole frontend native seam. Adapt
+`src/api/vivy/transport.ts` behind the existing client interface. Components
+must not start importing Wails directly. Keep current speech function names
+and DTO meanings at this seam; regenerate Wails bindings deterministically.
+Use ordinary Go services and focused constructors, not a new generic
+service container or a second frontend RPC architecture.
+
+### Lifetime and cancellation
+
+The Go desktop coordinator is the sole lifetime owner, with states
+`starting -> ready -> closing -> closed`; a startup failure unwinds to
+closed without publishing readiness. Only short state transitions hold a
+mutex. Calls execute outside it. Admission, request cancellation, event
+delivery and shutdown must not wait behind a long model call.
+
+Create exactly one VIVY host at startup. Constructor cancellation stops
+partial startup; successful opening transfers ownership to explicit Close.
+A WebView reload, route change or hidden main window does not close VIVY.
+Frontend subscription close disposes listeners only. Single-instance behavior
+prevents two desktop processes opening the same state root concurrently.
+
+Hide invalidates speech context, stops recording/playback and hides the
+window. Reopen obtains fresh authoritative projections and resumes event
+delivery without replaying TTS. Explicit Quit stops admission, stops automatic
+producers, invalidates/cancels speech, cancels active work according to VIVY
+semantics, drains/joins bounded tasks and closes stores last.
+
+Use one end-to-end shutdown budget, initially five seconds to match current
+product policy. Context-aware close must cover actual resources; merely
+waiting on a goroutine with a timer is not proof those resources closed.
+Timeout reports an unclean shutdown and the still-open component, blocks
+reinitialization, and allows the native process exit policy to act. Avoid
+panics, duplicate closes and false success. W0 verifies how Wails app context
+cancellation and service shutdown hooks interact; never inherit an already
+cancelled UI context as the storage-flush context.
+
+Distinguish hide/reopen, normal process quit/restart, and abnormal crash.
+The current explicit quit cancels active/suspended runs; this migration does
+not promise durable suspended approval continuation. Persisted session access
+must be re-established via authenticated host admission, not silent durable
+full grants. W5 tests fresh and reopened sessions separately.
+
+### Generation-preserving build
+
+Direct `go build ./cmd/diva` is insufficient as the release path. Current
+SDK pack generates assembly and embeds a framed manifest. VIVY also has
+`replace` entries for local modules and sibling Laputa packages, and Go
+does not propagate a dependency's replace directives into its consumer.
+
+Extend SDK pack with a **go-host** target. It snapshots pinned VIVY and DIVA
+source plus required sibling sources, resolves replacements into a temporary
+consumer modfile, generates the selected VIVY assembly and manifest overlay,
+then compiles the DIVA host. Keep overlays/build temporaries private; never
+commit developer absolute replace paths or use floating main branches.
+Generated paths within the dependency snapshot must be the ones the Go
+compiler actually resolves. W2 verifies that property from an external
+consumer module, not just from VIVY's repository.
+
+The final manifest/Inspect evidence covers recipe, selected modules,
+dependency locks, DIVA host source identity and final frontend bytes. Use
+`vivy_headless` for VIVY's web face exclusion while embedding DIVA frontend
+assets separately. No unused VIVY web UI build dependency should be
+accidentally introduced by treating go-host as ordinary executable packing.
+Record unsigned binary, signed binary and installer hashes separately; code
+signing changes file bytes. An embedded Generation ID is not a substitute
+for a final executable checksum.
+
+Proposed commands and pack outputs are frozen in W3-4. They are not claimed
+to exist yet. W2 adds parser, implementation, negative tests and Inspect
+support before DIVA depends on them. The current VIVY executable target
+must continue passing its conformance tests.
+
+### Native speech migration
+
+Port the implemented DIVA Rust speech behavior to DIVA Go. Preserve
+SiliconFlow STT and SiliconFlow/MiniMax TTS, revisioned preferences, OS secret
+storage, bounded reference assets, cancellation, stale-result rejection and
+diagnostic redaction. Keep provider model/base URL configuration explicit.
+Do not make browser requests to providers or move credentials into Vue,
+environment-dumped logs or plaintext preference files.
+
+Raw audio moves through a bounded Wails same-origin media handler. It must
+not create a separately listening daemon or expose filesystem paths.
+W0 must prove native caller identity and the route capability mechanism on
+the pinned release before W3/W4 can consume it. If this cannot be enforced,
+stop adoption and revise the contract explicitly; do not weaken the sender
+check to a client-supplied window ID.
+
+Go's OS keyring implementation is selected and pinned by W0 after testing
+Windows Credential Manager, supported macOS Keychain and Linux Secret
+Service behavior. Missing/unavailable keyring fails closed. This is a
+native implementation choice, not permission to add an unreviewed fallback
+credential format. Browser capture/playback/VRM stays in the frontend.
+
+### Framework and platform gate
+
+Candidate baseline: **Wails v3.0.0-beta.27** with an exact module/CLI/runtime
+pin. v3 is a beta; this plan does not equate Go ownership with a more mature
+desktop framework. W0 compares its required Windows behavior against the
+acceptance matrix before adoption. A switch to stable v2, a later v3, or a
+different transport is a recorded design revision, not a hidden fallback.
+
+W0 must prove service startup/shutdown order, cancellation, caller identity,
+event subscription cleanup, hide/tray/reopen/quit, raw WAV transport,
+WebView2/microphone permission and clean package startup. Windows x64 is the
+release gate; Linux developer tests do not stand in for it. macOS/Linux
+native smoke is required for any platform actually advertised in the
+release, otherwise support is marked unverified.
+
+Primary references checked 2026-10-04:
+[releases](https://github.com/wailsapp/wails/releases),
+[lifecycle](https://v3.wails.io/concepts/lifecycle/),
+[services](https://v3.wails.io/features/bindings/services/),
+[Wails v3 reference](https://v3.wails.io/reference/application/).
+Live docs may differ from beta.27; pinned source and a compiling probe are
+the W0 authority.
+
+### Existing findings carried into acceptance
+
+The latest merged source already starts the cognitive loop from
+StartEmbeddedServices; do not plan that as a missing feature. The current
+diva-cognitive Prepare path calls ReadFrozen; fresh-session bootstrap still
+needs explicit verification. The recorded package matrix also identifies
+missing embedded runtime logging setup, process-local session grants,
+quit cancellation semantics, and misleading pause text on denied sandbox
+tools. W1/W5 own reproduction and targeted correction, preserving the
+underlying authorization rules. General ACTMEM rendering/provider asset
+issues remain in the existing backlog unless they block required scenarios.
+
+Changing the desktop language will not itself fix these domain behaviors.
+Use fixtures as historical evidence with their source/artifact pins, then
+capture new results. No old evidence is silently relabelled as Wails proof.
+
+### Scope and release gates
+
+No historical data migration, old home reads or cleanup; use fresh Next
+state. No new pet windows, local voice engines, broad resources/reports,
+plugin loading system or Agent algorithm changes. App data-path selection
+must be explicit, absolute and independent of the working directory.
+
+Before W6 deletes the old line, W5 must show working chat/cognition/console/
+speech and failure recovery on the new host, while W2 proves sealed assembly.
+After deletion, re-run replacement CI and the final package path. An owner
+sign-off follows the engineering evidence. The archive is source recovery,
+not automatic binary rollback; see the archive record.
+
+---
+
+## Historical DN-C2 domain specification and implementation evidence
+
+The retained DN-C2 text below is historical for host choices and scheduling.
+DN-W3 above and the current index override its C ABI, Tauri, Rust speech and
+shared-library build requirements. Its business DTOs and explicit deferred
+scope remain reference material.
+
 Revision **DN-C2**, 2026-10-03. Status: **detailed design for review; not
 implemented or product-accepted**. This replaces DN-C1 in the same authority
 set. [The index](index.md) owns stage state and dependencies;
