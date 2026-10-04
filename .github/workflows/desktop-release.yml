@@ -1,0 +1,128 @@
+name: Desktop Release
+
+# Sealed one-click desktop build for tags and manual runs.
+#
+# Produces a single self-contained binary per OS via
+# `scripts/build-desktop.py --mode build` (sdk pack --target go-host):
+# frontend embedded via go:embed, VIVY runtime sealed in, no external
+# runtime deps besides WebView2 (present on Windows 10/11).
+#
+# Pinned source SHAs come from build/vivy-sources.lock.json — agent-vivy
+# and laputa are checked out at exactly those commits so the sealed
+# build-report and source-tree hashes verify.
+#
+# If agent-vivy / laputa are private, define repo/org secret
+# DIVA_BUILD_TOKEN (a read-only PAT or GitHub App token with contents:read
+# on those repos). Public repos work with the default GITHUB_TOKEN.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sealed-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: diva-linux-x64
+            binary: diva
+          - os: windows-latest
+            artifact_name: diva-windows-x64
+            binary: diva.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: host
+
+      - name: Read pinned source commits
+        id: pins
+        shell: bash
+        run: |
+          python - <<'EOF' >> "$GITHUB_ENV"
+          import json
+          lock = json.load(open("host/build/vivy-sources.lock.json"))
+          print(f"VIVY_SHA={lock['sources']['vivy']['commit']}")
+          print(f"LAPUTA_SHA={lock['sources']['laputa']['commit']}")
+          EOF
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/agent-vivy
+          ref: ${{ env.VIVY_SHA }}
+          fetch-depth: 0
+          path: agent-vivy
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/laputa
+          ref: ${{ env.LAPUTA_SHA }}
+          fetch-depth: 0
+          path: laputa
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: |
+            host/go.sum
+            agent-vivy/go.sum
+            laputa/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Enable pnpm (packageManager pin)
+        shell: bash
+        run: |
+          corepack enable
+          cd host/agent-diva-gui && corepack install
+
+      - name: Install Linux GTK/WebKit build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Sealed build + inspect
+        shell: bash
+        run: |
+          python host/scripts/build-desktop.py \
+            --mode build \
+            --host-dir host \
+            --vivy-dir agent-vivy \
+            --laputa-dir laputa \
+            --output artifacts/diva-go-host
+
+      - name: Stage release files
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          cp "artifacts/diva-go-host/${{ matrix.binary }}" "artifacts/release/${{ matrix.artifact_name }}${{ runner.os == 'Windows' && '.exe' || '' }}"
+          cp artifacts/diva-go-host/build-report.json "artifacts/release/build-report-${{ runner.os }}.json"
+          cp artifacts/diva-go-host/checksums.sha256 "artifacts/release/checksums-${{ runner.os }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifacts/release/
+
+      - name: Publish release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" artifacts/release/* --clobber \
+            || gh release create "${{ github.ref_name }}" \
+              --title "${{ github.ref_name }}" \
+              --generate-notes \
+              artifacts/release/*
