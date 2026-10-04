@@ -131,7 +131,7 @@ func TestMediaCapabilityTokenWindowAndRevocation(t *testing.T) {
 
 func TestMediaRouteWAVRoundTripRawBytes(t *testing.T) {
 	cap := newMediaCapability(testWindowID, "tok")
-	mux := NewMediaMux(nil, cap)
+	mux := NewMediaMux(nil, cap, nil)
 	body := wavBytes(256)
 
 	req := newReq(http.MethodPost, "/media/wav", body, testWindowID, "tok")
@@ -162,7 +162,7 @@ func TestMediaRouteWAVRoundTripRawBytes(t *testing.T) {
 }
 
 func TestMediaRouteRejectsInvalidWAV(t *testing.T) {
-	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"))
+	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"), nil)
 	req := newReq(http.MethodPost, "/media/wav", []byte("not-a-wav"), testWindowID, "tok")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -174,7 +174,7 @@ func TestMediaRouteRejectsInvalidWAV(t *testing.T) {
 // W0 Task 3 memory capture: peak live-heap delta around a maximum-size upload.
 func TestMediaRoutePeakMemoryAtBound(t *testing.T) {
 	cap := newMediaCapability(testWindowID, "tok")
-	mux := NewMediaMux(nil, cap)
+	mux := NewMediaMux(nil, cap, nil)
 	body := wavBytes(maxMediaBytes)
 
 	runtime.GC()
@@ -199,7 +199,7 @@ func TestMediaRoutePeakMemoryAtBound(t *testing.T) {
 }
 
 func TestMediaRouteRejectsOverBound(t *testing.T) {
-	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"))
+	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"), nil)
 	body := wavBytes(maxMediaBytes + 1)
 	req := newReq(http.MethodPost, "/media/wav", body, testWindowID, "tok")
 	rec := httptest.NewRecorder()
@@ -210,7 +210,7 @@ func TestMediaRouteRejectsOverBound(t *testing.T) {
 }
 
 func TestMediaRouteAtBound(t *testing.T) {
-	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"))
+	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"), nil)
 	body := wavBytes(maxMediaBytes)
 	req := newReq(http.MethodPost, "/media/wav", body, testWindowID, "tok")
 	rec := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestMediaRouteAtBound(t *testing.T) {
 }
 
 func TestMediaRouteDeniedCapability(t *testing.T) {
-	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"))
+	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"), nil)
 	req := newReq(http.MethodPost, "/media/wav", wavBytes(64), testWindowID, "forged")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -231,7 +231,7 @@ func TestMediaRouteDeniedCapability(t *testing.T) {
 }
 
 func TestMediaDownloadHonoursCancel(t *testing.T) {
-	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"))
+	mux := NewMediaMux(nil, newMediaCapability(testWindowID, "tok"), nil)
 	upload := newReq(http.MethodPost, "/media/wav", wavBytes(1<<20), testWindowID, "tok")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, upload)

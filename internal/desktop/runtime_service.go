@@ -8,6 +8,7 @@ import (
 	"time"
 
 	hostv1 "agent-vivy/sdk/host/v1"
+	"github.com/ProjectViVy/agent-diva/internal/speech"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -71,6 +72,10 @@ type RuntimeService struct {
 	pumpCancel context.CancelFunc
 	pumpDone   chan struct{}
 	pumpOnce   sync.Once
+
+	// onShutdown runs before the host close (W4: speech teardown joins
+	// in-flight requests); set by the desktop during Compose.
+	onShutdown func()
 }
 
 // NewRuntimeService wires a host to an event emitter (app.Event.Emit or a
@@ -91,6 +96,9 @@ func (s *RuntimeService) ServiceStartup(_ context.Context, _ application.Service
 // (pump), then close the host under one deadline and report honestly.
 func (s *RuntimeService) ServiceShutdown() error {
 	s.stopPump()
+	if s.onShutdown != nil {
+		s.onShutdown()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), hostv1.CloseBudget)
 	defer cancel()
 	err := s.host.Close(ctx)
@@ -202,6 +210,28 @@ func hostErrorOf(err error) *hostv1.Error {
 	var he *hostv1.Error
 	if errors.As(err, &he) {
 		return he
+	}
+	var se *speech.SpeechError
+	if errors.As(err, &se) {
+		// Speech failures surface kind+message through the bridge and keep
+		// the diva.speech/v1 code set in data — never flattened silently.
+		kind := "invalid_input"
+		switch se.Code {
+		case speech.CodeCancelled:
+			kind = "cancelled"
+		case speech.CodeTimeout:
+			kind = "timeout"
+		case speech.CodeNotConfigured, speech.CodeCredentialUnavailable,
+			speech.CodeNativeUnavailable, speech.CodeDeviceUnavailable:
+			kind = "not_ready"
+		case speech.CodeBusy, speech.CodeStaleContext, speech.CodeRevisionConflict,
+			speech.CodeProviderError, speech.CodeAssetNotFound,
+			speech.CodeInvalidAudio, speech.CodeUnsupportedReference,
+			speech.CodeInvalidInput:
+			kind = "invalid_input"
+		}
+		data, _ := json.Marshal(se)
+		return &hostv1.Error{Kind: kind, Code: -32090, Message: string(se.Code) + ": " + se.Message, Data: data}
 	}
 	return &hostv1.Error{Kind: "internal", Code: -32086, Message: err.Error()}
 }

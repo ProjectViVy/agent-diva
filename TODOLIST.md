@@ -154,7 +154,9 @@ implementation and makes no Ready/Done implementation claim.
 
 - [ ] **W0 Windows x64 leg** — W0 Tasks 4/5 (lifetime, voice prereq, Credential Manager) need a Windows child Devin; GO/NO-GO blocked until then.
 - [ ] **W3 Windows candidate acceptance** — hide/reopen/Quit/single-instance on the sealed Windows build per w3-1 acceptance.md.
-- [ ] **W4 DesktopDispatch handlers** — `DesktopDispatch` answers `not_ready` for speech_*/voice_asset_*/pet_* until W4 wires the dispatch table and `/media/speech/*`, `/media/voice-assets*` routes.
+- [ ] **W4 real-provider evidence** — SiliconFlow STT + SiliconFlow/MiniMax TTS need operator-held credentials; scripted fixtures landed (w4-1).
+- [ ] **W4 Windows speech leg** — Credential Manager + speech lifecycle on Windows pending W0 probe.
+- [ ] **`desktop_pet_*` dispatch noop** — pet commands still `not_ready`; pet lands with drag/expansion (deferred).
 - [ ] **`desktop_pet_start_drag` noop** — DesktopPetOverlay drag calls a stub; Wails native drag (`--wails-draggable` regions) lands with pet expansion (deferred).
 - [ ] **`tauriVoiceFileReader`/`isTauri*` naming** — functional seam is Wails; leftover cosmetic names + locale strings ("Tauri 运行时") should be renamed in W4/W5 cleanup.
 - [ ] **W6 cleanup pending** — `src-tauri/`, `@tauri-apps/*` deps, Rust/tango recipes in justfile, `scripts/tauri` helpers all still present until W6 removal.

@@ -13,8 +13,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	hostv1 "agent-vivy/sdk/host/v1"
+	"github.com/ProjectViVy/agent-diva/internal/speech"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -39,6 +41,7 @@ type Desktop struct {
 	lifecycle *lifecycle
 	window    application.Window
 	tray      *application.SystemTray
+	speech    *speech.Service
 	logger    *log.Logger
 	emit      func(name string, data any)
 }
@@ -89,12 +92,34 @@ func (d *Desktop) build(cfg Config) error {
 	d.service.cap = d.cap
 	d.service.onShutdownErr = d.lifecycle.recordTeardown
 
+	// W4: the Go speech service lives beside vivy.yaml in the config dir.
+	speechDir := filepath.Join(filepath.Dir(cfg.ConfigPath), "speech")
+	speechSvc, err := speech.OpenService(speechDir, func(dg speech.Diagnostic) {
+		d.emit("speech:diagnostic", dg)
+	})
+	if err != nil {
+		return fmt.Errorf("open speech service: %w", err)
+	}
+	d.speech = speechSvc
+	d.service.dispatch = speechDispatch(speechSvc)
+	// Speech teardown joins in-flight requests before the host close, all
+	// under the same CloseBudget; the report is recorded honestly.
+	d.service.onShutdown = func() {
+		rep := speechSvc.Shutdown(2 * time.Second)
+		if rep.Remaining > 0 {
+			d.lifecycle.recordTeardown(fmt.Errorf("speech: %d request(s) not joined (inflight=%d joined=%d)",
+				rep.Remaining, rep.InflightAtStart, rep.Joined))
+		} else {
+			d.logger.Printf("speech teardown: inflight=%d joined=%d", rep.InflightAtStart, rep.Joined)
+		}
+	}
+
 	d.app = application.New(application.Options{
 		Name:        "DIVA",
 		Description: "DIVA desktop (DN-W3 Wails host)",
 		Services:    []application.Service{application.NewService(d.service)},
 		Assets: application.AssetOptions{
-			Handler:    NewMediaMux(cfg.Frontend, d.cap),
+			Handler:    NewMediaMux(cfg.Frontend, d.cap, d.speech),
 			Middleware: d.gate.Middleware,
 		},
 		SingleInstance: &application.SingleInstanceOptions{

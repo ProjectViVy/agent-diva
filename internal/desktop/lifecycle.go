@@ -56,6 +56,12 @@ func (d *Desktop) installCloseToHide(w application.Window) {
 	w.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		e.Cancel()
 		w.Hide()
+		// W4: hide invalidates the speech context — every in-flight
+		// request is aborted and future admission requires a fresh
+		// speech_context_set from the reopened window.
+		if d.speech != nil {
+			d.speech.InvalidateContext()
+		}
 		d.emit(windowStateEvent, map[string]any{"state": "hidden"})
 	})
 }

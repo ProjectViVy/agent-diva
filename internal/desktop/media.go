@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"sync"
 	"testing/fstest"
+
+	"github.com/ProjectViVy/agent-diva/internal/speech"
 )
 
 // maxMediaBytes is the W3-3 bound: 10 MiB per media request.
@@ -78,12 +80,16 @@ func isWAV(b []byte) bool {
 		string(b[8:12]) == "WAVE"
 }
 
-// NewMediaMux returns the asset-server handler: bundled frontend under / and
-// the bounded binary media route under /media/wav — all inside the internal
-// wails scheme, no TCP listener anywhere.
-func NewMediaMux(assets fs.FS, cap *mediaCapability) http.Handler {
+// NewMediaMux returns the asset-server handler: bundled frontend under /,
+// the bounded binary media route under /media/wav, and the W4 speech /
+// voice-asset routes — all inside the internal wails scheme, no TCP
+// listener anywhere.
+func NewMediaMux(assets fs.FS, cap *mediaCapability, speechSvc *speech.Service) http.Handler {
 	store := &mediaStore{payloads: map[string][]byte{}}
 	mux := http.NewServeMux()
+	if speechSvc != nil {
+		registerSpeechMediaRoutes(mux, speechSvc, cap)
+	}
 
 	mux.HandleFunc("POST /media/wav", func(w http.ResponseWriter, r *http.Request) {
 		if !cap.grant(r) {
@@ -149,5 +155,5 @@ func orEmptyFS(f fs.FS) fs.FS {
 
 // mediaHandlerInfo describes the route for the startup log.
 func mediaHandlerInfo() string {
-	return fmt.Sprintf("POST /media/wav + GET /media/wav/{id}; bound %d bytes; token+window capability; raw bytes, no JSON/base64", maxMediaBytes)
+	return fmt.Sprintf("POST /media/wav + GET /media/wav/{id}; /media/speech/{transcribe,synthesize}; /media/voice-assets(+{id}); bound %d bytes; token+window capability; raw bytes, no JSON/base64", maxMediaBytes)
 }

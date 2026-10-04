@@ -41,7 +41,7 @@ No other working branch or live workspace is modified by this handoff.
 
 - `DIVA Next closure wave 1` — **EXPIRED (historical)** by `Devin` (session
   `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
-  heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
+  heartbeat `2026-10-04T05:30:00Z`, expires `2026-10-08T00:00:00Z`.
   Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
   C2-1 source mappings delivered. No PR/merge/release per execution contract.
 
