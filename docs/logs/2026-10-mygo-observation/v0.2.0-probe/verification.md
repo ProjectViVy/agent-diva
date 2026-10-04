@@ -38,3 +38,12 @@ channel flow-control budget before closing. All focused/native checks passed.
 Windows branch-only CI is prepared; no Windows result is inferred before run
 readback. Workflow YAML parses, action pins resolve, permissions are read-only,
 job timeout is ten minutes and generated-file drift fails the workflow.
+
+Windows readback: job 111395100533 / run 37188360734 attempt 1 completed success.
+OS: Windows Server 2025 Datacenter 10.0.26100; WebView2 153.0.4234.48;
+Go 1.27.1 windows/amd64, CGO=0. Module/unit/client generation, drift check,
+watchdog and seven real-window subtests passed. Actual post-loop invariants:
+root acquired once, closed once, active calls zero, no shutdown error.
+See [run 002](../../../plans/diva-next/mygo/run-002.md) and [trace](windows-native.txt).
+Earlier Windows-pending notes above are historical pre-CI states; this readback
+closes that framework gate. Installed product, sealing and providers remain pending.

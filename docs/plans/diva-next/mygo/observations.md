@@ -46,6 +46,7 @@ Append one row per relevant trigger and link redacted evidence below it.
 | --- | --- | --- | --- | --- | --- | --- |
 | SOURCE-20261004 / user research request | Initial pins above | source-read | MY-0 through MY-3 | Source review only | Compile, native, installed/provider and owner acceptance | Keep Wails delivery; maintain the research branch |
 | MYGO-001 / owner implementation authorization | Initial pins; research base fcd9a583e99393d6410f1b798b50f895030aa04e | compile/unit + native-probe/Linux | MY-0; prerequisite readiness MY-1–MY-3 | Standalone compiler/generation and Linux native scenarios pass; MY-0 pending Windows | Windows/WebView2; W1/W2/W3; W4/W6; W7 | Park at reproducible probe; preserve Wails delivery |
+| MYGO-002 / Windows native CI | Same candidate; DIVA research 5b01dd05c00994ab847e9b486c95ecf90d2fba18 | native-probe/Windows + compile/unit | MY-0 | Windows/WebView2 pass; bounded feasibility GO | Public SDK/Generation/speech/installed/provider comparison | Park until W1/W2/W3 accepted; retain Wails delivery |
 
 
 Each run supplies: date/operator; Go module/sum and frontend lock hashes; CLI/npm
@@ -72,3 +73,9 @@ See [run 001](run-001.md), [input hashes](run-001-inputs.json) and
 Historical source-read rows describe the planning publication; this run adds
 standalone compiler and Linux native evidence. Windows, public SDK, installed
 product, provider and comparison passes are not inferred.
+
+## MYGO-002 evidence
+
+[Windows run 002](run-002.md) closes the earlier missing-native gate. MY-1–MY-3
+remain blocked as listed in the index. This supersedes only MYGO-001's Windows
+pending status; no product/provider/performance claim is upgraded.

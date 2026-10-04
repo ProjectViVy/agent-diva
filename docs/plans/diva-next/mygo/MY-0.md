@@ -43,7 +43,7 @@ Do not retain the probe as a second product.
 
 - [x] Read pinned app.go/ipc.go/channel.go/protocol.go and platform permission APIs; record exact signatures for close/hide, navigation invalidation, caller identity, single instance, raw protocol and Channel cancellation.
 - [x] Create a minimal probe at the candidate commit with a primary and a disposable foreign window; test forged JS window ID, external navigation and revoked/foreign media capability rejection using native request metadata.
-- [ ] On Windows exercise hide/reopen, explicit quit during an outstanding call, page reload/channel cancel and raw WAV POST/response; record real WebView2/tool/OS versions and pending access separately.
+- [x] On Windows exercise hide/reopen, explicit quit during an outstanding call, page reload/channel cancel and raw WAV POST/response; record real WebView2/tool/OS versions and pending access separately.
 - [x] Return the API notes and native trace; mark GO only for proven required APIs. Failure is a recorded NO-GO/pending result, not permission to relax W3-3.
 
 ## Task 2: Prove compiler, generation and packaging integration
@@ -70,8 +70,8 @@ standalone compiler/client and Linux native evidence; Windows remains pending.
 
 ## Execution result — 2026-10-04
 
-Task 1 remains partial: primary/foreign, revocation, untrusted data-URL navigation,
-reload, channel cancellation, hide/reopen and outstanding-call Quit passed on
-Linux WebKitGTK. The required Windows/WebView2 run has not happened. Task 2 is
-complete as standalone feasibility/build documentation, without claiming a
-sealed SDK or installed-product build. See [run 001](run-001.md).
+Both tasks are complete for standalone framework feasibility. Linux WebKitGTK
+and actual Windows/WebView2 boundary/lifecycle scenarios passed; generation and
+compiler checks passed. [Run 001](run-001.md) records the initial Linux probe;
+[run 002](run-002.md) closes the Windows gate. MY-0 GO does not qualify sealed SDK,
+installed-product or provider work. MY-1 still needs accepted W1/W2/W3 outputs.

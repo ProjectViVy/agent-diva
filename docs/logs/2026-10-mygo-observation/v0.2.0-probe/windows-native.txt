@@ -1,0 +1,27 @@
+Workflow run: https://github.com/ProjectViVy/agent-diva/actions/runs/37188360734
+Job: 111395100533; attempt: 1; conclusion: success
+Source commit: 5b01dd05c00994ab847e9b486c95ecf90d2fba18
+Selected environment and test lines from the read-back job log:
+2026-10-04T08:16:06.0692750Z Microsoft Windows Server 2025
+2026-10-04T08:16:06.0695264Z Image: windows-2025-vs2026
+2026-10-04T08:16:24.7426832Z go version go1.27.1 windows/amd64
+2026-10-04T08:16:27.8425208Z go version go1.27.1 windows/amd64
+2026-10-04T08:16:27.9590857Z   "Caption": "Microsoft Windows Server 2025 Datacenter",
+2026-10-04T08:16:27.9591136Z   "Version": "10.0.26100",
+2026-10-04T08:16:27.9591340Z   "BuildNumber": "26100"
+2026-10-04T08:16:28.0362092Z   "name": "Microsoft Edge WebView2 Runtime",
+2026-10-04T08:16:28.0362276Z   "pv": "153.0.4234.48"
+2026-10-04T08:17:01.9855438Z ok  	diva-mygo-probe	0.670s
+2026-10-04T08:17:06.1985355Z {"activeCalls":0,"nativeReady":false,"probe":"mygo-v0.2.4","rootAcquisitions":0,"rootCloses":0,"shutdownError":null,"windows":0}
+2026-10-04T08:17:14.1528203Z --- PASS: TestNativeWatchdogBoundsPostSuiteQuit (0.07s)
+2026-10-04T08:17:17.2349907Z --- PASS: TestNativeBoundariesAndLifecycle (3.08s)
+2026-10-04T08:17:17.2351636Z     --- PASS: TestNativeBoundariesAndLifecycle/native_caller_survives_forged_JS_window_id (0.00s)
+2026-10-04T08:17:17.2352011Z     --- PASS: TestNativeBoundariesAndLifecycle/native_raw_WAV_and_foreign_replay (0.01s)
+2026-10-04T08:17:17.2352329Z     --- PASS: TestNativeBoundariesAndLifecycle/revoked_capability (0.00s)
+2026-10-04T08:17:17.2352722Z     --- PASS: TestNativeBoundariesAndLifecycle/page_reload_cancels_call_and_revokes_capability_but_keeps_root (0.02s)
+2026-10-04T08:17:17.2353234Z     --- PASS: TestNativeBoundariesAndLifecycle/page_channel_close_unblocks_sender_and_keeps_root (0.21s)
+2026-10-04T08:17:17.2353833Z     --- PASS: TestNativeBoundariesAndLifecycle/close_hides_and_reopen_keeps_owner (0.02s)
+2026-10-04T08:17:17.2354471Z     --- PASS: TestNativeBoundariesAndLifecycle/untrusted_external_navigation_denies_bound_call_and_old_capability (0.23s)
+2026-10-04T08:17:17.2354755Z PASS
+2026-10-04T08:17:17.3112098Z {"activeCalls":0,"nativeReady":true,"probe":"mygo-v0.2.4","rootAcquisitions":1,"rootCloses":1,"shutdownError":null,"windows":0}
+2026-10-04T08:17:17.3527969Z ok  	diva-mygo-probe	3.930s

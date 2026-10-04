@@ -138,9 +138,10 @@ Four independent roots are plan-Ready; other readiness lives only in that index.
   evidence and acceptance. Owner authorized implementation; the standalone
   framework probe is delivered, while product adaptation awaits accepted inputs.
 - [ ] **MYGO-NATIVE-EVIDENCE** P2 — Compiler/generator closure, trusted native
-  caller/media and hide/reopen/Quit have Linux probe evidence in
-  [run 001](docs/plans/diva-next/mygo/run-001.md). Windows/WebView2, actual
-  VIVY Host, VRM/microphone, providers and installed parity remain pending. Await accepted
+  caller/media and hide/reopen/Quit have Linux and Windows/WebView2 evidence in
+  [run 001](docs/plans/diva-next/mygo/run-001.md) and
+  [run 002](docs/plans/diva-next/mygo/run-002.md). MY-0 is complete; actual
+  VIVY Host, VRM/microphone, providers and installed parity await accepted
   W1/W2/W3, W4/W6 and W7 outputs as specified in MY-P1; keep missing rows pending.
 - [ ] **MYGO-UPKEEP-DECISION** P3 — Use relevant upstream/mainline interface
   changes as manual triggers. Record actual maintenance/build/native costs

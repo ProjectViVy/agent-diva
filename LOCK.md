@@ -4,19 +4,22 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
+- Lock State: `RELEASED`
 - Scope: `.github/workflows/mygo-probe.yml, experiments/mygo/**, docs/plans/diva-next/mygo/**, docs/logs/2026-10-mygo-observation/**, TODOLIST.md, LOCK.md; research/mygo only`
 - Owner: `Codex on behalf of mastwet`
 - Session/Task: `Authorized MyGo feasibility probe implementation (MY-0); inline execution`
 - Branch/Worktree: `research/mygo / isolated clone mygo-execution`
 - Started At: `2026-10-04T07:46:31Z`
-- Last Heartbeat: `2026-10-04T08:06:15Z`
+- Last Heartbeat: `2026-10-04T08:19:45Z`
+- Released At: `2026-10-04T08:19:45Z`
 
 ### Handoff
 Owner authorized implementation on 2026-10-04. The earlier planning mutex
 was released; the inherited Devin lease remains expired. This dedicated clone
 contains no other session changes. Mainline and Wails migration branches remain
-outside scope. MY-1 through MY-3 remain gated by accepted predecessor outputs.
+outside scope. MY-0 completed standalone feasibility after Linux and Windows/WebView2 native
+passes, compiler/generation closure and one fresh review with verified fixes.
+MY-1 through MY-3 remain gated by accepted predecessor outputs.
 
 ## Inherited lease (expired on this isolated branch)
 
