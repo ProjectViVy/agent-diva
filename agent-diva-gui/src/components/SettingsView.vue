@@ -12,6 +12,10 @@ import LanguageSettings from './settings/LanguageSettings.vue';
 import AboutSettings from './settings/AboutSettings.vue';
 import ThemeSettings from './settings/ThemeSettings.vue'
 import SandboxSettingsSection from './settings/SandboxSettingsSection.vue'
+import SpeechSettings from './settings/SpeechSettings.vue'
+import PersonaMemoryView from './persona-memory/PersonaMemoryView.vue'
+import MemoryView from './MemoryView.vue'
+import EvolutionView from './EvolutionView.vue'
 import CompactionSettings from './settings/CompactionSettings.vue'
 import MasksSettings from './settings/MasksSettings.vue'
 import { useI18n } from 'vue-i18n';
@@ -67,7 +71,11 @@ type SettingsSubview =
   | 'theme'
   | 'sandbox'
   | 'compaction'
-  | 'masks';
+  | 'masks'
+  | 'voice'
+  | 'persona'
+  | 'memory'
+  | 'evolution';
 
 const props = defineProps<{
   config: AppConfigShape;
@@ -104,6 +112,10 @@ const pageTitle = computed(() => {
     sandbox: t('dashboard.sandbox'),
     compaction: t('dashboard.compaction'),
     masks: t('dashboard.masks'),
+    voice: t('dashboard.voice'),
+    persona: t('dashboard.persona'),
+    memory: t('dashboard.memory'),
+    evolution: t('dashboard.evolution'),
   };
   return titles[currentView.value] || t('settings.title');
 });
@@ -196,6 +208,9 @@ watch(
             <div v-else-if="currentView === 'sandbox'">
               <SandboxSettingsSection />
             </div>
+            <div v-else-if="currentView === 'voice'">
+              <SpeechSettings />
+            </div>
             <div v-else-if="currentView === 'compaction'">
               <CompactionSettings
                 :current-session-key="currentSessionKey"
@@ -204,6 +219,15 @@ watch(
             </div>
             <div v-else-if="currentView === 'masks'">
               <MasksSettings :current-session-key="currentSessionKey" />
+            </div>
+            <div v-else-if="currentView === 'persona'">
+              <PersonaMemoryView />
+            </div>
+            <div v-else-if="currentView === 'memory'">
+              <MemoryView />
+            </div>
+            <div v-else-if="currentView === 'evolution'">
+              <EvolutionView />
             </div>
           </div>
        </Transition>

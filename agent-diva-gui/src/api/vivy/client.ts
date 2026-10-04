@@ -21,9 +21,14 @@ import {
   type ReviewRespondParams,
   type SessionMessagesResult,
   type SessionMessage,
+  type SessionEditResult,
+  type SessionForkResult,
+  type SessionRewindResult,
   type SessionTodosResult,
   type SessionWorkResult,
   type SessionWorkSubscribeResult,
+  type PermissionPreset,
+  type TurnAttachment,
   type TurnStartResult,
   type WorkCommitResult,
   type VivySession,
@@ -51,6 +56,12 @@ import {
   type VivySkillSummary,
   type VivySkillView,
   type VivyTokenUsageSnapshot,
+  type TrajectorySession,
+  type ChildListResult,
+  type DiagnosticQuery,
+  type DiagnosticPage,
+  type GuiLogBatch,
+  type GuiLogAck,
   type VivyToolsResult,
 } from './contracts'
 import type { VivyTransport } from './transport'
@@ -125,8 +136,26 @@ export class VivyClient {
   sessionDelete(sessionId: string): Promise<{ deleted: boolean }> {
     return this.call('session/delete', { session_id: sessionId }, { mutation: true })
   }
-  turnStart(sessionId: string, text: string): Promise<TurnStartResult> {
-    return this.call('turn/start', { session_id: sessionId, text }, { mutation: true })
+  turnStart(sessionId: string, text: string, attachments?: TurnAttachment[]): Promise<TurnStartResult> {
+    return this.call(
+      'turn/start',
+      {
+        session_id: sessionId,
+        text,
+        ...(attachments?.length ? { attachments } : {}),
+      },
+      { mutation: true },
+    )
+  }
+  /** Mutating preset write; the returned session DTO is the authoritative
+   * admitted snapshot — callers must read `permission_preset` back before
+   * treating the choice as armed. */
+  setSessionPermission(sessionId: string, preset: PermissionPreset): Promise<VivySession> {
+    return this.call(
+      'session/set_permission',
+      { session_id: sessionId, preset },
+      { mutation: true },
+    )
   }
   runSubscribe(runId: string): Promise<RunSubscribeResult> {
     return this.call('run/subscribe', { run_id: runId })
@@ -139,6 +168,32 @@ export class VivyClient {
   }
   runCancel(runId: string): Promise<unknown> {
     return this.call('run/cancel', { run_id: runId }, { mutation: true })
+  }
+  /** Atomic selected-turn regeneration (DN-2B): replaces the cutoff
+   * message and its suffix and admits a new run in one call. Text-only
+   * turns — the edit params carry no attachments field. */
+  sessionEdit(sessionId: string, messageId: string, text: string): Promise<SessionEditResult> {
+    return this.call(
+      'session/edit',
+      { session_id: sessionId, message_id: messageId, text },
+      { mutation: true },
+    )
+  }
+  /** Inclusive truncation at the cutoff message (DN-2B). */
+  sessionRewind(sessionId: string, messageId: string): Promise<SessionRewindResult> {
+    return this.call(
+      'session/rewind',
+      { session_id: sessionId, message_id: messageId },
+      { mutation: true },
+    )
+  }
+  /** Inclusive copy of history into a new session (DN-2B). */
+  sessionFork(sessionId: string, messageId: string, title?: string): Promise<SessionForkResult> {
+    return this.call(
+      'session/fork',
+      { session_id: sessionId, message_id: messageId, ...(title ? { title } : {}) },
+      { mutation: true },
+    )
   }
   approvalList(): Promise<ApprovalListResult> {
     return this.call('approval/list')
@@ -311,6 +366,21 @@ export class VivyClient {
   }
   statsTokens(params: { period?: string; tz_offset_minutes?: number; session_limit?: number } = {}): Promise<VivyTokenUsageSnapshot> {
     return this.call<VivyTokenUsageSnapshot>('stats/tokens', params)
+  }
+  sessionTrajectory(sessionId: string, limit?: number): Promise<TrajectorySession> {
+    return this.call<TrajectorySession>('trajectory/session', {
+      session_id: sessionId,
+      ...(limit ? { limit } : {}),
+    })
+  }
+  childList(parentRunId: string): Promise<ChildListResult> {
+    return this.call<ChildListResult>('child/list', { parent_run_id: parentRunId })
+  }
+  diagnosticsLogs(query: DiagnosticQuery): Promise<DiagnosticPage> {
+    return this.call<DiagnosticPage>('diagnostics/logs', query)
+  }
+  diagnosticsGuiAppend(batch: GuiLogBatch): Promise<GuiLogAck> {
+    return this.call<GuiLogAck>('diagnostics/gui/append', batch, { mutation: true })
   }
 
   cronStop(id: string): Promise<{ stopped: boolean }> {

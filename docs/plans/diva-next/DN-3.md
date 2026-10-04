@@ -1,3 +1,8 @@
+> 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
+> take precedence over historical P0-D1 host/speech/import/acceptance premises.
+> Tasks/evidence below retain their original scope and artifact pins. New
+> closure work is not proved by historical implementation or acceptance.
+
 # DN-3 — Settings and operational surfaces
 
 - **Epic:** B · **Requirements:** R-1, R-3 · **Outcome:** required settings/operational forms control the actual VIVY process after restart.

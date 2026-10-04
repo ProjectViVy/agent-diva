@@ -1,0 +1,104 @@
+{
+  "schema": "diva-next/closure-speech/v1",
+  "generated_at": "2026-10-03T14:30:00Z",
+  "probed_by": "DN-0S disposable probes (task-local, never staged into product): ~/staging/dn-0s/probe, ~/staging/dn-0s/probe-tauri, ~/staging/dn-0s/audio",
+  "baseline_pins": {
+    "diva": "f5866a0 (agent-diva-gui unchanged at docs-branch tip ccaca989)",
+    "vivy": "1db8b55ce905ee4a212326e7801e0958e7f4376a",
+    "laputa": "dc6066e2bb983ebd6b31e53dec908a9a23366956"
+  },
+  "native_versions": {
+    "rustc": "1.97.1",
+    "tauri": "2.12.1 (agent-diva-gui/src-tauri/Cargo.lock; features: tray-icon, single-instance plugin; workspace member crates/vivy-bridge = libloading 0.8 + serde + thiserror 2)",
+    "reqwest": "0.13.5 already in lockfile via tauri (no TLS backend resolved); probe pinned 0.13.1",
+    "keyring": "4.2.0 (probe), feature names confirmed: windows-native-keyring-store, dbus-secret-service-keyring-store (linux default), linux-keyutils-keyring-store, apple-native-keyring-store, v1",
+    "msrv_note": "tauri 2.x MSRV 1.77+; keyring 4.2 MSRV 1.75; both satisfied by rustc 1.97.1"
+  },
+  "ipc_seam": {
+    "evidence": [
+      "pinned source tauri-2.12.1/src/ipc/mod.rs: InvokeBody::Raw(Vec<u8>) carries request bytes verbatim; Request{body,headers: HeaderMap} reaches commands via CommandArg, so native code sees raw bytes + IPC headers (x-diva-speech-meta <=2KiB is a native-side guard; transport itself carries larger headers)",
+      "InvokeResponseBody::Raw(Vec<u8>) is produced by tauri::ipc::Response::new(Vec<u8>) — binary MP3 response has no JSON framing; Response::new(String) stays Json",
+      "Android caveat: InvokeBody::Raw is not supported on Android (source comment) — desktop-only contract, unaffected",
+      "compile check: `cargo check --target x86_64-pc-windows-msvc` on a probe crate with tauri 2.12.1 (default-features=false) PASSED; the ipc_probe test module typechecks against tauri::ipc::{InvokeBody, InvokeResponseBody, IpcResponse, Response}"
+    ],
+    "pending": [
+      "live Raw->command invoke roundtrip through a bundled WebView (needs Windows WebView2 or Linux WebKitGTK host; tauri on Linux unconditionally links GTK/WebKitGTK which this VM lacks — no pkg-config, no webkit2gtk-4.1 dev packages)"
+    ]
+  },
+  "webview_audio": {
+    "engine_tested": "Chrome/137.0.0.0 (Chromium; WebKitGTK and WebView2 remain pending)",
+    "results": {
+      "wav_pcm16_decode": "decodeAudioData accepts PCM16 mono WAV; decoded to context rate (44100) ch=1 duration=1.0 peak=0.125",
+      "mp3_decode": "decodeAudioData(mp3) -> ch=1 rate=44100 duration=1.0 — MP3 playback path via AudioBufferSourceNode works",
+      "resample_to_16k_mono": "OfflineAudioContext(1, len, 16000) renders -> rate=16000 ch=1 duration=1.0",
+      "wav_reencode": "hand-built RIFF header validated: PCM16(fmt=16) ch=1 rate=16000 — outbound WAV for speech_transcribe provable",
+      "recorder_codecs": "MediaRecorder.isTypeSupported: audio/webm;codecs=opus=true, audio/mp4=true, audio/mpeg=false, audio/wav=false — mic capture never yields WAV/MP3 natively; pipeline must decode captured blob -> OfflineAudioContext resample -> PCM16 WAV encode",
+      "playback": "decodeAudioData + AudioBufferSourceNode available for ipc::Response MP3 ArrayBuffer"
+    },
+    "pending": ["Windows WebView2 engine check", "Linux WebKitGTK engine check", "real mic capture (getUserMedia) on acceptance host"]
+  },
+  "os_credential_store": {
+    "results": [
+      "keyring 4.2.0 v1 API: Entry::new(service, user) -> set_password/get_password/delete_credential; NoEntry after delete",
+      "this Linux VM: Entry::new fails with Error::NoDefaultStore for both default dbus-secret-service store and linux-keyutils-keyring-store — maps to SpeechFailure.credential_unavailable; no plaintext fallback",
+      "windows-native-keyring-store compiles for x86_64-pc-windows-msvc (Credential Manager path)"
+    ],
+    "pending": ["Windows Credential Manager set/read/delete/locked mapping on acceptance host", "macOS keychain optional"]
+  },
+  "reqwest_tls": {
+    "choice": "reqwest 0.13, default-features=false, features=[rustls, webpki-roots, json] (plus multipart for STT upload when implemented)",
+    "evidence": [
+      "probe Cargo.lock resolves rustls + rustls-platform-verifier + webpki-root-certs; openssl/native-tls absent from the linux dep graph (schannel/security-framework remain platform-gated, unused for transport)",
+      "runtime: HTTPS GET https://api.siliconflow.cn/v1/models -> HTTP 401 Unauthorized — TLS handshake + HTTP path proven end-to-end on this VM",
+      "reqwest 0.13 'rustls' feature = aws-lc-rs crypto provider + rustls-platform-verifier: Windows builds need MSVC C toolchain (cl.exe + cmake for aws-lc-sys); pure-`cargo check` for windows fails in cc-rs on this VM — expected, recorded"
+    ],
+    "windows_build_requirement": "MSVC toolchain + cmake/nasm for aws-lc-sys; alternative rustls-no-provider+ring still needs a C toolchain — no pure-Rust TLS path exists in reqwest 0.13"
+  },
+  "providers": {
+    "siliconflow": {
+      "checked": "2026-10-03",
+      "docs": [
+        "https://docs.siliconflow.cn/en/api-reference/audio/create-speech",
+        "https://docs.siliconflow.cn/docs/api/audio-transcriptions-post",
+        "https://docs.siliconflow.cn/docs/api/uploads-audio-voice-post",
+        "https://docs.siliconflow.cn/docs/api/audio-voice-list-get"
+      ],
+      "stt": {
+        "endpoint": "POST https://api.siliconflow.cn/v1/audio/transcriptions",
+        "shape": "multipart/form-data: file=<binary> (<=50MB, <=1h), model=FunAudioLLM/SenseVoiceSmall | TeleAI/TeleSpeechASR",
+        "success": "{text:string}",
+        "errors": "JSON envelope {code:int,message:string,data:string}; observed codes: 20012 (bad request family), 50505 (model overloaded); 429 rate-limit message; 504 timeout; trace via x-siliconcloud-trace-id response header",
+        "note": "no language parameter in the documented schema — preserve STT recognition semantics, no speculative language forwarding"
+      },
+      "tts": {
+        "endpoint": "POST https://api.siliconflow.cn/v1/audio/speech",
+        "shape": "JSON {model, input, voice|references, response_format, sample_rate?, stream}",
+        "models_seen": ["fnlp/MOSS-TTSD-v0.5", "FunAudioLLM/CosyVoice2-0.5B"],
+        "voice_union": "system voice 'voice':'<model>:<name>' (e.g. fnlp/MOSS-TTSD-v0.5:alex) XOR reusable voice uri 'speech:<customName>:<id>' (from POST /v1/uploads/audio/voice + GET /v1/audio/voice/list) XOR inline 'references':[{audio: url|data:audio/*;base64, text}] — references scripted-dialogue path documented for MOSS model; voice and references are mutually exclusive",
+        "response_format": "mp3 (default) | opus | wav | pcm",
+        "success": "HTTP 200 binary audio body (Transfer-Encoding chunked); x-siliconcloud-trace-id header",
+        "errors": "same JSON envelope family; 400/401/403/404/429/503/504"
+      }
+    },
+    "minimax": {
+      "checked": "2026-10-03",
+      "docs": ["https://platform.minimaxi.com/docs/api-reference/speech-t2a-http"],
+      "tts": {
+        "endpoint": "POST https://api.minimax.cn/v1/t2a_v2",
+        "backup_endpoint": "https://api-bj.minimaxi.com/v1/t2a_v2",
+        "models": ["speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo", "speech-02-hd", "speech-02-turbo", "speech-01-hd", "speech-01-turbo"],
+        "shape": "JSON {model, text, stream:false, voice_setting:{voice_id,speed,vol,pitch,emotion}, audio_setting:{sample_rate:32000,bitrate:128000,format:'mp3',channel:1}, pronunciation_dict?, subtitle_enable:false}",
+        "success": "application/json {data:{audio:<hex mp3 bytes>,status:2}, extra_info{...}, trace_id, base_resp:{status_code:0,status_msg:'success'}}",
+        "error_semantics": "HTTP 200 still requires base_resp.status_code==0 and data.status==2; hex decode of data.audio must be validated (malformed hex = provider_error). No voice-clone/reference field in this nonstreaming path — 'unsupported_reference' maps correctly",
+        "note": "regional hosts: api.minimax.cn (+ api-bj.minimaxi.com backup) are the documented hosts; api.minimax.io international host exists but configured region/model compatibility is the caller's responsibility — never silently repaired"
+      }
+    }
+  },
+  "pending_gates": [
+    "Windows WebView2: IPC Raw invoke roundtrip, MP3 decode/playback, keyring Credential Manager, final link of reqwest+aws-lc-sys under MSVC",
+    "Linux WebKitGTK engine audio check (optional, not acceptance)",
+    "Authenticated provider calls (SiliconFlow/MiniMax) — reserved for owner acceptance; no key requested",
+    "Live recorder->WAV->transcribe E2E on acceptance host"
+  ],
+  "handoff": "DN-6A/B/C consume this record: C2-4 Raw/Response commands stand; speech_transcribe body=PCM16 WAV mono16k built in WebView (recorder output is webm/opus or mp4 — decode+OfflineAudioContext resample required); speech_synthesize returns ipc::Response Raw MP3; credentials via keyring 4.2.0 platform stores with credential_unavailable mapping and no plaintext fallback; HTTPS via reqwest rustls+webpki-roots."
+}

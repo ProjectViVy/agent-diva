@@ -1,0 +1,579 @@
+> Historical snapshot, not an active execution queue. Captured from DIVA f5866a0 before the owner-approved 2026-10-03 closure scope. Statuses and old Rust paths below are historical evidence, not current instructions.
+
+# TODOLIST
+
+项目级**活跃**待办。这里只保留仍可执行、仍待决策或仍需验证的事项；完成、取消、
+被取代和重复记录统一进入 [`docs/archive/todolist/`](docs/archive/todolist/README.md)。
+
+严重度：`sev-P0` 阻断，`sev-P1` 高，`sev-P2` 中，`sev-P3` 低。
+
+## DIVA Next 拆线遗留（本分支）
+
+- [x] **DIVA-SHARED-BRIDGE：Tauri/vivy-bridge（DN-L + DN-5 已交付）** `sev-P0`
+  DN-L：`internal/embedded` 宿主、ABI v1 c-shared 导出、`--target shared`
+  pack/inspect、`recipes/diva.vivy.yml`、C smoke。DN-5：vivy-bridge
+  （dlopen + owned-return + 单事件泵）+ Tauri v2 薄壳（vivy_call/vivy:event、
+  close-hide + tray Quit、single-instance）；工作区测试 10/10、clippy 净、
+  deb 含 vivy-runtime；原生转录：真 .so 开窗→关窗隐藏→重启聚焦→SIGINT
+  有序退出（linux/amd64）。剩余验收：真实流式对话 + 审批挂起时重开窗口、
+  Windows 原生 runner。
+- [x] **VIVY-CLIENT-PROJECTION：typed client + 状态/事件投影（DN-1 已交付）** `sev-P0`
+  `api/vivy/{contracts,transport,client}`：信封保真（kind/code/message/data）、
+  永不重试、mutation 后 timeout/transport_lost 标 `unknownOutcome`；
+  `state/vivy-session` 投影：(run_id,seq) 去重、乱序缓冲不过缝推游标、
+  gap/lost 标 resync、快照权威回放、挂起审批/问题随重开存活；
+  capabilities 台账由 negotiated initialize 解析
+  available/absent/disconnected/failed。GUI 507/507 测试、构建净；
+  真实物 DN-1 冒烟（init/session/subscribe/cancel -32004/审批问题列表/
+  delete）绿于 linux/amd64。
+- [x] **GATEWAYLESS-LIFETIME-EVIDENCE：嵌入式常驻生命周期未验证** `sev-P1`
+  已在 DN-L 解决：gatewayless `App.Run` 提前返回缺陷由
+  `TestGatewaylessRunBlocksUntilContextCancel` 红→绿证明并修复（errCh 只由
+  httpServer goroutine 关闭）；宿主所有权 = `internal/embedded.Open` 唯一持有。
+- [ ] **P0-NATIVE-VERIFICATION：Windows c-shared 构建与 FFI 验收仍未验证** `sev-P1`
+  Go 1.26.8 + Node 22.20/pnpm 10.18.3 已装于 `~/toolchains`；linux/amd64
+  `-buildmode=c-shared` + C smoke（init→turn→approval→cancel→poll→shutdown）已绿。
+  剩余：windows/amd64 DLL+头文件、Rust FFI、打包验收。原生验证未通过前不关闭 P0。
+
+- [ ] **GOVERNANCE-DOCS-STALE：AGENTS.md / AGENTS-ARCH.MD / CLAUDE.md / LAPUTA.md 仍描述已删除的 Rust workspace** `sev-P1`
+  拆线（DN-W）删除了全部 crate 与 src-tauri；规则文档需在治理评审后重写，
+  以免会话继续按 Rust 门槛（just ci / clippy / cargo）执行。见 `docs/plans/diva-next/index.md`。
+- [ ] **DEAD-INVOKE-SEAMS：前端残留 invoke/listen 调用点已无对端** `sev-P0`
+  `@tauri-apps/api` 客户端包暂留以维持类型与测试 mock；运行时无 Tauri runtime，
+  调用会失败。按 DN-0 清单与 DN-1/2/3/4/6 逐域替换，DN-M 验收语义迁移；
+  保留新 Tauri 薄壳需要的客户端包，只删除旧业务命令。
+  DN-2 进度：chat/session/approval/question/plan/compact 全部迁走；残留 =
+  配置类（load_config, getRuntimeConfig, getConfigStatus, get_tools_config,
+  save_config, update_config, update_tools_config, update_channel,
+  set_splash_complete）+ ChatView `reset_session`/`open_desktop_pet` +
+  ConsoleView `check_health` —— 归 DN-3/4。
+- [x] **NEW-BACKEND-BOUNDARY-GATE：check_laputa/cognitive_clean_break 随旧后端删除** `sev-P2`
+  DN-P 已交付：`scripts/ci/check_vivy_backend_boundary.py`（依赖图 + Cargo.toml +
+  bundle 资源 + 二进制/deb 内容清单，非字符串搜索）+ CI `boundary-gate` job，
+  另有 `check_legacy_frontend_calls.mjs` AST 门禁（DN-M）。
+- [ ] **VIVY-CONTRACT-BLOCKED：persona/memory/AutoDream/report、语音/资源、import 契约依赖 agent-vivy#63** `sev-P1`
+  对应 DN-4/DN-6/DN-7；需按 DN-0 在固定版本逐项核实（#63 为历史跟踪引用，
+  不代表当前代码全部缺失）。契约未验证前不得引入假成功适配器。
+  进展（本阶段核实）：
+  - masks：`vivy.masks.*` 经 module action 活体验证（catalog.list/get、selection.get/set、
+    catalog.create）+ GUI 已迁 — 此域已脱离本项。
+  - persona：`plugins/vivy-persona` 仅 UIExtensionPort，无运行时生产者 → 仍 blocked。
+  - memory/ACTMEM：`internal/modules/memory` 有 9 个 `vivy.memory.*` action 但未编进
+    diva recipe → 仍 blocked（改 recipe 即可解）。
+  - autodream/evolution、notebook/reports：GUI 级视图无后端生产者 → 仍 blocked。
+  - speech（STT/TTS）：agent-vivy 全仓无对应模块 → 仍 blocked。
+  - resource import/delete：仅 `mcp.resources.list|read` 探针 → 仍 blocked。
+- [x] **EMBEDDED-SWEEPER-OWNERSHIP：嵌入式宿主不运行 InteractionSweeper/Cron** `sev-P0`
+  已在 DN-L 解决：新增 `App.StartEmbeddedServices()`（sweeper + cron），由
+  `internal/embedded.Open` 在 `New`+`DialControl` 后启动，`Host.Close` 统一回收；
+  `TestStartEmbeddedServicesExpiresApprovals` 实测 400ms 审批过期生效。
+- [ ] **RUN-CANCEL-RESTART-NOTFOUND：重启后 run/cancel 返回 CodeNotFound** `sev-P2`
+  重启后 run 仍在 journal 但不在本进程激活集；bridge 须将该结果映射为已定语义
+  （配合 background/recover），不得当异常。DN-1 已完成信封保真
+  （-32004 原样穿透 typed client，真实物冒烟实测）；UI 侧语义映射属 DN-2。
+- [x] **APPROVAL-CANCEL-VOCAB：approval/respond 无 cancel 决定** `sev-P2`
+  DN-2 已落地：`review/respond {review_id, action:'cancel'}` 是真实的取消通道
+  （review 层对 approval/question 均支持 cancel），抽屉 cancel 按钮已接线。
+- [ ] **SEND-ATTACHMENTS-GAP：turn/start 仅文本，send 丢弃 FileAttachmentDto** `sev-P1`
+  VIVY `turn/start {session_id,text}` 无附件参数；GUI 输入框附件目前 warn+丢弃。
+  需要 VIVY 侧附件契约或本地文件->文本降级策略 —— blocked，不可假成功。
+- [ ] **SEND-PERMISSION-MODE-GAP：send 的 permissionMode/approvalPolicy 未接线** `sev-P2`
+  旧 send_message 带 approvalPolicy（on-request/on-failure/unless-trusted）；
+  VIVY 侧候选为 session 级 set_permission（未核实契约）。DN-3 核实后接线。
+- [ ] **REGENERATE-NO-REWIND：regenerate 重发新 turn，无原位回放** `sev-P2`
+  VIVY `session/rewind {session_id,message_id}` 已存在（journal 只读不删行）。
+  当前 regenerate = 找最近 user 消息重发为新 turn；接线 rewind 后可原位重放。
+- [ ] **TITLE-GENERATION-GAP：会话标题只靠后端，GUI 自动生成已删** `sev-P2`
+  旧 `generate_session_title` invoke 已死；VIVY 侧 session/title 由后端定。
+  若需 GUI 侧兜底标题，待 VIVY 标题契约核实（session/rename 已可用作手动改名）。
+- [ ] **PLAN-START-GOAL-NO-TRIGGER：plan/decide start_goal 无 UI 入口** `sev-P2`
+  `start_goal`（arm goal loop）在 controller 已实现，但当前 UI 只有
+  execute_once（批准按钮）/revise（退回）；goal-loop 卡片入口待设计。
+- [x] **DN-2-TASK5-PROVIDER：打包真模型 chat + 门控安全工具链** `sev-P0`
+  已解决（linux/amd64）：sensenova-6.8-flash-lite 实测 16/16 检查全绿 —
+  流式回答入 Journal、write_file 审批门控（deny 无效果/approve 落 run 沙箱）、
+  run/cancel→run.cancelled、review 快照回读。证据见
+  `docs/logs/2026-10-diva-next-dn2/v0.2.0-live-model-acceptance/`。
+  注意：VIVY 读 env `SENSENOVA_API_KEY`（key 本体在 secret:personal:SHANGTANG_APIKEY）。
+  遗留：GUI 级窗口重开（活模型）+ Windows 原生验收仍开。
+- [x] **MODULE-ACTION-GOVERNANCE：face 驱动的 module action 写入无嵌入式审批续接** `sev-P1`
+  已按 owner 裁定（“改成 vivy 的样式，必须对齐”）解决：governance rules 是 vivy
+  正统机制（嵌入式组合刻意无 action 审批续接，见 internal/app authorizeAction
+  注释）。shell 首启写 `resources/vivy.default.yaml` 出厂配置，内附
+  `vivy.masks.*` 写动作 allow 规则；既解决本项也补齐首启无配置必挂的缺口。
+  活体验证：封签 .so 用出厂配置 init + selection.set + catalog.create 全通。
+- [ ] **VIVYSHUTDOWN-DEADLINE-UTIL：VivyShutdown 在后台 utility 生成中偶发 deadline** `sev-P3`
+  DN-P 验收中一次实测：auto-title utility 生成在飞时 VivyShutdown 返回
+  `context deadline exceeded`；空闲时 shutdown 即时。driver 已加 settle+retry，
+  后续全量复跑未复现。若产品化遇到需 agent-vivy 侧调查。
+
+## 总 EPIC：Laputa 认知工作区 Clean Break
+
+- [ ] **LAPUTA-COGNITIVE-WORKSPACE-RESET：完成研究、架构评审、破坏性重构与纵向验收** `sev-P0`
+  当前状态：`D0–D4 Approved / Protect branch cut / S1 complete / S2–S4 implemented, desktop visual acceptance pending`。
+  进化走 D6。保护分支已切（本地
+  `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`，未 push）。
+  **S2–S4 已领取并实现；真实桌面验收仍未完成。**
+  编排：[`docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md`](docs/research/cognitive-workspace-reset-epic-2026-08/epic-orchestration.md)。
+  架构：[`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md)。
+
+**已冻结产品边界（不是待重新决策项）：**
+
+- Memory CRUD 与 STM 维护不走审批；BML 是普通长期 Memory 唯一权威；完整删除
+  `MemoryMd` / `memory_md` 链路且不自动导入旧数据。概念上可称 STM/LTM；注入
+  权威文件是全局一份 `{config_dir}/actmem/ACTMEM.MD`，禁止核心文件 `STM.MD` /
+  `MEMORY.MD`。发言即写 Pulse；每轮助手回复立刻写 Recap；空闲 10 分钟只折叠胶囊。
+  子代理不进。第一版不自动晋升
+  BML。正文不装配。CORE 只有一个查询工具；管理工具必须 DEFER。
+
+- Persona 权威为 `IDENTITY.MD`（含当前身体）/ `RELATIONSHIP.MD` / `REDLINE.MD` /
+  `USER.MD` / `DREAM.MD` / `DARK.MD` / `WORLD.MD`，不等于 Memory。DREAM 与 DARK
+  不进首次引导；DARK 为 FEAR/SHADOW 双展位。v1 种类闭集；架构可加、用户不可加。
+  历史永久保留。**P22：整机一份伴侣**，不按 profile / git 再开一套。
+- BML `memory.sqlite3` **跟人格走**（S1 修订），与七文件同一套家。工作区
+  `.laputa/memory.sqlite3` 是旧落点。`memory_distill` 一律 Evolution 人审（D7）。
+- Evolution 管理人审后的能力文件。Diva 特色（**D6**）：AutoDream 整理 ACTMEM，
+  **诞生进化提案**，提炼结果为 **SOP/Skill 文件**；不可 apply。人格提案走 P5。
+  禁止 BML/`MemoryPatch`。旧混域 Inbox 仍删。不再以 GA 为进化参考。
+- **MEMRULES**（S9/P21）是写记忆手册，不是人格。路径 `{config_dir}/memory/MEMRULES.MD`。
+  不进 Laputa / Frozen Core / Persona 左栏。Memory 设置可编；v1 只给人改。
+  日常不进全文；常驻最多几行指针；写记忆（AutoDream / BML / 蒸馏）才注入全文。
+  不要和操作避坑 `[RULES]` 并成一份。
+- Chat Approval Center 只保留危险运行时操作等真正授权；旧领域治理不得回流。
+- 全部重构采用 clean break；无任何迁移。保护分支已切，不作为 fallback。
+- **ACTMEM Recap（S8 修订）：** Pulse = 用户短原话；Recap = 本轮助手最终回复结束立刻写的一句完成态（≤200 字，不另开大模型）；10 分钟空闲只把该 session 的 Pulse+Recap **折进胶囊并从头删掉**。不是「等 10 分钟才第一次归纳」。实施落在 D4 **S3**。
+
+决策依据：
+[Evolution](docs/research/evolution-genericagent-reset-2026-08/decision-record.md)、
+[Persona](docs/research/persona-markdown-clean-break-2026-08/decision-record.md)、
+[STM/Memory](docs/research/stm-cross-session-clean-break-2026-08/decision-record.md)。
+
+### Research Gate：用户已过（2026-08-14）；下面条目保留为完成物指针
+
+- [x] **COGNITIVE-R0-CURRENT-STATE：当前系统、数据与耦合全景盘点** `sev-P0`
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
+  [`docs/research/cognitive-r0-current-state-2026-08/README.md`](docs/research/cognitive-r0-current-state-2026-08/README.md)。
+  三份完成物：当前状态图、依赖/数据清单（KEEP/RENAME/DELETE/DECIDE）、旧架构失败基线。
+  核心事实：混域 Proposal 链、Persona JSON↔BML 双权威、`memory_md` 仍活、
+  `governance.db`/`governance.sqlite3` 双账本、事件四轨。不沿旧模型打补丁。
+  R1 Evolution 切片仍有效，由全量 R0 引用。
+
+- [x] **COGNITIVE-R1-GENERICAGENT-EVOLUTION：更新并研究 GenericAgent Evolution** `sev-P0`
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
+  [`docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/README.md)。
+  本地 GA 锁定 `ee5a474`；远程 tip（API）`f06d550`；触发/Action-Verified/L0–L4/SOP-Skill/
+  实验/差距/建议齐全。P1 活体实验因无 `mykey.py` 阻断，记入开放项。研究完成前仍禁止
+  实现晋升状态机。进化设计改走 D6，不再跟 GA。
+
+- [x] **COGNITIVE-R1c-GA-AUTONOMY-ORIGIN：说清 GenericAgent 自主进化从哪来** `sev-P0`
+  **因果页已交付（2026-08-14）**；用户已读并走 D6：
+  [`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-autonomy-origin.md)。
+  结论：无独立进化引擎。用户已读论文并决策：进化走 D6，不再跟 GA。
+
+- [ ] **CONTEXT-DENSITY-PRINCIPLE：把「有限窗口决策信息密度」收成设计原则** `sev-P1`
+  笔记：[`docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md`](docs/research/cognitive-r1-genericagent-evolution-2026-08/ga-context-density-vs-diva.md)。
+  Diva 有装配/预算/安全，常驻层偏肥、缺逐步活动锚、巩固没有为下一轮减负。
+  不推翻已冻 WORLD/ACTMEM 工具车道。D0/C 系后续设计时对照，现在不施工。
+
+- [ ] **COGNITIVE-R1b-GA-LIVE-EXPERIMENT：GenericAgent 活体结晶实验（可选补强）** `sev-P2`
+  若跑：用桌面 `keys.txt`（不入库、不进 git）。R1c 机制说清优先。测量
+  Action-Verified 遵守率、未验证写入率、L1 行数违规与 patch/overwrite 比。
+
+- [x] **COGNITIVE-R2-STM-CONTEXT：STM 与上下文分层专项研究** `sev-P0`
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
+  [`docs/research/cognitive-r2-stm-context-2026-08/README.md`](docs/research/cognitive-r2-stm-context-2026-08/README.md)。
+  三份完成物：装配约束、Hold 选项与静态实验、失败/并发矩阵。产品 STM 不存在；
+  CanonicalCheckpoint / SessionCheckpoint / BmlStartupIndex 已拆名。
+  物理权威后来冻为 `ACTMEM.MD`（S8）。分层旧提案部分作废（Recap 已冻）。
+  [`docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md`](docs/research/stm-cross-session-clean-break-2026-08/stm-layering-proposal.md)。
+
+- [x] **COGNITIVE-R3-PERSONA-WORKSPACE：Persona 文档权威与工作区技术研究** `sev-P0`
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
+  [`docs/research/cognitive-r3-persona-workspace-2026-08/README.md`](docs/research/cognitive-r3-persona-workspace-2026-08/README.md)。
+  三份完成物：权威盘点、revision/Diff/CAS 选项、Markdown 工作区技术评估。JSON
+  section + Proposal 仍是权威；`content_version` 只展示；changelog ≠ 文档历史；
+  WORLD `project()` 无生产 Prompt 调用者。未选目录 / Diff 引擎 / CM6 扩展。
+
+- [x] **COGNITIVE-R4-CLEAN-BREAK-SAFETY：数据影响、保护分支与删除证明研究** `sev-P0`
+  **研究包已交付（2026-08-13）**；用户 Research Gate 已过：
+  [`docs/research/cognitive-r4-clean-break-safety-2026-08/README.md`](docs/research/cognitive-r4-clean-break-safety-2026-08/README.md)。
+  三份完成物：删除影响、保护分支协议、零残留证明目录。未抽样生产 profile。
+  保护分支已切（见 I0）。禁止导入/fallback。
+
+### 独立诊断（不复活旧主链）
+
+- [ ] **AUTODREAM-DIAGNOSTIC-LOGGING：AutoDream 大型排查、测试与完整日志** `sev-P1`
+  决策：必须整理 STM；人格可按 P19 提案。2026-08-14 独立测试已跑：
+  `cargo test -p agent-diva-autodream` 现有 56 绿 + 表征 3 条；
+  `cargo test -p agent-diva-manager --test autodream_laputa_e2e` 6/6 绿。
+  测到的是旧合同（生命周期 / MemoryPatch / 闸门 / 报告 / Manager 治理闭环）。
+  S3 已接入 ACTMEM Work 整理、仅 Pulse/Recap 冲突重试、Work 冲突失败、零
+  MemoryPatch/BML 写入；人格 Markdown 允许表仍不在本条诊断范围。
+  表征钉在 `agent-diva-autodream/tests/current_contract.rs`。
+  仍缺阶段级结构化日志（run_id / phase / 输入摘要 / gate 拒绝 / proposal_id /
+  失败码）。禁止借机写 REDLINE/DREAM/用户偏好，或恢复 MemoryPatch/SopCreate/
+  Governance，也不得把 STM 改成提案。今日生产路径几乎只有 `worker.rs` 两条
+  `tracing::warn`。
+
+### Architecture Gate：全部 Research 通过用户评审后才能开始
+
+- [x] **COGNITIVE-D0-DOMAIN-AUTHORITY：总体领域、权威、生命周期与禁止依赖设计** `sev-P0`
+  **已由后续批准生效**（A/B/C + D1–D4）。正文：
+  [`docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md`](docs/research/cognitive-d0-domain-authority-2026-08/domain-authority.md)。
+  通过 ≠ 改生产代码。
+
+- [x] **COGNITIVE-D1-PERSONA：Persona/WORLD/首次初始化/历史架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
+  [`docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md`](docs/research/cognitive-d1-persona-workspace-2026-08/persona-architecture.md)。
+  仍不改生产代码。
+
+- [x] **COGNITIVE-D2-MEMORY-STM：Memory/BML/STM/Context 架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
+  [`docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md`](docs/research/cognitive-d2-memory-stm-2026-08/memory-architecture.md)。
+  仍不改生产代码。
+
+- [x] **COGNITIVE-D3-EVOLUTION-SKILL：Evolution/SOP/Skill 架构设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
+  [`docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md`](docs/research/cognitive-d3-evolution-skill-2026-08/evolution-architecture.md)。
+  仍不改生产代码。
+
+- [x] **COGNITIVE-D4-CLEAN-BREAK-DELIVERY：接口、删除、发布与验收设计** `sev-P0`
+  **用户批准（2026-08-15）。** 稿：
+  [`docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md`](docs/research/cognitive-d4-clean-break-delivery-2026-08/delivery.md)。
+  **已切** `protect/cognitive-pre-clean-break-20260815` @ `2aab18cc`（本地，未 push）。
+  领 S1 另说。批准 ≠ 已改生产。
+
+### Implementation Gate：架构批准后再展开
+
+- [x] **COGNITIVE-I0-PROTECTION-BASELINE：备份分支** `sev-P0`
+  **已切（2026-08-15）。** 本地 `protect/cognitive-pre-clean-break-20260815` =
+  `2aab18cc5d89769876542262c77d693dfadb7822`。不追旧 SHA。未 push。无迁移。
+  不是 runtime fallback。
+
+- [ ] **COGNITIVE-I1-CLEAN-BREAK-IMPLEMENTATION：按批准设计分切片实施并验证** `sev-P0`
+  I0 已切，S1–S5 已完成；S2 Persona、S3 Memory/ACTMEM/Recap 与 S4 Evolution/Skill 的内核、运行时/API/工具与 GUI 已实现，自动化门通过，待真实桌面视觉验收。
+  S5 卸旧已落地（2026-08-16，`710e7684`..`1ea54d08` 五笔功能提交：旧 GUI 治理面、Manager/Tauri 旧治理 API、AutoDream 旧提案路径、Laputa section/proposal 内核与混域 ProposalType、MEMORY.md 文件链、WorldGovernance 队列、persona-retire、旧 distill 路径物理删除；全量门通过，仅余 6 例既有 `CLI-WIREMOCK-502-PREEXISTING`）。
+  S5 复核修复已落地（2026-08-16，`0c1f0dfd`..`c011e680`）：WORLD 巩固丢弃、Prompt 去掉审批假合同、ContextBuilder 测试构造器隔离、Approval/capability/CLI 去掉 memory 域。见 `docs/logs/2026-08-s5-review-repairs/`。
+  S6 **机器证明门**已落地（2026-08-16，`2e58a022`）：`just cognitive-clean-break-check` 已进 `just ci`。见 `docs/logs/2026-08-cognitive-s6-proof/`。
+  **S6 真机未勾**（D4 §7 八条 + §8 恢复演练）。I1 整项保持未完成。按 D4：**S1 停种子 -> S2 Persona -> S3 Memory/ACTMEM/Recap -> S4 Skill -> S5 卸旧 -> S6 证明**。
+  先领须另说。每片独立验证、独立 Conventional Commit。S2–S4 **必须含该域 GUI**，不能只交 API。
+  S3 必须含每轮 Recap。S6 含桌面 UI smoke（`gui-changes-need-gui-smoke`）。
+
+### GUI 排期（跟切片走，不是另开一条无限期 UI 债）
+
+S1 无用户可见面。S5 拆旧 UI（JSON 编辑器、Persona 右栏治理、混域 Inbox）——已落地（2026-08-16，见 `710e7684` 与 `docs/logs/2026-08-cognitive-s5-legacy-removal/`）。下面三片缺 GUI 不得标完成。
+
+- [ ] **UI-S2-PERSONA：Persona 文档工作区** `sev-P0` `acceptance:desktop-smoke`
+  左栏只七份；中央三态（当前文档 / 待审 / 历史）；最小 CM6 + Markdown 预览；
+  五文件引导与 incomplete 修复。删 JSON 门、永久右栏、MEMRULES/`memory_md` 左栏。
+  依据 D1。实现已落在 `93f4b554`：GUI 466 tests、生产构建、Tauri cargo check、
+  本地 Vite HTTP smoke 通过；当前环境无浏览器控制执行器，仍需真实桌面视觉/交互 smoke 后勾选。
+
+- [ ] **PERSONA-S2-DESKTOP-SMOKE：真实桌面 Persona 验收** `sev-P1`
+  启动 Tauri + Manager，分别验证 uninitialized 五文件引导、incomplete 只修坏件、
+  七文件 CM6 编辑/预览、CAS 冲突刷新、pending 接受/拒绝、历史 Diff/重新保存；
+  同时确认未 ready 时 Chat 被独立 Persona 状态门挡住。自动化证据见
+  `docs/logs/2026-08-cognitive-workspace-reset-implementation/v0.0.2-s2-persona-home/verification.md`。
+  2026-08-17：首次「建立 Persona」打开即 `unknown Laputa API error` 已修（Manager
+  信封 `status: "ok"` + Tauri 解码旧 `{ status: PersonaStatusView }`）；仍须重启
+  桌面端后做视觉验收。
+
+- [ ] **UI-S3-MEMORY-ACTMEM：Memory / ACTMEM / MEMRULES 工作区** `sev-P0` `acceptance:desktop-smoke`
+  BML 列表/详情直改（无审批）；ACTMEM 入口展示 Pulse / Recap / Work / 胶囊；
+  MEMRULES 设置可编。依据 D2 + S8 Recap。实现已落地：GUI 467 tests、生产构建、
+  Tauri cargo check 通过；仍须真实桌面完成 BML CRUD、ACTMEM CAS、胶囊、MEMRULES
+  与零审批路径后勾选。自动化证据见 S3 `verification.md`。
+
+- [ ] **MEMORY-S3-DESKTOP-SMOKE：真实桌面 Memory 验收** `sev-P1`
+  启动 Tauri + Manager，完成 BML 新增/编辑/软删、ACTMEM 三节编辑与冲突保稿、
+  胶囊查看/单次确认删除、MEMRULES 默认/文件切换，并确认 Approval Center 零新增。
+  当前执行环境可完成编译与自动化测试，但没有原生 WebView 控制器代替人工交互。
+
+- [ ] **UI-S4-EVOLUTION-SKILL：Evolution Skill 工作区** `sev-P0` `acceptance:desktop-smoke`
+  Skill 列表（搜索/启用/编辑/历史）；待审只接受/拒绝；无 Memory/人格混箱。
+  依据 D3。实现已落地：GUI 446 tests、生产构建、Tauri cargo check 通过；
+  Skill/CAS/历史/待审状态与异步详情防串位有自动化覆盖。当前环境的浏览器控制器
+  无可用 backend，仍须完成真实桌面 smoke 后勾选。
+
+- [ ] **EVOLUTION-S4-DESKTOP-SMOKE：真实桌面 Skill Evolution 验收** `sev-P1`
+  启动 Tauri + Manager，验证 Skill 编辑/CAS 冲突保稿、停用、历史、硬删与内置回显，
+  Settings ZIP/Marketplace 只新装，用户请求、AutoDream/distill 待审与接受，接受后新
+  Session 可发现，以及 Evolution 无 Memory/Persona 混箱。自动化证据见
+  `docs/logs/2026-08-cognitive-s4-skill-evolution/v0.5.0-skill-evolution/verification.md`。
+
+- [x] **ACTMEM-S3-RECAP：S3 接线每轮 Recap** `sev-P1`
+  助手最终回复结束立刻写 `## Recap`；Pulse 仍只收用户短原话；10 分钟只折叠。
+  依据 S8 修订 / D2。已实现机械首个非代码结论段、≤200 字即时写入；暂停时间测试
+  覆盖 Pulse、Recap、10 分钟折叠、代次取消、cron/子代理排除及 reset 清理。
+
+- [ ] **CHANNELS-STATUS-COVERAGE：config-status 缺 4 通道状态** `sev-P3`
+  `agent-diva-cli/src/cli_runtime.rs` `channel_statuses`（:525-688）只输出 9 个通道，
+  neuro-link/irc/mattermost/nextcloud_talk 无 ready/missing_fields 汇总，卡片回退
+  needsConfig 显示。2026-08-17 频道页修复时发现；2026-08-18 用户决策将
+  irc/mattermost/nextcloud_talk 从 GUI 下架后，实际仅剩 neuro-link 有感知，降为 P3。
+
+- [ ] **CHANNELS-RETIRE-DESKTOP-SMOKE：退役频道 GUI 下架真机冒烟** `sev-P2`
+  2026-08-18 用户决策：slack/whatsapp/nextcloud_talk/mattermost/matrix/irc 从
+  GUI 移除（后端历史性保留）。vitest 451/451 + vue-tsc 构建已绿；仍须重启 GUI
+  人工确认卡片视图 7 张卡、向导平台列表与列表视图侧边栏均不含退役频道。
+  验收步骤见 `docs/logs/2026-08-channels-settings-fix/v0.1.1-retire-unverified-channels-gui/acceptance.md`。
+  2026-08-18 补充：后端门控已落地（`agent-diva-channels` opt-in feature
+  `channel-*`，默认不编译、不路由；恢复见
+  `docs/logs/2026-08-channels-backend-retirement/v0.2.0-retired-channel-feature-gates/`），
+  本条目仍待真机冒烟。
+
+- [ ] **CHANNELS-WIZARD-TEST-DELETE：向导连接测试与卡片删除接入** `sev-P2`
+  `ChannelsSettings.vue` `handleWizardTest` 恒失败、`handleCardDelete` 只弹窗
+  （两处既有 TODO）；需后端真实连接测试 API 与通道删除 API。2026-08-17 频道页
+  修复时确认仍缺，另行迭代。
+
+- [ ] **CHANNELS-EDITOR-DESKTOP-SMOKE：频道 GUI 完整编辑真机冒烟** `sev-P2`
+  2026-08-19 已修卡片编辑空白、列表布局、YAML-only 提示；vitest 468/468 +
+  vue-tsc 构建绿。仍须重启 GUI，按
+  `docs/logs/2026-08-channels-settings-fix/v0.1.2-channel-editor-gui/acceptance.md`
+  点选飞书/Email 编辑、保存刷新、Discord allow_from、列表全通道表单。
+
+- [ ] **QQ-CHANNEL-DESKTOP-SMOKE：QQ 空名单私聊 + 拒群聊真机冒烟** `sev-P2`
+  2026-08-19 恢复空 `allow_from` 为不限制，QQ 群/频道事件拒绝不进 bus。
+  channels lib 84/84 + clippy -D 已绿。须重启网关，按
+  `docs/logs/2026-08-qq-channel-allowlist/v0.1.0-empty-allow-and-reject-group/acceptance.md`
+  测 C2C 私聊与群 @ 拒绝。
+
+- [ ] **SKILL-MARKETPLACE-DESKTOP-SMOKE：技能市场真机冒烟** `sev-P2`
+  2026-08-19 技能市场标签页已接入真实 skills.sh（manager 适配器
+  `/api/skills/marketplace/search|install` + Tauri 命令 + GUI 重写）。
+  2026-08-21 追加精选榜单：空搜索态展示离线 YAML 快照 Top 100
+  （`/api/skills/marketplace/featured`，Python 脚本生成）。
+  2026-08-21 追加 v0.2.1：已安装页移除“Evolution 管理”硬编码占位，市场/手动
+  安装技能可直接删除（复用 `DELETE /api/skills/:slug`），Evolution 托管技能
+  （存在 Accepted 提案）仅显示 i18n 提示（`SkillSummary.evolution_managed`）。
+  2026-08-21 追加 v0.2.2：Evolution 视图 Skills 列表仅显示 Evolution 托管技能，
+  安装类/内置技能不再出现。
+  manager 单测 + marketplace e2e、GUI 480/480 + vue-tsc、just check 已绿。
+  须重建并重启网关 + GUI，按
+  `docs/logs/2026-08-skill-marketplace/v0.2.0-featured-leaderboard-snapshot/acceptance.md`、
+  `docs/logs/2026-08-skill-marketplace/v0.2.1-installed-skill-delete/acceptance.md`
+  与 `docs/logs/2026-08-skill-marketplace/v0.2.2-evolution-hides-installed-skills/acceptance.md`
+  验证精选展示、搜索、安装、已安装禁用、错误重试、安装类技能删除与 Evolution 列表过滤。
+
+- [ ] **SKILL-MARKETPLACE-V1-TOKEN-VERIFY：skills.sh v1 API token 路径验证** `sev-P3`
+  2026-08-21 `agent-diva-manager/scripts/fetch_marketplace_featured.py` 支持
+  `AGENT_DIVA_SKILLS_MARKETPLACE_TOKEN`（Vercel OIDC Bearer）走官方
+  `GET /api/v1/skills?view=all-time|trending|hot`；当前无 token，仅验证了
+  无认证首页 leaderboard 降级路径。拿到 token 后跑一次脚本并核对 YAML 输出
+  （`source: api:v1:*`、`metric: installs`）。
+
+## 产品与架构
+
+- [ ] **PLAN-MODE-PHYSICAL-STATE-MACHINE：Plan Mode 物理限制状态机** `sev-P1`
+  从已完成的 Context 主线分轨，需另行冻结状态、能力矩阵和非法迁移验收。
+
+- [ ] **EVENTBUS-TRAIT-HOOKS：EventBus Trait Hook 管道** `sev-P1`
+  来源于 OpenHarness 调研；保留为未来扩展点，当前延期。
+
+- [x] **WORLD-MEMRULES-GATE：WORLD 写核 R6 拦截** `sev-P2`
+  D1 已删 WorldGovernance 队列。R6 进 WORLD **写核**（用户直存 / 接受 P5）。
+  不得恢复 Memory 审批。已在 `352cd57f` 实现：提案新增/修改必须是带 status/source
+  的有界 claim，新增散文拒绝；AutoDream 不能改既有 claim；用户直存仍保持直存。
+
+- [x] **MEMRULES-DEFAULT-SEED-ALIGNMENT：默认 R1–R7 与生产策略对齐** `sev-P3`
+  D2 已定并随 S3 落地：R4 为 revision/CAS 直写，证据只作 advisory；缺文件使用
+  内置 R1–R7，只有用户首次保存才创建 `{config_dir}/memory/MEMRULES.MD`。
+
+- [ ] **RG-CODE-GOV 后续分期** `sev-P2`
+  原位治理 G0/G1 已完成；剩余 G2 Manager handler 变薄、G3–G5 GUI Host/state/DTO。
+  不回迁 deep-governance 大爆炸。设计：`docs/dev/agent-loop-manager-gui-governance/`。
+
+- [ ] **全仓库代码清理提案审批与排期决策** `sev-P3`
+  对 `docs/logs/2026-08-05-code-audit-proposal/v0.1.0-code-audit-proposal/` 的清理集合
+  做取舍；不得把已被 Evolution/Memory 新决策覆盖的旧方案重新实现。
+
+- [ ] **GMH-53：灰度与清理** `sev-P2`
+  只处理仍有效的通用治理/发布内容；Memory governance 与旧 Evolution 部分由上述
+  clean-break 决策取代。
+
+- [ ] **day/hour token 死循环熔断安全阀决策** `sev-P3`
+  定位为极高默认阈值的异常循环保护，而不是常规预算管理；决定全局或会话窗口，以及
+  与 `session_token_budget_limit`、`RejectionCircuitBreaker` 的交互后再实施。
+
+- [ ] **Workspace CLI managed-path 与 runtime 任意路径契约** `sev-P3`
+  路径穿越已修；仍需统一 `config_dir/workspaces/*` 与 runtime 任意路径模型。
+
+- [ ] **CLARIFY-HITL Phase 3** `sev-P3`
+  已有 `ask_user` 运行时、CLI/Tauri/GUI 表面；剩余 Plan 矩阵、subagent 禁用断言与
+  可选 messaging clarify。不得并入审批抽屉或 governance ledger。
+
+- [ ] **UX-DR-3/4/7** `sev-P3`
+  Sprint 评审遗留 UX 缺口；恢复前先重新确认原问题仍存在并补专项设计。
+
+- [ ] **GUI-STYLE-UNIFICATION-PHASE-2：样式令牌化二期** `sev-P3`
+  一期（`docs/logs/2026-08-gui-style-unification/v0.1.0-design-tokens/`）已完成令牌基建、
+  useTheme 治理、`.theme-*` 覆盖层退役与头部 3 组件语义色令牌化。剩余：
+  ① 其余约 31 个组件/scoped 样式的硬编码 `#hex/rgba()` 迁移到 `var(--token, fallback)`；
+  ② 宠物装饰层（DivaPetView / DesktopPetOverlay）rgba 白色系色板的主题方案；
+  ③ 组件内 scoped 的按主题覆盖块（如 ConversationSidebar 尾部 `.theme-*` 段）收敛到全局令牌；
+  ④ WelcomeWizard 粉色身份色板（#be185d/#9d174d/#6b2737）的跨主题适配决策；
+  ⑤ 深色对比色阶语义令牌扩展（如 `--danger-strong` #dc2626、`--warning-strong` #d97706）后替换字面量；
+  ⑥ `tk-*` 字号/间距 scale 渐进迁移（本期只建基建未动现有字号）。
+  迁移顺序建议：先 SettingsView 子树 → Mask/Persona 子树 → 其余；每批附 vitest + 四主题冒烟。
+
+## 自动化与生产路径证明
+
+- [ ] **BACKGROUND-TASK-PRODUCTION-E2E：后台任务生产路径纵向证明** `sev-P2`
+  覆盖 `enqueue_background_task` 的 assembly/agent loop 接线、supervised worker
+  启动/排空/取消/重启、subagent 终态，以及上下文与预算继承。
+
+- [ ] **STEPFUN-REAL-ENDPOINT-E2E：StepFun model pass-through** `sev-P3`
+  单测已覆盖 model 透传；仍需使用桌面 `keys.txt` 做真实 endpoint E2E，密钥和未脱敏
+  响应不得进入仓库、日志、夹具或提交。
+
+## 人工与真实桌面验收
+
+- [ ] **M3-HITL-DESKTOP-SMOKE：审批三模式集中验收** `sev-P2`
+  验证谨慎/智能/信任三模式、trusted 规则学习、重启保持和危险 shell 仍受 Guardian
+  限制。审批只从聊天页统一 Approval Center 出现；不包含 Memory CRUD 或旧 Evolution。
+  参考：`docs/logs/2026-08-m3-hitl-closure/`。
+
+- [ ] **WINDOWS-RELEASE-EXEC-ACCESS：恢复本地 release 可执行启动** `sev-P1`
+  当前普通用户启动 release EXE 返回 Windows OS error 5；需明确的人工/系统策略授权，
+  解决后再执行 M3 与其他真实桌面 smoke。
+
+- [ ] **SANDBOX-SAVE-FIX-DESKTOP-SMOKE** `sev-P2`
+  切换沙箱模式并保存，检查配置落盘及清空 timeout 边界。步骤：
+  `docs/logs/2026-08-sandbox-settings-save-fix/v0.1.0-sandbox-save-fix/acceptance.md`。
+
+- [ ] **CLARIFY-HITL-DESKTOP-SMOKE** `sev-P2`
+  用真实 LLM 触发 `ask_user`，分别验证 CLI/GUI 提问、回答、超时和恢复。步骤：
+  `docs/logs/2026-08-ask-user-hitl-research/v0.2.0-ask-user-surface/acceptance.md`。
+
+- [ ] **GATEWAY-PORT-DESKTOP-SMOKE** `sev-P3`
+  配置 `gateway.port` 后确认 gateway 监听配置端口；未配置时仍使用 3000。步骤：
+  `docs/logs/2026-08-small-fixes-batch/v0.5.1-small-fixes-batch/acceptance.md`。
+
+- [ ] **GUI-PROVIDER-ERROR-RETRY-DESKTOP-SMOKE** `sev-P2`
+  用真实失败/重试场景确认 GUI 显示重试进度、stall 和最终错误，不因 request ID 或
+  SSE 断流永久挂起。参考：`docs/logs/2026-08-gui-provider-error-visibility/`。
+
+- [ ] **MASK-FEATURE-ACCEPTANCE** `sev-P2`
+  恢复 `.sisyphus/plans/mask-feature-implementation.md` 前先复核现状，再执行剩余验收。
+
+- [ ] **MEMORY-CRUD-ID-DESKTOP-SMOKE** `sev-P2`
+  人工冒烟已确认：记录还在，但工具结果里的 id 被 PII 脱敏层藏掉，模型无法增删改。
+  用户决策：不再给 id 开特例，直接关闭运行路径上的敏感格式隐藏（工具结果、入站
+  消息、artifact、AutoDream 摘要）。见
+  `docs/logs/2026-08-memory-id-pii-redaction/v0.0.2-disable-runtime-pii-hiding/`。
+  重启 gateway 后用真实模型走 `memory_list` → 新增 → `memory_update` /
+  `memory_remove`；`id` 与邮箱/手机等原文必须原样可见。
+
+## DN-3 backend-capability gaps (slice B, deferred)
+
+- [ ] **SKILL-MANAGEMENT-GAP** `sev-P2`
+  VIVY has no RPC for skill upload / delete / content edit / revision history /
+  skill-request list+decide. GUI dropped the upload/delete UI in slice B;
+  EvolutionView still consumes legacy `get_skills`/`delete_skill` (slice D
+  residual). Decide backend surface or retire the workflows.
+
+- [ ] **SEARCH-PROVIDER-ROSTER-GAP** `sev-P3`
+  `settings.get.network_search` roster is fixed to bing/google/duckduckgo/
+  searxng/wikipedia with env-var-only credentials. Legacy bocha/brave/zhipu
+  options, in-UI api_key entry, and max_results have no VIVY knob — dropped
+  from NetworkSettings. Restore only if backend adds them.
+
+- [ ] **MCP-TOOL-TIMEOUT-NO-KNOB** `sev-P3`
+  Legacy per-server `tool_timeout` has no `settings/mcp` field — dropped from
+  the MCP form. `cwd` / `auth_env` / `resource_bridge` are preserved silently
+  in the spec but have no dedicated UI yet.
+
+- [ ] **BUDGET-SYSTEM-RATIO-NO-KNOB** `sev-P3`
+  VIVY compaction config has no `system_budget_ratio`; the context-budget ring
+  hardcodes 0.15. Remove or restore when backend exposes it.
+
+- [ ] **DN3-DEAD-LOCALE-KEYS** `sev-P3`
+  `general.uploadSkill`/`deleteSkill*`/`skillSource*`/`welcome.*bocha*` and the
+  i18n.ts zhPatched fallbacks are unreferenced after slice B — sweep on close.
+
+- [ ] **COMMAND-RULES-GAP** `sev-P2`
+  Legacy `get_command_rules`/`set_command_rule_enabled`/`delete_command_rule`
+  have no VIVY counterpart — `commands/list` is dynamic slash commands, not
+  approval rules. Command-rules UI deleted in slice D; needs a backend
+  approval-rule surface or stays retired.
+
+- [ ] **BACKEND-WIPE-GAP** `sev-P2`
+  `wipe_local_data` has no VIVY RPC. GeneralSettings danger zone is now
+  localStorage-only + window reload (backend data unaffected, copy updated).
+  Restore a real backend wipe only when VIVY exposes one.
+
+- [ ] **GUI-STATUS-PATHS-GAP** `sev-P3`
+  Derived `ConfigStatusReport` has no backend for resolved paths / channel /
+  cron counts — GeneralSettings runtime card shows doctor + providers only.
+  Re-add columns when VIVY exposes a status endpoint.
+
+- [ ] **GUI-PET-SEAM-DORMANT** `sev-P2`
+  `pet_*` invokes (DivaPetView / DesktopPetOverlay / voice services) are
+  runtime-dead under the thin shell (only `vivy_call` registered). DN-6 owns
+  the native disposition — restore native commands or retire the surface.
+
+## Reliability / Test Debt
+
+- [ ] **LAPUTA-STORAGE-STALE-LOCK-FLAKE** `sev-P2`
+  Windows 全工作区负载下 stale lock 回收偶发 `LockTimeout`，定向重跑与后续 CI 通过；
+  需隔离临时目录锁回收时序。关联 `agent-diva-laputa/src/lock.rs`。
+
+- [ ] **WORKSPACE-GUI-TOOLING-LOAD-FLAKES** `sev-P2`
+  GUI embedded gateway 启动和 tooling registry timeout 测试曾在 full suite 偶发失败、
+  focused 重跑通过；隔离共享资源和时序依赖。
+
+- [ ] **CLI-WIREMOCK-502-PREEXISTING** `sev-P2`
+  CLI approval wiremock 用例在 Windows 环境偶发/持续返回 502；排查系统代理绕过与 mock
+  服务器隔离，关闭标准是 `just test` 全绿。
+
+- [ ] **GUI-TAURI-PLAN-STREAM-DISCONNECT** `sev-P3`
+  两条 Plan SSE/Tauri 循环仍可能在无终止事件断流时静默返回；统一为明确错误或恢复事件。
+
+- [ ] **AGENT-DIVA-FILES-CLIPPY** `sev-P3`
+  修复 `agent-diva-files/src/s3.rs` 在 Rust 1.94 下的
+  `empty_line_after_doc_comments`，使用独立机械提交。
+
+- [ ] **WORKSPACE-MSRS-1.80-DEPENDENCY-CONFLICTS** `sev-P2`
+  工作区声明 Rust 1.80，但 ICU/Darling/Pest/CRC/Tauri 等依赖存在更高 MSRV；需要独立
+  pin/升级方案，不削弱现有 gate。
+
+- [ ] **MSRV-ISOLATED-TARGET-CACHE** `sev-P2`
+  所有 `cargo +1.80` 探测必须使用独立 `CARGO_TARGET_DIR`，避免污染默认 target cache；
+  将此约束固化进验证命令或脚本。
+
+- [ ] **LAPUTA-TESTS-1.94-ALL-TARGETS-CLIPPY** `sev-P3`
+  `cargo clippy -p agent-diva-laputa --all-targets -- -D warnings` 仍有测试目标 dead code、
+  `cmp_owned` 等 lint；生产库目标和 `just check` 不受影响，独立机械修复。
+
+- [ ] **BML-GOVERNED-SEAM-DEAD-CODE** `sev-P3`
+  S5 移除治理协调器（`governed_apply`/`MemoryGovernanceCoordinator`）后，
+  `TypedMemoryStore::put_governed` / `rollback_governed` 成为无调用方的存储内部接缝。
+  按 D4 §3.2 必须保留 BML 表结构，清理时只删代码路径与 `bml/mod.rs` 边界说明同步更新，
+  不动 schema。关联 `agent-diva-laputa/src/bml/`。等 S6 扫描门先落地。
+
+- [ ] **MEMORY-CRUD-PROPOSAL-CREATED-DEAD-ENUM** `sev-P3`
+  `MemoryCrudOutcome::ProposalCreated` 与 `SyncTurnStatus::ProposalCreated` 仍是公开枚举，
+  巩固路径还有死分支匹配。生产 MemoryHome 不再产出该结果。独立删除枚举与匹配臂，
+  不要和 BML schema 清理绑在一起。关联 `agent-diva-core/src/memory/`。
+
+- [x] **GOVERNANCE-LEDGER-SINGLE-RECORD-BRICK** `sev-P2`
+  2026-08-17 再次发生：`requested → allowed → expired → expired` 使
+  `recover_incomplete` 全量重放失败，gateway 无法启动。已修：重复 `expired`
+  重放为幂等；`expire()` 不再二次落盘；`states_page` 对无法重放的孤立聚合跳过并
+  告警。单条 `state()` / 授权路径仍 fail-closed。见
+  `docs/logs/2026-08-governance-ledger-startup/v0.0.1-expire-idempotent-recovery/`。
+
+- [x] **EMPTY-POST-TOOL-SUMMARY** `sev-P1`
+  长任务工具成功后模型常返回空正文，用户只看到
+  「已完成 N 个工具调用……但模型未返回文字总结」。根因不是缺上下文上限表：
+  上限只服务压缩预算，成功调用的 `finish_reason` / `usage` 没被用来分类。
+  已修：空 follow-up 按输入压力 / 输出截断 / 空 stop 分类；压力走既有
+  reactive compact；一律最多一次 summary-only（禁工具，8192 输出预算）。
+  见 `docs/logs/2026-08-empty-tool-summary/v0.0.1-upstream-empty-followup/`。
+
+## Archive Index
+
+- [`docs/archive/todolist/README.md`](docs/archive/todolist/README.md)
+- 清理前完整快照：
+  [`snapshot-before-2026-08-13-cleanup.md`](docs/archive/todolist/snapshot-before-2026-08-13-cleanup.md)

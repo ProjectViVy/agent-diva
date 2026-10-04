@@ -26,12 +26,16 @@ const emit = defineEmits<{
   }): void;
   (event: 'revoke', feedback: string): void;
   (event: 'refresh'): void;
+  /** DN-2B: arm the approved plan as a bounded goal loop
+   * (plan/decide 'start_goal'). */
+  (event: 'start-goal', payload: { max_rounds: number }): void;
 }>();
 
 const detailsOpen = ref(false);
 const editingFeedback = ref(false);
 const feedback = ref('');
 const contextPolicy = ref<ExecutionContextPolicy>('compact');
+const goalRounds = ref(20);
 const todoPolicy = ref<TodoPolicy>('Optional');
 const materializeTodos = ref(false);
 
@@ -120,6 +124,24 @@ function approve() {
       <button type="button" class="plan-approval-refresh" :disabled="approving" @click="emit('refresh')"><RefreshCw :size="15" /> 刷新</button>
     </div>
 
+    <div class="plan-goal-start">
+      <label for="plan-goal-rounds">目标循环轮数上限</label>
+      <input
+        id="plan-goal-rounds"
+        v-model.number="goalRounds"
+        type="number"
+        min="1"
+        max="1000"
+        :disabled="approving"
+      />
+      <button
+        type="button"
+        class="plan-approval-revoke"
+        :disabled="approving || approvalBlocked || !goalRounds || goalRounds < 1"
+        @click="emit('start-goal', { max_rounds: goalRounds })"
+      >批准并启动目标循环</button>
+    </div>
+
     <div v-if="editingFeedback" class="plan-approval-feedback">
       <label for="plan-feedback">修改意见</label>
       <textarea id="plan-feedback" v-model="feedback" :disabled="approving" placeholder="例如：补充风险、缩小范围、改写验证方法" />
@@ -154,6 +176,10 @@ function approve() {
 .plan-approval-revoke, .plan-approval-refresh { border: 1px solid #d6dce8; color: var(--text, #1f2937); background: white; }
 .plan-approval-feedback { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; color: var(--text-muted, #667085); font-size: 12px; }
 .plan-approval-feedback textarea { min-height: 68px; resize: vertical; border: 1px solid #d6dce8; border-radius: 8px; padding: 8px; font: inherit; }
+.plan-goal-start { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-muted, #667085); font-size: 12px; }
+.plan-goal-start input { width: 72px; border: 1px solid #d6dce8; border-radius: 8px; padding: 6px 8px; font: inherit; }
+.plan-goal-start button { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.plan-goal-start button:disabled { cursor: not-allowed; opacity: .6; }
 .plan-approval-spinner { animation: plan-spin .9s linear infinite; }
 @keyframes plan-spin { to { transform: rotate(360deg); } }
 </style>

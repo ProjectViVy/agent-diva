@@ -7,9 +7,9 @@ import WelcomeWizard from "./components/WelcomeWizard.vue";
 import { appAlert, appConfirm } from "./utils/appDialog";
 import { showAppToast } from "./utils/appToast";
 import { useI18n } from "vue-i18n";
-import {
-  FileAttachmentDto,
-} from "./api/desktop";
+import type {
+  TurnAttachment,
+} from "./api/vivy/contracts";
 import {
   loadProviderState,
   saveActiveProvider,
@@ -34,8 +34,8 @@ import {
   DEFAULT_DEEPSEEK_PROVIDER,
   buildWelcomeDeepSeekConfig,
 } from "./utils/welcomeConfig";
-import { vivyClient } from './api/vivy/instance';
-import { VivyChatController } from './state/vivy-chat';
+import { vivyChat } from './state/chat-instance';
+import { vivyCognitive } from './state/vivy-cognitive';
 import { generateMessageId, type ChatMessage } from './state/chat-message';
 
 const { t } = useI18n();
@@ -100,7 +100,7 @@ const approvingPlan = ref(false);
 const planContinuationError = ref<string | null>(null);
 
 /** DN-2: VIVY chat controller — the single orchestration authority. */
-const vivyChat = new VivyChatController(vivyClient);
+// vivyChat is the shared single-owner instance (state/chat-instance).
 let detachVivySync: (() => void) | null = null;
 
 const currentPlanContinuationError = computed(() => planContinuationError.value);
@@ -499,33 +499,67 @@ async function revokePlanExecution(feedback = '') {
   }
 }
 
-async function sendMessage(content: string, attachments?: FileAttachmentDto[], _mode?: string, _permissionMode?: string) {
+async function sendMessage(
+  content: string,
+  attachments?: TurnAttachment[],
+  _mode?: string,
+  permissionMode?: 'cautious' | 'smart' | 'trusted',
+) {
   if (!content.trim()) return;
   if (isTyping.value) return;
   if (content.trim() === '/stop') {
     await stopMessage();
     return;
   }
-  if (attachments?.length) {
-    // VIVY turn/start is text-only; attachments are a recorded gap (TODOLIST).
-    console.warn('[App] send: attachments dropped — VIVY turn/start accepts text only');
-  }
   if (!isTauri()) return;
   try {
-    await vivyChat.send(content);
+    // DN-2A: the controller validates images/frame size, arms+confirms the
+    // preset through session/set_permission, then starts the turn — one
+    // serialized mutation lane per session.
+    await vivyChat.send(content, {
+      ...(attachments?.length ? { attachments } : {}),
+      ...(permissionMode ? { preset: permissionMode } : {}),
+    });
   } catch (error) {
     pushSystemNotice(`${t('app.errorPrefix')}${error}`);
   }
 }
 
-async function regenerateMessage(_messageId: string) {
+async function regenerateMessage(messageId: string) {
   if (isTyping.value) return;
-  // VIVY has no in-place rewind: resend the last user turn as a new turn.
-  const lastUser = [...messages.value].reverse().find(
-    (m) => m.role === 'user' && m.content?.trim(),
-  );
-  if (!lastUser) return;
-  await sendMessage(lastUser.content);
+  try {
+    // DN-2B: regenerate the ORIGINATING turn of the selected assistant
+    // message — atomic session/edit for text, validated rewind+resend
+    // for image turns. Never resends the last unrelated user turn.
+    await vivyChat.regenerate(messageId);
+  } catch (error) {
+    pushSystemNotice(`${t('app.errorPrefix')}${error}`);
+  }
+}
+
+async function startGoalExecution(payload: { max_rounds: number }) {
+  const plan = pendingApprovalPlan.value ?? activePlanRuntime.value;
+  const objective = (plan?.goal || plan?.title || '').trim();
+  if (!objective) {
+    pushSystemNotice(t('app.errorPrefix') + 'start_goal requires an objective');
+    return;
+  }
+  if (approvingPlan.value) return;
+  approvingPlan.value = true;
+  try {
+    // plan/decide 'start_goal' arms the goal loop through the same work
+    // controller — no second planner, budgets preserved.
+    await vivyChat.decidePlan('start_goal', undefined, {
+      objective,
+      max_rounds: payload.max_rounds,
+    });
+    planContinuationError.value = null;
+  } catch (error) {
+    planContinuationError.value = error instanceof Error ? error.message : String(error);
+    pushSystemNotice(`${t('app.errorPrefix')}${error}`);
+  } finally {
+    approvingPlan.value = false;
+  }
 }
 
 async function stopMessage() {
@@ -678,6 +712,12 @@ function syncFromController() {
     : 'connecting';
   sessions.value = vivyChat.sessions();
   currentSessionKey.value = vivyChat.currentSessionId ?? '';
+  // DN-4D: keep the cognitive projection bound to the live session.
+  const cog = vivyCognitive();
+  const cogSession = vivyChat.currentSessionId;
+  if (cog.sessionId.value !== cogSession) {
+    void (cogSession ? cog.bind(cogSession) : cog.unbind());
+  }
   unifiedApprovals.value = vivyChat.approvals();
   approvalDetails.value = Object.fromEntries(
     unifiedApprovals.value.map((approval) => [approval.request_id, approval]),
@@ -811,6 +851,7 @@ onUnmounted(() => {
       :save-config-action="saveConfig"
       @send="sendMessage"
       @approve-plan="approvePlanExecution"
+      @start-goal="startGoalExecution"
       @resume-plan="resumePlanExecution"
       @revoke-plan="revokePlanExecution"
       @refresh-plan="restoreActivePlanRuntime"

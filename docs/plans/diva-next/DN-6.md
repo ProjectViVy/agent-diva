@@ -1,40 +1,52 @@
-# DN-6 — DIVA-only speech and avatar integration
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-6A](closure/DN-6A.md), [DN-6B](closure/DN-6B.md), [DN-6C](closure/DN-6C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
 
-- **Epic:** C · **Requirements:** R-5 · **Outcome:** input → transcript → VIVY turn → actual audio → avatar playback; mid-stream interrupt leaves no stale audio; reconnect does not re-speak history; disabling optional modules does not break text mode.
-- **Authoritative design:** issue #13 DN-P1 §4 (Speech rules) · **Baseline:** `0fd005a1` · **Status:** see index; speech/resource contracts unverified · **Predecessor:** DN-2 (includes DN-5 host) · **Index:** [index.md](index.md)
-- **Files:** `src/features/diva-pet/voice/services/{voice-api,tts-service,asr-service}.ts`, provider wrappers/composables, `DesktopPetOverlay.vue`, `avatar-runtime-vrm/`, `shared-avatar-protocol/`; Rust voice/VRM commands are retirement references. **Escalate:** speech capability absent in pinned VIVY and not optional → parity blocker.
+# DN-6 — DIVA-native online speech and media
 
-## Prerequisites / contracts
+Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
+The owner's 2026-10-03 directive supersedes the VIVY-speech-module prerequisite.
+DN-C2 supplies detailed architecture and exact proposed commands in the
+ledger. Implementation/native/provider probes remain pending; child readiness is recorded only in the parent index.
 
-- Consumes DN-5 host + VIVY optional-capability contracts for synthesis/transcription/resource import-read-delete.
-- Playback linked to active run/utterance identity; cancel/barge-in invalidates queued output; browser owns playback/capture; credentials and resource authority stay in VIVY.
+## Outcome and ownership
 
-## Tasks
+SiliconFlow STT plus SiliconFlow/MiniMax TTS work through Tauri native media
+services and the existing text Agent path. Vue captures/plays/subtitles/renders;
+Tauri owns cloud HTTP, speech secrets and bounded reference assets. WAV
+uploads/MP3 replies use Raw/Response IPC; Vue owns temporary Blob audio.
+VIVY remains sole Agent/run/approval authority. OLVRS/local ONNX and
+pet window/neuro-link restoration are not prerequisites.
 
-- [ ] Move provider credentials, synthesis/transcription, resource import/read/delete, voice configuration onto real VIVY optional capability contracts.
-- [ ] Keep capture, playback, subtitles, avatar rendering, native windows on the DIVA side.
-- [ ] Replace old Tauri/neuro-link response delivery with run/utterance-correlated events; replay must not generate duplicate speech.
-- [ ] Implement cancellation/barge-in cleanup; clear missing-device/provider/resource errors.
-- [ ] Delete legacy direct provider bypasses and voice/asset business commands once the replacement is accepted.
+## Existing files and proposed additions
 
-## Verification
+Reuse `agent-diva-gui/src/features/diva-pet/voice/` provider/player/preprocessing
+logic, avatar-runtime-vrm and main chat/settings. Change the frozen native
+seam `src/platform/desktop-host.ts`, shell `src-tauri/src/lib.rs` and lifecycle,
+plus AST/native/boundary gates. Proposed native module `src-tauri/src/speech/`;
+proposed typed facade `src/api/speech.ts`. Do not restore old business crates.
 
-- `pnpm --dir agent-diva-gui test` and `build` pass.
-- Live chain smoke with real audio out; interrupt test; reconnect test; Lite mode unaffected.
+## Required proof for designed contracts
 
-## Evidence to supervisor
+- Implement ledger command/config DTOs and OS keyring adapter; probe secure
+  persistence/locked/unavailable states and presence-only readback.
+- Bundled Tauri Raw/Response IPC and WebView decode/resample to PCM16 WAV on
+  Windows/Linux; bounded reference-voice commands and leases. No audio handles
+  or speech_release_audio command; no general VRM manager.
+- Real provider request/error fixtures, supported region/base URL/model.
+- Request/session/run/utterance/generation correlation; abort and release.
+- Narrow native command allowlist; remove activated speech from dormant scope.
 
-Chain smoke evidence, interrupt/reconnect results, list of retired bypasses.
+## Work and evidence
 
-## P0-D1 execution amendment (takes precedence)
+Replace old pet_* and frontend cloud fetch; make voice reachable independently
+of dormant pet windows. Distinguish provider/device/credential/no-speech
+failures, preserve reference configuration or reject unsupported use visibly.
+Bind fresh answers only; never auto-speak history/replay. Cancel releases audio
+and discards late output; text mode survives cloud failure. Shutdown aborts
+owned speech requests before native resources are closed.
 
-### Concrete P0 domain slices
-
-Consume P0-D1, DN-2's accepted run/cancel state and DN-0 speech/resource/native mappings. Initial host is the selected Tauri thin shell; the old non-Rust host premise no longer applies. Confirm exact ASR/provider-wrapper paths in DN-0 before editing; proposed correlation test `agent-diva-gui/src/features/diva-pet/voice/services/vivy-voice.test.ts`.
-
-- [ ] Add tests for replay not re-speaking history, cancellation clearing queued playback, late audio after run replacement, missing device/resource and provider failure.
-- [ ] Replace voice-api/tts-service and ledger-identified direct provider paths with verified VIVY capability operations; keep browser capture/playback and native window effects in DIVA.
-- [ ] Bind media to backend run/utterance/resource IDs, invalidate queued output on cancellation and detach, and reject mismatched late results. Do not persist provider secrets in frontend state.
-- [ ] Run real microphone/transcription/playback and interrupt/reopen scenarios on the frozen native host, alongside GUI tests/build; prove text-only mode works without optional media modules.
-
-Every old voice/avatar/native call still needs a disposition. Optional module absence may be visible and valid only if the scope is explicitly optional; it is not permission to mark required legacy behavior migrated. Exact producer schemas/resource lifetime are blockers until DN-0 verifies them.
+Scoped checks cover real request shape, redaction, bounds, cancel races,
+resource release and replay exclusion. Prepare installed mic -> STT -> Agent
+-> both TTS providers -> playback/VRM -> interrupt -> Quit scenarios for owner
+acceptance. No cloud quality/native success is claimed by this design.

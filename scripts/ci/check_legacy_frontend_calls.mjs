@@ -35,6 +35,23 @@ const NATIVE_FILES = new Set([INVOKE_FILE, 'src/utils/openExternal.ts'])
 const PROVIDER_URL_FILES = new Set(['src/utils/welcomeConfig.ts'])
 const DORMANT_PREFIX = 'src/features/diva-pet/'
 const VIVY_CMD = 'vivy_call'
+// DN-6B native speech commands: fixed literal names, allowed only inside
+// the frozen desktop-host seam.
+const NATIVE_CMDS = new Set([
+  VIVY_CMD,
+  'speech_config_get',
+  'speech_config_update',
+  'speech_credential_set',
+  'speech_credential_delete',
+  'speech_context_set',
+  'speech_transcribe',
+  'speech_synthesize',
+  'speech_cancel',
+  'voice_asset_import',
+  'voice_asset_list',
+  'voice_asset_read',
+  'voice_asset_delete',
+])
 
 const PROVIDER_HOST_RE =
   /api\.deepseek\.com|api\.openai\.com|token\.sensenova\.cn|api\.siliconflow\.cn|api\.minimax|api\.anthropic\.com|generativelanguage\.googleapis|dashscope\.aliyuncs|api\.moonshot\.cn|api\.x\.ai/i
@@ -105,7 +122,7 @@ function scanFile(absPath, rel) {
           const arg = node.arguments[0]
           if (arg && ts.isStringLiteral(arg)) name = arg.text
           if (rel === INVOKE_FILE) {
-            if (name !== VIVY_CMD) report(node.pos, `invokes non-frozen command ${name ?? '<dynamic>'}`)
+            if (!NATIVE_CMDS.has(name)) report(node.pos, `invokes non-frozen command ${name ?? '<dynamic>'}`)
           } else {
             report(node.pos, name ? `legacy business invoke '${name}'` : 'dynamic/aliased business invoke')
           }
@@ -138,7 +155,10 @@ if (process.argv.includes('--selftest')) {
   let fired = 0, expected = 0
   for (const name of readdirSync(fx)) {
     if (!name.endsWith('.ts')) continue
-    const v = scanFile(join(fx, name), `scripts/ci/fixtures/legacy-calls/${name}`)
+    // seam-* fixtures scan under the frozen INVOKE_FILE path so the
+    // inside-seam deny rule (non-allowlisted literal commands) is exercised.
+    const rel = name.startsWith('seam-') ? INVOKE_FILE : `scripts/ci/fixtures/legacy-calls/${name}`
+    const v = scanFile(join(fx, name), rel)
     expected++
     if (v.length > 0) fired++
     else violations.push(`selftest fixture ${name} produced NO violation`)

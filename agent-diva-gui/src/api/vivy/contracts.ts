@@ -56,7 +56,30 @@ export interface VivySession {
   created_at: number
   updated_at: number
   sandbox_mode?: string
+  approval_policy?: string
+  /** Admitted permission preset per `session/set_permission` (DN-2A). */
+  permission_preset?: PermissionPreset | string
   [key: string]: unknown
+}
+
+/** Frozen `session/set_permission` preset vocabulary (C2 fixture). */
+export type PermissionPreset = 'cautious' | 'smart' | 'trusted'
+
+/** `turn/start` inline image attachment — base64 bytes, sniffed MIME.
+ * Max 4 per turn, each ≤5 MiB decoded (internal/attachment, VIVY). */
+export interface TurnAttachment {
+  name?: string
+  mime_type: string
+  data: string
+}
+
+/** History-carried image on a stored user message (DN-2B): the server
+ * returns data_url form; resends re-encode it to wire `data` base64. */
+export interface SessionMessageAttachment {
+  name?: string
+  mime_type: string
+  data_url: string
+  size?: number
 }
 
 export interface SessionMessage {
@@ -65,6 +88,7 @@ export interface SessionMessage {
   role: 'user' | 'assistant' | 'system' | string
   content: string
   created_at: number
+  attachments?: SessionMessageAttachment[]
   [key: string]: unknown
 }
 
@@ -84,6 +108,28 @@ export interface SessionMessagesResult {
 export interface TurnStartResult {
   run_id: string
   status: 'accepted' | string
+}
+
+/** `session/edit` (DN-2B): atomic replace of the cutoff message and its
+ * suffix plus a newly admitted run — the edit IS the regeneration. */
+export interface SessionEditResult {
+  run_id: string
+  status: 'accepted' | string
+}
+
+/** `session/rewind` (DN-2B): inclusive truncation at the cutoff message;
+ * rows stay on disk, the live view hides cutoff+suffix. */
+export interface SessionRewindResult {
+  cutoff_message_id: string
+  remaining_count: number
+}
+
+/** `session/fork` (DN-2B): inclusive copy into a new session; the source
+ * session keeps its full view. */
+export interface SessionForkResult {
+  session_id: string
+  fork_point_message_id: string
+  copied_count: number
 }
 
 export type RunStatus = 'active' | 'completed' | 'failed' | 'cancelled' | string
@@ -743,6 +789,27 @@ export interface CronJobWriteParams {
   delete_after_run?: boolean
 }
 
+/** `stats/tokens` coverage record (D3). observed_calls partitions as
+ * completed_with_usage + partial_usage_calls + missing_usage_calls +
+ * active_calls; reported_calls may also count active calls and is not
+ * part of that partition. `request_count` on the aggregates remains
+ * "usage reports" — reported calls plus legacy records — never total
+ * billed requests. */
+export interface VivyUsageCoverage {
+  /** empty | complete | partial | legacy */
+  state: string
+  observed_calls: number
+  completed_with_usage: number
+  reported_calls: number
+  missing_usage_calls: number
+  partial_usage_calls: number
+  active_calls: number
+  legacy_usage_records: number
+  unknown_buckets: string[]
+  /** Always false: provider-internal retries are not journaled. */
+  hidden_retries_observable: boolean
+}
+
 /** stats/tokens result snapshot. */
 export interface VivyTokenUsageTotal {
   total_input: number
@@ -761,6 +828,7 @@ export interface VivyTokenModelShare {
   total_tokens: number
   cost_usd: number
   cost_known: boolean
+  coverage: VivyUsageCoverage
 }
 
 export interface VivyTokenProviderGroup {
@@ -787,16 +855,190 @@ export interface VivyTokenSessionUsage {
   total_tokens: number
   cost_usd: number
   cost_known: boolean
+  coverage: VivyUsageCoverage
 }
 
 export interface VivyTokenUsageSnapshot {
   period: string
   scope: string
+  projection_version: number
+  coverage: VivyUsageCoverage
   total: VivyTokenUsageTotal
   models: VivyTokenModelShare[]
   providers: VivyTokenProviderGroup[]
   timeline: VivyTokenTimelinePoint[]
   sessions: VivyTokenSessionUsage[]
+}
+
+/** `trajectory/session` v2 projection (OBS-04 producer). One run == one
+ * turn; every model call has a stable request_id and honest
+ * call_status/usage_state; watermarks name the last folded journal seq
+ * per run so subscribers dedup and detect gaps. */
+export interface TrajectoryTokens {
+  input?: number
+  output?: number
+  think?: number
+  cache_read?: number
+  cache_write?: number
+}
+
+/** Nullable usage block on a request row; a nil bucket means the
+ * provider did not report it — never zero. */
+export interface TrajectoryUsageEvidence {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  reasoning_tokens?: number | null
+  cached_tokens?: number | null
+  partial?: boolean
+}
+
+/** One ledger/timeline row; id is stable — derived from
+ * (run_id, seq, record_kind). `index` is positional, not an identity. */
+export interface TrajectoryRecord {
+  index: number
+  id: string
+  turn?: number | null
+  group: string
+  kind: string
+  text: string
+  time_seconds?: number | null
+  started_at?: number | null
+  tokens?: TrajectoryTokens
+  result?: string
+  is_error?: boolean
+  input_detail?: string
+  output_detail?: string
+  call_id?: string
+  provider?: string
+  model?: string
+  opens_turn?: boolean
+}
+
+/** One model call row. `status`/`completed_at`/`usage` are the legacy
+ * v1 fields; v2 reads call_status/finished_at/usage_state/usage_evidence. */
+export interface TrajectoryRequest {
+  number: number
+  request_id: string
+  run_id: string
+  call_id?: string
+  turn?: number | null
+  group: string
+  status: string
+  /** active | completed | failed | cancelled | interrupted | legacy */
+  call_status: string
+  started_at: number
+  completed_at: number
+  finished_at?: number | null
+  provider?: string
+  model?: string
+  usage: TrajectoryTokens
+  /** missing | reported | partial | active | legacy */
+  usage_state: string
+  usage_evidence: TrajectoryUsageEvidence | null
+  retry?: number
+  messages?: number
+  preamble_bytes?: number
+  error?: string
+}
+
+/** One run's authoritative status + activity; wait_kind only names a
+ * wait the journal itself parked the run on — never inferred. */
+export interface TrajectoryRunActivity {
+  run_id: string
+  status: string
+  /** queued | active | waiting | completed | failed | cancelled */
+  activity_state: string
+  /** approval | question | child | workflow */
+  wait_kind?: string
+  parent_run_id?: string
+  child_run_ids?: string[]
+  workflow_id?: string
+}
+
+export interface TrajectorySession {
+  session_id: string
+  projection_version: number
+  turns: number
+  records: TrajectoryRecord[]
+  requests: TrajectoryRequest[]
+  run_activity: TrajectoryRunActivity[]
+  /** last folded journal seq per run — dedup/resume cursor. */
+  watermarks: Record<string, number>
+  /** The window is bounded (default 20, max 50 runs); older runs exist. */
+  has_older_runs: boolean
+}
+
+/** `child/list` + `child/get` row — a run reference, not an authorization
+ * grant or terminal-state claim. */
+export interface ChildRunRef {
+  id: string
+  parent_run_id: string
+  root_run_id: string
+  session_id: string
+  status: string
+  depth: number
+  workspace_id?: string
+  child_mode?: string
+  result?: string
+  error?: string
+  created_at: number
+}
+
+export interface ChildListResult {
+  children: ChildRunRef[]
+}
+
+/** `diagnostics/logs` read row — stable file-offset identity
+ * `<date>:<offset>`; `truncated` marks a record clipped to 8 KiB. */
+export interface DiagnosticRecord {
+  id: string
+  at?: number
+  level?: string
+  component?: string
+  message: string
+  fields?: Record<string, unknown>
+  truncated: boolean
+}
+
+/** `diagnostics/logs` input — `source` is required
+ * (`runtime` | `gui`); `date` is strict YYYY-MM-DD; `after` is a
+ * server-issued cursor; `limit` caps at 500. */
+export interface DiagnosticQuery {
+  source: string
+  date?: string
+  after?: string
+  limit?: number
+  level?: string
+  query?: string
+}
+
+/** `diagnostics/logs` page — `gap` marks rotation/retention cursor
+ * invalidation; `has_more` + `next_cursor` resume a bound-stopped scan. */
+export interface DiagnosticPage {
+  source: string
+  records: DiagnosticRecord[] | null
+  next_cursor?: string
+  gap: boolean
+  has_more: boolean
+}
+
+/** `diagnostics/gui/append` record — no `id`/`truncated` (server-owned). */
+export interface GuiLogRecord {
+  at?: number
+  level?: string
+  component?: string
+  message: string
+  fields?: Record<string, unknown>
+}
+
+export interface GuiLogBatch {
+  records: GuiLogRecord[]
+}
+
+/** Accepted-prefix ack; a failed write is an error, never a silent ack. */
+export interface GuiLogAck {
+  accepted: number
 }
 
 /** `settings/get` sandbox section: effective values + config fallbacks. */

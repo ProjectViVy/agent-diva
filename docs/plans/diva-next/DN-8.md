@@ -1,39 +1,44 @@
-# DN-8 — New build contract and final acceptance
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-8C](closure/DN-8C.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
 
-- **Rescoped 2026-09-27:** the legacy backend deletion happened in DN-W (user-ordered phase 1). This Story now covers only the new build contract, boundary gate, and final acceptance.
+# DN-8 — Clean package and final owner acceptance
 
-- **Epic:** D · **Requirements:** R-1, R-2, R-8 · **Outcome:** clean-checkout build of the new product builds only the new Tauri/vivy-bridge Rust closure and bundles no old business runtime binaries; installed product runs on only the new backend; real browser/desktop/model and migration scenarios pass.
-- **Authoritative design:** issue #13 DN-P1 §6–§8 · **Baseline:** `0fd005a1` · **Status:** see index — final release gate · **Predecessors:** DN-M, DN-7 · **Index:** [index.md](index.md)
-- **Files:** `agent-diva-gui/package.json` + lock, `justfile`, `.github/workflows/ci.yml`, README and repo guidance (AGENTS.md/AGENTS-ARCH.MD/CLAUDE.md/LAPUTA.md governance rewrite per TODOLIST `GOVERNANCE-DOCS-STALE`). **Proposed gate:** `scripts/ci/check_vivy_backend_boundary.py` (new). **Escalate:** any DN-0 parity item still unresolved — this Story cannot close with open parity blockers.
+Current scope: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
+Consumes scoped DN-M closure, refreshed DN-P artifact evidence and packaged
+OBS evidence. **DN-7 is cancelled and is not a predecessor.** This revises the
+old full-parity/import premise; it does not authorize release or claim checks.
 
-## Prerequisites / contracts
+## Delivery boundary
 
-- Consumes: accepted DN-M/DN-7 outcomes; complete DN-0 parity list; pinned VIVY Generation acceptance.
-- Old release/commit reference preserved before source retirement; legacy backend is not duplicated under a new active directory.
+The product contains the existing Tauri/vivy-bridge shell, sealed VIVY library
+and narrow native media services. No retired Rust business runtime, second
+Agent store/executor or hidden Manager fallback is bundled. New native speech
+preferences/credentials/assets are an explicitly admitted device boundary.
 
-## Tasks
+## Engineering preparation
 
-- [ ] Verify DN-M removed legacy business invoke/listen seams; retain @tauri-apps dependencies used by the new transport and native shell.
-- [ ] Update governance docs (AGENTS.md, AGENTS-ARCH.MD, CLAUDE.md, LAPUTA.md, README bodies) to the post-wire-cut reality.
-- [ ] Establish the new product build/package contract (Vue + Tauri thin shell + pinned VIVY shared Generation) per the DN-5 host choice; wire CI release jobs to it.
-- [ ] Add `scripts/ci/check_vivy_backend_boundary.py` (scoped dependency/source/package check rejecting the removed backend closure; historical docs/fixtures are not violations). Verify the actual dependency graph and packaged contents, not just string searches.
-- [ ] Validate the selected DIVA artifact against the complete DN-0 parity list; remove development-only transitional entry points.
+- Pin source, recipe, generated header/ABI, Generation and runtime hashes;
+  rebuild through the existing pack/inspect path and invalidate old evidence.
+- Run scoped GUI/build, bridge/native command, domain/runtime, AST/dependency /
+  package checks. Reuse existing gates; amend them narrowly for speech.
+- Prepare clean-checkout build and fresh-home installation/start/key setup,
+  permissions/device prompts, diagnostics and bounded Quit instructions.
+- Provide real-model chat/tool/approval/cancel/window-reopen scenarios;
+  cognition human edits/model projection/capture/review/restart; console
+  logs/trajectory/usage gaps; microphone/STT/both TTS/interrupt/replay exclusion.
+- Prepare Windows/amd64 DLL/header/FFI/bundle checks. Run available native
+  checks and identify unavailable ones; do not block independent implementation
+  waiting for the owner's final desktop test.
+- Reconcile stale governance descriptions against authorized Next scope;
+  do not revive retired crate rules. Record residual surfaces honestly.
+- Stage/hash transitive Laputa/Garden/Mentle/INOFY inputs without sibling-home
+  assumptions; verify compiled native/link/load dependencies on target.
 
-## Verification
+## Final acceptance
 
-- Clean-checkout product build: only the approved thin-shell Cargo closure, no old business runtime binaries bundled.
-- Installed-product run on the new backend only; real browser/desktop/model scenarios; migration scenario.
-- The former `laputa-clean-break-check` / `cognitive-clean-break-check` semantics are carried into the new boundary gate where still applicable (the old check scripts were deleted with `scripts/` in DN-W).
-- Report measured build time/disk use if measured; do not invent improvement targets.
-
-## Evidence to supervisor
-
-Build log evidence, packaged-content inspection, parity-list sign-off, gate CI results.
-
-## Notes
-
-A successful Vue bundle build alone does not close this Story.
-
-## P0-D1 scope amendment
-
-The shared-library desktop core is accepted by DN-P and the semantic frontend migration by DN-M. Reuse their boundary gates; do not create duplicate scripts. DN-8 still checks full-product parity, DN-7 import, release packaging and governance documentation. All current state is in index.md. This plan does not authorize automatic release, publication or external tracker changes.
+The owner performs installed-product acceptance after engineering delivery.
+Provide expected effects and failure cases with source/artifact pins; mark
+untested platform/cloud behavior pending. Do not claim acceptance from merged
+PRs, mocks or prior-pin Linux evidence. No historical importer scenario,
+automatic publication, tag or merge belongs to this task.

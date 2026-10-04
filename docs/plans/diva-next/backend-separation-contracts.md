@@ -1,3 +1,618 @@
+# DN-C2 closure contracts — 2026-10-03
+
+Architecture: [DN-C2](p0-design.md); status/dependencies: [index.md](index.md).
+This section is the current ledger. **Existing** means inspected source at
+DIVA f5866a0 / VIVY 1db8b55 / Laputa dc6066e; selected artifact/runtime capture
+is separate. **Proposed** means designed here, not exported or Ready.
+Historical inventories below remain evidence only at their recorded pins.
+Do not edit captured `fixtures/core-rpc.json` to pretend new contracts ran.
+
+## C2-1. Existing transport and producer contracts
+
+| Surface | Existing wire / behavior | Consumer obligation |
+| --- | --- | --- |
+| C ABI init | `{abi_version,config_path,without_ears?}` -> `{abi_version,handle}` | Numeric handle stays native; generated header/hash proof |
+| C ABI call | `{method,params,timeout_ms?}` -> `{ok:true,value}` or `{ok:false,error:{kind,code,message,data?}}` | Timeout is not rollback; no replacement request_id ABI |
+| C ABI poll | Handle + uint32 max-events; five C exports including Free | Copy/free once; gap/refetch; no wait_ms argument |
+| Module action | `module.action.invoke` params `{module_id,action_id,input}` | Sealed definitions/grants, authenticated caller and host authorization |
+| Turn images | `turn/start` attachments `[{name?,mime_type,data}]`; data is base64 image bytes | Total call <=4 MiB including expansion/framing; reject unsupported files/model |
+| Session permission | `session/set_permission {session_id,preset}`; preset cautious/smart/trusted; returns session DTO | Confirm/read back before send; admitted policy remains authoritative |
+| Rewind | `session/rewind {session_id,message_id}` -> cutoff/remaining result | Inclusive cutoff; append-only underlying Journal; busy -> conflict |
+| Atomic text edit | `session/edit {session_id,message_id,text,mode?,face?,policy_profile?,thinking?,collaboration_mode?,collaboration_version?}` -> `{run_id,status}` | No attachments field at inspected pin; only text regeneration uses this path |
+| Run cancel | `run/cancel {run_id}` -> cancelling; inactive process run -> not-found | Read run/session to distinguish already terminal from stale/unavailable |
+| Trajectory | `trajectory/session {session_id,limit?}` -> v2 DTO | Default 20 runs, max 50; one projection owner |
+| Diagnostics | `diagnostics/logs` and `diagnostics/gui/append` | Bounded owned families; preserve gaps/truncation/partial ambiguity |
+| Token stats | `stats/tokens {period?,tz_offset_minutes?,session_limit?}` -> projection v2 and coverage | Source is chat_runs; request_count counts reports, not all billed requests |
+| Skills history | `skills/revisions/list` when backing dependency is bound | Capability proof required; upload/edit/delete/request remain residuals |
+
+Current ABI guards: 4 MiB input, event queue 10,000 with oldest-drop gap,
+poll <=500, default call timeout 120 s, shutdown grace 5 s. No incompatible
+ABI change for cognition or native audio. JSON integers consumed by Vue must
+be validated as safe integers; do not silently round revisions/sequences.
+
+Actual console DTOs, rather than PR shorthand:
+
+```typescript
+// Existing field names; detail row DTOs mirror owning Go structs.
+type TrajectorySession = {
+  session_id: string; projection_version: 2;
+  records: TrajectoryRecord[]; requests: TrajectoryRequest[];
+  run_activity: TrajectoryRunActivity[];
+  watermarks: Record<string, number>; has_older_runs: boolean;
+};
+type DiagnosticQuery = {
+  source: 'runtime' | 'gui'; date?: string; after?: string;
+  limit?: number; level?: string; query?: string;
+};
+type DiagnosticPage = {
+  source: string; records: DiagnosticRecord[];
+  next_cursor?: string; gap: boolean; has_more: boolean;
+};
+```
+
+Trajectory request rows retain legacy fields but v2 UI reads `call_status`,
+`finished_at`, `usage_state`, `usage_evidence`. Call states:
+active/completed/failed/cancelled/interrupted/legacy. Usage:
+missing/reported/partial/active/legacy. `usage_evidence` is nullable;
+reasoning/cached buckets may be absent. Run activity distinguishes
+queued/active/waiting/completed/failed/cancelled and authoritative wait_kind.
+Use actual `request_id`, `run_id`, `call_id` and stable record IDs, not array
+indices as identities.
+
+Diagnostic records: `id,at?,level?,component?,message,fields?,truncated`.
+GUI append: `{records:[{at?,level?,component?,message,fields?}]}` ->
+`{accepted:number}`. Source limit 500 records, 8 KiB per record, 4 MiB scan/batch.
+Frontend batches are deliberately smaller (<=50 records and <=256 KiB JSON)
+to leave ABI framing headroom. Current partial-write RPC error describes
+accepted prefix in text; it is not a structured dedupe receipt. Do not retry
+an ambiguous append blindly.
+
+Token coverage fields: state empty/complete/partial/legacy, observed_calls,
+completed_with_usage, reported_calls, missing_usage_calls, partial_usage_calls,
+active_calls, legacy_usage_records, unknown_buckets, hidden_retries_observable.
+Observed calls partition into completed-with-usage/partial/missing/active;
+reported_calls is not another disjoint partition. `total.cost_known=false`
+makes numeric cost a placeholder, not “free.” Do not claim hidden provider
+retry/billing observability.
+
+Regenerate design is now fixed: atomic `session/edit` for text turns; for image
+turns, preserve original bytes, validate before mutation, then inclusive rewind
+at originating user message and normal `turn/start` with original images.
+Busy/failed/ambiguous stages reconcile; never silently convert image to text.
+A rewind succeeded/send failed state retains retryable draft and is visible.
+
+## C2-2. Proposed same-owner library ports
+
+Reuse `agentapi.Open` and public DTOs. Exact new Go API names are proposals,
+with the following required signatures/semantics to freeze in owning library:
+
+```go
+// PROPOSED capability shape, not existing exported code.
+type EvolutionPorts struct {
+    Domain evolution.Domain
+    SourceID string
+    HighWatermark func(context.Context) (uint64, error)
+    MissionRevision func(context.Context) (uint64, error)
+}
+```
+
+These ports are constructed inside Garden from its one owned runtime, fixed
+to admitted scope/destination. Owner Close invalidates all derived capabilities;
+they never close shared authority independently. A public configuration
+extension selects a Backend/factory using existing `garden/memory.Backend`.
+It is mandatory for full memory capability; no implicit writer fallback.
+All retrieval/ingestion/effects use that selection. First supported adapter
+is existing Garden Mentle, explicitly selected in fresh setup, with no implicit
+BML replacement. Missing local embedding
+capability is explicit degradation; no implicit model download.
+
+Trusted VIVY composition validates a session against its own registry before
+asking the same client for session/workspace/principal-specific capability.
+The library preserves fixed profile and admitted scopes. Human operations are
+never available through the agent capability; public API presence itself is
+not runtime authorization. No `garden/internal` import by VIVY.
+
+VIVY factory provides these contract seams:
+
+| Seam | Input / output | Lifetime |
+| --- | --- | --- |
+| Primary prepare | Host session/run/workspace + budget -> FrozenCore v2 reference and bounded authority text | Before inference; immutable session snapshot |
+| Optional recall | Existing ContextSource query -> scoped bounded cards/evidence | Required profile bind; optional retrieval failure reported |
+| Capture sink | Existing CognitiveCapture -> existing receipt seq/status | Stable committed terminal identity, no supervisor input |
+| Strategy binding resolver | Fixed host domain + current authority -> existing RunBinding | Per admission; persist once and verify on recovery |
+| Run-bound domain guard | Persisted RunBinding -> existing Domain | Before effects; no authority refresh of admitted run |
+| Control resolver | Server-authenticated invocation origin/session -> human facade | No JSON authority or generic tool entry |
+| Close | No input | Stop observers/Service uses before closing one Garden owner |
+
+The generated observer inventory includes the existing cognitive capture
+provider identity and its current terminal event/field policies. Domain sink
+is armed before observer recovery; wake callback can attach afterward. Never
+append an unsealed observer subscription as an app-only exception.
+
+## C2-3. Cognitive action inventory (captured)
+
+Owner/module ID: `vivy/diva-cognitive`. Names below are intentionally separate
+from ordinary `vivy.memory.*` BML actions. Existing `module.action.invoke`
+carries the result; no second transport. Inputs are strict closed schemas:
+reject unknown/duplicate fields, invalid enum/trailing JSON/unsafe numbers.
+Each includes `session_id` for target correlation, verified against the
+transport-bound session and trusted registry; it grants no authority.
+Before Persona setup the host can create a setup session without starting a
+primary run, so the UI can obtain an authenticated bound control context.
+
+**Captured.** `fixtures/closure-cognitive-actions.json` records every one of
+the 20 action IDs invoked through the trusted `face/embedded` peer over
+`module.action.invoke` (VIVY `internal/app/cognitive_origin_test.go`
+re-emits it; identical handler/peer/token wiring to `App.DialControl`).
+Observed outcomes: `persona.initialize`, `persona.read`, `persona.reviews.list`,
+`frozen.read`, `actmem.read`, `actmem.work.patch`, `results.list` return
+`{status:"ok"}`; stale-revision `persona.save` and unknown-record
+`actmem.owner.*`/`memory.mutate`/`review.decide` return `{status:"failed"}`;
+backend-less `memory.*` and control-armed actions (`status`, `policy.*`,
+`trigger`, `cancel` without an attached runtime) return `{status:"unavailable"}`
+with retryable capability codes. A forged `session_id` (nonexistent or foreign
+to the bound session) is denied at transport `code -32009`, never reaching
+the dispatcher; the same holds before any `session/create` binds the peer.
+`{status:"unknown"}` is not reachable in this capture profile (no memory
+backend, no deadline injection) and remains a typed outcome, not a fixture.
+
+All these actions are human control-plane actions, never model tools. Agent
+reads/mutations use separately compiled scoped tools and the same domain
+capability. Definitions remain schema/grant/Generation validated.
+
+| Action suffix (prefix `diva.cognitive.`) | Input beyond session_id | Successful value / owning operation |
+| --- | --- | --- |
+| `status` | none | CapabilityStatus below |
+| `persona.initialize` | `initialization` (existing typed Initialization), `reason` | Existing WriteOutcome/readiness; trusted human actor stamped by adapter |
+| `persona.read` | `kind` | Current authorized PersonaDocument; closed eight-kind roster |
+| `persona.save` | `kind,content,base_revision,reason` | Existing SaveUserDocument CAS; Mission allowed only through human path |
+| `persona.reviews.list` | `kind?,state?,limit?,cursor?` | Bounded existing ChangeRequest page; state pending/accepted/rejected/stale |
+| `persona.review.decide` | `review_id,decision:accept|reject` | Existing domain outcome; stale base never forced |
+| `frozen.read` | none | Existing FrozenCore v2 for target session, or explicit not-yet-captured |
+| `actmem.read` | `sections,max_chars` | Existing scoped ActivityResult; inherited projection caps |
+| `actmem.work.patch` | `patch` (existing WorkPatch) | Existing ActivityResult / revision conflict |
+| `actmem.owner.read` | none | Human whole-document Markdown/revision, never agent projection |
+| `actmem.owner.save` | `markdown,base_revision` | Validated whole-save result; parser/caps enforced |
+| `memory.search` | `query,collection?,cursor?,limit,budget_chars` | Existing CardPage from selected backend, admitted read-scope union |
+| `memory.expand` | `card_id,expected_revision,budget_chars` | Existing EvidencePage; record scope/revision verified |
+| `memory.mutate` | `mutation` | Existing AuthorizedMutation payload minus scope/destination; host stamps fixed writer, normalized digest and operation identity |
+| `memory.receipt` | `operation_id` | Existing scoped MutationReceipt lookup |
+| `policy.get` | none | Durable TriggerPolicy and policy_revision |
+| `policy.set` | `enabled,min_interval_ms,base_revision` | Durable policy CAS, not racing automatic admission |
+| `trigger` | none | Existing Eligibility plus actual active_run_id/window; blocked unknown remains blocked |
+| `cancel` | `run_id` | Validated current active strategy run; existing cancellation plus durable pause |
+| `results.list` | `cursor?,limit?` | Bounded reflection/effect receipts from existing domain ledger |
+
+Page limit defaults 20, maximum 100, with no hidden-scope totals. Cursor is
+opaque and bound to scope/query/revision; invalidation is explicit. Action
+input <=64 KiB, output <=256 KiB unless a tighter owning domain cap applies.
+Owner ACTMEM caps and Persona projection rules remain unchanged. No generic
+unlimited Markdown reader is admitted.
+
+The policy CAS revision is a safe numeric UI revision. Existing RunBinding
+policy_revision remains a string pin derived from that revision plus normalized
+policy digest; it is not relabelled as a numeric domain field.
+
+New policy revision/CAS and result paging are adapter extensions; current
+runtime UpdateCognitivePolicy/CognitiveStatus alone do not provide them.
+Do not claim those inputs are already accepted. Memory mutation returns the
+host-assigned operation identity for receipt lookup; if a transport timeout
+hides that identity, outcome remains unknown, and it is not resubmitted.
+Human CAS save ambiguity reads current authority/history; identical current
+content alone does not prove which operation committed.
+
+Proposed business-result envelope (ActionHost still owns auth/schema/runtime
+errors):
+
+```typescript
+type CognitiveOutcome<T> =
+  | { status: 'ok'; value: T }
+  | { status: 'unavailable' | 'failed' | 'unknown';
+      error: { code: string; message: string; retryable: boolean };
+      value?: T }; // only safe recovery receipt/state, never hidden authority
+
+type CapabilityStatus = {
+  profile_id: string;
+  scope: Scope; destination_id: string;
+  persona: { state: string; current_revisions: Record<PersonaKind, number> };
+  frozen: { state: 'not_captured' | 'ready' | 'recovery_required';
+            revisions?: Record<FrozenKind, number> };
+  memory: { backend_id: string; health: 'available' | 'degraded' | 'unavailable';
+            reason_code: string; canonical_state: string; index_state: string };
+  cognition: { enabled: boolean; policy_revision: number; min_interval_ms: number;
+    eligibility?: Eligibility; active_run_id: string; source_id: string;
+    watermark: number; pending_through: number;
+    phase: 'disabled' | 'idle' | 'running' | 'paused' | 'recovery_required';
+    block_reason: string };
+};
+```
+
+Domain DTOs Scope, WorkPatch, ActivityResult, FrozenCore, AuthorizedMutation /
+MutationReceipt, EffectReceipt and ChangeRequest map to owning library types;
+do not build a second domain DTO dialect. Guarded aliases are typed in Vue.
+`status:ok` only means action succeeded; EffectReceipt submitted is still not
+applied, and an asynchronous ingestion accepted is not completed.
+
+Stable domain codes are preserved (including revision/scope/conflict/Mission /
+ACTMEM/backend/recovery codes), not raw provider error strings. If ActionHost
+or ABI timeout/panic loses business result, read operations may retry explicitly;
+writes become unknown until authoritative reconciliation. `retryable` never
+means automatic replay of an ambiguous write. No generic force-clear-recovery
+endpoint exists; unsafe state remains blocked pending authoritative resolution.
+
+Proposed request example, not captured execution:
+
+```json
+{
+  "method": "module.action.invoke",
+  "params": {
+    "module_id": "vivy/diva-cognitive",
+    "action_id": "diva.cognitive.persona.save",
+    "input": {
+      "session_id": "session-demo",
+      "kind": "mission",
+      "content": "An explicitly human-authored mission.",
+      "base_revision": 3,
+      "reason": "Owner edit"
+    }
+  }
+}
+```
+
+It contains no actor/profile/scope/approval claim. Transport origin and domain
+human capability decide authorization; ordinary Agent full-auto permission
+does not grant Mission ownership.
+
+## C2-4. Proposed native speech command contract
+
+Frontend native seam: `src/platform/desktop-host.ts` only. Register exact
+commands in shell, mirrored in AST/backend-boundary gates. Use
+`#[tauri::command(rename_all = "snake_case")]` consistently for JSON command
+arguments. They never multiplex arbitrary URLs/methods/paths/provider commands.
+Main window only; caller label obtained natively. Plain browser mode reports
+native-unavailable, not a browser provider fallback.
+
+```typescript
+type SpeechIdentity = {
+  request_id: string; session_id: string; run_id?: string;
+  utterance_id: string; generation: number;
+};
+type SpeechFailure = {
+  identity?: SpeechIdentity;
+  code: 'native_unavailable' | 'not_configured' | 'device_unavailable'
+    | 'credential_unavailable' | 'provider_error' | 'invalid_audio'
+    | 'unsupported_reference' | 'asset_not_found' | 'stale_context'
+    | 'invalid_input' | 'revision_conflict' | 'busy' | 'cancelled' | 'timeout';
+  message: string; retryable: boolean;
+  provider?: 'siliconflow' | 'minimax'; http_status?: number;
+};
+```
+
+No SpeechFailure includes secret/audio/text/body/URL. Native rejects unsafe
+integers, unknown fields, invalid IDs/enums/lengths. generation is monotonic
+per native caller window for this host lifetime; controller reload obtains
+current generation in config_get, increments, then context_set. ID/generation
+is correlation/fencing, not a VIVY authority grant.
+
+| Command | Input | Success / rule |
+| --- | --- | --- |
+| `speech_config_get` | none | Versioned preferences/revision, credential presence/availability, current window context; no keys |
+| `speech_config_update` | `{base_revision,preferences}` | Updated safe config; full closed preferences schema and native CAS |
+| `speech_credential_set` | `{provider,key}` | `{provider,present:true}` after OS store success; no key echo |
+| `speech_credential_delete` | `{provider}` | `{provider,present:false}`; absent deletion idempotent |
+| `speech_context_set` | `{session_id,generation}` | Same context; strictly newer generation cancels old requests; identical current tuple idempotent, older/conflicting tuple rejects |
+| `speech_transcribe` | Raw WAV bytes; bounded metadata header described below | `{identity,status:'transcribed',text}` or `{identity,status:'no_speech',text:''}` |
+| `speech_synthesize` | `{identity,text}` | Raw MP3 ArrayBuffer through ipc::Response; native config selects provider/model/voice |
+| `speech_cancel` | `{request_id}` | `{request_id,status:'cancelled'|'settled'}`; window-scoped, does not claim remote refund |
+| `voice_asset_import` | Raw reference bytes + bounded metadata header | Asset descriptor; native ID and owned copy |
+| `voice_asset_list` | none | <=20 descriptors; no filesystem paths |
+| `voice_asset_read` | `{asset_id}` | Raw bytes for explicit local preview; known descriptor MIME |
+| `voice_asset_delete` | `{asset_id}` | `{asset_id,status:'deleted'|'pending'}`; read lease release completes pending delete |
+
+Raw transcribe invoke example (**proposed**, not tested on bundled artifact):
+
+```typescript
+invoke('speech_transcribe', wavArrayBuffer, {
+  headers: { 'x-diva-speech-meta': JSON.stringify({
+    identity, mime_type: 'audio/wav'
+  }) }
+});
+```
+
+Native accepts only Raw body, metadata <=2 KiB, valid identity, WAV PCM16 /
+mono/16kHz and <=120 s/8 MiB. Headers are IPC metadata, never provider
+Authorization. Reference import header `x-diva-asset-meta` carries only
+`{display_name,mime_type}` <=2 KiB; verify WAV/MP3 bytes, not extension alone.
+No source path/remote URL. Native derives safe filename from ID; caller name
+is display-only. Read/delete unknown ID is asset_not_found, never arbitrary
+path access. Manifest writes use atomic file replacement under native lock.
+
+Preference schema `diva.speech/v1`:
+
+- `stt: {provider:'siliconflow',base_url,model}`.
+- `tts: {provider:'siliconflow'|'minimax',siliconflow:{base_url,model,voice,
+  speed,reference},minimax:{base_url,model,voice_id,speed,volume}}`.
+- SiliconFlow reference is a strict union: system; reusable `{voice_id}`;
+  inline `{asset_id,transcript}`. Exact provider/model incompatibility rejects,
+  never drops configured reference. No speculative MiniMax cloning workflow.
+- `auto_read_replies:boolean`. Runtime bounds are fixed native guards, not
+  client-controlled timeout/size overrides. No audio translation option.
+- `credential_state` and `window_context` are native readback only; neither
+  can be written in preference payload. No PetConfig/localStorage speech key.
+
+Credentials keyed by fixed app/profile/provider. Provider HTTPS origin is
+configured by human settings, never per utterance. Validate no URL credentials /
+fragment/query; no cross-host redirects or automatic retries. Each operation
+freezes config revision. Release native request buffers on every path; Vue
+owns MP3 Blob URL and revokes it. **No speech_release_audio command or persistent
+native TTS cache.**
+
+Errors use rejected invoke Promise with SpeechFailure. Successful binary TTS
+contains no custom framing; identity remains tied to the call's captured
+Promise and current generation. JSON STT echoes identity. Cancel/context changes
+always stop local playback first; late binary response is discarded/revoked.
+New playback never drains a stale queued answer.
+
+## C2-5. Contract proof required before Ready
+
+- Capture existing selected-artifact image/edit/rewind/permission/OBS fixtures;
+  keep proposed examples labelled and separate from captured core transcript.
+- Implement public facade conformance and sealed factory/provider inventory
+  checks, origin rejection and required FrozenCore-to-model-input evidence.
+- Prove no supervisor/child capture, stable receipt replay, source namespace,
+  per-run Mission fence and no new-attempt replay after unknown outcome.
+- Probe bundled Tauri Raw/Response, WebView WAV/MP3, credential OS persistence /
+  unavailability, native memory/response caps and abort race.
+- Refresh provider region/model/reference request fixtures, especially MiniMax
+  whose current documentation fetch timed out. No real provider success or
+  quality claim is made by this ledger.
+- Amend existing native/AST/dependency gates for exact commands; activated
+  speech is removed from the broad dormant pet exemption. Negative fixtures
+  reject browser cloud fetch, dynamic/generic native invoke and old pet_*.
+
+
+## C2-6. Execution-plan producer seams (proposed)
+
+Added by the 2026-10-03 Story decomposition. These names resolve implementation
+handoffs within DN-C2; they are **not exported source, captured runtime proof,
+or a change to domain/wire authority**. DN-4A/DN-LC/DN-4B freeze actual
+implementations and fixtures here before dependent plans become Ready.
+
+### Garden public ownership and controls — DN-4A
+
+Extend `agentapi.Config` with `BackendID string`, `DestinationID string`,
+and `Backends map[string]memory.Backend`. The configured writer is explicit;
+`mentle` selects the existing adapter, with no second backend on failure.
+Validate exact fixed subject/write scope/destination and resource paths at
+Open. The owner may derive admitted personal/workspace read scope from trusted
+VIVY session metadata; wire payloads cannot issue that admission.
+
+Proposed Go surface in `garden/agentapi/embedded_domain.go`:
+
+```go
+func (c *Client) BindHumanSession(sessionID, workspaceID string) (*HumanClient, error)
+func (c *Client) BindAgentSession(sessionID, workspaceID string) (*BoundClient, error)
+func (c *Client) BindEvolution(scope evolution.Scope, destinationID string) (EvolutionPorts, error)
+func (h *HumanClient) InitializePersona(ctx context.Context, in persona.Initialization, reason string) (*persona.WriteOutcome, error)
+func (h *HumanClient) SavePersona(ctx context.Context, kind persona.Kind, content string, baseRevision uint64, reason string) (*persona.WriteOutcome, error)
+func (h *HumanClient) ListPersonaReviews(ctx context.Context, q ReviewQuery) (ReviewPage, error)
+func (h *HumanClient) DecidePersonaReview(ctx context.Context, id string, decision ReviewDecision) (*persona.WriteOutcome, error)
+func (h *HumanClient) SaveACTMEM(ctx context.Context, markdown string, baseRevision uint64) (ActmemDocument, error)
+func (h *HumanClient) SearchMemory(ctx context.Context, q memory.AuthorizedSearch) (memory.CardPage, error)
+func (h *HumanClient) ExpandMemory(ctx context.Context, q memory.AuthorizedExpansion) (memory.EvidencePage, error)
+func (h *HumanClient) MutateMemory(ctx context.Context, m memory.AuthorizedMutation) (memory.MutationReceipt, error)
+func (h *HumanClient) MemoryReceipt(ctx context.Context, operationID string) (memory.MutationReceipt, error)
+func (h *HumanClient) ReadFrozen(ctx context.Context) (FrozenCore, error)
+func (h *HumanClient) Results(ctx context.Context, q PageQuery) (ResultPage, error)
+```
+
+HumanClient is available only from a trusted `PrincipalUser` owner. Derived
+BoundClient stamps reduced `PrincipalAgent` per handle instead of reusing
+the owner's principal. Existing BindSession keeps its existing behavior for
+other consumers. Per-handle principal/scope is private host-issued state; it
+cannot be set in a read/write request. ReadPersona/ReadActivity/ReadACTMEM/
+ApplyWorkPatch remain typed public methods on the appropriate bound handle.
+All methods take the same owner's read/lifetime lock; derived capabilities
+never reopen or Close a second authority.
+
+`EvolutionPorts` is C2-2's shape, constructed internally with the already-open
+Persona/ACTMEM/ingest/backend and `garden/evolution.NewDomain`; source identity
+includes profile/scope/destination. Domain reads/effects use exactly that
+scope and the same host authority gate used by Mission human writes.
+
+That host gate belongs to the selected VIVY bundle: both the human-write
+adapter and run-bound effect wrapper acquire it before entering Garden's
+lifetime/domain locks. Library operations never call back into the host
+while holding those locks. This preserves one serialized check/write boundary
+without exporting a library mutex or holding a global lock over inference.
+
+Pagination structs live beside the public facade, not a new database:
+
+- `PageQuery`: `Cursor string`, `Limit int`; default 20/max 100.
+- `ReviewQuery`: optional `Kind *persona.Kind`, `State *persona.RequestState`,
+  plus PageQuery. `ReviewPage`: `Items []persona.ChangeRequest`, `NextCursor string`.
+- `ReviewDecision`: closed `accept|reject`. Call existing AcceptRequest/
+  RejectRequest; stale base is never forced.
+- `ResultPage`: bounded receipt/reflection projections of existing
+  `effects.jsonl` and `notes.jsonl`, plus `NextCursor string`. Each item retains
+  operation_id/payload_digest/status/kind/target_ref/revision/error_code;
+  reflection text/sources/at are returned only for an owned note.
+
+Cursors encode an opaque scope/query/ledger-version checkpoint. Scope/version
+change invalidates them; no hidden-scope totals. Memory methods validate the
+host-stamped Authorized DTO against the admitted reader/writer, never trust
+wire-provided scope/destination/operation identity. The adapter issues those
+fields before calling MutateMemory and returns the operation identity.
+Actor/source/reason policy uses trusted domain rules; Mission has no agent
+write path. Owner ACTMEM save reuses validated parser/CAS/caps.
+
+### Generated bundle and primary preparation — DN-LC / DN-4B
+
+Core-only `internal/cognitivecontract/ports.go` defines the narrow contracts.
+It must not import optional Garden implementation or `internal/runtime`.
+Move existing CognitiveCapture/Receipt/Source/Sink shapes there if necessary
+and keep aliases in runtime; do not duplicate or reinterpret their fields.
+The selected factory lives in `internal/modules/diva-cognitive/` and imports
+public Garden APIs. Core receives interfaces and existing Laputa DTOs.
+
+Proposed seams:
+
+| Seam | Fixed signature / contract |
+| --- | --- |
+| Assembly lookup | `CognitiveFactoryValue() any`; App strictly checks `cognitivecontract.Factory` |
+| Factory | `Factory(ctx context.Context, input FactoryInput) (Bundle, error)`; FactoryInput contains existing trusted config, Generation and owned storage dependencies |
+| Primary input | `PrimaryContextInput{SessionID domain.SessionID, RunID domain.RunID, WorkspaceID string, BudgetBytes int}` |
+| Primary prepare | `Prepare(context.Context, PrimaryContextInput) (PreparedPrimaryContext, error)` |
+| Primary output | `PreparedPrimaryContext{Frozen evolution.FrozenCoreV2, Digest string, Text string}`; no new snapshot store |
+| Per-admission binding | `ResolveBinding(context.Context) (evolution.RunBinding, error)`; source scope/destination fixed |
+| Effect/recovery guard | `BoundDomain(context.Context, evolution.RunBinding) (evolution.Domain, error)`; persisted binding, shared authority gate |
+| Bundle callbacks | `AttachRuntime(ControlPort) error`; single attachment to generated binding cells, not a new provider registry |
+| Bundle close | `Close() error`; after Service/observer admission stops; no derived close |
+
+FactoryInput's data is reused from config.Config/storage.Engine and existing
+host constructor dependencies. The enabling plan decides names/lifetime, not
+a parallel storage DTO scheme. The same generated adapters obtain this bundle;
+primary/sink/source/domain ports are armed before recovery, runtime callbacks
+after Service. Selected missing/type-mismatched/unarmed bindings fail init.
+
+ControlPort owns `GetState`, `SetPolicyCAS`, `Trigger`, `Cancel`. It uses the
+existing TriggerPolicy/Eligibility/RunBinding and new narrow control projection
+for phase/block/policy_revision/window. DN-4B adds:
+
+```go
+func (s *Service) CognitiveControlState(ctx context.Context) (cognitivecontract.ControlState, error)
+func (s *Service) UpdateCognitivePolicyCAS(ctx context.Context, policy evolution.TriggerPolicy, baseRevision uint64) (cognitivecontract.ControlState, error)
+func (s *Service) CancelCognitive(ctx context.Context, runID domain.RunID) (cognitivecontract.ControlState, error)
+```
+
+`ControlState` fields map C2-3 CapabilityStatus.cognition verbatim:
+enabled/min_interval_ms/policy_revision/eligibility/active_run_id/source_id/
+watermark/pending_through/phase/block_reason. No second scheduler/policy store.
+Numeric policy_revision is UI CAS; admitted RunBinding.policy_revision remains
+its string digest pin. Default policy disabled. Up to three proven-safe
+transient attempts; unknown/cancelled/authority-changed work does not auto-retry.
+
+DN-4C extends DialControl with a trusted host option while keeping existing
+two-argument calls valid. Only embedded.Host requests embedded-human origin;
+ActionHost authenticates its opaque peer and verifies session/registry plus
+exact action ID. Origin is private server state, never an RPC field, Face
+string alone, or model-tool capability. Human-origin checks do not bypass
+ordinary grants or domain restrictions.
+
+### Consumer handoffs
+
+- DN-2A/B own typed chat methods, retained originating bytes and local
+  `invalidateConversation(reason)` notification. OBS-07 reads the same event
+  owner; it never calls subscribeRun independently.
+- OBS-06/07/08 share one `src/api/vivy/observability.ts`. Only the parent index
+  coordinates shared-file order. OBS-08 recorder max 1000 rows/1 MiB queued;
+  each call max 50/256 KiB. These are bounded implementation guards, not measured
+  throughput. Errors/partial accepted-prefix uncertainty are not blindly retried.
+- DN-6A/B own C2-4 native command/diagnostic contracts and asset read leases.
+  DN-6C alone owns frontend media/Blob URLs and conversation generation.
+- New producer proof updates this ledger and downstream plans together;
+  illustrative code never becomes a captured fixture by renaming its label.
+
+## C2-7. Packaged candidate observability evidence (OBS-09)
+
+Captured on the immutable DN-P-C candidate `vivy-shared.so`
+`sha256:d0155e26…`, generationId `331bb89d…`, ABI v1, 21 modules, via the five
+C exports only. Full row-by-row matrix and evidence keys live in
+[`fixtures/closure-packaged-obs.json`](fixtures/closure-packaged-obs.json).
+
+Result: 12 R-9 rows passed, 1 failed, 3 pending — none promote a pending row
+to passed.
+
+- Passed: candidate/source hash pins; bounded durable GUI diagnostics with
+  `[REDACTED]` secret readback; real configured model turn (`run_11f8…`,
+  completed); approval wait/resume preserving ids (`run_7acc…`,
+  `apr_906f…`, sandboxed `write_file` executed after approval); explicit
+  `run/cancel` terminal truth; trajectory v2 / token totals equal persisted
+  Journal evidence with honest coverage (`missing_usage_calls: 1` for the
+  cancelled mid-flight call, `unknown_buckets: [reasoning, cached]`);
+  replay/restart returns identical totals (read-only, no inflation);
+  `VivyPollEvents` bounded replay with `gap` flag; single journal writer,
+  no append recursion.
+- Failed: runtime log sink absent on the `.so` — `diagnostics/logs
+  source=runtime` returns `records: null`; daily/rotation logs do not exist
+  for the candidate (OBS09-F1).
+- Pending: live child run (needs a model-invoked spawn on an active parent;
+  conflict path verified), GUI window hide/reopen (needs a live Tauri
+  window), log rotation (blocked by F1).
+- Findings for DN-M-C: F1 log sink; F2 FrozenCore capture seam unwired
+  (nothing in the sealed composition calls `BoundClient.Bootstrap`, so a
+  fresh session's first turn fails `Prepare -> ReadFrozen -> not_found`
+  masked as -32603); F3 `module.action.invoke` grants are per-process
+  (-32009 on persisted sessions); F4 `VivyShutdown` cancels suspended runs
+  and drops pending approvals (no cross-process resume); F5 sandbox-denied
+  promptable tool fails the run at suspension admission (fail-closed,
+  misleading "could not be paused" message).
+
+## C2-8. Scoped audit matrix (DN-M-C)
+
+Audited against the same immutable candidate as C2-7 (sha256 `d0155e26`,
+generation `331bb89d`). Every row carries evidence or an explicit residual;
+pending items pass to DN-8C, never masquerade as parity.
+
+| Req | Scoped engineering result | Evidence / residual |
+| --- | --- | --- |
+| R-1 | pass | every row below carries evidence or a visible TODOLIST residual; cancelled import recorded separately from any importer (none exists) |
+| R-2 | pass | `check_vivy_backend_boundary.py` clean: one Agent, no legacy crates in the 485-package graph, no sidecars, invoke handlers = 13-command native allowlist; only `desktop-host.ts` calls literal invokes/listen; no HTTP daemon |
+| R-3 | pass (recovery residual) | image/permission/regenerate/goal wired (DN-2A/B); candidate turn/approval/cancel proven (C2-7); recovery-after-unknown-outcome not re-driven on the candidate — owner scope |
+| R-4 | pass with findings | cognitive bundle armed, 20 actions reachable; findings OBS09-F2 (Bootstrap capture seam unwired — fresh-session first turn fails), F3 (per-process action grants) |
+| R-5 | engineering pass | DN-6A/B/C contracts landed; reachable speech code sits outside the dormant exemption and is scanned; live-provider/Windows gates pending → DN-8C |
+| R-6 | pending | install/package/Windows x64 gate unchanged → DN-8C |
+| R-7 | pass | no legacy-home importer exists anywhere in gui or shell; OBS-09 exercised a home born on the candidate; DN-7 stays cancelled |
+| R-8 | pass | deterministic pack→inspect→stage path with hash pins; `check_legacy_frontend_calls.mjs --selftest` 9/9 incl. seam-internal unlisted-command deny; boundary gate clean |
+| R-9 | pass with failure | C2-7 matrix: 12 passed / 1 failed (runtime log sink absent, OBS09-F1) / 3 pending (child, window reopen, rotation) |
+
+Dependency audit (tool + advisory-date recorded, no vulnerability-free claim):
+`cargo audit` 0.22.2, RustSec db 1290 advisories — src-tauri lock (539 deps):
+0 vulnerabilities, 2 warnings: `proc-macro-error` unmaintained
+(RUSTSEC-2024-0370) and `glib` 0.18.5 unsound `VariantStrIter`
+(RUSTSEC-2024-0429, Linux-GTK-only path, absent from the Windows target);
+vivy-bridge lock (28 deps): clean. `pnpm audit --prod` (npm feed): 8
+advisories — postcss ×2, nanoid ×2, pnpm ×3, markdown-it ×1, all
+transitive/dev-facing; dispositions kept open in TODOLIST
+OLD-SECURITY-ISSUE-DISPOSITION rather than patched blindly.
+
+DN-8C inherits: OBS09-F1/F2/F3/F4 dispositions, R9 pending rows (child run,
+window hide/reopen, log rotation), live-provider speech gates, recovery
+re-drive, GUI candidate exercise, Windows x64 packaging, owner acceptance.
+
+---
+
+## Historical DN-C1 amendment and initial inventory
+
+The following records are superseded where DN-C2 explicitly changes them.
+
+# DN-C1 contract-ledger amendment — 2026-10-03
+
+Current scope: [DN-C1](p0-design.md); stage state: [index.md](index.md).
+The initial inventory below is preserved as a historical baseline. Its old
+producer-gap/disposition conclusions are superseded by this amendment;
+exact existing core ABI bounds remain authoritative unless changed by evidence.
+New cognitive/native-speech IDs are proposed, not verified wire contracts.
+
+| Surface | Current verified source mapping | Remaining contract work |
+| --- | --- | --- |
+| C ABI init | VIVY cmd/vivy-shared/exports.go: abi_version, config_path, optional without_ears | Generated header and selected artifact proof |
+| C ABI call / poll | method, params, optional timeout_ms; poll max-events | No request_id/data_dir/wait-ms replacement ABI |
+| Image attachments | VIVY turn/start.attachments exists | Replace DIVA FileAttachmentDto IDs with bytes/MIME; frame bound; explicit unsupported-file error |
+| Permission / regeneration | session/set_permission and session/rewind exist | Freeze mappings/selected-message semantics and mutation recovery |
+| Skill history | skills/revisions/list exists when backing dependency is bound | Verify compiled capability; upload/delete/edit/request still unresolved |
+| Console | trajectory/session projection v2, diagnostics/logs, diagnostics/gui/append, stats/tokens coverage | DIVA typed DTOs and one subscription/readback owner |
+| Cognition | Laputa #2 domain libraries; VIVY #26 CognitiveBinding/status/policy/trigger/capture | Public facade, compiled binding, human/domain action fixtures, primary-run context and embedded start/stop |
+| Online speech | DIVA wrappers for SiliconFlow STT and SiliconFlow/MiniMax TTS | Tauri native request/config/credential/media/cancel contracts; not a missing VIVY-module dependency |
+| Legacy data import | Owner cancelled | No replacement/importer; DN-7 removed from release predecessors |
+
+Inspected pins: DIVA f5866a0, VIVY 1db8b55, Laputa dc6066e. Source availability
+does not establish selected Generation capability or real-cloud acceptance.
+
+---
+
+## Historical initial inventory (below)
+
 # Backend Separation Contracts — DN-0 Ledger (proposed)
 
 Status: **PROPOSED — pending owner review**. This document freezes the DN-0

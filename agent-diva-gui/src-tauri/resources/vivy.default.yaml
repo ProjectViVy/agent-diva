@@ -16,8 +16,9 @@ providers:
 # Face-driven module actions run through the embedded control pipe, which has
 # no action-approval continuation route (the composition is deliberate: see
 # internal/app authorizeAction). The vivy-native mechanism for declaring them
-# safe for the face is governance rules — mask management is a GUI-owned
-# surface, so its writes are allowed outright. Reads need no rule.
+# safe for the face is governance rules — mask management and the diva-cognitive
+# write actions are GUI-owned surfaces, so their writes are allowed outright.
+# Reads need no rule.
 governance:
   profiles:
     default:
@@ -26,3 +27,12 @@ governance:
         - { tool: "vivy.masks.catalog.create", decision: "allow", reason: "face-driven mask catalog" }
         - { tool: "vivy.masks.catalog.update", decision: "allow", reason: "face-driven mask catalog" }
         - { tool: "vivy.masks.catalog.delete", decision: "allow", reason: "face-driven mask catalog" }
+        - { tool: "diva.cognitive.persona.initialize", decision: "allow", reason: "face-owned persona setup" }
+        - { tool: "diva.cognitive.persona.save", decision: "allow", reason: "face-owned persona editor" }
+        - { tool: "diva.cognitive.persona.review.decide", decision: "allow", reason: "face-owned persona review" }
+        - { tool: "diva.cognitive.actmem.work.patch", decision: "allow", reason: "face-owned actmem work ledger" }
+        - { tool: "diva.cognitive.actmem.owner.save", decision: "allow", reason: "face-owned owner actmem" }
+        - { tool: "diva.cognitive.memory.mutate", decision: "allow", reason: "face-owned memory mutations" }
+        - { tool: "diva.cognitive.policy.set", decision: "allow", reason: "face-owned cognition policy" }
+        - { tool: "diva.cognitive.trigger", decision: "allow", reason: "face-owned cognition trigger" }
+        - { tool: "diva.cognitive.cancel", decision: "allow", reason: "face-owned cognition cancel" }

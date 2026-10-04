@@ -1,6 +1,6 @@
 [package]
 name = "agent-diva-shell"
-version = "0.4.10"
+version = "0.4.13"
 edition = "2021"
 description = "DIVA Next Tauri thin shell over the sealed VIVY shared library"
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ build = "build.rs"
 name = "agent_diva_shell"
 
 [workspace]
-members = ["crates/vivy-bridge"]
+members = ["crates/vivy-bridge", "crates/diva-speech"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -21,6 +21,7 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 vivy-bridge = { path = "crates/vivy-bridge" }
+diva-speech = { path = "crates/diva-speech" }
 
 [dev-dependencies]
 tempfile = "3"

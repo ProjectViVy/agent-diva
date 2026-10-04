@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `—`
-- Owner: `—`
-- Session/Task: `—`
-- Branch/Worktree: `DIVA-NEXT-P0 / /home/ubuntu/repos/agent-diva`
-- Started At: `—`
-- Last Heartbeat: `2026-09-30T23:59:00Z`
-- Expires At: `—`
+- Lock State: `HELD`
+- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-diva-next-closure/**, TODOLIST.md, LOCK.md, Git refs for feat/dn-closure-wave1`
+- Owner: `Devin`
+- Session/Task: `DIVA Next closure wave 1 execution (DN-0C, DN-4A, DN-0P, DN-0S delivered; wave-1 delivered; awaiting owner gate before wave 2); sibling repos agent-vivy/laputa mutate under their own branches, outside this mutex`
+- Branch/Worktree: `feat/dn-closure-wave1 / ~/repos/agent-diva`
+- Started At: `2026-10-03T12:40:00Z`
+- Last Heartbeat: `2026-10-03T14:45:00Z`
+- Expires At: `2026-10-04T00:00:00Z`
 
 ## Lock Rules
 
@@ -24,6 +24,31 @@ Use this file to declare the current writer scope before mutating the workspace.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DIVA Next closure wave 1` — **HELD** by `Devin` (session
+  `devin-c016e7bc2d98433e93f645345cb937e5`); branch `feat/dn-closure-wave1`;
+  heartbeat `2026-10-03T12:40:00Z`, expires `2026-10-04T00:00:00Z`.
+  Executing DN-0C/DN-4A/DN-0P/DN-0S per DN-C2-P1 plans; DN-0C fixture +
+  C2-1 source mappings delivered. No PR/merge/release per execution contract.
+
+- `DN-C2-P1 executable Story package` — **RELEASED 2026-10-03T10:27:02Z** by `Codex`;
+  branch `docs/diva-next-detailed-architecture-20261003`; 20 Plans, 9 waves,
+  9 requirements, source-path/link/contract/DAG checks recorded in v0.3.0 logs.
+  Docs only; no implementation, product/native/cloud tests or owner acceptance.
+  Publication uses the previously authorized design branch; no PR/merge/release.
+
+- `DN-C2 detailed architecture` — **RELEASED 2026-10-03T08:53:29Z** by `Codex`;
+  existing isolated branch `docs/diva-next-closure-20261003`; design/ledger/
+  index, stage amendments, TODOLIST and v0.2.0 logs committed after static
+  checks. Docs only; no product/native/cloud tests, external mutation, push
+  or release. Detailed implementation and owner acceptance remain pending.
+
+- `DIVA Next closure scope and preliminary architecture` — **RELEASED 2026-10-03T07:27:34Z**
+  by `Codex`; isolated local branch `docs/diva-next-closure-20261003`; scope
+  `docs/plans/diva-next/**`, `docs/archive/todolist/**`,
+  `docs/logs/2026-10-diva-next-closure/**`, `TODOLIST.md`, `LOCK.md`.
+  Docs only; issue #15/#13/#8 and VIVY #18 wording read back. No code,
+  instruction-file rewrite, native test, branch push or release.
 
 - `DN-0 inventory and contract freeze` — **RELEASED 2026-09-30T23:59:00Z**
   by `Devin`; scope `docs/plans/diva-next/**`, `docs/logs/2026-09-diva-next-dn0/`,

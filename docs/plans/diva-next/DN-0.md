@@ -1,3 +1,12 @@
+> 2026-10-03 execution amendment: the current DN-C2 child Plans are [DN-0C](closure/DN-0C.md), [DN-0S](closure/DN-0S.md), [DN-0P](closure/DN-0P.md).
+> [The parent index](index.md#executable-story-package) alone owns current
+> dependencies/readiness. Historical tasks and evidence below retain their pins.
+
+> 2026-10-03 scope amendment: [DN-C2](p0-design.md) and [index.md](index.md)
+> take precedence over historical P0-D1 host/speech/import/acceptance premises.
+> Tasks/evidence below retain their original scope and artifact pins. New
+> closure work is not proved by historical implementation or acceptance.
+
 # DN-0 — Inventory and contract freeze Implementation Plan
 
 > **For agentic workers:** Use `superpowers:executing-plans` after plan review and implementation authorization; no delegation is implied. Read both this plan and the shared design before execution.

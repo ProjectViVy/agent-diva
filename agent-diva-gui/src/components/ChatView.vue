@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue';
-import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Mic, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, ClipboardList } from '@lucide/vue';
+import { Send, Square, Plus, Wrench, ChevronDown, ChevronRight, CheckCircle, CheckCircle2, XCircle, Loader2, Brain, Copy, Edit, RefreshCw, Rewind, GitFork, Mic, Volume2, Settings2, Zap, Clock, Shield, ShieldCheck, Sparkles, ClipboardList, ImagePlus, X } from '@lucide/vue';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // 使用 GitHub Dark 风格
@@ -16,13 +16,23 @@ import PlanApprovalCard from './planning/PlanApprovalCard.vue';
 import AgentMessageBody from './planning/AgentMessageBody.vue';
 import { activePlanTodos as filterActivePlanTodos } from './planning/planExecutionState';
 import type {
-  FileAttachmentDto,
   UiCard,
 } from '../api/desktop';
+import type { PermissionPreset, TurnAttachment } from '../api/vivy/contracts';
+import {
+  ChatAttachmentError,
+  MAX_ATTACHMENTS,
+  fileToTurnAttachment,
+  framedRequestBytes,
+  MAX_FRAME_BYTES,
+} from '../state/chat-images';
 import type { AskUserQuestionView } from './AskUserQuestionCard.vue';
 import type { PlanRuntimeState } from '../api/planning';
 import type { BudgetConfigShape } from '../types/toolsConfig';
 import { budgetShapeFromCompaction, loadCompactionConfig } from '../api/settings';
+import { initVoice, voiceController } from '../state/voice';
+import { vivyCognitive } from '../state/vivy-cognitive';
+import PersonaSetupGate from './persona-memory/PersonaSetupGate.vue';
 import { budgetPressurePercent, computeBudgetStatus } from '../utils/contextBudget';
 
 const { t } = useI18n();
@@ -71,6 +81,8 @@ interface Message {
   rawMeta?: Record<string, unknown>;
   fromHistory?: boolean;
   attachments?: string[];
+  /** Owning run for run-folded segments (DN-6C replay fencing). */
+  runId?: string;
 }
 
 export interface CompactionStatus {
@@ -204,8 +216,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask', permissionMode?: 'cautious' | 'smart' | 'trusted'): void;
+  (e: 'send', content: string, attachments?: TurnAttachment[], mode?: 'agent' | 'plan' | 'ask', permissionMode?: PermissionPreset): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
+  (e: 'start-goal', payload: { max_rounds: number }): void;
   (e: 'resume-plan'): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
@@ -250,7 +263,59 @@ watch(permissionMode, (mode) => {
   localStorage.setItem(PERMISSION_MODE_KEY, mode);
 });
 // const showAttachments = ref(false); // 预留
-const isRecording = ref(false);
+// DN-6C: voice state lives in the singleton controller — recording,
+// transcribing and speaking read through it; the mic click toggles record
+// and the same button interrupts playback while speaking.
+const voice = voiceController();
+/** DN-4D: persona setup gates the primary send while settings/setup stay reachable. */
+const cog = vivyCognitive();
+const personaSetupRequired = computed(() => cog.needsSetup.value);
+const isRecording = computed(() => voice.state.value === 'recording');
+const isTranscribing = computed(() => voice.state.value === 'transcribing');
+const isSpeaking = computed(() => voice.state.value === 'speaking' || voice.playing.value);
+const micTitle = computed(() => {
+  if (isRecording.value) return t('chat.voiceTranscribing');
+  if (isTranscribing.value) return t('chat.voiceTranscribing');
+  if (isSpeaking.value) return t('chat.voiceSpeaking');
+  return t('chat.voice');
+});
+const handleMicClick = () => {
+  if (isRecording.value) {
+    void voice.stopRecording();
+  } else if (isTranscribing.value) {
+    voice.cancelRecording();
+  } else if (isSpeaking.value) {
+    voice.stopSpeaking();
+  } else {
+    void voice.startRecording();
+  }
+};
+// STT lands as an editable draft only — never an emit, never a send.
+watch(
+  () => voice.draft.value,
+  (draft) => {
+    if (!draft) return;
+    input.value = draft;
+    voice.draft.value = '';
+    nextTick(() => {
+      adjustInputHeight();
+      inputRef.value?.focus();
+    });
+  },
+);
+watch(
+  () => voice.error.value,
+  (err) => {
+    if (!err) return;
+    attachmentError.value =
+      err === 'voice_busy'
+        ? t('chat.voiceErrorBusy')
+        : err === 'native speech is unavailable in this context'
+          ? t('chat.voiceErrorUnavailable')
+          : t('chat.voiceErrorGeneric', { message: err });
+    voice.error.value = null;
+  },
+);
 // const recordingDuration = ref(0); // 预留
 const thinkingMode = ref<'auto' | 'on' | 'off'>('auto');
 
@@ -399,24 +464,88 @@ onMounted(() => {
   window.addEventListener('resize', updateNarrowLayout);
   scrollToBottom();
   inputRef.value?.focus();
+  // DN-6C: init reads the native window generation + advances it via
+  // context_set; browser mode stays inert through native_unavailable.
+  void initVoice();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateNarrowLayout);
 });
 
+// DN-2A image attachments: picked files are decoded+validated once and
+// held as wire-shape TurnAttachments until the send admits them.
+const pendingImages = ref<TurnAttachment[]>([]);
+const attachmentError = ref('');
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const attachmentErrorText = (code: string): string => {
+  switch (code) {
+    case 'image_too_large': return t('chat.imageTooLarge');
+    case 'too_many': return t('chat.imageCountMax', { max: MAX_ATTACHMENTS });
+    case 'frame_too_large': return t('chat.sendFrameTooLarge');
+    default: return t('chat.imageUnsupported');
+  }
+};
+
+const triggerImagePicker = () => {
+  fileInputRef.value?.click();
+};
+
+const handlePickImages = async (event: Event) => {
+  const picker = event.target as HTMLInputElement;
+  const files = Array.from(picker.files ?? []);
+  picker.value = ''; // the same file can be picked again later
+  attachmentError.value = '';
+  for (const file of files) {
+    if (pendingImages.value.length >= MAX_ATTACHMENTS) {
+      attachmentError.value = t('chat.imageCountMax', { max: MAX_ATTACHMENTS });
+      break;
+    }
+    try {
+      pendingImages.value.push(await fileToTurnAttachment(file));
+    } catch (e) {
+      attachmentError.value =
+        attachmentErrorText(e instanceof ChatAttachmentError ? e.code : 'unsupported_type');
+    }
+  }
+};
+
+const removeImage = (index: number) => {
+  pendingImages.value.splice(index, 1);
+  attachmentError.value = '';
+};
+
+/** Exact ABI frame check on the serialized call — the session id adds a
+ * bounded tail, so 128 bytes of headroom keeps this pre-check equal to
+ * the controller's authoritative measurement for any realistic id. */
+const sendFrameTooLarge = (text: string, attachments: TurnAttachment[]): boolean =>
+  framedRequestBytes('turn/start', {
+    session_id: '',
+    text,
+    ...(attachments.length ? { attachments } : {}),
+  }) + 128 > MAX_FRAME_BYTES;
+
 const handleSend = () => {
-  if (props.isTyping) return;
-  if (!input.value.trim()) return;
+  if (props.isTyping || personaSetupRequired.value) return;
+  const content = input.value.trim();
+  if (!content) return;
+  const attachments = [...pendingImages.value];
+  if (sendFrameTooLarge(content, attachments)) {
+    attachmentError.value = t('chat.sendFrameTooLarge');
+    return; // draft + picked files stay put; nothing is emitted
+  }
   scrollToBottom(true);
   emit(
     'send',
-    input.value.trim(),
-    undefined,
+    content,
+    attachments.length ? attachments : undefined,
     execMode.value,
     permissionMode.value,
   );
   input.value = '';
+  pendingImages.value = [];
+  attachmentError.value = '';
   nextTick(() => {
     adjustInputHeight();
   });
@@ -1044,6 +1173,15 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               >
                 <RefreshCw :size="12" />
               </button>
+              <!-- 朗读按钮（助手消息，DN-6C replay — 身份随 run 栅栏） -->
+              <button
+                v-if="msg.role === 'agent' && msg.content"
+                class="msg-action-btn"
+                :title="t('chat.voiceReplay')"
+                @click="void voice.requestReply(msg.runId, msg.content)"
+              >
+                <Volume2 :size="12" />
+              </button>
               <!-- 回退按钮（disabled占位） -->
               <button
                 class="msg-action-btn"
@@ -1082,6 +1220,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         :plan="approvalPlan"
         :approving="approvingPlan"
         @approve="handleApprovePlan"
+        @start-goal="emit('start-goal', $event)"
         @revoke="emit('revoke-plan', $event)"
         @refresh="emit('refresh-plan')"
       />
@@ -1292,6 +1431,27 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           </div>
         </div>
 
+        <!-- 已选图片附件 -->
+        <div v-if="pendingImages.length" class="image-attachments">
+          <div v-for="(att, index) in pendingImages" :key="index" class="image-chip">
+            <img :src="`data:${att.mime_type};base64,${att.data}`" class="image-thumb" :alt="att.name || 'image'" />
+            <span class="image-name">{{ att.name || 'image' }}</span>
+            <button class="image-remove" @click="removeImage(index)" :title="t('chat.removeAttachment')">
+              <X :size="12" />
+            </button>
+          </div>
+        </div>
+        <div v-if="attachmentError" class="attachment-error">{{ attachmentError }}</div>
+        <PersonaSetupGate v-if="personaSetupRequired" />
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          hidden
+          @change="handlePickImages"
+        />
+
         <!-- 主输入区 -->
         <div class="chat-input-main">
           <textarea
@@ -1340,11 +1500,22 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
             <button
               class="input-action-btn"
-              :class="{ recording: isRecording }"
-              :title="t('chat.voice')"
-              @click="isRecording = !isRecording"
+              :class="{ recording: isRecording, speaking: isSpeaking }"
+              :title="micTitle"
+              @click="handleMicClick"
             >
-              <Mic :size="18" />
+              <Loader2 v-if="isTranscribing" :size="18" class="spin" />
+              <Square v-else-if="isSpeaking" :size="18" />
+              <Mic v-else :size="18" />
+            </button>
+
+            <!-- 图片附件按钮 -->
+            <button
+              class="input-action-btn"
+              :title="t('chat.attachImage')"
+              @click="triggerImagePicker"
+            >
+              <ImagePlus :size="18" />
             </button>
 
             <!-- 发送/停止按钮 -->
@@ -1359,9 +1530,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <button
               v-else
               @click="handleSend"
-              :disabled="!input.trim()"
+              :disabled="!input.trim() || personaSetupRequired"
               class="input-action-btn send"
-              :class="{ disabled: !input.trim() }"
+              :class="{ disabled: !input.trim() || personaSetupRequired }"
               :title="t('chat.send')"
             >
               <Send :size="18" />
@@ -1681,5 +1852,52 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .autodream-trigger-notice__action:hover {
   text-decoration: underline;
+}
+
+/* DN-2A image attachment chips */
+.image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 4px;
+}
+.image-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid var(--border, #d8dee9);
+  border-radius: 8px;
+  background: var(--panel-solid, #fff);
+  font-size: 12px;
+}
+.image-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+.image-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text, #111827);
+}
+.image-remove {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+}
+.image-remove:hover {
+  color: var(--danger, #b42318);
+}
+.attachment-error {
+  padding: 4px 6px;
+  color: var(--danger, #b42318);
+  font-size: 12px;
 }
 </style>

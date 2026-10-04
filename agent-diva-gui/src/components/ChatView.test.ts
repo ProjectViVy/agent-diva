@@ -573,3 +573,81 @@ describe('ChatView streaming states', () => {
     expect(scroll.getScrollTop()).toBe(1400);
   });
 });
+
+describe('DN-2A image attachments', () => {
+  const pngBytes = () => {
+    const b64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const bin = atob(b64);
+    return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  };
+
+  function pickFiles(wrapper: VueWrapper, files: File[]) {
+    const input = wrapper.get('input[type="file"]');
+    Object.defineProperty(input.element, 'files', { value: files, configurable: true });
+    return input.trigger('change');
+  }
+
+  it('sends a picked png with the message and clears the chip', async () => {
+    const wrapper = shallowMount(ChatView, {
+      props: { messages: [], isTyping: false },
+    });
+    await pickFiles(wrapper, [new File([pngBytes()], 'dot.png', { type: 'image/png' })]);
+    await flushPromises();
+    expect(wrapper.findAll('.image-chip')).toHaveLength(1);
+
+    await wrapper.get('.chat-textarea').setValue('image echo');
+    await wrapper.get('.input-action-btn.send').trigger('click');
+    const emitted = wrapper.emitted('send');
+    expect(emitted).toHaveLength(1);
+    const [content, attachments, , preset] = emitted![0] as unknown[];
+    expect(content).toBe('image echo');
+    expect(preset).toBe('smart');
+    const atts = attachments as Array<{ name?: string; mime_type: string; data: string }>;
+    expect(atts).toHaveLength(1);
+    expect(atts[0].name).toBe('dot.png');
+    expect(atts[0].mime_type).toBe('image/png');
+    expect(atts[0].data).toBe(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    );
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('.image-chip')).toHaveLength(0);
+  });
+
+  it('rejects a non-image file at pick time and keeps the draft', async () => {
+    const wrapper = shallowMount(ChatView, {
+      props: { messages: [], isTyping: false },
+    });
+    await wrapper.get('.chat-textarea').setValue('draft');
+    await pickFiles(wrapper, [new File(['plain text'], 'note.txt', { type: 'text/plain' })]);
+    await flushPromises();
+    expect(wrapper.findAll('.image-chip')).toHaveLength(0);
+    expect(wrapper.find('.attachment-error').exists()).toBe(true);
+    // Draft text and the unsent send are untouched.
+    await wrapper.get('.input-action-btn.send').trigger('click');
+    const emitted = wrapper.emitted('send');
+    expect(emitted).toHaveLength(1);
+    expect((emitted![0] as unknown[])[0]).toBe('draft');
+    expect((emitted![0] as unknown[])[1]).toBeUndefined();
+  });
+
+  it('blocks an oversized framed request without emitting', async () => {
+    const big = new Uint8Array((3 << 20) + 1024);
+    big.set([0x89, 0x50, 0x4e, 0x47]); // sniffed as png
+    const wrapper = shallowMount(ChatView, {
+      props: { messages: [], isTyping: false },
+    });
+    await pickFiles(wrapper, [new File([big], 'big.png', { type: 'image/png' })]);
+    await flushPromises();
+    expect(wrapper.findAll('.image-chip')).toHaveLength(1);
+    await wrapper.get('.chat-textarea').setValue('too big to send');
+    await wrapper.get('.input-action-btn.send').trigger('click');
+    expect(wrapper.emitted('send')).toBeUndefined();
+    expect(wrapper.find('.attachment-error').exists()).toBe(true);
+    // The draft survives the rejection.
+    expect((wrapper.get('.chat-textarea').element as HTMLTextAreaElement).value).toBe(
+      'too big to send',
+    );
+    expect(wrapper.findAll('.image-chip')).toHaveLength(1);
+  });
+});

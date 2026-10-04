@@ -80,3 +80,30 @@ jobs:
       - uses: actions/checkout@v4
       - name: Boundary check (dep graph + manifest)
         run: python3 scripts/ci/check_vivy_backend_boundary.py
+
+  # DN-8C Windows x64 engineering gate: the thin shell, bridge and speech
+  # crates compile on the real Windows toolchain (tauri's WebView2 loader is
+  # dynamic, no GTK needed). The sealed vivy-shared.dll is produced by the
+  # VIVY sdk pack on a Windows machine and is NOT staged here, so the
+  # env-gated real-artifact tests skip — they activate when
+  # DIVA_VIVY_RUNTIME/DIVA_VIVY_CONFIG point at a staged Windows runtime.
+  windows-shell-check:
+    name: Windows x64 shell compile + bridge tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent-diva-gui/src-tauri
+      - name: Bridge + speech check
+        working-directory: agent-diva-gui/src-tauri
+        run: cargo check -p vivy-bridge -p diva-speech
+      - name: Whole-workspace compile check (shell included)
+        working-directory: agent-diva-gui/src-tauri
+        run: cargo check --workspace
+      - name: Bridge FFI tests (fake artifact; real artifact env-gated)
+        working-directory: agent-diva-gui/src-tauri
+        run: cargo test -p vivy-bridge

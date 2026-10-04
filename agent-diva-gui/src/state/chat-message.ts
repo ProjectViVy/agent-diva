@@ -18,6 +18,8 @@ export interface ChatMessage {
   rawMeta?: Record<string, unknown>
   fromHistory?: boolean
   attachments?: string[]
+  /** Owning run for run-folded segments (DN-6C replay fencing). */
+  runId?: string
 }
 
 export function generateMessageId(): string {

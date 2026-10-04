@@ -131,6 +131,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'send', content: string, attachments?: FileAttachmentDto[], mode?: 'agent' | 'plan' | 'ask'): void;
   (e: 'approve-plan', payload: { contextPolicy: 'retain' | 'compact' | 'clear' }): void;
+  (e: 'start-goal', payload: { max_rounds: number }): void;
   (e: 'resume-plan'): void;
   (e: 'revoke-plan', feedback: string): void;
   (e: 'refresh-plan'): void;
@@ -852,6 +853,7 @@ defineExpose({
               :compaction-status="compactionStatus"
               @send="(content, attachments, mode) => emit('send', content, attachments, mode)"
               @approve-plan="emit('approve-plan', $event)"
+              @start-goal="emit('start-goal', $event)"
               @resume-plan="emit('resume-plan')"
               @revoke-plan="emit('revoke-plan', $event)"
               @refresh-plan="emit('refresh-plan')"

@@ -111,6 +111,42 @@ describe('VivyClient transport contract', () => {
     expect(t.calls[4].params).toEqual({ approval_id: 'a1', decision: 'approved', reason: 'ok' })
   })
 
+  it('turnStart sends the C2 fixture attachment shape verbatim', async () => {
+    const t = fakeTransport(() => Promise.resolve({ run_id: 'r1', status: 'accepted' }))
+    const c = new VivyClient(t)
+    const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    await c.turnStart('s1', 'image echo', [{ name: 'dot.png', mime_type: 'image/png', data }])
+    expect(t.calls[0].params).toEqual({
+      session_id: 's1',
+      text: 'image echo',
+      attachments: [{ name: 'dot.png', mime_type: 'image/png', data }],
+    })
+    // Attachments are omitted entirely on a text-only turn.
+    await c.turnStart('s1', 'plain')
+    expect(t.calls[1].params).toEqual({ session_id: 's1', text: 'plain' })
+  })
+
+  it('setSessionPermission calls session/set_permission and returns the session DTO', async () => {
+    const session = {
+      id: 's1',
+      title: 't',
+      created_at: 1,
+      updated_at: 2,
+      sandbox_mode: 'read_only',
+      approval_policy: 'ask',
+      permission_preset: 'cautious',
+    }
+    const t = fakeTransport(() => Promise.resolve(session))
+    const c = new VivyClient(t)
+    const result = await c.setSessionPermission('s1', 'cautious')
+    expect(t.calls[0]).toEqual({
+      method: 'session/set_permission',
+      params: { session_id: 's1', preset: 'cautious' },
+      timeoutMs: undefined,
+    })
+    expect(result).toEqual(session)
+  })
+
   it('close detaches listeners without touching the host', async () => {
     let closed = 0
     const t: VivyTransport = {
