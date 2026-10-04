@@ -48,21 +48,27 @@ func (l *lifecycle) teardownErr() error {
 	return l.serviceErr
 }
 
+// hideToTray parks the window while the runtime stays alive. Hide
+// invalidates window-scoped state: W4 — every in-flight speech request is
+// aborted and future admission requires a fresh speech_context_set from the
+// reopened window. Shared by the window-close hook and the tray toggle so
+// both paths invalidate identically.
+func (d *Desktop) hideToTray() {
+	d.window.Hide()
+	if d.speech != nil {
+		d.speech.InvalidateContext()
+	}
+	d.emit(windowStateEvent, map[string]any{"state": "hidden"})
+}
+
 // installCloseToHide implements W3-4: window close hides and keeps the
 // runtime alive. RegisterHook runs synchronously before the internal
 // destroy listener (W0-proven), so cancelling WindowClosing prevents the
-// webview from being torn down. Hide also invalidates window-scoped state.
+// webview from being torn down.
 func (d *Desktop) installCloseToHide(w application.Window) {
 	w.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		e.Cancel()
-		w.Hide()
-		// W4: hide invalidates the speech context — every in-flight
-		// request is aborted and future admission requires a fresh
-		// speech_context_set from the reopened window.
-		if d.speech != nil {
-			d.speech.InvalidateContext()
-		}
-		d.emit(windowStateEvent, map[string]any{"state": "hidden"})
+		d.hideToTray()
 	})
 }
 

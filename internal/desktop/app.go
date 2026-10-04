@@ -158,6 +158,23 @@ func (d *Desktop) build(cfg Config) error {
 	d.tray = d.app.SystemTray.New()
 	d.tray.SetLabel("DIVA")
 	d.tray.SetTooltip("DIVA desktop")
+	// Reopen/quit affordances (W5 F2/F3): the close button hides, so the tray
+	// is the way back and the way out. AttachWindow + a custom click handler
+	// keep left-click toggling through the same hide/reopen semantics as
+	// window close; the menu gives explicit Show and Quit entries.
+	d.tray.AttachWindow(w)
+	d.tray.OnClick(func() {
+		if w.IsVisible() {
+			d.hideToTray()
+		} else {
+			d.reopen()
+		}
+	})
+	menu := d.app.NewMenu()
+	menu.Add("Show DIVA").OnClick(func(*application.Context) { d.reopen() })
+	menu.AddSeparator()
+	menu.Add("Quit DIVA").OnClick(func(*application.Context) { d.app.Quit() })
+	d.tray.SetMenu(menu)
 	return nil
 }
 
