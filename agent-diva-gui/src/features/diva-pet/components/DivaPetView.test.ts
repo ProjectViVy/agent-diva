@@ -24,8 +24,8 @@ const { mockVoiceSetEnabled, mockVoiceState, mockSpeakText, mockGetDesktopPetEmo
 
 const mockConfig = ref<PetConfig>(makeMockPetConfig())
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(() => Promise.resolve(undefined)),
+vi.mock('../../../platform/desktop-host', () => ({
+  nativeCall: vi.fn(() => Promise.resolve(undefined)),
 }))
 
 vi.mock('./EmbeddedPetFrame.vue', () => ({

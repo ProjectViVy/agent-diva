@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `scripts/build-desktop.py, build/vivy-sources.lock.json, justfile, LOCK.md, docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, go.mod, go.sum, tools/**, cmd/**, agent-diva-gui/package.json, agent-diva-gui/pnpm-lock.yaml`
+- Scope: `scripts/build-desktop.py, build/vivy-sources.lock.json, justfile, LOCK.md, docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, go.mod, go.sum, tools/**, cmd/**, internal/**, deps/**, TODOLIST.md, agent-diva-gui/package.json, agent-diva-gui/pnpm-lock.yaml, agent-diva-gui/.gitignore, agent-diva-gui/assets.go, agent-diva-gui/src/**`
 - Owner: `Devin on behalf of mastwet`
-- Session/Task: `DN-W3 W0+W3 Wails migration — pinned Wails probe, Go host, sealed packaging`
+- Session/Task: `DN-W3 W0+W3+W4 Wails migration — pinned Wails probe, Go host, frontend seam, sealed packaging`
 - Branch/Worktree: `feat/wails-go-host`
 - Started At: `2026-10-04T05:35:00Z`
-- Last Heartbeat: `2026-10-04T09:15:00Z`
+- Last Heartbeat: `2026-10-04T05:08:00Z`
 - Expires At: `2026-10-08T05:35:00Z`
 
 ### Handoff for this branch

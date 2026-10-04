@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+vi.mock('../../../../platform/desktop-host', () => ({
+  nativeCall: vi.fn(),
 }))
 
-import { invoke } from '@tauri-apps/api/core'
+import { nativeCall } from '../../../../platform/desktop-host'
 import { ttsService, type TTSVoiceConfig } from './tts-service'
 
-const invokeMock = vi.mocked(invoke)
+const invokeMock = vi.mocked(nativeCall)
 
 function createMiniMaxConfig(overrides: Partial<TTSVoiceConfig> = {}): TTSVoiceConfig {
   return {

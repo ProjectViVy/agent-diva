@@ -4,6 +4,6 @@
  * may import this instead of building their own client.
  */
 import { VivyClient } from './client'
-import { createTauriTransport } from './transport'
+import { createWailsTransport } from './transport'
 
-export const vivyClient = new VivyClient(createTauriTransport())
+export const vivyClient = new VivyClient(createWailsTransport())

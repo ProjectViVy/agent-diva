@@ -149,3 +149,13 @@ implementation and makes no Ready/Done implementation claim.
   Old Rust-specific tests/tasks are not active Next work by default; product
   residuals above remain visible. Historical boxes are not new acceptance.
 
+
+## DN-W3 migration residuals (2026-10-04)
+
+- [ ] **W0 Windows x64 leg** — W0 Tasks 4/5 (lifetime, voice prereq, Credential Manager) need a Windows child Devin; GO/NO-GO blocked until then.
+- [ ] **W3 Windows candidate acceptance** — hide/reopen/Quit/single-instance on the sealed Windows build per w3-1 acceptance.md.
+- [ ] **W4 DesktopDispatch handlers** — `DesktopDispatch` answers `not_ready` for speech_*/voice_asset_*/pet_* until W4 wires the dispatch table and `/media/speech/*`, `/media/voice-assets*` routes.
+- [ ] **`desktop_pet_start_drag` noop** — DesktopPetOverlay drag calls a stub; Wails native drag (`--wails-draggable` regions) lands with pet expansion (deferred).
+- [ ] **`tauriVoiceFileReader`/`isTauri*` naming** — functional seam is Wails; leftover cosmetic names + locale strings ("Tauri 运行时") should be renamed in W4/W5 cleanup.
+- [ ] **W6 cleanup pending** — `src-tauri/`, `@tauri-apps/*` deps, Rust/tango recipes in justfile, `scripts/tauri` helpers all still present until W6 removal.
+- [ ] **Generated bindings drift** — `src/generated/wails/` must be regenerated (`just desktop-bindings`) after any bound-method change; no drift check in CI yet.

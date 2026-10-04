@@ -9,7 +9,7 @@
     "vivy": {
       "repository": "https://github.com/ProjectViVy/agent-vivy",
       "commit": "867626a7ed7e50b47e38f540e50687b7fabe34a5",
-      "treeSHA256": "6abb995db8d9be39728cd9f986beef0a6cc4368d1ccfc3d4659812449423d582"
+      "treeSHA256": "0797b1cbd7d47649ebb5edb0489fff4b8070cb7b37165ea1588bd1c631c748ed"
     },
     "laputa": {
       "repository": "https://github.com/ProjectViVy/laputa",
@@ -27,10 +27,13 @@
     "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
   },
   "locks": {
-    "go.mod": "",
-    "go.sum": "",
-    "pnpm-lock.yaml": "d881c502d80aae45d4f76167f7e27f8a3f69127280f3f6498c1f08293f5ae6be"
+    "go.mod": "ca051900f246a04993ae10e10c4528cd256135eb69406349afcaaf97f7afd69f",
+    "go.sum": "f390a781031e7b7957363f5fbde4acc872556fb74a953a8d7cb70c8be15cbc88",
+    "pnpm-lock.yaml": "01ef0ea82f41b54be2103a8bc7cf54a407a2be6b39a48a6137010a8acecea249"
   },
+  "buildTags": [
+    "gtk3"
+  ],
   "tools": {
     "go": "go1.26.4",
     "wails": "v3.0.0-beta.27",

@@ -56,9 +56,9 @@ implementation stories merely because this plan exists.
 | --- | --- | --- | --- | --- |
 | [W0](wails/W0.md) | Pinned Wails native feasibility and security contract | None | In progress — Linux leg proven (`tools/wails-probe`, w0-1); Windows x64 leg pending; GO/NO-GO pending | 1–2 |
 | [W1](wails/W1.md) | Public Go host, single lifecycle, logging/admission baseline | None | Done on agent-vivy `feat/wails-migration` `256ddf4b`; evidence `docs/logs/2026-10-wails-migration/w1-1/` | 3–5 |
-| [W2](wails/W2.md) | Sealed Go-host package target and dependency closure | W1 | Planned (W1 evidence landed) | 3–5 |
-| [W3](wails/W3.md) | Wails desktop, frontend seam and window lifecycle | W0, W2 | Blocked by W0/W2 | 2–4 |
-| [W4](wails/W4.md) | Go speech/credentials/assets and binary media route | W0 | Blocked by W0 | 3–5 |
+| [W2](wails/W2.md) | Sealed Go-host package target and dependency closure | W1 | Done — vivy `867626a7`, diva `d3aacc2f`; evidence `docs/logs/2026-10-wails-migration/w2-1/` (vivy) | 3–5 |
+| [W3](wails/W3.md) | Wails desktop, frontend seam and window lifecycle | W0, W2 | Done on Linux — host+seam+sealed build+single-instance proven (`docs/logs/2026-10-wails-migration/w3-1/`); Windows candidate acceptance pending W0 leg | 2–4 |
+| [W4](wails/W4.md) | Go speech/credentials/assets and binary media route | W0 | Ready — DesktopDispatch channel + mediaFetch route land handlers here; dispatch answers not_ready until then | 3–5 |
 | [W5](wails/W5.md) | Full integration, recovery and observability closure | W3, W4 | Blocked by W3/W4 | 3–5 |
 | [W6](wails/W6.md) | Remove C ABI/Rust and replace CI/build/documentation | W5 | Blocked by W5 | 1–2 |
 | [W7](wails/W7.md) | Clean Windows package and final acceptance handoff | W6 | Blocked by W6 | 2–3 |

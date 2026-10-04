@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Mic } from '@lucide/vue'
-import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+// Wails seam: desktop-pet stays deferred (DN-W3-5); native commands route
+// through the desktop-host dispatch channel, window ops through @wailsio/runtime.
+import { Events, Window as thisWindow } from '@wailsio/runtime'
+import { nativeCall, nativeListen, type UnlistenFn } from '../../../platform/desktop-host'
 import DivaVrmAvatar from '../vrm/components/DivaVrmAvatar.vue'
 import { usePetConfig } from '../services/pet-config'
 import { useVoiceInput } from '../voice/composables/useVoiceInput'
@@ -54,7 +55,7 @@ async function refreshVrmModelPath(model: string) {
   }
 
   try {
-    const data = await invoke<{
+    const data = await nativeCall<{
       base64Data: string
       contentType: string
     }>('pet_read_vrm_model', { relativePath: resolved })
@@ -99,7 +100,9 @@ const voiceInput = useVoiceInput({
   onRecognizedText: async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    await emitTo('main', 'desktop-pet-voice-message', trimmed)
+    // Broadcast: pet-overlay is a deferred second window; Events.Emit reaches
+    // the main window listener on the same event name.
+    await Events.Emit('desktop-pet-voice-message', trimmed)
   },
 })
 
@@ -222,7 +225,8 @@ function exitDragMode() {
 async function onDragPointerDown(event: PointerEvent) {
   if (!isDragMode.value) return
   if (event.button !== 0) return
-  await getCurrentWindow().startDragging()
+  // Native drag lands with pet expansion (Wails uses --wails-draggable regions).
+  await nativeCall('desktop_pet_start_drag').catch(() => {})
   exitDragMode()
 }
 
@@ -231,7 +235,7 @@ async function onDragPointerDown(event: PointerEvent) {
 async function togglePassThrough() {
   isMousePassThrough.value = !isMousePassThrough.value
   try {
-    await invoke('set_desktop_pet_ignore_mouse', { ignore: isMousePassThrough.value })
+    await nativeCall('set_desktop_pet_ignore_mouse', { ignore: isMousePassThrough.value })
   } catch (_) {
     isMousePassThrough.value = !isMousePassThrough.value
   }
@@ -242,7 +246,7 @@ async function togglePassThrough() {
 
 async function closePet() {
   try {
-    await invoke('close_desktop_pet')
+    await nativeCall('close_desktop_pet')
   } catch (_) {}
   contextMenu.value = null
 }
@@ -280,7 +284,7 @@ async function toggleAlwaysOnTop() {
   const previous = isAlwaysOnTop.value
   isAlwaysOnTop.value = !isAlwaysOnTop.value
   try {
-    await invoke('set_desktop_pet_always_on_top', { alwaysOnTop: isAlwaysOnTop.value })
+    await nativeCall('set_desktop_pet_always_on_top', { alwaysOnTop: isAlwaysOnTop.value })
     petConfig.value.desktopPetAlwaysOnTop = isAlwaysOnTop.value
   } catch (_) {
     isAlwaysOnTop.value = previous
@@ -292,18 +296,18 @@ async function toggleAlwaysOnTop() {
 
 async function showMainWindow() {
   try {
-    await invoke('open_desktop_pet')
+    await nativeCall('open_desktop_pet')
   } catch (_) {}
   contextMenu.value = null
 }
 
 async function minimizePet() {
   try {
-    await invoke('minimize_desktop_pet')
+    await nativeCall('minimize_desktop_pet')
   } catch (_) {
     // fallback: 使用 window API
     try {
-      await getCurrentWindow().minimize()
+      await thisWindow.Minimise()
     } catch (_) {}
   }
   contextMenu.value = null
@@ -494,21 +498,21 @@ onMounted(async () => {
   }
   isAlwaysOnTop.value = petConfig.value.desktopPetAlwaysOnTop ?? true
 
-  unlisteners.push(await listen<string>('desktop-pet-emotion', (event) => {
+  unlisteners.push(await nativeListen<string>('desktop-pet-emotion', (payload) => {
     if (!isVrmExpressionEnabled.value) {
       activeMood.value = 'neutral'
       scheduleMoodReset('neutral')
       return
     }
-    const mood = normalizeMood(event.payload)
+    const mood = normalizeMood(payload)
     activeMood.value = mood
     scheduleMoodReset(mood)
   }))
-  unlisteners.push(await listen('desktop-pet-close-request', closePet))
-  unlisteners.push(await listen('desktop-pet-render-pause', () => {
+  unlisteners.push(await nativeListen<void>('desktop-pet-close-request', () => closePet()))
+  unlisteners.push(await nativeListen<void>('desktop-pet-render-pause', () => {
     isRenderActive.value = false
   }))
-  unlisteners.push(await listen('desktop-pet-render-resume', () => {
+  unlisteners.push(await nativeListen<void>('desktop-pet-render-resume', () => {
     isMousePassThrough.value = false
     isRenderActive.value = true
   }))

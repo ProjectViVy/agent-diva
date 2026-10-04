@@ -35,15 +35,14 @@ const tabs: Array<{ id: TabName; label: string }> = [
   { id: 'animation', label: '动画' },
 ]
 
-const isTauri =
-  typeof window !== 'undefined' &&
-  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+const isDesktop =
+  typeof window !== 'undefined' && (window as any)._wails?.environment != null
 
 let invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null
 async function getInvoke() {
-  if (!invoke && isTauri) {
-    const mod = await import('@tauri-apps/api/core')
-    invoke = mod.invoke
+  if (!invoke && isDesktop) {
+    const mod = await import('../../../platform/desktop-host')
+    invoke = mod.nativeCall
   }
   return invoke
 }

@@ -2,7 +2,7 @@
 // 通过 Tauri event 接收字幕文本（从主窗口 TTS 流推送到 desktop-pet 窗口）
 
 import { ref, onMounted, onUnmounted } from 'vue'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { nativeListen, type UnlistenFn } from '../../../platform/desktop-host'
 
 export interface SubtitleState {
   visible: boolean
@@ -66,11 +66,11 @@ export function useSubtitleOverlay() {
       y: window.innerHeight * 0.88,
     }
 
-    // 通过 Tauri event 接收字幕（从主窗口 TTS 流推送）
-    unlisteners.push(await listen<string>('desktop-pet-subtitle', (event) => {
-      console.log('[SubtitleOverlay] desktop-pet-subtitle event received. payload:', JSON.stringify(event.payload)?.slice(0, 100))
-      if (event.payload) {
-        show(event.payload)
+    // 通过 Wails event 接收字幕（从主窗口 TTS 流推送）
+    unlisteners.push(await nativeListen<string>('desktop-pet-subtitle', (payload) => {
+      console.log('[SubtitleOverlay] desktop-pet-subtitle event received. payload:', JSON.stringify(payload)?.slice(0, 100))
+      if (payload) {
+        show(payload)
       } else {
         hide()
       }

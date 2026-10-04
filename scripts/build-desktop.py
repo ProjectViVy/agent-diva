@@ -181,6 +181,10 @@ def build_lock(args: argparse.Namespace, release: bool) -> dict:
             "go.sum": sha256_file(host_root / "go.sum") if (host_root / "go.sum").exists() else "",
             "pnpm-lock.yaml": sha256_file(host_root / "agent-diva-gui" / "pnpm-lock.yaml"),
         },
+        # Extra `go build` tags the host package needs beyond vivy_headless
+        # (sealed into hostBuild.tools.buildTags; gtk3 is a no-op on
+        # non-Linux platforms — its constraints are all *_linux files).
+        "buildTags": ["gtk3"] if platform.system().lower() == "linux" else [],
         "tools": {
             "go": go_version(),
             "wails": WAILS_VERSION,
@@ -225,6 +229,9 @@ def mode_build(args: argparse.Namespace) -> None:
     # One frontend build, from the frozen lockfile. Pack binds these bytes.
     run(["pnpm", "--dir", str(gui), "install", "--frozen-lockfile"], cwd=host_root)
     run(["pnpm", "--dir", str(gui), "build"], cwd=host_root)
+    # Vite empties dist/ and drops the tracked .gitkeep the embed needs on a
+    # fresh checkout — restore it after every build.
+    (gui / "dist" / ".gitkeep").touch()
 
     tracked = host_root / "build" / "vivy-sources.lock.json"
     if args.development:
@@ -260,8 +267,9 @@ def mode_test(args: argparse.Namespace) -> None:
     sdk_pack(args, lock_path, ".test-empty-assets", artifact)
     shutil.copy2(artifact / "consumer.mod", staged_host / "consumer.mod")
     shutil.copy2(artifact / "consumer.sum", staged_host / "consumer.sum")
-    run(["go", "build", "-modfile", "consumer.mod", "-mod=readonly", "-tags", "vivy_headless", "./..."], cwd=staged_host)
-    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", "vivy_headless", "./..."], cwd=staged_host)
+    tags = " ".join(["vivy_headless", *lock.get("buildTags", [])])
+    run(["go", "build", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
+    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
     print(f"go race tests passed under the sealed consumer modfile (stage: {stage})")
 
 

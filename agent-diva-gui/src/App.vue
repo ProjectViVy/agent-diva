@@ -269,7 +269,7 @@ type WelcomeDonePayload = {
   navigate: 'chat' | 'providers' | 'network' | 'console';
 };
 
-const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const isTauri = () => typeof window !== 'undefined' && (window as any)._wails?.environment != null;
 
 function buildSavedModelId(provider: string, model: string): string {
   return `${provider.trim()}:${model.trim()}`;
