@@ -8,8 +8,8 @@
   "sources": {
     "vivy": {
       "repository": "https://github.com/ProjectViVy/agent-vivy",
-      "commit": "867626a7ed7e50b47e38f540e50687b7fabe34a5",
-      "treeSHA256": "0797b1cbd7d47649ebb5edb0489fff4b8070cb7b37165ea1588bd1c631c748ed"
+      "commit": "3862b768667d11e6cab3b7a01c32848864b77b9a",
+      "treeSHA256": "9da518e3381ec8dff92ac470cd1364d4d33c7d44fef4753869ffdc87fba3762d"
     },
     "laputa": {
       "repository": "https://github.com/ProjectViVy/laputa",
@@ -27,7 +27,7 @@
     "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
   },
   "locks": {
-    "go.mod": "ca051900f246a04993ae10e10c4528cd256135eb69406349afcaaf97f7afd69f",
+    "go.mod": "aa7d29a3fb253e5b3fc4415675174c122ecab3d98e9ce3ec729d8d0ae3b8aae1",
     "go.sum": "f390a781031e7b7957363f5fbde4acc872556fb74a953a8d7cb70c8be15cbc88",
     "pnpm-lock.yaml": "01ef0ea82f41b54be2103a8bc7cf54a407a2be6b39a48a6137010a8acecea249"
   },

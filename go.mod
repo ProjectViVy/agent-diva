@@ -239,6 +239,10 @@ replace agent-vivy/plugins/vivy-workflow => ./deps/agent-vivy/plugins/vivy-workf
 
 replace github.com/ProjectViVy/agent-vivy/bml => ./deps/agent-vivy/bml
 
+// renameio upstream ships only !windows files; the vendored copy in
+// agent-vivy/third_party/renameio carries the same API for Windows.
+replace github.com/google/renameio => ./deps/agent-vivy/third_party/renameio
+
 replace github.com/dashimaki/garden => ./deps/laputa/garden
 
 replace github.com/dashimaki/mentle => ./deps/laputa/mentle
