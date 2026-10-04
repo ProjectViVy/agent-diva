@@ -69,7 +69,8 @@ fn build_fake_artifact(dir: &Path) {
     let status = cmd.output().expect("spawn C compiler for fake artifact");
     assert!(
         status.status.success(),
-        "fake library build failed: {}",
+        "fake library build failed: {}{}",
+        String::from_utf8_lossy(&status.stdout),
         String::from_utf8_lossy(&status.stderr)
     );
 }
