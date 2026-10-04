@@ -17,7 +17,22 @@ use vivy_bridge::{
 /// Serializes access to the fake library's process-global state.
 static FAKE_LOCK: Mutex<()> = Mutex::new(());
 
-fn build_fake_artifact(dir: &Path) {
+#[cfg(all(unix, not(target_os = "macos")))]
+fn shared_name() -> &'static str {
+    "vivy-shared.so"
+}
+#[cfg(target_os = "macos")]
+fn shared_name() -> &'static str {
+    "vivy-shared.dylib"
+}
+#[cfg(target_os = "windows")]
+fn shared_name() -> &'static str {
+    "vivy-shared.dll"
+}
+
+/// Returns false when no C compiler is available so callers skip with a
+/// recorded reason instead of panicking (CI runners may lack `cl`/`cc`).
+fn build_fake_artifact(dir: &Path) -> bool {
     let src = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fake_vivy.c");
     for header in ["vivy-shared.h", "vivy_abi.h"] {
         let body = if header == "vivy_abi.h" {
@@ -55,12 +70,18 @@ fn build_fake_artifact(dir: &Path) {
             .arg(src)
             .current_dir(dir);
     }
-    let status = cmd.output().expect("spawn C compiler for fake artifact");
-    assert!(
-        status.status.success(),
-        "fake library build failed: {}",
-        String::from_utf8_lossy(&status.stderr)
-    );
+    match cmd.output() {
+        Ok(out) if out.status.success() => true,
+        Ok(out) => panic!(
+            "fake library build failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("fake artifact skipped: C compiler {cc:?} not on PATH");
+            false
+        }
+        Err(e) => panic!("spawn C compiler for fake artifact: {e}"),
+    }
 }
 
 fn fake_config() -> InitConfig {
@@ -77,7 +98,7 @@ fn load_missing_dir_is_load_failed() {
 fn load_missing_abi_header_is_load_failed() {
     let dir = tempfile::tempdir().unwrap();
     // Library present, bundled vivy_abi.h absent.
-    std::fs::write(dir.path().join("vivy-shared.so"), b"elf-ish").unwrap();
+    std::fs::write(dir.path().join(shared_name()), b"elf-ish").unwrap();
     std::fs::write(dir.path().join("vivy-shared.h"), b"").unwrap();
     let err = VivyLibrary::load(dir.path()).unwrap_err();
     assert_eq!(err.kind, ErrorKind::LoadFailed);
@@ -88,7 +109,9 @@ fn load_missing_abi_header_is_load_failed() {
 fn fake_lifecycle_and_error_paths() {
     let _g = FAKE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
-    build_fake_artifact(dir.path());
+    if !build_fake_artifact(dir.path()) {
+        return;
+    }
     let lib = VivyLibrary::load(dir.path()).unwrap();
 
     // Happy path: init asserts the echoed ABI version against the header.
@@ -147,7 +170,9 @@ fn fake_lifecycle_and_error_paths() {
 fn fake_abi_mismatch_and_duplicate_init() {
     let _g = FAKE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
-    build_fake_artifact(dir.path());
+    if !build_fake_artifact(dir.path()) {
+        return;
+    }
     // Header demands ABI 2: the request carries 2 and the fake refuses.
     std::fs::write(dir.path().join("vivy_abi.h"), "#define VIVY_ABI_VERSION 2\n").unwrap();
     let lib = VivyLibrary::load(dir.path()).unwrap();
@@ -159,7 +184,9 @@ fn fake_abi_mismatch_and_duplicate_init() {
 fn event_pump_forwards_events_and_gap() {
     let _g = FAKE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let dir = tempfile::tempdir().unwrap();
-    build_fake_artifact(dir.path());
+    if !build_fake_artifact(dir.path()) {
+        return;
+    }
     let lib = VivyLibrary::load(dir.path()).unwrap();
     let host = Arc::new(Host::start(lib, &fake_config()).unwrap());
     host.call("fake/arm-gap", json!(null), None).unwrap();
