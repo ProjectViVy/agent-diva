@@ -648,3 +648,10 @@ No other working branch or live workspace is modified by this handoff.
   `docs/research/sandbox-hitl-approval-policy-proposal.md` (+ README index, cross-link, docs/logs).
   Implementation still pending; see TODOLIST `审批三模式完善`.
 
+
+### Handoff note — W1 evidence update (2026-10-04T02:30Z)
+
+Devin session (on behalf of mastwet) updated `docs/plans/diva-next/index.md`
+and `docs/plans/diva-next/wails/W1.md` to record W1 Done state with the
+agent-vivy evidence pointer; lock state remains RELEASED for the previously
+recorded scope.
