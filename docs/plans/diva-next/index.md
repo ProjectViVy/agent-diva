@@ -54,7 +54,7 @@ implementation stories merely because this plan exists.
 
 | Story | Outcome | Immediate prerequisites | State | Estimated engineering days |
 | --- | --- | --- | --- | --- |
-| [W0](wails/W0.md) | Pinned Wails native feasibility and security contract | None | Planned; probe before adoption | 1–2 |
+| [W0](wails/W0.md) | Pinned Wails native feasibility and security contract | None | In progress — Linux leg proven (`tools/wails-probe`, w0-1); Windows x64 leg pending; GO/NO-GO pending | 1–2 |
 | [W1](wails/W1.md) | Public Go host, single lifecycle, logging/admission baseline | None | Done on agent-vivy `feat/wails-migration` `256ddf4b`; evidence `docs/logs/2026-10-wails-migration/w1-1/` | 3–5 |
 | [W2](wails/W2.md) | Sealed Go-host package target and dependency closure | W1 | Planned (W1 evidence landed) | 3–5 |
 | [W3](wails/W3.md) | Wails desktop, frontend seam and window lifecycle | W0, W2 | Blocked by W0/W2 | 2–4 |

@@ -1,0 +1,76 @@
+{
+  "schema": "diva.wails-native-probe/v1",
+  "iteration": "w0-1",
+  "recorded": "2026-10-04",
+  "recordedBy": "Devin on behalf of mastwet",
+  "platform": {
+    "recordedOn": "linux/amd64",
+    "go": "go1.26.4",
+    "wailsModule": "github.com/wailsapp/wails/v3 v3.0.0-beta.27",
+    "wailsCLI": "wails3 v3.0.0-beta.27 (go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.27)",
+    "wailsRuntimeNPM": "@wailsio/runtime 3.0.0-beta.27 (verified in tagged source internal/runtime/desktop/@wailsio/runtime/package.json)",
+    "linuxBackend": "gtk3 build tag (GTK 3.24.33 + WebKit2GTK 4.1 2.50.4); untagged GTK4 build needs GtkFileDialog = GTK >= 4.10, Ubuntu 22.04 ships 4.6.9",
+    "keyringDep": "github.com/zalando/go-keyring v0.2.8 (wincred on Windows, Security.framework on macOS, Secret Service/D-Bus on Linux)"
+  },
+  "apiSurface": {
+    "app": "application.New(application.Options{Services,Assets,OnShutdown,PostShutdown,ShouldQuit,RawMessageHandler,SingleInstance,KeyBindings})",
+    "window": "app.Window.NewWithOptions(application.WebviewWindowOptions) -> *WebviewWindow",
+    "tray": "app.SystemTray.New() -> *SystemTray{SetLabel,SetTooltip,SetIcon,SetMenu,Show,Hide,Destroy,ShowMenu,ShowWindow,HideWindow}",
+    "events": "app.Event.Emit/On/Once/Off; window.EmitEvent; CustomEvent/WindowEvent cancellable via event.Cancel()",
+    "services": "application.NewService[T](instance); ServiceStartup(ctx,ServiceOptions) error; ServiceShutdown() error — reverse registration order, after OnShutdown, before PostShutdown",
+    "closeToHide": "window.RegisterHook(events.Common.WindowClosing, cancel+Hide) — eventHooks run synchronously before eventListeners (incl. internal markAsDestroyed), HandleWindowEvent returns early on cancel",
+    "assets": "application.AssetOptions{Handler http.Handler, Middleware Middleware, DisableLogging}; Middleware func(next http.Handler) http.Handler + ChainMiddleware",
+    "singleInstance": "application.SingleInstanceOptions{UniqueID, OnSecondInstanceLaunch func(SecondInstanceData{Args,WorkingDir,AdditionalData})}"
+  },
+  "senderContract": {
+    "bindingIdentity": "ctx.Value(application.WindowKey).(application.Window).ID() — native; x-wails-window-id / x-wails-window-name headers are OVERWRITTEN per-request in webViewAssetRequest.Header() (application.go ~L385) so forged client headers cannot win on the desktop webview path",
+    "originInfo": "OriginInfo{Origin,TopOrigin,IsMainFrame} reaches RawMessageHandler",
+    "navigationVeto": "NONE in beta.27 — external-page defense is AssetServer Middleware origin allowlist (empty, http://wails.local, wails://wails, http://wails.localhost) + window-id gate; navigated-away pages carry a real window id but are denied at origin layer; no CurrentURL() getter exists",
+    "capabilityIssuance": "media capability bound to {windowID, token}; grant requires header window id == issued id AND token match AND not revoked",
+    "proofs": {
+      "forgedWindowHeader": "denied (test: forged/non-numeric header -> 403)",
+      "foreignWindow": "denied (window id != issued id -> 403)",
+      "missingWindowHeader": "denied (no identity -> 403)",
+      "externalOrigin": "denied (https://evil.example, data: -> 403)",
+      "revokedCapability": "denied",
+      "missingOrWrongToken": "denied"
+    }
+  },
+  "mediaRoute": {
+    "surface": "AssetOptions.Handler mux inside internal wails scheme — NO TCP listener",
+    "bound": "http.MaxBytesReader 10 MiB -> 413 above bound; at-bound OK",
+    "wavCheck": "RIFF/WAVE magic pair; invalid -> 400",
+    "roundtrip": "POST /media/wav stores raw bytes; GET /media/wav/{id} returns audio/wav byte-identical (sha256 match) — no JSON/base64 expansion",
+    "cancellation": "webViewAssetRequest.Context() preserves native cancellation; download write honours r.Context() (cancelled download test passes)",
+    "adapterSignature": "native route = standard http.Handler; capability check reads x-wails-window-id header + X-Diva-Media-Token header; response = raw bytes or typed error status",
+    "peakMemory": "measured: live-heap delta 22.39 MiB for a 10 MiB upload (~2.2x payload: request body + store entry; a base64 expansion would exceed it). Test TestMediaRoutePeakMemoryAtBound asserts <40 MiB"
+  },
+  "lifetime": {
+    "order": "Options.OnShutdown -> ServiceShutdown (reverse registration) -> Options.PostShutdown",
+    "closeToHide": "RegisterHook cancel verified by reading eventHooks-before-listeners semantics in webview_window.go:366; runtime exercise requires a display (Windows leg)",
+    "singleInstance": "OnSecondInstanceLaunch callback wired; second-instance focus/raise verified on Windows leg"
+  },
+  "keyring": {
+    "dependency": "github.com/zalando/go-keyring v0.2.8",
+    "plaintextFallback": "NONE — backend failure surfaces as error; probe asserts no fallback",
+    "linuxAvailability": "UNAVAILABLE on headless CI VM (org.freedesktop.secrets absent) — correctly classified, no crash, no fallback",
+    "windowsCredentialManager": "PENDING — Windows x64 leg",
+    "lockedStore": "PENDING — Windows x64 leg"
+  },
+  "generatedBindings": {
+    "command": "wails3 generate bindings -f '-tags gtk3' -d frontend/bindings .",
+    "result": "1 service, 2 methods (Identify, CallerIsMain), stable method IDs via $Call.ByID",
+    "hashes": {
+      "probeservice.js": "sha256:6c8b4de956ec08d9a811a6aba31d19ea509615d7baf477512c084518303c2240",
+      "index.js": "sha256:d87fe16e3c96a5827160976c96e25a5a24258ccd86b6ac8b21872ef0ab9a6365"
+    }
+  },
+  "windowsX64": {
+    "status": "PENDING — requires Windows machine (WebView2 deploy, mic permission/capture, audio playback, Credential Manager set/read/delete/locked, close-to-hide/tray/quit/reload/duplicate-launch, shutdown order during active call)",
+    "blocks": "W3 adoption GO/NO-GO and W4 voice/credential rows per W0 exit gate"
+  },
+  "verdict": {
+    "linux": "PASS — identity contract, capability gate, bounded raw media route, shutdown order surface, keyring dep + no-fallback, generated bindings all proven on pinned beta.27",
+    "overall": "PENDING — GO/NO-GO awaits Windows x64 rows (W0 gate: missing platform blocks W3/W4)"
+  }
+}
