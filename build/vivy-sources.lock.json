@@ -8,8 +8,8 @@
   "sources": {
     "vivy": {
       "repository": "https://github.com/ProjectViVy/agent-vivy",
-      "commit": "33a73fca39e288e71c414f8460dfa636f4a61cad",
-      "treeSHA256": "f0673b26998512ad55952ba61bf0aa2e6ef788850dc37427456023e4ea957941"
+      "commit": "bdcc475eda223040ba5c89031ace84a76707391b",
+      "treeSHA256": "f42fef933dd6d3e3569fb425495ab8fd6efb030874afda65daeae2fdc0d6ed2c"
     },
     "laputa": {
       "repository": "https://github.com/ProjectViVy/laputa",
