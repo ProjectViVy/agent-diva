@@ -50,7 +50,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+build/*
+!build/vivy-sources.lock.json
 develop-eggs/
 dist/
 downloads/

@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, TODOLIST.md, LOCK.md; docs/wails-migration-20261004 only`
-- Owner: `Codex on behalf of mastwet`
-- Session/Task: `DN-W3 architecture and executable migration plans; source archive; no product edits`
-- Branch/Worktree: `docs/wails-migration-20261004 / isolated source snapshot`
-- Started At: `2026-10-04T00:53:00Z`
-- Last Heartbeat: `2026-10-04T01:18:32Z`
-- Released At: `2026-10-04T01:18:32Z`
+- Lock State: `HELD`
+- Scope: `scripts/build-desktop.py, build/vivy-sources.lock.json, justfile, LOCK.md, docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**`
+- Owner: `Devin on behalf of mastwet`
+- Session/Task: `DN-W3 W2 sealed go-host packaging — DIVA staging wrapper + dependency source lock`
+- Branch/Worktree: `feat/wails-go-host`
+- Started At: `2026-10-04T05:35:00Z`
+- Last Heartbeat: `2026-10-04T05:35:00Z`
+- Expires At: `2026-10-05T05:35:00Z`
 
 ### Handoff for this branch
 
@@ -655,3 +655,10 @@ Devin session (on behalf of mastwet) updated `docs/plans/diva-next/index.md`
 and `docs/plans/diva-next/wails/W1.md` to record W1 Done state with the
 agent-vivy evidence pointer; lock state remains RELEASED for the previously
 recorded scope.
+
+### Handoff note — W2 wrapper scope (2026-10-04T05:35Z)
+
+Devin session (on behalf of mastwet) took the lock on new branch
+`feat/wails-go-host` to implement W2 Task 6: `scripts/build-desktop.py`,
+`build/vivy-sources.lock.json` and `just` recipes. Product files outside the
+previous docs-only scope; created as new paths only.

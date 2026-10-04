@@ -1,0 +1,42 @@
+{
+  "schema": "diva.go-host-inputs/v1",
+  "release": true,
+  "host": {
+    "modulePath": "github.com/ProjectViVy/agent-diva",
+    "repository": "https://github.com/ProjectViVy/agent-diva"
+  },
+  "sources": {
+    "vivy": {
+      "repository": "https://github.com/ProjectViVy/agent-vivy",
+      "commit": "867626a7ed7e50b47e38f540e50687b7fabe34a5",
+      "treeSHA256": "6abb995db8d9be39728cd9f986beef0a6cc4368d1ccfc3d4659812449423d582"
+    },
+    "laputa": {
+      "repository": "https://github.com/ProjectViVy/laputa",
+      "commit": "6f2eed2d71c82261333e50883e98b404070a6801",
+      "treeSHA256": "6ffef3e30bb93f96a0805eb231fd2a653113545d2ac771456e4a7e79fd78477b"
+    },
+    "inofy": {
+      "module": "github.com/ProjectViVy/inofy",
+      "version": "v0.0.0-20260930141905-71e2c9bbe47d",
+      "commit": "71e2c9bbe47d"
+    }
+  },
+  "recipe": {
+    "path": "recipes/diva.vivy.yml",
+    "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
+  },
+  "locks": {
+    "go.mod": "",
+    "go.sum": "",
+    "pnpm-lock.yaml": "d881c502d80aae45d4f76167f7e27f8a3f69127280f3f6498c1f08293f5ae6be"
+  },
+  "tools": {
+    "go": "go1.26.4",
+    "wails": "v3.0.0-beta.27",
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo": true
+  },
+  "keyring": {}
+}
