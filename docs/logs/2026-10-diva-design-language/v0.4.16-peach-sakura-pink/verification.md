@@ -19,3 +19,7 @@
 - **主按钮对比度**：白色字体在 `#D9567B` 上的对比度为 3.73:1，搭配 `font-weight: 600`，超越 14px bold 按钮所需的 3:1 标准。
 - **圆角体系**：`--radius-lg: 18px;`、`--radius-xl: 22px;` 覆盖卡片、弹窗与消息气泡，落在 16–24px 柔和设计区间内。
 - **启动页**：`splashscreen.html` 正确使用 SVG `#FFB3C6 → #F28BA8` 渐变。
+
+## 4. Vite 开发模式兼容性验证
+
+- 修复了 `presentation.css` 裸写 `@apply` 导致开发模式下触发的 `[plugin:vite:css] [postcss] The 'bg-primary' class does not exist` 错误。使用标准 CSS 属性后，Vite 开发服务器对样式文件的热更新和按需编译均正常通过（HTTP 200 OK）。

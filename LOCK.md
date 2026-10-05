@@ -5,16 +5,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-gui/src/styles/tokens.css, agent-diva-gui/src/styles/controls.css, agent-diva-gui/public/splashscreen.html, docs/logs/2026-10-diva-design-language/v0.4.16-peach-sakura-pink/**, TODOLIST.md, LOCK.md`
+- Scope: `agent-diva-gui/src/styles/tokens.css, agent-diva-gui/src/styles/controls.css, agent-diva-gui/src/styles/presentation.css, agent-diva-gui/public/splashscreen.html, docs/logs/2026-10-diva-design-language/v0.4.16-peach-sakura-pink/**, TODOLIST.md, LOCK.md`
 - Owner: `Antigravity on behalf of user`
 - Session/Task: `af80665b-db7f-4da1-a491-8821a72bb8e1 / Peach Sakura Pink main release`
 - Branch/Worktree: `main / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva`
 - Started At: `2026-10-05T15:55:00Z`
-- Last Heartbeat: `2026-10-05T16:02:00Z`
-- Expires At: `released 2026-10-05T16:02:00Z`
+- Last Heartbeat: `2026-10-05T16:16:00Z`
+- Expires At: `released 2026-10-05T16:16:00Z`
 
 ### Peach Sakura Pink handoff
-Default and main themes calibrated to Peach Sakura Pink scheme per user specifications. High-contrast white text on #D9567B primary action buttons, 16-24px rounded radius scale, soft brand gradients, and splashscreen updated. All tests and GUI build passed. Directly releasing to main.
+Default and main themes calibrated to Peach Sakura Pink scheme per user specifications. High-contrast white text on #D9567B primary action buttons, 16-24px rounded radius scale, soft brand gradients, and splashscreen updated. PostCSS @apply error in presentation.css fixed with standard CSS properties. All tests and GUI build passed. Directly releasing to main.
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.

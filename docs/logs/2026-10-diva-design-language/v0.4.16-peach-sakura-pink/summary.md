@@ -28,3 +28,5 @@
    将原高饱和度洋红 (`#ec4899`) 替换为用户指定的 `#FFB3C6 → #F28BA8` 柔和渐变心形 Logo 与进度条，背景采用 `#FFF8F6` 暖白到 `#FFE3EA` 浅粉平滑过渡，文字统一为 `#3D2B31` 与 `#8F7C82`。
 4. **范围与隔离原则**：
    严格仅影响 `love` 与 `default` 主题，`miku` 青色主题与 `dark` 深色模式保持独立隔离。
+5. **CSS 规范化与消除 PostCSS @apply 依赖错误**：
+   将 `presentation.css` 中的 `::selection`、`::placeholder` 以及基础重置由 Tailwind `@apply` 还原为标准 W3C CSS 属性声明，彻底消除 Vite 开发环境下单文件 PostCSS 处理时报 `The bg-primary class does not exist` 的问题。

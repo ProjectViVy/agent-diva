@@ -1,24 +1,25 @@
 /* Business-specific presentation; shared controls live in controls.css. */
 @layer base {
   * {
-    @apply box-border;
+    box-sizing: border-box;
   }
 
   body {
-    @apply bg-transparent text-muted-foreground overflow-hidden;
     background-color: transparent !important;
+    color: var(--muted-foreground);
+    overflow: hidden;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   html {
-    @apply bg-transparent;
     background-color: transparent !important;
   }
 
   #app {
-    @apply w-full h-full;
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -738,11 +739,12 @@
 }
 
 ::selection {
-  @apply bg-primary text-primary-foreground;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 ::placeholder {
-  @apply text-muted-foreground;
+  color: var(--muted-foreground);
 }
 
 .settings-container {
