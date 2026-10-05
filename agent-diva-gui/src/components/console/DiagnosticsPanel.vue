@@ -78,12 +78,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="diag-panel">
     <div class="diag-filters">
-      <select v-model="source" class="ui-input diag-input" @change="refresh">
+      <select v-model="source" class="diag-input" @change="refresh">
         <option value="runtime">{{ t('diagnostics.sourceRuntime') }}</option>
         <option value="gui">{{ t('diagnostics.sourceGui') }}</option>
       </select>
-      <input v-model="date" type="date" class="ui-input diag-input" @change="refresh" />
-      <select v-model="level" class="ui-input diag-input" @change="refresh">
+      <input v-model="date" type="date" class="diag-input" @change="refresh" />
+      <select v-model="level" class="diag-input" @change="refresh">
         <option value="">{{ t('diagnostics.allLevels') }}</option>
         <option value="debug">debug</option>
         <option value="info">info</option>
@@ -92,15 +92,15 @@ onBeforeUnmount(() => {
       </select>
       <input
         v-model="query"
-        class="ui-input diag-input diag-query"
+        class="diag-input diag-query"
         :placeholder="t('diagnostics.queryPlaceholder')"
         @keyup.enter="refresh"
       />
-      <button class="ui-button ui-button--ghost diag-btn" :disabled="loading" @click="refresh">
+      <button class="diag-btn" :disabled="loading" @click="refresh">
         {{ t('diagnostics.refresh') }}
       </button>
       <button
-        class="ui-button ui-button--ghost diag-btn"
+        class="diag-btn"
         :disabled="loading || !page?.has_more || !page?.next_cursor"
         @click="nextPage"
       >
@@ -130,10 +130,10 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <div v-if="!page?.records?.length && !lastError" class="diag-empty">
+    <div v-if="!page?.records?.length" class="diag-empty">
       {{ loading ? t('diagnostics.loading') : t('diagnostics.empty') }}
     </div>
-    <div v-else-if="page?.records?.length" class="diag-records">
+    <div v-else class="diag-records">
       <div
         v-for="rec in page.records"
         :key="rec.id"
@@ -164,59 +164,83 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.diag-input {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
 .diag-query {
   flex: 1;
   min-width: 8rem;
 }
 
+.diag-btn {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg-light);
+  color: var(--text);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.diag-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .diag-banner {
   padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
 }
 
 .diag-banner--gap {
-  background: var(--warning-soft);
-  border: 1px solid var(--warning);
-  color: var(--warning);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
 }
 
 .diag-banner--error {
-  background: var(--destructive-soft);
-  border: 1px solid var(--destructive);
-  color: var(--destructive);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
 }
 
 .diag-banner--notice {
-  background: var(--accent);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
+  background: var(--accent-bg-light);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
 }
 
 .diag-stats {
   display: flex;
   gap: 0.75rem;
   font-size: 0.75rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   flex-wrap: wrap;
 }
 
 .diag-stat-warn {
-  color: var(--warning);
+  color: #f59e0b;
 }
 
 .diag-empty {
   padding: 1rem;
   text-align: center;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-size: 0.8125rem;
 }
 
 .diag-records {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -226,7 +250,7 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   padding: 0.375rem 0.625rem;
   font-size: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
   align-items: baseline;
 }
 
@@ -235,11 +259,11 @@ onBeforeUnmount(() => {
 }
 
 .diag-row--truncated {
-  background: var(--warning-soft);
+  background: rgba(245, 158, 11, 0.06);
 }
 
 .diag-time {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-family: var(--font-mono, monospace);
 }
 
@@ -247,30 +271,30 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   font-size: 0.625rem;
   letter-spacing: 0.05em;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .diag-level--warn {
-  color: var(--warning);
+  color: #f59e0b;
 }
 
 .diag-level--error {
-  color: var(--destructive);
+  color: #ef4444;
 }
 
 .diag-component {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .diag-message {
-  color: var(--foreground);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .diag-trunc {
-  color: var(--warning);
+  color: #f59e0b;
   font-size: 0.6875rem;
 }
 </style>

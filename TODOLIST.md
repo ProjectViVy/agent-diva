@@ -135,10 +135,6 @@ implementation and makes no Ready/Done implementation claim.
 
 ## Recorded delivery and cancellation
 
-- [x] **DIVA-PEACH-CHERRY-PALETTE** P3 — Implemented on the isolated
-  `codex/diva-design-language` branch while the UI work was parallelized;
-  Love/Default, dark mode and shared action surfaces were previewed and
-  validated in `docs/logs/2026-10-diva-design-language/v0.4.15-peach-cherry-pink/`.
 - [x] **DN-C2-P1-PLANS** — 20 executable Story plans supplied under existing
   DN/OBS stages with requirement coverage, immediate dependencies, waves,
   file ownership, checks and handoff. This closes planning only, not product work.
@@ -172,4 +168,8 @@ implementation and makes no Ready/Done implementation claim.
 - [ ] **`tauriVoiceFileReader`/`isTauri*` naming** — functional seam is Wails; leftover cosmetic names + locale strings ("Tauri 运行时") should be renamed in W4/W5 cleanup.
 - [ ] **W6 cleanup pending** — `src-tauri/`, `@tauri-apps/*` deps, Rust/tango recipes in justfile, `scripts/tauri` helpers all still present until W6 removal.
 - [ ] **Generated bindings drift** — `src/generated/wails/` must be regenerated (`just desktop-bindings`) after any bound-method change; no drift check in CI yet.
+
+## GUI follow-ups
+
+- [ ] **GUI-SESSION-PIN-PERSISTENCE** P3 — no verified session pin write contract exists; the no-op pin action and stale grouping were removed until persistence is available.
 

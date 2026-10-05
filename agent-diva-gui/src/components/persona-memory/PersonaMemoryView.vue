@@ -66,7 +66,7 @@ onMounted(async () => {
       </div>
       <div class="pm-head">
         <span class="pm-state">{{ t('personaMemory.personaState') }}: {{ stateBadge }}</span>
-        <button class="ui-button ui-button--ghost pm-btn" @click="cog.refresh()">{{ t('personaMemory.refresh') }}</button>
+        <button class="pm-btn" @click="cog.refresh()">{{ t('personaMemory.refresh') }}</button>
       </div>
 
       <div class="pm-kinds">
@@ -97,17 +97,17 @@ onMounted(async () => {
       <div class="pm-save-row">
         <input
           v-model="reason"
-          class="ui-input pm-reason"
+          class="pm-reason"
           :placeholder="t('personaSetup.reasonPlaceholder')"
         />
-        <button class="ui-button ui-button--ghost pm-btn primary" :disabled="saving" @click="save">
+        <button class="pm-btn primary" :disabled="saving" @click="save">
           {{ t('personaMemory.save') }}
         </button>
       </div>
       <div v-if="err" class="pm-error">{{ err.code }}: {{ err.message }}</div>
       <div v-if="unknownSave" class="pm-error">
         {{ t('personaMemory.unknownSave', { code: unknownSave.code }) }}
-        <button class="ui-button ui-button--ghost pm-btn" @click="cog.reconcilePersona(activeKind)">
+        <button class="pm-btn" @click="cog.reconcilePersona(activeKind)">
           {{ t('personaMemory.reconcile') }}
         </button>
       </div>
@@ -123,10 +123,10 @@ onMounted(async () => {
           </div>
           <pre class="pm-diff">{{ r.proposed_markdown }}</pre>
           <div v-if="r.state === 'pending'" class="pm-review-actions">
-            <button class="ui-button ui-button--ghost pm-btn primary" @click="decide(r, 'accept')">
+            <button class="pm-btn primary" @click="decide(r, 'accept')">
               {{ t('personaMemory.accept') }}
             </button>
-            <button class="ui-button ui-button--ghost pm-btn" @click="decide(r, 'reject')">{{ t('personaMemory.reject') }}</button>
+            <button class="pm-btn" @click="decide(r, 'reject')">{{ t('personaMemory.reject') }}</button>
           </div>
         </div>
       </section>
@@ -181,7 +181,7 @@ onMounted(async () => {
   align-items: center;
 }
 .pm-state {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .pm-kinds {
@@ -192,15 +192,15 @@ onMounted(async () => {
 .pm-kind {
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border, var(--border));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   background: transparent;
-  color: var(--foreground);
+  color: var(--text);
   cursor: pointer;
   font-size: 12px;
 }
 .pm-kind.active {
-  background: var(--primary-action, var(--primary));
-  color: var(--primary-action-foreground, var(--primary-foreground));
+  background: var(--accent);
+  color: #fff;
 }
 .pm-rev {
   opacity: 0.7;
@@ -210,10 +210,10 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 .pm-warn {
-  color: var(--warning);
+  color: var(--warn, #fa4);
 }
 .pm-save-row {
   display: flex;
@@ -223,24 +223,38 @@ onMounted(async () => {
 .pm-reason {
   flex: 1;
   background: transparent;
-  border: 1px solid var(--border, var(--border));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   padding: 6px 10px;
-  color: var(--foreground);
+  color: var(--text);
   font-size: 12px;
 }
+.pm-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.pm-btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
 .pm-error {
-  color: var(--destructive);
+  color: var(--danger, #f36);
   font-size: 12px;
 }
 .pm-notice {
   padding: 10px;
   border-radius: 8px;
-  background: var(--destructive-soft);
+  background: rgba(255, 170, 60, 0.12);
   font-size: 12px;
 }
 .pm-section {
-  border-top: 1px solid var(--border, var(--border));
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   padding-top: 10px;
   display: flex;
   flex-direction: column;
@@ -251,11 +265,11 @@ onMounted(async () => {
   font-size: 13px;
 }
 .pm-empty {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .pm-review {
-  border: 1px solid var(--border, var(--border));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   padding: 8px;
   display: flex;
@@ -268,14 +282,14 @@ onMounted(async () => {
   font-size: 12px;
 }
 .pm-badge[data-state='pending'] {
-  color: var(--warning);
+  color: var(--warn, #fa4);
 }
 .pm-badge[data-state='accepted'] {
-  color: var(--success);
+  color: var(--ok, #4c4);
 }
 .pm-badge[data-state='rejected'],
 .pm-badge[data-state='stale'] {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 .pm-diff {
   font-size: 11px;
@@ -283,7 +297,7 @@ onMounted(async () => {
   max-height: 120px;
   overflow: auto;
   margin: 0;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 .pm-review-actions {
   display: flex;
@@ -296,7 +310,7 @@ onMounted(async () => {
   font-size: 12px;
 }
 .pm-rev-list {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 .pm-entry pre {
   font-size: 11px;
@@ -304,7 +318,7 @@ onMounted(async () => {
   margin: 0;
 }
 .pm-owner {
-  border-top: 1px dashed var(--border, var(--border));
+  border-top: 1px dashed var(--border, rgba(255, 255, 255, 0.1));
   padding-top: 8px;
 }
 </style>

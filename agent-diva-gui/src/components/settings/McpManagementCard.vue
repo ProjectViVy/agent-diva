@@ -403,19 +403,23 @@ async function removeMcp(name: string) {
   if (previewMode.value) return;
   if (busyServer.value) return; // 操作锁
 
-  if (!(await appConfirm(t('mcp.deleteConfirm', { name })))) return;
-
-  busyServer.value = name;
-  try {
-    await deleteMcpServer(name);
-    showAppToast(t('mcp.operationSuccess'), 'success');
-    await refreshList();
-  } catch (err) {
-    error.value = String(err);
-    showAppToast(t('mcp.operationFailed'), 'error');
-  } finally {
-    busyServer.value = null;
-  }
+  const confirmed = await appConfirm(t('mcp.deleteConfirm', { name }), {
+    onConfirm: async () => {
+      busyServer.value = name;
+      error.value = '';
+      try {
+        await deleteMcpServer(name);
+        showAppToast(t('mcp.operationSuccess'), 'success');
+      } catch (err) {
+        error.value = String(err);
+        showAppToast(t('mcp.operationFailed'), 'error');
+        throw err;
+      } finally {
+        busyServer.value = null;
+      }
+    },
+  });
+  if (confirmed) await refreshList();
 }
 
 async function toggleMcp(item: McpServerSpec) {
@@ -558,13 +562,13 @@ function addEnv() {
 function stateClass(state: string) {
   switch (state) {
     case 'connected':
-      return 'ui-badge--success';
+      return 'mcp-status-badge mcp-status-connected';
     case 'degraded':
-      return 'ui-badge--warning';
+      return 'mcp-status-badge mcp-status-degraded';
     case 'disabled':
-      return '';
+      return 'mcp-status-badge mcp-status-disabled';
     default:
-      return 'ui-badge--destructive';
+      return 'mcp-status-badge mcp-status-invalid';
   }
 }
 
@@ -598,11 +602,11 @@ onMounted(refreshList);
         <div class="stat-label">{{ t('mcp.total') }}</div>
         <div class="stat-value">{{ mcps.length }}</div>
       </div>
-      <div class="stat-card" :class="onlineCount > 0 ? 'stat-card-online' : 'stat-card-neutral'">
+      <div class="stat-card stat-card-online">
         <div class="stat-label">{{ t('mcp.online') }}</div>
         <div class="stat-value">{{ onlineCount }}</div>
       </div>
-      <div class="stat-card" :class="degradedCount > 0 ? 'stat-card-degraded' : 'stat-card-neutral'">
+      <div class="stat-card stat-card-degraded">
         <div class="stat-label">{{ t('mcp.degraded') }}</div>
         <div class="stat-value">{{ degradedCount }}</div>
       </div>
@@ -623,7 +627,7 @@ onMounted(refreshList);
 
         <div class="header-actions">
           <button
-            class="ui-button ui-button--outline ui-button--compact action-btn action-btn-secondary"
+            class="action-btn action-btn-secondary"
             :disabled="loading"
             @click="refreshList"
           >
@@ -631,7 +635,7 @@ onMounted(refreshList);
             {{ t('mcp.refresh') }}
           </button>
 
-          <label class="ui-button ui-button--outline ui-button--compact action-btn cursor-pointer">
+          <label class="action-btn action-btn-secondary cursor-pointer">
             <Upload :size="14" />
             {{ t('mcp.importJson') }}
             <input
@@ -644,7 +648,7 @@ onMounted(refreshList);
           </label>
 
           <button
-            class="ui-button ui-button--outline ui-button--compact action-btn action-btn-secondary"
+            class="action-btn action-btn-secondary"
             :disabled="mcps.length === 0"
             @click="exportToJson"
           >
@@ -653,7 +657,7 @@ onMounted(refreshList);
           </button>
 
           <button
-            class="ui-button ui-button--primary ui-button--compact action-btn action-btn-primary"
+            class="action-btn action-btn-primary"
             :disabled="previewMode"
             @click="openCreate"
           >
@@ -670,19 +674,19 @@ onMounted(refreshList);
           <input
             v-model="searchQuery"
             type="text"
-            class="ui-input ui-input--embedded search-input"
+            class="search-input"
             :placeholder="t('mcp.searchPlaceholder')"
           />
           <button
             v-if="searchQuery"
-            class="ui-button ui-button--ghost clear-search-btn"
+            class="clear-search-btn"
             @click="clearSearch"
           >
             <X :size="12" />
           </button>
         </div>
 
-        <select v-model="statusFilter" class="ui-input filter-select">
+        <select v-model="statusFilter" class="filter-select">
           <option value="all">{{ t('mcp.filterAll') }}</option>
           <option value="enabled">{{ t('mcp.filterEnabled') }}</option>
           <option value="disabled">{{ t('mcp.filterDisabled') }}</option>
@@ -690,7 +694,7 @@ onMounted(refreshList);
           <option value="degraded">{{ t('mcp.filterDegraded') }}</option>
         </select>
 
-        <select v-model="sortByRef" class="ui-input filter-select">
+        <select v-model="sortByRef" class="filter-select">
           <option value="name">{{ t('mcp.sortByName') }}</option>
           <option value="status">{{ t('mcp.sortByStatus') }}</option>
           <option value="time">{{ t('mcp.sortByTime') }}</option>
@@ -710,24 +714,24 @@ onMounted(refreshList);
       </div>
 
       <!-- 空状态 -->
-      <div v-else-if="mcps.length === 0 && !error" class="empty-state">
+      <div v-else-if="mcps.length === 0" class="empty-state">
         <Bot :size="32" class="empty-icon" />
         <span>{{ t('mcp.empty') }}</span>
       </div>
 
       <!-- 无搜索结果 -->
-      <div v-else-if="filteredMcps.length === 0 && !error" class="empty-state">
+      <div v-else-if="filteredMcps.length === 0" class="empty-state">
         <Search :size="32" class="empty-icon" />
         <span>{{ t('mcp.noSelection') }}</span>
-        <button class="ui-button ui-button--ghost clear-btn" @click="clearSearch">{{ t('mcp.filterAll') }}</button>
+        <button class="clear-btn" @click="clearSearch">{{ t('mcp.filterAll') }}</button>
       </div>
 
       <!-- 服务器列表（简化DOM结构） -->
-      <div v-else-if="mcps.length > 0" class="server-list">
+      <div v-else class="server-list">
         <div
           v-for="item in filteredMcps"
           :key="item.name"
-          class="ui-card server-card"
+          class="server-card"
           :class="{ expanded: expandedServer === item.name, busy: busyServer === item.name }"
         >
           <!-- 卡片头部（可点击展开） -->
@@ -740,12 +744,12 @@ onMounted(refreshList);
               <span class="server-name">{{ item.name }}</span>
 
               <!-- 状态徽章 -->
-              <span class="ui-badge" :class="stateClass(displayState(item))">
+              <span class="mcp-status-badge" :class="stateClass(displayState(item))">
                 {{ stateLabel(displayState(item)) }}
               </span>
 
               <!-- 传输协议标签 -->
-              <span class="ui-badge ui-badge--info">
+              <span class="mcp-transport-tag">
                 {{ item.transport === 'http' ? t('mcp.transportHttp') : t('mcp.transportStdio') }}
               </span>
 
@@ -776,7 +780,7 @@ onMounted(refreshList);
                   {{ item.transport === 'http' ? item.endpoint : `${item.command} ${item.args.join(' ')}` }}
                 </code>
                 <button
-                  class="ui-button ui-button--ghost copy-btn"
+                  class="copy-btn"
                   :disabled="copiedName === item.name"
                   @click.stop="copyCommand(item)"
                 >
@@ -805,7 +809,7 @@ onMounted(refreshList);
             <!-- 操作按钮组 -->
             <div class="action-group">
               <button
-                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
+                class="action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="refreshOne(item.name)"
               >
@@ -814,7 +818,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
+                class="action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="openEdit(item)"
               >
@@ -822,7 +826,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
+                class="action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="toggleMcp(item)"
               >
@@ -831,7 +835,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="ui-button ui-button--destructive ui-button--compact action-btn-sm action-btn-danger"
+                class="action-btn-sm action-btn-danger"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="removeMcp(item.name)"
               >
@@ -856,7 +860,7 @@ onMounted(refreshList);
             <h4>{{ editorMode === 'create' ? t('mcp.formCreate') : t('mcp.formEdit') }}</h4>
             <p>{{ t('mcp.currentUsing') }}</p>
           </div>
-          <button class="ui-button ui-button--ghost ui-button--compact modal-close-btn" @click="closeEditor">
+          <button class="modal-close-btn" @click="closeEditor">
             <X :size="16" />
           </button>
         </div>
@@ -868,7 +872,7 @@ onMounted(refreshList);
               <span class="field-label">{{ t('mcp.name') }}</span>
               <input
                 v-model="form.name"
-                class="ui-input field-input"
+                class="field-input"
                 :placeholder="t('mcp.name')"
                 @input="syncRawJsonFromForm"
               />
@@ -879,7 +883,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.transport') }}</span>
                 <select
                   v-model="form.transport"
-                  class="ui-input field-select"
+                  class="field-select"
                   @change="syncRawJsonFromForm"
                 >
                   <option value="stdio">{{ t('mcp.transportStdio') }}</option>
@@ -902,7 +906,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.command') }}</span>
                 <input
                   v-model="form.command"
-                  class="ui-input field-input"
+                  class="field-input"
                   :placeholder="t('mcp.command')"
                   @input="syncRawJsonFromForm"
                 />
@@ -911,18 +915,18 @@ onMounted(refreshList);
               <div class="form-field">
                 <div class="field-header">
                   <span class="field-label">{{ t('mcp.args') }}</span>
-                  <button class="ui-button ui-button--ghost add-btn" @click="addArg">{{ t('mcp.addArg') }}</button>
+                  <button class="add-btn" @click="addArg">{{ t('mcp.addArg') }}</button>
                 </div>
                 <div class="args-list">
                   <div v-for="(_, index) in form.args" :key="`arg-${index}`" class="arg-item">
                     <input
                       v-model="form.args[index]"
-                      class="ui-input arg-input"
+                      class="arg-input"
                       :placeholder="t('mcp.argPlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <button
-                      class="ui-button ui-button--ghost remove-btn"
+                      class="remove-btn"
                       @click="form.args.splice(index, 1); syncRawJsonFromForm()"
                     >
                       <X :size="12" />
@@ -935,24 +939,24 @@ onMounted(refreshList);
               <div class="form-field">
                 <div class="field-header">
                   <span class="field-label">{{ t('mcp.env') }}</span>
-                  <button class="ui-button ui-button--ghost add-btn" @click="addEnv">{{ t('mcp.addEnv') }}</button>
+                  <button class="add-btn" @click="addEnv">{{ t('mcp.addEnv') }}</button>
                 </div>
                 <div class="env-list">
                   <div v-for="(item, index) in form.env" :key="`env-${index}`" class="env-item">
                     <input
                       v-model="item.key"
-                      class="ui-input env-key-input"
+                      class="env-key-input"
                       :placeholder="t('mcp.envKeyPlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <input
                       v-model="item.value"
-                      class="ui-input env-value-input"
+                      class="env-value-input"
                       :placeholder="t('mcp.envValuePlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <button
-                      class="ui-button ui-button--ghost remove-btn"
+                      class="remove-btn"
                       @click="form.env.splice(index, 1); syncRawJsonFromForm()"
                     >
                       <X :size="12" />
@@ -969,7 +973,7 @@ onMounted(refreshList);
                   <Globe :size="14" class="url-icon" />
                   <input
                     v-model="form.url"
-                    class="ui-input ui-input--embedded url-input"
+                    class="url-input"
                     :placeholder="t('mcp.url')"
                     @input="syncRawJsonFromForm"
                   />
@@ -980,7 +984,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.authEnv') }}</span>
                 <input
                   v-model="form.authEnv"
-                  class="ui-input field-input"
+                  class="field-input"
                   :placeholder="t('mcp.authEnvPlaceholder')"
                   @input="syncRawJsonFromForm"
                 />
@@ -994,28 +998,28 @@ onMounted(refreshList);
             <div class="json-header">
               <span class="json-label">{{ t('mcp.editJson') }}</span>
               <div class="json-actions">
-                <button class="ui-button ui-button--ghost json-btn" @click="syncRawJsonFromForm">
+                <button class="json-btn" @click="syncRawJsonFromForm">
                   {{ t('mcp.syncJson') }}
                 </button>
-                <button class="ui-button ui-button--ghost json-btn" @click="applyRawJsonToForm">
+                <button class="json-btn" @click="applyRawJsonToForm">
                   {{ t('mcp.applyJson') }}
                 </button>
               </div>
             </div>
             <textarea
               v-model="rawJson"
-              class="ui-input json-editor"
+              class="json-editor"
               spellcheck="false"
             />
           </div>
         </div>
 
         <div class="modal-footer">
-          <button class="ui-button ui-button--outline ui-button--compact footer-btn footer-btn-cancel" @click="closeEditor">
+          <button class="footer-btn footer-btn-cancel" @click="closeEditor">
             {{ t('mcp.cancel') }}
           </button>
           <button
-            class="ui-button ui-button--primary ui-button--compact footer-btn footer-btn-save"
+            class="footer-btn footer-btn-save"
             :disabled="saving"
             @click="submitForm"
           >
@@ -1033,75 +1037,65 @@ onMounted(refreshList);
 .stat-card {
   border-radius: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--border);
-  background: var(--card);
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
   transition: all 0.15s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow);
 }
 
 .stat-card-total {
-  border-color: var(--border);
+  border-color: rgba(107, 114, 128, 0.2);
 }
 
 .stat-card-total .stat-label {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .stat-card-total .stat-value {
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .stat-card-online {
-  border-color: var(--success);
-  background: var(--card);
+  border-color: rgba(16, 185, 129, 0.2);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);
 }
 
 .stat-card-online .stat-label {
-  color: var(--success);
+  color: #059669;
 }
 
 .stat-card-online .stat-value {
-  color: var(--success);
+  color: #047857;
 }
 
 .stat-card-degraded {
-  border-color: var(--destructive);
-  background: var(--card);
+  border-color: rgba(245, 158, 11, 0.2);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), transparent);
 }
 
 .stat-card-degraded .stat-label {
-  color: var(--destructive);
+  color: #d97706;
 }
 
 .stat-card-degraded .stat-value {
-  color: var(--destructive);
+  color: #b45309;
 }
 
 .stat-card-disabled {
-  border-color: var(--border);
-  background: var(--card);
+  border-color: rgba(100, 116, 139, 0.2);
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), transparent);
 }
 
 .stat-card-disabled .stat-label {
-  color: var(--muted-foreground);
+  color: #64748b;
 }
 
 .stat-card-disabled .stat-value {
-  color: var(--muted-foreground);
-}
-
-.stat-card-neutral {
-  border-color: var(--border);
-  background: var(--card);
-}
-
-.stat-card-neutral .stat-label,
-.stat-card-neutral .stat-value {
-  color: var(--muted-foreground);
+  color: #475569;
 }
 
 .stat-label {
@@ -1119,8 +1113,8 @@ onMounted(refreshList);
 /* 主列表面板 */
 .mcp-list-panel {
   border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--card);
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
   padding: 18px;
   space-y: 16px;
 }
@@ -1143,12 +1137,12 @@ onMounted(refreshList);
 .title-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .title-desc {
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1163,7 +1157,40 @@ onMounted(refreshList);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.action-btn:hover:not(:disabled) {
+  background: var(--nav-hover);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn-primary {
+  background: var(--btn-primary-bg, var(--brand-dark, #D9567B));
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 2px 8px rgba(217, 86, 123, 0.2);
+}
+
+.action-btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-hover, #C24367);
+  box-shadow: 0 4px 12px rgba(217, 86, 123, 0.28);
+}
+
+.action-btn-secondary {
+  background: var(--panel);
 }
 
 /* 搜索和筛选栏 */
@@ -1180,53 +1207,77 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
-.search-input-wrapper:focus-within,
-.url-input-wrapper:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--ring-soft);
+  border: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .search-icon {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .search-input {
   flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .clear-search-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.clear-search-btn:hover {
+  background: var(--nav-hover);
+  color: var(--text);
 }
 
 .filter-select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
   min-width: 100px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--brand);
 }
 
 /* 提示框 */
 .hint-box {
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px dashed var(--border);
-  background: var(--card);
+  border: 1px dashed var(--line);
+  background: rgba(249, 250, 251, 0.5);
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
 .preview-warning {
   margin-top: 6px;
-  color: var(--warning);
+  color: #d97706;
 }
 
 /* 加载和空状态 */
@@ -1238,17 +1289,28 @@ onMounted(refreshList);
   justify-content: center;
   padding: 32px;
   gap: 8px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .empty-icon {
   opacity: 0.5;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .clear-btn {
   margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.clear-btn:hover {
+  background: var(--nav-hover);
 }
 
 /* 服务器列表 */
@@ -1260,17 +1322,20 @@ onMounted(refreshList);
 
 /* 服务器卡片（简化DOM结构） */
 .server-card {
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
   transition: all 0.15s ease;
   overflow: hidden;
 }
 
 .server-card:hover {
-  border-color: var(--border-strong);
+  border-color: rgba(236, 72, 153, 0.2);
 }
 
 .server-card.expanded {
-  border-color: var(--primary);
-  background: var(--card);
+  border-color: var(--brand);
+  background: var(--panel-solid);
 }
 
 .server-card.busy {
@@ -1289,7 +1354,7 @@ onMounted(refreshList);
 }
 
 .card-header:hover {
-  background: var(--accent);
+  background: var(--nav-hover);
 }
 
 .header-left {
@@ -1309,28 +1374,28 @@ onMounted(refreshList);
 }
 
 .status-dot.connected {
-  background: var(--success);
-  box-shadow: var(--shadow-sm);
+  background: var(--success, #22c55e);
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
 }
 
 .status-dot.degraded {
-  background: var(--warning);
-  box-shadow: var(--shadow-sm);
+  background: var(--warning, #f59e0b);
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
 }
 
 .status-dot.disabled {
-  background: var(--muted-foreground);
+  background: #94a3b8;
 }
 
 .status-dot.invalid {
-  background: var(--destructive);
-  box-shadow: var(--shadow-sm);
+  background: var(--danger, #ef4444);
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
 }
 
 .server-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
   truncate: true;
 }
 
@@ -1340,20 +1405,20 @@ onMounted(refreshList);
 }
 
 .expand-chevron {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   transition: transform 0.2s ease;
 }
 
 .expand-chevron.rotated {
   transform: rotate(90deg);
-  color: var(--primary);
+  color: var(--brand);
 }
 
 /* 展开的详情区域 */
 .card-details {
   padding: 12px 14px;
-  border-top: 1px solid var(--border);
-  background: var(--card);
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .detail-section {
@@ -1363,7 +1428,7 @@ onMounted(refreshList);
 .section-label {
   font-size: 11px;
   font-weight: 500;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-bottom: 4px;
 }
 
@@ -1377,10 +1442,10 @@ onMounted(refreshList);
   flex: 1;
   padding: 6px 10px;
   border-radius: 6px;
-  background: var(--accent);
+  background: rgba(15, 23, 42, 0.05);
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
-  color: var(--foreground);
+  color: var(--text);
   word-break: break-all;
 }
 
@@ -1388,7 +1453,24 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.copy-btn:hover:not(:disabled) {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+
+.copy-btn:disabled {
+  background: var(--success-bg, rgba(34, 197, 94, 0.1));
+  color: var(--success, #22c55e);
+  border-color: rgba(34, 197, 94, 0.2);
 }
 
 .metadata-row {
@@ -1396,7 +1478,7 @@ onMounted(refreshList);
   flex-wrap: wrap;
   gap: 12px;
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-bottom: 8px;
 }
 
@@ -1411,19 +1493,19 @@ onMounted(refreshList);
   gap: 6px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--destructive-soft);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
   margin-bottom: 10px;
 }
 
 .error-icon {
-  color: var(--destructive);
+  color: var(--danger, #ef4444);
   flex-shrink: 0;
   margin-top: 1px;
 }
 
 .error-text {
   font-size: 11px;
-  color: var(--destructive);
+  color: #dc2626;
   word-break: break-word;
 }
 
@@ -1438,19 +1520,44 @@ onMounted(refreshList);
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.action-btn-sm:hover:not(:disabled) {
+  background: var(--nav-hover);
+}
+
+.action-btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn-danger {
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.action-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
 }
 
 /* 消息提示 */
 .success-msg {
   font-size: 12px;
-  color: var(--success);
+  color: #059669;
   margin-top: 8px;
 }
 
 .error-msg {
   font-size: 12px;
-  color: var(--destructive);
+  color: #dc2626;
   word-break: break-word;
   margin-top: 8px;
 }
@@ -1463,7 +1570,8 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--overlay);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
 }
 
 .modal-panel {
@@ -1471,9 +1579,9 @@ onMounted(refreshList);
   max-width: 900px;
   max-height: 90vh;
   border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1484,18 +1592,18 @@ onMounted(refreshList);
   align-items: flex-start;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .modal-title h4 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .modal-title p {
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1503,6 +1611,17 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.modal-close-btn:hover {
+  background: var(--nav-hover);
+  color: var(--text);
 }
 
 .modal-body {
@@ -1536,13 +1655,41 @@ onMounted(refreshList);
 .field-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
+}
+
+.field-input,
+.field-select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.field-input:focus,
+.field-select:focus {
+  outline: none;
+  border-color: var(--brand);
 }
 
 .field-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.add-btn {
+  font-size: 12px;
+  color: var(--brand);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.add-btn:hover {
+  color: var(--brand-light);
 }
 
 .args-list,
@@ -1563,6 +1710,19 @@ onMounted(refreshList);
 .env-key-input,
 .env-value-input {
   flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.arg-input:focus,
+.env-key-input:focus,
+.env-value-input:focus {
+  outline: none;
+  border-color: var(--brand);
 }
 
 .env-item {
@@ -1574,11 +1734,21 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.remove-btn:hover {
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
 }
 
 .field-hint {
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1594,35 +1764,41 @@ onMounted(refreshList);
   gap: 8px;
   padding-top: 24px;
   font-size: 13px;
-  color: var(--foreground);
+  color: var(--text);
   cursor: pointer;
 }
 
 .form-checkbox input {
   width: 16px;
   height: 16px;
-  accent-color: var(--primary);
+  accent-color: var(--brand);
 }
 
 .url-input-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 6px 12px;
+  padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  border: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .url-icon {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .url-input {
   flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.url-input:focus {
+  outline: none;
 }
 
 /* JSON编辑区域 */
@@ -1641,7 +1817,7 @@ onMounted(refreshList);
 .json-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .json-actions {
@@ -1649,22 +1825,36 @@ onMounted(refreshList);
   gap: 6px;
 }
 
+.json-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.json-btn:hover {
+  background: var(--nav-hover);
+}
+
 .json-editor {
   flex: 1;
   min-height: 400px;
   padding: 14px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--muted);
+  border: 1px solid var(--line);
+  background: #0f172a;
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
-  color: var(--foreground);
+  color: #e2e8f0;
   resize: none;
 }
 
 .json-editor:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: var(--brand);
 }
 
 /* 弹窗底部 */
@@ -1674,10 +1864,42 @@ onMounted(refreshList);
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .footer-btn {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.footer-btn-cancel {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.footer-btn-cancel:hover {
+  background: var(--nav-hover);
+}
+
+.footer-btn-save {
+  background: linear-gradient(135deg, var(--brand), var(--brand-light));
+  border: none;
+  color: white;
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.2);
+}
+
+.footer-btn-save:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.25);
+}
+
+.footer-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

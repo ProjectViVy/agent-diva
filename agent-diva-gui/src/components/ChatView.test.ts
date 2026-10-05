@@ -72,6 +72,21 @@ function mockChatScroll(
 
 describe('ChatView streaming states', () => {
 
+  it('shows only message actions that are implemented', () => {
+    const wrapper = mountChat([
+      { id: 'user-1', role: 'user', content: 'Question', timestamp: 1 },
+      { id: 'agent-1', role: 'agent', content: 'Answer', timestamp: 2 },
+    ], { isTyping: false });
+
+    const titles = wrapper.findAll('.msg-action-btn').map((button) => button.attributes('title'));
+    expect(titles).toContain('chat.copy');
+    expect(titles).toContain('chat.regenerate');
+    expect(titles).toContain('chat.voiceReplay');
+    expect(titles.some((title) => title?.startsWith('chat.edit'))).toBe(false);
+    expect(titles.some((title) => title?.startsWith('chat.rewind'))).toBe(false);
+    expect(titles.some((title) => title?.startsWith('chat.fork'))).toBe(false);
+  });
+
   it('restores and persists the permission mode via localStorage', async () => {
     localStorage.setItem('agent-diva.permissionMode', 'trusted');
     const wrapper = shallowMount(ChatView, {

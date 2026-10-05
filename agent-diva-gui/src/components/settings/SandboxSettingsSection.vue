@@ -90,7 +90,7 @@ onMounted(load);
 <template>
   <div class="sandbox-settings space-y-6">
     <div class="flex items-center gap-2">
-      <ShieldCheck :size="18" class="text-success" />
+      <ShieldCheck :size="18" class="text-emerald-500" />
       <h3 class="text-base font-semibold">{{ t('sandbox.title') }}</h3>
     </div>
 
@@ -98,7 +98,7 @@ onMounted(load);
       <LoaderCircle :size="14" class="animate-spin" />
       {{ t('sandbox.loading') }}
     </div>
-    <div v-else-if="loadError" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--destructive)' }">
+    <div v-else-if="loadError" class="flex items-center gap-2 text-sm" :style="{ color: 'var(--danger)' }">
       <AlertTriangle :size="14" />
       {{ loadError }}
     </div>
@@ -115,7 +115,7 @@ onMounted(load);
             v-for="p in PRESETS"
             :key="p"
             type="button"
-            class="ui-button ui-button--ghost sandbox-preset-btn"
+            class="sandbox-preset-btn"
             :class="{ active: preset === p }"
             @click="preset = p"
           >
@@ -161,7 +161,7 @@ onMounted(load);
             class="sandbox-tag"
           >
             <span class="sandbox-tag-text">{{ domain }}</span>
-            <button type="button" class="ui-button ui-button--ghost ui-button--compact sandbox-tag-remove" @click="removeDomain(idx)">
+            <button type="button" class="sandbox-tag-remove" @click="removeDomain(idx)">
               <X :size="12" />
             </button>
           </span>
@@ -170,11 +170,11 @@ onMounted(load);
           <input
             v-model="newDomain"
             type="text"
-            class="ui-input settings-input flex-1"
+            class="settings-input flex-1"
             :placeholder="t('sandbox.addDomainPlaceholder')"
             @keydown.enter.prevent="addDomain"
           />
-          <button type="button" class="ui-button ui-button--outline settings-btn settings-btn-secondary" @click="addDomain">
+          <button type="button" class="settings-btn settings-btn-secondary" @click="addDomain">
             <Plus :size="14" />
           </button>
         </div>
@@ -190,7 +190,7 @@ onMounted(load);
           v-model.number="approvalTimeoutSeconds"
           type="number"
           min="0"
-          class="ui-input settings-input w-32"
+          class="settings-input w-32"
         />
         <p class="text-xs settings-muted">
           {{ t('sandbox.approvalTimeoutMeta', {
@@ -227,7 +227,7 @@ onMounted(load);
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="ui-button ui-button--ghost settings-btn"
+          class="settings-btn"
           :disabled="saving || !isDirty"
           @click="save"
         >
@@ -241,12 +241,23 @@ onMounted(load);
 
 <style scoped>
 .sandbox-preset-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: var(--accent-bg-light);
+  color: var(--text-muted);
+  border: 1px solid transparent;
   transition: all 0.2s;
 }
 
+.sandbox-preset-btn:hover {
+  background: var(--nav-hover);
+}
+
 .sandbox-preset-btn.active {
-  color: var(--primary);
-  border-color: var(--primary);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .sandbox-tag-list {
@@ -262,13 +273,18 @@ onMounted(load);
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   border-radius: 9999px;
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--accent-bg-light);
+  color: var(--text);
 }
 
 .sandbox-tag-remove {
   display: inline-flex;
   align-items: center;
+  color: var(--text-muted);
+}
+
+.sandbox-tag-remove:hover {
+  color: var(--danger);
 }
 
 .sandbox-toggle {
@@ -276,13 +292,13 @@ onMounted(load);
   width: 2rem;
   height: 1.125rem;
   border-radius: 9999px;
-  background: var(--border);
+  background: var(--line);
   transition: background 0.2s;
   flex-shrink: 0;
 }
 
 .sandbox-toggle.active {
-  background: var(--primary);
+  background: var(--accent);
 }
 
 .sandbox-toggle-thumb {
@@ -292,7 +308,7 @@ onMounted(load);
   width: 0.875rem;
   height: 0.875rem;
   border-radius: 9999px;
-  background: var(--card);
+  background: white;
   transition: transform 0.2s;
 }
 
@@ -314,6 +330,6 @@ onMounted(load);
 }
 
 .sandbox-fact dt {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 </style>

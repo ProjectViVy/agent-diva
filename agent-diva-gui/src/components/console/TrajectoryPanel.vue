@@ -169,32 +169,32 @@ function shortId(id: string): string {
 
 .traj-banner {
   padding: 0.625rem 1rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
 }
 
 .traj-banner--notice {
-  background: var(--accent);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
+  background: var(--accent-bg-light);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
 }
 
 .traj-banner--gap {
-  background: var(--warning-soft);
-  border: 1px solid var(--warning);
-  color: var(--warning);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
 }
 
 .traj-banner--error {
-  background: var(--destructive-soft);
-  border: 1px solid var(--destructive);
-  color: var(--destructive);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
 }
 
 .run-block {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--accent-bg-light);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
@@ -211,13 +211,13 @@ function shortId(id: string): string {
 .run-id {
   font-family: var(--font-mono, monospace);
   font-size: 0.75rem;
-  color: var(--foreground);
+  color: var(--text);
   font-weight: 600;
 }
 
 .run-status {
   font-size: 0.75rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .activity-chip,
@@ -227,34 +227,34 @@ function shortId(id: string): string {
   font-size: 0.6875rem;
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
-  background: var(--card);
-  color: var(--muted-foreground);
+  background: var(--panel-solid);
+  color: var(--text-muted);
 }
 
 .activity-chip--active {
-  background: var(--info-soft);
-  color: var(--info);
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
 }
 
 .activity-chip--waiting {
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
 }
 
 .activity-chip--completed {
-  background: var(--success-soft);
-  color: var(--success);
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
 .activity-chip--failed,
 .activity-chip--cancelled {
-  background: var(--destructive-soft);
-  color: var(--destructive);
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .wait-chip {
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
 }
 
 .run-refs {
@@ -263,7 +263,7 @@ function shortId(id: string): string {
   gap: 0.375rem;
   flex-wrap: wrap;
   font-size: 0.75rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .request-table {
@@ -277,47 +277,47 @@ function shortId(id: string): string {
   grid-template-columns: 2fr 1fr 1fr;
   gap: 0.5rem;
   padding: 0.375rem 0.5rem;
-  border-radius: var(--radius-md);
-  background: var(--card);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
   font-size: 0.75rem;
   align-items: center;
 }
 
 .request-row--head {
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-weight: 600;
   padding-bottom: 0;
 }
 
 .req-id {
   font-family: var(--font-mono, monospace);
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .req-usage {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   text-align: right;
 }
 
 .call-chip--completed {
-  background: var(--success-soft);
-  color: var(--success);
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
 .call-chip--active {
-  background: var(--info-soft);
-  color: var(--info);
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
 }
 
 .call-chip--failed,
 .call-chip--cancelled,
 .call-chip--interrupted {
-  background: var(--destructive-soft);
-  color: var(--destructive);
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .record-list {
@@ -332,26 +332,26 @@ function shortId(id: string): string {
   gap: 0.5rem;
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
 }
 
 .record-row--error .record-text {
-  color: var(--destructive);
+  color: #ef4444;
 }
 
 .record-kind {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   text-transform: uppercase;
   font-size: 0.625rem;
   letter-spacing: 0.05em;
 }
 
 .record-group {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .record-text {
-  color: var(--foreground);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

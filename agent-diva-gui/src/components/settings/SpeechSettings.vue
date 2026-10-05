@@ -11,7 +11,6 @@ import {
   type VoiceAssetDescriptor,
 } from '../../api/speech';
 import { showAppToast } from '../../utils/appToast';
-import { appConfirm } from '../../utils/appDialog';
 import { recordGuiDiagnostic } from '../../state/gui-diagnostics';
 
 const { t } = useI18n();
@@ -70,23 +69,15 @@ async function save() {
       preferences: draft.value,
     });
     config.value = reply;
-    showAppToast(t('settings.saved'), 'success');
+    showAppToast(t('console.saved'), 'success');
   } catch (err) {
-    // Keep the draft visible on conflict. Reloading the authoritative document
-    // is an explicit action because it replaces the user's unsaved edits.
+    // CAS conflicts surface through the error string; refresh gives the user
+    // the authoritative document instead of a silent overwrite.
     loadError.value = err instanceof Error ? err.message : String(err);
+    await refresh();
   } finally {
     saving.value = false;
   }
-}
-
-async function reloadSavedSettings() {
-  if (isDirty.value && !(await appConfirm(t('speechSettings.reloadConfirm'), {
-    title: t('speechSettings.reloadTitle'),
-    confirmLabel: t('speechSettings.reloadAction'),
-    cancelLabel: t('appDialog.cancel'),
-  }))) return;
-  await refresh();
 }
 
 async function setCredential(provider: 'siliconflow' | 'minimax') {
@@ -98,7 +89,7 @@ async function setCredential(provider: 'siliconflow' | 'minimax') {
     // The key field clears immediately — provider credentials never persist
     // in renderer state.
     credentialDrafts.value = { ...credentialDrafts.value, [provider]: '' };
-    showAppToast(t('settings.saved'), 'success');
+    showAppToast(t('console.saved'), 'success');
     await refresh();
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : String(err);
@@ -169,7 +160,7 @@ onMounted(refresh);
       </div>
       <button
         type="button"
-        class="ui-button ui-button--primary btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
+        class="btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
         :disabled="saving || !isDirty || loading || unavailable"
         @click="save"
       >
@@ -181,19 +172,8 @@ onMounted(refresh);
     <p v-if="unavailable" class="settings-section settings-muted text-sm">
       {{ t('speechSettings.nativeUnavailable') }}
     </p>
-    <div v-if="loadError" class="flex flex-wrap items-center gap-3" role="alert">
-      <p class="text-xs" style="color: var(--destructive);">{{ loadError }}</p>
-      <button
-        v-if="isDirty"
-        type="button"
-        class="ui-button ui-button--outline ui-button--compact"
-        :disabled="loading || saving"
-        @click="reloadSavedSettings"
-      >
-        {{ t('speechSettings.reloadAction') }}
-      </button>
-    </div>
-    <p v-if="loading && !unavailable" class="settings-muted text-sm">{{ t('settings.loading') }}</p>
+    <p v-if="loadError" class="text-xs" style="color: var(--danger);">{{ loadError }}</p>
+    <p v-if="loading && !unavailable" class="settings-muted text-sm">{{ t('console.loading') }}</p>
 
     <template v-if="draft && !unavailable">
       <div class="settings-section">
@@ -201,17 +181,17 @@ onMounted(refresh);
         <div class="grid grid-cols-3 gap-4">
           <div class="space-y-1">
             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.provider') }}</label>
-            <select v-model="draft.stt.provider" class="ui-input settings-input">
+            <select v-model="draft.stt.provider" class="settings-input">
               <option value="siliconflow">SiliconFlow</option>
             </select>
           </div>
           <div class="space-y-1">
             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.baseUrl') }}</label>
-            <input v-model="draft.stt.base_url" class="ui-input settings-input" :placeholder="t('speechSettings.baseUrlPlaceholder')" />
+            <input v-model="draft.stt.base_url" class="settings-input" :placeholder="t('speechSettings.baseUrlPlaceholder')" />
           </div>
           <div class="space-y-1">
             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.model') }}</label>
-            <input v-model="draft.stt.model" class="ui-input settings-input" />
+            <input v-model="draft.stt.model" class="settings-input" />
           </div>
         </div>
       </div>
@@ -221,7 +201,7 @@ onMounted(refresh);
         <div class="grid grid-cols-3 gap-4">
           <div class="space-y-1">
             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.provider') }}</label>
-            <select v-model="draft.tts.provider" class="ui-input settings-input">
+            <select v-model="draft.tts.provider" class="settings-input">
               <option value="siliconflow">SiliconFlow</option>
               <option value="minimax">MiniMax</option>
             </select>
@@ -229,21 +209,21 @@ onMounted(refresh);
           <template v-if="draft.tts.provider === 'siliconflow' && draft.tts.siliconflow">
             <div class="space-y-1">
               <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.model') }}</label>
-              <input v-model="draft.tts.siliconflow.model" class="ui-input settings-input" />
+              <input v-model="draft.tts.siliconflow.model" class="settings-input" />
             </div>
             <div class="space-y-1">
               <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.voice') }}</label>
-              <input v-model="draft.tts.siliconflow.voice" class="ui-input settings-input" />
+              <input v-model="draft.tts.siliconflow.voice" class="settings-input" />
             </div>
           </template>
           <template v-if="draft.tts.provider === 'minimax' && draft.tts.minimax">
             <div class="space-y-1">
               <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.model') }}</label>
-              <input v-model="draft.tts.minimax.model" class="ui-input settings-input" />
+              <input v-model="draft.tts.minimax.model" class="settings-input" />
             </div>
             <div class="space-y-1">
               <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('speechSettings.voiceId') }}</label>
-              <input v-model="draft.tts.minimax.voice_id" class="ui-input settings-input" />
+              <input v-model="draft.tts.minimax.voice_id" class="settings-input" />
             </div>
           </template>
         </div>
@@ -267,15 +247,15 @@ onMounted(refresh);
           <input
             v-model="credentialDrafts[provider]"
             type="password"
-            class="ui-input settings-input w-64"
+            class="settings-input w-64"
             :placeholder="t('speechSettings.credentialPlaceholder')"
             autocomplete="off"
           />
           <div class="flex gap-2">
-            <button class="ui-button ui-button--ghost settings-btn" :disabled="credentialBusy[provider] || !credentialDrafts[provider].trim()" @click="setCredential(provider)">
+            <button class="settings-btn text-xs px-3 py-1" :disabled="credentialBusy[provider] || !credentialDrafts[provider].trim()" @click="setCredential(provider)">
               {{ t('speechSettings.credentialSave') }}
             </button>
-            <button class="ui-button ui-button--ghost settings-btn" :disabled="credentialBusy[provider] || config.credential_state?.[provider] !== 'configured'" @click="deleteCredential(provider)">
+            <button class="settings-btn text-xs px-3 py-1" :disabled="credentialBusy[provider] || config.credential_state?.[provider] !== 'configured'" @click="deleteCredential(provider)">
               {{ t('speechSettings.credentialDelete') }}
             </button>
           </div>
@@ -294,7 +274,7 @@ onMounted(refresh);
           class="flex items-center justify-between py-1 text-sm"
         >
           <span>{{ asset.display_name }} <span class="settings-muted text-xs">({{ asset.mime_type }}, {{ asset.size_bytes }}B)</span></span>
-          <button class="ui-button ui-button--ghost settings-btn" :disabled="assetBusy[asset.asset_id]" @click="deleteAsset(asset.asset_id)">
+          <button class="settings-btn text-xs px-2 py-1" :disabled="assetBusy[asset.asset_id]" @click="deleteAsset(asset.asset_id)">
             <Trash2 :size="12" />
           </button>
         </div>

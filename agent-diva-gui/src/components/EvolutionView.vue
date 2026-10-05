@@ -80,15 +80,15 @@ onMounted(async () => {
         <pre class="ev-pre">{{ JSON.stringify(cogStatus.eligibility, null, 2) }}</pre>
       </div>
       <div class="ev-row">
-        <button class="ui-button ui-button--ghost ev-btn primary" @click="trigger">{{ t('evolutionView.trigger') }}</button>
+        <button class="ev-btn primary" @click="trigger">{{ t('evolutionView.trigger') }}</button>
         <button
-          class="ui-button ui-button--ghost ev-btn"
+          class="ev-btn"
           :disabled="!cogStatus?.active_run_id"
           @click="cancelActive"
         >
           {{ t('evolutionView.cancelActive') }}
         </button>
-        <button class="ui-button ui-button--ghost ev-btn" @click="cog.refresh()">{{ t('evolutionView.refresh') }}</button>
+        <button class="ev-btn" @click="cog.refresh()">{{ t('evolutionView.refresh') }}</button>
       </div>
     </section>
 
@@ -103,12 +103,12 @@ onMounted(async () => {
       </label>
       <label class="ev-row">
         {{ t('evolutionView.minInterval') }}
-        <input v-model.number="minIntervalMs" type="number" class="ui-input ev-num" min="0" />
+        <input v-model.number="minIntervalMs" type="number" class="ev-num" min="0" />
       </label>
       <div class="ev-scope">
         {{ t('evolutionView.policyRevision') }}: {{ cog.policy.value?.policy_revision ?? '—' }}
       </div>
-      <button class="ui-button ui-button--ghost ev-btn primary" @click="savePolicy">{{ t('evolutionView.savePolicy') }}</button>
+      <button class="ev-btn primary" @click="savePolicy">{{ t('evolutionView.savePolicy') }}</button>
       <div v-if="policyNotice" class="ev-error">{{ policyNotice }}</div>
     </section>
 
@@ -133,7 +133,7 @@ section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-top: 1px solid var(--border, var(--border));
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   padding-top: 10px;
 }
 h4 {
@@ -161,24 +161,42 @@ h4 {
 .ev-num {
   width: 110px;
   background: transparent;
-  border: 1px solid var(--border, var(--border));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   padding: 6px;
-  color: var(--foreground);
+  color: var(--text);
+}
+.ev-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.ev-btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+.ev-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .ev-notice {
   padding: 10px;
   border-radius: 8px;
-  background: var(--destructive-soft);
+  background: rgba(255, 170, 60, 0.12);
   font-size: 12px;
 }
 .ev-error {
-  color: var(--destructive);
+  color: var(--danger, #f36);
   font-size: 12px;
 }
 .ev-empty,
 .ev-scope {
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .ev-pre {
@@ -189,7 +207,7 @@ h4 {
   overflow: auto;
 }
 .ev-result {
-  border: 1px solid var(--border, var(--border));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   padding: 8px;
 }

@@ -49,9 +49,9 @@ async function refresh() {
 
 function statusLabel(view: ChannelView): string {
   const status = view.status;
-  if (!view.envelope.configured && !status?.configured) return t('settings.unconfigured');
-  if (status?.started) return t('settings.running');
-  if (view.envelope.enabled) return t('settings.needsRestart');
+  if (!view.envelope.configured && !status?.configured) return t('channels.unconfigured');
+  if (status?.started) return t('channels.running');
+  if (view.envelope.enabled) return t('channels.needsRestart');
   return t('channels.disabled');
 }
 
@@ -117,60 +117,60 @@ onMounted(refresh);
 <template>
   <div class="space-y-4">
     <div class="flex flex-wrap items-center gap-3">
-      <button class="ui-button ui-button--ghost skills-btn" :disabled="loading" @click="refresh">
+      <button class="skills-btn" :disabled="loading" @click="refresh">
         <RefreshCw :size="14" :class="{ 'animate-spin': loading }" />
-        {{ t('settings.refreshChannels') }}
+        {{ t('general.refreshSkills') }}
       </button>
-      <p class="text-xs" style="color: var(--muted-foreground);">
-        {{ t('settings.restartHint') }}
+      <p class="text-xs" style="color: var(--text-muted);">
+        {{ t('channels.restartHint') }}
       </p>
     </div>
 
-    <p v-if="error" class="text-xs" style="color: var(--destructive); break-words;">{{ error }}</p>
-    <div v-if="loading && views.length === 0" class="text-sm" style="color: var(--muted-foreground);">
-      {{ t('settings.loadingChannels') }}
+    <p v-if="error" class="text-xs" style="color: var(--danger); break-words;">{{ error }}</p>
+    <div v-if="loading && views.length === 0" class="text-sm" style="color: var(--text-muted);">
+      {{ t('general.loadingSkills') }}
     </div>
-    <div v-else-if="views.length === 0" class="text-sm" style="color: var(--muted-foreground);">
-      {{ previewMode ? t('settings.channelsPreviewOnly') : t('settings.empty') }}
+    <div v-else-if="views.length === 0" class="text-sm" style="color: var(--text-muted);">
+      {{ previewMode ? t('general.skillsPreviewOnly') : t('channels.empty') }}
     </div>
 
     <div v-else class="space-y-3">
       <div v-for="view in views" :key="view.name" class="skills-list-item">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex flex-wrap items-center gap-2 min-w-0">
-            <button class="ui-button ui-button--ghost ui-button--compact toolbar-btn" @click="toggleExpand(view.name)">
+            <button class="toolbar-btn" @click="toggleExpand(view.name)">
               <ChevronDown v-if="expanded === view.name" :size="14" />
               <ChevronRight v-else :size="14" />
             </button>
             <div class="skills-item-name">{{ view.name }}</div>
             <span :class="statusClass(view)">{{ statusLabel(view) }}</span>
             <span v-if="view.pendingRestart" class="skills-status-badge available">
-              {{ t('settings.pendingRestart') }}
+              {{ t('channels.pendingRestart') }}
             </span>
           </div>
           <button
-            class="ui-button ui-button--ghost skills-btn"
+            class="skills-btn"
             :disabled="Boolean(saving) || previewMode"
             @click="toggleEnabled(view)"
           >
-            {{ view.envelope.enabled ? t('settings.disableChannel') : t('settings.enableChannel') }}
+            {{ view.envelope.enabled ? t('general.disableSkill') : t('general.enableSkill') }}
           </button>
         </div>
 
         <div
           v-if="view.status"
           class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]"
-          style="color: var(--muted-foreground);"
+          style="color: var(--text-muted);"
         >
           <span>
-            {{ t('settings.tokenEnv') }}:
+            {{ t('channels.tokenEnv') }}:
             <code>{{ view.status.token_env || '—' }}</code>
-            <span :style="{ color: view.status.token_env_set ? 'var(--success)' : 'var(--destructive)' }">
+            <span :style="{ color: view.status.token_env_set ? 'var(--success, #4caf50)' : 'var(--danger)' }">
               {{ view.status.token_env_set ? t('network.envConfigured') : t('network.envMissing') }}
             </span>
           </span>
           <span v-if="view.status.health">
-            {{ t('settings.health') }}:
+            {{ t('channels.health') }}:
             {{ view.status.health.ok ? 'ok' : (view.status.health.class || 'unknown') }}
             <template v-if="view.status.health.detail">— {{ view.status.health.detail }}</template>
           </span>
@@ -179,35 +179,35 @@ onMounted(refresh);
 
         <div v-if="expanded === view.name" class="mt-3 space-y-3">
           <div>
-            <label class="welcome-label">{{ t('settings.allowFrom') }}</label>
-            <p class="text-[11px] mb-1" style="color: var(--muted-foreground);">{{ t('settings.allowFromHint') }}</p>
+            <label class="welcome-label">{{ t('channels.allowFrom') }}</label>
+            <p class="text-[11px] mb-1" style="color: var(--text-muted);">{{ t('channels.allowFromHint') }}</p>
             <textarea
               v-model="allowFromDraft[view.name]"
-              class="ui-input skills-search-input"
+              class="skills-search-input"
               rows="3"
               style="width: 100%; font-family: monospace; resize: vertical;"
               :disabled="previewMode"
             />
           </div>
           <div>
-            <label class="welcome-label">{{ t('settings.tokenEnv') }}</label>
-            <p class="text-[11px] mb-1" style="color: var(--muted-foreground);">{{ t('settings.tokenEnvHint') }}</p>
+            <label class="welcome-label">{{ t('channels.tokenEnv') }}</label>
+            <p class="text-[11px] mb-1" style="color: var(--text-muted);">{{ t('channels.tokenEnvHint') }}</p>
             <input
               v-model="tokenEnvDraft[view.name]"
               type="text"
-              class="ui-input skills-search-input"
+              class="skills-search-input"
               style="width: 100%; font-family: monospace;"
               :disabled="previewMode"
             />
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="ui-button ui-button--primary skills-btn skills-btn-primary"
+              class="skills-btn skills-btn-primary"
               :disabled="Boolean(saving) || !draftDirty(view)"
               @click="saveEditor(view)"
             >
               <Save :size="14" />
-              {{ t('settings.save') }}
+              {{ t('general.save') }}
             </button>
           </div>
         </div>

@@ -47,7 +47,7 @@ const isSelected = () => props.selectedProvider?.name === props.provider.name;
   >
     <button
       type="button"
-      class="providers-item-select flex min-w-0 flex-1 items-center text-left"
+      class="flex min-w-0 flex-1 items-center px-4 py-3 text-left"
     >
       <div class="flex min-w-0 flex-1 items-center">
         <div
@@ -57,10 +57,10 @@ const isSelected = () => props.selectedProvider?.name === props.provider.name;
           <Server :size="16" />
         </div>
         <div class="min-w-0">
-          <div class="providers-item-name font-medium flex items-center gap-2">
+          <div class="font-medium flex items-center gap-2">
             <span class="truncate">{{ provider.display_name }}</span>
           </div>
-          <div class="text-xs flex flex-wrap items-center gap-2 providers-api-type">
+          <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 providers-tag api-type">
             <span>{{ provider.api_type || t('providers.standardApi') }}</span>
             <span v-if="status?.current" class="providers-tag current">{{ t('providers.currentTag') }}</span>
           </div>
@@ -73,7 +73,7 @@ const isSelected = () => props.selectedProvider?.name === props.provider.name;
     >
       <button
         type="button"
-        class="ui-button ui-button--danger-ghost ui-button--compact ui-button--icon providers-delete-btn"
+        class="providers-delete-btn"
         :title="t('providers.deleteProvider')"
         :disabled="isDeleting"
         @click.stop="emit('delete')"

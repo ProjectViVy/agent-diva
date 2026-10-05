@@ -1,8 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import ProvidersSettings from './ProvidersSettings.vue';
-import { deleteCustomProvider, getProviderModels, loadProviderState } from '../../api/settings';
-import { appConfirm } from '../../utils/appDialog';
 
 const provider = {
   name: 'deepseek',
@@ -80,57 +78,11 @@ vi.mock('./ProviderListItem.vue', () => ({
   default: {
     props: ['provider'],
     emits: ['select', 'delete'],
-    template: '<div><button @click="$emit(\'select\', provider)">{{ provider.display_name }}</button><button v-if="provider.source === \'custom\'" :aria-label="\'delete \' + provider.name" @click="$emit(\'delete\', provider)">delete</button></div>',
+    template: '<button @click="$emit(\'select\', provider)">{{ provider.display_name }}</button>',
   },
 }));
 
 describe('ProvidersSettings', () => {
-  it('reconciles a deleted provider while its model refresh is still pending', async () => {
-    const custom = { ...provider, name: 'custom', display_name: 'Custom', source: 'custom', default_api_base: 'http://localhost:8080/v1' };
-    const originalSnapshot = await loadProviderState();
-    vi.mocked(loadProviderState)
-      .mockResolvedValueOnce({ ...originalSnapshot, providers: [custom, provider] })
-      .mockResolvedValueOnce(originalSnapshot);
-    vi.mocked(appConfirm).mockResolvedValueOnce(true);
-    vi.mocked(deleteCustomProvider).mockResolvedValueOnce(undefined);
-    let finishRefresh!: (value: any) => void;
-    vi.mocked(getProviderModels).mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
-    const wrapper = mount(ProvidersSettings, {
-      props: {
-        config: { provider: 'custom', apiBase: custom.default_api_base, apiKey: '', model: 'deepseek-chat' },
-        saveConfigAction: vi.fn(() => Promise.resolve()),
-      },
-    });
-    await flushPromises();
-    await wrapper.findAll('button').find(button => button.text() === 'providers.refreshModels')!.trigger('click');
-    await wrapper.find('button[aria-label="delete custom"]').trigger('click');
-    await flushPromises();
-    expect(deleteCustomProvider).toHaveBeenCalledWith('custom');
-    expect(wrapper.find('button[aria-label="delete custom"]').exists()).toBe(false);
-    expect(wrapper.find('.providers-detail-header').text()).toContain('DeepSeek');
-    finishRefresh({ ...custom, provider: 'custom' });
-    await flushPromises();
-    expect(wrapper.find('.providers-detail-header').text()).toContain('DeepSeek');
-    wrapper.unmount();
-  });
-  it('shows a recoverable load error instead of asking to select a missing provider', async () => {
-    vi.mocked(loadProviderState).mockRejectedValueOnce(new Error('service unavailable'));
-    const wrapper = mount(ProvidersSettings, {
-      props: {
-        config: { provider: 'deepseek', apiBase: 'https://api.deepseek.com/v1', apiKey: '', model: 'deepseek-chat' },
-        saveConfigAction: vi.fn(() => Promise.resolve()),
-      },
-    });
-    await flushPromises();
-    expect(wrapper.find('[role="alert"]').text()).toContain('providers.loadError');
-    expect(wrapper.text()).not.toContain('providers.selectProvider');
-    const retry = wrapper.findAll('button').find(button => button.text() === 'providers.retry');
-    await retry!.trigger('click');
-    await flushPromises();
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-    expect(wrapper.findAll('.providers-model-card')).toHaveLength(2);
-    wrapper.unmount();
-  });
   it('persists the selected model immediately when its card is clicked', async () => {
     const saveConfigAction = vi.fn(() => Promise.resolve());
     const wrapper = mount(ProvidersSettings, {

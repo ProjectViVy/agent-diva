@@ -26,7 +26,7 @@ const toggleLang = () => {
     <div class="settings-section">
       <div class="flex items-center justify-between p-4 settings-card shadow-sm">
         <div class="flex items-center space-x-4">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background: var(--accent); color: var(--primary);">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg" style="background: var(--accent-bg-light); color: var(--accent);">
             {{ currentLocale === 'zh' ? 'CN' : 'EN' }}
           </div>
           <div>
@@ -39,7 +39,7 @@ const toggleLang = () => {
 
         <button
           @click="toggleLang"
-          class="ui-button ui-button--outline settings-btn settings-btn-secondary"
+          class="settings-btn settings-btn-secondary"
         >
           {{ t('language.switch') }}
         </button>

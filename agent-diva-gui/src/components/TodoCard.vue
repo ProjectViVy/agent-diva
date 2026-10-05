@@ -110,7 +110,7 @@ function formatTime(iso?: string): string {
         <span class="todo-title">{{ isChecklist ? t('checklistCard.title') : t('todoCard.title') }}</span>
         <span class="todo-progress">{{ doneCount }}/{{ totalCount }}</span>
       </div>
-      <button class="ui-button ui-button--ghost collapse-btn ui-button--compact ui-button--icon" :title="t('todoCard.toggle')">
+      <button class="collapse-btn" :title="t('todoCard.toggle')">
         <ChevronUp v-if="!collapsed" :size="16" />
         <ChevronDown v-else :size="16" />
       </button>
@@ -119,7 +119,7 @@ function formatTime(iso?: string): string {
     <!-- Collapsed summary -->
     <div v-if="collapsed && allDone" class="todo-collapsed-summary">
       {{ t('todoCard.allDoneSummary', { done: doneCount, total: totalCount }) }}
-      <button class="ui-button ui-button--ghost ui-button--compact expand-link" @click.stop="collapsed = false">
+      <button class="expand-link" @click.stop="collapsed = false">
         {{ t('todoCard.expand') }} ▾
       </button>
     </div>
@@ -175,7 +175,7 @@ function formatTime(iso?: string): string {
 
     <!-- Mark all done button -->
     <div v-show="!collapsed && hasPending && !isChecklist" class="todo-footer">
-      <button class="ui-button ui-button--ghost mark-all-btn" @click="markAllDone">
+      <button class="mark-all-btn" @click="markAllDone">
         {{ t('todoCard.markAllDone') }}
       </button>
     </div>
@@ -184,8 +184,8 @@ function formatTime(iso?: string): string {
 
 <style scoped>
 .todo-card {
-  background: var(--bg-panel, var(--panel-solid, var(--card)));
-  border: 1px solid var(--border);
+  background: var(--bg-panel, var(--panel-solid, var(--panel)));
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1rem;
   display: flex;
@@ -196,8 +196,8 @@ function formatTime(iso?: string): string {
 }
 
 .todo-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
 
 .todo-card.all-done {
@@ -205,7 +205,7 @@ function formatTime(iso?: string): string {
 }
 
 .todo-card.plan-update {
-  border-left: 4px solid var(--primary);
+  border-left: 4px solid var(--accent);
 }
 
 /* Header */
@@ -230,14 +230,14 @@ function formatTime(iso?: string): string {
 .todo-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .todo-progress {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--primary);
-  background: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg-light);
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
 }
@@ -245,22 +245,38 @@ function formatTime(iso?: string): string {
 .collapse-btn {
   width: 28px;
   height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: var(--radius-sm, 6px);
   transition: all 0.15s ease;
+}
+
+.collapse-btn:hover {
+  background: var(--accent-bg-light);
+  color: var(--accent);
 }
 
 /* Collapsed summary */
 .todo-collapsed-summary {
   font-size: 0.85rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
 .expand-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
   transition: opacity 0.15s ease;
 }
 
@@ -271,11 +287,11 @@ function formatTime(iso?: string): string {
 /* Plan explanation */
 .plan-explanation {
   font-size: 0.85rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   font-style: italic;
   line-height: 1.5;
   padding: 0.25rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 /* Items */
@@ -290,13 +306,13 @@ function formatTime(iso?: string): string {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.625rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .todo-item:hover {
-  background: var(--accent-bg-hover, var(--accent));
+  background: var(--accent-bg-hover, var(--accent-bg-light));
 }
 
 .todo-item.done {
@@ -313,7 +329,7 @@ function formatTime(iso?: string): string {
 }
 
 .todo-item.plan-item.status-in-progress {
-  background: var(--accent);
+  background: var(--accent-bg-light);
 }
 
 .plan-status-icon {
@@ -325,34 +341,34 @@ function formatTime(iso?: string): string {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
-  border: 2px solid var(--border);
-  color: var(--muted-foreground);
+  border: 2px solid var(--line);
+  color: var(--text-muted);
 }
 
 .plan-status-icon.status-pending {
-  border-color: var(--border);
-  color: var(--muted-foreground);
+  border-color: var(--line);
+  color: var(--text-muted);
 }
 
 .plan-status-icon.status-in-progress {
-  border-color: var(--warning, var(--destructive));
-  color: var(--warning, var(--destructive));
-  background: var(--warning-soft);
+  border-color: var(--warning, #f59e0b);
+  color: var(--warning, #f59e0b);
+  background: var(--warning-bg-light, rgba(245, 158, 11, 0.1));
 }
 
 .plan-status-icon.status-completed {
   border-color: var(--success);
   background: var(--success);
-  color: var(--success-foreground);
+  color: white;
 }
 
 .plan-step {
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .todo-item.status-completed .plan-step {
   text-decoration: line-through;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .todo-checkbox {
@@ -367,7 +383,7 @@ function formatTime(iso?: string): string {
   width: 20px;
   height: 20px;
   min-width: 20px;
-  border: 2px solid var(--border);
+  border: 2px solid var(--line);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -379,24 +395,24 @@ function formatTime(iso?: string): string {
 .todo-check-icon.checked {
   background: var(--success);
   border-color: var(--success);
-  color: var(--success-foreground);
+  color: white;
 }
 
 .todo-content {
   flex: 1;
   font-size: 0.9rem;
-  color: var(--foreground);
+  color: var(--text);
   transition: all 0.2s ease;
 }
 
 .todo-item.done .todo-content {
   text-decoration: line-through;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .todo-time {
   font-size: 0.75rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -405,10 +421,23 @@ function formatTime(iso?: string): string {
   display: flex;
   justify-content: flex-end;
   padding-top: 0.25rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .mark-all-btn {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-bg-light);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.375rem 0.875rem;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.mark-all-btn:hover {
+  transform: scale(1.02);
+  filter: brightness(1.1);
 }
 </style>

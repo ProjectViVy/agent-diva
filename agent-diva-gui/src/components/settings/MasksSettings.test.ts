@@ -67,8 +67,6 @@ describe('MasksSettings', () => {
     expect(api.listAllMasks).toHaveBeenCalled();
     expect(api.getMaskSelection).toHaveBeenCalledWith('s1');
     expect(w.findAll('.masks-item')).toHaveLength(2);
-    expect(w.text()).toContain('mask.title');
-    expect(w.text()).not.toContain('masks.title');
   });
 
   it('skips selection when there is no active session', async () => {

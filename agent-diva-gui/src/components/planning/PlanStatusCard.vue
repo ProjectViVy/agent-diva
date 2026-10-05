@@ -28,13 +28,13 @@ const progressPercent = computed(() => {
 const statusColor = computed(() => {
   switch (props.plan.status) {
     case 'active':
-      return 'var(--primary)';
+      return 'var(--accent)';
     case 'completed':
       return 'var(--success)';
     case 'failed':
-      return 'var(--destructive)';
+      return 'var(--danger)';
     default:
-      return 'var(--muted-foreground)';
+      return 'var(--text-muted)';
   }
 });
 </script>
@@ -55,11 +55,11 @@ const statusColor = computed(() => {
     <!-- 4-grid metrics -->
     <div class="plan-metrics">
       <div class="metric-item">
-        <span class="metric-value" style="color: var(--primary)">{{ plan.phase }}</span>
+        <span class="metric-value" style="color: var(--accent)">{{ plan.phase }}</span>
         <span class="metric-label">{{ t('planning.phase') }}</span>
       </div>
       <div class="metric-item">
-        <span class="metric-value" style="color: var(--foreground)">{{ totalTodos }}</span>
+        <span class="metric-value" style="color: var(--text)">{{ totalTodos }}</span>
         <span class="metric-label">{{ t('planning.totalTodos') }}</span>
       </div>
       <div class="metric-item">
@@ -120,8 +120,8 @@ const statusColor = computed(() => {
 
 <style scoped>
 .plan-status-card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1.25rem;
   display: flex;
@@ -131,7 +131,7 @@ const statusColor = computed(() => {
 }
 
 .plan-status-card:hover {
-  border-color: var(--border-strong);
+  border-color: var(--accent-border);
 }
 
 /* Header */
@@ -145,7 +145,7 @@ const statusColor = computed(() => {
 .plan-title {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--foreground);
+  color: var(--text);
   margin: 0;
   flex: 1;
   overflow: hidden;
@@ -158,7 +158,7 @@ const statusColor = computed(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: color-mix(in srgb, var(--border) 10%, transparent);
+  background: color-mix(in srgb, var(--line) 10%, transparent);
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   flex-shrink: 0;
@@ -167,7 +167,7 @@ const statusColor = computed(() => {
 /* Goal */
 .plan-goal {
   font-size: 0.875rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
 }
@@ -185,9 +185,9 @@ const statusColor = computed(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.625rem 0.375rem;
-  background: color-mix(in srgb, var(--border) 6%, transparent);
+  background: color-mix(in srgb, var(--line) 6%, transparent);
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
 }
 
 .metric-value {
@@ -197,7 +197,7 @@ const statusColor = computed(() => {
 
 .metric-label {
   font-size: 0.7rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -218,32 +218,32 @@ const statusColor = computed(() => {
 .plan-progress-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .plan-progress-value {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--accent);
 }
 
 .plan-progress-bar {
   height: 6px;
-  background: color-mix(in srgb, var(--border) 12%, transparent);
+  background: color-mix(in srgb, var(--line) 12%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .plan-progress-fill {
   height: 100%;
-  background: var(--primary);
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
   border-radius: 3px;
   transition: width 0.4s ease;
 }
 
 /* Collapsible sections */
 .plan-details {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -251,21 +251,21 @@ const statusColor = computed(() => {
 .plan-details-summary {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
   padding: 0.5rem 0.75rem;
   cursor: pointer;
-  background: color-mix(in srgb, var(--border) 4%, transparent);
+  background: color-mix(in srgb, var(--line) 4%, transparent);
   transition: background 0.15s ease;
   user-select: none;
 }
 
 .plan-details-summary:hover {
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .plan-details-content {
   font-size: 0.85rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   padding: 0.5rem 0.75rem;
   margin: 0;
   line-height: 1.6;
@@ -273,7 +273,7 @@ const statusColor = computed(() => {
 
 .plan-details-list {
   font-size: 0.85rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   padding: 0.375rem 0.75rem 0.5rem 1.75rem;
   margin: 0;
   line-height: 1.6;

@@ -5,15 +5,9 @@ import { useI18n } from 'vue-i18n';
 import { loadProviderState } from '../../api/settings';
 import type { ConfigStatusReport } from '../../api/desktop';
 import { clearAgentDivaLocalStorage, UI_CACHE_KEYS, UI_CACHE_PREFIXES } from '../../utils/localStorageAgentDiva';
+import type { ChatDisplayPrefs } from '../../types/chat-ui';
 
 const { t } = useI18n();
-
-interface ChatDisplayPrefs {
-  cleanMode: boolean;
-  autoExpandReasoning: boolean;
-  autoExpandToolDetails: boolean;
-  showRawMetaByDefault: boolean;
-}
 
 const props = defineProps<{
   chatDisplayPrefs: ChatDisplayPrefs;
@@ -151,12 +145,12 @@ async function runFullWipe() {
       <div class="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          class="ui-button ui-button--outline settings-btn settings-btn-secondary"
+          class="settings-btn settings-btn-secondary"
           @click="clearUiCache"
         >
           {{ t('general.clearCache') }}
         </button>
-        <span v-if="cacheCleared" class="settings-label text-success">
+        <span v-if="cacheCleared" class="settings-label text-emerald-600">
           {{ t('general.cacheCleared') }}
         </span>
       </div>
@@ -176,7 +170,7 @@ async function runFullWipe() {
             <ShieldAlert v-else :size="14" />
             <span>{{ t('general.doctorHealth') }}</span>
           </div>
-          <div class="text-sm font-semibold" :class="statusReport.doctor.ready ? 'text-success' : 'text-warning'">
+          <div class="text-sm font-semibold" :class="statusReport.doctor.ready ? 'text-emerald-600' : 'text-amber-600'">
             {{ statusReport.doctor.ready ? t('general.healthReady') : t('general.healthAttention') }}
           </div>
         </div>
@@ -209,7 +203,7 @@ async function runFullWipe() {
           v-model="dangerConfirmInput"
           type="text"
           autocomplete="off"
-          class="ui-input settings-danger-input"
+          class="settings-danger-input"
           :placeholder="dangerConfirmWord"
         />
       </div>
@@ -218,7 +212,7 @@ async function runFullWipe() {
         <button
           type="button"
           :disabled="!dangerConfirmOk || wiping"
-          class="ui-button ui-button--destructive settings-btn settings-btn-danger"
+          class="settings-btn settings-btn-danger"
           @click="runFullWipe"
         >
           {{ wiping ? t('general.dangerWiping') : t('general.dangerWipe') }}

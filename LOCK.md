@@ -5,16 +5,32 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-gui/src/styles/tokens.css, agent-diva-gui/src/styles/controls.css, agent-diva-gui/src/styles/presentation.css, agent-diva-gui/public/splashscreen.html, docs/logs/2026-10-diva-design-language/v0.4.16-peach-sakura-pink/**, TODOLIST.md, LOCK.md`
+- Scope: `agent-diva-gui/src/styles.css, agent-diva-gui/src/components/settings/ThemeSettings.vue, agent-diva-gui/src/components/ConversationSidebar.vue, agent-diva-gui/src/components/DecisionCard.vue, agent-diva-gui/src/components/settings/ProvidersCardView.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.vue, agent-diva-gui/src/components/settings/McpManagementCard.vue, agent-diva-gui/tailwind.config.js, agent-diva-gui/public/splashscreen.html, docs/logs/2026-10-diva-peach-sakura-pink-theme/**, LOCK.md`
 - Owner: `Antigravity on behalf of user`
-- Session/Task: `af80665b-db7f-4da1-a491-8821a72bb8e1 / Peach Sakura Pink main release`
+- Session/Task: `DIVA Peach Sakura Pink default theme design language alignment`
 - Branch/Worktree: `main / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva`
-- Started At: `2026-10-05T15:55:00Z`
-- Last Heartbeat: `2026-10-05T16:16:00Z`
-- Expires At: `released 2026-10-05T16:16:00Z`
+- Started At: `2026-10-05T15:43:00Z`
+- Last Heartbeat: `2026-10-05T15:52:00Z`
+- Expires At: `N/A (released)`
 
-### Peach Sakura Pink handoff
-Default and main themes calibrated to Peach Sakura Pink scheme per user specifications. High-contrast white text on #D9567B primary action buttons, 16-24px rounded radius scale, soft brand gradients, and splashscreen updated. PostCSS @apply error in presentation.css fixed with standard CSS properties. All tests and GUI build passed. Directly releasing to main.
+### Handoff for this task
+
+At `2026-10-05T11:13:10Z`, mastwet explicitly directed Codex to continue on
+`main` with sidebar consistency and Oil Frontend compliance fixes. This took
+priority over Devin's prior lock, whose scope overlapped `agent-diva-gui/src/**`
+on `feat/wails-go-host`. The `main` worktree was clean at `d81381f8` before the
+takeover; no product-file changes were overwritten. The iteration is verified
+and its local delivery record is complete at
+`docs/logs/2026-10-diva-sidebar-oil-frontend/v0.0.1-sidebar-and-frontend-contract/`.
+The lock is released; no push or package release was performed.
+
+### Handoff for this branch
+
+The inherited Devin wave-1 lease expired at 2026-10-04T00:00:00Z. Its
+historical record below is stale, not an active lock for this new docs branch.
+The mainline merge is preserved at 5444795a2d9db31e158c2cf009d64697e6289e50.
+No other working branch or live workspace is modified by this handoff.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -27,19 +43,16 @@ Default and main themes calibrated to Peach Sakura Pink scheme per user specific
 
 ## Active Lock
 
-- `DIVA design language unification` — **RELEASED 2026-10-05T08:19:00Z** by
-  `Codex on behalf of mastwet`; branch `codex/diva-design-language`.
-  Semantic theme/control migration, provider/composer cleanup and all-page
-  audit delivered; 69 GUI test files / 564 tests and production build pass.
-  Development Go-host package built and launched locally; 1024px native
-  screenshot/drag and transparent-pet interaction remain unverified because
-  the available UI automation surface exposes browsers only.
+- `DIVA Peach Sakura Pink default theme design language alignment` — **RELEASED 2026-10-05T15:52:00Z** by
+  `Antigravity on behalf of user`; branch `main`, default theme tokens, Peach
+  Sakura Pink color scheme, button contrast improvements, settings previews,
+  focused iteration log and lock maintenance. Tests and production build passed.
+  No push or package release.
 
-- `DIVA peach-cherry palette` — **RELEASED 2026-10-05T10:23:59Z** by
-  `Codex on behalf of mastwet`; branch `codex/diva-design-language`.
-  Love/Default, warm dark theme and shared primary action surfaces validated
-  with 8 design-system tests, GUI production build and browser smoke across
-  Love/Default/dark/Miku. No push or package release.
+- `DIVA sidebar consistency + Oil Frontend compliance fixes` — **RELEASED 2026-10-05T12:14:53Z** by
+  `Codex on behalf of mastwet`; branch `main`, GUI source and Vitest config,
+  focused iteration record, TODOLIST and lock maintenance. Tests, production
+  build and expanded-sidebar browser smoke passed. No push or package release.
 
 - `DN-W3-P1 Go/Wails migration planning` — **RELEASED 2026-10-04T01:18:32Z** by
   `Codex on behalf of mastwet`; branch `docs/wails-migration-20261004`.

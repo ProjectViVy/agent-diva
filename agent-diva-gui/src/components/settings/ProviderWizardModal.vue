@@ -58,7 +58,7 @@ const testMessage = ref('');
 const testLatency = ref<number | undefined>(undefined);
 const isApiKeyVisible = ref(false);
 
-const currentStepIndex = computed(() =>
+const currentStepIndex = computed(() => 
   steps.findIndex(s => s.key === currentStep.value)
 );
 
@@ -70,7 +70,7 @@ const canNext = computed(() => {
   return false;
 });
 
-const selectedProviderSpec = computed(() =>
+const selectedProviderSpec = computed(() => 
   props.providers.find(p => p.name === formData.value.selectedProvider)
 );
 
@@ -171,20 +171,20 @@ watch(() => props.initialData, (newData) => {
           <!-- Header -->
           <div class="wizard-header">
             <h3 class="wizard-title">{{ t('providers.wizardTitle') }}</h3>
-            <button class="ui-button ui-button--ghost wizard-close ui-button--compact ui-button--icon" :aria-label="t('app.close')" @click="close">
+            <button class="wizard-close" :aria-label="t('app.close')" @click="close">
               <X :size="18" />
             </button>
           </div>
-
+          
           <!-- Progress Steps -->
           <div class="wizard-progress">
-            <div
-              v-for="(step, index) in steps"
+            <div 
+              v-for="(step, index) in steps" 
               :key="step.key"
               class="wizard-progress-item"
-              :class="{
+              :class="{ 
                 active: step.key === currentStep,
-                completed: index < currentStepIndex
+                completed: index < currentStepIndex 
               }"
             >
               <div class="wizard-progress-indicator">
@@ -194,19 +194,19 @@ watch(() => props.initialData, (newData) => {
               <span class="wizard-progress-label">{{ step.title }}</span>
             </div>
           </div>
-
+          
           <!-- Content -->
           <div class="wizard-content">
             <!-- Step 1: Select Provider -->
             <div v-if="currentStep === 'select'" class="wizard-step">
               <label class="wizard-label">{{ t('providers.selectProviderType') }}</label>
-              <select
+              <select 
                 v-model="formData.selectedProvider"
-                class="ui-input wizard-select"
+                class="wizard-select"
               >
                 <option value="" disabled>{{ t('providers.chooseProvider') }}</option>
-                <option
-                  v-for="provider in providers"
+                <option 
+                  v-for="provider in providers" 
                   :key="provider.name"
                   :value="provider.name"
                 >
@@ -214,7 +214,7 @@ watch(() => props.initialData, (newData) => {
                 </option>
               </select>
             </div>
-
+            
             <!-- Step 2: API Key -->
             <div v-if="currentStep === 'apikey'" class="wizard-step">
               <label class="wizard-label">{{ t('providers.apiKey') }}</label>
@@ -223,21 +223,21 @@ watch(() => props.initialData, (newData) => {
                   v-model="formData.apiKey"
                   :type="isApiKeyVisible ? 'text' : 'password'"
                   :placeholder="t('providers.enterApiKey')"
-                  class="ui-input ui-input--trailing-icon wizard-input"
+                  class="wizard-input"
                   autocomplete="off"
                 />
                 <button
                   type="button"
-                  class="ui-button ui-button--ghost wizard-input-toggle ui-button--compact ui-button--icon"
+                  class="wizard-input-toggle"
                   @click="isApiKeyVisible = !isApiKeyVisible"
-                  :title="isApiKeyVisible ? t('providers.hideApiKey') : t('providers.showApiKey')"
+                  :title="isApiKeyVisible ? t('settings.hideApiKey') : t('settings.showApiKey')"
                 >
                   <EyeOff v-if="isApiKeyVisible" :size="16" />
                   <Eye v-else :size="16" />
                 </button>
               </div>
             </div>
-
+            
             <!-- Step 3: API Base -->
             <div v-if="currentStep === 'apibase'" class="wizard-step">
               <label class="wizard-label">{{ t('providers.apiBaseUrl') }}</label>
@@ -245,17 +245,17 @@ watch(() => props.initialData, (newData) => {
                 v-model="formData.apiBase"
                 type="text"
                 :placeholder="selectedProviderSpec?.default_api_base || t('providers.placeholderLocalCustom')"
-                class="ui-input wizard-input"
+                class="wizard-input"
               />
               <p class="wizard-hint">{{ t('providers.apiBaseHint') }}</p>
             </div>
-
+            
             <!-- Step 4: Test -->
             <div v-if="currentStep === 'test'" class="wizard-step">
               <label class="wizard-label">{{ t('providers.testConnection') }}</label>
               <div class="wizard-test-area">
                 <button
-                  class="ui-button ui-button--ghost wizard-test-btn"
+                  class="wizard-test-btn"
                   @click="testConnection"
                   :disabled="isTesting"
                 >
@@ -263,7 +263,7 @@ watch(() => props.initialData, (newData) => {
                   <PlugZap v-else :size="16" />
                   <span>{{ isTesting ? t('providers.testingConnection') : t('providers.testConnection') }}</span>
                 </button>
-
+                
                 <div v-if="testResult === 'success'" class="wizard-test-result success">
                   <Check :size="16" />
                   <span>
@@ -279,7 +279,7 @@ watch(() => props.initialData, (newData) => {
                 </div>
               </div>
             </div>
-
+            
             <!-- Step 5: Done -->
             <div v-if="currentStep === 'done'" class="wizard-step">
               <div class="wizard-done">
@@ -291,40 +291,40 @@ watch(() => props.initialData, (newData) => {
               </div>
             </div>
           </div>
-
+          
           <!-- Footer -->
           <div class="wizard-footer">
             <button
               v-if="currentStepIndex > 0 && currentStep !== 'done'"
-              class="ui-button ui-button--outline wizard-btn wizard-btn-secondary"
+              class="wizard-btn wizard-btn-secondary"
               @click="prevStep"
             >
               {{ t('providers.wizardBack') }}
             </button>
-
+            
             <button
               v-if="currentStep !== 'done' && currentStep !== 'test'"
-              class="ui-button ui-button--primary wizard-btn wizard-btn-primary"
+              class="wizard-btn wizard-btn-primary"
               :disabled="!canNext"
               @click="nextStep"
             >
               {{ t('providers.wizardNext') }}
               <ChevronRight :size="16" />
             </button>
-
+            
             <button
               v-if="currentStep === 'test'"
-              class="ui-button ui-button--primary wizard-btn wizard-btn-primary"
+              class="wizard-btn wizard-btn-primary"
               :disabled="testResult !== 'success'"
               @click="nextStep"
             >
               {{ t('providers.wizardNext') }}
               <ChevronRight :size="16" />
             </button>
-
+            
             <button
               v-if="currentStep === 'done'"
-              class="ui-button ui-button--primary wizard-btn wizard-btn-primary"
+              class="wizard-btn wizard-btn-primary"
               @click="complete"
             >
               {{ t('providers.wizardFinish') }}
@@ -340,7 +340,7 @@ watch(() => props.initialData, (newData) => {
 .wizard-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -348,9 +348,9 @@ watch(() => props.initialData, (newData) => {
 }
 
 .wizard-modal {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   width: 100%;
   max-width: 560px;
   max-height: 90vh;
@@ -364,29 +364,39 @@ watch(() => props.initialData, (newData) => {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .wizard-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
 }
 
 .wizard-close {
   width: 32px;
   height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
 }
 
+.wizard-close:hover {
+  background: var(--accent-bg-light);
+  color: var(--accent);
+}
+
 .wizard-progress {
   display: flex;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .wizard-progress-item {
@@ -401,9 +411,9 @@ watch(() => props.initialData, (newData) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--border);
-  color: var(--muted-foreground);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -413,19 +423,19 @@ watch(() => props.initialData, (newData) => {
 }
 
 .wizard-progress-item.active .wizard-progress-indicator {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .wizard-progress-item.completed .wizard-progress-indicator {
-  background: var(--primary-action, var(--primary));
-  border-color: var(--primary-action, var(--primary));
-  color: var(--primary-action-foreground, var(--primary-foreground));
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
 }
 
 .wizard-progress-label {
   font-size: 0.625rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -446,7 +456,7 @@ watch(() => props.initialData, (newData) => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .wizard-input-wrapper {
@@ -456,7 +466,24 @@ watch(() => props.initialData, (newData) => {
 .wizard-input,
 .wizard-select {
   width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
   transition: all 0.15s ease;
+}
+
+.wizard-input:focus,
+.wizard-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.wizard-input-wrapper .wizard-input {
+  padding-right: 3rem;
 }
 
 .wizard-input-toggle {
@@ -466,15 +493,25 @@ watch(() => props.initialData, (newData) => {
   transform: translateY(-50%);
   width: 24px;
   height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
 }
 
+.wizard-input-toggle:hover {
+  background: var(--accent-bg-light);
+  color: var(--accent);
+}
+
 .wizard-hint {
   font-size: 0.75rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
   margin-top: 0.25rem;
 }
 
@@ -489,7 +526,26 @@ watch(() => props.initialData, (newData) => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.wizard-test-btn:hover:not(:disabled) {
+  background: var(--accent-bg-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.wizard-test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .wizard-test-result {
@@ -497,19 +553,19 @@ watch(() => props.initialData, (newData) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
 .wizard-test-result.success {
-  background: var(--success-soft);
-  color: var(--success);
+  background: var(--success);
+  color: white;
 }
 
 .wizard-test-result.failed {
-  background: var(--destructive-soft);
-  color: var(--destructive);
+  background: var(--danger);
+  color: white;
 }
 
 .wizard-test-latency {
@@ -530,7 +586,7 @@ watch(() => props.initialData, (newData) => {
   height: 80px;
   border-radius: 50%;
   background: var(--success);
-  color: var(--success-foreground);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -540,13 +596,13 @@ watch(() => props.initialData, (newData) => {
 .wizard-done-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text);
   margin-bottom: 0.5rem;
 }
 
 .wizard-done-desc {
   font-size: 0.875rem;
-  color: var(--muted-foreground);
+  color: var(--text-muted);
 }
 
 .wizard-footer {
@@ -554,14 +610,44 @@ watch(() => props.initialData, (newData) => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.25rem 1.5rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .wizard-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.wizard-btn-primary {
+  background: var(--btn-primary-bg, var(--brand-dark, var(--accent)));
+  color: white;
+  border: none;
+}
+
+.wizard-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.wizard-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wizard-btn-secondary {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.wizard-btn-secondary:hover {
+  background: var(--accent-bg-light);
 }
 
 /* Modal transitions */

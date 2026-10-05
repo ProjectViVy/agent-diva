@@ -21,17 +21,17 @@ defineProps<{
   margin: 0.55rem 0 0.15rem;
   max-width: 680px;
   padding: clamp(14px, 2.4vw, 22px);
-  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 34%, var(--line, #d9dce3));
   border-radius: 12px;
-  background: color-mix(in srgb, var(--panel-solid, var(--card)) 94%, var(--card));
-  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--panel-solid, var(--panel, #fff)) 94%, #eff6ff);
+  box-shadow: 0 10px 26px rgba(30, 64, 175, 0.08);
 }
 .proposed-plan-block__label {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   margin-bottom: 0.85rem;
-  color: var(--info);
+  color: #1d4ed8;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.69rem;
   font-weight: 750;
@@ -45,9 +45,9 @@ defineProps<{
   min-height: 1.55rem;
   padding: 0 0.52rem;
   border-radius: 999px;
-  background: var(--card);
+  background: #dbeafe;
 }
 .proposed-plan-block__label span:last-child {
-  color: var(--info);
+  color: #60a5fa;
 }
 </style>

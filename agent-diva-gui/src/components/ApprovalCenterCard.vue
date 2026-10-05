@@ -115,7 +115,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
     <button
       v-if="!detail && !compact"
       type="button"
-      class="ui-button ui-button--ghost ui-button--compact approval-link"
+      class="approval-link"
       @click="emit('inspect', view.request_id)"
     >
       {{ t('approvalCenter.inspect') }}
@@ -136,7 +136,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
     <div v-if="view.status === 'pending'" class="approval-actions">
       <label v-if="view.domain === 'command' && can('allow')" class="approval-grant">
         <span>{{ t('approvalCenter.grant') }}</span>
-        <select class="ui-input" v-model="grant" :disabled="submitting || outcomeUnknown">
+        <select v-model="grant" :disabled="submitting || outcomeUnknown">
           <option value="once">{{ t('approvalCenter.grants.once') }}</option>
           <option value="session">{{ t('approvalCenter.grants.session') }}</option>
           <option v-if="canUseRuleGrant" value="rule">{{ t('approvalCenter.grants.rule') }}</option>
@@ -145,7 +145,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
       <button
         v-if="can('deny')"
         type="button"
-        class="ui-button ui-button--danger-ghost deny"
+        class="deny"
         :disabled="submitting || outcomeUnknown"
         @click="emit('decide', { approval: view, decision: 'deny', grant: 'once' })"
       >
@@ -155,14 +155,14 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
       <button
         v-if="can('allow')"
         type="button"
-        class="ui-button ui-button--primary allow"
+        class="allow"
         :disabled="allowDisabled"
         @click="emit('decide', { approval: view, decision: 'allow', grant })"
       >
         <ShieldCheck :size="16" />
         <span>{{ t('approvalCenter.allow') }}</span>
       </button>
-      <button class="ui-button ui-button--ghost ui-button--compact"
+      <button
         v-if="can('edit')"
         type="button"
         :disabled="submitting || outcomeUnknown"
@@ -170,7 +170,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
       >
         {{ t('approvalCenter.edit') }}
       </button>
-      <button class="ui-button ui-button--ghost ui-button--compact"
+      <button
         v-if="can('cancel')"
         type="button"
         :disabled="submitting || outcomeUnknown"
@@ -183,7 +183,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
     <button
       v-if="outcomeUnknown || error"
       type="button"
-      class="ui-button ui-button--ghost ui-button--compact approval-refresh"
+      class="approval-refresh"
       @click="emit('refresh', view.request_id)"
     >
       <RefreshCw :size="15" />
@@ -194,32 +194,32 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 
 <style scoped>
 .approval-center-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line, #d9dce3);
   border-left-width: 4px;
   border-radius: 14px;
   padding: 14px;
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: var(--shadow-sm);
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .approval-center-card.risk-high,
 .approval-center-card.risk-critical,
 .approval-center-card.risk-prohibited {
-  border-left-color: var(--warning);
+  border-left-color: #dc2626;
 }
 
 .approval-center-card.risk-medium,
 .approval-center-card.risk-moderate {
-  border-left-color: var(--warning);
+  border-left-color: #d97706;
 }
 
 .approval-center-card.risk-low {
-  border-left-color: var(--warning);
+  border-left-color: #059669;
 }
 
 .approval-center-card.compact {
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   padding: 12px;
 }
 
@@ -248,7 +248,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -256,7 +256,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 
 .approval-status-text {
   font-weight: 700;
-  color: var(--foreground);
+  color: var(--text, #20242d);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -278,7 +278,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--foreground);
+  color: var(--text, #20242d);
 }
 
 .approval-meta {
@@ -296,7 +296,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
   font-size: 10px;
   font-weight: 600;
 }
@@ -304,7 +304,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-meta-item dd {
   margin: 3px 0 0;
   overflow: hidden;
-  color: var(--foreground);
+  color: var(--text, #20242d);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -313,6 +313,12 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 .approval-link {
   display: inline-flex;
   margin-top: 10px;
+  border: 0;
+  padding: 4px 0;
+  color: #2563eb;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .approval-detail {
@@ -322,7 +328,7 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 
 .approval-detail-line {
   margin: 0 0 8px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
 }
 
 .approval-diff {
@@ -333,8 +339,8 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   margin: 0;
   border-radius: 8px;
   padding: 10px;
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: #111827;
+  color: #e5e7eb;
   white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -365,13 +371,13 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
 }
 
 .approval-warning {
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .approval-error {
-  background: var(--destructive-soft);
-  color: var(--destructive);
+  background: var(--danger-bg, #fef2f2);
+  color: var(--danger, #991b1b);
 }
 
 .approval-actions {
@@ -389,6 +395,30 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   align-items: center;
   justify-content: center;
   gap: 6px;
+  border: 1px solid var(--line, #d9dce3);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--text, #20242d);
+  background: var(--panel-solid, #fff);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.approval-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.approval-actions .allow {
+  border-color: #047857;
+  background: #047857;
+  color: #fff;
+}
+
+.approval-actions .deny {
+  border-color: #b91c1c;
+  color: #b91c1c;
+  background: transparent;
 }
 
 .approval-grant {
@@ -397,16 +427,16 @@ const scopeText = computed(() => view.value.resource.session_id ?? view.value.re
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
 }
 
 .approval-grant select {
   min-height: 36px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line, #d9dce3);
   border-radius: 8px;
   padding: 0 8px;
-  background: var(--card);
-  color: var(--foreground);
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
 }
 
 .approval-refresh {

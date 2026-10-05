@@ -86,17 +86,17 @@ defineExpose({ refreshSkills });
     <!-- Search and Actions Bar -->
     <div class="flex flex-wrap items-center gap-3">
       <div class="relative flex-1 min-w-[200px]">
-        <Search :size="14" class="absolute left-3 top-2.5" style="color: var(--muted-foreground);" />
+        <Search :size="14" class="absolute left-3 top-2.5" style="color: var(--text-muted);" />
         <input
           v-model="searchQuery"
           type="text"
-          class="ui-input ui-input--leading-icon skills-search-input"
+          class="skills-search-input"
           :placeholder="t('general.searchInstalled')"
         />
       </div>
 
       <button
-        class="ui-button ui-button--ghost skills-btn"
+        class="skills-btn"
         :disabled="loading"
         @click="refreshSkills"
       >
@@ -106,13 +106,13 @@ defineExpose({ refreshSkills });
     </div>
 
     <!-- Error Display -->
-    <p v-if="error" class="text-xs" style="color: var(--destructive); break-words;">{{ error }}</p>
+    <p v-if="error" class="text-xs" style="color: var(--danger); break-words;">{{ error }}</p>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-sm" style="color: var(--muted-foreground);">{{ t('general.loadingSkills') }}</div>
+    <div v-if="loading" class="text-sm" style="color: var(--text-muted);">{{ t('general.loadingSkills') }}</div>
 
     <!-- Empty State -->
-    <div v-else-if="filteredSkills.length === 0 && !error" class="text-sm" style="color: var(--muted-foreground);">
+    <div v-else-if="filteredSkills.length === 0" class="text-sm" style="color: var(--text-muted);">
       {{ searchQuery ? t('general.noSearchResults') : t('general.emptySkills') }}
     </div>
 
@@ -144,7 +144,7 @@ defineExpose({ refreshSkills });
           </div>
 
           <button
-            class="ui-button ui-button--ghost skills-btn"
+            class="skills-btn"
             :disabled="Boolean(toggling) || previewMode"
             @click="onToggle(skill)"
           >

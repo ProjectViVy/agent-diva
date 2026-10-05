@@ -37,19 +37,11 @@ import {
 import { vivyChat } from './state/chat-instance';
 import { vivyCognitive } from './state/vivy-cognitive';
 import { generateMessageId, type ChatMessage } from './state/chat-message';
+import { DEFAULT_CHAT_DISPLAY_PREFS, type ChatDisplayPrefs, type SavedModel } from './types/chat-ui';
 
 const { t } = useI18n();
 
 type Message = ChatMessage;
-
-interface SavedModel {
-  id: string;
-  provider: string;
-  model: string;
-  apiBase: string;
-  apiKey: string;
-  displayName: string;
-}
 
 interface SessionInfo {
   session_key: string;
@@ -61,23 +53,10 @@ interface SessionInfo {
   message_count: number;
   title_generated: boolean;
   title_manually_set: boolean;
-  pinned?: boolean;
-}
-interface ChatDisplayPrefs {
-  cleanMode: boolean;
-  autoExpandReasoning: boolean;
-  autoExpandToolDetails: boolean;
-  showRawMetaByDefault: boolean;
 }
 
 
 const STARTUP_TASK_TIMEOUT_MS = 2500;
-const defaultChatDisplayPrefs: ChatDisplayPrefs = {
-  cleanMode: false,
-  autoExpandReasoning: true,
-  autoExpandToolDetails: false,
-  showRawMetaByDefault: false,
-};
 
 const messages = ref<Message[]>([
   {
@@ -120,7 +99,7 @@ const config = ref({
 const savedModels = ref<SavedModel[]>([]);
 const providerConfigs = ref<Record<string, ProviderConfigEntry>>({});
 const sessions = ref<SessionInfo[]>([]);
-const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...defaultChatDisplayPrefs });
+const chatDisplayPrefs = ref<ChatDisplayPrefs>({ ...DEFAULT_CHAT_DISPLAY_PREFS });
 const approvalCenterOpen = ref(false);
 const approvalDrawerAutoOpened = ref(false);
 const unifiedApprovals = ref<ApprovalView[]>([]);
@@ -352,7 +331,7 @@ function updateSavedModels(models: SavedModel[]) {
 
 function updateChatDisplayPrefs(prefs: ChatDisplayPrefs) {
   chatDisplayPrefs.value = {
-    ...defaultChatDisplayPrefs,
+    ...DEFAULT_CHAT_DISPLAY_PREFS,
     ...prefs,
   };
   try {
@@ -603,7 +582,6 @@ async function refreshSessions(): Promise<boolean> {
 /** @returns true when history was applied to the message list */
 async function loadSession(sessionKey: string): Promise<boolean> {
   if (!isTauri()) return false;
-  syncPlanRuntime(null);
   try {
     return await vivyChat.loadSession(sessionKey);
   } catch (e) {
@@ -615,13 +593,16 @@ async function loadSession(sessionKey: string): Promise<boolean> {
 
 async function deleteSession(sessionKey: string) {
   if (!isTauri()) return;
-  if (!(await appConfirm(t('chat.confirmDeleteSession')))) return;
-  try {
-    await vivyChat.deleteSession(sessionKey);
-  } catch (e) {
-    console.error('Failed to delete session:', e);
-    pushSystemNotice(`${t('app.errorPrefix')}${e}`);
-  }
+  await appConfirm(t('chat.confirmDeleteSession'), {
+    onConfirm: async () => {
+      try {
+        await vivyChat.deleteSession(sessionKey);
+      } catch (error) {
+        console.error('Failed to delete session:', error);
+        throw error;
+      }
+    },
+  });
 }
 
 async function renameSession(sessionKey: string, title: string) {
@@ -743,7 +724,7 @@ onMounted(async () => {
     if (storedModels) savedModels.value = JSON.parse(storedModels);
     const storedPrefs = localStorage.getItem(HISTORY_PREFS_KEY);
     if (storedPrefs) {
-      chatDisplayPrefs.value = { ...defaultChatDisplayPrefs, ...JSON.parse(storedPrefs) };
+      chatDisplayPrefs.value = { ...DEFAULT_CHAT_DISPLAY_PREFS, ...JSON.parse(storedPrefs) };
     }
   } catch (_) {
     /* ignore */

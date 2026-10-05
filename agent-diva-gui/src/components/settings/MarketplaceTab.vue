@@ -72,6 +72,7 @@ async function searchMarketplace() {
     hasSearched.value = true;
   } catch (err) {
     error.value = String(err);
+    marketplaceSkills.value = [];
     hasSearched.value = true;
   } finally {
     loading.value = false;
@@ -136,11 +137,11 @@ onMounted(() => {
     <!-- Search Bar -->
     <div class="flex flex-wrap items-center gap-3">
       <div class="relative flex-1 min-w-[200px]">
-        <Search :size="14" class="absolute left-3 top-2.5" style="color: var(--muted-foreground);" />
+        <Search :size="14" class="absolute left-3 top-2.5" style="color: var(--text-muted);" />
         <input
           v-model="searchQuery"
           type="text"
-          class="ui-input ui-input--leading-icon skills-search-input"
+          class="skills-search-input"
           :placeholder="t('general.searchMarketplace')"
           @input="triggerSearch"
           @keyup.enter="searchMarketplace"
@@ -149,11 +150,11 @@ onMounted(() => {
     </div>
 
     <!-- Error Display -->
-    <div v-if="error" class="skills-hint-box" style="border-color: var(--destructive); background: var(--destructive-soft);">
-      <p class="text-sm" style="color: var(--destructive);">{{ error }}</p>
+    <div v-if="error" class="skills-hint-box" style="border-color: var(--danger); background: var(--danger-bg);">
+      <p class="text-sm" style="color: var(--danger);">{{ error }}</p>
       <button
-        class="ui-button ui-button--ghost ui-button--compact mt-2"
-        style="color: var(--destructive);"
+        class="mt-2 text-xs font-medium"
+        style="color: var(--danger);"
         @click="searchMarketplace"
       >
         {{ t('general.retry') }}
@@ -161,28 +162,28 @@ onMounted(() => {
     </div>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-sm" style="color: var(--muted-foreground);">{{ t('general.loadingMarketplace') }}</div>
+    <div v-if="loading" class="text-sm" style="color: var(--text-muted);">{{ t('general.loadingMarketplace') }}</div>
 
     <!-- Search Prompt (no featured snapshot available) -->
     <div v-else-if="!hasSearched && featuredSkills.length === 0" class="marketplace-empty">
-      <Store :size="32" class="mx-auto mb-3" style="color: var(--muted-foreground); opacity: 0.5;" />
-      <p class="text-sm" style="color: var(--muted-foreground);">
+      <Store :size="32" class="mx-auto mb-3" style="color: var(--text-muted); opacity: 0.5;" />
+      <p class="text-sm" style="color: var(--text-muted);">
         {{ t('general.marketplaceSearchPrompt') }}
       </p>
     </div>
 
     <!-- Empty Results -->
     <div
-      v-else-if="hasSearched && marketplaceSkills.length === 0 && !error"
+      v-else-if="hasSearched && marketplaceSkills.length === 0"
       class="marketplace-empty"
     >
-      <Store :size="32" class="mx-auto mb-3" style="color: var(--muted-foreground); opacity: 0.5;" />
-      <p class="text-sm" style="color: var(--muted-foreground);">
+      <Store :size="32" class="mx-auto mb-3" style="color: var(--text-muted); opacity: 0.5;" />
+      <p class="text-sm" style="color: var(--text-muted);">
         {{ t('general.noSearchResults') }}
       </p>
       <button
-        class="ui-button ui-button--ghost ui-button--compact mt-3"
-        style="color: var(--primary);"
+        class="mt-3 text-xs font-medium"
+        style="color: var(--accent);"
         @click="searchMarketplace"
       >
         {{ t('general.retry') }}
@@ -191,10 +192,10 @@ onMounted(() => {
 
     <!-- Featured header (offline leaderboard snapshot) -->
     <div v-else-if="!hasSearched" class="flex items-center justify-between">
-      <h4 class="text-sm font-semibold" style="color: var(--foreground);">
+      <h4 class="text-sm font-semibold" style="color: var(--text-primary);">
         {{ t('general.marketplaceFeaturedTitle') }}
       </h4>
-      <span v-if="featuredGeneratedAt" class="text-[11px]" style="color: var(--muted-foreground); opacity: 0.7;">
+      <span v-if="featuredGeneratedAt" class="text-[11px]" style="color: var(--text-muted); opacity: 0.7;">
         {{ t('general.marketplaceFeaturedSnapshot', { date: featuredGeneratedAt }) }}
       </span>
     </div>
@@ -213,12 +214,12 @@ onMounted(() => {
           <p class="marketplace-card-desc">{{ skill.source }}</p>
         </div>
         <div class="mt-3 flex items-center justify-between">
-          <span class="text-[11px] flex items-center gap-1" style="color: var(--muted-foreground); opacity: 0.7;">
+          <span class="text-[11px] flex items-center gap-1" style="color: var(--text-muted); opacity: 0.7;">
             <Download :size="12" />
             {{ formatCount(skill.installs) }}
           </span>
           <button
-            class="ui-button ui-button--primary skills-btn skills-btn-primary"
+            class="skills-btn skills-btn-primary"
             :disabled="installingSkillId === skill.id || isAlreadyInstalled(skill)"
             @click="installSkill(skill)"
           >

@@ -52,7 +52,7 @@ function cancel() {
     <header class="ask-user-card-header">
       <span class="ask-user-card-kicker">ask_user</span>
       <button
-        class="ui-button ui-button--ghost ui-button--compact ask-user-card-close"
+        class="ask-user-card-close"
         :aria-label="'Cancel question'"
         :disabled="submitting"
         @click="cancel"
@@ -85,12 +85,12 @@ function cancel() {
       <div v-if="question.allow_other && (showOther || question.choices.length === 0)" class="ask-user-other">
         <input
           v-model="otherText"
-          class="ui-input ask-user-other-input"
+          class="ask-user-other-input"
           :placeholder="'Free text answer'"
           :disabled="submitting"
           @keyup.enter="submitOther"
         />
-        <button class="ui-button ui-button--primary ask-user-choice ask-user-submit" :disabled="submitting || otherText.trim() === ''" @click="submitOther">
+        <button class="ask-user-choice ask-user-submit" :disabled="submitting || otherText.trim() === ''" @click="submitOther">
           Submit
         </button>
       </div>
@@ -101,10 +101,10 @@ function cancel() {
 
 <style scoped>
 .ask-user-question-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 10px;
   padding: 12px 14px;
-  background: var(--card);
+  background: var(--bg-card, #ffffff);
   margin: 8px 0;
 }
 .ask-user-card-header {
@@ -117,7 +117,14 @@ function cancel() {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted-foreground);
+  color: var(--text-dim, #64748b);
+}
+.ask-user-card-close {
+  border: none;
+  background: transparent;
+  color: var(--text-dim, #64748b);
+  cursor: pointer;
+  padding: 2px;
 }
 .ask-user-card-question {
   margin: 6px 0 4px;
@@ -127,7 +134,7 @@ function cancel() {
 .ask-user-card-context {
   margin: 0 0 8px;
   font-size: 12px;
-  color: var(--muted-foreground);
+  color: var(--text-dim, #64748b);
 }
 .ask-user-card-actions {
   display: flex;
@@ -135,8 +142,17 @@ function cancel() {
   gap: 8px;
   margin-top: 8px;
 }
+.ask-user-choice {
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 999px;
+  background: var(--bg-button, #f1f5f9);
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
 .ask-user-choice:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 .ask-user-choice-other {
   border-style: dashed;
@@ -148,11 +164,15 @@ function cancel() {
 }
 .ask-user-other-input {
   flex: 1;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
 }
 .ask-user-card-error {
   width: 100%;
   margin: 4px 0 0;
   font-size: 12px;
-  color: var(--destructive);
+  color: #dc2626;
 }
 </style>

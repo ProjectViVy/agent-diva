@@ -7,9 +7,9 @@ const toast = getAppToast();
 
 const containerClass = computed(() => {
   if (toast.value?.tone === 'error') {
-    return 'border-destructive bg-destructive-soft text-destructive ';
+    return 'border-rose-200 bg-rose-50 text-rose-700 shadow-rose-200/60';
   }
-  return 'border-success bg-success-soft text-success ';
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-200/60';
 });
 </script>
 
@@ -28,7 +28,7 @@ const containerClass = computed(() => {
         class="pointer-events-none fixed right-6 top-6 z-[650] max-w-sm"
       >
         <div
-          class="pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-xl "
+          class="pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-sm"
           :class="containerClass"
         >
           <component :is="toast.tone === 'error' ? AlertCircle : CheckCircle2" :size="18" class="mt-0.5 shrink-0" />
@@ -37,7 +37,7 @@ const containerClass = computed(() => {
           </div>
           <button
             type="button"
-            class="ui-button ui-button--ghost ui-button--compact ui-button--icon"
+            class="rounded-lg p-1 opacity-70 transition hover:bg-white/60 hover:opacity-100"
             @click="dismissAppToast"
           >
             <X :size="14" />

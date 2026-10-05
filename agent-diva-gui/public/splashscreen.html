@@ -13,11 +13,11 @@
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        background: linear-gradient(160deg, #FFF8F6 0%, #FFE3EA 60%, #FFD6DF 100%);
+        background: linear-gradient(160deg, #FFF8F6 0%, #FFF3F6 60%, #FFEBF0 100%);
         color: #3D2B31;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         -webkit-font-smoothing: antialiased;
-        position: relative;
+        position: relative; /* 为底部的版权信息提供定位参考 */
       }
 
       /* 主内容区容器，确保整体居中 */
@@ -41,6 +41,8 @@
       .heart-logo {
         width: 70px;
         height: 70px;
+        fill: #F28BA8;
+        /* 添加一个轻微的呼吸动效让界面更生动 */
         animation: pulse 1.5s infinite ease-in-out; 
       }
 
@@ -52,14 +54,13 @@
         font-weight: 800;
         letter-spacing: 2px;
         line-height: 1.1;
-        color: #3D2B31;
       }
 
       /* 进度条外框 */
       .progress-container {
         width: 320px;
         height: 8px;
-        background: #F3E4E7;
+        background: #FFE3EA;
         border-radius: 9999px;
         overflow: hidden;
       }
@@ -68,7 +69,7 @@
       .progress-bar {
         width: 30%;
         height: 100%;
-        background: linear-gradient(90deg, #FFB3C6 0%, #F28BA8 100%);
+        background: linear-gradient(90deg, #FFB3C6, #F28BA8);
         border-radius: 9999px;
         animation: loading 2s infinite ease-in-out;
       }
@@ -86,7 +87,7 @@
         position: absolute;
         bottom: 24px;
         font-size: 12px;
-        color: #8F7C82;
+        color: #8F7C82; /* 柔和辅助文字 */
         letter-spacing: 0.5px;
         font-weight: 500;
       }
@@ -110,13 +111,7 @@
       
       <div class="logo-title-wrapper">
         <svg class="heart-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="peachGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#FFB3C6"/>
-              <stop offset="100%" stop-color="#F28BA8"/>
-            </linearGradient>
-          </defs>
-          <path fill="url(#peachGrad)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
         </svg>
         <div class="title">
           <span>AGENT</span>

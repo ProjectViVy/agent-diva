@@ -20,8 +20,6 @@ vi.mock('@lucide/vue', () => {
   return {
     Search: stub('Search'),
     Plus: stub('Plus'),
-    Pin: stub('Pin'),
-    PinOff: stub('PinOff'),
     Trash2: stub('Trash2'),
     Edit3: stub('Edit3'),
     CheckCircle2: stub('CheckCircle2'),
@@ -52,7 +50,6 @@ function mountSidebar() {
           message_count: 2,
           title_generated: true,
           title_manually_set: false,
-          pinned: false,
         },
         {
           session_key: 'gui:2',
@@ -64,7 +61,6 @@ function mountSidebar() {
           message_count: 1,
           title_generated: false,
           title_manually_set: true,
-          pinned: false,
         },
       ],
     },
@@ -72,6 +68,17 @@ function mountSidebar() {
 }
 
 describe('ConversationSidebar', () => {
+  it('does not offer session pinning until the action is backed by a persistence contract', async () => {
+    const wrapper = mountSidebar();
+    await wrapper.find('.conv-item').trigger('contextmenu', { clientX: 12, clientY: 18 });
+
+    const menu = document.body.querySelector('.conv-context-menu');
+    expect(menu?.querySelectorAll('button')).toHaveLength(2);
+    expect(menu?.textContent).not.toContain('convSidebar.pin');
+    wrapper.unmount();
+    menu?.remove();
+  });
+
   it('renders title as primary text and last message as preview', () => {
     const wrapper = mountSidebar();
     const firstItem = wrapper.find('.conv-item');
@@ -115,7 +122,6 @@ describe('ConversationSidebar', () => {
             message_count: 0,
             title_generated: false,
             title_manually_set: false,
-            pinned: false,
           },
         ],
       },

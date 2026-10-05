@@ -1,4 +1,12 @@
-import { shallowRef, type ShallowRef } from 'vue';
+import { ref, shallowRef, type ShallowRef } from 'vue';
+
+export type AppConfirmOptions = {
+  title?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** Optional async work that must finish before this confirmation can close. */
+  onConfirm?: () => Promise<void>;
+};
 
 export type AppDialogOpen =
   | {
@@ -7,6 +15,7 @@ export type AppDialogOpen =
       title?: string;
       confirmLabel?: string;
       cancelLabel?: string;
+      onConfirm?: () => Promise<void>;
     }
   | {
       kind: 'alert';
@@ -24,6 +33,8 @@ export type AppDialogOpen =
     };
 
 const open: ShallowRef<AppDialogOpen | null> = shallowRef(null);
+export const appDialogConfirmPending = ref(false);
+export const appDialogConfirmError = ref('');
 
 let resolveConfirm: ((v: boolean) => void) | null = null;
 let resolveAlert: (() => void) | null = null;
@@ -33,6 +44,8 @@ function settlePrevious() {
   if (resolveConfirm) {
     const r = resolveConfirm;
     resolveConfirm = null;
+    appDialogConfirmPending.value = false;
+    appDialogConfirmError.value = '';
     r(false);
   }
   if (resolveAlert) {
@@ -54,11 +67,13 @@ export function getAppDialogOpen(): ShallowRef<AppDialogOpen | null> {
 /** Themed confirm; resolves true if user confirms. */
 export function appConfirm(
   message: string,
-  options?: { title?: string; confirmLabel?: string; cancelLabel?: string },
+  options?: AppConfirmOptions,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     settlePrevious();
     resolveConfirm = resolve;
+    appDialogConfirmPending.value = false;
+    appDialogConfirmError.value = '';
     open.value = { kind: 'confirm', message, ...options };
   });
 }
@@ -76,10 +91,36 @@ export function appAlert(
 }
 
 export function dismissAppDialogConfirm(confirmed: boolean) {
+  if (appDialogConfirmPending.value && !confirmed) return;
   open.value = null;
+  appDialogConfirmPending.value = false;
+  appDialogConfirmError.value = '';
   const r = resolveConfirm;
   resolveConfirm = null;
   if (r) r(confirmed);
+}
+
+/** Runs an optional async confirm action, leaving its dialog open on failure. */
+export async function runAppDialogConfirm() {
+  const dialog = open.value;
+  if (!dialog || dialog.kind !== 'confirm' || appDialogConfirmPending.value) return;
+  if (!dialog.onConfirm) {
+    dismissAppDialogConfirm(true);
+    return;
+  }
+
+  appDialogConfirmPending.value = true;
+  appDialogConfirmError.value = '';
+  try {
+    await dialog.onConfirm();
+    if (open.value === dialog) dismissAppDialogConfirm(true);
+  } catch (error) {
+    if (open.value === dialog) {
+      appDialogConfirmError.value = error instanceof Error ? error.message : String(error);
+    }
+  } finally {
+    if (open.value === dialog) appDialogConfirmPending.value = false;
+  }
 }
 
 export function dismissAppDialogAlert() {

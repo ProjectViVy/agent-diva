@@ -126,6 +126,34 @@ async function clickNav(wrapper: ReturnType<typeof mountNormalMode>, label: stri
 }
 
 describe('NormalMode pet focus layout', () => {
+  it('exposes the tools group as a button and reports its expanded state in both sidebar modes', async () => {
+    const wrapper = mountNormalMode();
+    let group = wrapper.get('.nav-group-header');
+
+    expect(group.element.tagName).toBe('BUTTON');
+    expect(group.attributes('type')).toBe('button');
+    expect(group.attributes('aria-label')).toBe('nav.toolsGroup');
+    expect(group.attributes('aria-expanded')).toBe('false');
+
+    await group.trigger('click');
+    await nextTick();
+    expect(group.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.findAll('.popup-menu-item')).toHaveLength(2);
+
+    await group.trigger('click');
+    await nextTick();
+    expect(group.attributes('aria-expanded')).toBe('false');
+
+    await wrapper.find('.menu-toggle').trigger('click');
+    await nextTick();
+    expect(group.attributes('aria-expanded')).toBe('true');
+
+    await group.trigger('click');
+    await nextTick();
+    expect(group.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.find('.nav-group-items').element.getAttribute('style')).toContain('display: none');
+  });
+
   it('keeps normal pages outside pet focus layout with the topbar visible', () => {
     const wrapper = mountNormalMode();
 

@@ -239,34 +239,34 @@ watch(
   <Teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 bg-overlay "
+      class="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm"
       @click.self="emit('close')"
     />
 
     <Transition name="model-manager-slide">
       <div
         v-if="visible"
-        class="fixed right-0 top-0 z-50 flex h-full w-80 flex-col bg-card shadow-2xl"
+        class="fixed right-0 top-0 z-50 flex h-full w-80 flex-col bg-white shadow-2xl"
       >
-        <div class="flex items-center justify-between border-b border-border px-4 py-3">
+        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <div class="flex items-center gap-2">
-            <Settings :size="16" class="text-primary" />
-            <span class="text-sm font-semibold text-foreground">角色设置</span>
+            <Settings :size="16" class="text-pink-500" />
+            <span class="text-sm font-semibold text-gray-800">角色设置</span>
           </div>
           <button
-            class="ui-button ui-button--ghost ui-button--compact ui-button--icon flex h-7 w-7 items-center justify-center transition-colors"
+            class="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             @click="emit('close')"
           >
             <X :size="16" />
           </button>
         </div>
 
-        <div class="flex border-b border-border">
+        <div class="flex border-b border-gray-100">
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="ui-button flex-1 border-b-2 text-center transition-colors"
-            :class="activeTab === tab.id ? 'border-border-strong text-primary' : 'border-transparent text-muted-foreground hover:text-muted-foreground'"
+            class="flex-1 border-b-2 px-3 py-2 text-center text-xs font-medium transition-colors"
+            :class="activeTab === tab.id ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-400 hover:text-gray-600'"
             @click="activeTab = tab.id"
           >
             {{ tab.label }}
@@ -289,52 +289,52 @@ watch(
           />
 
           <div v-else-if="activeTab === 'model'" class="flex min-h-full flex-col">
-            <div class="border-b border-border px-4 py-3">
-              <div class="mb-2 text-xs font-semibold text-foreground">当前模型：{{ currentModelName }}</div>
+            <div class="border-b border-gray-100 px-4 py-3">
+              <div class="mb-2 text-xs font-semibold text-gray-800">当前模型：{{ currentModelName }}</div>
               <input ref="fileInput" type="file" accept=".vrm" class="hidden" @change="importSelectedFile" />
               <button
                 :disabled="isImporting"
-                class="ui-button ui-button--outline flex w-full items-center justify-center gap-2 border transition-colors  disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex w-full items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-medium text-pink-600 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50"
                 @click="openImportPicker"
               >
                 <Loader2 v-if="isImporting" :size="14" class="animate-spin" />
                 <Upload v-else :size="14" />
                 <span>导入 .vrm 模型</span>
               </button>
-              <div v-if="importError" class="mt-2 flex gap-1.5 rounded-md border border-destructive bg-destructive-soft px-2 py-1.5 text-xs text-destructive">
+              <div v-if="importError" class="mt-2 flex gap-1.5 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-600">
                 <AlertCircle :size="13" class="shrink-0" />
                 <span>{{ importError }}</span>
               </div>
             </div>
 
-            <div v-if="isLoading" class="flex items-center justify-center py-6 text-xs text-muted-foreground">
+            <div v-if="isLoading" class="flex items-center justify-center py-6 text-xs text-gray-400">
               <Loader2 :size="16" class="mr-2 animate-spin" />
               加载模型中...
             </div>
-            <div v-else-if="loadError" class="px-4 py-3 text-xs text-warning">{{ loadError }}</div>
-            <div v-else-if="models.length === 0" class="flex flex-col items-center justify-center px-4 py-8 text-muted-foreground">
-              <PackageOpen :size="24" class="mb-2 text-muted-foreground" />
+            <div v-else-if="loadError" class="px-4 py-3 text-xs text-amber-600">{{ loadError }}</div>
+            <div v-else-if="models.length === 0" class="flex flex-col items-center justify-center px-4 py-8 text-gray-400">
+              <PackageOpen :size="24" class="mb-2 text-gray-300" />
               <p class="text-xs">未找到 VRM 模型</p>
             </div>
             <template v-else>
               <button
                 v-for="model in models"
                 :key="model.path"
-                class="ui-button ui-button--outline flex w-full items-center gap-3 border-b text-left transition-colors last:border-b-0 "
-                :class="activeModelId === model.id ? 'bg-accent' : ''"
+                class="flex w-full items-center gap-3 border-b border-gray-50 px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-pink-50/50"
+                :class="activeModelId === model.id ? 'bg-pink-50/70' : ''"
                 @click="selectModel(model)"
               >
-                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
-                  <FolderOpen :size="17" class="text-muted-foreground" />
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-100 bg-gray-50">
+                  <FolderOpen :size="17" class="text-gray-400" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-xs font-medium text-foreground">{{ model.name }}</div>
-                  <div class="truncate text-[10px] text-muted-foreground">{{ model.source === 'custom' ? '自定义' : '内置' }}</div>
+                  <div class="truncate text-xs font-medium text-gray-800">{{ model.name }}</div>
+                  <div class="truncate text-[10px] text-gray-400">{{ model.source === 'custom' ? '自定义' : '内置' }}</div>
                 </div>
-                <Check v-if="activeModelId === model.id" :size="14" class="text-primary" />
+                <Check v-if="activeModelId === model.id" :size="14" class="text-pink-500" />
                 <button
                   v-if="model.source === 'custom'"
-                  class="ui-button ui-button--ghost ui-button--compact"
+                  class="text-gray-400 hover:text-red-500"
                   @click.stop="deleteModel(model)"
                 >
                   <Trash2 :size="13" />

@@ -88,7 +88,7 @@ describe('VrmAppearancePanel', () => {
     expect(greetingButton).toBeTruthy()
     await greetingButton!.trigger('click')
 
-    const saveButton = wrapper.findAll('button').find((button) => button.text().trim() === '保存')
+    const saveButton = wrapper.findAll('button').find((button) => button.classes().includes('bg-pink-500'))
     expect(saveButton).toBeTruthy()
     await saveButton!.trigger('click')
 

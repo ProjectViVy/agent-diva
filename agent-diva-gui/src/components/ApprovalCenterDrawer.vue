@@ -99,7 +99,7 @@ function close() {
           <div class="drawer-header-actions">
             <button
               type="button"
-              class="ui-button ui-button--ghost ui-button--compact drawer-icon-btn"
+              class="drawer-icon-btn"
               :aria-label="t('approvalCenter.refresh')"
               :disabled="loading"
               @click="emit('refresh')"
@@ -109,7 +109,7 @@ function close() {
             <button
               ref="closeButton"
               type="button"
-              class="ui-button ui-button--ghost ui-button--compact drawer-icon-btn"
+              class="drawer-icon-btn"
               :aria-label="t('approvalCenter.close')"
               @click="close"
             >
@@ -121,7 +121,7 @@ function close() {
         <div class="drawer-filters" :aria-label="t('approvalCenter.filters')">
           <label class="drawer-filter-field">
             <span>{{ t('approvalCenter.domainFilter') }}</span>
-            <select class="ui-input" v-model="domain">
+            <select v-model="domain">
               <option value="all">{{ t('approvalCenter.all') }}</option>
               <option value="command">Command</option>
               <option value="plan">Plan</option>
@@ -129,7 +129,7 @@ function close() {
           </label>
           <label class="drawer-filter-field">
             <span>{{ t('approvalCenter.statusFilter') }}</span>
-            <select class="ui-input" v-model="status">
+            <select v-model="status">
               <option value="all">{{ t('approvalCenter.all') }}</option>
               <option value="pending">{{ t('approvalCenter.status.pending') }}</option>
               <option value="allowed">{{ t('approvalCenter.status.allowed') }}</option>
@@ -141,7 +141,7 @@ function close() {
           </label>
           <label class="drawer-filter-field">
             <span>{{ t('approvalCenter.sessionFilter') }}</span>
-            <select class="ui-input" v-model="session">
+            <select v-model="session">
               <option value="all">{{ t('approvalCenter.all') }}</option>
               <option v-for="value in sessions" :key="value" :value="value">{{ value }}</option>
             </select>
@@ -182,7 +182,7 @@ function close() {
   inset: 0;
   display: flex;
   justify-content: flex-end;
-  background: var(--overlay);
+  background: rgba(15, 23, 42, 0.34);
 }
 
 .approval-center-drawer {
@@ -190,9 +190,9 @@ function close() {
   width: min(520px, 100vw);
   height: 100%;
   flex-direction: column;
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: var(--shadow-sm);
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
+  box-shadow: -18px 0 50px rgba(15, 23, 42, 0.18);
 }
 
 .drawer-header {
@@ -202,7 +202,7 @@ function close() {
   justify-content: space-between;
   gap: 12px;
   padding: 18px 18px 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line, #d9dce3);
 }
 
 .drawer-title-block {
@@ -213,7 +213,7 @@ function close() {
 }
 
 .drawer-eyebrow {
-  color: var(--destructive);
+  color: #b45309;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -225,7 +225,7 @@ function close() {
   font-size: 20px;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--foreground);
+  color: var(--text, #20242d);
 }
 
 .drawer-header-actions {
@@ -239,7 +239,22 @@ function close() {
   width: 40px;
   height: 40px;
   place-items: center;
+  border: 1px solid var(--line, #d9dce3);
+  border-radius: 10px;
+  color: var(--text, #20242d);
+  background: transparent;
+  cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.drawer-icon-btn:hover:not(:disabled) {
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  border-color: var(--brand, #ec4899);
+}
+
+.drawer-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .drawer-filters {
@@ -248,14 +263,14 @@ function close() {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line, #d9dce3);
 }
 
 .drawer-filter-field {
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
   font-size: 11px;
   font-weight: 600;
 }
@@ -264,11 +279,11 @@ function close() {
   width: 100%;
   min-width: 0;
   min-height: 38px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line, #d9dce3);
   border-radius: 8px;
   padding: 0 10px;
-  background: var(--card);
-  color: var(--foreground);
+  background: var(--panel-solid, #fff);
+  color: var(--text, #20242d);
   font-size: 12px;
 }
 
@@ -277,8 +292,8 @@ function close() {
   margin: 12px 18px 0;
   border-radius: 8px;
   padding: 10px 12px;
-  background: var(--destructive-soft);
-  color: var(--destructive);
+  background: var(--danger-bg, #fef2f2);
+  color: var(--danger, #991b1b);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -302,7 +317,7 @@ function close() {
   justify-items: center;
   gap: 10px;
   padding: 32px 18px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #667085);
   text-align: center;
 }
 

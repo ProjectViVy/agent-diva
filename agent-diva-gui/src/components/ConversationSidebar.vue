@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Search, Plus, Pin, PinOff, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X, RefreshCw } from '@lucide/vue';
+import { Search, Plus, Trash2, Edit3, CheckCircle2, XCircle, Loader2, MessageSquare, X, RefreshCw } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -15,7 +15,6 @@ interface Session {
   message_count: number;
   title_generated: boolean;
   title_manually_set: boolean;
-  pinned?: boolean;
   status?: 'idle' | 'running' | 'completed' | 'error';
   agent_icon?: string;
   agent_name?: string;
@@ -31,14 +30,12 @@ const emit = defineEmits<{
   (e: 'select', sessionKey: string): void;
   (e: 'delete', sessionKey: string): void;
   (e: 'new'): void;
-  (e: 'toggle-pin', sessionKey: string): void;
   (e: 'rename', sessionKey: string, newTitle: string): void;
   (e: 'refresh'): void;
   (e: 'close'): void;
 }>();
 
 const searchQuery = ref('');
-const showPinnedOnly = ref(false);
 const renamingId = ref<string | null>(null);
 const renameInput = ref('');
 const contextMenu = ref<{ visible: boolean; x: number; y: number; sessionId: string }>({
@@ -51,24 +48,14 @@ const contextMenu = ref<{ visible: boolean; x: number; y: number; sessionId: str
 // Filter sessions by search query
 const filteredSessions = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return props.sessions;
-  return props.sessions.filter((s) => {
-    const haystack = `${s.title || ''} ${s.last_message || s.snippet || ''}`.toLowerCase();
-    return haystack.includes(q);
-  });
+  const matching = q
+    ? props.sessions.filter((s) => {
+        const haystack = `${s.title || ''} ${s.last_message || s.snippet || ''}`.toLowerCase();
+        return haystack.includes(q);
+      })
+    : props.sessions;
+  return [...matching].sort((a, b) => b.timestamp - a.timestamp);
 });
-// Separate pinned and regular sessions
-const pinnedSessions = computed(() =>
-  filteredSessions.value
-    .filter((s) => s.pinned)
-    .sort((a, b) => b.timestamp - a.timestamp)
-);
-
-const regularSessions = computed(() =>
-  filteredSessions.value
-    .filter((s) => !s.pinned)
-    .sort((a, b) => b.timestamp - a.timestamp)
-);
 
 // Format time relative to now
 const formatTimeAgo = (timestamp: number): string => {
@@ -94,13 +81,13 @@ const formatTimeAgo = (timestamp: number): string => {
 const getStatusIcon = (status?: string) => {
   switch (status) {
     case 'running':
-      return { component: Loader2, class: 'animate-spin text-warning' };
+      return { component: Loader2, class: 'animate-spin text-amber-500' };
     case 'completed':
-      return { component: CheckCircle2, class: 'text-success' };
+      return { component: CheckCircle2, class: 'text-green-500' };
     case 'error':
-      return { component: XCircle, class: 'text-destructive' };
+      return { component: XCircle, class: 'text-red-500' };
     default:
-      return { component: MessageSquare, class: 'text-muted-foreground' };
+      return { component: MessageSquare, class: 'text-gray-400' };
   }
 };
 
@@ -182,102 +169,33 @@ defineExpose({ closeContextMenu });
           v-model="searchQuery"
           type="text"
           :placeholder="t('convSidebar.search')"
-        class="ui-input ui-input--leading-icon ui-input--trailing-icon conv-search-input"
+          class="conv-search-input"
         />
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
-          class="ui-button ui-button--ghost ui-button--compact conv-search-clear"
+          class="conv-search-clear"
         >
           <X :size="12" />
         </button>
       </div>
-      <div class="conv-header-actions">
-        <!-- TODO: 仅显示置顶按钮目前意义不明确，暂时注释掉 -->
-        <!-- <button
-          @click="showPinnedOnly = !showPinnedOnly"
-          class="ui-button ui-button--ghost ui-button--compact conv-action-btn"
-          :class="{ active: showPinnedOnly }"
-          :title="showPinnedOnly ? t('convSidebar.showAll') : t('convSidebar.showPinned')"
-        >
-          <Pin v-if="showPinnedOnly" :size="14" />
-          <PinOff v-else :size="14" />
-        </button> -->
-      </div>
     </div>
 
     <!-- New Session Button -->
-    <button @click="emit('new')" class="ui-button ui-button--ghost ui-button--compact conv-new-session">
+    <button @click="emit('new')" class="conv-new-session">
       <Plus :size="14" />
       <span>{{ t('convSidebar.newSession') }}</span>
     </button>
 
     <!-- Session List -->
     <div class="conv-list">
-      <!-- Pinned Section -->
-      <div v-if="!showPinnedOnly || pinnedSessions.length > 0" class="conv-section">
-        <div v-if="pinnedSessions.length > 0" class="conv-section-label">
-          <Pin :size="12" class="text-warning" />
-          <span>{{ t('convSidebar.pinned') }}</span>
-        </div>
-        <div
-          v-for="session in pinnedSessions"
-          :key="session.session_key"
-          class="conv-item"
-          :class="{ 'conv-item-active': session.session_key === activeSessionKey }"
-          @click="handleSessionClick(session.session_key)"
-          @contextmenu="handleContextMenu($event, session.session_key)"
-        >
-          <!-- Icon -->
-          <div class="conv-item-icon">
-            <span>{{ session.agent_icon || '💬' }}</span>
-          </div>
-          <!-- Body -->
-          <div class="conv-item-body">
-            <!-- Renaming Mode -->
-            <template v-if="renamingId === session.session_key">
-              <input
-                v-model="renameInput"
-                @keydown="handleRenameKeydown"
-                @blur="confirmRename"
-                class="ui-input conv-rename-input"
-                autofocus
-              />
-            </template>
-            <!-- Normal Mode -->
-            <template v-else>
-              <div class="conv-item-title">{{ session.title || t('convSidebar.untitled') }}</div>
-              <div class="conv-item-meta">
-                <span class="conv-item-preview">{{ session.last_message || session.snippet || t('convSidebar.untitled') }}</span>
-                <span class="conv-item-time">{{ formatTimeAgo(session.timestamp) }}</span>
-                <span class="conv-item-count">{{ session.message_count }}</span>
-                <component
-                  :is="getStatusIcon(session.status).component"
-                  :size="12"
-                  :class="getStatusIcon(session.status).class"
-                />
-              </div>
-            </template>
-          </div>
-          <!-- Delete Button (hover reveal) -->
-          <button
-            @click.stop="emit('delete', session.session_key)"
-            class="ui-button ui-button--ghost ui-button--compact conv-item-delete"
-            :title="t('convSidebar.delete')"
-          >
-            <Trash2 :size="12" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Regular Section -->
-      <div v-if="!showPinnedOnly" class="conv-section">
-        <div v-if="regularSessions.length > 0 || pinnedSessions.length > 0" class="conv-section-label">
+      <div class="conv-section">
+        <div v-if="filteredSessions.length > 0" class="conv-section-label">
           <MessageSquare :size="12" />
           <span>{{ t('convSidebar.sessions') }}</span>
         </div>
         <div
-          v-for="session in regularSessions"
+          v-for="session in filteredSessions"
           :key="session.session_key"
           class="conv-item"
           :class="{ 'conv-item-active': session.session_key === activeSessionKey }"
@@ -296,7 +214,7 @@ defineExpose({ closeContextMenu });
                 v-model="renameInput"
                 @keydown="handleRenameKeydown"
                 @blur="confirmRename"
-                class="ui-input conv-rename-input"
+                class="conv-rename-input"
                 autofocus
               />
             </template>
@@ -318,7 +236,7 @@ defineExpose({ closeContextMenu });
           <!-- Delete Button (hover reveal) -->
           <button
             @click.stop="emit('delete', session.session_key)"
-            class="ui-button ui-button--ghost ui-button--compact conv-item-delete"
+            class="conv-item-delete"
             :title="t('convSidebar.delete')"
           >
             <Trash2 :size="12" />
@@ -333,7 +251,7 @@ defineExpose({ closeContextMenu });
         <button
           v-if="!searchQuery"
           type="button"
-          class="ui-button ui-button--ghost ui-button--compact conv-empty-refresh"
+          class="conv-empty-refresh"
           @click="emit('refresh')"
         >
           <RefreshCw :size="14" />
@@ -352,27 +270,15 @@ defineExpose({ closeContextMenu });
       >
         <button
           @click="startRename(sessions.find(s => s.session_key === contextMenu.sessionId)!)"
-          class="ui-button ui-button--ghost ui-button--compact conv-context-item"
+          class="conv-context-item"
         >
           <Edit3 :size="14" />
           <span>{{ t('convSidebar.rename') }}</span>
         </button>
-        <button
-          @click="emit('toggle-pin', contextMenu.sessionId)"
-          class="ui-button ui-button--ghost ui-button--compact conv-context-item"
-        >
-          <Pin v-if="!sessions.find(s => s.session_key === contextMenu.sessionId)?.pinned" :size="14" />
-          <PinOff v-else :size="14" />
-          <span>{{
-            sessions.find(s => s.session_key === contextMenu.sessionId)?.pinned
-              ? t('convSidebar.unpin')
-              : t('convSidebar.pin')
-          }}</span>
-        </button>
         <div class="conv-context-divider"></div>
         <button
           @click="emit('delete', contextMenu.sessionId)"
-          class="ui-button ui-button--ghost ui-button--compact conv-context-item conv-context-danger"
+          class="conv-context-item conv-context-danger"
         >
           <Trash2 :size="14" />
           <span>{{ t('convSidebar.delete') }}</span>
@@ -386,8 +292,8 @@ defineExpose({ closeContextMenu });
 /* Conversation Sidebar Container */
 .conv-sidebar {
   width: 280px;
-  border-left: 1px solid var(--border);
-  background: var(--card);
+  border-left: 1px solid var(--line, #e5e7eb);
+  background: var(--panel, #ffffff);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -397,7 +303,7 @@ defineExpose({ closeContextMenu });
 /* Header */
 .conv-header {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line, #e5e7eb);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -413,39 +319,46 @@ defineExpose({ closeContextMenu });
 .conv-search-icon {
   position: absolute;
   left: 10px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #9ca3af);
   pointer-events: none;
 }
 
 .conv-search-input {
   width: 100%;
+  padding: 8px 32px 8px 32px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--panel-solid, #ffffff);
+  color: var(--text, #111827);
+  font-size: 13px;
+  outline: none;
   transition: border-color 0.15s ease;
+}
+
+.conv-search-input:focus {
+  border-color: var(--brand, #ec4899);
+}
+
+.conv-search-input::placeholder {
+  color: var(--text-muted, #9ca3af);
 }
 
 .conv-search-clear {
   position: absolute;
   right: 8px;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Header Actions */
-.conv-header-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.conv-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.conv-action-btn.active {
-  background: var(--sidebar-accent);
-  color: var(--primary);
+.conv-search-clear:hover {
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
 }
 
 /* New Session Button */
@@ -454,8 +367,22 @@ defineExpose({ closeContextMenu });
   align-items: center;
   justify-content: center;
   gap: 8px;
+  padding: 10px 12px;
   margin: 8px 12px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px dashed var(--line, #e5e7eb);
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.conv-new-session:hover {
+  border-color: var(--brand, #ec4899);
+  color: var(--brand, #ec4899);
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
 }
 
 /* Session List */
@@ -480,7 +407,7 @@ defineExpose({ closeContextMenu });
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #9ca3af);
 }
 
 /* Session Item */
@@ -489,18 +416,18 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm, 8px);
   cursor: pointer;
   transition: background 0.12s ease;
   position: relative;
 }
 
 .conv-item:hover {
-  background: var(--accent);
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
 }
 
 .conv-item-active {
-  background: var(--sidebar-accent) !important;
+  background: var(--nav-active, rgba(0, 0, 0, 0.06)) !important;
 }
 
 /* Item Icon */
@@ -508,8 +435,8 @@ defineExpose({ closeContextMenu });
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card);
+  border: 1px solid var(--line, #e5e7eb);
+  background: var(--panel-solid, #ffffff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -529,7 +456,7 @@ defineExpose({ closeContextMenu });
 .conv-item-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--foreground);
+  color: var(--text, #111827);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -540,7 +467,7 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #9ca3af);
 }
 
 .conv-item-preview {
@@ -564,10 +491,23 @@ defineExpose({ closeContextMenu });
 /* Rename Input */
 .conv-rename-input {
   width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--brand, #ec4899);
+  background: var(--panel-solid, #ffffff);
+  color: var(--text, #111827);
+  font-size: 13px;
+  outline: none;
 }
 
 /* Delete Button */
 .conv-item-delete {
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -582,6 +522,8 @@ defineExpose({ closeContextMenu });
 
 .conv-item-delete:hover {
   opacity: 1 !important;
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
+  color: var(--danger, #ef4444);
 }
 
 /* Empty State */
@@ -591,7 +533,7 @@ defineExpose({ closeContextMenu });
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: var(--muted-foreground);
+  color: var(--text-muted, #9ca3af);
   text-align: center;
 }
 
@@ -610,16 +552,27 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 6px;
   margin-top: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text, #374151);
+  background: var(--panel-solid, #ffffff);
+  cursor: pointer;
+}
+
+.conv-empty-refresh:hover {
+  border-color: var(--brand, #ec4899);
+  color: var(--brand, #ec4899);
 }
 
 /* Context Menu */
 .conv-context-menu {
   position: fixed;
   min-width: 160px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  background: var(--panel-solid, #ffffff);
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   padding: 6px;
   z-index: 1000;
 }
@@ -629,13 +582,32 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 8px;
   width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text, #111827);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
   transition: background 0.12s ease;
   text-align: left;
 }
 
+.conv-context-item:hover {
+  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+}
+
+.conv-context-danger {
+  color: var(--danger, #ef4444);
+}
+
+.conv-context-danger:hover {
+  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
+}
+
 .conv-context-divider {
   height: 1px;
-  background: var(--border);
+  background: var(--line, #e5e7eb);
   margin: 4px 0;
 }
 
@@ -646,71 +618,123 @@ defineExpose({ closeContextMenu });
 /* Dark Theme */
 :root[data-theme="dark"] .conv-sidebar,
 .theme-dark .conv-sidebar {
-  border-left-color: var(--border);
-  background: var(--card);
+  border-left-color: var(--line, #1f2937);
+  background: var(--panel-solid, #0f172a);
+}
+
+.theme-dark .conv-search-input {
+  border-color: var(--line, #1f2937);
+  background: var(--panel-solid, #111827);
+  color: var(--text, #e2e8f0);
 }
 
 .theme-dark .conv-item-icon {
-  border-color: var(--border);
-  background: var(--card);
+  border-color: var(--line, #1f2937);
+  background: var(--panel-solid, #111827);
+}
+
+.theme-dark .conv-item-delete:hover {
+  background: var(--danger-bg, rgba(239, 68, 68, 0.15));
 }
 
 .theme-dark .conv-context-menu {
-  background: var(--card);
-  border-color: var(--border);
+  background: var(--panel-solid, #111827);
+  border-color: var(--line, #1f2937);
 }
 
 /* Love Theme */
 .theme-love .conv-sidebar {
-  border-left-color: var(--border-strong);
-  background: var(--card);
+  border-left-color: var(--line, #F3E4E7);
+  background: var(--panel, rgba(255, 248, 246, 0.95));
+}
+
+.theme-love .conv-search-input {
+  border-color: var(--line, #F3E4E7);
+  background: var(--panel-solid, #ffffff);
+  color: var(--text, #3D2B31);
+}
+
+.theme-love .conv-search-input:focus {
+  border-color: var(--brand, #F28BA8);
 }
 
 .theme-love .conv-item:hover {
-  background: var(--destructive-soft);
+  background: var(--nav-hover, rgba(242, 139, 168, 0.08));
 }
 
 .theme-love .conv-item-active {
-  background: var(--destructive-soft);
+  background: var(--nav-active, rgba(242, 139, 168, 0.14));
 }
 
 .theme-love .conv-item-icon {
-  border-color: var(--border-strong);
-  background: var(--card);
+  border-color: var(--line, #F3E4E7);
+  background: var(--panel-solid, #ffffff);
+}
+
+.theme-love .conv-new-session {
+  border-color: var(--line, #F3E4E7);
+  color: var(--brand-dark, #D9567B);
+}
+
+.theme-love .conv-new-session:hover {
+  border-color: var(--brand, #F28BA8);
+  color: var(--brand-dark, #D9567B);
+  background: rgba(242, 139, 168, 0.08);
 }
 
 .theme-love .conv-context-menu {
-  background: var(--card);
-  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--line, #F3E4E7);
 }
 
 /* Default Theme */
 .theme-default .conv-sidebar {
-  border-left-color: var(--border);
-  background: var(--card);
+  border-left-color: var(--line, #e5e7eb);
+  background: var(--panel-solid, #ffffff);
 }
 
 /* Miku Theme */
 .theme-miku .conv-sidebar {
-  border-left-color: var(--border-strong);
-  background: var(--card);
+  border-left-color: rgba(0, 215, 200, 0.15);
+  background: var(--panel-solid, #161b22);
+}
+
+.theme-miku .conv-search-input {
+  border-color: rgba(0, 215, 200, 0.2);
+  background: var(--panel-solid, #0d1117);
+  color: var(--text, #e6edf3);
+}
+
+.theme-miku .conv-search-input:focus {
+  border-color: var(--brand, #39c5bb);
 }
 
 .theme-miku .conv-item:hover {
-  background: var(--accent);
+  background: rgba(57, 197, 187, 0.06);
 }
 
 .theme-miku .conv-item-active {
-  background: var(--accent);
+  background: rgba(57, 197, 187, 0.1);
 }
 
 .theme-miku .conv-item-icon {
-  border-color: var(--border-strong);
-  background: var(--card);
+  border-color: rgba(0, 215, 200, 0.2);
+  background: var(--panel-solid, #0d1117);
+}
+
+.theme-miku .conv-new-session {
+  border-color: rgba(0, 215, 200, 0.2);
+  color: #39c5bb;
+}
+
+.theme-miku .conv-new-session:hover {
+  border-color: var(--brand, #39c5bb);
+  color: var(--brand, #39c5bb);
+  background: rgba(57, 197, 187, 0.06);
 }
 
 .theme-miku .conv-context-menu {
-  background: var(--card);
-  border-color: var(--border-strong);
+  background: var(--panel-solid, #161b22);
+  border-color: rgba(0, 215, 200, 0.15);
 }
 </style>

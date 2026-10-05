@@ -546,7 +546,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div data-ui-surface="overlay"
+  <div
     class="desktop-pet-overlay"
     :class="{ 'drag-mode': isDragMode }"
     @contextmenu.prevent="showContextMenu"
@@ -591,7 +591,7 @@ onUnmounted(() => {
       class="ptt-floating-wrapper"
     >
       <button
-        class="ui-button ui-button--ghost ptt-btn"
+        class="ptt-btn"
         :class="{ recording: voiceInput.isEnabled.value }"
         :disabled="isPttDisabled"
         @pointerdown.prevent="startRecording"
@@ -774,35 +774,37 @@ onUnmounted(() => {
   z-index: 50;
   min-width: 140px;
   border-radius: 10px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  background: rgba(30, 30, 30, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
 }
 
 .menu-item {
   padding: 10px 16px;
   font-size: 13px;
-  color: var(--foreground);
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   transition: background 0.12s ease;
   user-select: none;
 }
 
 .menu-item:hover {
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .menu-item + .menu-item {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .menu-item-danger {
-  color: var(--destructive);
+  color: #f87171;
 }
 
 .menu-item-danger:hover {
-  background: var(--destructive-soft);
+  background: rgba(239, 68, 68, 0.15);
 }
 
 /* ── Menu: 子菜单增强 ────────────────────────────────────────── */
@@ -825,7 +827,7 @@ onUnmounted(() => {
 
 .menu-separator {
   height: 1px;
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.08);
   margin: 4px 0;
 }
 
@@ -843,9 +845,11 @@ onUnmounted(() => {
   top: -4px;
   min-width: 160px;
   border-radius: 10px;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
   z-index: 51;
 }
@@ -853,7 +857,7 @@ onUnmounted(() => {
 .submenu-item {
   padding: 8px 16px;
   font-size: 12px;
-  color: var(--foreground);
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition: background 0.12s ease;
   user-select: none;
@@ -861,12 +865,12 @@ onUnmounted(() => {
 }
 
 .submenu-item:hover {
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .submenu-item.active {
-  color: var(--info);
-  background: var(--info-soft);
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.1);
 }
 
 .submenu-item-disabled {
@@ -880,17 +884,17 @@ onUnmounted(() => {
 
 .submenu-separator {
   height: 1px;
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.08);
   margin: 2px 8px;
 }
 
 .submenu-item-action {
-  color: var(--info);
+  color: #60a5fa;
   font-weight: 500;
 }
 
 .submenu-item-action:hover {
-  background: var(--info-soft);
+  background: rgba(59, 130, 246, 0.1);
 }
 
 .submenu-toggle {
@@ -909,12 +913,12 @@ onUnmounted(() => {
 
 .menu-toggle-state {
   font-size: 11px;
-  color: var(--foreground);
+  color: rgba(255, 255, 255, 0.4);
   transition: color 0.15s ease;
 }
 
 .menu-toggle-state.on {
-  color: var(--success);
+  color: #34d399;
 }
 
 /* ── Scale slider ────────────────────────────────────────────── */
@@ -940,22 +944,26 @@ onUnmounted(() => {
   appearance: none;
   background: linear-gradient(
     to right,
-    var(--info-soft) 0%,
-    var(--info-soft) var(--slider-progress, 35%),
-    var(--card) var(--slider-progress, 35%),
-    var(--card) 100%
+    #60a5fa 0%,
+    #60a5fa var(--slider-progress, 35%),
+    rgba(255, 255, 255, 0.18) var(--slider-progress, 35%),
+    rgba(255, 255, 255, 0.18) 100%
   );
   border-radius: 999px;
   outline: none;
   cursor: pointer;
   transition: box-shadow 0.15s ease, filter 0.15s ease;
-  box-shadow: var(--shadow-lg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.menu-slider:hover {
+  filter: brightness(1.05);
 }
 
 .menu-slider:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 4px;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .menu-slider::-webkit-slider-thumb {
@@ -965,16 +973,16 @@ onUnmounted(() => {
   height: 16px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 30%, var(--card), var(--card) 35%, var(--info-soft) 36%, var(--info-soft) 100%);
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 35%, rgba(96, 165, 250, 0.95) 36%, #60a5fa 100%);
   cursor: pointer;
-  border: 2px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .menu-slider::-webkit-slider-thumb:hover {
   transform: scale(1.08);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
 }
 
 .menu-slider::-webkit-slider-thumb:active {
@@ -984,14 +992,14 @@ onUnmounted(() => {
 .menu-slider::-moz-range-track {
   height: 6px;
   border-radius: 999px;
-  background: var(--card);
-  box-shadow: var(--shadow-lg);
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .menu-slider::-moz-range-progress {
   height: 6px;
   border-radius: 999px;
-  background: var(--info-soft);
+  background: #60a5fa;
 }
 
 .menu-slider::-moz-range-thumb {
@@ -999,29 +1007,29 @@ onUnmounted(() => {
   height: 16px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 30%, var(--card), var(--card) 35%, var(--info-soft) 36%, var(--info-soft) 100%);
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 35%, rgba(96, 165, 250, 0.95) 36%, #60a5fa 100%);
   cursor: pointer;
-  border: 2px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .menu-slider::-moz-range-thumb:hover {
   transform: scale(1.08);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38);
 }
 
 .menu-scale-value {
   font-size: 11px;
   font-weight: 600;
-  color: var(--foreground);
+  color: rgba(255, 255, 255, 0.88);
   min-width: 42px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ── Submenu transitions ─────────────────────────────────────── */
@@ -1052,9 +1060,11 @@ onUnmounted(() => {
   transform: translate(-50%, -50%);
   padding: 8px 20px;
   border-radius: 20px;
-  background: var(--overlay);
-  border: 1px solid var(--border);
-  color: var(--foreground);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
   line-height: 1.5;
   max-width: 320px;
@@ -1065,7 +1075,7 @@ onUnmounted(() => {
 }
 
 .subtitle-overlay:hover {
-  background: var(--overlay);
+  background: rgba(0, 0, 0, 0.75);
 }
 
 .subtitle-fade-enter-active {
@@ -1087,6 +1097,10 @@ onUnmounted(() => {
 }
 
 /* ── Visual enhancement: matching SAP quality ────────────────── */
+
+.diva-vrm-avatar :deep(canvas) {
+  filter: contrast(1.05) brightness(1.02);
+}
 
 /* ── Transitions ─────────────────────────────────────────────── */
 
@@ -1117,32 +1131,49 @@ onUnmounted(() => {
 .ptt-btn {
   width: 48px;
   height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   opacity: 0.7;
   position: relative;
   transition: opacity 0.15s ease, background 0.2s ease, transform 0.15s ease;
   user-select: none;
+  color: #ec4899;
 }
 
 .ptt-btn:hover {
   opacity: 1;
 }
 
+.ptt-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.ptt-btn:active {
+  transform: scale(0.92);
+}
+
 .ptt-btn.recording {
   opacity: 1;
-  background: var(--destructive-soft);
-  color: var(--foreground);
-  border-color: var(--destructive);
-  box-shadow: var(--shadow-sm);
+  background: #ec4899;
+  color: #ffffff;
+  border-color: #ec4899;
+  box-shadow: 0 4px 24px rgba(236, 72, 153, 0.5);
 }
 
 .ptt-pulse-ring {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 2px solid var(--destructive);
+  border: 2px solid rgba(236, 72, 153, 0.5);
   animation: pt-pulse 1.2s ease-out infinite;
   pointer-events: none;
 }
@@ -1160,18 +1191,18 @@ onUnmounted(() => {
 
 .ptt-hint {
   font-size: 10px;
-  color: var(--muted-foreground);
+  color: #9ca3af;
   user-select: none;
   transition: color 0.15s ease;
 }
 
 .ptt-hint.recording {
-  color: var(--destructive);
+  color: #ec4899;
 }
 
 .ptt-error {
   font-size: 10px;
-  color: var(--destructive);
+  color: #ef4444;
   white-space: nowrap;
   user-select: none;
   margin-top: 2px;

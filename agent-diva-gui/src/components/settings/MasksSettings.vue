@@ -70,9 +70,9 @@ async function refresh() {
 
 function conflictMessage(err: unknown): string {
   if (err instanceof MaskActionError) {
-    if (err.code === 'revision_conflict') return t('mask.conflict');
-    if (err.code === 'mask_in_use') return t('mask.inUse', { count: err.referenceCount ?? 0 });
-    if (err.code === 'not_found') return t('mask.notFound');
+    if (err.code === 'revision_conflict') return t('masks.conflict');
+    if (err.code === 'mask_in_use') return t('masks.inUse', { count: err.referenceCount ?? 0 });
+    if (err.code === 'not_found') return t('masks.notFound');
   }
   return String(err instanceof Error ? err.message : err);
 }
@@ -174,19 +174,19 @@ onMounted(refresh);
 <template>
   <div class="settings-section">
     <div class="settings-section-header">
-      <h3>{{ t('mask.title') }}</h3>
-      <button class="ui-button ui-button--ghost ui-button--compact settings-icon-btn" :disabled="loading" @click="refresh">
+      <h3>{{ t('masks.title') }}</h3>
+      <button class="settings-icon-btn" :disabled="loading" @click="refresh">
         <RefreshCw :size="16" />
       </button>
     </div>
-    <p class="settings-hint">{{ t('mask.hint') }}</p>
+    <p class="settings-hint">{{ t('masks.hint') }}</p>
 
-    <div v-if="previewMode" class="settings-empty">{{ t('mask.preview') }}</div>
-    <div v-else-if="unavailable" class="settings-empty">{{ t('mask.unavailable') }}</div>
+    <div v-if="previewMode" class="settings-empty">{{ t('masks.preview') }}</div>
+    <div v-else-if="unavailable" class="settings-empty">{{ t('masks.unavailable') }}</div>
     <template v-else>
-      <p v-if="!sessionId" class="settings-hint">{{ t('mask.noSession') }}</p>
+      <p v-if="!sessionId" class="settings-hint">{{ t('masks.noSession') }}</p>
       <p v-else-if="selection && !selection.available" class="settings-hint">
-        {{ t('mask.selectionInactive', { reason: selection.inactive_reason || '-' }) }}
+        {{ t('masks.selectionInactive', { reason: selection.inactive_reason || '-' }) }}
       </p>
       <p v-if="error" class="settings-error">{{ error }}</p>
 
@@ -204,25 +204,25 @@ onMounted(refresh);
           >
             <span class="masks-item-name">
               {{ mask.name }}
-              <span v-if="mask.built_in" class="masks-badge">{{ t('mask.builtIn') }}</span>
+              <span v-if="mask.built_in" class="masks-badge">{{ t('masks.builtIn') }}</span>
               <span v-if="selection?.mask_id === mask.id" class="masks-badge active">
-                {{ t('mask.active') }}
+                {{ t('masks.active') }}
               </span>
             </span>
             <span class="masks-item-desc">{{ mask.description }}</span>
           </button>
           <div class="masks-item-actions">
             <button
-              class="ui-button ui-button--ghost ui-button--compact settings-icon-btn"
+              class="settings-icon-btn"
               :disabled="saving"
-              :title="t('mask.edit')"
+              :title="t('masks.edit')"
               @click="startEdit(mask)"
             >✎</button>
             <button
               v-if="!mask.built_in"
-              class="ui-button ui-button--ghost ui-button--compact settings-icon-btn"
+              class="settings-icon-btn"
               :disabled="saving"
-              :title="t('mask.delete')"
+              :title="t('masks.delete')"
               @click="remove(mask)"
             >
               <Trash2 :size="14" />
@@ -231,37 +231,37 @@ onMounted(refresh);
         </li>
       </ul>
 
-      <button class="ui-button ui-button--ghost ui-button--compact settings-action-btn" :disabled="saving" @click="startCreate">
-        <Plus :size="14" /> {{ t('mask.create') }}
+      <button class="settings-action-btn" :disabled="saving" @click="startCreate">
+        <Plus :size="14" /> {{ t('masks.create') }}
       </button>
 
       <form v-if="editing" class="masks-editor" @submit.prevent="saveEdit">
         <input
           v-model="editing.name"
-          class="ui-input settings-input"
-          :placeholder="t('mask.namePlaceholder')"
+          class="settings-input"
+          :placeholder="t('masks.namePlaceholder')"
           maxlength="128"
           required
         />
         <input
           v-model="editing.description"
-          class="ui-input settings-input"
-          :placeholder="t('mask.descPlaceholder')"
+          class="settings-input"
+          :placeholder="t('masks.descPlaceholder')"
           maxlength="1024"
         />
         <textarea
           v-model="editing.body"
-          class="ui-input settings-input masks-body"
-          :placeholder="t('mask.bodyPlaceholder')"
+          class="settings-input masks-body"
+          :placeholder="t('masks.bodyPlaceholder')"
           maxlength="16384"
           required
         />
         <div class="masks-editor-actions">
-          <button type="submit" class="ui-button ui-button--ghost ui-button--compact settings-action-btn" :disabled="saving">
-            {{ t('mask.save') }}
+          <button type="submit" class="settings-action-btn" :disabled="saving">
+            {{ t('masks.save') }}
           </button>
-          <button type="button" class="ui-button ui-button--ghost ui-button--compact settings-action-btn secondary" @click="editing = null">
-            {{ t('mask.cancel') }}
+          <button type="button" class="settings-action-btn secondary" @click="editing = null">
+            {{ t('masks.cancel') }}
           </button>
         </div>
       </form>
@@ -272,21 +272,24 @@ onMounted(refresh);
 <style scoped>
 .settings-section { padding: 16px 24px; max-width: 720px; }
 .settings-section-header { display: flex; align-items: center; gap: 8px; }
-.settings-hint { color: var(--muted-foreground); font-size: 0.8rem; }
-.settings-error { color: var(--destructive); font-size: 0.8rem; }
-.settings-empty { color: var(--muted-foreground); padding: 16px 0; }
+.settings-hint { color: var(--text-muted); font-size: 0.8rem; }
+.settings-error { color: var(--danger, #d34); font-size: 0.8rem; }
+.settings-empty { color: var(--text-muted); padding: 16px 0; }
 .masks-list { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
-.masks-item { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 8px; }
-.masks-item.active { border-color: var(--primary); }
-.masks-item-main { flex: 1; text-align: left; padding: 8px 12px; background: none; border: none; cursor: pointer; color: var(--foreground); }
+.masks-item { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 8px; }
+.masks-item.active { border-color: var(--accent, #7c6cf0); }
+.masks-item-main { flex: 1; text-align: left; padding: 8px 12px; background: none; border: none; cursor: pointer; color: var(--text); }
 .masks-item-main:disabled { cursor: default; opacity: 0.7; }
 .masks-item-name { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 0.85rem; }
-.masks-item-desc { display: block; color: var(--muted-foreground); font-size: 0.75rem; margin-top: 2px; }
-.masks-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted-foreground); }
-.masks-badge.active { color: var(--primary); border-color: var(--primary); }
+.masks-item-desc { display: block; color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+.masks-badge { font-size: 0.65rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-muted); }
+.masks-badge.active { color: var(--accent, #7c6cf0); border-color: var(--accent, #7c6cf0); }
 .masks-item-actions { display: flex; align-items: center; gap: 4px; padding-right: 8px; }
-.settings-action-btn { display: inline-flex; align-items: center; gap: 6px; }
-.settings-input { width: 100%; }
+.settings-icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; }
+.settings-icon-btn:hover { color: var(--text); }
+.settings-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--nav-hover); color: var(--text); cursor: pointer; font-size: 0.8rem; }
+.settings-action-btn.secondary { background: transparent; }
+.settings-input { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.8rem; }
 .masks-editor { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .masks-body { min-height: 160px; font-family: monospace; }
 .masks-editor-actions { display: flex; gap: 8px; }
