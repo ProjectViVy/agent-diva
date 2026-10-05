@@ -1230,7 +1230,8 @@
      ======================================== */
 
   .chat-input-container {
-    margin: 12px 16px;
+    width: min(52rem, calc(100% - 32px));
+    margin: 12px auto;
     background: var(--panel-solid, #ffffff);
     border: 1px solid var(--line, #e5e7eb);
     border-radius: 16px;
@@ -1249,7 +1250,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border-bottom: 1px solid var(--line, #f3f4f6);
   }
 

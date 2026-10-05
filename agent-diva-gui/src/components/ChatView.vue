@@ -831,15 +831,16 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       </div>
       <div
         ref="chatListRef"
-        class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10"
+        class="chat-list flex-1 overflow-y-auto p-4 scrollbar-thin z-10"
         @scroll.passive="handleChatScroll"
       >
-      <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
-        <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
-          💕
+        <div class="chat-message-stream space-y-4">
+        <div v-if="messages.length === 0" class="flex flex-col items-center justify-center flex-1 h-full text-gray-400 space-y-4">
+          <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
+            💕
+          </div>
+          <p class="text-lg">{{ t('chat.start') }}</p>
         </div>
-        <p class="text-lg">{{ t('chat.start') }}</p>
-      </div>
 
       <template v-for="(msg, index) in messages" :key="msg.id">
       <div
@@ -1197,7 +1198,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
-      
+      </div>
     </div>
 
     <div
@@ -1579,7 +1580,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   background: rgba(255, 251, 235, .96);
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
-.active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 16px 8px; }
+.active-plan-todo-panel { flex-shrink: 0; min-width: 0; width: min(52rem, calc(100% - 32px)); margin: 0 auto 8px; }
+.compaction-status-line { width: min(52rem, calc(100% - 32px)); margin-left: auto; margin-right: auto; }
+.chat-message-stream { width: min(52rem, 100%); margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; }
 .active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
 .active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: 12px; line-height: 1.4; }
 .active-plan-execution-error span { min-width: 0; overflow-wrap: anywhere; }
