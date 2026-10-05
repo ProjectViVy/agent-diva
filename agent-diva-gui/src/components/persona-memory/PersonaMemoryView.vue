@@ -199,8 +199,8 @@ onMounted(async () => {
   font-size: 12px;
 }
 .pm-kind.active {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--primary-action, var(--primary));
+  color: var(--primary-action-foreground, var(--primary-foreground));
 }
 .pm-rev {
   opacity: 0.7;

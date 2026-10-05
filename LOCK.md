@@ -5,17 +5,16 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-gui/src/**, agent-diva-gui/tailwind.config.js, docs/logs/2026-10-diva-design-language/**, LOCK.md, TODOLIST.md`
+- Scope: `agent-diva-gui/src/styles/tokens.css, agent-diva-gui/src/styles/controls.css, agent-diva-gui/src/styles/providers.css, agent-diva-gui/src/styles/presentation.css, agent-diva-gui/src/components/WelcomeWizard.vue, agent-diva-gui/src/components/persona-memory/PersonaMemoryView.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.vue, docs/logs/2026-10-diva-design-language/v0.4.15-peach-cherry-pink/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `DIVA design language unification`
+- Session/Task: `01a10ae5-19d1-75f0-85a6-cc2845d9302e / Peach-cherry-pink palette`
 - Branch/Worktree: `codex/diva-design-language / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva-design-language`
-- Started At: `2026-10-05T05:17:32Z`
-- Last Heartbeat: `2026-10-05T08:19:00Z`
-- Expires At: `released 2026-10-05T08:19:00Z`
+- Started At: `2026-10-05T09:47:43Z`
+- Last Heartbeat: `2026-10-05T10:23:59Z`
+- Expires At: `released 2026-10-05T10:23:59Z`
 
-### Isolation
-This worktree starts at main d81381f8. The inherited feat/wails-go-host lease belongs to a different checkout; that checkout and its lock are unchanged. This lease covers only the isolated design-language branch.
-
+### Palette handoff
+This focused palette update begins after the design-language owner released the UI lock at 2026-10-05T08:19:00Z. The selected light and dark color schemes and the shared primary action surfaces are in scope.
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -35,6 +34,12 @@ This worktree starts at main d81381f8. The inherited feat/wails-go-host lease be
   Development Go-host package built and launched locally; 1024px native
   screenshot/drag and transparent-pet interaction remain unverified because
   the available UI automation surface exposes browsers only.
+
+- `DIVA peach-cherry palette` — **RELEASED 2026-10-05T10:23:59Z** by
+  `Codex on behalf of mastwet`; branch `codex/diva-design-language`.
+  Love/Default, warm dark theme and shared primary action surfaces validated
+  with 8 design-system tests, GUI production build and browser smoke across
+  Love/Default/dark/Miku. No push or package release.
 
 - `DN-W3-P1 Go/Wails migration planning` — **RELEASED 2026-10-04T01:18:32Z** by
   `Codex on behalf of mastwet`; branch `docs/wails-migration-20261004`.

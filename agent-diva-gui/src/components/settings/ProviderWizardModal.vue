@@ -418,9 +418,9 @@ watch(() => props.initialData, (newData) => {
 }
 
 .wizard-progress-item.completed .wizard-progress-indicator {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--primary-action, var(--primary));
+  border-color: var(--primary-action, var(--primary));
+  color: var(--primary-action-foreground, var(--primary-foreground));
 }
 
 .wizard-progress-label {

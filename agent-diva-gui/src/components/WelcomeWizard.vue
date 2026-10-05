@@ -467,9 +467,9 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-step-active .welcome-step-icon {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--primary-action, var(--primary));
+  border-color: var(--primary-action, var(--primary));
+  color: var(--primary-action-foreground, var(--primary-foreground));
   box-shadow: var(--shadow-sm);
 }
 
@@ -656,15 +656,16 @@ const handleFinalAction = (navigate: WelcomeNavigateTarget) => {
 }
 
 .welcome-nav-card-primary {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--primary-action, var(--primary));
+  border-color: var(--primary-action, var(--primary));
   padding: 18px 16px;
-  color: var(--primary-foreground);
+  color: var(--primary-action-foreground, var(--primary-foreground));
 }
 
 .welcome-nav-card-primary:hover {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--primary-action-hover, var(--primary-hover));
+  border-color: var(--primary-action-hover, var(--primary-hover));
+  color: var(--primary-action-hover-foreground, var(--primary-action-foreground, var(--primary-foreground)));
   box-shadow: var(--shadow-sm);
 }
 

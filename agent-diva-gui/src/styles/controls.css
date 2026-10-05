@@ -17,8 +17,11 @@
     transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
   }
   .ui-button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--accent); color: var(--accent-foreground); }
-  .ui-button--primary { background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-sm); }
-  .ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--primary-hover); color: var(--primary-foreground); }
+  .ui-button--primary { background: var(--primary-action, var(--primary)); color: var(--primary-action-foreground, var(--primary-foreground)); box-shadow: var(--shadow-sm); }
+  .ui-button--primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--primary-action-hover, var(--primary-hover));
+    color: var(--primary-action-hover-foreground, var(--primary-action-foreground, var(--primary-foreground)));
+  }
   .ui-button--outline { border-color: var(--input); background: var(--card); color: var(--card-foreground); }
   .ui-button--ghost { background: transparent; color: var(--muted-foreground); }
   .ui-button--danger-ghost { background: transparent; color: var(--destructive); }

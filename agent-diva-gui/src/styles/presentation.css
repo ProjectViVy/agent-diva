@@ -904,13 +904,18 @@
 
 .btn-add-channel {
   border-radius: var(--radius-md);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--primary-action, var(--primary));
+  color: var(--primary-action-foreground, var(--primary-foreground));
   border: none;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.btn-add-channel:hover {
+  background: var(--primary-action-hover, var(--primary-hover));
+  color: var(--primary-action-hover-foreground, var(--primary-foreground));
 }
 
 .channel-empty-state {
