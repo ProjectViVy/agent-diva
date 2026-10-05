@@ -60,7 +60,7 @@ async function save() {
       searchEnabled: draft.value.searchEnabled,
       fetchEnabled: draft.value.fetchEnabled,
     });
-    showAppToast(t('console.saved'), 'success');
+    showAppToast(t('settings.saved'), 'success');
     await refresh();
   } catch (err) {
     loadError.value = String(err);
@@ -87,7 +87,7 @@ onMounted(refresh);
       </div>
       <button
         type="button"
-        class="btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
+        class="ui-button ui-button--primary btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
         :disabled="saving || !isDirty || loading"
         @click="save"
       >
@@ -96,13 +96,13 @@ onMounted(refresh);
       </button>
     </div>
 
-    <p v-if="loadError" class="text-xs" style="color: var(--danger);">{{ loadError }}</p>
+    <p v-if="loadError" class="text-xs" style="color: var(--destructive);">{{ loadError }}</p>
 
     <div v-if="state" class="settings-section">
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
           <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('network.provider') }}</label>
-          <select v-model="draft.provider" class="settings-input">
+          <select v-model="draft.provider" class="ui-input settings-input">
             <option value="">{{ t('network.providerAutomatic') }}</option>
             <option
               v-for="provider in state.providers"
@@ -121,7 +121,7 @@ onMounted(refresh);
               <code class="text-xs font-mono">{{ selectedProvider.env_key }}</code>
               <span
                 class="text-xs font-medium"
-                :style="{ color: selectedProvider.configured ? 'var(--success, #16a34a)' : 'var(--warning, #d97706)' }"
+                :style="{ color: selectedProvider.configured ? 'var(--success)' : 'var(--warning)' }"
               >
                 {{ selectedProvider.configured ? t('network.envConfigured') : t('network.envMissing') }}
               </span>

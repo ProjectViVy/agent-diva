@@ -66,13 +66,13 @@ const groups = computed<TodoGroup[]>(() => [
     key: 'pending',
     label: t('planning.pending'),
     todos: pendingTodos.value,
-    color: 'var(--text-muted)',
+    color: 'var(--muted-foreground)',
   },
   {
     key: 'blocked',
     label: t('planning.blocked'),
     todos: blockedTodos.value,
-    color: 'var(--danger)',
+    color: 'var(--destructive)',
   },
   {
     key: 'completed',
@@ -98,7 +98,7 @@ function toggleGroup(key: string) {
           <div v-if="planPhase" class="panel-phase">{{ planPhase }}</div>
         </div>
       </div>
-      <button class="detail-toggle" type="button" @click="detailedMode = !detailedMode">
+      <button class="ui-button ui-button--ghost ui-button--compact detail-toggle" type="button" @click="detailedMode = !detailedMode">
         <List v-if="!detailedMode" :size="14" />
         <ListChecks v-else :size="14" />
         {{ detailedMode ? '简洁' : '详细' }}
@@ -149,15 +149,15 @@ function toggleGroup(key: string) {
 
     <!-- Empty state -->
     <div v-if="todos.length === 0" class="panel-empty">
-      <span class="text-sm" style="color: var(--text-muted)">—</span>
+      <span class="text-sm" style="color: var(--muted-foreground)">—</span>
     </div>
   </div>
 </template>
 
 <style scoped>
 .todo-list-panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem;
   display: flex;
@@ -167,7 +167,7 @@ function toggleGroup(key: string) {
 }
 
 .todo-list-panel:hover {
-  border-color: var(--accent-border);
+  border-color: var(--border-strong);
 }
 
 .panel-title-row {
@@ -176,15 +176,14 @@ function toggleGroup(key: string) {
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 
 .panel-title-wrap { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 0; }
-.panel-title-icon { flex: 0 0 auto; color: var(--accent); }
-.panel-title { overflow: hidden; color: var(--text); font-size: 0.9rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.panel-phase { margin-top: 0.15rem; color: var(--text-muted); font-size: 0.7rem; }
-.detail-toggle { display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto; padding: 0.25rem 0.45rem; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); background: var(--panel); font-size: 0.7rem; cursor: pointer; }
-.detail-toggle:hover { background: var(--accent-bg-light); }
+.panel-title-icon { flex: 0 0 auto; color: var(--primary); }
+.panel-title { overflow: hidden; color: var(--foreground); font-size: 0.9rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.panel-phase { margin-top: 0.15rem; color: var(--muted-foreground); font-size: 0.7rem; }
+.detail-toggle { display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto; }
 
 /* Progress bar */
 .panel-progress {
@@ -192,7 +191,7 @@ function toggleGroup(key: string) {
   flex-direction: column;
   gap: 0.375rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 
 .panel-progress-header {
@@ -204,25 +203,25 @@ function toggleGroup(key: string) {
 .panel-progress-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .panel-progress-count {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .panel-progress-bar {
   height: 6px;
-  background: color-mix(in srgb, var(--line) 15%, transparent);
+  background: color-mix(in srgb, var(--border) 15%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .panel-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  background: var(--primary);
   border-radius: 3px;
   transition: width 0.4s ease;
 }
@@ -244,11 +243,11 @@ function toggleGroup(key: string) {
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.15s ease;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .group-header:hover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
 
 .group-header-left {
@@ -258,7 +257,7 @@ function toggleGroup(key: string) {
 }
 
 .group-toggle {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   display: flex;
   align-items: center;
 }
@@ -273,8 +272,8 @@ function toggleGroup(key: string) {
 .group-count {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--line) 12%, transparent);
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--border) 12%, transparent);
   padding: 0.1rem 0.4rem;
   border-radius: 9999px;
 }

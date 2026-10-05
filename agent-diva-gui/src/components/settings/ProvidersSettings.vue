@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { Server, Check, Cpu, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff, MoreHorizontal, ChevronDown, ChevronRight } from '@lucide/vue';
+import { Server, Check, ShieldCheck, ShieldAlert, RefreshCcw, Plus, Trash2, PlugZap, LoaderCircle, CircleAlert, Eye, EyeOff, MoreHorizontal, ChevronDown, ChevronRight } from '@lucide/vue';
 import { useI18n } from 'vue-i18n';
 import {
   type ConfigStatusReport,
@@ -120,6 +120,8 @@ const providerApiKeys = ref<Record<string, string>>({});
 const providerApiBases = ref<Record<string, string>>({});
 const providerApiKeyVisibility = ref<Record<string, boolean>>({});
 const isRefreshing = ref(false);
+const isLoadingProviders = ref(false);
+const providerLoadError = ref(false);
 const runtimeCatalogs = ref<Record<string, ProviderModelCatalog>>({});
 const modelTestStatuses = ref<Record<string, ModelTestStatus>>({});
 const modelTestTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -228,7 +230,8 @@ const providerModelsFor = (provider: ProviderSpec | null) => {
 };
 
 const refreshProviderState = async () => {
-  isRefreshing.value = true;
+  isLoadingProviders.value = true;
+  providerLoadError.value = false;
   try {
     const snapshot = await loadProviderState();
     providers.value = dedupeProviders(snapshot.providers);
@@ -248,9 +251,10 @@ const refreshProviderState = async () => {
       await setSelectedProvider(initialProvider);
     }
   } catch (e) {
-    showAppToast(t('providers.loadError'), 'error');
+    providerLoadError.value = true;
+    if (providers.value.length > 0) showAppToast(t('providers.loadError'), 'error');
   } finally {
-    isRefreshing.value = false;
+    isLoadingProviders.value = false;
   }
 };
 
@@ -263,16 +267,12 @@ const providerStatusMap = computed(() => {
   return new Map(items.map((item) => [item.name, item]));
 });
 
-const currentProviderLabel = computed(() => {
-  return statusReport.value?.default_provider || t('providers.unresolved');
-});
-
 const filteredProviders = computed(() => {
   let items = providers.value;
   if (searchTerm.value) {
     const lower = searchTerm.value.toLowerCase();
-    items = items.filter(p => 
-      p.display_name.toLowerCase().includes(lower) || 
+    items = items.filter(p =>
+      p.display_name.toLowerCase().includes(lower) ||
       p.name.toLowerCase().includes(lower)
     );
   }
@@ -435,14 +435,10 @@ const refreshSelectedProviderModels = async () => {
   isRefreshing.value = true;
   try {
     const catalog = await getProviderModels(provider.name, apiBase, apiKey);
-    runtimeCatalogs.value = {
-      ...runtimeCatalogs.value,
-      [provider.name]: catalog,
-    };
-
     const refreshedProvider = providers.value.find((item) => item.name === provider.name);
     if (refreshedProvider) {
-      selectedProvider.value = refreshedProvider;
+      runtimeCatalogs.value = { ...runtimeCatalogs.value, [provider.name]: catalog };
+      if (selectedProvider.value?.name === provider.name) selectedProvider.value = refreshedProvider;
     }
   } catch (error) {
     showAppToast(t('providers.refreshError'), 'error');
@@ -572,8 +568,8 @@ const setModelTestStatus = (
 const testStatusTone = (providerName: string, modelName: string) => {
   const status = modelTestStatusFor(providerName, modelName);
   if (status.state === 'success') return 'text-success';
-  if (status.state === 'failed') return 'text-danger';
-  return 'text-muted';
+  if (status.state === 'failed') return 'text-destructive';
+  return 'text-muted-foreground';
 };
 
 const testStatusLabel = (providerName: string, modelName: string) => {
@@ -649,7 +645,7 @@ const toggleModel = async (modelName: string) => {
   }
 
   const entry = buildSavedModelEntry(provider, trimmedModelName);
-  
+
   localConfig.value.model = trimmedModelName;
   localConfig.value.provider = provider.name;
   localConfig.value.apiBase = providerApiBases.value[provider.name] || provider.default_api_base;
@@ -769,7 +765,7 @@ const updateProviderKey = (key: string) => {
   const providerName = selectedProvider.value.name;
   providerApiKeys.value[providerName] = key;
   localConfig.value.apiKey = key;
-  
+
   const newModels = localSavedModels.value.map(m => {
     if (m.provider === providerName) {
       return { ...m, apiKey: key };
@@ -846,7 +842,7 @@ watch(searchTerm, () => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 fade-in">
+  <div class="providers-workspace flex h-full min-h-0 fade-in">
     <!-- Sidebar: List of Providers -->
     <div class="providers-sidebar w-1/3 min-w-[200px] min-h-0 flex flex-col">
       <div class="providers-sidebar-header">
@@ -854,11 +850,11 @@ watch(searchTerm, () => {
           <input
             v-model="searchTerm"
             :placeholder="t('providers.search')"
-            class="providers-input"
+            class="ui-input providers-input"
           />
           <button
             type="button"
-            class="providers-add-btn"
+            class="ui-button ui-button--outline providers-add-btn"
             @click="openWizard()"
           >
             <Plus :size="14" />
@@ -887,7 +883,7 @@ watch(searchTerm, () => {
         >
           <button
             type="button"
-            class="flex min-w-0 flex-1 items-center px-4 py-3 text-left"
+            class="ui-button ui-button--ghost flex min-w-0 flex-1 items-center text-left"
           >
             <div class="flex min-w-0 flex-1 items-center">
               <div
@@ -923,35 +919,44 @@ watch(searchTerm, () => {
           />
         </template>
       </div>
+      <div v-if="isLoadingProviders && providers.length === 0" class="providers-list-loading" :aria-label="t('providers.loading')" aria-busy="true">
+        <div v-for="row in 3" :key="row" class="providers-list-item flex items-center gap-3">
+          <div class="ui-skeleton providers-item-icon" />
+          <div class="flex-1 space-y-2"><div class="ui-skeleton h-3 w-2/3" /><div class="ui-skeleton h-2 w-1/3" /></div>
+        </div>
+      </div>
+      <div v-else-if="!providerLoadError && filteredProviders.length === 0" class="providers-list-empty">
+        {{ t('providers.noSearchResults') }}
+      </div>
     </div>
 
     <!-- Main Area -->
     <div class="providers-main flex-1 min-h-0 overflow-y-auto p-6">
       <div v-if="selectedProvider" class="space-y-8">
         <!-- Header -->
-        <div class="flex items-start justify-between gap-4">
+        <div class="providers-detail-header flex items-start justify-between gap-4">
             <div class="flex items-center space-x-4">
                 <div class="providers-header-icon">
                     <Server :size="24" />
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold settings-label">{{ selectedProvider.display_name }}</h3>
+                    <h3 class="text-xl font-semibold settings-label">{{ selectedProvider.display_name }}</h3>
                     <p class="text-sm settings-muted">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
               <div
-                v-if="statusReport"
+                v-if="providerStatusMap.get(selectedProvider.name)"
                 class="providers-status-badge"
-                :class="statusReport.doctor.ready ? 'ready' : 'warning'"
+                :class="providerStatusMap.get(selectedProvider.name)?.ready ? 'ready' : 'warning'"
               >
-                <ShieldCheck v-if="statusReport.doctor.ready" :size="14" />
+                <ShieldCheck v-if="providerStatusMap.get(selectedProvider.name)?.ready" :size="14" />
                 <ShieldAlert v-else :size="14" />
-                <span>{{ statusReport.doctor.ready ? t('providers.healthReady') : t('providers.healthAttention') }}</span>
+                <span>{{ providerStatusMap.get(selectedProvider.name)?.ready ? t('providers.ready') : t('providers.missingConfig') }}</span>
               </div>
               <button
                 type="button"
-                class="btn-save-config settings-btn"
+                class="ui-button ui-button--primary btn-save-config settings-btn"
                 :disabled="isSavingConfig || !isDirty"
                 @click="saveProviderConfig"
               >
@@ -961,43 +966,22 @@ watch(searchTerm, () => {
             </div>
         </div>
 
-        <div
-          v-if="statusReport"
-          class="grid grid-cols-1 md:grid-cols-2 gap-3"
-        >
-          <div class="providers-config-card">
-            <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.currentProvider') }}</div>
-            <div class="mt-1 text-sm font-semibold settings-label">{{ currentProviderLabel }}</div>
-            <div class="mt-1 text-xs settings-muted">{{ statusReport.default_model }}</div>
-          </div>
-          <div class="providers-config-card">
-            <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.resolvedWorkspace') }}</div>
-            <div class="mt-1 text-xs font-mono settings-label break-all">{{ statusReport.config.workspace }}</div>
-          </div>
-        </div>
-
         <!-- Configuration -->
-        <div class="providers-config-card">
+        <div class="providers-config-card providers-connection-section">
            <h4 class="font-semibold settings-label text-sm mb-4">{{ t('providers.connectConfig') }}</h4>
 
            <div
              v-if="providerStatusMap.get(selectedProvider.name)"
-             class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4"
+             class="providers-config-summary grid grid-cols-1 md:grid-cols-2 gap-3 mb-4"
            >
              <div class="providers-config-card">
-               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.readiness') }}</div>
-               <div class="mt-1 text-sm font-semibold" :class="providerStatusMap.get(selectedProvider.name)?.ready ? 'text-emerald-600' : 'text-amber-600'">
-                 {{ providerStatusMap.get(selectedProvider.name)?.ready ? t('providers.ready') : t('providers.missingConfig') }}
-               </div>
-             </div>
-             <div class="providers-config-card">
-               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.currentModel') }}</div>
+               <div class="text-xs settings-muted">{{ t('providers.currentModel') }}</div>
                <div class="mt-1 text-sm font-semibold settings-label">
                  {{ providerStatusMap.get(selectedProvider.name)?.model || providerStatusMap.get(selectedProvider.name)?.default_model || '-' }}
                </div>
              </div>
-             <div class="providers-config-card">
-               <div class="text-[11px] uppercase tracking-wider settings-muted">{{ t('providers.missingFields') }}</div>
+             <div v-if="providerStatusMap.get(selectedProvider.name)?.missing_fields.length" class="providers-config-card">
+               <div class="text-xs settings-muted">{{ t('providers.missingFields') }}</div>
                <div class="mt-1 text-xs settings-muted">
                  {{ providerStatusMap.get(selectedProvider.name)?.missing_fields.length ? providerStatusMap.get(selectedProvider.name)?.missing_fields.join(', ') : t('providers.none') }}
                </div>
@@ -1006,14 +990,14 @@ watch(searchTerm, () => {
 
            <!-- API Key -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('providers.apiKey') }}</label>
+             <label class="block text-xs font-medium settings-muted">{{ t('providers.apiKey') }}</label>
              <div class="relative">
                <input
                  :value="providerApiKeys[selectedProvider.name]"
                  @input="e => updateProviderKey((e.target as HTMLInputElement).value)"
                  :type="isProviderApiKeyVisible(selectedProvider.name) ? 'text' : 'password'"
                  :placeholder="providerApiKeys[selectedProvider.name] || !keySetByName[selectedProvider.name] ? `${t('providers.enterApiKey')} (${selectedProvider.display_name})` : t('providers.apiKeyConfigured')"
-                 class="providers-input mono pr-11"
+                 class="ui-input providers-input mono pr-11"
                />
                <button
                  type="button"
@@ -1029,19 +1013,19 @@ watch(searchTerm, () => {
 
            <!-- API Base -->
            <div class="space-y-1">
-             <label class="block text-xs font-medium settings-muted uppercase tracking-wider">{{ t('providers.apiBaseUrl') }}</label>
+             <label class="block text-xs font-medium settings-muted">{{ t('providers.apiBaseUrl') }}</label>
              <input
                :value="providerApiBases[selectedProvider.name] || selectedProvider.default_api_base || ''"
                @input="e => updateProviderApiBase((e.target as HTMLInputElement).value)"
                :placeholder="selectedProvider.default_api_base || t('providers.placeholderLocalCustom')"
-               class="providers-input mono"
+               class="ui-input providers-input mono"
              />
            </div>
         </div>
 
         <!-- Model Selection -->
         <div class="space-y-4">
-          <div class="flex items-center justify-between gap-3">
+          <div class="providers-model-toolbar flex items-center justify-between gap-3">
             <h4 class="font-semibold settings-label text-sm">
               {{ t('providers.availableModels') }}
             </h4>
@@ -1050,11 +1034,11 @@ watch(searchTerm, () => {
                 v-model="modelSearchTerm"
                 type="text"
                 :placeholder="t('providers.searchModelPlaceholder')"
-                class="providers-input h-8 w-52 text-xs"
+                class="ui-input ui-input--compact providers-input h-8 w-52 text-xs"
               />
               <button
                 type="button"
-                class="settings-btn settings-btn-secondary h-8 px-2"
+                class="ui-button ui-button--outline ui-button--compact settings-btn settings-btn-secondary h-8"
                 :title="t('providers.manualModelTitle')"
                 @click="openManualModelDialog"
               >
@@ -1062,7 +1046,7 @@ watch(searchTerm, () => {
               </button>
               <button
                 type="button"
-                class="settings-btn settings-btn-secondary text-xs h-8"
+                class="ui-button ui-button--outline ui-button--compact settings-btn settings-btn-secondary h-8"
                 :disabled="isRefreshing"
                 @click="refreshSelectedProviderModels"
               >
@@ -1105,7 +1089,7 @@ watch(searchTerm, () => {
                   </span>
                   <button
                     type="button"
-                    class="settings-btn settings-btn-secondary h-7 w-7 !p-0"
+                    class="ui-button ui-button--outline ui-button--compact ui-button--icon settings-btn settings-btn-secondary h-7 w-7"
                     :class="shouldShowTestAction(selectedProvider.name, model) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
                     :disabled="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
                     :title="t('providers.testConnection')"
@@ -1129,7 +1113,7 @@ watch(searchTerm, () => {
                   <button
                     v-if="isModelDeletable(selectedProvider, model)"
                     type="button"
-                    class="providers-delete-btn"
+                    class="ui-button ui-button--ghost providers-delete-btn"
                     :title="t('providers.deleteModel')"
                     @click.stop="deleteProviderModel(model)"
                   >
@@ -1145,9 +1129,25 @@ watch(searchTerm, () => {
           </div>
         </div>
       </div>
-      <div v-else class="h-full flex flex-col items-center justify-center settings-muted space-y-4">
-        <Cpu :size="48" class="opacity-20" />
-        <p>{{ t('providers.selectProvider') }}</p>
+      <div v-else-if="isLoadingProviders" class="space-y-8" :aria-label="t('providers.loading')" aria-busy="true">
+        <div class="providers-detail-header flex items-center gap-4"><div class="ui-skeleton providers-header-icon" /><div class="flex-1 space-y-2"><div class="ui-skeleton h-5 w-1/3" /><div class="ui-skeleton h-3 w-1/2" /></div></div>
+        <div class="providers-config-card providers-connection-section grid"><div class="ui-skeleton h-4 w-1/4" /><div class="ui-skeleton h-9 w-full" /><div class="ui-skeleton h-9 w-full" /></div>
+      </div>
+      <div v-else class="providers-placeholder h-full flex flex-col items-center justify-center settings-muted space-y-4">
+        <template v-if="providerLoadError">
+          <div role="alert" class="providers-load-error">
+            <CircleAlert :size="20" />
+            <p>{{ t('providers.loadError') }}</p>
+          </div>
+          <button type="button" class="ui-button ui-button--outline" @click="refreshProviderState">
+            <RefreshCcw :size="14" />
+            {{ t('providers.retry') }}
+          </button>
+        </template>
+        <template v-else>
+          <Server :size="24" />
+          <p>{{ t('providers.selectProvider') }}</p>
+        </template>
       </div>
 
       <!-- Manual Model Dialog -->
@@ -1166,21 +1166,21 @@ watch(searchTerm, () => {
               v-model="manualModelName"
               type="text"
               :placeholder="t('providers.manualModelPlaceholder')"
-              class="providers-input"
+              class="ui-input providers-input"
               @keydown.enter.prevent="addManualModel"
             />
           </div>
           <div class="mt-5 flex justify-end gap-2">
             <button
               type="button"
-              class="settings-btn settings-btn-secondary"
+              class="ui-button ui-button--outline settings-btn settings-btn-secondary"
               @click="closeManualModelDialog"
             >
               {{ t('mcp.cancel') }}
             </button>
             <button
               type="button"
-              class="settings-btn settings-btn-primary"
+              class="ui-button ui-button--primary settings-btn settings-btn-primary"
               :disabled="manualModelName.trim().length === 0"
               @click="addManualModel"
             >
@@ -1208,7 +1208,7 @@ watch(searchTerm, () => {
                 v-model="newProviderForm.id"
                 type="text"
                 :placeholder="t('providers.providerIdPlaceholder')"
-                class="providers-input"
+                class="ui-input providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-1">
@@ -1217,7 +1217,7 @@ watch(searchTerm, () => {
                 v-model="newProviderForm.displayName"
                 type="text"
                 :placeholder="t('providers.providerDisplayNamePlaceholder')"
-                class="providers-input"
+                class="ui-input providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-2">
@@ -1226,7 +1226,7 @@ watch(searchTerm, () => {
                 v-model="newProviderForm.apiBase"
                 type="text"
                 :placeholder="t('providers.createProviderApiBasePlaceholder')"
-                class="providers-input"
+                class="ui-input providers-input"
               />
             </label>
             <label class="space-y-1 md:col-span-2">
@@ -1236,7 +1236,7 @@ watch(searchTerm, () => {
                   v-model="newProviderForm.apiKey"
                   :type="isCreateProviderApiKeyVisible ? 'text' : 'password'"
                   :placeholder="t('providers.enterApiKey')"
-                  class="providers-input pr-11"
+                  class="ui-input providers-input pr-11"
                 />
                 <button
                   type="button"
@@ -1255,7 +1255,7 @@ watch(searchTerm, () => {
                 v-model="newProviderForm.defaultModel"
                 type="text"
                 :placeholder="t('providers.defaultModelPlaceholder')"
-                class="providers-input"
+                class="ui-input providers-input"
                 @keydown.enter.prevent="createProvider"
               />
             </label>
@@ -1263,14 +1263,14 @@ watch(searchTerm, () => {
           <div class="mt-5 flex justify-end gap-2">
             <button
               type="button"
-              class="settings-btn settings-btn-secondary"
+              class="ui-button ui-button--outline settings-btn settings-btn-secondary"
               @click="closeCreateProviderDialog"
             >
               {{ t('mcp.cancel') }}
             </button>
             <button
               type="button"
-              class="settings-btn settings-btn-primary"
+              class="ui-button ui-button--primary settings-btn settings-btn-primary"
               :disabled="isSavingProvider || !newProviderForm.id.trim() || !newProviderForm.displayName.trim() || !newProviderForm.apiBase.trim() || !newProviderForm.defaultModel.trim()"
               @click="createProvider"
             >

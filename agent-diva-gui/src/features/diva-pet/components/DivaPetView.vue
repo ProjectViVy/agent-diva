@@ -331,12 +331,12 @@ watch(
 </script>
 
 <template>
-  <div class="diva-pet-view h-full relative overflow-hidden">
+  <div data-ui-surface="overlay" class="diva-pet-view h-full relative overflow-hidden">
     <div class="diva-pet-backdrop absolute inset-0 pointer-events-none" />
 
     <div class="avatar-section relative h-full min-h-0">
       <button
-        class="pet-edge-button absolute top-4 left-4 z-20"
+        class="ui-button ui-button--ghost ui-button--compact pet-edge-button absolute top-4 left-4 z-20"
         :title="t('nav.openSidebar')"
         @click="emit('toggle-sidebar')"
       >
@@ -363,29 +363,29 @@ watch(
 
       <div
         v-if="desktopPetActive"
-        class="w-full h-full flex flex-col items-center justify-center text-white/70 gap-3"
+        class="w-full h-full flex flex-col items-center justify-center text-foreground gap-3"
       >
-        <Monitor :size="36" class="text-cyan-100/80 animate-pulse" />
+        <Monitor :size="36" class="text-primary animate-pulse" />
         <p class="text-sm">{{ t('pet.desktopPetActiveHint') }}</p>
       </div>
 
       <!-- 迷你状态栏 (Mini Status Bar) -->
       <div
-        class="pet-glass absolute top-4 left-16 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full text-white/90 border-white/15"
+        class="pet-glass absolute top-4 left-16 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full text-foreground border-border"
       >
         <!-- 情绪 -->
         <span class="text-sm">{{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.emoji || '😊' }}</span>
         <span class="text-[11px]">{{ emotionConfig[(props.currentEmotion || 'happy') as keyof typeof emotionConfig]?.label || t('emotion.happy') }}</span>
         <!-- 分隔线 -->
-        <span class="w-px h-3 bg-white/20" />
+        <span class="w-px h-3 bg-card" />
         <!-- 连接状态 -->
         <div class="flex items-center gap-1">
           <div
             class="w-1.5 h-1.5 rounded-full"
             :class="{
-              'bg-green-400': props.connectionStatus === 'connected',
-              'bg-red-400': props.connectionStatus === 'error',
-              'bg-yellow-400 animate-pulse': props.connectionStatus === 'connecting',
+              'bg-success': props.connectionStatus === 'connected',
+              'bg-destructive': props.connectionStatus === 'error',
+              'bg-warning animate-pulse': props.connectionStatus === 'connecting',
             }"
           />
           <span class="text-[10px]">
@@ -393,11 +393,11 @@ watch(
           </span>
         </div>
         <!-- 分隔线 -->
-        <span class="w-px h-3 bg-white/20" />
+        <span class="w-px h-3 bg-card" />
         <!-- 模型选择 -->
         <div class="relative">
           <button
-            class="text-[10px] hover:text-cyan-200 transition-colors flex items-center gap-1"
+            class="text-[10px] hover:text-primary transition-colors flex items-center gap-1"
             @click="showModelMenu = !showModelMenu"
           >
             <span class="max-w-[80px] truncate">{{ props.currentModel || t('app.switchModel') }}</span>
@@ -406,13 +406,13 @@ watch(
           <!-- 模型下拉菜单 -->
           <div
             v-if="showModelMenu"
-            class="absolute top-full left-0 mt-1 w-48 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-lg shadow-xl border border-white/15 overflow-hidden z-30"
+            class="absolute top-full left-0 mt-1 w-48 bg-card   rounded-lg shadow-xl border border-border overflow-hidden z-30"
           >
             <div class="py-1 max-h-60 overflow-y-auto">
               <div
                 v-for="model in props.savedModels"
                 :key="model.id"
-                class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-cyan-50 dark:hover:bg-cyan-900/30 flex items-center justify-between"
+                class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-accent  flex items-center justify-between"
                 @click="selectModel(model)"
               >
                 <span class="truncate">{{ model.displayName }}</span>
@@ -423,7 +423,7 @@ watch(
       </div>
 
       <button
-        class="pet-edge-button absolute top-4 right-16 z-20"
+        class="ui-button ui-button--ghost ui-button--compact pet-edge-button absolute top-4 right-16 z-20"
         title="外观设置"
         @click="showModelManager = !showModelManager"
       >
@@ -431,7 +431,7 @@ watch(
       </button>
 
       <button
-        class="pet-edge-button absolute top-4 right-4 z-20"
+        class="ui-button ui-button--ghost ui-button--compact pet-edge-button absolute top-4 right-4 z-20"
         title="Switch Scene"
         @click.stop="showScenePicker = !showScenePicker"
       >
@@ -441,14 +441,14 @@ watch(
       <Transition name="menu-fade">
         <div
           v-if="showScenePicker"
-          class="pet-glass absolute top-16 right-4 z-20 min-w-[160px] py-1 rounded-2xl border-white/15 text-white/90 shadow-2xl"
+          class="pet-glass absolute top-16 right-4 z-20 min-w-[160px] py-1 rounded-2xl border-border text-foreground shadow-2xl"
           @click.stop
         >
           <div
             v-for="s in petConfig.gaussSceneList"
             :key="s.id"
-            class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors rounded-xl mx-1 my-0.5 hover:bg-white/10"
-            :class="s.id === petConfig.selectedGaussSceneId ? 'text-cyan-100 bg-white/14' : 'text-white/75'"
+            class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-colors rounded-xl mx-1 my-0.5 hover:bg-card"
+            :class="s.id === petConfig.selectedGaussSceneId ? 'text-primary bg-card' : 'text-foreground'"
             @click="selectScene(s.id)"
           >
             <span>{{ getSceneIcon(s.id) }}</span>
@@ -469,9 +469,9 @@ watch(
           :class="isWhisperNearby ? 'pet-glass pet-chat-panel--active' : 'pet-chat-panel--idle'"
         >
           <div class="pet-chat-header">
-            <span class="text-[11px] tracking-[0.24em] uppercase text-white/55">Whispers</span>
+            <span class="text-[11px] tracking-[0.24em] uppercase text-foreground">Whispers</span>
             <button
-              class="pet-chat-new-topic-button"
+              class="ui-button ui-button--ghost pet-chat-new-topic-button ui-button--compact ui-button--icon"
               :disabled="isTyping"
               title="新建聊天"
               @click.stop="onNewTopic"
@@ -496,7 +496,7 @@ watch(
                 }"
               >
                 <div v-if="msg.content" class="whitespace-pre-wrap markdown-body pet-markdown" v-html="md.render(msg.content)"></div>
-                <div v-else-if="msg.role === 'agent' && msg.isStreaming" class="flex items-center gap-1.5 text-white/60">
+                <div v-else-if="msg.role === 'agent' && msg.isStreaming" class="flex items-center gap-1.5 text-foreground">
                   <Loader2 :size="12" class="animate-spin" />
                   <span class="text-[10px]">{{ t('chat.thinking') }}</span>
                 </div>
@@ -539,12 +539,12 @@ watch(
               type="text"
               :placeholder="t('chat.placeholder')"
               :disabled="isTyping"
-              class="pet-input flex-1"
+              class="ui-input ui-input--embedded pet-input flex-1"
               @keydown="handleKeydown"
             />
             <button
               :disabled="!inputText.trim() || isTyping"
-              class="pet-send-button"
+              class="ui-button ui-button--primary pet-send-button ui-button--compact ui-button--icon"
               @click="handleSend"
             >
               <Send :size="14" />
@@ -570,9 +570,6 @@ watch(
   --pet-bg-top: rgba(17, 24, 39, 0.18);
   --pet-bg-mid: rgba(12, 74, 110, 0.12);
   --pet-bg-bottom: rgba(15, 23, 42, 0.42);
-  --pet-panel-bg: linear-gradient(145deg, rgba(19, 28, 45, 0.30), rgba(255, 255, 255, 0.10));
-  --pet-panel-border: rgba(255, 255, 255, 0.16);
-  --pet-panel-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
 }
 
 .avatar-section {
@@ -581,16 +578,13 @@ watch(
 
 .diva-pet-backdrop {
   background:
-    radial-gradient(circle at 22% 24%, rgba(125, 211, 252, 0.20), transparent 24%),
-    radial-gradient(circle at 78% 18%, rgba(244, 114, 182, 0.14), transparent 18%),
-    linear-gradient(180deg, var(--pet-bg-top), var(--pet-bg-mid) 35%, var(--pet-bg-bottom));
+    var(--card);
 }
 
 .pet-glass {
-  background: var(--pet-panel-bg);
-  backdrop-filter: blur(22px);
-  border: 1px solid var(--pet-panel-border);
-  box-shadow: var(--pet-panel-shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .pet-edge-button {
@@ -599,19 +593,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  color: rgba(255, 255, 255, 0.82);
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.38), rgba(255, 255, 255, 0.10));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.24);
-  backdrop-filter: blur(18px);
   transition: all 0.18s ease;
-}
-
-.pet-edge-button:hover {
-  transform: translateY(-1px);
-  color: rgba(255, 255, 255, 1);
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.48), rgba(255, 255, 255, 0.13));
 }
 
 .pet-chat-panel {
@@ -622,15 +604,13 @@ watch(
 .pet-chat-panel--idle {
   background: transparent;
   border: 1px solid transparent;
-  box-shadow: none;
-  backdrop-filter: blur(0px);
+  box-shadow: var(--shadow-sm);
 }
 
 .pet-chat-panel--active {
-  background: var(--pet-panel-bg);
-  border-color: var(--pet-panel-border);
-  box-shadow: var(--pet-panel-shadow);
-  backdrop-filter: blur(22px);
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .pet-whisper-zone {
@@ -651,22 +631,7 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  color: rgba(255, 255, 255, 0.62);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
   transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
-}
-
-.pet-chat-new-topic-button:hover:not(:disabled) {
-  color: rgba(255, 255, 255, 0.94);
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
-.pet-chat-new-topic-button:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
 }
 
 .pet-chat-scroll {
@@ -675,7 +640,7 @@ watch(
   padding-right: 6px;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+  scrollbar-color: var(--muted-foreground) transparent;
 }
 
 .pet-chat-scroll::-webkit-scrollbar {
@@ -689,13 +654,13 @@ watch(
 .pet-chat-scroll::-webkit-scrollbar-thumb {
   min-height: 32px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--card);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 .pet-chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--card);
   background-clip: content-box;
 }
 
@@ -704,19 +669,17 @@ watch(
 }
 
 .pet-agent-bubble {
-  color: rgba(255, 255, 255, 0.92);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.07));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
-  backdrop-filter: blur(18px);
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .pet-user-bubble {
-  color: rgba(255, 255, 255, 0.96);
-  background: linear-gradient(145deg, rgba(34, 211, 238, 0.42), rgba(59, 130, 246, 0.22));
-  border: 1px solid rgba(165, 243, 252, 0.28);
-  box-shadow: 0 12px 30px rgba(8, 47, 73, 0.22);
-  backdrop-filter: blur(18px);
+  color: var(--message-user-foreground);
+  background: var(--message-user);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .pet-input-dock {
@@ -727,18 +690,13 @@ watch(
   padding: 8px 8px 8px 16px;
 }
 
-.pet-input {
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 12px;
-  line-height: 1.4;
-  outline: none;
+.pet-input-dock:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring-soft), var(--shadow-sm);
 }
 
-.pet-input::placeholder {
-  color: rgba(255, 255, 255, 0.48);
+.pet-input {
+  min-width: 0;
 }
 
 .pet-input:disabled {
@@ -751,21 +709,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  color: rgba(255, 255, 255, 0.95);
-  background: linear-gradient(145deg, rgba(56, 189, 248, 0.72), rgba(244, 114, 182, 0.42));
-  box-shadow: 0 12px 28px rgba(14, 116, 144, 0.24);
   transition: all 0.18s ease;
-}
-
-.pet-send-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
-}
-
-.pet-send-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .chat-bubble {
@@ -823,25 +767,25 @@ watch(
 
 .pet-markdown :deep(strong) {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  color: inherit;
 }
 
 .pet-markdown :deep(em) {
   font-style: italic;
-  color: rgba(255, 255, 255, 0.85);
+  color: inherit;
 }
 
 .pet-markdown :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.7rem;
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: var(--muted);
   padding: 0.15em 0.35em;
   border-radius: 0.25rem;
-  color: rgba(165, 243, 252, 0.9);
+  color: var(--primary);
 }
 
 .pet-markdown :deep(pre) {
-  background-color: rgba(0, 0, 0, 0.35);
+  background-color: var(--code-background);
   border-radius: 0.375rem;
   padding: 0.5rem 0.65rem;
   margin: 0.4rem 0;
@@ -851,7 +795,7 @@ watch(
 .pet-markdown :deep(pre code) {
   background-color: transparent;
   padding: 0;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--code-foreground);
 }
 
 .pet-markdown :deep(ul), .pet-markdown :deep(ol) {
@@ -872,26 +816,30 @@ watch(
 }
 
 .pet-markdown :deep(blockquote) {
-  border-left: 2px solid rgba(165, 243, 252, 0.4);
+  border-left: 2px solid var(--border-strong);
   padding-left: 0.6rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: inherit;
   margin: 0.3rem 0;
 }
 
 .pet-markdown :deep(a) {
-  color: rgba(165, 243, 252, 0.9);
+  color: var(--primary);
   text-decoration: underline;
 }
 
 .pet-markdown :deep(a:hover) {
-  color: rgba(103, 232, 249, 1);
+  color: var(--info);
 }
 
 .pet-markdown :deep(h1), .pet-markdown :deep(h2), .pet-markdown :deep(h3),
 .pet-markdown :deep(h4), .pet-markdown :deep(h5), .pet-markdown :deep(h6) {
   font-weight: 600;
   margin-bottom: 0.25em;
-  color: rgba(255, 255, 255, 0.92);
+  color: inherit;
+}
+
+.pet-user-bubble .pet-markdown :deep(a) {
+  color: inherit;
 }
 
 .pet-markdown :deep(h1) { font-size: 0.85rem; }
@@ -901,7 +849,7 @@ watch(
 
 .pet-markdown :deep(hr) {
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-top: 1px solid var(--border);
   margin: 0.5rem 0;
 }
 
@@ -912,7 +860,7 @@ watch(
 }
 
 .pet-markdown :deep(table td), .pet-markdown :deep(table th) {
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border);
   padding: 0.2em 0.5em;
 }
 </style>

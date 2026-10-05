@@ -41,7 +41,7 @@ onBeforeUnmount(() => {
           </div>
           <div>
             <h3 class="console-section-title">{{ t('tokenStats.title', 'Token Statistics') }}</h3>
-            <p class="console-section-desc">{{ t('tokenStats.desc', 'Monitor AI model usage and costs') }}</p>
+            <p class="console-section-desc">{{ t('tokenStats.subtitle') }}</p>
           </div>
         </div>
 
@@ -81,47 +81,47 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .console-section {
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 
 .console-section-icon {
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .console-section-icon--purple {
-  background: rgba(139, 92, 246, 0.15);
-  color: #8b5cf6;
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .console-section-icon--blue {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .console-section-icon--green {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .console-section-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
   margin-bottom: 0.25rem;
 }
 
 .console-section-desc {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 </style>

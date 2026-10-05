@@ -20,7 +20,7 @@ onErrorCaptured((err) => {
 
 <template>
   <DesktopPetOverlay v-if="!error" />
-  <div v-else class="flex items-center justify-center w-full h-full text-red-400 text-xs p-4">
+  <div v-else class="flex items-center justify-center w-full h-full text-destructive text-xs p-4">
     {{ error }}
   </div>
 </template>

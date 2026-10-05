@@ -94,13 +94,13 @@ const formatTimeAgo = (timestamp: number): string => {
 const getStatusIcon = (status?: string) => {
   switch (status) {
     case 'running':
-      return { component: Loader2, class: 'animate-spin text-amber-500' };
+      return { component: Loader2, class: 'animate-spin text-warning' };
     case 'completed':
-      return { component: CheckCircle2, class: 'text-green-500' };
+      return { component: CheckCircle2, class: 'text-success' };
     case 'error':
-      return { component: XCircle, class: 'text-red-500' };
+      return { component: XCircle, class: 'text-destructive' };
     default:
-      return { component: MessageSquare, class: 'text-gray-400' };
+      return { component: MessageSquare, class: 'text-muted-foreground' };
   }
 };
 
@@ -182,12 +182,12 @@ defineExpose({ closeContextMenu });
           v-model="searchQuery"
           type="text"
           :placeholder="t('convSidebar.search')"
-          class="conv-search-input"
+        class="ui-input ui-input--leading-icon ui-input--trailing-icon conv-search-input"
         />
         <button
           v-if="searchQuery"
           @click="searchQuery = ''"
-          class="conv-search-clear"
+          class="ui-button ui-button--ghost ui-button--compact conv-search-clear"
         >
           <X :size="12" />
         </button>
@@ -196,7 +196,7 @@ defineExpose({ closeContextMenu });
         <!-- TODO: 仅显示置顶按钮目前意义不明确，暂时注释掉 -->
         <!-- <button
           @click="showPinnedOnly = !showPinnedOnly"
-          class="conv-action-btn"
+          class="ui-button ui-button--ghost ui-button--compact conv-action-btn"
           :class="{ active: showPinnedOnly }"
           :title="showPinnedOnly ? t('convSidebar.showAll') : t('convSidebar.showPinned')"
         >
@@ -207,7 +207,7 @@ defineExpose({ closeContextMenu });
     </div>
 
     <!-- New Session Button -->
-    <button @click="emit('new')" class="conv-new-session">
+    <button @click="emit('new')" class="ui-button ui-button--ghost ui-button--compact conv-new-session">
       <Plus :size="14" />
       <span>{{ t('convSidebar.newSession') }}</span>
     </button>
@@ -217,7 +217,7 @@ defineExpose({ closeContextMenu });
       <!-- Pinned Section -->
       <div v-if="!showPinnedOnly || pinnedSessions.length > 0" class="conv-section">
         <div v-if="pinnedSessions.length > 0" class="conv-section-label">
-          <Pin :size="12" class="text-amber-500" />
+          <Pin :size="12" class="text-warning" />
           <span>{{ t('convSidebar.pinned') }}</span>
         </div>
         <div
@@ -240,7 +240,7 @@ defineExpose({ closeContextMenu });
                 v-model="renameInput"
                 @keydown="handleRenameKeydown"
                 @blur="confirmRename"
-                class="conv-rename-input"
+                class="ui-input conv-rename-input"
                 autofocus
               />
             </template>
@@ -262,7 +262,7 @@ defineExpose({ closeContextMenu });
           <!-- Delete Button (hover reveal) -->
           <button
             @click.stop="emit('delete', session.session_key)"
-            class="conv-item-delete"
+            class="ui-button ui-button--ghost ui-button--compact conv-item-delete"
             :title="t('convSidebar.delete')"
           >
             <Trash2 :size="12" />
@@ -296,7 +296,7 @@ defineExpose({ closeContextMenu });
                 v-model="renameInput"
                 @keydown="handleRenameKeydown"
                 @blur="confirmRename"
-                class="conv-rename-input"
+                class="ui-input conv-rename-input"
                 autofocus
               />
             </template>
@@ -318,7 +318,7 @@ defineExpose({ closeContextMenu });
           <!-- Delete Button (hover reveal) -->
           <button
             @click.stop="emit('delete', session.session_key)"
-            class="conv-item-delete"
+            class="ui-button ui-button--ghost ui-button--compact conv-item-delete"
             :title="t('convSidebar.delete')"
           >
             <Trash2 :size="12" />
@@ -333,7 +333,7 @@ defineExpose({ closeContextMenu });
         <button
           v-if="!searchQuery"
           type="button"
-          class="conv-empty-refresh"
+          class="ui-button ui-button--ghost ui-button--compact conv-empty-refresh"
           @click="emit('refresh')"
         >
           <RefreshCw :size="14" />
@@ -352,14 +352,14 @@ defineExpose({ closeContextMenu });
       >
         <button
           @click="startRename(sessions.find(s => s.session_key === contextMenu.sessionId)!)"
-          class="conv-context-item"
+          class="ui-button ui-button--ghost ui-button--compact conv-context-item"
         >
           <Edit3 :size="14" />
           <span>{{ t('convSidebar.rename') }}</span>
         </button>
         <button
           @click="emit('toggle-pin', contextMenu.sessionId)"
-          class="conv-context-item"
+          class="ui-button ui-button--ghost ui-button--compact conv-context-item"
         >
           <Pin v-if="!sessions.find(s => s.session_key === contextMenu.sessionId)?.pinned" :size="14" />
           <PinOff v-else :size="14" />
@@ -372,7 +372,7 @@ defineExpose({ closeContextMenu });
         <div class="conv-context-divider"></div>
         <button
           @click="emit('delete', contextMenu.sessionId)"
-          class="conv-context-item conv-context-danger"
+          class="ui-button ui-button--ghost ui-button--compact conv-context-item conv-context-danger"
         >
           <Trash2 :size="14" />
           <span>{{ t('convSidebar.delete') }}</span>
@@ -386,8 +386,8 @@ defineExpose({ closeContextMenu });
 /* Conversation Sidebar Container */
 .conv-sidebar {
   width: 280px;
-  border-left: 1px solid var(--line, #e5e7eb);
-  background: var(--panel, #ffffff);
+  border-left: 1px solid var(--border);
+  background: var(--card);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -397,7 +397,7 @@ defineExpose({ closeContextMenu });
 /* Header */
 .conv-header {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--line, #e5e7eb);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -413,46 +413,21 @@ defineExpose({ closeContextMenu });
 .conv-search-icon {
   position: absolute;
   left: 10px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted-foreground);
   pointer-events: none;
 }
 
 .conv-search-input {
   width: 100%;
-  padding: 8px 32px 8px 32px;
-  border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
-  color: var(--text, #111827);
-  font-size: 13px;
-  outline: none;
   transition: border-color 0.15s ease;
-}
-
-.conv-search-input:focus {
-  border-color: var(--brand, #ec4899);
-}
-
-.conv-search-input::placeholder {
-  color: var(--text-muted, #9ca3af);
 }
 
 .conv-search-clear {
   position: absolute;
   right: 8px;
-  padding: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #9ca3af);
-  cursor: pointer;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.conv-search-clear:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
 }
 
 /* Header Actions */
@@ -462,26 +437,15 @@ defineExpose({ closeContextMenu });
 }
 
 .conv-action-btn {
-  padding: 6px 8px;
-  border-radius: var(--radius-sm, 8px);
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #9ca3af);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
 }
 
-.conv-action-btn:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
-  color: var(--text, #111827);
-}
-
 .conv-action-btn.active {
-  background: var(--nav-active, rgba(0, 0, 0, 0.06));
-  color: var(--brand, #ec4899);
+  background: var(--sidebar-accent);
+  color: var(--primary);
 }
 
 /* New Session Button */
@@ -490,22 +454,8 @@ defineExpose({ closeContextMenu });
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 12px;
   margin: 8px 12px;
-  border-radius: var(--radius-sm, 8px);
-  border: 1px dashed var(--line, #e5e7eb);
-  background: transparent;
-  color: var(--text-muted, #9ca3af);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.conv-new-session:hover {
-  border-color: var(--brand, #ec4899);
-  color: var(--brand, #ec4899);
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
 }
 
 /* Session List */
@@ -530,7 +480,7 @@ defineExpose({ closeContextMenu });
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted-foreground);
 }
 
 /* Session Item */
@@ -539,18 +489,18 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 0.12s ease;
   position: relative;
 }
 
 .conv-item:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
+  background: var(--accent);
 }
 
 .conv-item-active {
-  background: var(--nav-active, rgba(0, 0, 0, 0.06)) !important;
+  background: var(--sidebar-accent) !important;
 }
 
 /* Item Icon */
@@ -558,8 +508,8 @@ defineExpose({ closeContextMenu });
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
+  border: 1px solid var(--border);
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -579,7 +529,7 @@ defineExpose({ closeContextMenu });
 .conv-item-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text, #111827);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -590,7 +540,7 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted-foreground);
 }
 
 .conv-item-preview {
@@ -614,23 +564,10 @@ defineExpose({ closeContextMenu });
 /* Rename Input */
 .conv-rename-input {
   width: 100%;
-  padding: 4px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--brand, #ec4899);
-  background: var(--panel-solid, #ffffff);
-  color: var(--text, #111827);
-  font-size: 13px;
-  outline: none;
 }
 
 /* Delete Button */
 .conv-item-delete {
-  padding: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #9ca3af);
-  cursor: pointer;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -645,8 +582,6 @@ defineExpose({ closeContextMenu });
 
 .conv-item-delete:hover {
   opacity: 1 !important;
-  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
-  color: var(--danger, #ef4444);
 }
 
 /* Empty State */
@@ -656,7 +591,7 @@ defineExpose({ closeContextMenu });
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--muted-foreground);
   text-align: center;
 }
 
@@ -675,27 +610,16 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 6px;
   margin-top: 12px;
-  padding: 6px 10px;
-  border: 1px solid var(--line, #e5e7eb);
-  border-radius: var(--radius-sm, 8px);
-  color: var(--text, #374151);
-  background: var(--panel-solid, #ffffff);
-  cursor: pointer;
-}
-
-.conv-empty-refresh:hover {
-  border-color: var(--brand, #ec4899);
-  color: var(--brand, #ec4899);
 }
 
 /* Context Menu */
 .conv-context-menu {
   position: fixed;
   min-width: 160px;
-  background: var(--panel-solid, #ffffff);
-  border: 1px solid var(--line, #e5e7eb);
-  border-radius: var(--radius-sm, 8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   padding: 6px;
   z-index: 1000;
 }
@@ -705,32 +629,13 @@ defineExpose({ closeContextMenu });
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text, #111827);
-  font-size: 13px;
-  cursor: pointer;
-  border-radius: 6px;
   transition: background 0.12s ease;
   text-align: left;
 }
 
-.conv-context-item:hover {
-  background: var(--nav-hover, rgba(0, 0, 0, 0.04));
-}
-
-.conv-context-danger {
-  color: var(--danger, #ef4444);
-}
-
-.conv-context-danger:hover {
-  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
-}
-
 .conv-context-divider {
   height: 1px;
-  background: var(--line, #e5e7eb);
+  background: var(--border);
   margin: 4px 0;
 }
 
@@ -741,123 +646,71 @@ defineExpose({ closeContextMenu });
 /* Dark Theme */
 :root[data-theme="dark"] .conv-sidebar,
 .theme-dark .conv-sidebar {
-  border-left-color: var(--line, #1f2937);
-  background: var(--panel-solid, #0f172a);
-}
-
-.theme-dark .conv-search-input {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-  color: var(--text, #e2e8f0);
+  border-left-color: var(--border);
+  background: var(--card);
 }
 
 .theme-dark .conv-item-icon {
-  border-color: var(--line, #1f2937);
-  background: var(--panel-solid, #111827);
-}
-
-.theme-dark .conv-item-delete:hover {
-  background: var(--danger-bg, rgba(239, 68, 68, 0.15));
+  border-color: var(--border);
+  background: var(--card);
 }
 
 .theme-dark .conv-context-menu {
-  background: var(--panel-solid, #111827);
-  border-color: var(--line, #1f2937);
+  background: var(--card);
+  border-color: var(--border);
 }
 
 /* Love Theme */
 .theme-love .conv-sidebar {
-  border-left-color: rgba(255, 182, 193, 0.5);
-  background: rgba(255, 240, 246, 0.9);
-}
-
-.theme-love .conv-search-input {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-  color: #7a2f3e;
-}
-
-.theme-love .conv-search-input:focus {
-  border-color: var(--brand, #ec4899);
+  border-left-color: var(--border-strong);
+  background: var(--card);
 }
 
 .theme-love .conv-item:hover {
-  background: rgba(236, 72, 153, 0.06);
+  background: var(--destructive-soft);
 }
 
 .theme-love .conv-item-active {
-  background: rgba(236, 72, 153, 0.1);
+  background: var(--destructive-soft);
 }
 
 .theme-love .conv-item-icon {
-  border-color: rgba(255, 182, 193, 0.6);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.theme-love .conv-new-session {
-  border-color: rgba(255, 182, 193, 0.5);
-  color: #9b3a4a;
-}
-
-.theme-love .conv-new-session:hover {
-  border-color: var(--brand, #ec4899);
-  color: var(--brand, #ec4899);
-  background: rgba(236, 72, 153, 0.06);
+  border-color: var(--border-strong);
+  background: var(--card);
 }
 
 .theme-love .conv-context-menu {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(255, 182, 193, 0.5);
+  background: var(--card);
+  border-color: var(--border-strong);
 }
 
 /* Default Theme */
 .theme-default .conv-sidebar {
-  border-left-color: var(--line, #e5e7eb);
-  background: var(--panel-solid, #ffffff);
+  border-left-color: var(--border);
+  background: var(--card);
 }
 
 /* Miku Theme */
 .theme-miku .conv-sidebar {
-  border-left-color: rgba(0, 215, 200, 0.15);
-  background: var(--panel-solid, #161b22);
-}
-
-.theme-miku .conv-search-input {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-  color: var(--text, #e6edf3);
-}
-
-.theme-miku .conv-search-input:focus {
-  border-color: var(--brand, #39c5bb);
+  border-left-color: var(--border-strong);
+  background: var(--card);
 }
 
 .theme-miku .conv-item:hover {
-  background: rgba(57, 197, 187, 0.06);
+  background: var(--accent);
 }
 
 .theme-miku .conv-item-active {
-  background: rgba(57, 197, 187, 0.1);
+  background: var(--accent);
 }
 
 .theme-miku .conv-item-icon {
-  border-color: rgba(0, 215, 200, 0.2);
-  background: var(--panel-solid, #0d1117);
-}
-
-.theme-miku .conv-new-session {
-  border-color: rgba(0, 215, 200, 0.2);
-  color: #39c5bb;
-}
-
-.theme-miku .conv-new-session:hover {
-  border-color: var(--brand, #39c5bb);
-  color: var(--brand, #39c5bb);
-  background: rgba(57, 197, 187, 0.06);
+  border-color: var(--border-strong);
+  background: var(--card);
 }
 
 .theme-miku .conv-context-menu {
-  background: var(--panel-solid, #161b22);
-  border-color: rgba(0, 215, 200, 0.15);
+  background: var(--card);
+  border-color: var(--border-strong);
 }
 </style>

@@ -4,21 +4,17 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `scripts/build-desktop.py, build/vivy-sources.lock.json, justfile, LOCK.md, docs/plans/diva-next/**, docs/logs/2026-10-wails-migration/**, go.mod, go.sum, tools/**, cmd/**, internal/**, deps/**, TODOLIST.md, agent-diva-gui/package.json, agent-diva-gui/pnpm-lock.yaml, agent-diva-gui/.gitignore, agent-diva-gui/assets.go, agent-diva-gui/src/**`
-- Owner: `Devin on behalf of mastwet`
-- Session/Task: `DN-W3 W0+W3+W4 Wails migration — pinned Wails probe, Go host, frontend seam, sealed packaging`
-- Branch/Worktree: `feat/wails-go-host`
-- Started At: `2026-10-04T05:35:00Z`
-- Last Heartbeat: `2026-10-04T09:05:00Z`
-- Expires At: `2026-10-08T05:35:00Z`
+- Lock State: `RELEASED`
+- Scope: `agent-diva-gui/src/**, agent-diva-gui/tailwind.config.js, docs/logs/2026-10-diva-design-language/**, LOCK.md, TODOLIST.md`
+- Owner: `Codex on behalf of mastwet`
+- Session/Task: `DIVA design language unification`
+- Branch/Worktree: `codex/diva-design-language / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva-design-language`
+- Started At: `2026-10-05T05:17:32Z`
+- Last Heartbeat: `2026-10-05T08:19:00Z`
+- Expires At: `released 2026-10-05T08:19:00Z`
 
-### Handoff for this branch
-
-The inherited Devin wave-1 lease expired at 2026-10-04T00:00:00Z. Its
-historical record below is stale, not an active lock for this new docs branch.
-The mainline merge is preserved at 5444795a2d9db31e158c2cf009d64697e6289e50.
-No other working branch or live workspace is modified by this handoff.
+### Isolation
+This worktree starts at main d81381f8. The inherited feat/wails-go-host lease belongs to a different checkout; that checkout and its lock are unchanged. This lease covers only the isolated design-language branch.
 
 ## Lock Rules
 
@@ -31,6 +27,14 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `DIVA design language unification` — **RELEASED 2026-10-05T08:19:00Z** by
+  `Codex on behalf of mastwet`; branch `codex/diva-design-language`.
+  Semantic theme/control migration, provider/composer cleanup and all-page
+  audit delivered; 69 GUI test files / 564 tests and production build pass.
+  Development Go-host package built and launched locally; 1024px native
+  screenshot/drag and transparent-pet interaction remain unverified because
+  the available UI automation surface exposes browsers only.
 
 - `DN-W3-P1 Go/Wails migration planning` — **RELEASED 2026-10-04T01:18:32Z** by
   `Codex on behalf of mastwet`; branch `docs/wails-migration-20261004`.

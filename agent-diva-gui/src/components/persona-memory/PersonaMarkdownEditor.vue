@@ -30,10 +30,10 @@ onMounted(() => {
           if (update.docChanged) emit('update:modelValue', update.state.doc.toString());
         }),
         EditorView.theme({
-          '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--text)' },
+          '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--foreground)' },
           '.cm-scroller': { overflow: 'auto', fontFamily: 'var(--font-mono, ui-monospace)' },
-          '.cm-gutters': { backgroundColor: 'var(--panel-solid)', color: 'var(--text-muted)', border: 'none' },
-          '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'color-mix(in srgb, var(--accent) 8%, transparent)' },
+          '.cm-gutters': { backgroundColor: 'var(--card)', color: 'var(--muted-foreground)', border: 'none' },
+          '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' },
           '.cm-content': { padding: '14px 4px' },
           '.cm-line': { padding: '0 12px' },
           '&.cm-focused': { outline: 'none' },

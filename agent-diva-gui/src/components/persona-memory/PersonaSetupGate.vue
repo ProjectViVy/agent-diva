@@ -71,11 +71,11 @@ async function initialize() {
     </div>
     <input
       v-model="reason"
-      class="gate-reason"
+      class="ui-input gate-reason"
       :placeholder="t('personaSetup.reasonPlaceholder')"
     />
     <div v-if="submitError" class="gate-error">{{ submitError }}</div>
-    <button class="gate-submit" :disabled="!ready || submitting" @click="initialize">
+    <button class="ui-button ui-button--primary gate-submit" :disabled="!ready || submitting" @click="initialize">
       {{ submitting ? t('personaSetup.initializing') : t('personaSetup.initialize') }}
     </button>
   </div>
@@ -83,11 +83,11 @@ async function initialize() {
 
 <style scoped>
 .persona-setup-gate {
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--border, var(--border));
   border-radius: 12px;
   padding: 16px;
   margin: 8px 0;
-  background: var(--panel-solid, rgba(20, 20, 24, 0.9));
+  background: var(--card);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -99,7 +99,7 @@ async function initialize() {
   font-size: 14px;
 }
 .gate-desc {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 .gate-field {
@@ -110,38 +110,27 @@ async function initialize() {
 }
 .gate-label {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   text-transform: capitalize;
 }
 .gate-field :deep(.cm-editor) {
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, var(--border));
   border-radius: 8px;
   min-height: 72px;
 }
 .gate-reason {
   background: transparent;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, var(--border));
   border-radius: 8px;
   padding: 8px 10px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: 12px;
 }
 .gate-error {
-  color: var(--danger, #f36);
+  color: var(--destructive);
   font-size: 12px;
 }
 .gate-submit {
   align-self: flex-start;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-}
-.gate-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

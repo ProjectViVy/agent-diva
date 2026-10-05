@@ -119,4 +119,13 @@ describe('DiagnosticsPanel', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('No records')
   })
+
+  it('does not claim there are no records when loading diagnostics failed', async () => {
+    const wrapper = makePanel({
+      'diagnostics/logs': () => Promise.reject(new Error('diagnostics unavailable')),
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('diagnostics unavailable')
+    expect(wrapper.text()).not.toContain('No records')
+  })
 })

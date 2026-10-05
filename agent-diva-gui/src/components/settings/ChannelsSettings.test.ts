@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ChannelsSettings from './ChannelsSettings.vue';
 import type { ChannelView } from '../../api/settings';
 
-const loadChannelsState = vi.fn();
-const saveChannel = vi.fn();
+const { loadChannelsState, saveChannel, runtime } = vi.hoisted(() => ({
+  loadChannelsState: vi.fn(),
+  saveChannel: vi.fn(),
+  runtime: { tauri: true },
+}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -13,7 +16,7 @@ vi.mock('vue-i18n', () => ({
 }));
 
 vi.mock('../../api/desktop', () => ({
-  isTauriRuntime: () => true,
+  isTauriRuntime: () => runtime.tauri,
 }));
 
 vi.mock('../../api/settings', () => ({
@@ -59,6 +62,7 @@ function viewFixture(overrides: Partial<ChannelView> = {}): ChannelView {
 describe('ChannelsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    runtime.tauri = true;
     loadChannelsState.mockResolvedValue([]);
     saveChannel.mockResolvedValue({});
   });
@@ -69,8 +73,8 @@ describe('ChannelsSettings', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('telegram');
-    expect(wrapper.text()).toContain('channels.running');
-    expect(wrapper.text()).toContain('channels.pendingRestart');
+    expect(wrapper.text()).toContain('settings.running');
+    expect(wrapper.text()).toContain('settings.pendingRestart');
     expect(wrapper.text()).toContain('TELEGRAM_BOT_TOKEN');
   });
 
@@ -79,7 +83,7 @@ describe('ChannelsSettings', () => {
     const wrapper = mount(ChannelsSettings);
     await flushPromises();
 
-    const toggle = wrapper.findAll('.skills-btn').find((b) => b.text().includes('general.disableSkill'));
+    const toggle = wrapper.findAll('.skills-btn').find((b) => b.text().includes('settings.disableChannel'));
     expect(toggle).toBeDefined();
     await toggle!.trigger('click');
     await flushPromises();
@@ -101,7 +105,7 @@ describe('ChannelsSettings', () => {
     const inputs = wrapper.findAll('input.skills-search-input');
     await inputs[inputs.length - 1].setValue('TG_TOKEN');
 
-    const saveBtn = wrapper.findAll('.skills-btn').find((b) => b.text().includes('general.save'));
+    const saveBtn = wrapper.findAll('.skills-btn').find((b) => b.text().includes('settings.save'));
     await saveBtn!.trigger('click');
     await flushPromises();
 
@@ -118,10 +122,21 @@ describe('ChannelsSettings', () => {
     const wrapper = mount(ChannelsSettings);
     await flushPromises();
 
-    const toggle = wrapper.findAll('.skills-btn').find((b) => b.text().includes('general.disableSkill'));
+    const toggle = wrapper.findAll('.skills-btn').find((b) => b.text().includes('settings.disableChannel'));
     await toggle!.trigger('click');
     await flushPromises();
 
     expect(wrapper.text()).toContain('read-only');
+  });
+
+  it('uses settings translations in browser preview mode', async () => {
+    runtime.tauri = false;
+    const wrapper = mount(ChannelsSettings);
+    await flushPromises();
+    expect(wrapper.text()).toContain('settings.restartHint');
+    expect(wrapper.text()).toContain('settings.channelsPreviewOnly');
+    expect(wrapper.text()).not.toContain('channels.restartHint');
+    expect(wrapper.text()).not.toContain('general.skillsPreviewOnly');
+    wrapper.unmount();
   });
 });

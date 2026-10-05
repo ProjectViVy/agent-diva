@@ -75,9 +75,9 @@ async function lookupReceipt() {
     <section>
       <h4>{{ t('memoryView.searchTitle') }}</h4>
       <div class="mv-row">
-        <input v-model="query" class="mv-input" :placeholder="t('memoryView.queryPlaceholder')" />
-        <input v-model.number="limit" type="number" class="mv-num" :title="t('memoryView.limit')" />
-        <button class="mv-btn primary" :disabled="searching" @click="search">
+        <input v-model="query" class="ui-input mv-input" :placeholder="t('memoryView.queryPlaceholder')" />
+        <input v-model.number="limit" type="number" class="ui-input mv-num" :title="t('memoryView.limit')" />
+        <button class="ui-button ui-button--ghost mv-btn primary" :disabled="searching" @click="search">
           {{ t('memoryView.search') }}
         </button>
       </div>
@@ -88,7 +88,7 @@ async function lookupReceipt() {
             <span v-if="card.revision !== undefined">r{{ card.revision }}</span>
           </div>
           <pre class="mv-pre">{{ card.title ?? card.summary ?? JSON.stringify(card) }}</pre>
-          <button class="mv-btn" @click="expand(card)">{{ t('memoryView.expand') }}</button>
+          <button class="ui-button ui-button--ghost mv-btn" @click="expand(card)">{{ t('memoryView.expand') }}</button>
         </div>
       </div>
       <div v-else class="mv-empty">{{ t('memoryView.noCards') }}</div>
@@ -105,9 +105,9 @@ async function lookupReceipt() {
 
     <section>
       <h4>{{ t('memoryView.mutateTitle') }}</h4>
-      <textarea v-model="mutationJson" class="mv-textarea" rows="4" spellcheck="false" />
+      <textarea v-model="mutationJson" class="ui-input mv-textarea" rows="4" spellcheck="false" />
       <div v-if="mutationError" class="mv-error">{{ mutationError }}</div>
-      <button class="mv-btn primary" @click="mutate">{{ t('memoryView.mutate') }}</button>
+      <button class="ui-button ui-button--ghost mv-btn primary" @click="mutate">{{ t('memoryView.mutate') }}</button>
       <div v-if="cog.lastMutation.value" class="mv-receipt">
         <div class="mv-scope">
           <span>op: {{ cog.lastMutation.value.operation_id || '—' }}</span>
@@ -124,8 +124,8 @@ async function lookupReceipt() {
     <section>
       <h4>{{ t('memoryView.receiptTitle') }}</h4>
       <div class="mv-row">
-        <input v-model="receiptId" class="mv-input" :placeholder="t('memoryView.receiptPlaceholder')" />
-        <button class="mv-btn" @click="lookupReceipt">{{ t('memoryView.receiptLookup') }}</button>
+        <input v-model="receiptId" class="ui-input mv-input" :placeholder="t('memoryView.receiptPlaceholder')" />
+        <button class="ui-button ui-button--ghost mv-btn" @click="lookupReceipt">{{ t('memoryView.receiptLookup') }}</button>
       </div>
       <div v-for="(r, id) in cog.receipts.value" :key="id" class="mv-receipt">
         <div class="mv-scope">
@@ -151,7 +151,7 @@ section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--border, var(--border));
   padding-top: 10px;
 }
 h4 {
@@ -161,7 +161,7 @@ h4 {
 .mv-notice {
   padding: 10px;
   border-radius: 8px;
-  background: rgba(255, 170, 60, 0.12);
+  background: var(--destructive-soft);
   font-size: 12px;
 }
 .mv-scope {
@@ -169,7 +169,7 @@ h4 {
   flex-wrap: wrap;
   gap: 12px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 .mv-row {
   display: flex;
@@ -177,38 +177,18 @@ h4 {
 }
 .mv-input {
   flex: 1;
-  background: transparent;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: var(--text);
-  font-size: 12px;
 }
 .mv-num {
   width: 70px;
   background: transparent;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, var(--border));
   border-radius: 8px;
   padding: 6px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: 12px;
-}
-.mv-btn {
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-}
-.mv-btn.primary {
-  background: var(--accent);
-  border-color: transparent;
-  color: #fff;
 }
 .mv-card {
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border, var(--border));
   border-radius: 8px;
   padding: 8px;
   display: flex;
@@ -219,7 +199,7 @@ h4 {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 .mv-pre {
   font-size: 11px;
@@ -230,20 +210,14 @@ h4 {
 }
 .mv-textarea {
   width: 100%;
-  background: transparent;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  padding: 8px;
-  color: var(--text);
-  font-size: 12px;
   font-family: var(--font-mono, ui-monospace);
 }
 .mv-error {
-  color: var(--danger, #f36);
+  color: var(--destructive);
   font-size: 12px;
 }
 .mv-empty {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 .mv-cards,
@@ -253,7 +227,7 @@ h4 {
   gap: 6px;
 }
 .mv-receipt {
-  border: 1px dashed var(--border, rgba(255, 255, 255, 0.1));
+  border: 1px dashed var(--border, var(--border));
   border-radius: 8px;
   padding: 8px;
 }

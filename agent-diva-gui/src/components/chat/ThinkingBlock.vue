@@ -4,7 +4,7 @@
     <div class="thinking-header" :class="{ 'thinking-header-expanded': isExpanded }">
       <button
         type="button"
-        class="thinking-header-toggle"
+        class="ui-button ui-button--ghost ui-button--compact thinking-header-toggle"
         :aria-expanded="isExpanded"
         :aria-controls="contentId"
         @click="toggleExpanded"
@@ -18,7 +18,7 @@
       <div class="thinking-header-actions">
         <button
           type="button"
-          class="thinking-expand-btn"
+          class="ui-button ui-button--ghost thinking-expand-btn ui-button--compact ui-button--icon"
           :aria-expanded="isExpanded"
           :aria-controls="contentId"
           :title="isExpanded ? $t('chat.hideDetails') : $t('chat.viewDetails')"
@@ -109,16 +109,16 @@ function onLeave(el: Element) {
 <style scoped>
 .thinking-card {
   margin: 8px 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 }
 
 .thinking-card:hover {
-  box-shadow: 0 4px 16px var(--accent-glow);
+  box-shadow: var(--shadow-sm);
 }
 
 .thinking-header {
@@ -127,16 +127,16 @@ function onLeave(el: Element) {
   align-items: center;
   column-gap: 12px;
   padding: 10px 14px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   transition: background-color 0.2s ease, border-radius 0.2s ease;
 }
 
 .thinking-header:hover {
-  background: var(--accent-bg-light);
+  background: var(--accent);
 }
 
 .thinking-header-expanded {
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .thinking-header-toggle {
@@ -144,11 +144,6 @@ function onLeave(el: Element) {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
   text-align: left;
 }
 
@@ -166,12 +161,6 @@ function onLeave(el: Element) {
   justify-content: center;
   min-height: 28px;
   gap: 5px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
@@ -181,30 +170,25 @@ function onLeave(el: Element) {
 }
 
 .thinking-icon {
-  color: var(--brand);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
 .thinking-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--foreground);
   white-space: nowrap;
 }
 
 .thinking-duration {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 
-.thinking-expand-btn:hover {
-  background: var(--accent-bg-light);
-  color: var(--text);
-}
-
 .thinking-chevron {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
@@ -220,7 +204,7 @@ function onLeave(el: Element) {
   }
 
   .thinking-header-actions { gap: 2px; }
-  .thinking-expand-btn { width: 28px; padding: 0; }
+  .thinking-expand-btn { width: 28px; }
   .thinking-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
@@ -232,8 +216,8 @@ function onLeave(el: Element) {
 
 .thinking-content {
   padding: 12px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--panel-solid);
+  border-top: 1px solid var(--border);
+  background: var(--card);
   max-height: 400px;
   overflow-y: auto;
 }
@@ -244,7 +228,7 @@ function onLeave(el: Element) {
   word-break: break-word;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family:
     'SF Mono',
     'Fira Code',
