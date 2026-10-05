@@ -370,9 +370,9 @@ const contextRingDashoffset = computed(() => {
 });
 
 const contextRingColor = computed(() => {
-  if (contextUsagePercent.value >= 80) return '#f97316';
-  if (contextUsagePercent.value >= 60) return '#eab308';
-  return 'var(--brand, #ec4899)';
+  if (contextUsagePercent.value >= 80) return 'var(--warning)';
+  if (contextUsagePercent.value >= 60) return 'var(--warning)';
+  return 'var(--primary)';
 });
 
 const contextUsageTitle = computed(() =>
@@ -832,7 +832,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
       <!-- Messages List -->
       <div
         v-if="compactionStatus"
-        class="compaction-status-line mx-4 mb-2 rounded-lg border border-sky-200/60 bg-sky-50/70 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-200"
+        class="compaction-status-line mx-4 mb-2 rounded-lg border border-border-strong bg-accent px-3 py-2 text-xs text-primary   "
         role="status"
       >
         <span v-if="compactionStatus.phase === 'started'">{{ t('chat.compactionRunning') }}</span>
@@ -847,7 +847,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         class="chat-list flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin z-10"
         @scroll.passive="handleChatScroll"
       >
-      <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
+      <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4">
         <div class="chat-empty-icon w-20 h-20 rounded-full flex items-center justify-center text-4xl animate-pulse">
           💕
         </div>
@@ -901,7 +901,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </div>
           </template>
           <template v-else-if="msg.role === 'tool' && (!cleanMode || hasInteractiveToolCard(msg))">
-            <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-500 border border-gray-200">
+            <div class="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-secondary text-muted-foreground border border-border">
               <Wrench :size="16" />
             </div>
           </template>
@@ -952,38 +952,38 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- Default tool output rendering -->
               <div
                 v-else
-                class="tool-message rounded-lg border text-sm overflow-hidden bg-white"
+                class="tool-message rounded-lg border text-sm overflow-hidden bg-card"
                 :class="{
-                  'border-gray-200': msg.toolStatus === 'running',
-                  'border-green-200 bg-green-50/50': msg.toolStatus === 'success',
-                  'border-red-200 bg-red-50/50': msg.toolStatus === 'error'
+                  'border-border': msg.toolStatus === 'running',
+                  'border-success bg-success-soft': msg.toolStatus === 'success',
+                  'border-destructive bg-destructive-soft': msg.toolStatus === 'error'
                 }"
               >
                 <!-- Tool Header -->
                 <div class="px-3 py-2 flex items-center space-x-2">
-                  <div v-if="msg.toolStatus === 'running'" class="text-gray-400" aria-label="Loading">
+                  <div v-if="msg.toolStatus === 'running'" class="text-muted-foreground" aria-label="Loading">
                     <div class="streaming-dots tool-streaming-dots">
                       <i />
                       <i />
                       <i />
                     </div>
                   </div>
-                  <div v-else-if="msg.toolStatus === 'success'" class="text-green-500">
+                  <div v-else-if="msg.toolStatus === 'success'" class="text-success">
                     <CheckCircle2 :size="14" />
                   </div>
-                  <div v-else class="text-red-500">
+                  <div v-else class="text-destructive">
                     <XCircle :size="14" />
                   </div>
 
                   <span class="font-medium" :class="{
-                    'text-gray-600': msg.toolStatus === 'running',
-                    'text-green-700': msg.toolStatus === 'success',
-                    'text-red-700': msg.toolStatus === 'error'
+                    'text-muted-foreground': msg.toolStatus === 'running',
+                    'text-success': msg.toolStatus === 'success',
+                    'text-destructive': msg.toolStatus === 'error'
                   }">
                     {{ t('chat.toolCall', { name: toolDisplayName(msg) }) }}
                   </span>
 
-                  <span v-if="msg.toolStatus !== 'running'" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                  <span v-if="msg.toolStatus !== 'running'" class="text-xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border">
                     {{ msg.toolStatus === 'success' ? t('chat.toolSuccess') : t('chat.toolFailed') }}
                   </span>
                 </div>
@@ -991,14 +991,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 <!-- Tool Details Toggle -->
                 <div
                   v-if="!cleanMode && msg.toolStatus !== 'running' && (msg.toolResult || toolResultRef(msg))"
-                  class="px-3 pb-1 text-xs text-gray-600 break-all whitespace-pre-wrap"
+                  class="px-3 pb-1 text-xs text-muted-foreground break-all whitespace-pre-wrap"
                 >
                   {{ toolResultPreview(msg) }}
                 </div>
                 <div v-if="msg.toolStatus !== 'running'" class="px-3 pb-2 flex justify-end">
                   <button
                     @click="toggleTool(msg.id)"
-                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    class="ui-button ui-button--ghost ui-button--compact"
                   >
                     <span>{{ expandedTools[msg.id] ? t('chat.hideDetails') : t('chat.viewDetails') }}</span>
                     <component :is="expandedTools[msg.id] ? ChevronDown : ChevronRight" :size="12" />
@@ -1006,52 +1006,52 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 </div>
 
                 <!-- Tool Details Content -->
-                <div v-if="expandedTools[msg.id]" class="border-t border-gray-100 bg-gray-50/50 p-3 text-xs space-y-2">
+                <div v-if="expandedTools[msg.id]" class="border-t border-border bg-muted p-3 text-xs space-y-2">
                   <div v-if="msg.toolCallId">
-                    <div class="font-semibold text-gray-500 mb-1">tool_call_id</div>
-                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
+                    <div class="font-semibold text-muted-foreground mb-1">tool_call_id</div>
+                    <div class="bg-card border border-border rounded p-2 font-mono text-muted-foreground break-all whitespace-pre-wrap">{{ msg.toolCallId }}</div>
                   </div>
                   <div>
-                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.inputArgs') }}</div>
-                    <div class="bg-gray-100 rounded p-2 font-mono text-gray-600 break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
+                    <div class="font-semibold text-muted-foreground mb-1">{{ t('chat.inputArgs') }}</div>
+                    <div class="bg-secondary rounded p-2 font-mono text-muted-foreground break-all whitespace-pre-wrap">{{ msg.toolArgs }}</div>
                   </div>
                   <div v-if="toolResultRef(msg)" class="space-y-2">
                     <div>
-                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.artifactSize') }}</div>
-                      <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all">
+                      <div class="font-semibold text-muted-foreground mb-1">{{ t('chat.artifactSize') }}</div>
+                      <div class="bg-card border border-border rounded p-2 font-mono text-muted-foreground break-all">
                         {{ toolResultRef(msg)?.char_count }} chars / {{ toolResultRef(msg)?.byte_count }} bytes
                       </div>
                     </div>
                     <div>
-                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.artifactId') }}</div>
-                      <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 break-all">{{ toolResultRef(msg)?.artifact_id }}</div>
+                      <div class="font-semibold text-muted-foreground mb-1">{{ t('chat.artifactId') }}</div>
+                      <div class="bg-card border border-border rounded p-2 font-mono text-muted-foreground break-all">{{ toolResultRef(msg)?.artifact_id }}</div>
                     </div>
                     <div>
-                      <div class="font-semibold text-gray-500 mb-1">{{ t('chat.readHint') }}</div>
-                      <div class="text-gray-600 break-words">{{ toolResultRef(msg)?.read_hint }}</div>
+                      <div class="font-semibold text-muted-foreground mb-1">{{ t('chat.readHint') }}</div>
+                      <div class="text-muted-foreground break-words">{{ toolResultRef(msg)?.read_hint }}</div>
                     </div>
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800" @click="copyArtifactReference(msg)">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground" @click="copyArtifactReference(msg)">
                       <Copy :size="12" />
                       <span>{{ t('chat.copyArtifactReference') }}</span>
                     </button>
                   </div>
                   <div v-else-if="msg.toolResult">
-                    <div class="font-semibold text-gray-500 mb-1">{{ t('chat.execResult') }}</div>
-                    <div class="bg-white border border-gray-200 rounded p-2 font-mono text-gray-600 max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
+                    <div class="font-semibold text-muted-foreground mb-1">{{ t('chat.execResult') }}</div>
+                    <div class="bg-card border border-border rounded p-2 font-mono text-muted-foreground max-h-40 overflow-y-auto break-all whitespace-pre-wrap">{{ msg.toolResult }}</div>
                   </div>
                 </div>
 
-                <div v-if="hasRawMeta(msg)" class="border-t border-gray-100 bg-white/70 px-3 py-2">
+                <div v-if="hasRawMeta(msg)" class="border-t border-border bg-card px-3 py-2">
                   <button
                     @click="toggleRawMeta(msg.id)"
-                    class="text-[10px] flex items-center space-x-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    class="ui-button ui-button--ghost ui-button--compact"
                   >
                     <span>{{ expandedRawMeta[msg.id] ? t('chat.hideRawMeta') : t('chat.viewRawMeta') }}</span>
                     <component :is="expandedRawMeta[msg.id] ? ChevronDown : ChevronRight" :size="12" />
                   </button>
                   <div
                     v-if="expandedRawMeta[msg.id]"
-                    class="mt-2 bg-gray-50 border border-gray-200 rounded p-2 font-mono text-[11px] text-gray-600 max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
+                    class="mt-2 bg-muted border border-border rounded p-2 font-mono text-[11px] text-muted-foreground max-h-52 overflow-y-auto whitespace-pre-wrap break-all"
                   >
                     {{ renderRawMeta(msg) }}
                   </div>
@@ -1090,19 +1090,19 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
                 </div>
               </div>
 
-              <div v-if="hasRawMeta(msg) && !cleanMode" class="mb-2 rounded border border-gray-200/50 bg-white/40 overflow-hidden">
+              <div v-if="hasRawMeta(msg) && !cleanMode" class="mb-2 rounded border border-border bg-card overflow-hidden">
                 <div
                   @click="toggleRawMeta(msg.id)"
-                  class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-black/5 transition-colors select-none"
+                  class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-overlay transition-colors select-none"
                 >
-                  <span class="text-xs text-gray-500">{{ t('chat.rawMeta') }}</span>
-                  <component :is="expandedRawMeta[msg.id] ? ChevronDown : ChevronRight" :size="14" class="text-gray-400" />
+                  <span class="text-xs text-muted-foreground">{{ t('chat.rawMeta') }}</span>
+                  <component :is="expandedRawMeta[msg.id] ? ChevronDown : ChevronRight" :size="14" class="text-muted-foreground" />
                 </div>
-                <div v-if="expandedRawMeta[msg.id]" class="px-3 py-2 border-t border-gray-100/50 bg-gray-50/30 text-xs text-gray-600">
+                <div v-if="expandedRawMeta[msg.id]" class="px-3 py-2 border-t border-border bg-muted text-xs text-muted-foreground">
                   <div class="font-mono whitespace-pre-wrap break-all">{{ renderRawMeta(msg) }}</div>
                 </div>
               </div>
-              
+
               <!-- Content or Loading -->
               <div
                 v-if="!msg.content && !msg.reasoning && msg.role === 'agent' && msg.isStreaming"
@@ -1127,13 +1127,13 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- Provider status badges on the streaming agent message -->
               <div
                 v-if="msg.isStreaming && msg.retryStatus"
-                class="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
+                class="mt-2 inline-flex items-center gap-1 rounded-md border border-warning bg-warning-soft px-2 py-0.5 text-xs text-warning"
               >
                 {{ t('chat.retrying', { attempt: msg.retryStatus.attempt, max: msg.retryStatus.maxRetries }) }}
               </div>
               <div
                 v-else-if="msg.isStreaming && msg.stalled"
-                class="mt-2 inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-500"
+                class="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
               >
                 {{ t('chat.stalled') }}
               </div>
@@ -1145,10 +1145,10 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               class="msg-actions"
               :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
             >
-              <span class="text-[10px] text-gray-400">{{ formatTime(msg.timestamp) }}</span>
+              <span class="text-[10px] text-muted-foreground">{{ formatTime(msg.timestamp) }}</span>
               <!-- 复制按钮（启用） -->
               <button
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 @click="copyMessage(msg.content)"
                 :title="t('chat.copy')"
               >
@@ -1157,7 +1157,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- 编辑按钮（用户消息，disabled占位） -->
               <button
                 v-if="msg.role === 'user'"
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 disabled
                 :title="t('chat.edit') + ' (' + t('chat.pending') + ')'"
               >
@@ -1166,7 +1166,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- 重生成按钮（助手消息） -->
               <button
                 v-if="msg.role === 'agent'"
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 :disabled="isTyping"
                 :title="t('chat.regenerate')"
                 @click="emit('regenerate', msg.id)"
@@ -1176,7 +1176,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               <!-- 朗读按钮（助手消息，DN-6C replay — 身份随 run 栅栏） -->
               <button
                 v-if="msg.role === 'agent' && msg.content"
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 :title="t('chat.voiceReplay')"
                 @click="void voice.requestReply(msg.runId, msg.content)"
               >
@@ -1184,7 +1184,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </button>
               <!-- 回退按钮（disabled占位） -->
               <button
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 disabled
                 :title="t('chat.rewind') + ' (' + t('chat.pending') + ')'"
               >
@@ -1192,7 +1192,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               </button>
               <!-- 分叉按钮（disabled占位） -->
               <button
-                class="msg-action-btn"
+                class="ui-button ui-button--ghost msg-action-btn ui-button--compact ui-button--icon"
                 disabled
                 :title="t('chat.fork') + ' (' + t('chat.pending') + ')'"
               >
@@ -1203,7 +1203,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <!-- Tool消息时间戳 -->
             <span
               v-else
-              class="text-[10px] text-gray-400 mt-1 text-left"
+              class="text-[10px] text-muted-foreground mt-1 text-left"
             >
               {{ formatTime(msg.timestamp) }}
             </span>
@@ -1235,7 +1235,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
       <!-- Typing Indicator -->
       <!-- Removed separate Typing Indicator as it is now integrated into the message bubble -->
-      
+
     </div>
 
     <div
@@ -1260,10 +1260,10 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           <span v-else class="active-plan-todo-title">{{ activePlanRuntime.todos.length === 0 ? '无执行清单，按批准计划执行' : activePlanRuntime.phase }}</span>
         </div>
         <span class="active-plan-todo-progress">{{ planProgressText }}</span>
-        <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-amber-500 animate-spin" />
+        <Loader2 v-if="activePlanTodo?.status === 'InProgress'" :size="15" class="text-warning animate-spin" />
         <button
           type="button"
-          class="active-plan-todo-toggle"
+          class="ui-button ui-button--ghost ui-button--compact active-plan-todo-toggle"
           :title="activePlanTodoExpanded ? '收起 TODO 详情' : '展开 TODO 详情'"
           :aria-label="activePlanTodoExpanded ? '收起 TODO 详情' : '展开 TODO 详情'"
           @click="activePlanTodoExpanded = !activePlanTodoExpanded"
@@ -1281,9 +1281,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           class="active-plan-task-item"
           @click.stop="openTodoStatus(todo.id)"
         >
-          <CheckCircle2 v-if="todo.status === 'Completed'" :size="14" class="text-emerald-500" />
-          <Loader2 v-else-if="todo.status === 'InProgress'" :size="14" class="text-amber-500 animate-spin" />
-          <Clock v-else :size="14" class="text-gray-400" />
+          <CheckCircle2 v-if="todo.status === 'Completed'" :size="14" class="text-success" />
+          <Loader2 v-else-if="todo.status === 'InProgress'" :size="14" class="text-warning animate-spin" />
+          <Clock v-else :size="14" class="text-muted-foreground" />
           <span>{{ todo.title }}</span>
           <ChevronRight :size="14" class="active-plan-task-chevron" />
         </button>
@@ -1292,17 +1292,17 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         <div class="active-plan-todo-details-title">{{ activePlanRuntime.title }}</div>
         <div v-if="activePlanRuntime.steps.length > 0" class="active-plan-todo-details-list">
           <div v-for="step in activePlanRuntime.steps" :key="step.id" class="active-plan-todo-detail-item">
-            <CheckCircle2 v-if="step.status === 'Completed'" :size="13" class="text-emerald-500" />
-            <Loader2 v-else-if="step.status === 'InProgress'" :size="13" class="text-amber-500 animate-spin" />
-            <Clock v-else :size="13" class="text-gray-400" />
+            <CheckCircle2 v-if="step.status === 'Completed'" :size="13" class="text-success" />
+            <Loader2 v-else-if="step.status === 'InProgress'" :size="13" class="text-warning animate-spin" />
+            <Clock v-else :size="13" class="text-muted-foreground" />
             <span>{{ step.ordinal + 1 }}. {{ step.title }}</span>
           </div>
         </div>
         <div v-else class="active-plan-todo-details-list">
           <div v-for="todo in activePlanRuntime.todos" :key="todo.id" class="active-plan-todo-detail-item">
-            <CheckCircle2 v-if="todo.status === 'Completed'" :size="13" class="text-emerald-500" />
-            <Loader2 v-else-if="todo.status === 'InProgress'" :size="13" class="text-amber-500 animate-spin" />
-            <Clock v-else :size="13" class="text-gray-400" />
+            <CheckCircle2 v-if="todo.status === 'Completed'" :size="13" class="text-success" />
+            <Loader2 v-else-if="todo.status === 'InProgress'" :size="13" class="text-warning animate-spin" />
+            <Clock v-else :size="13" class="text-muted-foreground" />
             <span>{{ todo.title }}</span>
           </div>
         </div>
@@ -1316,7 +1316,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <div class="todo-status-eyebrow">{{ activePlanRuntime?.title }}</div>
             <h2>{{ selectedPlanTodo.title }}</h2>
           </div>
-          <button type="button" class="todo-status-close" title="关闭" aria-label="关闭" @click="closeTodoStatus">
+          <button type="button" class="ui-button ui-button--ghost ui-button--compact todo-status-close" title="关闭" aria-label="关闭" @click="closeTodoStatus">
             <X :size="18" />
           </button>
         </header>
@@ -1337,9 +1337,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
         <div class="chat-input-toolbar">
           <!-- 执行模式选择 -->
           <div class="relative">
-            <button 
+            <button
               @click="showModeMenu = !showModeMenu"
-              class="toolbar-btn mode-selector"
+              class="ui-button ui-button--ghost ui-button--compact toolbar-btn mode-selector"
             >
               <Zap v-if="execMode === 'agent'" :size="14" />
               <Settings2 v-else-if="execMode === 'plan'" :size="14" />
@@ -1349,8 +1349,8 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </button>
             <!-- 模式下拉菜单 -->
             <div v-if="showModeMenu" class="mode-menu">
-              <div 
-                v-for="mode in modeOptions" 
+              <div
+                v-for="mode in modeOptions"
                 :key="mode.value"
                 @click="execMode = mode.value as any; showModeMenu = false"
                 class="mode-menu-item"
@@ -1372,9 +1372,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
           <!-- 权限模式选择 -->
           <div class="relative">
-            <button 
+            <button
               @click="showPermissionMenu = !showPermissionMenu"
-              class="toolbar-btn permission-btn"
+              class="ui-button ui-button--ghost ui-button--compact toolbar-btn permission-btn"
             >
               <component :is="permissionOptions.find(p => p.value === permissionMode)?.icon || Sparkles" :size="14" />
               <span>{{ t(permissionOptions.find(p => p.value === permissionMode)?.label || 'chat.permissionSmart') }}</span>
@@ -1382,8 +1382,8 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </button>
             <!-- 权限模式下拉菜单 -->
             <div v-if="showPermissionMenu" class="mode-menu">
-              <div 
-                v-for="perm in permissionOptions" 
+              <div
+                v-for="perm in permissionOptions"
                 :key="perm.value"
                 @click="permissionMode = perm.value as any; showPermissionMenu = false"
                 class="mode-menu-item"
@@ -1404,7 +1404,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           <div class="chat-corner-actions">
             <button
               type="button"
-              class="toolbar-btn"
+              class="ui-button ui-button--ghost ui-button--compact toolbar-btn"
               :title="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
               :aria-label="convSidebarOpen ? t('convSidebar.close') : t('convSidebar.open')"
               :aria-expanded="convSidebarOpen"
@@ -1414,7 +1414,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             </button>
             <button
               type="button"
-              class="toolbar-btn approval-center-icon-btn"
+              class="ui-button ui-button--ghost ui-button--compact toolbar-btn approval-center-icon-btn"
               :class="{ active: approvalCenterOpen }"
               :title="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
               :aria-label="t('approvalCenter.open', { count: approvalPendingCount || 0 })"
@@ -1436,7 +1436,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           <div v-for="(att, index) in pendingImages" :key="index" class="image-chip">
             <img :src="`data:${att.mime_type};base64,${att.data}`" class="image-thumb" :alt="att.name || 'image'" />
             <span class="image-name">{{ att.name || 'image' }}</span>
-            <button class="image-remove" @click="removeImage(index)" :title="t('chat.removeAttachment')">
+            <button class="ui-button ui-button--ghost ui-button--compact image-remove" @click="removeImage(index)" :title="t('chat.removeAttachment')">
               <X :size="12" />
             </button>
           </div>
@@ -1460,7 +1460,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             @input="adjustInputHeight"
             @keydown="handleKeyDown"
             :placeholder="getPlaceholder"
-            class="chat-textarea"
+            class="ui-input ui-input--embedded chat-textarea"
             rows="1"
           />
         </div>
@@ -1470,7 +1470,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
           <!-- 上下文使用指示器 -->
           <div class="context-usage" :title="contextUsageTitle">
             <svg class="context-ring" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+              <circle cx="12" cy="12" r="9" fill="none" stroke="var(--border)" stroke-width="2"/>
               <circle
                 cx="12"
                 cy="12"
@@ -1492,14 +1492,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <!-- 新建会话按钮 -->
             <button
               @click="handleClear"
-              class="input-action-btn left"
+              class="ui-button ui-button--ghost input-action-btn left ui-button--compact ui-button--icon"
               :title="t('chat.newSession')"
             >
               <Plus :size="18" />
             </button>
 
             <button
-              class="input-action-btn"
+              class="ui-button ui-button--ghost input-action-btn ui-button--compact ui-button--icon"
               :class="{ recording: isRecording, speaking: isSpeaking }"
               :title="micTitle"
               @click="handleMicClick"
@@ -1511,7 +1511,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
             <!-- 图片附件按钮 -->
             <button
-              class="input-action-btn"
+              class="ui-button ui-button--ghost input-action-btn ui-button--compact ui-button--icon"
               :title="t('chat.attachImage')"
               @click="triggerImagePicker"
             >
@@ -1522,7 +1522,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
             <button
               v-if="isTyping"
               @click="handleStop"
-              class="input-action-btn send stop-btn"
+              class="ui-button ui-button--ghost input-action-btn send stop-btn ui-button--compact ui-button--icon"
               :title="t('chat.stop')"
             >
               <Square :size="18" />
@@ -1531,7 +1531,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
               v-else
               @click="handleSend"
               :disabled="!input.trim() || personaSetupRequired"
-              class="input-action-btn send"
+              class="ui-button ui-button--ghost input-action-btn send ui-button--compact ui-button--icon"
               :class="{ disabled: !input.trim() || personaSetupRequired }"
               :title="t('chat.send')"
             >
@@ -1582,9 +1582,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 .approval-center-icon-btn.active {
-  color: #b45309;
-  border-color: var(--warning, #f59e0b);
-  background: rgba(255, 251, 235, 0.96);
+  color: var(--warning);
+  border-color: var(--warning, var(--warning));
+  background: var(--warning-soft);
 }
 
 .approval-pending-badge {
@@ -1597,12 +1597,12 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   place-items: center;
   border-radius: 999px;
   padding: 0 5px;
-  background: #b91c1c;
-  color: #fff;
+  background: var(--warning-soft);
+  color: var(--warning);
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 0 0 2px var(--panel-solid, #fff);
+  box-shadow: var(--shadow-sm);
 }
 
 .active-plan-todo-bar {
@@ -1613,48 +1613,46 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   min-width: 0;
   margin: 0 16px 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(245, 158, 11, .28);
+  border: 1px solid var(--warning);
   border-radius: 10px;
-  background: rgba(255, 251, 235, .96);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+  background: var(--warning-soft);
+  box-shadow: var(--shadow-sm);
 }
 .active-plan-todo-panel { flex-shrink: 0; min-width: 0; margin: 0 16px 8px; }
 .active-plan-todo-panel .active-plan-todo-bar { margin: 0; }
-.active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(220, 38, 38, .24); border-radius: 10px; color: #991b1b; background: rgba(254, 242, 242, .96); font-size: 12px; line-height: 1.4; }
+.active-plan-execution-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--destructive); border-radius: 10px; color: var(--destructive); background: var(--destructive-soft); font-size: 12px; line-height: 1.4; }
 .active-plan-execution-error span { min-width: 0; overflow-wrap: anywhere; }
-.active-plan-execution-error button { flex: 0 0 auto; border: 1px solid #b91c1c; border-radius: 7px; padding: 5px 9px; color: #fff; background: #b91c1c; font-size: 11px; font-weight: 700; cursor: pointer; }
+.active-plan-execution-error button { flex: 0 0 auto; border: 1px solid var(--destructive); border-radius: 7px; padding: 5px 9px; color: var(--destructive); background: var(--destructive-soft); font-size: 11px; font-weight: 700; cursor: pointer; }
 .active-plan-execution-error button:disabled { cursor: not-allowed; opacity: .6; }
-.active-plan-todo-icon { flex: 0 0 auto; color: #b45309; }
+.active-plan-todo-icon { flex: 0 0 auto; color: var(--warning); }
 .active-plan-todo-content { display: flex; min-width: 0; flex: 1; align-items: baseline; gap: 8px; }
-.active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: #92400e; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-todo-title { min-width: 0; overflow: hidden; color: #374151; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-todo-progress { flex: 0 0 auto; color: #b45309; font-size: 11px; font-variant-numeric: tabular-nums; }
-.active-plan-todo-toggle { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 5px; color: #92400e; background: transparent; cursor: pointer; }
-.active-plan-todo-toggle:hover { background: rgba(245, 158, 11, .14); }
-.active-plan-todo-details { padding: 9px 12px 10px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
-.active-plan-todo-details-title { margin-bottom: 6px; color: #92400e; font-size: 11px; font-weight: 700; }
+.active-plan-todo-plan { flex: 0 0 auto; max-width: 30%; overflow: hidden; color: var(--warning); font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-todo-title { min-width: 0; overflow: hidden; color: var(--warning); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.active-plan-todo-progress { flex: 0 0 auto; color: var(--warning); font-size: 11px; font-variant-numeric: tabular-nums; }
+.active-plan-todo-toggle { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.active-plan-todo-details { padding: 9px 12px 10px; border: 1px solid var(--warning); border-top: 0; border-radius: 0 0 10px 10px; background: var(--warning-soft); }
+.active-plan-todo-details-title { margin-bottom: 6px; color: var(--warning); font-size: 11px; font-weight: 700; }
 .active-plan-todo-details-list { display: grid; gap: 5px; }
-.active-plan-todo-detail-item { display: flex; align-items: center; gap: 6px; min-width: 0; color: #374151; font-size: 11px; }
+.active-plan-todo-detail-item { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--warning); font-size: 11px; }
 .active-plan-todo-detail-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-task-list { display: grid; gap: 4px; margin-top: -1px; padding: 8px; border: 1px solid rgba(245, 158, 11, .24); border-top: 0; border-radius: 0 0 10px 10px; background: rgba(255, 251, 235, .96); }
-.active-plan-task-list-title { padding: 2px 4px 5px; color: #92400e; font-size: 11px; font-weight: 700; }
-.active-plan-task-item { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 6px; border: 0; border-radius: 7px; color: #374151; background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
-.active-plan-task-item:hover { background: rgba(245, 158, 11, .14); }
+.active-plan-task-list { display: grid; gap: 4px; margin-top: -1px; padding: 8px; border: 1px solid var(--warning); border-top: 0; border-radius: 0 0 10px 10px; background: var(--card); }
+.active-plan-task-list-title { padding: 2px 4px 5px; color: var(--warning); font-size: 11px; font-weight: 700; }
+.active-plan-task-item { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 6px; border: 0; border-radius: 7px; color: var(--muted-foreground); background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
+.active-plan-task-item:hover { background: var(--warning-soft); }
 .active-plan-task-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.active-plan-task-chevron { margin-left: auto; flex: 0 0 auto; color: #b45309; }
-.todo-status-overlay { position: absolute; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
-.todo-status-dialog { width: min(520px, 100%); max-height: min(80vh, 620px); overflow: auto; border: 1px solid var(--line, #e5e7eb); border-radius: 16px; background: var(--panel-solid, #fff); box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
-.todo-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line, #e5e7eb); }
-.todo-status-eyebrow { margin-bottom: 5px; color: var(--text-muted, #9ca3af); font-size: 11px; }
-.todo-status-header h2 { margin: 0; color: var(--text, #111827); font-size: 17px; font-weight: 700; }
-.todo-status-close { display: flex; align-items: center; justify-content: center; padding: 5px; border: 0; border-radius: 7px; color: var(--text-muted, #9ca3af); background: transparent; cursor: pointer; }
-.todo-status-close:hover { color: var(--text, #111827); background: var(--nav-hover, rgba(0, 0, 0, .06)); }
-.todo-status-body { display: grid; gap: 14px; padding: 18px 20px 22px; color: var(--text, #111827); }
-.todo-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, #f1f5f9); font-size: 13px; }
-.todo-status-row span, .todo-status-section > span { color: var(--text-muted, #6b7280); font-size: 12px; }
+.active-plan-task-chevron { margin-left: auto; flex: 0 0 auto; color: var(--warning); }
+.todo-status-overlay { position: absolute; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--overlay); }
+.todo-status-dialog { width: min(520px, 100%); max-height: min(80vh, 620px); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-lg); }
+.todo-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.todo-status-eyebrow { margin-bottom: 5px; color: var(--muted-foreground); font-size: 11px; }
+.todo-status-header h2 { margin: 0; color: var(--foreground); font-size: 17px; font-weight: 700; }
+.todo-status-close { display: flex; align-items: center; justify-content: center; }
+.todo-status-body { display: grid; gap: 14px; padding: 18px 20px 22px; color: var(--foreground); }
+.todo-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.todo-status-row span, .todo-status-section > span { color: var(--muted-foreground); font-size: 12px; }
 .todo-status-row strong { font-size: 13px; }
-.todo-status-section p { margin: 5px 0 0; color: var(--text, #374151); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-.todo-status-blocked { padding: 10px 12px; border-radius: 9px; background: #fff7ed; }
+.todo-status-section p { margin: 5px 0 0; color: var(--foreground); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.todo-status-blocked { padding: 10px 12px; border-radius: 9px; background: var(--warning-soft); }
 
 /* Conversation Sidebar Wrapper */
 .conv-sidebar-wrapper {
@@ -1668,14 +1666,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   z-index: 160;
   width: 280px;
   max-width: calc(100vw - 40px);
-  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.22);
+  box-shadow: var(--shadow-sm);
 }
 
 .conv-sidebar-scrim {
   position: fixed;
   inset: 0;
   z-index: 150;
-  background: rgba(15, 23, 42, 0.28);
+  background: var(--overlay);
 }
 
 /* Scoped styles if needed, but we rely on global tailwind classes mostly */
@@ -1691,7 +1689,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .tool-call-caption {
   margin-bottom: 6px;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -1710,14 +1708,14 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .clean-thinking-tool-list {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1727,7 +1725,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   align-items: center;
   gap: 8px;
   padding: 0 4px;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -1746,7 +1744,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--text-muted, #9ca3af);
+  background: var(--muted-foreground);
   animation: streaming-dot-bounce 1s infinite ease-in-out;
 }
 
@@ -1767,7 +1765,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 :deep(.markdown-body pre) {
-  background-color: #1e1e1e;
+  background-color: var(--code-background);
   border-radius: 0.375rem;
   padding: 0.75rem;
   margin: 0.5rem 0;
@@ -1777,7 +1775,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 :deep(.markdown-body code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.85em;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--accent);
   padding: 0.2em 0.4em;
   border-radius: 0.25rem;
 }
@@ -1785,7 +1783,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 :deep(.markdown-body pre code) {
   background-color: transparent;
   padding: 0;
-  color: #e5e7eb;
+  color: var(--code-foreground);
 }
 
 :deep(.markdown-body ul), :deep(.markdown-body ol) {
@@ -1802,27 +1800,27 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 }
 
 :deep(.markdown-body blockquote) {
-  border-left: 3px solid #e5e7eb;
+  border-left: 3px solid var(--border);
   padding-left: 0.75rem;
-  color: #6b7280;
+  color: var(--muted-foreground);
   margin: 0.5rem 0;
 }
 
 :deep(.markdown-body a) {
-  color: var(--info, #3b82f6);
+  color: var(--info, var(--info));
   text-decoration: underline;
 }
 
 :deep(.markdown-body a:hover) {
-  color: #2563eb;
+  color: var(--primary-hover);
 }
 .autodream-trigger-notice {
   min-width: min(360px, 100%);
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 28%, var(--border, #d8dee9));
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border, var(--border)));
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent, #2563eb) 7%, var(--panel-solid, #fff));
-  color: var(--text, #111827);
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+  color: var(--foreground);
 }
 
 .autodream-trigger-notice p {
@@ -1832,7 +1830,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
 
 .autodream-trigger-notice__error {
   margin-top: 4px !important;
-  color: var(--danger, #b42318);
+  color: var(--destructive);
   font-size: 12px;
 }
 
@@ -1843,7 +1841,7 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   margin-top: 8px;
   padding: 0;
   border: 0;
-  color: var(--accent, #2563eb);
+  color: var(--primary);
   background: transparent;
   cursor: pointer;
   font-size: 12px;
@@ -1866,9 +1864,9 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   align-items: center;
   gap: 6px;
   padding: 3px 6px;
-  border: 1px solid var(--border, #d8dee9);
+  border: 1px solid var(--border, var(--border));
   border-radius: 8px;
-  background: var(--panel-solid, #fff);
+  background: var(--card);
   font-size: 12px;
 }
 .image-thumb {
@@ -1882,22 +1880,15 @@ const onCardCheck = (payload: { id: string; item_id: string; status: 'pending' |
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text, #111827);
+  color: var(--foreground);
 }
 .image-remove {
   display: inline-flex;
   align-items: center;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  color: var(--text-muted, #6b7280);
-}
-.image-remove:hover {
-  color: var(--danger, #b42318);
 }
 .attachment-error {
   padding: 4px 6px;
-  color: var(--danger, #b42318);
+  color: var(--destructive);
   font-size: 12px;
 }
 </style>

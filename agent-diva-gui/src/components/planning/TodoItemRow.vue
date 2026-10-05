@@ -45,12 +45,12 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
       <Circle
         v-else-if="isPending"
         :size="14"
-        style="color: var(--text-muted)"
+        style="color: var(--muted-foreground)"
       />
       <Lock
         v-else-if="isBlocked"
         :size="14"
-        style="color: var(--danger)"
+        style="color: var(--destructive)"
       />
       <CheckCircle2
         v-else-if="isCompleted"
@@ -120,7 +120,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 }
 
 .todo-row:hover {
-  background: var(--accent-bg-light);
+  background: var(--accent);
 }
 
 .todo-row--completed {
@@ -144,7 +144,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 .todo-title {
   flex: 1;
   font-size: 0.85rem;
-  color: var(--text);
+  color: var(--foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -152,20 +152,20 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 
 .todo-title--done {
   text-decoration: line-through;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .todo-detail {
   flex: 1 1 100%;
   min-width: 0;
   margin-left: 26px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.75rem;
   line-height: 1.4;
 }
 
 .todo-step-ref {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.65rem;
   white-space: nowrap;
 }
@@ -182,20 +182,20 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 }
 
 .todo-priority-badge--high {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .todo-priority-badge--low {
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--line) 10%, transparent);
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--border) 10%, transparent);
 }
 
 /* Evidence link */
 .todo-evidence {
   display: flex;
   align-items: center;
-  color: var(--accent);
+  color: var(--primary);
   opacity: 0.7;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
@@ -208,7 +208,7 @@ const isHighPriority = computed(() => props.todo.priority === 'high');
 /* Block reason */
 .todo-block-reason {
   font-size: 0.7rem;
-  color: var(--danger);
+  color: var(--destructive);
   opacity: 0.8;
   overflow: hidden;
   text-overflow: ellipsis;

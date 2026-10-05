@@ -142,23 +142,23 @@ watch(
   <div class="settings-shell">
     <div class="settings-subheader">
       <div class="settings-subheader-inner">
-        <button 
+        <button
           v-if="currentView !== 'dashboard'"
           @click="goBack"
-          class="settings-back-btn"
+          class="ui-button ui-button--ghost settings-back-btn ui-button--compact ui-button--icon"
         >
           <ChevronLeft :size="24" />
         </button>
-        <h2 class="settings-page-title animate-in fade-in slide-in-from-left-2 duration-200" :key="pageTitle">
+        <h2 class="settings-page-title animate-in fade-in slide-in- duration-200" :key="pageTitle">
           {{ pageTitle }}
         </h2>
       </div>
     </div>
-    
+
     <div class="settings-body">
        <Transition name="page" mode="out-in">
           <div :key="currentView" class="settings-view-panel">
-            <SettingsDashboard 
+            <SettingsDashboard
               v-if="currentView === 'dashboard'"
               @navigate="handleNavigate"
             />
@@ -176,8 +176,8 @@ watch(
             <SkillsSettings
               v-else-if="currentView === 'skills'"
             />
-            
-            <ProvidersSettings 
+
+            <ProvidersSettings
               v-else-if="currentView === 'providers'"
               :config="config"
               :provider-configs="providerConfigs"
@@ -185,16 +185,16 @@ watch(
               :save-config-action="saveConfigAction"
               @update-saved-models="(m) => emit('update-saved-models', m)"
             />
-            
-            <ChannelsSettings 
+
+            <ChannelsSettings
               v-else-if="currentView === 'channels'"
             />
 
             <NetworkSettings
               v-else-if="currentView === 'network'"
             />
-            
-            <LanguageSettings 
+
+            <LanguageSettings
               v-else-if="currentView === 'language'"
             />
 
@@ -263,17 +263,7 @@ watch(
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.settings-back-btn:hover {
-  background: var(--nav-hover);
-  border-color: var(--line);
-  color: var(--text);
 }
 
 .settings-page-title {
@@ -281,7 +271,7 @@ watch(
   font-size: 1.125rem;
   line-height: 1.75rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .settings-body {

@@ -558,13 +558,13 @@ function addEnv() {
 function stateClass(state: string) {
   switch (state) {
     case 'connected':
-      return 'mcp-status-badge mcp-status-connected';
+      return 'ui-badge--success';
     case 'degraded':
-      return 'mcp-status-badge mcp-status-degraded';
+      return 'ui-badge--warning';
     case 'disabled':
-      return 'mcp-status-badge mcp-status-disabled';
+      return '';
     default:
-      return 'mcp-status-badge mcp-status-invalid';
+      return 'ui-badge--destructive';
   }
 }
 
@@ -598,11 +598,11 @@ onMounted(refreshList);
         <div class="stat-label">{{ t('mcp.total') }}</div>
         <div class="stat-value">{{ mcps.length }}</div>
       </div>
-      <div class="stat-card stat-card-online">
+      <div class="stat-card" :class="onlineCount > 0 ? 'stat-card-online' : 'stat-card-neutral'">
         <div class="stat-label">{{ t('mcp.online') }}</div>
         <div class="stat-value">{{ onlineCount }}</div>
       </div>
-      <div class="stat-card stat-card-degraded">
+      <div class="stat-card" :class="degradedCount > 0 ? 'stat-card-degraded' : 'stat-card-neutral'">
         <div class="stat-label">{{ t('mcp.degraded') }}</div>
         <div class="stat-value">{{ degradedCount }}</div>
       </div>
@@ -623,7 +623,7 @@ onMounted(refreshList);
 
         <div class="header-actions">
           <button
-            class="action-btn action-btn-secondary"
+            class="ui-button ui-button--outline ui-button--compact action-btn action-btn-secondary"
             :disabled="loading"
             @click="refreshList"
           >
@@ -631,7 +631,7 @@ onMounted(refreshList);
             {{ t('mcp.refresh') }}
           </button>
 
-          <label class="action-btn action-btn-secondary cursor-pointer">
+          <label class="ui-button ui-button--outline ui-button--compact action-btn cursor-pointer">
             <Upload :size="14" />
             {{ t('mcp.importJson') }}
             <input
@@ -644,7 +644,7 @@ onMounted(refreshList);
           </label>
 
           <button
-            class="action-btn action-btn-secondary"
+            class="ui-button ui-button--outline ui-button--compact action-btn action-btn-secondary"
             :disabled="mcps.length === 0"
             @click="exportToJson"
           >
@@ -653,7 +653,7 @@ onMounted(refreshList);
           </button>
 
           <button
-            class="action-btn action-btn-primary"
+            class="ui-button ui-button--primary ui-button--compact action-btn action-btn-primary"
             :disabled="previewMode"
             @click="openCreate"
           >
@@ -670,19 +670,19 @@ onMounted(refreshList);
           <input
             v-model="searchQuery"
             type="text"
-            class="search-input"
+            class="ui-input ui-input--embedded search-input"
             :placeholder="t('mcp.searchPlaceholder')"
           />
           <button
             v-if="searchQuery"
-            class="clear-search-btn"
+            class="ui-button ui-button--ghost clear-search-btn"
             @click="clearSearch"
           >
             <X :size="12" />
           </button>
         </div>
 
-        <select v-model="statusFilter" class="filter-select">
+        <select v-model="statusFilter" class="ui-input filter-select">
           <option value="all">{{ t('mcp.filterAll') }}</option>
           <option value="enabled">{{ t('mcp.filterEnabled') }}</option>
           <option value="disabled">{{ t('mcp.filterDisabled') }}</option>
@@ -690,7 +690,7 @@ onMounted(refreshList);
           <option value="degraded">{{ t('mcp.filterDegraded') }}</option>
         </select>
 
-        <select v-model="sortByRef" class="filter-select">
+        <select v-model="sortByRef" class="ui-input filter-select">
           <option value="name">{{ t('mcp.sortByName') }}</option>
           <option value="status">{{ t('mcp.sortByStatus') }}</option>
           <option value="time">{{ t('mcp.sortByTime') }}</option>
@@ -710,24 +710,24 @@ onMounted(refreshList);
       </div>
 
       <!-- 空状态 -->
-      <div v-else-if="mcps.length === 0" class="empty-state">
+      <div v-else-if="mcps.length === 0 && !error" class="empty-state">
         <Bot :size="32" class="empty-icon" />
         <span>{{ t('mcp.empty') }}</span>
       </div>
 
       <!-- 无搜索结果 -->
-      <div v-else-if="filteredMcps.length === 0" class="empty-state">
+      <div v-else-if="filteredMcps.length === 0 && !error" class="empty-state">
         <Search :size="32" class="empty-icon" />
         <span>{{ t('mcp.noSelection') }}</span>
-        <button class="clear-btn" @click="clearSearch">{{ t('mcp.filterAll') }}</button>
+        <button class="ui-button ui-button--ghost clear-btn" @click="clearSearch">{{ t('mcp.filterAll') }}</button>
       </div>
 
       <!-- 服务器列表（简化DOM结构） -->
-      <div v-else class="server-list">
+      <div v-else-if="mcps.length > 0" class="server-list">
         <div
           v-for="item in filteredMcps"
           :key="item.name"
-          class="server-card"
+          class="ui-card server-card"
           :class="{ expanded: expandedServer === item.name, busy: busyServer === item.name }"
         >
           <!-- 卡片头部（可点击展开） -->
@@ -740,12 +740,12 @@ onMounted(refreshList);
               <span class="server-name">{{ item.name }}</span>
 
               <!-- 状态徽章 -->
-              <span class="mcp-status-badge" :class="stateClass(displayState(item))">
+              <span class="ui-badge" :class="stateClass(displayState(item))">
                 {{ stateLabel(displayState(item)) }}
               </span>
 
               <!-- 传输协议标签 -->
-              <span class="mcp-transport-tag">
+              <span class="ui-badge ui-badge--info">
                 {{ item.transport === 'http' ? t('mcp.transportHttp') : t('mcp.transportStdio') }}
               </span>
 
@@ -776,7 +776,7 @@ onMounted(refreshList);
                   {{ item.transport === 'http' ? item.endpoint : `${item.command} ${item.args.join(' ')}` }}
                 </code>
                 <button
-                  class="copy-btn"
+                  class="ui-button ui-button--ghost copy-btn"
                   :disabled="copiedName === item.name"
                   @click.stop="copyCommand(item)"
                 >
@@ -805,7 +805,7 @@ onMounted(refreshList);
             <!-- 操作按钮组 -->
             <div class="action-group">
               <button
-                class="action-btn-sm"
+                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="refreshOne(item.name)"
               >
@@ -814,7 +814,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="action-btn-sm"
+                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="openEdit(item)"
               >
@@ -822,7 +822,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="action-btn-sm"
+                class="ui-button ui-button--ghost ui-button--compact action-btn-sm"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="toggleMcp(item)"
               >
@@ -831,7 +831,7 @@ onMounted(refreshList);
               </button>
 
               <button
-                class="action-btn-sm action-btn-danger"
+                class="ui-button ui-button--destructive ui-button--compact action-btn-sm action-btn-danger"
                 :disabled="previewMode || busyServer === item.name"
                 @click.stop="removeMcp(item.name)"
               >
@@ -856,7 +856,7 @@ onMounted(refreshList);
             <h4>{{ editorMode === 'create' ? t('mcp.formCreate') : t('mcp.formEdit') }}</h4>
             <p>{{ t('mcp.currentUsing') }}</p>
           </div>
-          <button class="modal-close-btn" @click="closeEditor">
+          <button class="ui-button ui-button--ghost ui-button--compact modal-close-btn" @click="closeEditor">
             <X :size="16" />
           </button>
         </div>
@@ -868,7 +868,7 @@ onMounted(refreshList);
               <span class="field-label">{{ t('mcp.name') }}</span>
               <input
                 v-model="form.name"
-                class="field-input"
+                class="ui-input field-input"
                 :placeholder="t('mcp.name')"
                 @input="syncRawJsonFromForm"
               />
@@ -879,7 +879,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.transport') }}</span>
                 <select
                   v-model="form.transport"
-                  class="field-select"
+                  class="ui-input field-select"
                   @change="syncRawJsonFromForm"
                 >
                   <option value="stdio">{{ t('mcp.transportStdio') }}</option>
@@ -902,7 +902,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.command') }}</span>
                 <input
                   v-model="form.command"
-                  class="field-input"
+                  class="ui-input field-input"
                   :placeholder="t('mcp.command')"
                   @input="syncRawJsonFromForm"
                 />
@@ -911,18 +911,18 @@ onMounted(refreshList);
               <div class="form-field">
                 <div class="field-header">
                   <span class="field-label">{{ t('mcp.args') }}</span>
-                  <button class="add-btn" @click="addArg">{{ t('mcp.addArg') }}</button>
+                  <button class="ui-button ui-button--ghost add-btn" @click="addArg">{{ t('mcp.addArg') }}</button>
                 </div>
                 <div class="args-list">
                   <div v-for="(_, index) in form.args" :key="`arg-${index}`" class="arg-item">
                     <input
                       v-model="form.args[index]"
-                      class="arg-input"
+                      class="ui-input arg-input"
                       :placeholder="t('mcp.argPlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <button
-                      class="remove-btn"
+                      class="ui-button ui-button--ghost remove-btn"
                       @click="form.args.splice(index, 1); syncRawJsonFromForm()"
                     >
                       <X :size="12" />
@@ -935,24 +935,24 @@ onMounted(refreshList);
               <div class="form-field">
                 <div class="field-header">
                   <span class="field-label">{{ t('mcp.env') }}</span>
-                  <button class="add-btn" @click="addEnv">{{ t('mcp.addEnv') }}</button>
+                  <button class="ui-button ui-button--ghost add-btn" @click="addEnv">{{ t('mcp.addEnv') }}</button>
                 </div>
                 <div class="env-list">
                   <div v-for="(item, index) in form.env" :key="`env-${index}`" class="env-item">
                     <input
                       v-model="item.key"
-                      class="env-key-input"
+                      class="ui-input env-key-input"
                       :placeholder="t('mcp.envKeyPlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <input
                       v-model="item.value"
-                      class="env-value-input"
+                      class="ui-input env-value-input"
                       :placeholder="t('mcp.envValuePlaceholder')"
                       @input="syncRawJsonFromForm"
                     />
                     <button
-                      class="remove-btn"
+                      class="ui-button ui-button--ghost remove-btn"
                       @click="form.env.splice(index, 1); syncRawJsonFromForm()"
                     >
                       <X :size="12" />
@@ -969,7 +969,7 @@ onMounted(refreshList);
                   <Globe :size="14" class="url-icon" />
                   <input
                     v-model="form.url"
-                    class="url-input"
+                    class="ui-input ui-input--embedded url-input"
                     :placeholder="t('mcp.url')"
                     @input="syncRawJsonFromForm"
                   />
@@ -980,7 +980,7 @@ onMounted(refreshList);
                 <span class="field-label">{{ t('mcp.authEnv') }}</span>
                 <input
                   v-model="form.authEnv"
-                  class="field-input"
+                  class="ui-input field-input"
                   :placeholder="t('mcp.authEnvPlaceholder')"
                   @input="syncRawJsonFromForm"
                 />
@@ -994,28 +994,28 @@ onMounted(refreshList);
             <div class="json-header">
               <span class="json-label">{{ t('mcp.editJson') }}</span>
               <div class="json-actions">
-                <button class="json-btn" @click="syncRawJsonFromForm">
+                <button class="ui-button ui-button--ghost json-btn" @click="syncRawJsonFromForm">
                   {{ t('mcp.syncJson') }}
                 </button>
-                <button class="json-btn" @click="applyRawJsonToForm">
+                <button class="ui-button ui-button--ghost json-btn" @click="applyRawJsonToForm">
                   {{ t('mcp.applyJson') }}
                 </button>
               </div>
             </div>
             <textarea
               v-model="rawJson"
-              class="json-editor"
+              class="ui-input json-editor"
               spellcheck="false"
             />
           </div>
         </div>
 
         <div class="modal-footer">
-          <button class="footer-btn footer-btn-cancel" @click="closeEditor">
+          <button class="ui-button ui-button--outline ui-button--compact footer-btn footer-btn-cancel" @click="closeEditor">
             {{ t('mcp.cancel') }}
           </button>
           <button
-            class="footer-btn footer-btn-save"
+            class="ui-button ui-button--primary ui-button--compact footer-btn footer-btn-save"
             :disabled="saving"
             @click="submitForm"
           >
@@ -1033,65 +1033,75 @@ onMounted(refreshList);
 .stat-card {
   border-radius: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  background: var(--card);
   transition: all 0.15s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-card-total {
-  border-color: rgba(107, 114, 128, 0.2);
+  border-color: var(--border);
 }
 
 .stat-card-total .stat-label {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .stat-card-total .stat-value {
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .stat-card-online {
-  border-color: rgba(16, 185, 129, 0.2);
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), transparent);
+  border-color: var(--success);
+  background: var(--card);
 }
 
 .stat-card-online .stat-label {
-  color: #059669;
+  color: var(--success);
 }
 
 .stat-card-online .stat-value {
-  color: #047857;
+  color: var(--success);
 }
 
 .stat-card-degraded {
-  border-color: rgba(245, 158, 11, 0.2);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), transparent);
+  border-color: var(--destructive);
+  background: var(--card);
 }
 
 .stat-card-degraded .stat-label {
-  color: #d97706;
+  color: var(--destructive);
 }
 
 .stat-card-degraded .stat-value {
-  color: #b45309;
+  color: var(--destructive);
 }
 
 .stat-card-disabled {
-  border-color: rgba(100, 116, 139, 0.2);
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), transparent);
+  border-color: var(--border);
+  background: var(--card);
 }
 
 .stat-card-disabled .stat-label {
-  color: #64748b;
+  color: var(--muted-foreground);
 }
 
 .stat-card-disabled .stat-value {
-  color: #475569;
+  color: var(--muted-foreground);
+}
+
+.stat-card-neutral {
+  border-color: var(--border);
+  background: var(--card);
+}
+
+.stat-card-neutral .stat-label,
+.stat-card-neutral .stat-value {
+  color: var(--muted-foreground);
 }
 
 .stat-label {
@@ -1109,8 +1119,8 @@ onMounted(refreshList);
 /* 主列表面板 */
 .mcp-list-panel {
   border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  background: var(--card);
   padding: 18px;
   space-y: 16px;
 }
@@ -1133,12 +1143,12 @@ onMounted(refreshList);
 .title-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .title-desc {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 2px;
 }
 
@@ -1153,40 +1163,7 @@ onMounted(refreshList);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
   transition: all 0.15s ease;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-}
-
-.action-btn:hover:not(:disabled) {
-  background: var(--nav-hover);
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.action-btn-primary {
-  background: linear-gradient(135deg, var(--brand), var(--brand-light));
-  border-color: transparent;
-  color: white;
-  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.2);
-}
-
-.action-btn-primary:hover:not(:disabled) {
-  filter: brightness(1.05);
-  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.25);
-}
-
-.action-btn-secondary {
-  background: var(--panel);
 }
 
 /* 搜索和筛选栏 */
@@ -1203,77 +1180,53 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  min-height: 36px;
+  padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.search-input-wrapper:focus-within,
+.url-input-wrapper:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring-soft);
 }
 
 .search-icon {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   flex-shrink: 0;
 }
 
 .search-input {
   flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  color: var(--text);
-  outline: none;
-}
-
-.search-input::placeholder {
-  color: var(--text-muted);
 }
 
 .clear-search-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.clear-search-btn:hover {
-  background: var(--nav-hover);
-  color: var(--text);
 }
 
 .filter-select {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
   min-width: 100px;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: var(--brand);
 }
 
 /* 提示框 */
 .hint-box {
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px dashed var(--line);
-  background: rgba(249, 250, 251, 0.5);
+  border: 1px dashed var(--border);
+  background: var(--card);
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-bottom: 12px;
 }
 
 .preview-warning {
   margin-top: 6px;
-  color: #d97706;
+  color: var(--warning);
 }
 
 /* 加载和空状态 */
@@ -1285,28 +1238,17 @@ onMounted(refreshList);
   justify-content: center;
   padding: 32px;
   gap: 8px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 
 .empty-icon {
   opacity: 0.5;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .clear-btn {
   margin-top: 8px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: transparent;
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.clear-btn:hover {
-  background: var(--nav-hover);
 }
 
 /* 服务器列表 */
@@ -1318,20 +1260,17 @@ onMounted(refreshList);
 
 /* 服务器卡片（简化DOM结构） */
 .server-card {
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--panel);
   transition: all 0.15s ease;
   overflow: hidden;
 }
 
 .server-card:hover {
-  border-color: rgba(236, 72, 153, 0.2);
+  border-color: var(--border-strong);
 }
 
 .server-card.expanded {
-  border-color: var(--brand);
-  background: var(--panel-solid);
+  border-color: var(--primary);
+  background: var(--card);
 }
 
 .server-card.busy {
@@ -1350,7 +1289,7 @@ onMounted(refreshList);
 }
 
 .card-header:hover {
-  background: var(--nav-hover);
+  background: var(--accent);
 }
 
 .header-left {
@@ -1370,28 +1309,28 @@ onMounted(refreshList);
 }
 
 .status-dot.connected {
-  background: var(--success, #22c55e);
-  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+  background: var(--success);
+  box-shadow: var(--shadow-sm);
 }
 
 .status-dot.degraded {
-  background: var(--warning, #f59e0b);
-  box-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
+  background: var(--warning);
+  box-shadow: var(--shadow-sm);
 }
 
 .status-dot.disabled {
-  background: #94a3b8;
+  background: var(--muted-foreground);
 }
 
 .status-dot.invalid {
-  background: var(--danger, #ef4444);
-  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+  background: var(--destructive);
+  box-shadow: var(--shadow-sm);
 }
 
 .server-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
   truncate: true;
 }
 
@@ -1401,20 +1340,20 @@ onMounted(refreshList);
 }
 
 .expand-chevron {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   transition: transform 0.2s ease;
 }
 
 .expand-chevron.rotated {
   transform: rotate(90deg);
-  color: var(--brand);
+  color: var(--primary);
 }
 
 /* 展开的详情区域 */
 .card-details {
   padding: 12px 14px;
-  border-top: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.5);
+  border-top: 1px solid var(--border);
+  background: var(--card);
 }
 
 .detail-section {
@@ -1424,7 +1363,7 @@ onMounted(refreshList);
 .section-label {
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-bottom: 4px;
 }
 
@@ -1438,10 +1377,10 @@ onMounted(refreshList);
   flex: 1;
   padding: 6px 10px;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.05);
+  background: var(--accent);
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
-  color: var(--text);
+  color: var(--foreground);
   word-break: break-all;
 }
 
@@ -1449,24 +1388,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.copy-btn:hover:not(:disabled) {
-  background: var(--nav-hover);
-  color: var(--text);
-}
-
-.copy-btn:disabled {
-  background: var(--success-bg, rgba(34, 197, 94, 0.1));
-  color: var(--success, #22c55e);
-  border-color: rgba(34, 197, 94, 0.2);
 }
 
 .metadata-row {
@@ -1474,7 +1396,7 @@ onMounted(refreshList);
   flex-wrap: wrap;
   gap: 12px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-bottom: 8px;
 }
 
@@ -1489,19 +1411,19 @@ onMounted(refreshList);
   gap: 6px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--danger-bg, rgba(239, 68, 68, 0.08));
+  background: var(--destructive-soft);
   margin-bottom: 10px;
 }
 
 .error-icon {
-  color: var(--danger, #ef4444);
+  color: var(--destructive);
   flex-shrink: 0;
   margin-top: 1px;
 }
 
 .error-text {
   font-size: 11px;
-  color: #dc2626;
+  color: var(--destructive);
   word-break: break-word;
 }
 
@@ -1516,44 +1438,19 @@ onMounted(refreshList);
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: transparent;
-  font-size: 11px;
-  color: var(--text);
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.action-btn-sm:hover:not(:disabled) {
-  background: var(--nav-hover);
-}
-
-.action-btn-sm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.action-btn-danger {
-  color: #dc2626;
-  border-color: rgba(239, 68, 68, 0.2);
-}
-
-.action-btn-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.08);
 }
 
 /* 消息提示 */
 .success-msg {
   font-size: 12px;
-  color: #059669;
+  color: var(--success);
   margin-top: 8px;
 }
 
 .error-msg {
   font-size: 12px;
-  color: #dc2626;
+  color: var(--destructive);
   word-break: break-word;
   margin-top: 8px;
 }
@@ -1566,8 +1463,7 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  background: var(--overlay);
 }
 
 .modal-panel {
@@ -1575,9 +1471,9 @@ onMounted(refreshList);
   max-width: 900px;
   max-height: 90vh;
   border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1588,18 +1484,18 @@ onMounted(refreshList);
   align-items: flex-start;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title h4 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .modal-title p {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 2px;
 }
 
@@ -1607,17 +1503,6 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.modal-close-btn:hover {
-  background: var(--nav-hover);
-  color: var(--text);
 }
 
 .modal-body {
@@ -1651,41 +1536,13 @@ onMounted(refreshList);
 .field-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-muted);
-}
-
-.field-input,
-.field-select {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 13px;
-  color: var(--text);
-}
-
-.field-input:focus,
-.field-select:focus {
-  outline: none;
-  border-color: var(--brand);
+  color: var(--muted-foreground);
 }
 
 .field-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.add-btn {
-  font-size: 12px;
-  color: var(--brand);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-}
-
-.add-btn:hover {
-  color: var(--brand-light);
 }
 
 .args-list,
@@ -1706,19 +1563,6 @@ onMounted(refreshList);
 .env-key-input,
 .env-value-input {
   flex: 1;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 12px;
-  color: var(--text);
-}
-
-.arg-input:focus,
-.env-key-input:focus,
-.env-value-input:focus {
-  outline: none;
-  border-color: var(--brand);
 }
 
 .env-item {
@@ -1730,21 +1574,11 @@ onMounted(refreshList);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: #dc2626;
-  cursor: pointer;
-}
-
-.remove-btn:hover {
-  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
 }
 
 .field-hint {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 2px;
 }
 
@@ -1760,41 +1594,35 @@ onMounted(refreshList);
   gap: 8px;
   padding-top: 24px;
   font-size: 13px;
-  color: var(--text);
+  color: var(--foreground);
   cursor: pointer;
 }
 
 .form-checkbox input {
   width: 16px;
   height: 16px;
-  accent-color: var(--brand);
+  accent-color: var(--primary);
 }
 
 .url-input-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  min-height: 36px;
+  padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .url-icon {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   flex-shrink: 0;
 }
 
 .url-input {
   flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.url-input:focus {
-  outline: none;
 }
 
 /* JSON编辑区域 */
@@ -1813,7 +1641,7 @@ onMounted(refreshList);
 .json-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .json-actions {
@@ -1821,36 +1649,22 @@ onMounted(refreshList);
   gap: 6px;
 }
 
-.json-btn {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: transparent;
-  font-size: 11px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.json-btn:hover {
-  background: var(--nav-hover);
-}
-
 .json-editor {
   flex: 1;
   min-height: 400px;
   padding: 14px;
   border-radius: 8px;
-  border: 1px solid var(--line);
-  background: #0f172a;
+  border: 1px solid var(--border);
+  background: var(--muted);
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
-  color: #e2e8f0;
+  color: var(--foreground);
   resize: none;
 }
 
 .json-editor:focus {
   outline: none;
-  border-color: var(--brand);
+  border-color: var(--primary);
 }
 
 /* 弹窗底部 */
@@ -1860,42 +1674,10 @@ onMounted(refreshList);
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
 .footer-btn {
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.footer-btn-cancel {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-}
-
-.footer-btn-cancel:hover {
-  background: var(--nav-hover);
-}
-
-.footer-btn-save {
-  background: linear-gradient(135deg, var(--brand), var(--brand-light));
-  border: none;
-  color: white;
-  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.2);
-}
-
-.footer-btn-save:hover:not(:disabled) {
-  filter: brightness(1.05);
-  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.25);
-}
-
-.footer-btn-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

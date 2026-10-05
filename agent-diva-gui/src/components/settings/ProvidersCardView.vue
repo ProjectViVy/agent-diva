@@ -46,11 +46,11 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
     <!-- Toolbar -->
     <div class="providers-toolbar">
       <div class="providers-toolbar-actions">
-        <button class="providers-add-btn" @click="emit('create')">
+        <button class="ui-button ui-button--primary providers-add-btn" @click="emit('create')">
           <Plus :size="16" />
           <span>{{ t('providers.createProviderAction') }}</span>
         </button>
-        <button class="providers-import-btn" @click="emit('import')">
+        <button class="ui-button ui-button--outline providers-import-btn" @click="emit('import')">
           <Import :size="16" />
           <span>{{ t('providers.importConfig') }}</span>
         </button>
@@ -71,11 +71,11 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
       <h3 class="providers-empty-title">{{ t('providers.emptyTitle') }}</h3>
       <p class="providers-empty-desc">{{ t('providers.emptyDesc') }}</p>
       <div class="providers-empty-actions">
-        <button class="providers-empty-btn-primary" @click="emit('create')">
+        <button class="ui-button ui-button--primary providers-empty-btn-primary" @click="emit('create')">
           <Plus :size="16" />
           <span>{{ t('providers.createProviderAction') }}</span>
         </button>
-        <button class="providers-empty-btn-secondary" @click="emit('import')">
+        <button class="ui-button ui-button--outline providers-empty-btn-secondary" @click="emit('import')">
           <Import :size="16" />
           <span>{{ t('providers.importConfig') }}</span>
         </button>
@@ -118,34 +118,7 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.providers-add-btn {
-  background: var(--accent);
-  color: white;
-  border: none;
-}
-
-.providers-add-btn:hover {
-  filter: brightness(1.1);
-}
-
-.providers-import-btn {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--line);
-}
-
-.providers-import-btn:hover {
-  background: var(--accent-bg-light);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .providers-loading {
@@ -160,15 +133,15 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 3px solid var(--line);
-  border-top-color: var(--accent);
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
 
 .providers-loading-text {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .providers-empty-state {
@@ -184,8 +157,8 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--accent-bg-light);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,13 +169,13 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
 .providers-empty-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
   margin-bottom: 0.5rem;
 }
 
 .providers-empty-desc {
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   max-width: 400px;
   margin-bottom: 1.5rem;
 }
@@ -217,34 +190,7 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.providers-empty-btn-primary {
-  background: var(--accent);
-  color: white;
-  border: none;
-}
-
-.providers-empty-btn-primary:hover {
-  filter: brightness(1.1);
-}
-
-.providers-empty-btn-secondary {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--line);
-}
-
-.providers-empty-btn-secondary:hover {
-  background: var(--accent-bg-light);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .providers-grid {

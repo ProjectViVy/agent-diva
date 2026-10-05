@@ -172,7 +172,7 @@ const overlaySidebarTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const groups = ref({ tools: true });
 const { theme: themeMode, setTheme } = useTheme();
 const isModelDropdownOpen = ref(false);
-const mikuAvatarSrc = '/miku.svg';
+
 
 // 收缩状态下的弹出菜单
 const collapsedPopup = ref<{ type: 'tools' | null; x: number; y: number }>({
@@ -416,25 +416,7 @@ const isSectionActive = (section: SidebarSection) => {
 const navSectionLabel = (section: string) => t('nav.' + section);
 
 
-const hearts = [
-  { left: '8%', top: '12%', size: 18, opacity: 0.35, delay: 0 },
-  { left: '20%', top: '70%', size: 12, opacity: 0.25, delay: 0.6 },
-  { left: '34%', top: '28%', size: 22, opacity: 0.3, delay: 1.2 },
-  { left: '48%', top: '55%', size: 14, opacity: 0.2, delay: 0.9 },
-  { left: '62%', top: '18%', size: 26, opacity: 0.35, delay: 0.3 },
-  { left: '72%', top: '72%', size: 16, opacity: 0.25, delay: 1.6 },
-  { left: '84%', top: '40%', size: 20, opacity: 0.3, delay: 0.8 },
-  { left: '90%', top: '15%', size: 12, opacity: 0.22, delay: 1.1 },
-];
-const mikuAvatars = [
-  { left: '5%', top: '15%', size: 36, opacity: 0.35, delay: 0 },
-  { left: '15%', top: '65%', size: 28, opacity: 0.25, delay: 1.5 },
-  { left: '30%', top: '25%', size: 44, opacity: 0.3, delay: 3 },
-  { left: '50%', top: '75%', size: 32, opacity: 0.2, delay: 4.5 },
-  { left: '65%', top: '20%', size: 40, opacity: 0.35, delay: 2 },
-  { left: '80%', top: '55%', size: 30, opacity: 0.25, delay: 5 },
-  { left: '90%', top: '30%', size: 38, opacity: 0.3, delay: 6.5 },
-];
+
 
 const emotionConfig = computed(() => ({
   happy: { emoji: '\u{1F60A}', label: t('emotion.happy') },
@@ -490,42 +472,10 @@ defineExpose({
     @mousemove="onOverlaySidebarMouseMove"
     @keydown="onOverlaySidebarKeyDown"
   >
-    <!-- Love主题背景装饰 -->
-    <div v-if="themeMode === 'love'" class="love-hearts">
-      <span
-        v-for="(h, i) in hearts"
-        :key="i"
-        class="love-heart"
-        :style="{
-          left: h.left,
-          top: h.top,
-          width: `${h.size}px`,
-          height: `${h.size}px`,
-          opacity: h.opacity,
-          animationDelay: `${h.delay}s`,
-        }"
-      />
-    </div>
+
 
     <!-- 常驻侧边栏 -->
-    <!-- Miku主题背景装饰 -->
-    <div v-if="themeMode === 'miku'" class="miku-floats">
-      <div
-        v-for="(m, i) in mikuAvatars"
-        :key="i"
-        class="miku-avatar"
-        :style="{
-          left: m.left,
-          top: m.top,
-          width: `${m.size}px`,
-          height: `${m.size}px`,
-          opacity: m.opacity,
-          animationDelay: `${m.delay}s`,
-        }"
-      >
-        <img :src="mikuAvatarSrc" alt="Miku" />
-      </div>
-    </div>
+
     <div
       v-if="activeMenu !== 'pet' && sidebarAutoCollapsed && !sidebarCollapsed"
       class="narrow-sidebar-scrim"
@@ -559,7 +509,7 @@ defineExpose({
           <!-- Temporarily disabled: red message-count badge keeps accumulating with every chat turn.
           <span
             v-if="!sidebarCollapsed && messages.length > 0"
-            class="ml-auto bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center leading-none"
+            class="ml-auto bg-destructive text-foreground text-[10px] rounded-full flex items-center justify-center leading-none"
             :class="chatBadgeSizeClass"
           >
             {{ chatBadgeValue }}
@@ -618,7 +568,7 @@ defineExpose({
     <!-- 收缩状态下的弹出菜单 -->
     <div
       v-if="collapsedPopup.type && sidebarCollapsed"
-      class="fixed z-[200] min-w-[180px] bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden"
+      class="fixed z-[200] min-w-[180px] bg-card rounded-lg shadow-xl border border-border overflow-hidden"
       :style="{ left: `${collapsedPopup.x}px`, top: `${collapsedPopup.y}px` }"
       @click.stop
     >
@@ -685,19 +635,19 @@ defineExpose({
             <button
               v-if="config"
               @click="isModelDropdownOpen = !isModelDropdownOpen"
-              class="flex items-center space-x-2 px-2 py-1 bg-gray-50 hover:bg-white border border-gray-200/50 hover:border-pink-200 rounded-lg transition-all text-xs text-gray-600 hover:text-pink-600 shadow-sm group"
+              class="ui-button ui-button--outline ui-button--compact flex items-center space-x-2 shadow-sm group"
             >
-              <Server :size="12" class="text-gray-400 group-hover:text-pink-500" />
+              <Server :size="12" class="text-muted-foreground group-hover:text-primary" />
               <div class="flex flex-col items-start leading-tight">
                 <span class="max-w-[100px] truncate font-medium">{{ config.model || t('app.switchModel') }}</span>
-                <span class="max-w-[100px] truncate text-[10px] text-gray-400">{{ currentProviderLabel }}</span>
+                <span class="max-w-[100px] truncate text-[10px] text-muted-foreground">{{ currentProviderLabel }}</span>
               </div>
             </button>
             <!--
             <div
               v-if="showBackendDisconnectedIndicator"
               data-testid="backend-disconnected-indicator"
-              class="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-200/80 bg-amber-50 text-amber-600 shadow-sm"
+              class="flex h-7 w-7 items-center justify-center rounded-lg border border-warning bg-warning-soft text-warning shadow-sm"
               :title="t('app.backendDisconnected')"
               :aria-label="t('app.backendDisconnected')"
             >
@@ -706,22 +656,22 @@ defineExpose({
             -->
 
             <!-- Model下拉菜单内容 -->
-            <div v-if="isModelDropdownOpen" class="absolute top-full right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-[100]">
+            <div v-if="isModelDropdownOpen" class="absolute top-full right-0 mt-1 w-48 bg-card rounded-lg shadow-xl border border-border overflow-hidden z-[100]">
               <div class="py-1 max-h-60 overflow-y-auto">
                 <div v-if="savedModels && savedModels.length > 0">
                   <div
                     v-for="model in savedModels"
                     :key="model.id"
                     @click="selectSavedModel(model)"
-                    class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-pink-50 flex items-center justify-between group"
-                    :class="isSavedModelSelected(model) ? 'text-pink-600 font-medium' : 'text-gray-600'"
+                    class="w-full cursor-pointer px-3 py-2 text-left text-xs hover:bg-accent flex items-center justify-between group"
+                    :class="isSavedModelSelected(model) ? 'text-primary font-medium' : 'text-muted-foreground'"
                   >
                     <span class="truncate">{{ model.displayName }}</span>
                     <span class="ml-2 flex items-center gap-2">
-                      <Check v-if="isSavedModelSelected(model)" :size="12" class="text-pink-500" />
+                      <Check v-if="isSavedModelSelected(model)" :size="12" class="text-primary" />
                       <button
                         type="button"
-                        class="rounded p-1 text-gray-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                        class="ui-button ui-button--destructive opacity-0 transition   group-hover:opacity-100"
                         @click="removeSavedModel(model, $event)"
                       >
                         <Trash2 :size="12" />
@@ -729,13 +679,13 @@ defineExpose({
                     </span>
                   </div>
                 </div>
-                <div v-else class="px-3 py-4 text-center text-gray-400 text-[10px]">
+                <div v-else class="px-3 py-4 text-center text-muted-foreground text-[10px]">
                   <div class="whitespace-pre-line">{{ t('chat.emptyModels') }}</div>
                 </div>
-                <div class="border-t border-gray-100 mt-1 pt-1">
+                <div class="border-t border-border mt-1 pt-1">
                   <button
                     @click="openSettingsFromModelMenu"
-                    class="w-full text-left px-3 py-2 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-50 flex items-center"
+                    class="ui-button ui-button--ghost w-full justify-start text-left flex items-center"
                   >
                     <Settings :size="12" class="mr-2" />
                     {{ t('chat.manageModels') }}
@@ -746,7 +696,7 @@ defineExpose({
             <div v-if="isModelDropdownOpen" class="fixed inset-0 z-[90]" @click="isModelDropdownOpen = false"></div>
           </div>
 
-          
+
         </div>
       </header>
 
@@ -798,7 +748,7 @@ defineExpose({
           <!-- Overlay 侧边栏 -->
           <div
             v-if="overlaySidebarOpen"
-            class="fixed inset-0 z-[150] bg-black/20"
+            class="fixed inset-0 z-[150] bg-overlay"
             @click="closeOverlaySidebar"
           />
           <aside
@@ -808,7 +758,7 @@ defineExpose({
             <div class="sidebar-header">
               <div class="brand-logo">V</div>
               <span class="brand-text">DiVA</span>
-              <button class="overlay-close-btn no-drag ml-auto" @click="closeOverlaySidebar">
+              <button class="ui-button ui-button--ghost ui-button--compact overlay-close-btn no-drag ml-auto" @click="closeOverlaySidebar">
                 <X :size="18" />
               </button>
             </div>
@@ -828,7 +778,7 @@ defineExpose({
         <!-- 占位视图（neuro等） -->
         <div v-else-if="activeMenu" class="h-full flex items-center justify-center">
           <!-- 这个是作者要求不要修改，未经允许禁止往这里面添加东西（未来这里面要放swarm系统的可视化） -->
-          <div class="text-gray-500 text-lg font-semibold tracking-wide">
+          <div class="text-muted-foreground text-lg font-semibold tracking-wide">
             {{ t('nav.comingSoon') }}
           </div>
         </div>
@@ -887,7 +837,7 @@ defineExpose({
               @save-chat-display-prefs="(prefs) => emit('save-chat-display-prefs', prefs)"
               @change-theme="handleChangeTheme"
             />
-            <div v-else class="h-full flex items-center justify-center text-gray-500">
+            <div v-else class="h-full flex items-center justify-center text-muted-foreground">
               Loading configuration...
             </div>
           </div>
@@ -905,7 +855,7 @@ defineExpose({
 .overlay-sidebar {
   position: fixed;
   width: var(--sidebar-width);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
 }
 
 .sidebar-overlay {
@@ -913,31 +863,20 @@ defineExpose({
   inset: 0 auto 0 0;
   z-index: 160;
   width: var(--sidebar-width);
-  box-shadow: 12px 0 28px rgba(15, 23, 42, 0.22);
+  box-shadow: var(--shadow-sm);
 }
 
 .narrow-sidebar-scrim {
   position: fixed;
   inset: 0;
   z-index: 150;
-  background: rgba(15, 23, 42, 0.28);
+  background: var(--overlay);
 }
 
 .overlay-close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
   transition: all 0.15s ease;
-}
-
-.overlay-close-btn:hover {
-  background: var(--nav-hover);
-  color: var(--text);
 }
 </style>

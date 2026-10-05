@@ -356,8 +356,8 @@ describe('DivaPetView scene picker', () => {
     const seaItem = items.find((el) => el.text().includes('Sea'))
     const transparentItem = items.find((el) => el.text().includes('Transparent'))
 
-    expect(seaItem?.attributes('class')).toContain('text-cyan-100')
-    expect(transparentItem?.attributes('class')).not.toContain('text-cyan-100')
+    expect(seaItem?.attributes('class')).toContain('text-primary')
+    expect(transparentItem?.attributes('class')).not.toContain('text-primary')
   })
 
   it('updates the selected scene when an item is clicked', async () => {

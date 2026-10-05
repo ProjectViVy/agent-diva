@@ -43,20 +43,20 @@ const isTesting = ref(false);
 
 const statusConfig = computed(() => {
   const config = {
-    ready: { 
-      label: t('providers.ready'), 
+    ready: {
+      label: t('providers.ready'),
       class: 'text-success',
-      icon: Check 
+      icon: Check
     },
-    missingConfig: { 
-      label: t('providers.missingConfig'), 
+    missingConfig: {
+      label: t('providers.missingConfig'),
       class: 'text-warning',
-      icon: null 
+      icon: null
     },
-    active: { 
-      label: t('providers.currentTag'), 
+    active: {
+      label: t('providers.currentTag'),
       class: 'text-success',
-      icon: Check 
+      icon: Check
     },
   };
   return config[props.status];
@@ -64,8 +64,8 @@ const statusConfig = computed(() => {
 </script>
 
 <template>
-  <div 
-    class="providers-card"
+  <div
+    class="ui-card providers-card"
     :class="{ 'is-active': status === 'active' }"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
@@ -73,7 +73,7 @@ const statusConfig = computed(() => {
     <div class="providers-card-icon">
       <Server :size="24" />
     </div>
-    
+
     <div class="providers-card-body">
       <h3 class="providers-card-title">{{ displayName }}</h3>
       <div class="providers-card-status" :class="statusConfig.class">
@@ -90,13 +90,13 @@ const statusConfig = computed(() => {
         {{ maskedApiKey }}
       </p>
     </div>
-    
-    <div 
-      class="providers-card-actions" 
+
+    <div
+      class="providers-card-actions"
       :class="{ visible: isHovered || isTesting }"
     >
-      <button 
-        class="providers-card-action-btn"
+      <button
+        class="ui-button ui-button--ghost ui-button--compact ui-button--icon providers-card-action-btn"
         :title="t('providers.testConnection')"
         @click.stop="emit('test')"
         :disabled="isTesting"
@@ -104,16 +104,16 @@ const statusConfig = computed(() => {
         <LoaderCircle v-if="isTesting" :size="14" class="animate-spin" />
         <PlugZap v-else :size="14" />
       </button>
-      <button 
-        class="providers-card-action-btn"
+      <button
+        class="ui-button ui-button--ghost ui-button--compact ui-button--icon providers-card-action-btn"
         :title="t('providers.edit')"
         @click.stop="emit('edit')"
       >
         <Edit3 :size="14" />
       </button>
-      <button 
+      <button
         v-if="isCustom"
-        class="providers-card-action-btn providers-card-action-btn-danger"
+        class="ui-button ui-button--danger-ghost ui-button--compact ui-button--icon providers-card-action-btn"
         :title="t('providers.deleteProvider')"
         @click.stop="emit('delete')"
       >
@@ -126,9 +126,6 @@ const statusConfig = computed(() => {
 <style scoped>
 .providers-card {
   position: relative;
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
   padding: 1.5rem;
   transition: all 0.15s ease;
   cursor: pointer;
@@ -136,22 +133,21 @@ const statusConfig = computed(() => {
 }
 
 .providers-card:hover {
-  border-color: var(--accent-border);
-  box-shadow: 0 4px 12px var(--accent-glow);
-  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .providers-card.is-active {
-  border-color: var(--accent);
-  box-shadow: 0 4px 16px var(--accent-glow);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .providers-card-icon {
   width: 48px;
   height: 48px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-bg-light);
-  color: var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,7 +166,7 @@ const statusConfig = computed(() => {
 .providers-card-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
   margin-bottom: 0.5rem;
 }
 
@@ -186,7 +182,7 @@ const statusConfig = computed(() => {
 .providers-card-model,
 .providers-card-api-base {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;
@@ -210,29 +206,8 @@ const statusConfig = computed(() => {
 .providers-card-action-btn {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
-  border: none;
-  background: var(--panel);
-  color: var(--text-muted);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.providers-card-action-btn:hover {
-  background: var(--accent-bg-light);
-  color: var(--accent);
-}
-
-.providers-card-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.providers-card-action-btn-danger:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
 }
 </style>

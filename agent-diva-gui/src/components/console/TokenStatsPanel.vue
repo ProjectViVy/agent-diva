@@ -168,7 +168,7 @@ onUnmounted(() => {
     <!-- Detail View -->
     <template v-if="showDetail">
       <div class="detail-header">
-        <button class="back-btn" @click="backToOverview">
+        <button class="ui-button ui-button--ghost back-btn" @click="backToOverview">
           <ChevronLeft :size="16" />
           {{ t('tokenStats.viewDetails') }}
         </button>
@@ -240,14 +240,14 @@ onUnmounted(() => {
           <button
             v-for="p in ['1d', '3d', '1w', '1m', '6m', '1y'] as TimeRangePeriod[]"
             :key="p"
-            class="period-btn"
+            class="ui-button ui-button--ghost period-btn"
             :class="{ 'period-btn--active': period === p }"
             @click="changePeriod(p)"
           >
             {{ t(`tokenStats.period.${p}`, p) }}
           </button>
         </div>
-        <button class="export-btn" @click="exportData">
+        <button class="ui-button ui-button--ghost export-btn" @click="exportData">
           <Download :size="14" />
           {{ t('tokenStats.export') }}
         </button>
@@ -311,7 +311,7 @@ onUnmounted(() => {
             <TrendingUp :size="16" />
           </div>
           <div class="stat-content">
-            <div class="stat-value text-blue-400">{{ formatTokenCount(total.total_input) }}</div>
+            <div class="stat-value text-info">{{ formatTokenCount(total.total_input) }}</div>
             <div class="stat-label">{{ t('tokenStats.inputTokens') }}</div>
           </div>
         </div>
@@ -321,7 +321,7 @@ onUnmounted(() => {
             <Activity :size="16" />
           </div>
           <div class="stat-content">
-            <div class="stat-value text-emerald-400">{{ formatTokenCount(total.total_output) }}</div>
+            <div class="stat-value text-success">{{ formatTokenCount(total.total_output) }}</div>
             <div class="stat-label">{{ t('tokenStats.outputTokens') }}</div>
           </div>
         </div>
@@ -331,7 +331,7 @@ onUnmounted(() => {
             <Coins :size="16" />
           </div>
           <div class="stat-content">
-            <div class="stat-value text-amber-400">{{ costText(total.total_cost_usd, total.cost_known) }}</div>
+            <div class="stat-value text-warning">{{ costText(total.total_cost_usd, total.cost_known) }}</div>
             <div class="stat-label">{{ t('tokenStats.estimatedCost') }}</div>
           </div>
         </div>
@@ -405,7 +405,7 @@ onUnmounted(() => {
 
       <!-- View Details Link -->
       <div class="view-details">
-        <button class="details-link" @click="viewDetails">
+        <button class="ui-button ui-button--ghost ui-button--compact details-link" @click="viewDetails">
           {{ t('tokenStats.viewDetails') }}
           <ArrowRight :size="14" />
         </button>
@@ -420,49 +420,28 @@ onUnmounted(() => {
 }
 
 .period-btn {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 9999px;
-  background: var(--accent-bg-light);
-  color: var(--text-muted);
-  border: 1px solid transparent;
   transition: all 0.2s;
 }
 
-.period-btn:hover {
-  background: var(--nav-hover);
-}
-
 .period-btn--active {
-  background: var(--accent-bg-light);
-  color: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
 .export-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  background: transparent;
-  border-radius: var(--radius-sm);
   transition: all 0.2s;
-}
-
-.export-btn:hover {
-  background: var(--accent-bg-light);
-  color: var(--text);
 }
 
 .error-banner {
   padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: var(--radius-sm);
-  color: #ef4444;
+  background: var(--destructive-soft);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-md);
+  color: var(--destructive);
   font-size: 0.875rem;
 }
 
@@ -477,60 +456,60 @@ onUnmounted(() => {
   padding: 0.125rem 0.625rem;
   border-radius: 9999px;
   font-weight: 500;
-  background: var(--accent-bg-light);
-  color: var(--text-muted);
+  background: var(--accent);
+  color: var(--muted-foreground);
 }
 
 .conn-chip--connected {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .conn-chip--gap {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .conn-chip--lost,
 .conn-chip--unavailable {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--destructive-soft);
+  color: var(--destructive);
 }
 
 .conn-meta {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .stale-chip {
   padding: 0.125rem 0.625rem;
   border-radius: 9999px;
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: var(--warning-soft);
+  color: var(--warning);
   font-weight: 500;
 }
 
 .coverage-banner {
   padding: 0.625rem 1rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: 0.8125rem;
 }
 
 .coverage-banner--notice {
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  color: var(--text-muted);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
 }
 
 .coverage-banner--partial {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #f59e0b;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  color: var(--warning);
 }
 
 .coverage-note {
   margin-top: 0.75rem;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .stats-grid {
@@ -550,14 +529,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   transition: all 0.2s;
 }
 
 .stat-card:hover {
-  border-color: var(--accent);
+  border-color: var(--primary);
   transform: translateY(-1px);
 }
 
@@ -567,27 +546,27 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 }
 
 .stat-icon--primary {
-  background: rgba(99, 102, 241, 0.15);
-  color: #6366f1;
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .stat-icon--blue {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .stat-icon--green {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .stat-icon--amber {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .stat-content {
@@ -597,26 +576,26 @@ onUnmounted(() => {
 .stat-value {
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   margin-top: 0.125rem;
 }
 
 .model-distribution {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
   margin-bottom: 0.75rem;
 }
 
@@ -632,9 +611,9 @@ onUnmounted(() => {
   gap: 0.375rem;
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
-  background: var(--panel-solid);
+  background: var(--card);
   border-radius: 9999px;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .model-dot {
@@ -645,9 +624,9 @@ onUnmounted(() => {
 
 .timeline-section {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .timeline-chart {
@@ -672,22 +651,22 @@ onUnmounted(() => {
 
 .timeline-bar-output {
   width: 100%;
-  background: linear-gradient(180deg, #34d399 0%, rgba(52, 211, 153, 0.4) 100%);
+  background: var(--card);
   transition: background 0.3s ease;
 }
 
 .timeline-bar-input {
   width: 100%;
-  background: linear-gradient(180deg, #60a5fa 0%, rgba(96, 165, 250, 0.4) 100%);
+  background: var(--card);
   transition: background 0.3s ease;
 }
 
 .timeline-bar:hover .timeline-bar-output {
-  background: linear-gradient(180deg, #10b981 0%, rgba(16, 185, 129, 0.6) 100%);
+  background: var(--card);
 }
 
 .timeline-bar:hover .timeline-bar-input {
-  background: linear-gradient(180deg, #3b82f6 0%, rgba(59, 130, 246, 0.6) 100%);
+  background: var(--card);
 }
 
 .timeline-labels {
@@ -695,14 +674,14 @@ onUnmounted(() => {
   justify-content: space-between;
   margin-top: 0.5rem;
   font-size: 0.625rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .sessions-section {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .sessions-list {
@@ -716,13 +695,13 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem;
-  background: var(--panel-solid);
-  border-radius: var(--radius-sm);
+  background: var(--card);
+  border-radius: var(--radius-md);
   transition: background 0.2s;
 }
 
 .session-item:hover {
-  background: var(--nav-hover);
+  background: var(--accent);
 }
 
 .session-info {
@@ -734,12 +713,12 @@ onUnmounted(() => {
 .session-id {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .session-meta {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .session-stats {
@@ -752,12 +731,12 @@ onUnmounted(() => {
 .session-tokens {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .session-cost {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .view-details {
@@ -769,16 +748,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  color: var(--accent);
-  background: transparent;
-  border-radius: var(--radius-sm);
   transition: all 0.2s;
-}
-
-.details-link:hover {
-  background: var(--accent-bg-light);
 }
 
 /* Detail View Styles */
@@ -790,17 +760,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  background: var(--accent-bg-light);
-  border-radius: var(--radius-sm);
   transition: all 0.2s;
-}
-
-.back-btn:hover {
-  color: var(--text);
-  background: var(--nav-hover);
 }
 
 .extended-stats {
@@ -811,9 +771,9 @@ onUnmounted(() => {
 
 .cache-stats {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .cache-grid {
@@ -830,20 +790,20 @@ onUnmounted(() => {
 
 .cache-label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .cache-value {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .breakdown-section {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .breakdown-list {
@@ -861,35 +821,35 @@ onUnmounted(() => {
 
 .breakdown-label {
   font-size: 0.875rem;
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .breakdown-bar-container {
   height: 8px;
-  background: var(--line);
+  background: var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .breakdown-bar {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: var(--card);
   border-radius: 4px;
 }
 
 .breakdown-value {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text);
+  color: var(--foreground);
   min-width: 80px;
   text-align: right;
 }
 
 .extended-sessions {
   padding: 1rem;
-  background: var(--accent-bg-light);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 .sessions-table {
@@ -905,8 +865,8 @@ onUnmounted(() => {
   padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--line);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
 }
 
 .sessions-table-row {
@@ -915,16 +875,16 @@ onUnmounted(() => {
   gap: 0.75rem;
   padding: 0.75rem;
   font-size: 0.875rem;
-  background: var(--panel-solid);
-  border-radius: var(--radius-sm);
+  background: var(--card);
+  border-radius: var(--radius-md);
 }
 
 .sessions-table-row:hover {
-  background: var(--nav-hover);
+  background: var(--accent);
 }
 
 .session-name {
-  color: var(--text);
+  color: var(--foreground);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;

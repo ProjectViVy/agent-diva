@@ -135,6 +135,10 @@ implementation and makes no Ready/Done implementation claim.
 
 ## Recorded delivery and cancellation
 
+- [x] **DIVA-PEACH-CHERRY-PALETTE** P3 — Implemented on the isolated
+  `codex/diva-design-language` branch while the UI work was parallelized;
+  Love/Default, dark mode and shared action surfaces were previewed and
+  validated in `docs/logs/2026-10-diva-design-language/v0.4.15-peach-cherry-pink/`.
 - [x] **DN-C2-P1-PLANS** — 20 executable Story plans supplied under existing
   DN/OBS stages with requirement coverage, immediate dependencies, waves,
   file ownership, checks and handoff. This closes planning only, not product work.

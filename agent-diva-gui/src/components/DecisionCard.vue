@@ -28,7 +28,7 @@ const riskColor = computed(() => {
     case 'medium':
       return 'var(--warning)';
     case 'high':
-      return 'var(--danger)';
+      return 'var(--destructive)';
     default:
       return 'var(--warning)';
   }
@@ -105,7 +105,7 @@ const toggleExpanded = () => {
           {{ t('card.approved') }} · {{ pendingCount }} {{ t('card.itemsPending') }}
         </span>
       </div>
-      <button class="decision-card__expand-btn" @click.stop="toggleExpanded">
+      <button class="ui-button ui-button--ghost ui-button--compact decision-card__expand-btn" @click.stop="toggleExpanded">
         {{ t('card.expand') }}
         <ChevronDown :size="14" />
       </button>
@@ -119,7 +119,7 @@ const toggleExpanded = () => {
           {{ t('card.rejected') }}
         </span>
       </div>
-      <button class="decision-card__expand-btn" @click.stop="toggleExpanded">
+      <button class="ui-button ui-button--ghost ui-button--compact decision-card__expand-btn" @click.stop="toggleExpanded">
         {{ t('card.expand') }}
         <ChevronDown :size="14" />
       </button>
@@ -152,7 +152,7 @@ const toggleExpanded = () => {
 
       <!-- Collapse button when expanded in approved state -->
       <div v-if="isApproved" class="decision-card__collapse-row">
-        <button class="decision-card__expand-btn" @click="toggleExpanded">
+        <button class="ui-button ui-button--ghost ui-button--compact decision-card__expand-btn" @click="toggleExpanded">
           {{ t('card.collapse') }}
           <ChevronUp :size="14" />
         </button>
@@ -161,14 +161,14 @@ const toggleExpanded = () => {
       <!-- Action Buttons (only in draft/pending state) -->
       <div v-if="!isApproved && !isRejected" class="decision-card__actions">
         <button
-          class="decision-card__btn decision-card__btn--reject"
+          class="ui-button ui-button--danger-ghost decision-card__btn decision-card__btn--reject"
           :disabled="loading"
           @click="handleReject"
         >
           {{ rejectAction?.label || t('card.reject') }}
         </button>
         <button
-          class="decision-card__btn decision-card__btn--approve"
+          class="ui-button ui-button--primary decision-card__btn decision-card__btn--approve"
           :disabled="loading"
           @click="handleApprove"
         >
@@ -181,16 +181,16 @@ const toggleExpanded = () => {
 
 <style scoped>
 .decision-card {
-  background: var(--panel-solid, #fff0f6);
-  border: 1px solid var(--line, rgba(255, 182, 193, 0.5));
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 16px;
-  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.12);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s ease;
 }
 
 .decision-card:hover {
-  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.18);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Collapsed Approved State ── */
@@ -213,34 +213,21 @@ const toggleExpanded = () => {
 }
 
 .decision-card__check-icon {
-  color: var(--success, #22c55e);
+  color: var(--success, var(--success));
   flex-shrink: 0;
 }
 
 .decision-card__collapsed-text {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-muted, #7a2f3e);
+  color: var(--muted-foreground);
 }
 
 .decision-card__expand-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted, #7a2f3e);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
   transition: color 0.15s ease, background 0.15s ease;
-}
-
-.decision-card__expand-btn:hover {
-  color: var(--text, #6b2737);
-  background: var(--accent-bg-light, rgba(236, 72, 153, 0.08));
 }
 
 /* ── Header ── */
@@ -254,7 +241,7 @@ const toggleExpanded = () => {
 .decision-card__title {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--text, #6b2737);
+  color: var(--foreground);
   line-height: 1.4;
 }
 
@@ -270,7 +257,7 @@ const toggleExpanded = () => {
 .decision-card__summary {
   font-size: 0.875rem;
   font-weight: 400;
-  color: var(--text-muted, #7a2f3e);
+  color: var(--muted-foreground);
   line-height: 1.6;
   margin-bottom: 12px;
 }
@@ -295,8 +282,8 @@ const toggleExpanded = () => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--accent, #ec4899);
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: 0.6875rem;
   font-weight: 600;
   display: flex;
@@ -309,7 +296,7 @@ const toggleExpanded = () => {
 .decision-card__step-text {
   font-size: 0.875rem;
   font-weight: 400;
-  color: var(--text, #6b2737);
+  color: var(--foreground);
   line-height: 1.6;
   padding-top: 1px;
 }
@@ -318,7 +305,7 @@ const toggleExpanded = () => {
 .decision-card__evidence {
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--text-muted, #7a2f3e);
+  color: var(--muted-foreground);
   margin-bottom: 12px;
   display: flex;
   flex-wrap: wrap;
@@ -331,7 +318,7 @@ const toggleExpanded = () => {
 }
 
 .decision-card__evidence-ref {
-  background: var(--accent-bg-light, rgba(236, 72, 153, 0.08));
+  background: var(--accent);
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.6875rem;
@@ -354,18 +341,11 @@ const toggleExpanded = () => {
 }
 
 .decision-card__btn {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding: 6px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: none;
   transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
 }
 
 .decision-card__btn:hover {
   transform: scale(1.02);
-  filter: brightness(1.1);
 }
 
 .decision-card__btn:active {
@@ -374,30 +354,6 @@ const toggleExpanded = () => {
 
 .decision-card__btn:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
   transform: none;
-  filter: none;
-}
-
-.decision-card__btn--reject {
-  background: transparent;
-  border: 1px solid var(--line, rgba(255, 182, 193, 0.5));
-  color: var(--text-muted, #7a2f3e);
-}
-
-.decision-card__btn--reject:hover:not(:disabled) {
-  background: var(--accent-bg-light, rgba(236, 72, 153, 0.08));
-  border-color: var(--accent-border, rgba(236, 72, 153, 0.4));
-  color: var(--text, #6b2737);
-}
-
-.decision-card__btn--approve {
-  background: linear-gradient(135deg, var(--accent, #ec4899), var(--accent-light, #f472b6));
-  color: #fff;
-  box-shadow: 0 4px 12px var(--accent-glow, rgba(236, 72, 153, 0.15));
-}
-
-.decision-card__btn--approve:hover:not(:disabled) {
-  box-shadow: 0 6px 16px var(--accent-glow, rgba(236, 72, 153, 0.25));
 }
 </style>

@@ -6,54 +6,14 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        yandere: {
-          50: '#fff0f5',
-          100: '#ffe3ee',
-          200: '#ffc7df',
-          300: '#ff9bc4',
-          400: '#ff649f',
-          500: '#ff3381',
-          600: '#f01466',
-          700: '#cc0a52',
-          800: '#a80c46',
-          900: '#8c103f',
-        },
-        /* 语义令牌：统一映射到 styles.css 的 CSS 变量（主题感知） */
-        surface: {
-          DEFAULT: 'var(--panel)',
-          solid: 'var(--panel-solid)',
-          raised: 'var(--surface-raised)',
-          sunken: 'var(--surface-sunken)',
-        },
-        ink: {
-          DEFAULT: 'var(--text)',
-          muted: 'var(--text-muted)',
-          faint: 'var(--text-faint)',
-        },
-        line: {
-          DEFAULT: 'var(--line)',
-          strong: 'var(--border-strong)',
-        },
-        brand: {
-          DEFAULT: 'var(--brand)',
-          light: 'var(--brand-light)',
-        },
-        accent: {
-          DEFAULT: 'var(--accent)',
-          light: 'var(--accent-light)',
-        },
-        state: {
-          danger: 'var(--danger)',
-          'danger-bg': 'var(--danger-bg)',
-          success: 'var(--success)',
-          'success-bg': 'var(--success-bg)',
-          warning: 'var(--warning)',
-          'warning-bg': 'var(--warning-bg)',
-          info: 'var(--info)',
-          'info-bg': 'var(--info-bg)',
-        },
-      },
+      colors: Object.fromEntries([
+        'background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground',
+        'primary', 'primary-foreground', 'primary-hover', 'secondary', 'secondary-foreground',
+        'muted', 'muted-foreground', 'muted-foreground-subtle', 'accent', 'accent-foreground',
+        'border', 'border-strong', 'input', 'ring', 'overlay', 'sidebar', 'sidebar-foreground',
+        'sidebar-accent', 'sidebar-accent-foreground', 'destructive', 'destructive-foreground',
+        'destructive-soft', 'success', 'success-soft', 'warning', 'warning-soft', 'info', 'info-soft',
+      ].map(role => [role, `color-mix(in srgb, var(--${role}) calc(<alpha-value> * 100%), transparent)`])),
       /* 令牌字号阶梯（tk-* 前缀，避免覆盖 Tailwind 默认 text-* 语义） */
       fontSize: {
         'tk-xs': ['var(--font-size-xs)', { lineHeight: 'var(--line-height-xs)' }],
@@ -69,11 +29,16 @@ export default {
         'tk-semibold': 'var(--font-weight-semibold)',
       },
       borderRadius: {
-        tk: 'var(--radius)',
-        'tk-sm': 'var(--radius-sm)',
+        tk: 'var(--radius-lg)',
+        'tk-sm': 'var(--radius-md)',
       },
       boxShadow: {
-        tk: 'var(--shadow)',
+        tk: 'var(--shadow-md)',
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        xl: 'var(--shadow-lg)',
+        '2xl': 'var(--shadow-lg)',
       },
     },
   },

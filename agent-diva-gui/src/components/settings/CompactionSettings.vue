@@ -56,9 +56,9 @@ const pressurePercent = computed(() =>
 
 const pressureColor = computed(() => {
   const p = pressurePercent.value;
-  if (p < 60) return 'bg-green-500';
-  if (p < 80) return 'bg-yellow-500';
-  return 'bg-red-500';
+  if (p < 60) return 'bg-success';
+  if (p < 80) return 'bg-warning';
+  return 'bg-destructive';
 });
 
 async function refresh() {
@@ -89,7 +89,7 @@ const saveConfig = async () => {
       triggerPercent: Math.min(100, Math.max(10, Number(draft.value.triggerPercent) || 80)),
       keepRecent: Math.min(50, Math.max(1, Number(draft.value.keepRecent) || 12)),
     });
-    showAppToast(t('console.saved'), 'success');
+    showAppToast(t('settings.saved'), 'success');
     await refresh();
   } catch (err) {
     loadError.value = String(err);
@@ -140,7 +140,7 @@ onMounted(refresh);
       </div>
       <button
         type="button"
-        class="btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
+        class="ui-button ui-button--primary btn-save-config settings-btn inline-flex min-w-[112px] items-center justify-center gap-2"
         :disabled="isSaving || !isDirty || loading"
         @click="saveConfig"
       >
@@ -149,20 +149,20 @@ onMounted(refresh);
       </button>
     </div>
 
-    <p v-if="loadError" class="text-xs" style="color: var(--danger);">{{ loadError }}</p>
+    <p v-if="loadError" class="text-xs" style="color: var(--destructive);">{{ loadError }}</p>
 
     <!-- Section 1: Budget Status -->
-    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">
+    <div class="bg-card rounded-xl border border-border p-6 shadow-sm space-y-4">
       <div class="flex items-center space-x-2">
-        <h4 class="text-sm font-semibold text-gray-700">{{ t('compaction.budgetStatus') }}</h4>
+        <h4 class="text-sm font-semibold text-foreground">{{ t('compaction.budgetStatus') }}</h4>
       </div>
 
       <div class="space-y-2">
-        <div class="flex justify-between text-xs text-gray-500">
+        <div class="flex justify-between text-xs text-muted-foreground">
           <span>{{ t('compaction.historyTokens') }}</span>
           <span>{{ (budgetStatus?.history_estimated ?? 0).toLocaleString() }} / {{ (budgetStatus?.history_budget ?? 0).toLocaleString() }}</span>
         </div>
-        <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+        <div class="w-full h-2.5 bg-secondary rounded-full overflow-hidden">
           <div
             class="h-full rounded-full transition-all duration-500"
             :class="pressureColor"
@@ -173,20 +173,20 @@ onMounted(refresh);
 
       <div class="flex items-center gap-6 text-sm">
         <div>
-          <span class="text-gray-500">{{ t('compaction.pressureRatio') }}:</span>
-          <span class="ml-1 font-medium text-gray-700">{{ pressurePercent }}{{ t('compaction.percent') }}</span>
+          <span class="text-muted-foreground">{{ t('compaction.pressureRatio') }}:</span>
+          <span class="ml-1 font-medium text-foreground">{{ pressurePercent }}{{ t('compaction.percent') }}</span>
         </div>
         <div>
-          <span class="text-gray-500">{{ t('compaction.status') }}:</span>
+          <span class="text-muted-foreground">{{ t('compaction.status') }}:</span>
           <span
             v-if="budgetStatus?.should_compact"
-            class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700"
+            class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-soft text-warning"
           >
             {{ t('compaction.statusCompact') }}
           </span>
           <span
             v-else
-            class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"
+            class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success-soft text-success"
           >
             {{ t('compaction.statusOk') }}
           </span>
@@ -195,8 +195,8 @@ onMounted(refresh);
     </div>
 
     <!-- Section 2: Configuration -->
-    <div v-if="config" class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-5">
-      <h4 class="text-sm font-semibold text-gray-700">{{ t('compaction.config') }}</h4>
+    <div v-if="config" class="bg-card rounded-xl border border-border p-6 shadow-sm space-y-5">
+      <h4 class="text-sm font-semibold text-foreground">{{ t('compaction.config') }}</h4>
 
       <label class="settings-label flex items-center space-x-2 cursor-pointer">
         <input v-model="draft.enabled" type="checkbox" class="settings-checkbox" />
@@ -205,7 +205,7 @@ onMounted(refresh);
 
       <!-- max_tokens -->
       <div class="space-y-1">
-        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <label class="block text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('compaction.maxTokens') }}
         </label>
         <input
@@ -214,16 +214,16 @@ onMounted(refresh);
           :min="10000"
           :max="500000"
           :step="10000"
-          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          class="ui-input w-full"
         />
-        <p class="text-xs text-gray-400">{{ t('compaction.maxTokensDesc') }}</p>
+        <p class="text-xs text-muted-foreground">{{ t('compaction.maxTokensDesc') }}</p>
       </div>
 
       <!-- trigger_percent -->
       <div class="space-y-1">
-        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <label class="block text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('compaction.thresholdRatio') }}
-          <span class="ml-2 text-gray-700 font-semibold normal-case tracking-normal">{{ draft.triggerPercent }}{{ t('compaction.percent') }}</span>
+          <span class="ml-2 text-foreground font-semibold normal-case tracking-normal">{{ draft.triggerPercent }}{{ t('compaction.percent') }}</span>
         </label>
         <input
           v-model.number="draft.triggerPercent"
@@ -231,14 +231,14 @@ onMounted(refresh);
           :min="10"
           :max="100"
           :step="5"
-          class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          class="ui-range w-full"
         />
-        <p class="text-xs text-gray-400">{{ t('compaction.thresholdRatioDesc') }}</p>
+        <p class="text-xs text-muted-foreground">{{ t('compaction.thresholdRatioDesc') }}</p>
       </div>
 
       <!-- keep_recent -->
       <div class="space-y-1">
-        <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <label class="block text-xs font-medium text-muted-foreground uppercase tracking-wider">
           {{ t('compaction.keepRecent') }}
         </label>
         <input
@@ -247,22 +247,22 @@ onMounted(refresh);
           :min="1"
           :max="50"
           :step="1"
-          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          class="ui-input w-full"
         />
-        <p class="text-xs text-gray-400">{{ t('compaction.keepRecentDesc') }}</p>
+        <p class="text-xs text-muted-foreground">{{ t('compaction.keepRecentDesc') }}</p>
       </div>
     </div>
 
     <!-- Section 3: Manual Compaction -->
-    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">
-      <h4 class="text-sm font-semibold text-gray-700">{{ t('compaction.manualCompact') }}</h4>
+    <div class="bg-card rounded-xl border border-border p-6 shadow-sm space-y-4">
+      <h4 class="text-sm font-semibold text-foreground">{{ t('compaction.manualCompact') }}</h4>
       <div class="flex items-center gap-3">
         <button
           type="button"
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          class="ui-button ui-button--ghost inline-flex items-center gap-2 transition-colors"
           :class="budgetStatus && !budgetStatus.should_compact
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 text-white hover:bg-blue-700'"
+            ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+            : 'bg-info text-foreground hover:bg-info'"
           :disabled="compactRunning || (!!budgetStatus && !budgetStatus.should_compact)"
           :title="budgetStatus && !budgetStatus.should_compact ? t('compaction.noCompactNeeded') : ''"
           @click="runCompact"
@@ -278,7 +278,7 @@ onMounted(refresh);
     <div class="flex justify-end">
       <button
         type="button"
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+        class="ui-button ui-button--ghost inline-flex items-center gap-2  transition-colors"
         @click="resetDefaults"
       >
         <RotateCcw :size="14" />

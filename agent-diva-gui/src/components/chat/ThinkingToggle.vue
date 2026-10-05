@@ -1,7 +1,7 @@
 <template>
   <div class="thinking-toggle" ref="containerRef">
     <button
-      class="thinking-toggle-btn"
+      class="ui-button ui-button--ghost ui-button--compact thinking-toggle-btn"
       :class="{ active: isOpen }"
       :disabled="disabled"
       :title="$t('chat.thinkingMode')"
@@ -100,28 +100,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
   transition: background 0.15s, color 0.15s;
-}
-
-.thinking-toggle-btn:hover:not(:disabled) {
-  background: var(--accent-bg-light);
-  color: var(--text);
-}
-
-.thinking-toggle-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.thinking-toggle-btn.active {
-  background: var(--accent-bg-hover);
-  color: var(--accent);
 }
 
 .thinking-toggle-icon {
@@ -136,10 +115,10 @@ onBeforeUnmount(() => {
   left: 50%;
   transform: translateX(-50%);
   margin-top: 4px;
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   min-width: 140px;
   z-index: 100;
   padding: 4px;
@@ -155,19 +134,19 @@ onBeforeUnmount(() => {
   border: none;
   background: none;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: 13px;
-  color: var(--text);
+  color: var(--foreground);
   transition: background 0.15s;
 }
 
 .thinking-toggle-option:hover {
-  background: var(--accent-bg-light);
+  background: var(--accent);
 }
 
 .thinking-toggle-option.selected {
-  background: var(--accent-bg-hover);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--primary);
 }
 
 .thinking-toggle-option-icon {
@@ -183,7 +162,7 @@ onBeforeUnmount(() => {
 
 .thinking-toggle-check {
   font-size: 12px;
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .dropdown-enter-active,
