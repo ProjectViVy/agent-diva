@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `internal/desktop/**, .github/workflows/ci.yml, .github/workflows/desktop-release.yml, justfile, scripts/build-desktop.py, scripts/ci/**, build/vivy-sources.lock.json, deps/** (ignored local source links only), docs/plans/diva-next/fixtures/wails-candidate-acceptance-v2.example.json, docs/logs/2026-10-09-issue32-p1/**, TODOLIST.md, LOCK.md`
+- Scope: `internal/desktop/app.go, internal/desktop/runtime_service.go, internal/desktop/lifecycle.go, internal/desktop/runtime_service_test.go, internal/desktop/lifecycle_test.go, internal/desktop/app_test.go, internal/speech/service.go, internal/speech/service_test.go, cmd/diva/main.go, docs/logs/2026-10-09-issue32-p4.2/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates`
+- Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.2 H5/H7 shared teardown and singleton handoff`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
-- Started At: `2026-10-09T12:14:21+08:00`
-- Last Heartbeat: `2026-10-09T13:06:12+08:00`
+- Started At: `2026-10-09T10:55:00Z`
+- Last Heartbeat: `2026-10-09T10:55:00Z`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -50,6 +50,18 @@ now records the exact `20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b
 tree at the already pinned commit. The full Python contract suite passes; no
 native candidate, GitHub Actions run, tag write, push, or release was performed.
 
+### Handoff from P1 to P4.2
+
+The previous P1 lock heartbeat was `2026-10-09T13:06:12+08:00` (05:06:12Z),
+and had not been refreshed for more than five hours. Its P1.1/P1.2/P1.3
+implementation is committed on this isolated branch (`8918b6f2`, `607fc54f`)
+with evidence under `docs/logs/2026-10-09-issue32-p1/`; no P1 product edits are
+left uncommitted. The same owner now takes the non-overlapping P4.2 execution
+lane. No other live agent is editing this scope. P4.2 is limited to the Go
+desktop lifecycle, speech teardown, command startup, regression tests, and its
+iteration record. Native two-process acceptance and public actions remain
+unauthorized/pending; no push, tag, upload, or release.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -62,7 +74,7 @@ native candidate, GitHub Actions run, tag write, push, or release was performed.
 
 ## Active Lock
 
-- `Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `internal/desktop/**`, `.github/workflows/ci.yml`, `.github/workflows/desktop-release.yml`, `justfile`, `scripts/build-desktop.py`, `scripts/ci/**`, `build/vivy-sources.lock.json`, ignored `deps/agent-vivy` and `deps/laputa` test symlinks, strict candidate example/logs, `TODOLIST.md`, and `LOCK.md`. No dependency lock regeneration, push, archive-tag write, or release.
+- `Issue #32 P4.2 H5/H7 shared teardown and singleton handoff` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `internal/desktop/app.go`, `runtime_service.go`, `lifecycle.go` and related tests, `internal/speech/service.go` and tests, `cmd/diva/main.go`, P4.2 iteration evidence, `TODOLIST.md`, and `LOCK.md`. No push, tag write, upload, or release.
 - P1 test-environment setup may repair only ignored `deps/agent-vivy` and `deps/laputa` symlinks to the separately reviewed source checkouts; dependency versions and tracked product source remain unchanged.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by
