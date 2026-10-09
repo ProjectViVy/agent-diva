@@ -99,15 +99,15 @@ type ShutdownReport struct {
 // prepared is the frozen request snapshot taken at admission: nothing in
 // it can be altered by a later config/credential/reference change.
 type prepared struct {
-	kind        RequestKind
-	provider    Provider
-	sttCfg      *SttPreferences
-	sfCfg       *SiliconFlowTts
-	mmCfg       *MiniMaxTts
-	key         string
-	wav         []byte
-	text        string
-	inline      *AssetLease
+	kind     RequestKind
+	provider Provider
+	sttCfg   *SttPreferences
+	sfCfg    *SiliconFlowTts
+	mmCfg    *MiniMaxTts
+	key      string
+	wav      []byte
+	text     string
+	inline   *AssetLease
 }
 
 type preparedOutcome struct {
@@ -121,13 +121,13 @@ type preparedOutcome struct {
 
 // Service is the one cancellable speech service.
 type Service struct {
-	config      *serviceMutex[ConfigStore]
-	credentials *CredentialStore
-	assets      *AssetStore
-	registry    *Registry
-	client      *http.Client
+	config                *serviceMutex[ConfigStore]
+	credentials           *CredentialStore
+	assets                *AssetStore
+	registry              *Registry
+	client                *http.Client
 	allowInsecureLoopback bool
-	diagnostic  func(Diagnostic)
+	diagnostic            func(Diagnostic)
 
 	preSettleHookMu sync.Mutex
 	preSettleHook   func()
@@ -484,16 +484,23 @@ func (s *Service) Synthesize(identity *Identity, text string) ([]byte, error) {
 // tasks inside grace. The report states honestly what could not be
 // joined.
 func (s *Service) Shutdown(grace time.Duration) ShutdownReport {
+	ctx, cancel := context.WithTimeout(context.Background(), grace)
+	defer cancel()
+	return s.ShutdownContext(ctx)
+}
+
+// ShutdownContext rejects admission, aborts in-flight requests, and joins
+// their tasks until the caller's shared shutdown deadline. It does not
+// create a fresh grace period of its own.
+func (s *Service) ShutdownContext(ctx context.Context) ShutdownReport {
 	s.registry.BeginShutdown()
 	inflight, handles := s.registry.TakeHandles()
-	timer := time.NewTimer(grace)
-	defer timer.Stop()
 	joined := 0
 	for _, h := range handles {
 		select {
 		case <-h:
 			joined++
-		case <-timer.C:
+		case <-ctx.Done():
 			return ShutdownReport{InflightAtStart: inflight, Joined: joined, Remaining: len(handles) - joined}
 		}
 	}

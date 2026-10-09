@@ -1,6 +1,7 @@
 package speech
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -546,6 +547,23 @@ func TestShutdown(t *testing.T) {
 	}
 }
 
+func TestShutdownContextHonorsTheCallerDeadline(t *testing.T) {
+	svc := &Service{registry: NewRegistry()}
+	blocked := make(chan struct{})
+	svc.registry.Track("blocked-cleanup", blocked)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	report := svc.ShutdownContext(ctx)
+	if elapsed := time.Since(started); elapsed > 500*time.Millisecond {
+		t.Fatalf("ShutdownContext took %s past its caller deadline", elapsed)
+	}
+	if report.InflightAtStart != 0 || report.Joined != 0 || report.Remaining != 1 {
+		t.Fatalf("shutdown report = %+v, want one unjoined task", report)
+	}
+	close(blocked)
+}
+
 func TestSingleFlightSlot(t *testing.T) {
 	release := make(chan struct{})
 	slow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -577,4 +595,3 @@ func TestSingleFlightSlot(t *testing.T) {
 	svc.Cancel("r-1")
 	<-done
 }
-

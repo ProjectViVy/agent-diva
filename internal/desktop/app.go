@@ -8,12 +8,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+	"sync"
 
 	hostv1 "agent-vivy/sdk/host/v1"
 	"github.com/ProjectViVy/agent-diva/internal/speech"
@@ -44,10 +46,55 @@ type Desktop struct {
 	speech    *speech.Service
 	logger    *log.Logger
 	emit      func(name string, data any)
+	assetSlot *handlerSlot
 }
 
-// Compose opens the sealed VIVY host and builds the Wails app. A partial
-// failure closes the host — nothing is published half-ready.
+type handlerSlot struct {
+	mu      sync.RWMutex
+	handler http.Handler
+}
+
+// runtimeDrainBarrier keeps Wails shutdown inside its service phase until the
+// runtime teardown worker has released the host and pump. Wails releases its
+// single-instance lease only after every service shutdown callback returns.
+type runtimeDrainBarrier struct {
+	service *RuntimeService
+}
+
+func (*runtimeDrainBarrier) ServiceName() string { return "DIVA runtime drain barrier" }
+
+func (b *runtimeDrainBarrier) ServiceShutdown() error {
+	return b.service.awaitShutdown()
+}
+
+// registerRuntimeServices relies on Wails' reverse shutdown order: the runtime
+// coordinator gets its bounded caller first, then the barrier waits for any
+// background drain that outlives that caller before Wails releases its lease.
+func registerRuntimeServices(register func(application.Service), service *RuntimeService) {
+	register(application.NewService(&runtimeDrainBarrier{service: service}))
+	register(application.NewService(service))
+}
+
+func (s *handlerSlot) set(handler http.Handler) {
+	s.mu.Lock()
+	s.handler = handler
+	s.mu.Unlock()
+}
+
+func (s *handlerSlot) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	handler := s.handler
+	s.mu.RUnlock()
+	if handler == nil {
+		http.Error(w, "desktop runtime is not ready", http.StatusServiceUnavailable)
+		return
+	}
+	handler.ServeHTTP(w, r)
+}
+
+// Compose elects the Wails process before opening the sealed VIVY host, so a
+// secondary launch exits without creating a profile or Journal. A partial
+// primary failure closes admission and releases any acquired host owners.
 func Compose(ctx context.Context, cfg Config, logger *log.Logger) (*Desktop, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "diva: ", log.LstdFlags)
@@ -59,22 +106,29 @@ func Compose(ctx context.Context, cfg Config, logger *log.Logger) (*Desktop, err
 		return nil, fmt.Errorf("config path must be absolute: %q", cfg.ConfigPath)
 	}
 
-	host, err := hostv1.Open(ctx, hostv1.Options{ConfigPath: cfg.ConfigPath, WithoutEars: cfg.WithoutEars})
-	if err != nil {
-		return nil, fmt.Errorf("open vivy host: %w", err)
-	}
-
-	d := &Desktop{host: host, logger: logger}
-	if err := d.build(cfg); err != nil {
-		cctx, cancel := context.WithTimeout(context.Background(), hostv1.CloseBudget)
-		defer cancel()
-		_ = d.host.Close(cctx)
+	d := &Desktop{logger: logger}
+	if err := d.prepare(); err != nil {
 		return nil, err
 	}
+	host, err := hostv1.Open(ctx, hostv1.Options{ConfigPath: cfg.ConfigPath, WithoutEars: cfg.WithoutEars})
+	if err != nil {
+		d.lifecycle.failStartup()
+		return nil, fmt.Errorf("open vivy host: %w", err)
+	}
+	d.host = host
+	if err := d.build(cfg); err != nil {
+		d.lifecycle.failStartup()
+		cctx, cancel := context.WithTimeout(context.Background(), hostv1.CloseBudget)
+		defer cancel()
+		return nil, errors.Join(err, d.closePartial(cctx))
+	}
+	d.lifecycle.markReady(d.reopen)
 	return d, nil
 }
 
-func (d *Desktop) build(cfg Config) error {
+// prepare creates the singleton application before any runtime/profile
+// resources are opened. A second process is terminated by Wails in New.
+func (d *Desktop) prepare() error {
 	token := make([]byte, 16)
 	if _, err := rand.Read(token); err != nil {
 		return fmt.Errorf("media capability token: %w", err)
@@ -88,10 +142,43 @@ func (d *Desktop) build(cfg Config) error {
 		}
 	}
 	d.lifecycle = newLifecycle(d.emit)
-	d.service = NewRuntimeService(d.host, d.emit)
-	d.service.cap = d.cap
-	d.service.onShutdownErr = d.lifecycle.recordTeardown
+	d.assetSlot = &handlerSlot{}
+	d.app = application.New(application.Options{
+		Name:        "DIVA",
+		Description: "DIVA desktop (DN-W3 Wails host)",
+		Assets: application.AssetOptions{
+			Handler:    d.assetSlot,
+			Middleware: d.gate.Middleware,
+		},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				d.logger.Printf("second instance rejected; focusing primary window (args=%v)", data.Args)
+				d.lifecycle.requestReopen(d.reopen)
+			},
+		},
+		ShouldQuit: func() bool { return true },
+		OnShutdown: func() {
+			d.lifecycle.closeAdmission()
+			d.cap.revoke()
+		},
+		PostShutdown: func() {
+			finished, err := d.lifecycle.teardownState()
+			switch {
+			case !finished:
+				d.logger.Print("teardown pending; process retains ownership until cleanup completes")
+			case err != nil:
+				d.logger.Printf("teardown incomplete: %v", err)
+			default:
+				d.logger.Print("teardown complete")
+			}
+		},
+	})
+	return nil
+}
 
+// build completes runtime composition after Wails has elected the process.
+func (d *Desktop) build(cfg Config) error {
 	// W4: the Go speech service lives beside vivy.yaml in the config dir.
 	speechDir := filepath.Join(filepath.Dir(cfg.ConfigPath), "speech")
 	speechSvc, err := speech.OpenService(speechDir, func(dg speech.Diagnostic) {
@@ -101,46 +188,24 @@ func (d *Desktop) build(cfg Config) error {
 		return fmt.Errorf("open speech service: %w", err)
 	}
 	d.speech = speechSvc
+	d.service = NewRuntimeService(d.host, d.emit)
+	d.service.cap = d.cap
+	d.service.closeAdmission = d.lifecycle.closeAdmission
+	d.service.onShutdownStart = d.lifecycle.beginTeardown
+	d.service.onShutdownErr = d.lifecycle.recordTeardown
 	d.service.dispatch = speechDispatch(speechSvc)
-	// Speech teardown joins in-flight requests before the host close, all
-	// under the same CloseBudget; the report is recorded honestly.
-	d.service.onShutdown = func() {
-		rep := speechSvc.Shutdown(2 * time.Second)
+	// Speech teardown consumes the coordinator's shared CloseBudget.
+	d.service.onShutdown = func(ctx context.Context) error {
+		rep := speechSvc.ShutdownContext(ctx)
 		if rep.Remaining > 0 {
-			d.lifecycle.recordTeardown(fmt.Errorf("speech: %d request(s) not joined (inflight=%d joined=%d)",
-				rep.Remaining, rep.InflightAtStart, rep.Joined))
-		} else {
-			d.logger.Printf("speech teardown: inflight=%d joined=%d", rep.InflightAtStart, rep.Joined)
+			return fmt.Errorf("%d request(s) not joined (inflight=%d joined=%d)",
+				rep.Remaining, rep.InflightAtStart, rep.Joined)
 		}
+		d.logger.Printf("speech teardown: inflight=%d joined=%d", rep.InflightAtStart, rep.Joined)
+		return nil
 	}
-
-	d.app = application.New(application.Options{
-		Name:        "DIVA",
-		Description: "DIVA desktop (DN-W3 Wails host)",
-		Services:    []application.Service{application.NewService(d.service)},
-		Assets: application.AssetOptions{
-			Handler:    NewMediaMux(cfg.Frontend, d.cap, d.speech),
-			Middleware: d.gate.Middleware,
-		},
-		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: singleInstanceID,
-			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
-				d.logger.Printf("second instance rejected; focusing primary window (args=%v)", data.Args)
-				d.reopen()
-			},
-		},
-		ShouldQuit: func() bool { return true },
-		OnShutdown: func() {
-			d.lifecycle.closeAdmission()
-		},
-		PostShutdown: func() {
-			if err := d.lifecycle.teardownErr(); err != nil {
-				d.logger.Printf("teardown incomplete: %v", err)
-			} else {
-				d.logger.Print("teardown complete")
-			}
-		},
-	})
+	d.assetSlot.set(NewMediaMux(cfg.Frontend, d.cap, d.speech))
+	registerRuntimeServices(d.app.RegisterService, d.service)
 
 	w := d.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "diva-main",
@@ -178,14 +243,36 @@ func (d *Desktop) build(cfg Config) error {
 	return nil
 }
 
+func (d *Desktop) closePartial(ctx context.Context) error {
+	var errs []error
+	if d.speech != nil {
+		rep := d.speech.ShutdownContext(ctx)
+		if rep.Remaining > 0 {
+			errs = append(errs, fmt.Errorf("speech cleanup: %d request(s) not joined (inflight=%d joined=%d)",
+				rep.Remaining, rep.InflightAtStart, rep.Joined))
+		}
+	}
+	if d.host != nil {
+		if err := d.host.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("VIVY host cleanup: %w", err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // Run blocks until the application exits. On exit it surfaces an incomplete
 // teardown as an error — truthfully, per W3-4.
 func (d *Desktop) Run() error {
-	err := d.app.Run()
-	if terr := d.lifecycle.teardownErr(); terr != nil && err == nil {
-		return fmt.Errorf("teardown: %w", terr)
+	runErr := d.app.Run()
+	var shutdownErr error
+	if d.service != nil {
+		shutdownErr = d.service.awaitShutdown()
 	}
-	return err
+	teardownErr := d.lifecycle.teardownErr()
+	if teardownErr == nil {
+		teardownErr = shutdownErr
+	}
+	return errors.Join(runErr, teardownErr)
 }
 
 // Host exposes the runtime owner for tests and diagnostics.

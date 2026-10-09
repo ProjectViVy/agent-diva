@@ -17,12 +17,25 @@ var windowCtxKey = application.WindowKey
 
 type fakeWindow struct {
 	application.Window
-	id   uint
-	name string
+	id         uint
+	name       string
+	showCalls  *int
+	focusCalls *int
 }
 
 func (f fakeWindow) ID() uint     { return f.id }
 func (f fakeWindow) Name() string { return f.name }
+func (f fakeWindow) Show() application.Window {
+	if f.showCalls != nil {
+		(*f.showCalls)++
+	}
+	return f
+}
+func (f fakeWindow) Focus() {
+	if f.focusCalls != nil {
+		(*f.focusCalls)++
+	}
+}
 
 func applicationServiceOptions() application.ServiceOptions {
 	return application.ServiceOptions{}
@@ -34,6 +47,9 @@ type fakeHost struct {
 	calls       int
 	batches     []hostv1.EventBatch
 	nextErr     error
+	nextFn      func(context.Context, int) (hostv1.EventBatch, error)
+	closeFn     func(context.Context) error
+	closeCalls  int
 	closed      bool
 	mu          sync.Mutex
 }
@@ -59,23 +75,39 @@ func (f *fakeHost) callCount() int {
 
 func (f *fakeHost) Next(ctx context.Context, _ int) (hostv1.EventBatch, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	nextFn := f.nextFn
+	if nextFn != nil {
+		f.mu.Unlock()
+		return nextFn(ctx, nextBatchLimit)
+	}
 	if len(f.batches) > 0 {
 		b := f.batches[0]
 		f.batches = f.batches[1:]
+		f.mu.Unlock()
 		return b, nil
 	}
-	if f.nextErr != nil {
-		return hostv1.EventBatch{}, f.nextErr
+	nextErr := f.nextErr
+	f.mu.Unlock()
+	if nextErr != nil {
+		return hostv1.EventBatch{}, nextErr
 	}
 	<-ctx.Done()
 	return hostv1.EventBatch{}, ctx.Err()
 }
 
-func (f *fakeHost) Close(_ context.Context) error {
+func (f *fakeHost) Close(ctx context.Context) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.closeCalls++
+	closeFn := f.closeFn
+	f.mu.Unlock()
+	if closeFn != nil {
+		if err := closeFn(ctx); err != nil {
+			return err
+		}
+	}
+	f.mu.Lock()
 	f.closed = true
+	f.mu.Unlock()
 	return nil
 }
 
@@ -83,6 +115,12 @@ func (f *fakeHost) isClosed() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.closed
+}
+
+func (f *fakeHost) closeCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closeCalls
 }
 
 type emitSink struct {
@@ -274,7 +312,7 @@ func TestPumpForwardsEventsGapAndLoss(t *testing.T) {
 	if len(sink.snapshot()) < 3 {
 		t.Fatalf("pump emitted %d events, want >=3", len(sink.snapshot()))
 	}
-	svc.stopPump()
+	_ = svc.stopPump(context.Background())
 }
 
 func TestServiceShutdownStopsPumpAndClosesHost(t *testing.T) {
@@ -297,6 +335,224 @@ func TestServiceShutdownStopsPumpAndClosesHost(t *testing.T) {
 	// Idempotent second call must not hang on pumpDone.
 	if err := svc.ServiceShutdown(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestShutdownBudgetStartsBeforePumpJoin(t *testing.T) {
+	entered := make(chan struct{})
+	cancelled := make(chan struct{})
+	release := make(chan struct{})
+	deadlineSeen := make(chan time.Time, 1)
+	h := &fakeHost{
+		nextFn: func(ctx context.Context, _ int) (hostv1.EventBatch, error) {
+			close(entered)
+			<-ctx.Done()
+			close(cancelled)
+			<-release // model a producer which ignores cancellation
+			return hostv1.EventBatch{}, ctx.Err()
+		},
+		closeFn: func(ctx context.Context) error {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Error("host close did not receive the shared deadline")
+				return nil
+			}
+			deadlineSeen <- deadline
+			return nil
+		},
+	}
+	svc := NewRuntimeService(h, func(string, any) {})
+	if err := svc.ServiceStartup(context.Background(), applicationServiceOptions()); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	started := make(chan time.Time, 1)
+	shutdown := make(chan error, 1)
+	go func() {
+		started <- time.Now()
+		shutdown <- svc.ServiceShutdown()
+	}()
+	start := <-started
+	<-cancelled
+	timer := time.NewTimer(75 * time.Millisecond)
+	<-timer.C
+	close(release)
+	if err := <-shutdown; err != nil {
+		t.Fatal(err)
+	}
+	deadline := <-deadlineSeen
+	if deadline.After(start.Add(hostv1.CloseBudget + 25*time.Millisecond)) {
+		t.Fatalf("host received a reset shutdown budget: start=%s deadline=%s", start, deadline)
+	}
+}
+
+func TestShutdownPreservesSpeechAndHostErrors(t *testing.T) {
+	speechErr := errors.New("speech drain incomplete")
+	hostErr := errors.New("host close incomplete")
+	h := &fakeHost{closeFn: func(context.Context) error { return hostErr }}
+	l := newLifecycle(func(string, any) {})
+	svc := NewRuntimeService(h, func(string, any) {})
+	svc.onShutdown = func(context.Context) error { return speechErr }
+	svc.onShutdownErr = l.recordTeardown
+	err := svc.ServiceShutdown()
+	if !errors.Is(err, speechErr) || !errors.Is(err, hostErr) {
+		t.Fatalf("shutdown error = %v, want speech and host errors", err)
+	}
+}
+
+func TestShutdownSharesDeadlineWithSpeechAndHost(t *testing.T) {
+	var speechDeadline, hostDeadline time.Time
+	h := &fakeHost{closeFn: func(ctx context.Context) error {
+		hostDeadline, _ = ctx.Deadline()
+		return nil
+	}}
+	svc := NewRuntimeService(h, func(string, any) {})
+	svc.onShutdown = func(ctx context.Context) error {
+		speechDeadline, _ = ctx.Deadline()
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	wantDeadline, _ := ctx.Deadline()
+	if err := svc.shutdown(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !speechDeadline.Equal(wantDeadline) || !hostDeadline.Equal(wantDeadline) {
+		t.Fatalf("shutdown deadlines differ: want=%s speech=%s host=%s", wantDeadline, speechDeadline, hostDeadline)
+	}
+}
+
+func TestShutdownDoesNotReportCleanOrReopenWhileDrainPending(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	closeStarted := make(chan struct{}, 1)
+	h := &fakeHost{
+		nextFn: func(ctx context.Context, _ int) (hostv1.EventBatch, error) {
+			close(entered)
+			<-ctx.Done()
+			<-release
+			return hostv1.EventBatch{}, ctx.Err()
+		},
+		closeFn: func(context.Context) error {
+			closeStarted <- struct{}{}
+			return nil
+		},
+	}
+	l := newLifecycle(func(string, any) {})
+	showCalls, focusCalls := 0, 0
+	w := &fakeWindow{id: 42, name: "main", showCalls: &showCalls, focusCalls: &focusCalls}
+	var shown int
+	d := &Desktop{window: w, lifecycle: l, emit: func(string, any) { shown++ }}
+	cap := newMediaCapability(42, "token")
+	svc := NewRuntimeService(h, func(string, any) {})
+	svc.cap = cap
+	svc.closeAdmission = l.closeAdmission
+	svc.onShutdownStart = l.beginTeardown
+	svc.onShutdownErr = l.recordTeardown
+	if err := svc.ServiceStartup(context.Background(), applicationServiceOptions()); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err := svc.shutdown(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("bounded shutdown error = %v, want deadline", err)
+	}
+	if _, ok := cap.tokenFor(42); ok {
+		t.Fatal("capability remained valid after shutdown admission closed")
+	}
+	d.lifecycle.requestReopen(d.reopen)
+	if showCalls != 0 || focusCalls != 0 || shown != 0 {
+		t.Fatalf("pending drain reopened the window: show=%d focus=%d events=%d", showCalls, focusCalls, shown)
+	}
+	if finished, teardownErr := l.teardownState(); finished || teardownErr != nil {
+		t.Fatalf("pending drain was reported complete: finished=%t err=%v", finished, teardownErr)
+	}
+	select {
+	case <-closeStarted:
+		t.Fatal("host closed before the blocked pump drained")
+	default:
+	}
+	close(release)
+	if err := svc.shutdown(context.Background()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("retained shutdown result = %v, want deadline", err)
+	}
+	if got := h.closeCallCount(); got != 1 {
+		t.Fatalf("host close calls after drain = %d, want one", got)
+	}
+	if finished, teardownErr := l.teardownState(); !finished || !errors.Is(teardownErr, context.DeadlineExceeded) {
+		t.Fatalf("completed drain state = (%t, %v), want retained timeout", finished, teardownErr)
+	}
+}
+
+func TestShutdownIdempotentOutcome(t *testing.T) {
+	hostErr := errors.New("close failed")
+	h := &fakeHost{closeFn: func(context.Context) error { return hostErr }}
+	svc := NewRuntimeService(h, func(string, any) {})
+	first := svc.ServiceShutdown()
+	second := svc.ServiceShutdown()
+	if !errors.Is(first, hostErr) || !errors.Is(second, hostErr) {
+		t.Fatalf("shutdown outcomes differ: first=%v second=%v", first, second)
+	}
+	if got := h.closeCallCount(); got != 1 {
+		t.Fatalf("host Close called %d times, want once", got)
+	}
+}
+
+func TestPumpCallbackFailureRetained(t *testing.T) {
+	boom := errors.New("event consumer panicked")
+	h := &fakeHost{batches: []hostv1.EventBatch{{Events: []hostv1.Notification{{Method: "run.delta"}}}}}
+	svc := NewRuntimeService(h, func(string, any) { panic(boom) })
+	svc.pumpDone = make(chan struct{})
+	var panicValue any
+	func() {
+		defer func() { panicValue = recover() }()
+		svc.pump(context.Background())
+	}()
+	if panicValue != nil {
+		t.Fatalf("pump allowed emitter panic to escape: %v", panicValue)
+	}
+	if err := svc.ServiceShutdown(); !errors.Is(err, boom) {
+		t.Fatalf("shutdown error = %v, want retained emitter panic", err)
+	}
+}
+
+func TestPumpFailureAfterCallerDeadlineIsRetained(t *testing.T) {
+	boom := errors.New("late emitter panic")
+	emitterEntered := make(chan struct{})
+	releaseEmitter := make(chan struct{})
+	h := &fakeHost{batches: []hostv1.EventBatch{{Events: []hostv1.Notification{{Method: "run.delta"}}}}}
+	svc := NewRuntimeService(h, func(string, any) {
+		close(emitterEntered)
+		<-releaseEmitter
+		panic(boom)
+	})
+	if err := svc.ServiceStartup(context.Background(), applicationServiceOptions()); err != nil {
+		t.Fatal(err)
+	}
+	<-emitterEntered
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := svc.shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("initial shutdown error = %v, want deadline", err)
+	}
+	close(releaseEmitter)
+	err := svc.shutdown(context.Background())
+	if !errors.Is(err, boom) {
+		t.Fatalf("retained shutdown error = %v, want late pump failure", err)
+	}
+}
+
+func TestShutdownRevokesCapability(t *testing.T) {
+	cap := newMediaCapability(42, "tok")
+	svc := NewRuntimeService(&fakeHost{}, func(string, any) {})
+	svc.cap = cap
+	if err := svc.ServiceShutdown(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cap.tokenFor(42); ok {
+		t.Fatal("shutdown retained the native window capability")
 	}
 }
 

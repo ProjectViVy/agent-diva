@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,7 +61,9 @@ type RuntimeService struct {
 
 	// onShutdownErr records the coordinator outcome for PostShutdown;
 	// set by the desktop during Compose.
-	onShutdownErr func(error)
+	onShutdownErr   func(error)
+	onShutdownStart func()
+	closeAdmission  func()
 
 	// cap issues the media token only to the bound main window (W3-3/W3-5).
 	cap *mediaCapability
@@ -69,25 +72,40 @@ type RuntimeService struct {
 	// the speech/credential/asset table.
 	dispatch map[string]func(ctx context.Context, payload json.RawMessage) (json.RawMessage, error)
 
+	pumpMu     sync.Mutex
 	pumpCancel context.CancelFunc
 	pumpDone   chan struct{}
 	pumpOnce   sync.Once
 
+	stateMu         sync.Mutex
+	pumpErr         error
+	shutdownErr     error
+	shutdownStarted bool
+	shutdownOnce    sync.Once
+	shutdownDone    chan struct{}
+
 	// onShutdown runs before the host close (W4: speech teardown joins
-	// in-flight requests); set by the desktop during Compose.
-	onShutdown func()
+	// in-flight requests), consuming the exact same deadline.
+	onShutdown func(context.Context) error
 }
 
 // NewRuntimeService wires a host to an event emitter (app.Event.Emit or a
 // test sink).
 func NewRuntimeService(host hostAPI, emit func(name string, data any)) *RuntimeService {
-	return &RuntimeService{host: host, emit: emit}
+	return &RuntimeService{host: host, emit: emit, shutdownDone: make(chan struct{})}
 }
 
 func (s *RuntimeService) ServiceStartup(_ context.Context, _ application.ServiceOptions) error {
 	ctx, cancel := context.WithCancel(context.Background())
+	s.pumpMu.Lock()
+	if s.pumpDone != nil {
+		s.pumpMu.Unlock()
+		cancel()
+		return fmt.Errorf("runtime event pump already started")
+	}
 	s.pumpCancel = cancel
 	s.pumpDone = make(chan struct{})
+	s.pumpMu.Unlock()
 	go s.pump(ctx)
 	return nil
 }
@@ -95,50 +113,178 @@ func (s *RuntimeService) ServiceStartup(_ context.Context, _ application.Service
 // ServiceShutdown is the single teardown coordinator: stop the producer
 // (pump), then close the host under one deadline and report honestly.
 func (s *RuntimeService) ServiceShutdown() error {
-	s.stopPump()
-	if s.onShutdown != nil {
-		s.onShutdown()
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), hostv1.CloseBudget)
 	defer cancel()
-	err := s.host.Close(ctx)
-	if s.onShutdownErr != nil {
-		s.onShutdownErr(err)
-	}
-	return err
+	return s.shutdown(ctx)
 }
 
-func (s *RuntimeService) stopPump() {
-	s.pumpOnce.Do(func() {
-		if s.pumpCancel != nil {
-			s.pumpCancel()
+// shutdown elects one worker to own teardown. A caller returns at its
+// deadline, while the worker retains the host and pump until producer drain
+// makes it safe to close them.
+func (s *RuntimeService) shutdown(ctx context.Context) error {
+	s.shutdownOnce.Do(func() {
+		s.stateMu.Lock()
+		s.shutdownStarted = true
+		s.stateMu.Unlock()
+		if s.closeAdmission != nil {
+			s.closeAdmission()
 		}
-		if s.pumpDone != nil {
-			<-s.pumpDone
+		if s.cap != nil {
+			s.cap.revoke()
+		}
+		if s.onShutdownStart != nil {
+			s.onShutdownStart()
+		}
+		go s.runShutdown(ctx)
+	})
+
+	select {
+	case <-s.shutdownDone:
+		return s.shutdownOutcome()
+	case <-ctx.Done():
+		select {
+		case <-s.shutdownDone:
+			return s.shutdownOutcome()
+		default:
+			return ctx.Err()
+		}
+	}
+}
+
+func (s *RuntimeService) runShutdown(ctx context.Context) {
+	joined := s.stopPump(ctx)
+	s.waitPumpDrain()
+	joined = errors.Join(joined, s.currentPumpError())
+	if s.onShutdown != nil {
+		if err := s.onShutdown(ctx); err != nil {
+			joined = errors.Join(joined, fmt.Errorf("speech shutdown: %w", err))
+		}
+	}
+	if s.host != nil {
+		if err := s.host.Close(ctx); err != nil {
+			joined = errors.Join(joined, fmt.Errorf("VIVY host close: %w", err))
+		}
+	}
+	s.stateMu.Lock()
+	s.shutdownErr = joined
+	s.stateMu.Unlock()
+	if s.onShutdownErr != nil {
+		s.onShutdownErr(joined)
+	}
+	close(s.shutdownDone)
+}
+
+func (s *RuntimeService) stopPump(ctx context.Context) error {
+	s.pumpMu.Lock()
+	cancel, done := s.pumpCancel, s.pumpDone
+	s.pumpMu.Unlock()
+	s.pumpOnce.Do(func() {
+		if cancel != nil {
+			cancel()
 		}
 	})
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *RuntimeService) waitPumpDrain() {
+	s.pumpMu.Lock()
+	done := s.pumpDone
+	s.pumpMu.Unlock()
+	if done != nil {
+		<-done
+	}
+}
+
+func (s *RuntimeService) recordPumpError(err error) {
+	if err == nil {
+		return
+	}
+	s.stateMu.Lock()
+	s.pumpErr = errors.Join(s.pumpErr, err)
+	s.stateMu.Unlock()
+}
+
+func (s *RuntimeService) currentPumpError() error {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	return s.pumpErr
+}
+
+func (s *RuntimeService) shutdownOutcome() error {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	return s.shutdownErr
+}
+
+func (s *RuntimeService) awaitShutdown() error {
+	s.stateMu.Lock()
+	started := s.shutdownStarted
+	s.stateMu.Unlock()
+	if !started {
+		return nil
+	}
+	<-s.shutdownDone
+	return s.shutdownOutcome()
 }
 
 // pump drains blocking Next and forwards notifications on vivy:event. A
 // sticky gap and terminal loss are reported as bridge events.
 func (s *RuntimeService) pump(ctx context.Context) {
-	defer close(s.pumpDone)
+	s.pumpMu.Lock()
+	done := s.pumpDone
+	s.pumpMu.Unlock()
+	if done != nil {
+		defer close(done)
+	}
 	for {
 		batch, err := s.host.Next(ctx, nextBatchLimit)
+		if ctx.Err() != nil {
+			return
+		}
 		if err != nil {
-			if ctx.Err() != nil {
-				return
+			s.recordPumpError(fmt.Errorf("event pump next: %w", err))
+			if emitErr := s.emitPumpEvent(wireEvent{Kind: "bridge", Status: "lost"}); emitErr != nil {
+				s.recordPumpError(emitErr)
 			}
-			s.emit(eventChannel, wireEvent{Kind: "bridge", Status: "lost"})
 			return
 		}
 		if batch.Gap {
-			s.emit(eventChannel, wireEvent{Kind: "bridge", Status: "gap"})
+			if err := s.emitPumpEvent(wireEvent{Kind: "bridge", Status: "gap"}); err != nil {
+				s.recordPumpError(err)
+				return
+			}
 		}
 		for _, n := range batch.Events {
-			s.emit(eventChannel, wireEvent{Kind: "vivy", Method: n.Method, Params: n.Params})
+			if err := s.emitPumpEvent(wireEvent{Kind: "vivy", Method: n.Method, Params: n.Params}); err != nil {
+				s.recordPumpError(err)
+				return
+			}
 		}
 	}
+}
+
+func (s *RuntimeService) emitPumpEvent(event wireEvent) (err error) {
+	defer func() {
+		if value := recover(); value != nil {
+			if cause, ok := value.(error); ok {
+				err = fmt.Errorf("event pump emitter panic: %w", cause)
+			} else {
+				err = fmt.Errorf("event pump emitter panic: %v", value)
+			}
+		}
+	}()
+	if s.emit != nil {
+		s.emit(eventChannel, event)
+	}
+	return nil
 }
 
 // VivyCall is the single bound RPC forward — verbatim pass-through to the
