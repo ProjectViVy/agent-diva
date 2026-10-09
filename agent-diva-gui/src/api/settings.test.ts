@@ -36,16 +36,22 @@ vi.mock('./vivy/instance', () => ({
       results.store.set(id, next)
       return next
     }),
-    providerDelete: vi.fn(async () => ({ deleted: true })),
-    providerRefresh: vi.fn(async () => ({
-      id: 'custom-x1',
-      display_name: 'x',
-      bundle: 'openai-completions',
-      base_url: 'https://x/v1',
-      default_model: 'm1',
-      models: ['m1', 'm2'],
-      api_key_set: true,
-    })),
+    providerDelete: vi.fn(async (id: string) => {
+      calls.push({ method: 'settings/providers/delete', params: { id } })
+      return { deleted: true }
+    }),
+    providerRefresh: vi.fn(async (params: unknown) => {
+      calls.push({ method: 'settings/providers/refresh', params })
+      return {
+        id: 'custom-x1',
+        display_name: 'x',
+        bundle: 'openai-completions',
+        base_url: 'https://x/v1',
+        default_model: 'm1',
+        models: ['m1', 'm2'],
+        api_key_set: true,
+      }
+    }),
     modelSelect: vi.fn(async (params: unknown) => {
       calls.push({ method: 'settings/model/select', params })
       return results.providers
@@ -57,6 +63,10 @@ import {
   loadProviderState,
   saveActiveProvider,
   addProviderModel,
+  deleteCustomProvider,
+  getProviderModels,
+  testProviderModel,
+  createCustomProvider,
 } from './settings'
 
 const catalog = [
@@ -232,5 +242,178 @@ describe('settings adapter (DN-3 slice A)', () => {
       id: 'prov-sensenova',
       models: expect.arrayContaining(['sensenova-6.8-flash-lite', 'sensenova-6.8-pro', 'm3']),
     })
+  })
+
+  it('fails closed for a keyed custom deferred profile and blocks execution RPCs', async () => {
+    const deferredEntry = {
+      ...entry,
+      id: 'custom-responses',
+      display_name: 'Deferred Responses',
+      bundle: 'openai-responses',
+      base_url: 'https://responses.example/v1',
+      api_key_set: true,
+    }
+    const deferredProfile = {
+      id: 'openai-responses',
+      adapter_family: 'openai-responses',
+      endpoint_class: 'native',
+      model_ids: ['response-model'],
+      state: 'DEFERRED-INDEFINITE',
+    }
+    results.providers = baseProviders({
+      entries: [entry, deferredEntry],
+      profiles: [...baseProviders().profiles, deferredProfile],
+      active_provider: 'openai-responses',
+      active_model: 'response-model',
+      active_base_url: deferredEntry.base_url,
+      config_provider: 'openai-responses',
+      config_model: 'response-model',
+    })
+    results.settings = baseSettings({
+      provider: 'openai-responses',
+      config_provider: 'openai-responses',
+      config_model: 'response-model',
+      api_key_set: true,
+      provider_profiles: [deferredProfile],
+    })
+
+    const snapshot = await loadProviderState()
+    const deferred = snapshot.providers.find((p) => p.name === 'custom-responses')!
+    expect(deferred.executable).toBe(false)
+    expect(deferred.capability_state).toBe('DEFERRED-INDEFINITE')
+    expect(snapshot.statusReport.providers.find((p) => p.name === deferred.name)).toMatchObject({
+      current: true,
+      configured: true,
+      ready: false,
+    })
+    expect(snapshot.statusReport.doctor.ready).toBe(false)
+
+    await expect(saveActiveProvider({
+      provider: deferred.name,
+      model: 'response-model',
+      apiKey: 'typed-secret',
+    })).rejects.toThrow('DEFERRED-INDEFINITE')
+    await expect(getProviderModels(deferred.name)).rejects.toThrow('DEFERRED-INDEFINITE')
+    const test = await testProviderModel(deferred.name, 'response-model')
+    expect(test).toMatchObject({ ok: false, message: expect.stringContaining('DEFERRED-INDEFINITE') })
+    expect(calls).toEqual([])
+  })
+
+  it('marks unmatched custom adapter profiles unavailable', async () => {
+    const unknownEntry = {
+      ...entry,
+      id: 'custom-unknown',
+      bundle: 'future-adapter',
+      base_url: 'https://unknown.example/v1',
+    }
+    results.providers = baseProviders({ entries: [entry, unknownEntry] })
+
+    const snapshot = await loadProviderState()
+    const unknown = snapshot.providers.find((p) => p.name === 'custom-unknown')!
+    expect(unknown.executable).toBe(false)
+    expect(unknown.capability_state).toBe('UNAVAILABLE')
+    expect(snapshot.statusReport.providers.find((p) => p.name === unknown.name)?.ready).toBe(false)
+  })
+
+  it('lets a false catalog endpoint override a supported profile', async () => {
+    const responseEndpoint = {
+      adapter: 'openai-responses',
+      base_url: 'https://responses.example/v1',
+      default_model: 'response-model',
+      models: ['response-model'],
+      executable: false,
+      state: 'DEFERRED-INDEFINITE',
+    }
+    results.providers = baseProviders({
+      catalog: [...catalog, {
+        vendor: 'responses',
+        display_name: 'Responses',
+        endpoints: [responseEndpoint],
+      }],
+      profiles: [
+        ...baseProviders().profiles,
+        {
+          id: 'openai-responses',
+          adapter_family: 'openai-responses',
+          endpoint_class: 'native',
+          model_ids: ['response-model'],
+          state: 'READY',
+        },
+      ],
+    })
+
+    const snapshot = await loadProviderState()
+    const response = snapshot.providers.find((p) => p.name === 'responses')!
+    expect(response.executable).toBe(false)
+    expect(response.capability_state).toBe('DEFERRED-INDEFINITE')
+  })
+
+  it('uses fresh backend profiles when projecting a newly created custom provider', async () => {
+    results.providers = baseProviders({ profiles: [] })
+    const created = await createCustomProvider({
+      id: 'custom-new',
+      displayName: 'New Custom',
+      apiBase: 'https://new.example/v1',
+      apiKey: 'typed-secret',
+      defaultModel: 'model-x',
+    })
+
+    expect(created.executable).toBe(false)
+    expect(created.capability_state).toBe('UNAVAILABLE')
+    expect(calls.map((call) => call.method)).toEqual(['settings/providers/upsert'])
+  })
+
+  it('keeps supported unconfigured providers configurable', async () => {
+    const unconfiguredProfile = {
+      id: 'openai-completions',
+      adapter_family: 'openai-completions',
+      endpoint_class: 'native',
+      model_ids: [],
+      state: 'UNCONFIGURED',
+    }
+    results.providers = baseProviders({
+      entries: [{ ...entry, api_key_set: false }],
+      profiles: [unconfiguredProfile],
+    })
+    results.settings = baseSettings({ api_key_set: false, provider_profiles: [unconfiguredProfile] })
+
+    const snapshot = await loadProviderState()
+    const supported = snapshot.providers.find((p) => p.name === 'deepseek')!
+    expect(supported.executable).toBe(true)
+    expect(supported.capability_state).toBe('UNCONFIGURED')
+    expect(snapshot.statusReport.providers.find((p) => p.name === supported.name)).toMatchObject({
+      configured: false,
+      ready: false,
+      missing_fields: ['api_key'],
+    })
+
+    await saveActiveProvider({ provider: 'deepseek', model: 'deepseek-chat', apiKey: 'sk-test' })
+    expect(calls.map((call) => call.method)).toEqual([
+      'settings/providers/upsert',
+      'settings/providers/upsert',
+      'settings/model/select',
+    ])
+  })
+
+  it('keeps deferred entries readable and deletable', async () => {
+    const deferredEntry = { ...entry, id: 'custom-responses', bundle: 'openai-responses' }
+    const deferredProfile = {
+      id: 'openai-responses',
+      adapter_family: 'openai-responses',
+      endpoint_class: 'native',
+      model_ids: [],
+      state: 'DEFERRED-INDEFINITE',
+    }
+    results.providers = baseProviders({
+      entries: [entry, deferredEntry],
+      profiles: [...baseProviders().profiles, deferredProfile],
+    })
+    const snapshot = await loadProviderState()
+    expect(snapshot.entryByName['custom-responses'].id).toBe('custom-responses')
+    await deleteCustomProvider('custom-responses')
+    expect(calls).toEqual([{
+      method: 'settings/providers/delete',
+      params: { id: 'custom-responses' },
+    }])
   })
 })

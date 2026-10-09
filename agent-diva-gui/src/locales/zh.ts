@@ -576,6 +576,7 @@ export default {
     none: '无',
     unresolved: '未解析',
     currentTag: '当前',
+    capabilityUnavailable: '当前版本无法执行此供应商（{state}）。',
     createProviderTitle: '添加供应商',
     createProviderHint: '创建一个兼容 OpenAI 的自定义供应商，并在保存后立即切换到它。',
     createProviderAction: '添加供应商',

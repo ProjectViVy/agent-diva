@@ -9,6 +9,8 @@ interface ProviderSpec {
   name: string;
   display_name: string;
   default_api_base: string;
+  executable: boolean;
+  capability_state: string;
 }
 
 interface WizardData {
@@ -63,7 +65,7 @@ const currentStepIndex = computed(() =>
 );
 
 const canNext = computed(() => {
-  if (currentStep.value === 'select') return formData.value.selectedProvider;
+  if (currentStep.value === 'select') return Boolean(selectedProviderSpec.value?.executable);
   if (currentStep.value === 'apikey') return formData.value.apiKey.length > 0;
   if (currentStep.value === 'apibase') return true;
   if (currentStep.value === 'test') return testResult.value === 'success';
@@ -75,6 +77,7 @@ const selectedProviderSpec = computed(() =>
 );
 
 const nextStep = () => {
+  if (currentStep.value === 'select' && !selectedProviderSpec.value?.executable) return;
   const currentIndex = currentStepIndex.value;
   if (currentIndex < steps.length - 1) {
     currentStep.value = steps[currentIndex + 1].key;
@@ -95,6 +98,7 @@ const prevStep = () => {
 };
 
 const testConnection = async () => {
+  if (!selectedProviderSpec.value?.executable) return;
   isTesting.value = true;
   testResult.value = 'idle';
   testMessage.value = '';
@@ -114,6 +118,7 @@ const testConnection = async () => {
 };
 
 const complete = () => {
+  if (!selectedProviderSpec.value?.executable) return;
   emit('complete', { ...formData.value });
   emit('update:open', false);
 };
@@ -209,10 +214,18 @@ watch(() => props.initialData, (newData) => {
                   v-for="provider in providers" 
                   :key="provider.name"
                   :value="provider.name"
+                  :disabled="!provider.executable"
                 >
-                  {{ provider.display_name }}
+                  {{ provider.executable ? provider.display_name : `${provider.display_name} — ${provider.capability_state}` }}
                 </option>
               </select>
+              <p
+                v-if="selectedProviderSpec && !selectedProviderSpec.executable"
+                role="status"
+                class="wizard-hint text-amber-700 dark:text-amber-300"
+              >
+                {{ t('providers.capabilityUnavailable', { state: selectedProviderSpec.capability_state }) }}
+              </p>
             </div>
             
             <!-- Step 2: API Key -->
@@ -257,7 +270,7 @@ watch(() => props.initialData, (newData) => {
                 <button
                   class="wizard-test-btn"
                   @click="testConnection"
-                  :disabled="isTesting"
+                  :disabled="isTesting || !selectedProviderSpec?.executable"
                 >
                   <LoaderCircle v-if="isTesting" :size="16" class="animate-spin" />
                   <PlugZap v-else :size="16" />

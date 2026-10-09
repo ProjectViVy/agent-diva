@@ -344,7 +344,7 @@ const setSelectedProvider = async (provider: ProviderSpec) => {
 };
 
 const openManualModelDialog = () => {
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value?.executable) return;
   manualModelName.value = '';
   isManualModelDialogOpen.value = true;
 };
@@ -392,6 +392,10 @@ const createProvider = async () => {
       defaultModel,
       models: [defaultModel],
     });
+    if (!provider.executable) {
+      showAppToast(t('providers.capabilityUnavailable', { state: provider.capability_state }), 'error');
+      return;
+    }
 
     providerApiKeys.value[id] = apiKey;
     providerApiBases.value[id] = apiBase;
@@ -418,7 +422,7 @@ const createProvider = async () => {
 };
 
 const refreshSelectedProviderModels = async () => {
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value?.executable) return;
 
   const provider = selectedProvider.value;
   const apiBase = providerApiBases.value[provider.name] || provider.default_api_base || null;
@@ -586,7 +590,7 @@ const shouldShowTestAction = (providerName: string, modelName: string) => {
 };
 
 const testModelConnection = async (modelName: string) => {
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value?.executable) return;
   const provider = selectedProvider.value;
   const providerName = provider.name;
   const apiBase = providerApiBases.value[providerName] || provider.default_api_base || null;
@@ -629,7 +633,7 @@ const testModelConnection = async (modelName: string) => {
 
 const toggleModel = async (modelName: string) => {
   if (isSavingConfig.value) return;
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value?.executable) return;
   const provider = selectedProvider.value;
   const trimmedModelName = modelName.trim();
 
@@ -665,7 +669,7 @@ const removeCurrentModel = () => {
 };
 
 const addManualModel = async () => {
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value?.executable) return;
   const trimmedModelName = manualModelName.value.trim();
   if (!trimmedModelName) return;
 
@@ -793,7 +797,7 @@ const updateProviderApiBase = (apiBase: string) => {
 };
 
 const saveProviderConfig = async () => {
-  if (isSavingConfig.value || !isDirty.value) return;
+  if (!selectedProvider.value?.executable || isSavingConfig.value || !isDirty.value) return;
   isSavingConfig.value = true;
   try {
     await props.saveConfigAction({ ...localConfig.value });
@@ -930,6 +934,13 @@ watch(searchTerm, () => {
                 <div>
                     <h3 class="text-xl font-bold settings-label">{{ selectedProvider.display_name }}</h3>
                     <p class="text-sm settings-muted">{{ selectedProvider.default_api_base || t('providers.customApi') }}</p>
+                    <p
+                      v-if="!selectedProvider.executable"
+                      role="status"
+                      class="mt-1 text-xs text-amber-700 dark:text-amber-300"
+                    >
+                      {{ t('providers.capabilityUnavailable', { state: selectedProvider.capability_state }) }}
+                    </p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -945,7 +956,7 @@ watch(searchTerm, () => {
               <button
                 type="button"
                 class="btn-save-config settings-btn"
-                :disabled="isSavingConfig || !isDirty"
+                :disabled="!selectedProvider.executable || isSavingConfig || !isDirty"
                 @click="saveProviderConfig"
               >
                 <LoaderCircle v-if="isSavingConfig" :size="16" class="animate-spin" />
@@ -1049,6 +1060,7 @@ watch(searchTerm, () => {
                 type="button"
                 class="settings-btn settings-btn-secondary h-8 px-2"
                 :title="t('providers.manualModelTitle')"
+                :disabled="!selectedProvider.executable"
                 @click="openManualModelDialog"
               >
                 <Plus :size="14" />
@@ -1056,7 +1068,7 @@ watch(searchTerm, () => {
               <button
                 type="button"
                 class="settings-btn settings-btn-secondary text-xs h-8"
-                :disabled="isRefreshing"
+                :disabled="!selectedProvider.executable || isRefreshing"
                 @click="refreshSelectedProviderModels"
               >
                 <RefreshCcw :size="14" :class="isRefreshing ? 'animate-spin' : ''" />
@@ -1074,7 +1086,8 @@ watch(searchTerm, () => {
               :key="model"
               @click="toggleModel(model)"
               class="providers-model-card"
-              :class="{ selected: isModelSaved(selectedProvider.name, model) }"
+              :class="{ selected: isModelSaved(selectedProvider.name, model), 'opacity-60 cursor-not-allowed': !selectedProvider.executable }"
+              :aria-disabled="!selectedProvider.executable"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
@@ -1100,7 +1113,7 @@ watch(searchTerm, () => {
                     type="button"
                     class="settings-btn settings-btn-secondary h-7 w-7 !p-0"
                     :class="shouldShowTestAction(selectedProvider.name, model) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
-                    :disabled="modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
+                    :disabled="!selectedProvider.executable || modelTestStatusFor(selectedProvider.name, model).state === 'testing'"
                     :title="t('providers.testConnection')"
                     @click.stop="testModelConnection(model)"
                   >
@@ -1174,7 +1187,7 @@ watch(searchTerm, () => {
             <button
               type="button"
               class="settings-btn settings-btn-primary"
-              :disabled="manualModelName.trim().length === 0"
+              :disabled="!selectedProvider.executable || manualModelName.trim().length === 0"
               @click="addManualModel"
             >
               {{ t('providers.manualModelAdd') }}

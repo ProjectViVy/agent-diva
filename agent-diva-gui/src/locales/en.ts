@@ -770,6 +770,7 @@ export default {
     none: 'None',
     unresolved: 'Unresolved',
     currentTag: 'CURRENT',
+    capabilityUnavailable: 'Execution unavailable in this build ({state}).',
     createProviderTitle: 'Add Provider',
     createProviderHint: 'Create a custom OpenAI-compatible provider and switch to it immediately.',
     createProviderAction: 'Add Provider',

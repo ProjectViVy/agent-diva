@@ -14,6 +14,8 @@ interface ProviderCardItem {
   apiBase?: string;
   apiKey?: string;
   isCustom?: boolean;
+  executable: boolean;
+  capabilityState: string;
 }
 
 const props = defineProps<{
@@ -38,6 +40,8 @@ const mapToCardProps = (provider: ProviderCardItem) => ({
   apiBase: provider.apiBase,
   apiKey: provider.apiKey,
   isCustom: provider.isCustom,
+  executable: provider.executable,
+  capabilityState: provider.capabilityState,
 });
 </script>
 

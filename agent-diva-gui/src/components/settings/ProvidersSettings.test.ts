@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import ProvidersSettings from './ProvidersSettings.vue';
+import { getProviderModels, loadProviderState, testProviderModel } from '../../api/settings';
 
 const provider = {
   name: 'deepseek',
@@ -11,6 +12,8 @@ const provider = {
   default_api_base: 'https://api.deepseek.com/v1',
   models: ['deepseek-chat', 'deepseek-reasoner'],
   custom_models: [],
+  executable: true,
+  capability_state: 'READY',
 };
 
 vi.mock('vue-i18n', () => ({
@@ -74,14 +77,6 @@ vi.mock('../../api/settings', () => ({
 vi.mock('../../utils/appDialog', () => ({ appConfirm: vi.fn() }));
 vi.mock('../../utils/appToast', () => ({ showAppToast: vi.fn() }));
 vi.mock('./ProviderWizardModal.vue', () => ({ default: { template: '<div />' } }));
-vi.mock('./ProviderListItem.vue', () => ({
-  default: {
-    props: ['provider'],
-    emits: ['select', 'delete'],
-    template: '<button @click="$emit(\'select\', provider)">{{ provider.display_name }}</button>',
-  },
-}));
-
 describe('ProvidersSettings', () => {
   it('persists the selected model immediately when its card is clicked', async () => {
     const saveConfigAction = vi.fn(() => Promise.resolve());
@@ -120,5 +115,74 @@ describe('ProvidersSettings', () => {
         model: 'deepseek-reasoner',
       }),
     ]);
+  });
+
+  it('keeps deferred providers visible and deletable while blocking execution actions', async () => {
+    const deferredProvider = {
+      ...provider,
+      name: 'custom-responses',
+      api_type: 'openai-responses',
+      source: 'custom',
+      display_name: 'Deferred Responses',
+      default_model: 'response-model',
+      default_api_base: 'https://responses.example/v1',
+      models: ['response-model'],
+      executable: false,
+      capability_state: 'DEFERRED-INDEFINITE',
+    };
+    vi.mocked(loadProviderState).mockResolvedValueOnce({
+      providers: [deferredProvider],
+      statusReport: {
+        config: {},
+        default_provider: 'custom-responses',
+        default_model: 'response-model',
+        logging: {},
+        providers: [],
+        channels: [],
+        cron_jobs: 0,
+        mcp_servers: { configured: 0, disabled: 0 },
+        doctor: { valid: true, ready: false, errors: [], warnings: [] },
+      },
+      providerConfigs: {},
+      runtime: { provider: 'custom-responses', apiBase: deferredProvider.default_api_base, model: 'response-model', apiKeySet: true },
+      entryByName: {},
+      keySetByName: { 'custom-responses': true },
+      readOnly: false,
+      frozen: false,
+    } as never);
+
+    const saveConfigAction = vi.fn(() => Promise.resolve());
+    const wrapper = mount(ProvidersSettings, {
+      props: {
+        config: {
+          provider: 'another-provider',
+          apiBase: '',
+          apiKey: '',
+          model: 'other-model',
+        },
+        providerConfigs: {},
+        savedModels: [],
+        saveConfigAction,
+      },
+    });
+
+    await flushPromises();
+    const row = wrapper.find('.providers-list-item');
+    expect(row.text()).toContain('Deferred Responses');
+    expect(row.find('[title="DEFERRED-INDEFINITE"]').exists()).toBe(true);
+    expect(row.find('[title="providers.deleteProvider"]').exists()).toBe(true);
+
+    const modelCard = wrapper.find('.providers-model-card');
+    expect(modelCard.text()).toContain('response-model');
+    await modelCard.trigger('click');
+    expect(saveConfigAction).not.toHaveBeenCalled();
+
+    expect(wrapper.find('button[title="providers.testConnection"]').attributes('disabled')).toBeDefined();
+    const refreshButton = wrapper.findAll('button').find((button) => button.text().includes('providers.refreshModels'));
+    expect(refreshButton?.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('button[title="providers.manualModelTitle"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.btn-save-config').attributes('disabled')).toBeDefined();
+    expect(getProviderModels).not.toHaveBeenCalled();
+    expect(testProviderModel).not.toHaveBeenCalled();
   });
 });

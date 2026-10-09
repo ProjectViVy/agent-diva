@@ -13,6 +13,8 @@ interface ProviderSpec {
   default_api_base: string;
   models: string[];
   custom_models: string[];
+  executable: boolean;
+  capability_state: string;
 }
 
 interface ProviderStatusItem {
@@ -63,6 +65,13 @@ const isSelected = () => props.selectedProvider?.name === props.provider.name;
           <div class="text-[10px] uppercase tracking-wider opacity-70 flex flex-wrap items-center gap-1 providers-tag api-type">
             <span>{{ provider.api_type || t('providers.standardApi') }}</span>
             <span v-if="status?.current" class="providers-tag current">{{ t('providers.currentTag') }}</span>
+          </div>
+          <div
+            v-if="!provider.executable"
+            class="mt-1 text-[10px] text-amber-700 dark:text-amber-300"
+            :title="provider.capability_state"
+          >
+            {{ t('providers.capabilityUnavailable', { state: provider.capability_state }) }}
           </div>
         </div>
       </div>

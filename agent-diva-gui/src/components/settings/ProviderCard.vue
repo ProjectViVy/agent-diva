@@ -14,6 +14,8 @@ interface ProviderCardProps {
   apiBase?: string;
   apiKey?: string;
   isCustom?: boolean;
+  executable: boolean;
+  capabilityState: string;
 }
 
 const props = withDefaults(defineProps<ProviderCardProps>(), {
@@ -83,6 +85,9 @@ const statusConfig = computed(() => {
       <p v-if="currentModel" class="providers-card-model">
         {{ currentModel }}
       </p>
+      <p v-if="!executable" class="providers-card-api-base capability-state">
+        {{ t('providers.capabilityUnavailable', { state: capabilityState }) }}
+      </p>
       <p v-else-if="apiBase" class="providers-card-api-base">
         {{ apiBase }}
       </p>
@@ -99,7 +104,7 @@ const statusConfig = computed(() => {
         class="providers-card-action-btn"
         :title="t('providers.testConnection')"
         @click.stop="emit('test')"
-        :disabled="isTesting"
+        :disabled="isTesting || !executable"
       >
         <LoaderCircle v-if="isTesting" :size="14" class="animate-spin" />
         <PlugZap v-else :size="14" />
@@ -191,6 +196,11 @@ const statusConfig = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.capability-state {
+  color: var(--warning, #a16207);
+  white-space: normal;
 }
 
 .providers-card-actions {

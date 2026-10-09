@@ -19,7 +19,9 @@ import { vivyClient } from './vivy/instance'
 import type {
   ProviderUpsertParams,
   VivyCatalogEntry,
+  VivyCatalogEndpoint,
   VivyProviderEntryResult,
+  VivyProviderProfileStatus,
   VivyProvidersResult,
   VivySettingsResult,
 } from './vivy/contracts'
@@ -37,8 +39,15 @@ export interface ProviderSpec {
   default_api_base: string
   models: string[]
   custom_models: string[]
-  /** False when the sealed adapter is DEFERRED-INDEFINITE in this Generation. */
-  executable?: boolean
+  /** True only when the current backend Generation can execute this adapter. */
+  executable: boolean
+  /** Backend capability/profile state shown to the operator verbatim. */
+  capability_state: string
+}
+
+interface ProviderCapability {
+  executable: boolean
+  state: string
 }
 
 export interface ProviderConfigEntry {
@@ -96,6 +105,26 @@ const LEGACY_ADAPTER_ALIASES: Record<string, string> = {
 
 const normalizeAdapter = (value: string) => LEGACY_ADAPTER_ALIASES[value] ?? value
 
+const EXECUTABLE_PROFILE_STATES = new Set(['COMPILED', 'UNCONFIGURED', 'READY'])
+
+function resolveProviderCapability(
+  adapter: string,
+  endpoint: VivyCatalogEndpoint | undefined,
+  profiles: readonly VivyProviderProfileStatus[],
+): ProviderCapability {
+  if (endpoint && !endpoint.executable) {
+    return { executable: false, state: endpoint.state || 'UNAVAILABLE' }
+  }
+
+  const matching = profiles.filter(
+    (profile) => normalizeAdapter(profile.adapter_family) === normalizeAdapter(adapter),
+  )
+  if (matching.length !== 1) return { executable: false, state: 'UNAVAILABLE' }
+
+  const state = matching[0].state || 'UNAVAILABLE'
+  return { executable: EXECUTABLE_PROFILE_STATES.has(state), state }
+}
+
 const endpointMatchesEntry = (
   entry: VivyProviderEntryResult,
   adapter: string,
@@ -113,7 +142,7 @@ function buildSpec(
   catalogModels: string[],
   entry: VivyProviderEntryResult | undefined,
   source: 'builtin' | 'custom',
-  executable: boolean,
+  capability: ProviderCapability,
 ): ProviderSpec {
   const entryOnly = entry ? entry.models.filter((m) => !catalogModels.includes(m)) : []
   return {
@@ -125,7 +154,8 @@ function buildSpec(
     default_api_base: entry?.base_url || baseUrl,
     models: [...new Set([...catalogModels, ...(entry?.models ?? [])])],
     custom_models: entryOnly,
-    executable,
+    executable: capability.executable,
+    capability_state: capability.state,
   }
 }
 
@@ -155,14 +185,11 @@ function buildStatusReport(
   prov: VivyProvidersResult,
   settings: VivySettingsResult,
 ): ConfigStatusReport {
-  const activeProfile = (settings.provider_profiles ?? []).find(
-    (p) => p.state === 'READY' || p.state === 'UNCONFIGURED',
-  )
   const providers: ProviderStatusSummary[] = specs.map((spec) => {
     const entry = entryByName[spec.name]
     const current = specIsActive(spec, prov)
     const configured = !!entry?.api_key_set || (current && settings.api_key_set)
-    const executable = spec.executable !== false
+    const executable = spec.executable
     return {
       name: spec.name,
       display_name: spec.display_name,
@@ -202,7 +229,7 @@ function buildStatusReport(
     mcp_servers: { configured: 0, disabled: 0 },
     doctor: {
       valid: true,
-      ready: activeConfigured || activeProfile?.state === 'READY',
+      ready: activeConfigured,
       errors: [],
       warnings,
     },
@@ -225,6 +252,7 @@ function projectSnapshot(
       )
       if (entry) matchedEntryIds.add(entry.id)
       const name = multi ? `${vendor.vendor}#${endpoint.adapter}` : vendor.vendor
+      const capability = resolveProviderCapability(endpoint.adapter, endpoint, prov.profiles)
       providers.push(
         buildSpec(
           name,
@@ -235,7 +263,7 @@ function projectSnapshot(
           endpoint.models,
           entry,
           'builtin',
-          endpoint.executable,
+          capability,
         ),
       )
       if (entry) entryByName[name] = entry
@@ -245,6 +273,7 @@ function projectSnapshot(
 
   for (const entry of prov.entries) {
     if (matchedEntryIds.has(entry.id)) continue
+    const capability = resolveProviderCapability(entry.bundle, undefined, prov.profiles)
     providers.push(
       buildSpec(
         entry.id,
@@ -255,7 +284,7 @@ function projectSnapshot(
         [],
         entry,
         'custom',
-        true,
+        capability,
       ),
     )
     entryByName[entry.id] = entry
@@ -319,6 +348,12 @@ async function specFor(name: string): Promise<{
   return { snapshot, spec }
 }
 
+function assertProviderExecutable(spec: ProviderSpec): void {
+  if (!spec.executable) {
+    throw new Error(`provider capability unavailable: ${spec.capability_state}`)
+  }
+}
+
 /** Materializes (or locates) the registry entry for a spec. */
 async function ensureEntry(
   spec: ProviderSpec,
@@ -352,6 +387,7 @@ export async function getProviderModels(
   _apiKey?: string | null,
 ): Promise<ProviderModelCatalog> {
   const { snapshot, spec } = await specFor(providerName)
+  assertProviderExecutable(spec)
   const entry = snapshot.entryByName[spec.name]
   const saved = entry
     ? await vivyClient.providerRefresh({ id: entry.id })
@@ -379,6 +415,7 @@ export async function testProviderModel(
   const started = Date.now()
   try {
     const { spec } = await specFor(providerName)
+    assertProviderExecutable(spec)
     const apiBaseOverride =
       apiBase && apiBase !== spec.default_api_base ? apiBase : undefined
     let entry = await ensureEntry(spec, apiBaseOverride ? { apiBase: apiBaseOverride } : {})
@@ -441,6 +478,9 @@ export async function createCustomProvider(
     models: payload.models ?? (payload.defaultModel ? [payload.defaultModel] : []),
     ...(payload.apiKey ? { api_key: payload.apiKey } : {}),
   })
+  const providers = await vivyClient.settingsProviders()
+  const capability = resolveProviderCapability(entry.bundle, undefined, providers.profiles)
+  lastSnapshot = null
   return buildSpec(
     entry.id,
     entry.display_name,
@@ -450,7 +490,7 @@ export async function createCustomProvider(
     [],
     entry,
     'custom',
-    true,
+    capability,
   )
 }
 
@@ -477,6 +517,7 @@ export async function saveActiveProvider(
   selection: ActiveProviderSelection,
 ): Promise<void> {
   const { spec } = await specFor(selection.provider)
+  assertProviderExecutable(spec)
   const apiBase = selection.apiBase?.trim()
   const entry = await ensureEntry(
     spec,
