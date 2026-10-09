@@ -144,6 +144,9 @@ func (s *RuntimeService) pump(ctx context.Context) {
 // VivyCall is the single bound RPC forward — verbatim pass-through to the
 // host with the requested timeout.
 func (s *RuntimeService) VivyCall(ctx context.Context, req CallRequest) CallReply {
+	if _, authErr := s.authorizeMainWindow(ctx); authErr != nil {
+		return CallReply{Error: authErr}
+	}
 	if req.Method == "" {
 		return CallReply{Error: &hostv1.Error{Kind: "invalid_input", Code: -32602, Message: "method is required"}}
 	}
@@ -170,12 +173,8 @@ type DispatchRequest struct {
 // DesktopDispatch routes retained native commands, gated on the bound main
 // window's native identity (W3-5: privileged bindings deny foreign windows).
 func (s *RuntimeService) DesktopDispatch(ctx context.Context, req DispatchRequest) CallReply {
-	w, ok := ctx.Value(application.WindowKey).(application.Window)
-	if !ok || s.cap == nil {
-		return CallReply{Error: &hostv1.Error{Kind: "closed", Code: -32081, Message: "no native window identity"}}
-	}
-	if _, ok := s.cap.tokenFor(w.ID()); !ok {
-		return CallReply{Error: &hostv1.Error{Kind: "closed", Code: -32081, Message: "dispatch denied for this window"}}
+	if _, authErr := s.authorizeMainWindow(ctx); authErr != nil {
+		return CallReply{Error: authErr}
 	}
 	if s.dispatch == nil || req.Command == "" {
 		return CallReply{Error: &hostv1.Error{Kind: "not_ready", Code: -32080, Message: "native command has no handler yet (lands in W4)"}}
@@ -195,13 +194,24 @@ func (s *RuntimeService) DesktopDispatch(ctx context.Context, req DispatchReques
 // binding context carries the bound main window's native identity. A forged
 // or foreign window gets nothing.
 func (s *RuntimeService) MediaToken(ctx context.Context) (string, error) {
+	token, authErr := s.authorizeMainWindow(ctx)
+	if authErr != nil {
+		return "", authErr
+	}
+	return token, nil
+}
+
+// authorizeMainWindow validates the native Wails window identity against the
+// one capability bound by the desktop. Every privileged Go binding uses this
+// helper before validating payloads or invoking handlers.
+func (s *RuntimeService) authorizeMainWindow(ctx context.Context) (string, *hostv1.Error) {
 	w, ok := ctx.Value(application.WindowKey).(application.Window)
 	if !ok || s.cap == nil {
-		return "", errors.New("no native window identity")
+		return "", &hostv1.Error{Kind: "closed", Code: -32081, Message: "no native window identity"}
 	}
 	tok, ok := s.cap.tokenFor(w.ID())
 	if !ok {
-		return "", errors.New("media capability denied for this window")
+		return "", &hostv1.Error{Kind: "closed", Code: -32081, Message: "native window authorization denied"}
 	}
 	return tok, nil
 }

@@ -29,18 +29,32 @@ func applicationServiceOptions() application.ServiceOptions {
 }
 
 type fakeHost struct {
-	callFn  func(method string, params json.RawMessage) (json.RawMessage, error)
-	batches []hostv1.EventBatch
-	nextErr error
-	closed  bool
-	mu      sync.Mutex
+	callFn      func(method string, params json.RawMessage) (json.RawMessage, error)
+	callContext func(context.Context)
+	calls       int
+	batches     []hostv1.EventBatch
+	nextErr     error
+	closed      bool
+	mu          sync.Mutex
 }
 
-func (f *fakeHost) Call(_ context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
+func (f *fakeHost) Call(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
+	f.mu.Lock()
+	f.calls++
+	f.mu.Unlock()
+	if f.callContext != nil {
+		f.callContext(ctx)
+	}
 	if f.callFn != nil {
 		return f.callFn(method, params)
 	}
 	return json.RawMessage(`{"ok":true}`), nil
+}
+
+func (f *fakeHost) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
 }
 
 func (f *fakeHost) Next(ctx context.Context, _ int) (hostv1.EventBatch, error) {
@@ -91,25 +105,139 @@ func (s *emitSink) snapshot() []wireEvent {
 }
 
 func TestVivyCallEnvelope(t *testing.T) {
+	cap := newMediaCapability(0, "tok")
+	cap.bind(42)
+	var hasDeadline bool
 	h := &fakeHost{callFn: func(method string, params json.RawMessage) (json.RawMessage, error) {
 		if method == "boom" {
 			return nil, &hostv1.Error{Kind: "rpc", Code: -32000, Message: "upstream"}
 		}
 		return json.RawMessage(`{"echo":` + string(params) + `}`), nil
+	}, callContext: func(ctx context.Context) {
+		_, hasDeadline = ctx.Deadline()
 	}}
 	svc := NewRuntimeService(h, func(string, any) {})
+	svc.cap = cap
+	main := context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42})
 
-	ok := svc.VivyCall(context.Background(), CallRequest{Method: "m", Params: json.RawMessage(`{"a":1}`)})
-	if !ok.OK || string(ok.Result) == "" {
+	ok := svc.VivyCall(main, CallRequest{Method: "m", Params: json.RawMessage(`{"a":1}`), TimeoutMs: 500})
+	if !ok.OK || string(ok.Result) != `{"echo":{"a":1}}` {
 		t.Fatalf("want ok reply, got %+v", ok)
 	}
-	bad := svc.VivyCall(context.Background(), CallRequest{Method: "boom"})
+	if !hasDeadline {
+		t.Fatal("requested timeout was not applied to host call")
+	}
+	bad := svc.VivyCall(main, CallRequest{Method: "boom"})
 	if bad.OK || bad.Error == nil || bad.Error.Kind != "rpc" || bad.Error.Code != -32000 {
 		t.Fatalf("want preserved rpc error, got %+v", bad.Error)
 	}
-	empty := svc.VivyCall(context.Background(), CallRequest{})
-	if empty.OK || empty.Error == nil || empty.Error.Kind != "invalid_input" {
+	empty := svc.VivyCall(main, CallRequest{})
+	if empty.OK || empty.Error == nil || empty.Error.Kind != "invalid_input" || empty.Error.Code != -32602 {
 		t.Fatalf("want invalid_input for empty method, got %+v", empty.Error)
+	}
+}
+
+func TestVivyCallNativeAuthorization(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  context.Context
+		cap  *mediaCapability
+	}{
+		{name: "missing identity", ctx: context.Background(), cap: newMediaCapability(42, "tok")},
+		{name: "foreign window", ctx: context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 7}), cap: newMediaCapability(42, "tok")},
+		{name: "nil capability", ctx: context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42})},
+		{name: "unbound capability", ctx: context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42}), cap: newMediaCapability(0, "tok")},
+	}
+	revoked := newMediaCapability(42, "tok")
+	revoked.revoke()
+	tests = append(tests, struct {
+		name string
+		ctx  context.Context
+		cap  *mediaCapability
+	}{name: "revoked capability", ctx: context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42}), cap: revoked})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := &fakeHost{}
+			svc := NewRuntimeService(h, func(string, any) {})
+			svc.cap = tt.cap
+			dispatchCalls := 0
+			svc.dispatch = map[string]func(context.Context, json.RawMessage) (json.RawMessage, error){
+				"privileged": func(context.Context, json.RawMessage) (json.RawMessage, error) {
+					dispatchCalls++
+					return json.RawMessage(`{}`), nil
+				},
+			}
+			reply := svc.VivyCall(tt.ctx, CallRequest{Method: "privileged.call"})
+			if reply.OK || reply.Error == nil || reply.Error.Kind != "closed" || reply.Error.Code != -32081 {
+				t.Fatalf("unauthorized call reply = %+v", reply)
+			}
+			if got := h.callCount(); got != 0 {
+				t.Fatalf("unauthorized call reached host %d times", got)
+			}
+			dispatched := svc.DesktopDispatch(tt.ctx, DispatchRequest{Command: "privileged"})
+			if dispatched.OK || dispatched.Error == nil || dispatched.Error.Kind != "closed" || dispatched.Error.Code != -32081 {
+				t.Fatalf("unauthorized dispatch reply = %+v", dispatched)
+			}
+			if dispatchCalls != 0 {
+				t.Fatalf("unauthorized dispatch reached handler %d times", dispatchCalls)
+			}
+			if token, err := svc.MediaToken(tt.ctx); token != "" || err == nil {
+				t.Fatalf("unauthorized identity received token=%q err=%v", token, err)
+			}
+		})
+	}
+}
+
+func TestPrivilegedMethodsRejectRevokedCapability(t *testing.T) {
+	cap := newMediaCapability(42, "tok")
+	cap.revoke()
+	ctx := context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42})
+	h := &fakeHost{}
+	svc := NewRuntimeService(h, func(string, any) {})
+	svc.cap = cap
+	dispatchCalls := 0
+	svc.dispatch = map[string]func(context.Context, json.RawMessage) (json.RawMessage, error){
+		"privileged": func(context.Context, json.RawMessage) (json.RawMessage, error) {
+			dispatchCalls++
+			return json.RawMessage(`{}`), nil
+		},
+	}
+
+	rpc := svc.VivyCall(ctx, CallRequest{Method: "privileged.call"})
+	if rpc.OK || rpc.Error == nil || rpc.Error.Kind != "closed" || rpc.Error.Code != -32081 || h.callCount() != 0 {
+		t.Fatalf("revoked RPC capability was not denied before host call: reply=%+v calls=%d", rpc, h.callCount())
+	}
+	dispatched := svc.DesktopDispatch(ctx, DispatchRequest{Command: "privileged"})
+	if dispatched.OK || dispatched.Error == nil || dispatched.Error.Kind != "closed" || dispatched.Error.Code != -32081 || dispatchCalls != 0 {
+		t.Fatalf("revoked dispatch capability was not denied before handler: reply=%+v handlerCalls=%d", dispatched, dispatchCalls)
+	}
+	if token, err := svc.MediaToken(ctx); token != "" || err == nil {
+		t.Fatalf("revoked capability returned token=%q err=%v", token, err)
+	}
+}
+
+func TestAuthorizationPrecedesPayloadValidation(t *testing.T) {
+	h := &fakeHost{}
+	svc := NewRuntimeService(h, func(string, any) {})
+	denied := svc.VivyCall(context.Background(), CallRequest{})
+	if denied.OK || denied.Error == nil || denied.Error.Kind != "closed" || denied.Error.Code != -32081 {
+		t.Fatalf("unauthorized empty method disclosed validation result: %+v", denied)
+	}
+	if got := h.callCount(); got != 0 {
+		t.Fatalf("unauthorized empty method reached host %d times", got)
+	}
+
+	cap := newMediaCapability(42, "tok")
+	cap.bind(42)
+	svc.cap = cap
+	main := context.WithValue(context.Background(), windowCtxKey, fakeWindow{id: 42})
+	validated := svc.VivyCall(main, CallRequest{})
+	if validated.OK || validated.Error == nil || validated.Error.Kind != "invalid_input" || validated.Error.Code != -32602 {
+		t.Fatalf("authorized empty method should retain invalid-input envelope: %+v", validated)
+	}
+	if got := h.callCount(); got != 0 {
+		t.Fatalf("empty method reached host %d times", got)
 	}
 }
 
