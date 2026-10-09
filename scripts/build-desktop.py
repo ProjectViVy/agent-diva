@@ -69,29 +69,50 @@ def sha256_file(path: Path) -> str:
 
 def source_tree_hash(root: Path) -> str:
     """Byte-exact port of the SDK's hashSourceTree (git ls-files, per-entry
-    `relpath\x00mode\x00` + payload + `\x00`)."""
-    tracked = git(root, "ls-files", "-z").split("\x00")
-    entries = sorted(p for p in tracked if p)
+    `relpath\x00mode\x00` + payload + `\x00`). File modes are canonicalized
+    to git index values (regulars: index perm & 0o777, dirs/gitlinks: 0o755,
+    links: 0o777) because lstat perms are platform-dependent (0o666/0o777 on
+    Windows vs index-derived 0o644/0o755 on Linux) and would make the digest
+    unreproducible cross-platform."""
+    modes: dict[str, int] = {}
+    for entry in git(root, "ls-files", "-s", "-z").split("\x00"):
+        if not entry:
+            continue
+        meta, _, path = entry.partition("\t")
+        fields = meta.split()
+        if not fields or not path:
+            continue
+        modes[path] = int(fields[0], 8)
+    entries = sorted(modes)
     h = hashlib.sha256()
     for rel in entries:
         full = root / rel
         st = os.lstat(full)
-        mode = stat.S_IMODE(st.st_mode)
-        # Windows Python lstat marks regular files with executable
-        # extensions (.cmd/.bat/.exe) as +x while Go's os.Lstat reports
-        # plain 0666/0444. Strip the synthetic exec bits so the digest
-        # matches the SDK's hashSourceTree on Windows.
-        if os.name == "nt" and stat.S_ISREG(st.st_mode):
-            mode &= ~0o111
+        index_mode = modes.get(rel, 0)
+        is_link = stat.S_ISLNK(st.st_mode) or index_mode & 0o170000 == 0o120000
+        is_dir = stat.S_ISDIR(st.st_mode) or index_mode & 0o170000 == 0o160000
+        if is_link:
+            mode = 0o777
+        elif is_dir:
+            mode = 0o755
+        else:
+            mode = index_mode & 0o777
         h.update(rel.encode())
         h.update(b"\x00")
         h.update(("%o" % mode).encode())
         h.update(b"\x00")
-        if stat.S_ISLNK(st.st_mode):
+        if is_link:
+            try:
+                target: bytes = os.readlink(full).encode()
+            except OSError:
+                # A checkout without symlink support materializes the link
+                # as a text file containing the target — the git blob
+                # payload, which hashes identically.
+                target = full.read_bytes()
             h.update(b"link\x00")
-            h.update(os.readlink(full).encode())
+            h.update(target)
             h.update(b"\x00")
-        elif stat.S_ISDIR(st.st_mode):
+        elif is_dir:
             try:
                 sub = git(full, "rev-parse", "HEAD")
                 h.update(b"gitlink\x00" + sub.encode() + b"\x00")
