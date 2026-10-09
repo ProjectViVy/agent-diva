@@ -155,3 +155,6 @@ state/
 
 # Workspace temporary staging area
 temp/
+
+# Sealed desktop candidate/acceptance outputs (kept outside source)
+artifacts/
