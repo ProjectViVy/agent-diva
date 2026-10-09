@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `agent-diva-gui/src/api/settings.ts, agent-diva-gui/src/api/settings.test.ts, agent-diva-gui/src/components/settings/ProvidersSettings.vue, agent-diva-gui/src/components/settings/ProvidersSettings.test.ts, agent-diva-gui/src/components/settings/ProviderListItem.vue, agent-diva-gui/src/components/settings/ProviderCard.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.test.ts, agent-diva-gui/src/locales/en.ts, agent-diva-gui/src/locales/zh.ts, docs/logs/2026-10-09-issue32-p4.4/**, TODOLIST.md, LOCK.md`
+- Lock State: `RELEASED`
+- Scope: `agent-diva-gui/src/api/settings.ts, agent-diva-gui/src/api/settings.test.ts, agent-diva-gui/src/components/settings/ProvidersSettings.vue, agent-diva-gui/src/components/settings/ProvidersSettings.test.ts, agent-diva-gui/src/components/settings/ProviderListItem.vue, agent-diva-gui/src/components/settings/ProviderCard.vue, agent-diva-gui/src/components/settings/ProvidersCardView.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.test.ts, agent-diva-gui/src/locales/en.ts, agent-diva-gui/src/locales/zh.ts, docs/logs/2026-10-09-issue32-p4.4/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
 - Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.4 C8 provider capability UI`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
 - Started At: `2026-10-09T11:19:00Z`
-- Last Heartbeat: `2026-10-09T11:19:00Z`
-- Expires At: `N/A (release the lock at handoff)`
+- Last Heartbeat: `2026-10-09T11:27:37Z`
+- Expires At: `Released 2026-10-09T11:28:00Z`
 
 ### Handoff for this task
 
@@ -81,6 +81,13 @@ rejection. The lock now transfers to P4.4's settings/provider capability
 projection and execution-guard UI files. P4.2 native lifecycle acceptance
 remains independently open.
 
+### P4.4 capability UI evidence
+
+Provider capability projection and execution guards are implemented and
+verified in the isolated branch. The full frontend suite passed 72 files / 578
+tests; Vue typecheck and production build passed. Vite reports its existing
+large-chunk warning. Native candidate provider observations remain in P7.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -93,7 +100,7 @@ remains independently open.
 
 ## Active Lock
 
-- `Issue #32 P4.4 C8 provider capability UI` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `agent-diva-gui/src/api/settings.ts`, provider settings components/tests, en/zh locales, P4.4 iteration evidence, `TODOLIST.md`, and `LOCK.md`. P4.3 H6 is committed; P4.2 native acceptance remains open. No push, tag write, upload, or release.
+- `Issue #32 P4.4 C8 provider capability UI` — **RELEASED 2026-10-09T11:28:00Z** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; code commit `3879cb3f`, evidence in `docs/logs/2026-10-09-issue32-p4.4/`, plus `TODOLIST.md`. P4.2 native acceptance and P7 provider observation remain open. No push, tag write, upload, or release.
 - P1 test-environment setup may repair only ignored `deps/agent-vivy` and `deps/laputa` symlinks to the separately reviewed source checkouts; dependency versions and tracked product source remain unchanged.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by

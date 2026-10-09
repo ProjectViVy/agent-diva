@@ -9,6 +9,13 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
 ## Issue #32 remediation — execution in progress
 
+- [x] **ISSUE32-P4.4-C8-PROVIDER-CAPABILITY** P2 — catalog/profile capability
+  now controls provider execution actions; deferred and unknown providers stay
+  visible and readable but cannot be selected, tested, or refreshed. Supported
+  unconfigured providers remain configurable, and deletion remains available.
+  Focused regressions, all 578 frontend tests, Vue typecheck, and production
+  build passed. Native candidate observations remain in P7. See
+  [P4.4 verification](docs/logs/2026-10-09-issue32-p4.4/verification.md).
 - [x] **ISSUE32-P4.3-H6-LISTENER-IMPLEMENTATION** P2 — one pending native
   event-listener installation is shared across concurrent subscribers; close,
   failure/retry, and per-subscriber removal have focused regressions. Commit
