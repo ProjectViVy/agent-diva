@@ -1,0 +1,776 @@
+{
+  "schema": "diva.wails-candidate-acceptance/v2",
+  "captured_at": "2026-10-09T04:59:15Z",
+  "promotion": {
+    "w6_state": "pending",
+    "archive_tags": {
+      "agent-diva": {
+        "ref": "archive/tauri-cabi-20261004",
+        "commit": "5444795a2d9db31e158c2cf009d64697e6289e50"
+      },
+      "agent-vivy": {
+        "ref": "archive/tauri-cabi-20261004",
+        "commit": "fc559e6b03ce4e65c0099b9745855dccc4fb067e"
+      }
+    }
+  },
+  "platforms": {
+    "linux-amd64": {
+      "sources": {
+        "host": {
+          "commit": "0000000000000000000000000000000000000000",
+          "treeSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "vivy": {
+          "commit": "9ba59caa4816a7f66e27c50b7948ddeb09a2df9c",
+          "treeSHA256": "905d787eeceae38ff75eb75ee3217cd0a2aca40d5b7182156d9262ce72313a10"
+        },
+        "laputa": {
+          "repository": "https://github.com/ProjectViVy/laputa",
+          "commit": "6f2eed2d71c82261333e50883e98b404070a6801",
+          "treeSHA256": "20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b6d340a6"
+        },
+        "inofy": {
+          "module": "github.com/ProjectViVy/inofy",
+          "version": "v0.0.0-20260930141905-71e2c9bbe47d",
+          "commit": "71e2c9bbe47d5d095b27d756e38eaff565d93d36"
+        }
+      },
+      "recipe": {
+        "path": "recipes/diva.vivy.yml",
+        "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
+      },
+      "locks": {
+        "sourceInputsSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "inputLockSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "goModSHA256": "aa7d29a3fb253e5b3fc4415675174c122ecab3d98e9ce3ec729d8d0ae3b8aae1",
+        "goSumSHA256": "f390a781031e7b7957363f5fbde4acc872556fb74a953a8d7cb70c8be15cbc88",
+        "pnpmLockSHA256": "01ef0ea82f41b54be2103a8bc7cf54a407a2be6b39a48a6137010a8acecea249",
+        "consumerModfileSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumerSumSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "generation_id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "frontend_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "tools": {
+        "go": "go1.26.4",
+        "wails": "v3.0.0-beta.27",
+        "node": "24",
+        "pnpm": "10.33.2",
+        "goos": "linux",
+        "goarch": "amd64",
+        "cgo": true,
+        "build_tags": [
+          "gtk3"
+        ]
+      },
+      "artifacts": {
+        "build-report.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "checksums.sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumer.mod": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumer.sum": "0000000000000000000000000000000000000000000000000000000000000000",
+        "diva": "0000000000000000000000000000000000000000000000000000000000000000",
+        "generation.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input-lock.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "native-inspection.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "source-inputs.lock.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ui/dist/.gitkeep": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    "windows-amd64": {
+      "sources": {
+        "host": {
+          "commit": "0000000000000000000000000000000000000000",
+          "treeSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "vivy": {
+          "commit": "9ba59caa4816a7f66e27c50b7948ddeb09a2df9c",
+          "treeSHA256": "905d787eeceae38ff75eb75ee3217cd0a2aca40d5b7182156d9262ce72313a10"
+        },
+        "laputa": {
+          "repository": "https://github.com/ProjectViVy/laputa",
+          "commit": "6f2eed2d71c82261333e50883e98b404070a6801",
+          "treeSHA256": "20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b6d340a6"
+        },
+        "inofy": {
+          "module": "github.com/ProjectViVy/inofy",
+          "version": "v0.0.0-20260930141905-71e2c9bbe47d",
+          "commit": "71e2c9bbe47d5d095b27d756e38eaff565d93d36"
+        }
+      },
+      "recipe": {
+        "path": "recipes/diva.vivy.yml",
+        "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
+      },
+      "locks": {
+        "sourceInputsSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "inputLockSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "goModSHA256": "aa7d29a3fb253e5b3fc4415675174c122ecab3d98e9ce3ec729d8d0ae3b8aae1",
+        "goSumSHA256": "f390a781031e7b7957363f5fbde4acc872556fb74a953a8d7cb70c8be15cbc88",
+        "pnpmLockSHA256": "01ef0ea82f41b54be2103a8bc7cf54a407a2be6b39a48a6137010a8acecea249",
+        "consumerModfileSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumerSumSHA256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "generation_id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "frontend_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "tools": {
+        "go": "go1.26.4",
+        "wails": "v3.0.0-beta.27",
+        "node": "24",
+        "pnpm": "10.33.2",
+        "goos": "windows",
+        "goarch": "amd64",
+        "cgo": true,
+        "build_tags": []
+      },
+      "artifacts": {
+        "build-report.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "checksums.sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumer.mod": "0000000000000000000000000000000000000000000000000000000000000000",
+        "consumer.sum": "0000000000000000000000000000000000000000000000000000000000000000",
+        "diva.exe": "0000000000000000000000000000000000000000000000000000000000000000",
+        "generation.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "input-lock.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "native-inspection.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "source-inputs.lock.json": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ui/dist/.gitkeep": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "W5-T1-CANDIDATE",
+      "requirement": "W-R2",
+      "scenario": "One sealed candidate pair: pinned sources, recipe, generation, binary hash recorded; inspect of final executable",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T2-FRESH-PROFILE",
+      "requirement": "W-R9",
+      "scenario": "Clean Next profile boots to a sealed runtime without external bootstrap tooling",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T2-FIRST-TURN",
+      "requirement": "W-R3",
+      "scenario": "First model turn on the sealed candidate with a configured model",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T2-GRANTS-CATALOG",
+      "requirement": "W-R3/W-R6",
+      "scenario": "Sealed module-action catalog, grant checks, denied tool boundaries",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T3-CHAT-MATRIX",
+      "requirement": "W-R3",
+      "scenario": "Text/images, presets+readback, approval accept/reject, active cancel, edit/regenerate, rewind conflict, goal entry, session select/reopen",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "text",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "images",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "preset-readback",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-accept",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-reject",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "edit",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "regenerate",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "rewind-conflict",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "goal-entry",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-select",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-reopen",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "text",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "images",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "preset-readback",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-accept",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-reject",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "approval-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "edit",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "regenerate",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "rewind-conflict",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "goal-entry",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-select",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-reopen",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5-T3-COGNITIVE",
+      "requirement": "W-R3",
+      "scenario": "Cognitive context projection and controls; denied/busy/unsupported explicit",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-SINGLE-INSTANCE",
+      "requirement": "W-R5",
+      "scenario": "Second process launch rejected while candidate runs",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-CRASH-RESTART",
+      "requirement": "W-R5",
+      "scenario": "SIGKILL then relaunch on the same profile reopens the runtime and journal",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-CLEAN-QUIT",
+      "requirement": "W-R5",
+      "scenario": "Normal quit path releases workspace and exits",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-HIDE-REOPEN",
+      "requirement": "W-R5",
+      "scenario": "Hide/reopen keeps the same runtime, no replayed audio",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-WEBVIEW-RELOAD",
+      "requirement": "W-R5",
+      "scenario": "WebView reload invalidates context and recovers without duplicate turns",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T4-EVENT-LOSS",
+      "requirement": "W-R5",
+      "scenario": "Event queue overflow/loss, active-call timeout, shutdown deadline: recover without duplicate turns or fabricated deltas",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "queue-overflow",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "active-call-timeout",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "shutdown-deadline",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "queue-overflow",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "active-call-timeout",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "shutdown-deadline",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5-T5-LOGS",
+      "requirement": "W-R2",
+      "scenario": "Runtime/GUI logs, rotation, redaction, request correlation",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T5-VOICE-SCRIPTED",
+      "requirement": "W-R4",
+      "scenario": "Voice input/output and provider error paths vs scripted providers",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    },
+    {
+      "id": "W5-T5-VOICE-REAL",
+      "requirement": "W-R4",
+      "scenario": "Real configured SiliconFlow STT + SiliconFlow/MiniMax TTS",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "siliconflow-stt",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "siliconflow-tts",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "minimax-tts",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "microphone",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "playback",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "siliconflow-stt",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "siliconflow-tts",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "minimax-tts",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "microphone",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "playback",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5-T5-VOICE-LIFECYCLE",
+      "requirement": "W-R4/W-R5",
+      "scenario": "Hide/reload/session-switch cancel, stale generation, asset delete during use, unavailable keyring, replay silence",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "hide-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "reload-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-switch-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "stale-generation-discard",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "delete-asset-during-use",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "keyring-unavailable",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "replay-silence",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": [
+            {
+              "id": "hide-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "reload-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "session-switch-cancel",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "stale-generation-discard",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "delete-asset-during-use",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "keyring-unavailable",
+              "outcome": "pending",
+              "evidence": []
+            },
+            {
+              "id": "replay-silence",
+              "outcome": "pending",
+              "evidence": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5-WINDOWS-MATRIX",
+      "requirement": "W-R2/W-R4/W-R5",
+      "scenario": "Whole matrix on Windows x64 (WebView2, Credential Manager, lifetime)",
+      "results": [
+        {
+          "platform": "linux-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        },
+        {
+          "platform": "windows-amd64",
+          "outcome": "pending",
+          "owner": "acceptance owner to fill per W5 native evidence",
+          "evidence": [],
+          "subcases": []
+        }
+      ]
+    }
+  ]
+}

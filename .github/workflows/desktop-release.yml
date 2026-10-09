@@ -1,76 +1,100 @@
-name: Desktop Release
+name: Desktop Candidate and Promotion
 
-# Sealed one-click desktop build for tags and manual runs.
-#
-# Produces a single self-contained binary per OS via
-# `scripts/build-desktop.py --mode build` (sdk pack --target go-host):
-# frontend embedded via go:embed, VIVY runtime sealed in, no external
-# runtime deps besides WebView2 (present on Windows 10/11).
-#
-# Pinned source SHAs come from build/vivy-sources.lock.json — agent-vivy
-# and laputa are checked out at exactly those commits so the sealed
-# build-report and source-tree hashes verify.
-#
-# If agent-vivy / laputa are private, define repo/org secret
-# DIVA_BUILD_TOKEN (a read-only PAT or GitHub App token with contents:read
-# on those repos). Public repos work with the default GITHUB_TOKEN.
-
+# Tags create internal candidates only. Public assets can be uploaded only by
+# an explicit promotion dispatch after a complete external acceptance report.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      action:
+        description: Build internal candidate or promote a previously built candidate
+        type: choice
+        options: [candidate, promote]
+        default: candidate
+        required: true
+      candidate_run_id:
+        description: Workflow run ID that produced both candidate artifacts (promote only)
+        type: string
+        required: false
+      release_tag:
+        description: Existing annotated v* tag whose peeled commit is the accepted host SHA
+        type: string
+        required: false
+      acceptance_ref:
+        description: Full DIVA commit SHA containing the externally reviewed v2 acceptance and W6 approval
+        type: string
+        required: false
+      acceptance_path:
+        description: Path to wails-candidate-acceptance-v2.json at acceptance_ref
+        type: string
+        default: docs/plans/diva-next/fixtures/wails-candidate-acceptance-v2.json
+        required: false
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 jobs:
-  sealed-desktop:
+  candidate-build:
+    if: github.event_name == 'push' || inputs.action == 'candidate'
+    name: Build retained ${{ matrix.platform }} candidate
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            artifact_name: diva-linux-x64
+          - platform: linux-amd64
+            runner: ubuntu-24.04
             binary: diva
-          - os: windows-latest
-            artifact_name: diva-windows-x64
+          - platform: windows-amd64
+            runner: windows-2022
             binary: diva.exe
-    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout DIVA host source
+        uses: actions/checkout@v4
         with:
           path: host
+          fetch-depth: 0
 
-      - name: Read pinned source commits
+      - name: Read canonical source and tool pins
         id: pins
         shell: bash
         run: |
-          python - <<'EOF' >> "$GITHUB_ENV"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
-          lock = json.load(open("host/build/vivy-sources.lock.json"))
-          print(f"VIVY_SHA={lock['sources']['vivy']['commit']}")
-          print(f"LAPUTA_SHA={lock['sources']['laputa']['commit']}")
-          EOF
+          lock = json.load(open("host/build/vivy-sources.lock.json", encoding="utf-8"))
+          print(f"vivy={lock['sources']['vivy']['commit']}")
+          print(f"laputa={lock['sources']['laputa']['commit']}")
+          print(f"go={lock['tools']['go'].removeprefix('go')}")
+          print(f"wails={lock['tools']['wails']}")
+          print(f"node={lock['tools']['node']}")
+          print(f"pnpm={lock['tools']['pnpm']}")
+          PY
 
-      - uses: actions/checkout@v4
+      - name: Checkout locked VIVY source
+        uses: actions/checkout@v4
         with:
           repository: ProjectViVy/agent-vivy
-          ref: ${{ env.VIVY_SHA }}
+          ref: ${{ steps.pins.outputs.vivy }}
           fetch-depth: 0
           path: agent-vivy
           token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - uses: actions/checkout@v4
+      - name: Checkout locked Laputa source
+        uses: actions/checkout@v4
         with:
           repository: ProjectViVy/laputa
-          ref: ${{ env.LAPUTA_SHA }}
+          ref: ${{ steps.pins.outputs.laputa }}
           fetch-depth: 0
           path: laputa
           token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: ${{ steps.pins.outputs.go }}
           cache-dependency-path: |
             host/go.sum
             agent-vivy/go.sum
@@ -78,51 +102,274 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: ${{ steps.pins.outputs.node }}
 
-      - name: Enable pnpm (packageManager pin)
+      - name: Install locked pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.pins.outputs.pnpm }}
+          run_install: false
+
+      - name: Install locked Wails CLI
         shell: bash
-        run: |
-          corepack enable
-          cd host/agent-diva-gui && corepack install
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ steps.pins.outputs.wails }}
 
-      - name: Install Linux GTK/WebKit build deps
+      - name: Install Linux GTK and WebKit build dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      - name: Sealed build + inspect
+      - name: Install Windows CGO compiler
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-toolchain
+          path-type: inherit
+
+      - name: Build sealed native candidate
         shell: bash
+        env:
+          CGO_ENABLED: "1"
         run: |
           python host/scripts/build-desktop.py \
             --mode build \
             --host-dir host \
             --vivy-dir agent-vivy \
             --laputa-dir laputa \
-            --output artifacts/diva-go-host
+            --platform "${{ matrix.platform }}" \
+            --output "$GITHUB_WORKSPACE/candidate"
 
-      - name: Stage release files
+      - name: Retain native executable inspection
         shell: bash
         run: |
-          mkdir -p artifacts/release
-          cp "artifacts/diva-go-host/${{ matrix.binary }}" "artifacts/release/${{ matrix.artifact_name }}${{ runner.os == 'Windows' && '.exe' || '' }}"
-          cp artifacts/diva-go-host/build-report.json "artifacts/release/build-report-${{ runner.os }}.json"
-          cp artifacts/diva-go-host/checksums.sha256 "artifacts/release/checksums-${{ runner.os }}.sha256"
+          go run ./sdk inspect-artifact "$GITHUB_WORKSPACE/candidate" \
+            > "$GITHUB_WORKSPACE/candidate/native-inspection.json"
+        working-directory: agent-vivy
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload internal candidate bytes
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: artifacts/release/
+          name: ${{ matrix.platform }}
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Publish release assets
-        if: startsWith(github.ref, 'refs/tags/')
+  all-platform-acceptance:
+    name: Require exact Linux and Windows acceptance before promotion
+    needs: [candidate-build]
+    if: always() && (inputs.action == 'promote' || (github.event_name == 'workflow_dispatch' && inputs.action == 'candidate' && needs.candidate-build.result == 'success' && inputs.acceptance_ref != ''))
+    outputs:
+      acceptance_sha: ${{ steps.acceptance-ref.outputs.sha }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout tagged DIVA release source
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          path: host
+
+      - name: Read candidate source pins
+        id: pins
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          lock = json.load(open("host/build/vivy-sources.lock.json", encoding="utf-8"))
+          print(f"vivy={lock['sources']['vivy']['commit']}")
+          print(f"laputa={lock['sources']['laputa']['commit']}")
+          PY
+
+      - name: Checkout locked VIVY recipe source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/agent-vivy
+          ref: ${{ steps.pins.outputs.vivy }}
+          fetch-depth: 0
+          path: agent-vivy
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout locked Laputa source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/laputa
+          ref: ${{ steps.pins.outputs.laputa }}
+          fetch-depth: 0
+          path: laputa
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Download Linux candidate from selected run
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          run-id: ${{ inputs.candidate_run_id || github.run_id }}
+          github-token: ${{ secrets.DIVA_BUILD_TOKEN || github.token }}
+          path: candidate/linux-amd64
+
+      - name: Download Windows candidate from selected run
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-amd64
+          run-id: ${{ inputs.candidate_run_id || github.run_id }}
+          github-token: ${{ secrets.DIVA_BUILD_TOKEN || github.token }}
+          path: candidate/windows-amd64
+
+      - name: Checkout externally reviewed acceptance report
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.acceptance_ref }}
+          fetch-depth: 1
+          path: acceptance-source
+
+      - name: Pin the selected acceptance and W6 approval commit
+        id: acceptance-ref
+        shell: bash
+        env:
+          ACCEPTANCE_REF: ${{ inputs.acceptance_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$ACCEPTANCE_REF" =~ ^[0-9a-f]{40}$ ]]
+          actual="$(git -C acceptance-source rev-parse HEAD)"
+          test "$actual" = "$ACCEPTANCE_REF"
+          echo "sha=$actual" >> "$GITHUB_OUTPUT"
+
+      - name: Verify annotated tag and validate both retained candidates
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ACCEPTANCE_PATH: ${{ inputs.acceptance_path }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9][A-Za-z0-9._+-]*$ ]]
+          git -C host fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git -C host cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          peeled="$(git -C host rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          checked_out="$(git -C host rev-parse HEAD)"
+          test "$peeled" = "$checked_out"
+          ARCHIVE_TAG="archive/tauri-cabi-20261004"
+          git -C host fetch origin "refs/tags/$ARCHIVE_TAG:refs/tags/$ARCHIVE_TAG"
+          test "$(git -C host cat-file -t "refs/tags/$ARCHIVE_TAG")" = tag
+          test "$(git -C host rev-parse "refs/tags/$ARCHIVE_TAG^{commit}")" = "5444795a2d9db31e158c2cf009d64697e6289e50"
+          git -C agent-vivy fetch origin "refs/tags/$ARCHIVE_TAG:refs/tags/$ARCHIVE_TAG"
+          test "$(git -C agent-vivy cat-file -t "refs/tags/$ARCHIVE_TAG")" = tag
+          test "$(git -C agent-vivy rev-parse "refs/tags/$ARCHIVE_TAG^{commit}")" = "fc559e6b03ce4e65c0099b9745855dccc4fb067e"
+          [[ "$ACCEPTANCE_PATH" != /* && ! "$ACCEPTANCE_PATH" =~ (^|/)\.\.(/|$) ]]
+          test -f "acceptance-source/$ACCEPTANCE_PATH"
+          python host/scripts/ci/check_wails_candidate.py \
+            "acceptance-source/$ACCEPTANCE_PATH" \
+            --artifact-root candidate \
+            --release-source-sha "$peeled" \
+            --require-all-passed
+
+  publish:
+    name: Upload the previously accepted candidate bytes
+    needs: [all-platform-acceptance]
+    if: needs.all-platform-acceptance.result == 'success' && inputs.action == 'promote'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout tagged DIVA release source
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          path: host
+
+      - name: Read candidate source pins
+        id: pins
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          lock = json.load(open("host/build/vivy-sources.lock.json", encoding="utf-8"))
+          print(f"vivy={lock['sources']['vivy']['commit']}")
+          print(f"laputa={lock['sources']['laputa']['commit']}")
+          PY
+
+      - name: Checkout locked VIVY recipe source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/agent-vivy
+          ref: ${{ steps.pins.outputs.vivy }}
+          fetch-depth: 0
+          path: agent-vivy
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout locked Laputa source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/laputa
+          ref: ${{ steps.pins.outputs.laputa }}
+          fetch-depth: 0
+          path: laputa
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Download the accepted Linux candidate bytes
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ secrets.DIVA_BUILD_TOKEN || github.token }}
+          path: candidate/linux-amd64
+
+      - name: Download the accepted Windows candidate bytes
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-amd64
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ secrets.DIVA_BUILD_TOKEN || github.token }}
+          path: candidate/windows-amd64
+
+      - name: Checkout the same reviewed acceptance report
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.all-platform-acceptance.outputs.acceptance_sha }}
+          fetch-depth: 1
+          path: acceptance-source
+
+      - name: Revalidate tag and the exact bytes immediately before upload
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ACCEPTANCE_PATH: ${{ inputs.acceptance_path }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9][A-Za-z0-9._+-]*$ ]]
+          git -C host fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git -C host cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          peeled="$(git -C host rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          checked_out="$(git -C host rev-parse HEAD)"
+          test "$peeled" = "$checked_out"
+          ARCHIVE_TAG="archive/tauri-cabi-20261004"
+          git -C host fetch origin "refs/tags/$ARCHIVE_TAG:refs/tags/$ARCHIVE_TAG"
+          test "$(git -C host cat-file -t "refs/tags/$ARCHIVE_TAG")" = tag
+          test "$(git -C host rev-parse "refs/tags/$ARCHIVE_TAG^{commit}")" = "5444795a2d9db31e158c2cf009d64697e6289e50"
+          git -C agent-vivy fetch origin "refs/tags/$ARCHIVE_TAG:refs/tags/$ARCHIVE_TAG"
+          test "$(git -C agent-vivy cat-file -t "refs/tags/$ARCHIVE_TAG")" = tag
+          test "$(git -C agent-vivy rev-parse "refs/tags/$ARCHIVE_TAG^{commit}")" = "fc559e6b03ce4e65c0099b9745855dccc4fb067e"
+          [[ "$ACCEPTANCE_PATH" != /* && ! "$ACCEPTANCE_PATH" =~ (^|/)\.\.(/|$) ]]
+          python host/scripts/ci/check_wails_candidate.py \
+            "acceptance-source/$ACCEPTANCE_PATH" \
+            --artifact-root candidate \
+            --release-source-sha "$peeled" \
+            --require-all-passed
+
+      - name: Upload accepted binaries to the existing release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          gh release upload "${{ github.ref_name }}" artifacts/release/* --clobber \
-            || gh release create "${{ github.ref_name }}" \
-              --title "${{ github.ref_name }}" \
-              --generate-notes \
-              artifacts/release/*
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" >/dev/null
+          gh release upload "$RELEASE_TAG" \
+            candidate/linux-amd64/diva \
+            candidate/windows-amd64/diva.exe

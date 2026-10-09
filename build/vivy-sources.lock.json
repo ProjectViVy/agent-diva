@@ -14,7 +14,7 @@
     "laputa": {
       "repository": "https://github.com/ProjectViVy/laputa",
       "commit": "6f2eed2d71c82261333e50883e98b404070a6801",
-      "treeSHA256": "6ffef3e30bb93f96a0805eb231fd2a653113545d2ac771456e4a7e79fd78477b"
+      "treeSHA256": "20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b6d340a6"
     },
     "inofy": {
       "module": "github.com/ProjectViVy/inofy",

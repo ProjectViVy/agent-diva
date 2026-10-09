@@ -4,7 +4,10 @@ import importlib.util
 import copy
 import hashlib
 import json
+import os
 import re
+import stat
+import subprocess
 import tempfile
 import unittest
 from fnmatch import fnmatch
@@ -73,6 +76,29 @@ class DesktopBuildContractTests(unittest.TestCase):
 
 
 class DesktopCIGateContractTests(unittest.TestCase):
+    def test_source_tree_hash_uses_the_sdk_file_size_framing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            file = root / "fixture.txt"
+            file.write_bytes(b"abc")
+            subprocess.run(["git", "add", "fixture.txt"], cwd=root, check=True)
+            mode = stat.S_IMODE(os.lstat(file).st_mode)
+            if os.name == "nt":
+                mode &= ~0o111
+            expected = hashlib.sha256(
+                b"fixture.txt\x00" + ("%o" % mode).encode() + b"\x00" + b"3\x00abc\x00"
+            ).hexdigest()
+            self.assertEqual(BUILD.source_tree_hash(root), expected)
+
+    def test_locked_source_tree_hashes_match_checked_out_bytes(self) -> None:
+        source = json.loads((ROOT / "build/vivy-sources.lock.json").read_text(encoding="utf-8"))
+        for name in ("vivy", "laputa"):
+            with self.subTest(source=name):
+                checkout = ROOT.parent / ("agent-vivy" if name == "vivy" else "laputa")
+                self.assertEqual(BUILD.git(checkout, "rev-parse", "HEAD"), source["sources"][name]["commit"])
+                self.assertEqual(BUILD.source_tree_hash(checkout), source["sources"][name]["treeSHA256"])
+
     def test_go_only_paths_trigger_push_and_pull_request(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         required = {
@@ -99,7 +125,7 @@ class DesktopCIGateContractTests(unittest.TestCase):
         dependencies = set(match.group(1).split())
         required = {
             "gui-test", "gui-build", "go-test", "desktop-bindings-check",
-            "desktop-boundary-check", "desktop-seal-check", "shell-bridge-test",
+            "desktop-boundary-check", "desktop-seal-check", "desktop-contract-tests", "shell-bridge-test",
             "legacy-selftest", "transition-boundary-check",
         }
         self.assertTrue(required <= dependencies, f"ci omits {sorted(required - dependencies)}")

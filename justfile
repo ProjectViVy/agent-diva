@@ -109,6 +109,10 @@ desktop-seal-check:
 desktop-repin:
     python3 scripts/build-desktop.py --mode repin
 
+# Run the Python build/CI/release contract suites.
+desktop-contract-tests:
+    python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+
 # All current checks
-ci: gui-test gui-build go-test desktop-bindings-check desktop-boundary-check desktop-seal-check shell-bridge-test legacy-selftest transition-boundary-check
+ci: gui-test gui-build go-test desktop-bindings-check desktop-boundary-check desktop-seal-check desktop-contract-tests shell-bridge-test legacy-selftest transition-boundary-check
     @echo "All checks passed!"

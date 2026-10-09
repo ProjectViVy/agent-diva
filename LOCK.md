@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
 - Started At: `2026-10-09T12:14:21+08:00`
-- Last Heartbeat: `2026-10-09T12:51:00+08:00`
+- Last Heartbeat: `2026-10-09T13:06:12+08:00`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -43,6 +43,12 @@ The canonical Linux host build reached CGO compilation but requires GTK3 and
 WebKit2GTK packages unavailable in this container. Scope remains the active
 Go-host CI/build path, strict candidate validation, and iteration evidence.
 No public upload, tag write, push, or release is authorized.
+P1.3 now adds strict v2 candidate validation, a candidate-only tag build,
+all-platform acceptance and revalidation-before-publish jobs. A source-lock
+contract test exposed the stale Laputa tree digest; `build/vivy-sources.lock.json`
+now records the exact `20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b6d340a6`
+tree at the already pinned commit. The full Python contract suite passes; no
+native candidate, GitHub Actions run, tag write, push, or release was performed.
 
 ## Lock Rules
 
