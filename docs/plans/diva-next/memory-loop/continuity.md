@@ -21,7 +21,7 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 
 ## 资源与代码问题的处理边界
 
-- GTK/WebKit/libsoup/glib：由构建环境负责人提供有必要 headers 的 Linux 构建镜像/机器，或者 Windows 原生构建机；运行支持的 sealed go-host build/test。共享 SDK runtime 在现有环境可继续修复；它不代替原生产品证据。
+- GTK/WebKit/libsoup/glib：已通过任务目录下载并提取 Debian 原生开发库，设置局部 pkg-config/运行库路径，支持的 Linux sealed go-host build/test 已通过。不修改系统包或 HOME；Windows UI 仍是独立验收资源。
 - Windows 与真实模型：提供测试机/runner 名称、provider/model 和凭据配置入口名称，密钥由环境注入。资源等待不占用代码修复工作序列，也不能用脚本模型计入 live-model 分母。
 - INOFY 路径：使用 DIVA/VIVY 已锁定 `v0.0.0-20260930141905-71e2c9bbe47d` 的缓存资源补齐 task-local `../../INOFY`；不升级依赖。已在本环境验证完整 Laputa 63 项通过。
 - Mentle CLI dependency sum：先在隔离 modfile/工作树复现并确认已锁定 module graph，补齐缺失的 go.sum 条目，观察 CLI 失败回归 red→green，再跑原模块套件。未验证前不宣称问题已解决。
@@ -35,3 +35,16 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 随后从 Laputa 子模块执行 `go test -json ./... -count=1`（使用 task-local Go 1.26.4 与缓存）；实际退出 0，63 个 named test/subtest pass、0 skip、0 fail。原先 missing replacement 失败记录继续保留。该结果解除独立 Laputa 回归缺口，未取得密封宿主或完整记忆闭环验收。
 
 接手后先确认该链接和缓存仍存在；环境重建时下载相同 pin 并重新验证。资源补齐的证据见 `docs/logs/2026-10-memory-loop-unblock/v0.1.0-continuous-repair/`。
+
+## 阻塞卡片与恢复条件
+
+遇到新的阻塞，记录所属 Epic/Story、首次失败日志、精确候选、影响的测试、负责人、可在当前环境执行的下一步与复验命令。按下面规则处理，不把所有未完成开发都归为外部阻塞：
+
+| 类别 | 处理与恢复条件 | 后续工作 |
+|---|---|---|
+| 工具、目录、依赖、模型安装等环境问题 | 在任务目录补齐锁定资源，保留失败日志，实际复跑成功后解除 | 继续当前修复 |
+| 已复现的代码缺陷 | 保存失败回归，修复拥有该契约的模块，复跑受影响测试和规定 CI | 冻结源码、重建候选，再开始下一项 |
+| 消费接口或测试观察能力缺失 | 先实现相应 S03/S04 能力；保持真实 App、后台与进程路径 | 转到已有输入的修复，或先补直接前置接口 |
+| Windows 真机或真实模型资源 | 只阻塞 S12/S13 及需要这些资源的验收；记明 runner、模型及凭据入口需求 | 持续推进可执行的 S03–S11 |
+
+每个终端会话结束前提交已完成的独立修复，刷新索引和下一动作，并释放本工作树锁。接手人从当前 checkpoint 的实际版本与工具环境恢复。持续修复指可恢复的工作循环；本轮没有部署无人值守服务或定时任务。

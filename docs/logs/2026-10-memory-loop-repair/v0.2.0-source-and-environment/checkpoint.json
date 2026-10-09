@@ -1,0 +1,85 @@
+{
+  "kind": "development-checkpoint",
+  "generation_id": "e5084970452c8948d1864fdf38b59f94024d9a7e44b9f4aa490ee067920c852d",
+  "native_binary": {
+    "path": "/workspace/work/memory-loop/artifacts/diva-native-source-bound/diva",
+    "bytes": 241857728,
+    "sha256": "111c586fce0f988c40f163170851bc49d14ef13aa8df3a36eebd0c80ac243c3e"
+  },
+  "repositories": {
+    "agent-diva": "28aa2a0de5df3551b247fd8b2ab60c270f1718e0",
+    "agent-vivy": "2c18445362aa86ec2dc49f5a610affe36a6110f7",
+    "laputa": "92d0b6348ec20007fc174acb8a3f724d1404dc0d"
+  },
+  "models": [
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/config.json",
+      "bytes": 612,
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41"
+    },
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/model.onnx",
+      "bytes": 90405214,
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    },
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/special_tokens_map.json",
+      "bytes": 112,
+      "sha256": "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3"
+    },
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/tokenizer.json",
+      "bytes": 466247,
+      "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    },
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/tokenizer_config.json",
+      "bytes": 350,
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b"
+    },
+    {
+      "path": "/workspace/work/memory-loop/laputa/mentle/models/onnx/vocab.txt",
+      "bytes": 231508,
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+    }
+  ],
+  "limitations": [
+    "not released",
+    "development candidate allowed dirty inputs at build time; build-report.json records the exact resolved source closure",
+    "native Linux build is not Windows UI acceptance",
+    "controlled provider is not live model",
+    "process source continuity is not new-session recall",
+    "historical incomplete baseline remains unchanged",
+    "shared integration overlay and native host are separate development generations; do not combine them as one Story acceptance candidate"
+  ],
+  "previous_development_generation_id": "1a4657c5e5ede4f233116a2c31cf513a13a3d299d601f46ea3473f91f6b804db",
+  "shared_integration_generation_id": "fe0dbfb295947011b45191482cbe5426dfee36659da72db1e62657b33fb5dc83",
+  "checks": {
+    "native_supported_host_test": {
+      "exit_code": 0,
+      "log": "native-source-bound-test.txt"
+    },
+    "native_cli_help": {
+      "exit_code": 0,
+      "log": "native-source-bound-help.json"
+    },
+    "source_bound_conformance_reproduction": {
+      "exit_code": 0,
+      "log": "conformance-refreshed.jsonl"
+    },
+    "shared_identity_guard": {
+      "exit_code": 0,
+      "log": "sdk-source-bound-identity.jsonl"
+    },
+    "shared_real_composition_and_two_process_source_continuity": {
+      "exit_code": 0,
+      "log": "app-source-bound-composition.jsonl"
+    },
+    "required_vivy_ci": {
+      "state": "passed",
+      "exit_code": 0,
+      "log": "vivy-full-ci-final-recorded.txt",
+      "exit_record": "vivy-full-ci-final-exit.json"
+    }
+  }
+}

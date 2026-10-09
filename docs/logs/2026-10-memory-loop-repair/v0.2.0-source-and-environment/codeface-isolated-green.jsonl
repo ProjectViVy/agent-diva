@@ -1,0 +1,23 @@
+{"Time":"2026-10-09T23:14:59.75333513Z","Action":"start","Package":"agent-vivy/internal/codeface"}
+{"Time":"2026-10-09T23:14:59.790975716Z","Action":"run","Package":"agent-vivy/internal/codeface","Test":"TestPrepareSharesSettingsAndIsolatesRuntime"}
+{"Time":"2026-10-09T23:14:59.79101766Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPrepareSharesSettingsAndIsolatesRuntime","Output":"=== RUN   TestPrepareSharesSettingsAndIsolatesRuntime\n"}
+{"Time":"2026-10-09T23:14:59.791102507Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPrepareSharesSettingsAndIsolatesRuntime","Output":"--- PASS: TestPrepareSharesSettingsAndIsolatesRuntime (0.00s)\n"}
+{"Time":"2026-10-09T23:14:59.791109127Z","Action":"pass","Package":"agent-vivy/internal/codeface","Test":"TestPrepareSharesSettingsAndIsolatesRuntime","Elapsed":0}
+{"Time":"2026-10-09T23:14:59.791113093Z","Action":"run","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath"}
+{"Time":"2026-10-09T23:14:59.791114736Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Output":"=== RUN   TestCodeLaunchSettingsLocaleUsesSharedPath\n"}
+{"Time":"2026-10-09T23:14:59.794209878Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Output":"2026/10/09 23:14:59 INFO settings overlay applied provider=deepseek model=\"\" network_search_provider=\"\" execute_max_timeout_seconds=30 sandbox_preset=\"\" approval_timeout_seconds=300 mcp_servers=0 compaction_enabled=true channels_overlayed=0\n"}
+{"Time":"2026-10-09T23:14:59.827995642Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Output":"2026/10/09 23:14:59 INFO project instructions discovered root=/tmp agents_md=[TestCodeLaunchSettingsLocaleUsesSharedPath4231390933/002/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-09T23:14:59.830166502Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Output":"2026/10/09 23:14:59 WARN control actions disabled: sealed Generation identity unavailable\n"}
+{"Time":"2026-10-09T23:14:59.834614176Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Output":"--- PASS: TestCodeLaunchSettingsLocaleUsesSharedPath (0.04s)\n"}
+{"Time":"2026-10-09T23:14:59.834638172Z","Action":"pass","Package":"agent-vivy/internal/codeface","Test":"TestCodeLaunchSettingsLocaleUsesSharedPath","Elapsed":0.04}
+{"Time":"2026-10-09T23:14:59.834645133Z","Action":"run","Package":"agent-vivy/internal/codeface","Test":"TestPrepareCanonicalizesProjectReachedThroughLinkedParent"}
+{"Time":"2026-10-09T23:14:59.834647196Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPrepareCanonicalizesProjectReachedThroughLinkedParent","Output":"=== RUN   TestPrepareCanonicalizesProjectReachedThroughLinkedParent\n"}
+{"Time":"2026-10-09T23:14:59.834651012Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPrepareCanonicalizesProjectReachedThroughLinkedParent","Output":"--- PASS: TestPrepareCanonicalizesProjectReachedThroughLinkedParent (0.00s)\n"}
+{"Time":"2026-10-09T23:14:59.834653706Z","Action":"pass","Package":"agent-vivy/internal/codeface","Test":"TestPrepareCanonicalizesProjectReachedThroughLinkedParent","Elapsed":0}
+{"Time":"2026-10-09T23:14:59.83465659Z","Action":"run","Package":"agent-vivy/internal/codeface","Test":"TestPreparedInstancesCanHoldLeasesConcurrently"}
+{"Time":"2026-10-09T23:14:59.834658863Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPreparedInstancesCanHoldLeasesConcurrently","Output":"=== RUN   TestPreparedInstancesCanHoldLeasesConcurrently\n"}
+{"Time":"2026-10-09T23:14:59.907163603Z","Action":"output","Package":"agent-vivy/internal/codeface","Test":"TestPreparedInstancesCanHoldLeasesConcurrently","Output":"--- PASS: TestPreparedInstancesCanHoldLeasesConcurrently (0.07s)\n"}
+{"Time":"2026-10-09T23:14:59.90721478Z","Action":"pass","Package":"agent-vivy/internal/codeface","Test":"TestPreparedInstancesCanHoldLeasesConcurrently","Elapsed":0.07}
+{"Time":"2026-10-09T23:14:59.90722807Z","Action":"output","Package":"agent-vivy/internal/codeface","Output":"PASS\n"}
+{"Time":"2026-10-09T23:14:59.912176854Z","Action":"output","Package":"agent-vivy/internal/codeface","Output":"ok  \tagent-vivy/internal/codeface\t0.159s\n"}
+{"Time":"2026-10-09T23:14:59.912208422Z","Action":"pass","Package":"agent-vivy/internal/codeface","Elapsed":0.159}

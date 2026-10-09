@@ -1,0 +1,9 @@
+{"Time":"2026-10-09T23:15:49.645739866Z","Action":"start","Package":"github.com/dashimaki/garden/agentapi"}
+{"Time":"2026-10-09T23:15:49.686014492Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestCaptureReceiptLookupUsesTrustedEventIdentity"}
+{"Time":"2026-10-09T23:15:49.686080301Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestCaptureReceiptLookupUsesTrustedEventIdentity","Output":"=== RUN   TestCaptureReceiptLookupUsesTrustedEventIdentity\n"}
+{"Time":"2026-10-09T23:15:49.687490405Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestCaptureReceiptLookupUsesTrustedEventIdentity","Output":"    service_test.go:202: capture receipt lookup unavailable for accepted event recovery\n"}
+{"Time":"2026-10-09T23:15:49.687869717Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestCaptureReceiptLookupUsesTrustedEventIdentity","Output":"--- FAIL: TestCaptureReceiptLookupUsesTrustedEventIdentity (0.00s)\n"}
+{"Time":"2026-10-09T23:15:49.68791195Z","Action":"fail","Package":"github.com/dashimaki/garden/agentapi","Test":"TestCaptureReceiptLookupUsesTrustedEventIdentity","Elapsed":0}
+{"Time":"2026-10-09T23:15:49.687921024Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Output":"FAIL\n"}
+{"Time":"2026-10-09T23:15:49.689558315Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Output":"FAIL\tgithub.com/dashimaki/garden/agentapi\t0.017s\n"}
+{"Time":"2026-10-09T23:15:49.689576533Z","Action":"fail","Package":"github.com/dashimaki/garden/agentapi","Elapsed":0.044}

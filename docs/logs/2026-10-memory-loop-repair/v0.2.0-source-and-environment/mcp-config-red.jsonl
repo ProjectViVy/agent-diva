@@ -1,0 +1,20 @@
+{"Time":"2026-10-09T23:05:12.67119684Z","Action":"start","Package":"github.com/dashimaki/mentle/integration"}
+{"Time":"2026-10-09T23:05:12.676491797Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming"}
+{"Time":"2026-10-09T23:05:12.676544947Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"=== RUN   TestMCPProtocolLineFraming\n"}
+{"Time":"2026-10-09T23:05:14.124274243Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"Error: unknown flag: --config-dir\n"}
+{"Time":"2026-10-09T23:05:14.124306832Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"Usage:\n"}
+{"Time":"2026-10-09T23:05:14.124311749Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"  mempalace-go server [flags]\n"}
+{"Time":"2026-10-09T23:05:14.124315435Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"\n"}
+{"Time":"2026-10-09T23:05:14.124317448Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"Flags:\n"}
+{"Time":"2026-10-09T23:05:14.124319451Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"  -h, --help   help for server\n"}
+{"Time":"2026-10-09T23:05:14.124321163Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"\n"}
+{"Time":"2026-10-09T23:05:14.124322946Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"Global Flags:\n"}
+{"Time":"2026-10-09T23:05:14.124324689Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"      --palace string   Palace path\n"}
+{"Time":"2026-10-09T23:05:14.124326331Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"\n"}
+{"Time":"2026-10-09T23:05:14.124328024Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"    mcp_test.go:96: Read error: EOF\n"}
+{"Time":"2026-10-09T23:05:14.124329876Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"    mcp_test.go:143: Server not responding to initialize\n"}
+{"Time":"2026-10-09T23:05:14.124340332Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"--- FAIL: TestMCPProtocolLineFraming (1.44s)\n"}
+{"Time":"2026-10-09T23:05:14.124342385Z","Action":"fail","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Elapsed":1.44}
+{"Time":"2026-10-09T23:05:14.124348865Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"FAIL\n"}
+{"Time":"2026-10-09T23:05:14.124793575Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"FAIL\tgithub.com/dashimaki/mentle/integration\t1.452s\n"}
+{"Time":"2026-10-09T23:05:14.124804872Z","Action":"fail","Package":"github.com/dashimaki/mentle/integration","Elapsed":1.454}

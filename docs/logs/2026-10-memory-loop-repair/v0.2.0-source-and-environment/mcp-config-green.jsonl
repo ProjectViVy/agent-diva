@@ -1,0 +1,33 @@
+{"Time":"2026-10-09T23:05:42.314156394Z","Action":"start","Package":"github.com/dashimaki/mentle/integration"}
+{"Time":"2026-10-09T23:05:42.315944948Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming"}
+{"Time":"2026-10-09T23:05:42.316011649Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"=== RUN   TestMCPProtocolLineFraming\n"}
+{"Time":"2026-10-09T23:05:44.06838493Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Output":"--- PASS: TestMCPProtocolLineFraming (1.75s)\n"}
+{"Time":"2026-10-09T23:05:44.068427935Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPProtocolLineFraming","Elapsed":1.75}
+{"Time":"2026-10-09T23:05:44.068445091Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPToolsList"}
+{"Time":"2026-10-09T23:05:44.068447544Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPToolsList","Output":"=== RUN   TestMCPToolsList\n"}
+{"Time":"2026-10-09T23:05:45.783945617Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPToolsList","Output":"    mcp_test.go:184: Found 42 tools registered\n"}
+{"Time":"2026-10-09T23:05:45.833679036Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPToolsList","Output":"--- PASS: TestMCPToolsList (1.77s)\n"}
+{"Time":"2026-10-09T23:05:45.833702392Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPToolsList","Elapsed":1.77}
+{"Time":"2026-10-09T23:05:45.833731535Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPErrorCodes"}
+{"Time":"2026-10-09T23:05:45.833734119Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPErrorCodes","Output":"=== RUN   TestMCPErrorCodes\n"}
+{"Time":"2026-10-09T23:05:49.037397819Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPErrorCodes","Output":"--- PASS: TestMCPErrorCodes (3.20s)\n"}
+{"Time":"2026-10-09T23:05:49.037434214Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPErrorCodes","Elapsed":3.2}
+{"Time":"2026-10-09T23:05:49.037439912Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPResponseContainsID"}
+{"Time":"2026-10-09T23:05:49.037442486Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPResponseContainsID","Output":"=== RUN   TestMCPResponseContainsID\n"}
+{"Time":"2026-10-09T23:05:51.922984983Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPResponseContainsID","Output":"--- PASS: TestMCPResponseContainsID (2.88s)\n"}
+{"Time":"2026-10-09T23:05:51.923061929Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPResponseContainsID","Elapsed":2.88}
+{"Time":"2026-10-09T23:05:51.923070351Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPNotificationNoResponse"}
+{"Time":"2026-10-09T23:05:51.923074057Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPNotificationNoResponse","Output":"=== RUN   TestMCPNotificationNoResponse\n"}
+{"Time":"2026-10-09T23:05:54.085480706Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPNotificationNoResponse","Output":"--- PASS: TestMCPNotificationNoResponse (2.16s)\n"}
+{"Time":"2026-10-09T23:05:54.08552369Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPNotificationNoResponse","Elapsed":2.16}
+{"Time":"2026-10-09T23:05:54.08553034Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPRequestOrder"}
+{"Time":"2026-10-09T23:05:54.085537131Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPRequestOrder","Output":"=== RUN   TestMCPRequestOrder\n"}
+{"Time":"2026-10-09T23:05:56.124922302Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPRequestOrder","Output":"--- PASS: TestMCPRequestOrder (2.04s)\n"}
+{"Time":"2026-10-09T23:05:56.124962783Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPRequestOrder","Elapsed":2.04}
+{"Time":"2026-10-09T23:05:56.124968842Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPInvalidJSON"}
+{"Time":"2026-10-09T23:05:56.124970985Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPInvalidJSON","Output":"=== RUN   TestMCPInvalidJSON\n"}
+{"Time":"2026-10-09T23:05:58.118763299Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPInvalidJSON","Output":"--- PASS: TestMCPInvalidJSON (1.99s)\n"}
+{"Time":"2026-10-09T23:05:58.118851632Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPInvalidJSON","Elapsed":1.99}
+{"Time":"2026-10-09T23:05:58.11892384Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"PASS\n"}
+{"Time":"2026-10-09T23:05:58.12281396Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"ok  \tgithub.com/dashimaki/mentle/integration\t15.808s\n"}
+{"Time":"2026-10-09T23:05:58.122835152Z","Action":"pass","Package":"github.com/dashimaki/mentle/integration","Elapsed":15.809}

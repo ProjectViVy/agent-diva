@@ -1,0 +1,28 @@
+{"Time":"2026-10-09T22:52:52.588285716Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-09T22:52:52.612333104Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource"}
+{"Time":"2026-10-09T22:52:52.612368497Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource\n"}
+{"Time":"2026-10-09T22:52:52.612401998Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed"}
+{"Time":"2026-10-09T22:52:52.612405172Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.completed\n"}
+{"Time":"2026-10-09T22:52:52.634395541Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Output":"    memory_loop_capture_test.go:65: source is not a role-bearing durable envelope: 收到 (invalid character 'æ' looking for beginning of value)\n"}
+{"Time":"2026-10-09T22:52:52.634586058Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Output":"--- FAIL: TestMemoryLoopCaptureAdmittedUserSource/run.completed (0.03s)\n"}
+{"Time":"2026-10-09T22:52:52.634597315Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Elapsed":0.03}
+{"Time":"2026-10-09T22:52:52.634606599Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed"}
+{"Time":"2026-10-09T22:52:52.634613399Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.failed\n"}
+{"Time":"2026-10-09T22:52:52.656193119Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Output":"    memory_loop_capture_test.go:65: source is not a role-bearing durable envelope: 收到 (invalid character 'æ' looking for beginning of value)\n"}
+{"Time":"2026-10-09T22:52:52.656490417Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Output":"--- FAIL: TestMemoryLoopCaptureAdmittedUserSource/run.failed (0.02s)\n"}
+{"Time":"2026-10-09T22:52:52.656500412Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Elapsed":0.02}
+{"Time":"2026-10-09T22:52:52.656506271Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled"}
+{"Time":"2026-10-09T22:52:52.656510067Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.cancelled\n"}
+{"Time":"2026-10-09T22:52:52.679094009Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Output":"    memory_loop_capture_test.go:65: source is not a role-bearing durable envelope: 收到 (invalid character 'æ' looking for beginning of value)\n"}
+{"Time":"2026-10-09T22:52:52.679252308Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Output":"--- FAIL: TestMemoryLoopCaptureAdmittedUserSource/run.cancelled (0.02s)\n"}
+{"Time":"2026-10-09T22:52:52.679257295Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Elapsed":0.02}
+{"Time":"2026-10-09T22:52:52.679261682Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Output":"--- FAIL: TestMemoryLoopCaptureAdmittedUserSource (0.07s)\n"}
+{"Time":"2026-10-09T22:52:52.679264817Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Elapsed":0.07}
+{"Time":"2026-10-09T22:52:52.679274651Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource"}
+{"Time":"2026-10-09T22:52:52.679279479Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Output":"=== RUN   TestMemoryLoopCaptureRefusesMissingOrForeignSource\n"}
+{"Time":"2026-10-09T22:52:52.701006891Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Output":"    memory_loop_capture_test.go:97: missing/foreign durable user source was accepted: \u003cnil\u003e\n"}
+{"Time":"2026-10-09T22:52:52.701169456Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Output":"--- FAIL: TestMemoryLoopCaptureRefusesMissingOrForeignSource (0.02s)\n"}
+{"Time":"2026-10-09T22:52:52.701174714Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Elapsed":0.02}
+{"Time":"2026-10-09T22:52:52.701216707Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-09T22:52:52.703163219Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.115s\n"}
+{"Time":"2026-10-09T22:52:52.703181036Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.115}

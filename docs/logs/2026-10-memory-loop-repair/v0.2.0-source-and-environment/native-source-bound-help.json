@@ -1,0 +1,6 @@
+{
+  "kind": "lossless-cli-output",
+  "exit_code": 0,
+  "stdout": "Usage of /workspace/work/memory-loop/artifacts/diva-native-source-bound/diva:\n  -config string\n    \tabsolute path to vivy.yaml (else $DIVA_VIVY_CONFIG, else <config-dir>/DIVA/vivy.yaml)\n",
+  "stdout_sha256": "328babb6c480d47a6ebd67811c69086ee4a5548ea6e57279974babb978e778aa"
+}

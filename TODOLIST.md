@@ -10,12 +10,12 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 ## Memory loop verification — execution started 2026-10-09
 
 See the [Epic–Story package and live status](docs/plans/diva-next/memory-loop/README.md).
-Most rows remain validation gaps. MEM-LOOP-USER-SOURCE is now a reproduced P0 defect; current evidence and blockers are recorded in docs/logs/2026-10-memory-loop-verification/handoff.md.
+Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; formal Story acceptance remains open. Current repair evidence and local rerun instructions are in docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. Historical failures remain in the original verification handoff.
 
 - [ ] **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
   unavailable result and prove real Mentle write/search/expand/reopen through
   the sealed host. Audit local-model initialization and read-only modes (S02).
-- [ ] **MEM-LOOP-USER-SOURCE** P0 — Reproduced MEM-S04-01: full DIVA App/provider/real Garden–Mentle stores only `收到` with no source role despite the user fact appearing in the actual model request. Mapper completedEvent + CognitiveCaptureProvider consume the last assistant summary. Fix trusted run-specific source/roles and prove truncation/replay; S04 V05–V09. Evidence: docs/logs/2026-10-memory-loop-verification/S04/defects.md.
+- [ ] **MEM-LOOP-USER-SOURCE** P0 acceptance — Admitted durable user-source/role repair and random-fact canonical/process regression are implemented. Trusted accepted receipt recovery is repaired without rewriting old effects. Finish S04 V05–V09 and separately verify any legacy source backfill; do not mark full Story Done from partial proofs. See docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/.
 - [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
   automatic reflection, effect receipts and persona-review continuity;
   domain API availability alone is not product wiring evidence (S05–S07).
@@ -201,6 +201,6 @@ implementation and makes no Ready/Done implementation claim.
 
 ## Memory execution environment and fixture blockers
 
-- [ ] **MEM-LOOP-NATIVE-BUILD-DEPS** P1 — Supported Wails pack cannot compile here: GTK/glib/WebKit/libsoup headers absent. Test asset index/cleanup fixed; sealed host build/race gate still needs a native build machine (S01).
+- [x] **MEM-LOOP-NATIVE-BUILD-DEPS** — Resolved task-locally without system/HOME changes: extracted native headers/libraries, supported sealed Linux host test/race and development build pass. Original product lock is unchanged. Windows/native UI/live-model acceptance remains separate (S01/S12/S13).
 - [ ] **MEM-LOOP-FIXTURE-COMPLETE** P1 — ack/full App/real storage evidence works; reflection/recall modes, reflected observation and real process Restart are explicitly pending. Complete S03 contract before downstream gate acceptance.
-- [ ] **MEM-LOOP-PINNED-REGRESSION** P1 — Pinned Laputa missing ../../INOFY resolved by an exact-pinned task-local link (63 tests pass; no lock changes). Mentle CLI builds still lack google/renameio go.sum; Garden e2e palace-only config returns memory_unavailable. Resolve using exact pinned dependencies/models and preserve original failure logs. Runtime instruction tests also see managed /tmp/.git ancestor; diagnose isolated equivalent before CI acceptance. No full-suite pass claimed.
+- [ ] **MEM-LOOP-PINNED-REGRESSION** acceptance — Underlying blockers repaired: Laputa 63 pass; Mentle 536 pass / 0 skip; Garden 480 pass / 0 skip and process e2e 2 pass. Exact dependency closure/model/config bindings preserved. Managed ancestor instruction/VCS and Codeface home-write fixtures repaired; complete frozen-source just ci now exits 0. Formal same-candidate Story evidence remains open.

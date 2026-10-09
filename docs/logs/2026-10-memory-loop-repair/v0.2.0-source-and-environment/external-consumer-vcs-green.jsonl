@@ -1,0 +1,8 @@
+{"Time":"2026-10-09T23:07:45.818544971Z","Action":"start","Package":"agent-vivy/sdk/host/v1"}
+{"Time":"2026-10-09T23:07:45.842660509Z","Action":"run","Package":"agent-vivy/sdk/host/v1","Test":"TestExternalModuleConsumesPublicAPI"}
+{"Time":"2026-10-09T23:07:45.842695732Z","Action":"output","Package":"agent-vivy/sdk/host/v1","Test":"TestExternalModuleConsumesPublicAPI","Output":"=== RUN   TestExternalModuleConsumesPublicAPI\n"}
+{"Time":"2026-10-09T23:07:49.894688586Z","Action":"output","Package":"agent-vivy/sdk/host/v1","Test":"TestExternalModuleConsumesPublicAPI","Output":"--- PASS: TestExternalModuleConsumesPublicAPI (4.05s)\n"}
+{"Time":"2026-10-09T23:07:49.894723589Z","Action":"pass","Package":"agent-vivy/sdk/host/v1","Test":"TestExternalModuleConsumesPublicAPI","Elapsed":4.05}
+{"Time":"2026-10-09T23:07:49.894729037Z","Action":"output","Package":"agent-vivy/sdk/host/v1","Output":"PASS\n"}
+{"Time":"2026-10-09T23:07:49.89660941Z","Action":"output","Package":"agent-vivy/sdk/host/v1","Output":"ok  \tagent-vivy/sdk/host/v1\t4.078s\n"}
+{"Time":"2026-10-09T23:07:49.89662954Z","Action":"pass","Package":"agent-vivy/sdk/host/v1","Elapsed":4.078}

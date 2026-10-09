@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `HELD`
-- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-unblock/**, docs/logs/2026-10-memory-loop-verification/handoff.md, TODOLIST.md, LOCK.md`
+- Lock State: `RELEASED`
+- Scope: `docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/**, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
 - Session/Task: `Memory-loop continuous repair admission and blocker routing`
 - Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
 - Started At: `2026-10-09T22:47:57Z`
-- Last Heartbeat: `2026-10-09T22:47:57Z`
-- Expires At: `2026-10-10T00:00:00Z`
+- Last Heartbeat: `2026-10-09T23:56:19Z`
+- Expires At: `N/A (released)`
 
 ### Handoff for this task
 
@@ -42,6 +42,8 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Memory-loop source/environment continuous repair` — **RELEASED 2026-10-09T23:55:44Z**; isolated execution branch. Source capture and accepted receipt recovery fixed, environment and native Linux blockers resolved; required VIVY CI and rebuilt native host tests pass. Evidence: docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. Full Story acceptance and S03–S11 developer work remain open; Windows/live resources are separate. No push, merge or release.
 
 - `Memory-loop execution foundation` — **RELEASED 2026-10-09T18:26:08Z**; isolated
   execution branch feat/memory-loop-verification-20261009. Test asset fix,

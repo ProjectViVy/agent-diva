@@ -1,0 +1,1 @@
+go race tests passed under the sealed consumer modfile (stage: /tmp/diva-gohost-stage-c5yc819o)
