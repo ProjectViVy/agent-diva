@@ -106,3 +106,29 @@ wails3 v3.0.0-beta.27, pwsh 7.5.4 (`powershell.exe` shim present).
 - First real model turn, chat matrix, cognition/console/speech lanes, mic/keyring,
   real STT/TTS providers: owner gate.
 - Clean install/uninstall packaging: no installer artifact for linux-amd64 (bare binary).
+
+## Portability defect found by windows-amd64 leg (2026-10-09)
+
+`source_tree_hash` (python) and `hashSourceTree` (sdk/internal/go_host.go)
+hashed `lstat` perm bits; Windows reports 0666/0777 vs Linux index
+0644/0755, so the pinned treeSHA256s could never reproduce on Windows —
+`check-lock` and `sdk pack` failed verbatim. Fixed upstream and committed:
+
+- agent-vivy `6045c0a6`: `hashSourceTree` canonicalizes to git index modes
+  (regulars -> index perm & 0777, dirs/gitlinks -> 0755, links -> 0777;
+  untracked regulars on Windows -> 0644; symlink-as-text-file -> blob payload).
+- agent-diva `7b427510`: byte-exact python twin + repin to vivy `6045c0a6`
+  (treeSHA256 `31e467db04da…`).
+
+Verification: `ed4592b1` (vivy pin at 825876b1) and `b4181c39` (laputa)
+both reproduce byte-exact on clean Linux trees under the new scheme;
+Go and python ports agree per-entry.
+
+### Third candidate identity (source SHA `7b427510`, vivy `6045c0a6`)
+- `diva` sha256 `eb89baed15e44401afdd3dae452d7f26f41ca5eaeaae87bab5e56f1f1bca6f52`
+- generation `55d4a3f94ae2b87e0262e99b9f28fcd8f7f9629da3debe507172a06e8b73aece`
+- manifest internal digest `d61f174459bdf315…` (unchanged)
+- Re-gated: build + derived-lock + inspect-artifact all pass; fresh-profile
+  launch renders onboarding UI (screenshot), host generation matches.
+
+All previous candidate bytes (0c3d9476, 8bd34144) are superseded.
