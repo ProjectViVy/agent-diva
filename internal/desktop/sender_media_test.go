@@ -50,6 +50,7 @@ func TestSenderGateDeniesForeignOrigin(t *testing.T) {
 		{"no origin (bundled page)", "", http.StatusOK},
 		{"internal scheme http://wails.local", "http://wails.local", http.StatusOK},
 		{"internal scheme wails://wails", "wails://wails", http.StatusOK},
+		{"internal scheme wails://localhost", "wails://localhost", http.StatusOK},
 		{"external https origin", "https://evil.example", http.StatusForbidden},
 		{"data origin", "data:text/html,x", http.StatusForbidden},
 	} {

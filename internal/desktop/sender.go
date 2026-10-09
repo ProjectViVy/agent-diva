@@ -36,6 +36,7 @@ func newSenderGate(mainID uint, extra ...uint) *senderGate {
 			"":                       true,
 			"http://wails.local":     true,
 			"wails://wails":          true,
+			"wails://localhost":      true,
 			"http://wails.localhost": true,
 		},
 	}
