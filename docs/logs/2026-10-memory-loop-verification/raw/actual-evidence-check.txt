@@ -1,0 +1,47 @@
+S01: story status blocked: Sealed Wails go-host test/build blocked by missing GTK/WebKit/libsoup/glib dependencies. No native/live resources.
+S01: baseline generation_id missing
+S01: baseline artifact: invalid artifact path: None
+S01: baseline model_assets missing
+S01: command 0: exit_code not zero
+S01: case 0: V01 blocked (required case not pass)
+S02: story status blocked: Public real backend passed with pinned local models; S01 sealed product gate absent; existing module/e2e regressions are not green.
+S02: baseline generation_id missing
+S02: baseline artifact: invalid artifact path: None
+S02: baseline model_assets missing
+S02: command 2: exit_code not zero
+S02: command 3: exit_code not zero
+S02: command 3: tests zero, failed, or skipped
+S02: command 4: exit_code not zero
+S02: command 4: tests zero, failed, or skipped
+S02: case 0: V02 blocked (required case not pass)
+S02: case 1: V03 blocked (required case not pass)
+S02: case 2: V04 blocked (required case not pass)
+S03: story status blocked: Checker and ack composition ready as preparation. S01 absent; reflection/recall/reflected and cross-process Restart not implemented.
+S03: baseline generation_id missing
+S03: baseline artifact: invalid artifact path: None
+S03: baseline model_assets missing
+S03: command 3: tests zero, failed, or skipped
+S03: command 4: exit_code not zero
+S03: command 4: tests zero, failed, or skipped
+S03: case 1: INFRA-FIXTURE blocked (required case not pass)
+S04: story status fail: Diagnostic reproduction MEM-S04-01: user-only fact is in actual provider request but durable source is only 收到 and role empty. Formal S04 prerequisites/matrix not satisfied.
+S04: baseline generation_id missing
+S04: baseline artifact: invalid artifact path: None
+S04: baseline model_assets missing
+S04: command 0: exit_code not zero
+S04: command 0: tests zero, failed, or skipped
+S04: no verified tests or manual observations
+S04: case 0: V05 fail (required case not pass)
+S04: missing required case V06
+S04: missing required case V07
+S04: missing required case V08
+S04: missing required case V09
+S05: evidence missing/unsafe: artifact path escapes root or file missing
+S06: evidence missing/unsafe: artifact path escapes root or file missing
+S07: evidence missing/unsafe: artifact path escapes root or file missing
+S08: evidence missing/unsafe: artifact path escapes root or file missing
+S09: evidence missing/unsafe: artifact path escapes root or file missing
+S10: evidence missing/unsafe: artifact path escapes root or file missing
+S11: evidence missing/unsafe: artifact path escapes root or file missing
+S12: evidence missing/unsafe: artifact path escapes root or file missing
+S13: evidence missing/unsafe: artifact path escapes root or file missing

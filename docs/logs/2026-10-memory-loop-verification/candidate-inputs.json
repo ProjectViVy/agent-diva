@@ -1,0 +1,70 @@
+{
+  "diva": {
+    "base_sha": "c241761de314478cc2c28888768b0e035c88fce7",
+    "changed_source_files": {
+      "scripts/build-desktop.py": "798c83dab46d9fa2f58f5e314a2106c4e7947efceeb7eef3ee94663b62e8549e",
+      "scripts/ci/check_memory_loop_evidence.py": "3d3942880855849dc5ecabc03c6423005f667387d0189f5ac13859642c656d98",
+      "scripts/ci/test_build_desktop_test_assets.py": "5f3f625bd8be0a22c9fd9a07cdd8904080ea8201313272d33aadc131174b9058",
+      "scripts/ci/test_check_memory_loop_evidence.py": "4f26ce10688ed8cd2a995de6c8c768767097711424d863d7b78dbe64c3b1ec35"
+    }
+  },
+  "vivy": {
+    "base_sha": "3073d1e126bbe2d9579879c79869f363214938b1",
+    "changed_source_files": {
+      "internal/app/default_generation_test.go": "a49afb6c02e05016f6059b7befd44631392ed3c9ea47afdb9f5b2cc41fd9a713",
+      "internal/app/memory_loop_fixture_test.go": "da5094f0183b0c47cb9676a1e8d0b9c98e073b4adcfc1ae84e3f88cb169a7cdc",
+      "sdk/internal/memory_loop_generation_test.go": "e23dfaa545845387269180490d473b51669ec02a89fb2baf5df9dbd355c71267"
+    }
+  },
+  "laputa": {
+    "base_sha": "6f2eed2d71c82261333e50883e98b404070a6801",
+    "changed_source_files": {
+      "garden/agentapi/memory_loop_real_backend_test.go": "0813d44c9da183004134bcc7d56c8d249d11dedf26f778c9f5811facf726a935"
+    }
+  },
+  "lock_sha256": "69f761f6f3d2b2df795b039385b4fb25f33bbcf86508aef1f422c871d47e0e8f",
+  "recipe_sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d",
+  "model_assets": [
+    {
+      "repository_path": "mentle/models/AGENTS.md",
+      "sha256": "c4e7f7ff6009f8a679d808b7857d2b2840b0ab4e1a0aad0b9638c391bbaf7c67",
+      "bytes": 2746
+    },
+    {
+      "repository_path": "mentle/models/onnx/AGENTS.md",
+      "sha256": "cc5cc337fb2e87a7e71b0a361eb0bb1c4208a3992a1cfd97c7f2bdccf254ac8f",
+      "bytes": 1902
+    },
+    {
+      "repository_path": "mentle/models/onnx/config.json",
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41",
+      "bytes": 612
+    },
+    {
+      "repository_path": "mentle/models/onnx/model.onnx",
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452",
+      "bytes": 90405214
+    },
+    {
+      "repository_path": "mentle/models/onnx/special_tokens_map.json",
+      "sha256": "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3",
+      "bytes": 112
+    },
+    {
+      "repository_path": "mentle/models/onnx/tokenizer.json",
+      "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037",
+      "bytes": 466247
+    },
+    {
+      "repository_path": "mentle/models/onnx/tokenizer_config.json",
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b",
+      "bytes": 350
+    },
+    {
+      "repository_path": "mentle/models/onnx/vocab.txt",
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+      "bytes": 231508
+    }
+  ],
+  "integration_generation": "bd5ed4676c8af63f227f7f3d7ff86c4cf651657287c799b093edb258b9fed99e"
+}

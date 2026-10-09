@@ -1,0 +1,15 @@
+{"Time":"2026-10-09T17:55:35.876140699Z","Action":"start","Package":"github.com/dashimaki/garden/e2e"}
+{"Time":"2026-10-09T17:55:35.8820794Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd"}
+{"Time":"2026-10-09T17:55:35.882147713Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"=== RUN   TestDivaCognitiveDecisiveEndToEnd\n"}
+{"Time":"2026-10-09T17:55:35.892300093Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"--- PASS: TestDivaCognitiveDecisiveEndToEnd (0.01s)\n"}
+{"Time":"2026-10-09T17:55:35.892328185Z","Action":"pass","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Elapsed":0.01}
+{"Time":"2026-10-09T17:55:35.892337429Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd"}
+{"Time":"2026-10-09T17:55:35.892340704Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"=== RUN   TestGardenCleanBreakEndToEnd\n"}
+{"Time":"2026-10-09T17:55:37.234051696Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 17:55:37 lifecycle: logging to /tmp/TestGardenCleanBreakEndToEnd4074025018/001/logs/garden.log\n"}
+{"Time":"2026-10-09T17:55:37.234290706Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 17:55:37 lifecycle: garden running on 127.0.0.1:42313\n"}
+{"Time":"2026-10-09T17:55:37.336165246Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"    e2e_test.go:254: POST http://127.0.0.1:42313/v2/memories status=503 want=201 body={\"code\":\"memory_unavailable\",\"details\":{},\"error\":\"mentle unavailable\",\"message\":\"mentle unavailable\",\"request_id\":\"req_31036bdd53e24fbc9999a5abb496d869\",\"retryable\":true}\n"}
+{"Time":"2026-10-09T17:55:37.339795005Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"--- FAIL: TestGardenCleanBreakEndToEnd (1.45s)\n"}
+{"Time":"2026-10-09T17:55:37.339822436Z","Action":"fail","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Elapsed":1.45}
+{"Time":"2026-10-09T17:55:37.339829867Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"FAIL\n"}
+{"Time":"2026-10-09T17:55:37.3416279Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"FAIL\tgithub.com/dashimaki/garden/e2e\t1.465s\n"}
+{"Time":"2026-10-09T17:55:37.34164781Z","Action":"fail","Package":"github.com/dashimaki/garden/e2e","Elapsed":1.466}

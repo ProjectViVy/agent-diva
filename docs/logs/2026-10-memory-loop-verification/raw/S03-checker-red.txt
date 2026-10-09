@@ -1,0 +1,173 @@
+FFFFFFFFFFFFFFFFFFF.FF
+======================================================================
+FAIL: test_cli_codes (test_check_memory_loop_evidence.EvidenceTests.test_cli_codes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 173, in test_cli_codes
+    self.assertEqual(1,subprocess.run(command,capture_output=True).returncode)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_crash_matrix_requires_every_cut (test_check_memory_loop_evidence.EvidenceTests.test_crash_matrix_requires_every_cut)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 130, in test_crash_matrix_requires_every_cut
+    self.assertTrue(any('C06' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_duplicate_samples (test_check_memory_loop_evidence.EvidenceTests.test_duplicate_samples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 115, in test_duplicate_samples
+    self.assertTrue(any('duplicate' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_invalid_baseline_schema (test_check_memory_loop_evidence.EvidenceTests.test_invalid_baseline_schema)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 76, in test_invalid_baseline_schema
+    self.assertTrue(self.errors())
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_live_scores_and_safety_thresholds (test_check_memory_loop_evidence.EvidenceTests.test_live_scores_and_safety_thresholds)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 158, in test_live_scores_and_safety_thresholds
+    self.assertTrue(any('forgetting' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_malformed_nested_values_return_errors (test_check_memory_loop_evidence.EvidenceTests.test_malformed_nested_values_return_errors) (key='commands')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 168, in test_malformed_nested_values_return_errors
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_malformed_nested_values_return_errors (test_check_memory_loop_evidence.EvidenceTests.test_malformed_nested_values_return_errors) (key='artifacts')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 168, in test_malformed_nested_values_return_errors
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_malformed_nested_values_return_errors (test_check_memory_loop_evidence.EvidenceTests.test_malformed_nested_values_return_errors) (key='case_results')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 168, in test_malformed_nested_values_return_errors
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_missing_artifact_and_hash_mismatch (test_check_memory_loop_evidence.EvidenceTests.test_missing_artifact_and_hash_mismatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 92, in test_missing_artifact_and_hash_mismatch
+    self.assertTrue(self.errors())
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_missing_required_case (test_check_memory_loop_evidence.EvidenceTests.test_missing_required_case)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 63, in test_missing_required_case
+    self.assertTrue(any('V09' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_missing_source_and_request (test_check_memory_loop_evidence.EvidenceTests.test_missing_source_and_request)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 67, in test_missing_source_and_request
+    self.assertTrue(any('source_hash' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_mixed_candidate (test_check_memory_loop_evidence.EvidenceTests.test_mixed_candidate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 72, in test_mixed_candidate
+    self.assertTrue(any('candidate' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_native_requires_three_distinct_profiles (test_check_memory_loop_evidence.EvidenceTests.test_native_requires_three_distinct_profiles)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 142, in test_native_requires_three_distinct_profiles
+    self.assertTrue(any('profile' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_null_requires_explanation (test_check_memory_loop_evidence.EvidenceTests.test_null_requires_explanation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 119, in test_null_requires_explanation
+    self.assertTrue(any('record_id' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_path_escape (test_check_memory_loop_evidence.EvidenceTests.test_path_escape) (path='../outside.txt')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 105, in test_path_escape
+    self.assertTrue(any('path' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_path_escape (test_check_memory_loop_evidence.EvidenceTests.test_path_escape) (path='/etc/passwd')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 105, in test_path_escape
+    self.assertTrue(any('path' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_path_escape (test_check_memory_loop_evidence.EvidenceTests.test_path_escape)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 111, in test_path_escape
+    self.assertTrue(any('path' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_skipped_case_and_command (test_check_memory_loop_evidence.EvidenceTests.test_skipped_case_and_command)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 88, in test_skipped_case_and_command
+    self.assertTrue(any('skipped' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_unregistered_case_artifact (test_check_memory_loop_evidence.EvidenceTests.test_unregistered_case_artifact)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 99, in test_unregistered_case_artifact
+    self.assertTrue(any('registered' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_wrong_model_mode (test_check_memory_loop_evidence.EvidenceTests.test_wrong_model_mode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 162, in test_wrong_model_mode
+    self.assertTrue(any('mode' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_zero_tests_and_failed_exit (test_check_memory_loop_evidence.EvidenceTests.test_zero_tests_and_failed_exit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 81, in test_zero_tests_and_failed_exit
+    self.assertTrue(any('tests' in e for e in self.errors()))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.017s
+
+FAILED (failures=21)

@@ -1,0 +1,17 @@
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 104 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                     0.40 kB │ gzip:   0.27 kB
+dist/assets/space-grotesk-vietnamese-wght-normal-D0rl6rjA.woff2     6.71 kB
+dist/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2    7.50 kB
+dist/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2         9.00 kB
+dist/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2     12.11 kB
+dist/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2    15.20 kB
+dist/assets/space-grotesk-latin-ext-wght-normal-D9tNdqV9.woff2     18.94 kB
+dist/assets/space-grotesk-latin-wght-normal-BhU9QXUp.woff2         22.29 kB
+dist/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2        40.40 kB
+dist/assets/index-DplUhMxs.css                                     41.19 kB │ gzip:  10.40 kB
+dist/assets/index-C3FO2VtV.js                                     363.62 kB │ gzip: 111.89 kB │ map: 1,704.48 kB
+✓ built in 1.51s

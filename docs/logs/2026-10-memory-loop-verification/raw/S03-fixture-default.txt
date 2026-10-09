@@ -1,0 +1,5 @@
+=== RUN   TestMemoryLoopFixtureUsesRealComposition
+    memory_loop_fixture_test.go:254: default generation omits DIVA cognition; run the generated integration overlay
+--- SKIP: TestMemoryLoopFixtureUsesRealComposition (0.00s)
+PASS
+ok  	agent-vivy/internal/app	0.023s

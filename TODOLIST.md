@@ -7,17 +7,15 @@ Tauri/C ABI source line is frozen at the paired archive refs. Checked rows
 below describe prior delivered source, not acceptance of a Wails product.
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
-## Memory loop verification — planned 2026-10-09
+## Memory loop verification — execution started 2026-10-09
 
 See the [Epic–Story package and live status](docs/plans/diva-next/memory-loop/README.md).
-The following are validation gaps, not newly reproduced runtime defects.
+Most rows remain validation gaps. MEM-LOOP-USER-SOURCE is now a reproduced P0 defect; current evidence and blockers are recorded in docs/logs/2026-10-memory-loop-verification/handoff.md.
 
 - [ ] **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
   unavailable result and prove real Mentle write/search/expand/reopen through
   the sealed host. Audit local-model initialization and read-only modes (S02).
-- [ ] **MEM-LOOP-USER-SOURCE** P0 — Terminal capture consumes the mapper's
-  last assistant summary; prove that user-only facts and roles survive when
-  the assistant does not repeat them, including truncation and replay (S04).
+- [ ] **MEM-LOOP-USER-SOURCE** P0 — Reproduced MEM-S04-01: full DIVA App/provider/real Garden–Mentle stores only `收到` with no source role despite the user fact appearing in the actual model request. Mapper completedEvent + CognitiveCaptureProvider consume the last assistant summary. Fix trusted run-specific source/roles and prove truncation/replay; S04 V05–V09. Evidence: docs/logs/2026-10-memory-loop-verification/S04/defects.md.
 - [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
   automatic reflection, effect receipts and persona-review continuity;
   domain API availability alone is not product wiring evidence (S05–S07).
@@ -200,3 +198,9 @@ implementation and makes no Ready/Done implementation claim.
 
 - [ ] **GUI-SESSION-PIN-PERSISTENCE** P3 — no verified session pin write contract exists; the no-op pin action and stale grouping were removed until persistence is available.
 
+
+## Memory execution environment and fixture blockers
+
+- [ ] **MEM-LOOP-NATIVE-BUILD-DEPS** P1 — Supported Wails pack cannot compile here: GTK/glib/WebKit/libsoup headers absent. Test asset index/cleanup fixed; sealed host build/race gate still needs a native build machine (S01).
+- [ ] **MEM-LOOP-FIXTURE-COMPLETE** P1 — ack/full App/real storage evidence works; reflection/recall modes, reflected observation and real process Restart are explicitly pending. Complete S03 contract before downstream gate acceptance.
+- [ ] **MEM-LOOP-PINNED-REGRESSION** P1 — Pinned Laputa module references missing ../../INOFY; Mentle CLI builds lack google/renameio go.sum; Garden e2e palace-only config returns memory_unavailable. Resolve using exact pinned dependencies/models and preserve original failure logs. Runtime instruction tests also see managed /tmp/.git ancestor; diagnose isolated equivalent before CI acceptance. No full-suite pass claimed.

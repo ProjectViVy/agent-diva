@@ -1,0 +1,49 @@
+{
+  "accepted": {
+    "RunID": "run_63c35523e7a816b3",
+    "EventSeq": 7,
+    "IngestionID": "ing_0fd3614d7ea74f98b0db1d6ec9776994",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "",
+    "Revision": 0,
+    "CanonicalCount": 0,
+    "SourceBody": "收到",
+    "SourceRole": "",
+    "SourceHash": "sha256:e2c6751f828b50fd875237fcdd905fe728fc8466df462ca425e61496cec4c904",
+    "State": "running"
+  },
+  "canonical": {
+    "RunID": "run_63c35523e7a816b3",
+    "EventSeq": 7,
+    "IngestionID": "ing_0fd3614d7ea74f98b0db1d6ec9776994",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_bba574fc507f41ad80c450ca55cf6472",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "SourceBody": "收到",
+    "SourceRole": "",
+    "SourceHash": "sha256:e2c6751f828b50fd875237fcdd905fe728fc8466df462ca425e61496cec4c904",
+    "State": "completed"
+  },
+  "generation_id": "bd5ed4676c8af63f227f7f3d7ff86c4cf651657287c799b093edb258b9fed99e",
+  "terminal": {
+    "RunID": "run_63c35523e7a816b3",
+    "EventSeq": 7,
+    "IngestionID": "",
+    "CaptureSeq": 0,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "",
+    "Revision": 0,
+    "CanonicalCount": 0,
+    "SourceBody": "",
+    "SourceRole": "",
+    "SourceHash": "",
+    "State": "completed"
+  },
+  "test_root": "/workspace/work/memory-loop/test-roots/TestMemoryLoopFixtureUsesRealComposition563314198/001"
+}

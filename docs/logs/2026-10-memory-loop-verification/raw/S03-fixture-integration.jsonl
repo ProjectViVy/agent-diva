@@ -1,0 +1,9 @@
+{"Time":"2026-10-09T17:36:43.308603252Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-09T17:36:43.326093897Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition"}
+{"Time":"2026-10-09T17:36:43.326154127Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"=== RUN   TestMemoryLoopFixtureUsesRealComposition\n"}
+{"Time":"2026-10-09T17:37:43.667412438Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"    memory_loop_fixture_test.go:323: accepted: {RunID:run_53602aa9749443a2 EventSeq:0 IngestionID: CaptureSeq:0 ProcessedThrough:0 OperationID: RecordID: Revision:0 CanonicalCount:0 SourceBody: SourceRole: SourceHash: State:} context deadline exceeded\n"}
+{"Time":"2026-10-09T17:37:43.668991313Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"--- FAIL: TestMemoryLoopFixtureUsesRealComposition (60.34s)\n"}
+{"Time":"2026-10-09T17:37:43.669046766Z","Action":"fail","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Elapsed":60.34}
+{"Time":"2026-10-09T17:37:43.669060507Z","Action":"output","Package":"agent-vivy/internal/app","Output":"FAIL\n"}
+{"Time":"2026-10-09T17:37:43.686137863Z","Action":"output","Package":"agent-vivy/internal/app","Output":"FAIL\tagent-vivy/internal/app\t60.377s\n"}
+{"Time":"2026-10-09T17:37:43.686181639Z","Action":"fail","Package":"agent-vivy/internal/app","Elapsed":60.378}

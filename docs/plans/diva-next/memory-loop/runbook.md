@@ -73,3 +73,25 @@ Story 发现缺口时先交付可复现证据，不把发现问题当作失败�
 6. 未完成能力、首个断点、最小修复建议、适用环境。
 
 所有必需场景未通过时，结论为部分成立或不成立；计划包完成不等于记忆闭环成立，也不等于 DIVA W7 发布签收。
+
+## 7. 本轮可复现的集成准备命令
+
+实际工作根为 `/workspace/work/memory-loop`，三个仓库均为隔离 worktree。设置 task-local Go 编译器（系统 `go` 是 GNU Go 棋类程序）：
+
+```sh
+export PATH=/workspace/work/memory-loop/tools/go/bin:$PATH
+export GOMODCACHE=/workspace/work/memory-loop/tools/gomod
+export GOCACHE=/workspace/work/memory-loop/tools/gocache
+```
+
+在 VIVY 根执行实际 SDK pack 和受检 overlay 生成（更改 internal 输入后必须重新 pack，旧 manifest 会被拒绝）：
+
+```sh
+GOFLAGS=-buildvcs=false go run ./sdk pack --target shared --recipe recipes/diva.vivy.yml --output /workspace/work/memory-loop/artifacts/diva-kernel-reviewed
+VIVY_MEMORY_LOOP_ARTIFACT=/workspace/work/memory-loop/artifacts/diva-kernel-reviewed VIVY_MEMORY_LOOP_OVERLAY_DIR=/workspace/work/memory-loop/tools/diva-overlay go test -json -tags vivy_headless ./sdk/internal -run '^TestMemoryLoop(GenerateIntegrationOverlay|OverlayRejectsMismatchedInputs)$' -count=1
+TMPDIR=/workspace/work/memory-loop/test-roots VIVY_MEMORY_LOOP_EVIDENCE_DIR=/workspace/work/memory-loop/logs/fixture-artifacts go test -json -tags 'vivy_headless vivy_diva_integration' -overlay /workspace/work/memory-loop/tools/diva-overlay/overlay.json ./internal/app -run '^TestMemoryLoopFixtureUsesRealComposition$' -count=1
+```
+
+测试目录先创建。当前托管环境中 loopback HTTP 也需要工具的 network 权限。`vivy_diva_integration` 只排除默认 recipe 专属 inventory 测试；默认 App 回归另跑。共享库用途是检验真实 recipe composition，不代替 Wails host、Windows 原生 UI 或真实模型验收。
+
+Garden Console 的 pnpm shim 限制和本轮脚本正文 fallback 见 environment.md。`just`/PowerShell 不可用，VIVY justfile 允许直接 Go 命令；本轮只跑了记录的受影响回归，未声称完整 CI。原始失败日志和每条命令退出码不可删除或改写为通过。

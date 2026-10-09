@@ -1,0 +1,5 @@
+=== RUN   TestMemoryLoopGenerateIntegrationOverlay
+    memory_loop_generation_test.go:86: generated DIVA integration overlay: /workspace/work/memory-loop/tools/diva-overlay/overlay.json
+--- PASS: TestMemoryLoopGenerateIntegrationOverlay (0.60s)
+PASS
+ok  	agent-vivy/sdk/internal	0.629s

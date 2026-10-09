@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/memory-loop/**, docs/plans/diva-next/memory-loop-verification.md, docs/plans/diva-next/index.md, docs/logs/2026-10-memory-loop-plan/v0.2.0-epic-story-package/**, TODOLIST.md, LOCK.md`
+- Scope: `scripts/build-desktop.py, scripts/ci/*memory*, scripts/ci/test_build_desktop_test_assets.py, docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-verification/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Superpowers Epic-Story memory verification plan package`
-- Branch/Worktree: `docs/memory-loop-verification-20261009 / /workspace/agent-diva`
-- Started At: `2026-10-09T16:57:33Z`
-- Last Heartbeat: `2026-10-09T17:06:24Z`
+- Session/Task: `Superpowers memory-loop execution foundation`
+- Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
+- Started At: `2026-10-09T17:10:00Z`
+- Last Heartbeat: `2026-10-09T18:26:08Z`
 - Expires At: `N/A (released)`
 
 ### Handoff for this task
@@ -42,6 +42,14 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Memory-loop execution foundation` — **RELEASED 2026-10-09T18:26:08Z**; isolated
+  execution branch feat/memory-loop-verification-20261009. Test asset fix,
+  evidence checker and paired VIVY/Laputa real-path fixtures locally committed.
+  S01–S03 remain Blocked; MEM-S04-01 user-fact loss reproduced. Evidence and
+  continuation: docs/logs/2026-10-memory-loop-verification/handoff.md.
+  No push, merge, product acceptance or release. Worktrees preserved.
+
 
 - `Superpowers Epic–Story memory plan package` — **RELEASED 2026-10-09T17:06:24Z**;
   planning only, five Epics/thirteen Stories, shared contracts/runbook and

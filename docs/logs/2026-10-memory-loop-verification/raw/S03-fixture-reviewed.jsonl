@@ -1,0 +1,11 @@
+{"Time":"2026-10-09T17:57:34.523887651Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-09T17:57:34.542749761Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition"}
+{"Time":"2026-10-09T17:57:34.542779887Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"=== RUN   TestMemoryLoopFixtureUsesRealComposition\n"}
+{"Time":"2026-10-09T17:57:34.668609587Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"2026/10/09 17:57:34 INFO project instructions discovered root=/workspace agents_md=[work/memory-loop/test-roots/TestMemoryLoopFixtureUsesRealComposition563314198/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-09T17:57:35.094371618Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"    memory_loop_fixture_test.go:349: real composition run=run_63c35523e7a816b3 event=7 ingestion=ing_0fd3614d7ea74f98b0db1d6ec9776994 capture=1 record=mem_bba574fc507f41ad80c450ca55cf6472 revision=1 source=\"收到\"\n"}
+{"Time":"2026-10-09T17:57:35.114334021Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"2026/10/09 17:57:35 INFO project instructions discovered root=/workspace agents_md=[work/memory-loop/test-roots/TestMemoryLoopFixtureUsesRealComposition563314198/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-09T17:57:35.22074038Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Output":"--- PASS: TestMemoryLoopFixtureUsesRealComposition (0.68s)\n"}
+{"Time":"2026-10-09T17:57:35.220795182Z","Action":"pass","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureUsesRealComposition","Elapsed":0.68}
+{"Time":"2026-10-09T17:57:35.220802513Z","Action":"output","Package":"agent-vivy/internal/app","Output":"PASS\n"}
+{"Time":"2026-10-09T17:57:35.238005164Z","Action":"output","Package":"agent-vivy/internal/app","Output":"ok  \tagent-vivy/internal/app\t0.714s\n"}
+{"Time":"2026-10-09T17:57:35.238074328Z","Action":"pass","Package":"agent-vivy/internal/app","Elapsed":0.714}

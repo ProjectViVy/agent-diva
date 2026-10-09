@@ -1,0 +1,20 @@
+.....E..............
+======================================================================
+ERROR: test_malformed_hash_returns_errors (test_check_memory_loop_evidence.EvidenceTests.test_malformed_hash_returns_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 176, in test_malformed_hash_returns_errors
+    self.assertTrue(self.errors())
+                    ^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 56, in errors
+    return checker.validate_evidence(record or self.record, self.root)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 276, in validate_evidence
+    if case.get(field) is not None and case[field] not in digests:
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'dict'
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.174s
+
+FAILED (errors=1)

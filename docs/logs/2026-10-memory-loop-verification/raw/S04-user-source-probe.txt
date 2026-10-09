@@ -1,0 +1,5 @@
+run: run_63c35523e7a816b3 ingestion: ing_0fd3614d7ea74f98b0db1d6ec9776994 record: mem_bba574fc507f41ad80c450ca55cf6472 revision: 1
+durable source: '收到' durable role: ''
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+AssertionError: MEM-S04-01: user-only fact lost; source role missing

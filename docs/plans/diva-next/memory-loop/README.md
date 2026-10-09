@@ -1,6 +1,6 @@
 # DIVA 记忆闭环验证 — Epic–Story 计划包
 
-版本：2026-10-10。范围：详细行动计划与交接文档，产品执行尚未开始。当前工作分支 `docs/memory-loop-verification-20261009`。
+版本：2026-10-10。范围：详细行动计划与执行交接。2026-10-09 已开始开发；执行分支 `feat/memory-loop-verification-20261009`。
 
 > 执行采用 Superpowers `executing-plans`，按 Story 的前置 gate 推进。默认一位负责人顺序执行；可并行的依赖关系不等于已授权多个 agent 同时编辑。
 
@@ -27,14 +27,14 @@
 <a id="story-status"></a>
 ## Story 状态与依赖
 
-当前全部 Planned；包结构检查通过不等于 Story Ready。Ready 需执行范围明确、前置 gate 满足且资源可用；Blocked 必须给阻塞原因/负责角色/下一动作；Done 必须有本候选的验收证据。
+首轮 S01–S03 已开发准备工作，但前置/出口门槛未全部满足；S04 已有诊断缺陷，尚未进入正式验收。包结构检查通过不等于 Story Ready。Ready 需执行范围明确、前置 gate 满足且资源可用；Blocked 必须给阻塞原因/负责角色/下一动作；Done 必须有本候选的验收证据。
 
 | Story | Epic | 结果 | 直接前置 | 人日 | 状态 | 证据/提交 |
 |---|---|---|---|---:|---|---|
-| [S01](stories/S01.md) | E01 | 固定版本、构建与隔离环境 | 无 | 0.5 | Planned | 未执行 |
-| [S02](stories/S02.md) | E01 | 真实 Mentle 启动与读写回执 | S01 | 1 | Planned | 未执行 |
-| [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Planned | 未执行 |
-| [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | 未执行 |
+| [S01](stories/S01.md) | E01 | 固定版本、构建与隔离环境 | 无 | 0.5 | Blocked | [环境/产物 gate](../../../logs/2026-10-memory-loop-verification/S01/summary.md)；`b2d8b0e9` |
+| [S02](stories/S02.md) | E01 | 真实 Mentle 启动与读写回执 | S01 | 1 | Blocked | [真实后台准备](../../../logs/2026-10-memory-loop-verification/S02/summary.md)；Laputa `5007f62f`，S01 未通过 |
+| [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；DIVA `0b17684d` / VIVY `968371cd`；S01/完整夹具未通过 |
+| [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | [MEM-S04-01 诊断失败](../../../logs/2026-10-memory-loop-verification/S04/defects.md)；前置 gate 未通过 |
 | [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 未执行 |
 | [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | 未执行 |
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | 未执行 |
@@ -44,6 +44,15 @@
 | [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | 未执行 |
 | [S12](stories/S12.md) | E05 | Windows 密封桌面的完整记忆流程 | S10, S11 | 1.5 | Planned | 未执行 |
 | [S13](stories/S13.md) | E05 | 真实模型评估与接手验收报告 | S12 | 1 | Planned | 未执行 |
+
+## 当前执行交接
+
+[首轮执行记录与解阻顺序](../../../logs/2026-10-memory-loop-verification/handoff.md)保存三个仓库的本地提交、真实测试数量、失败记录和命令。所有 S01–S03 当前状态为 **Blocked**，不是 Done；资源补齐和夹具实现完成后重新执行 gate。
+
+- S01：桌面原生构建依赖未满足。负责人：环境维护者；下一步：在具备 GTK/WebKit 的 Linux 或 Windows 环境运行支持的密封构建/test。
+- S02：后台 API 64 项、Garden 479 项通过；独立模块/e2e 回归有失败，密封宿主证明未取得。负责人：存储集成负责人；下一步：补齐原版本依赖与模型配置、重跑原失败场景。
+- S03：25 项 Python 回归、真实 DIVA composition 冒烟及产物身份校验已交付；reflection/recall、reflected、跨进程 Restart 尚缺。负责人：VIVY 测试集成负责人；下一步：按 contracts 补齐后重新验收。
+- S04：实际来源仅 `收到` 且角色缺失，不能证明用户事实进入记忆。负责人：采集链路负责人；前置通过后修复并验证 V05–V09。
 
 ## 排期：依赖批次
 

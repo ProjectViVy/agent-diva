@@ -1,0 +1,7 @@
+{"ImportPath":"agent-vivy/internal/app [agent-vivy/internal/app.test]","Action":"build-output","Output":"# agent-vivy/internal/app [agent-vivy/internal/app.test]\n"}
+{"ImportPath":"agent-vivy/internal/app [agent-vivy/internal/app.test]","Action":"build-output","Output":"internal/app/memory_loop_fixture_test.go:342:25: cannot use f.app.assembly (variable of type *\"agent-vivy/internal/generated/assembly\".RuntimeAssembly) as \"agent-vivy/internal/generated/assembly\".RuntimeAssembly value in argument to runtimeGenerationID\n"}
+{"ImportPath":"agent-vivy/internal/app [agent-vivy/internal/app.test]","Action":"build-output","Output":"internal/app/memory_loop_fixture_test.go:367:91: cannot use f.app.assembly (variable of type *\"agent-vivy/internal/generated/assembly\".RuntimeAssembly) as \"agent-vivy/internal/generated/assembly\".RuntimeAssembly value in argument to runtimeGenerationID\n"}
+{"ImportPath":"agent-vivy/internal/app [agent-vivy/internal/app.test]","Action":"build-fail"}
+{"Time":"2026-10-09T17:56:01.65679117Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-09T17:56:01.656845451Z","Action":"output","Package":"agent-vivy/internal/app","Output":"FAIL\tagent-vivy/internal/app [build failed]\n"}
+{"Time":"2026-10-09T17:56:01.656852332Z","Action":"fail","Package":"agent-vivy/internal/app","Elapsed":0,"FailedBuild":"agent-vivy/internal/app [agent-vivy/internal/app.test]"}

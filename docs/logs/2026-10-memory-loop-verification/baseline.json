@@ -1,0 +1,53 @@
+{
+  "schema": "diva.memory-baseline/v1",
+  "candidate_id": "6f7c24b76030675f7475845bcd5944317a56b44b870dac59867b46bc0c1dcdab",
+  "baselines": [
+    {
+      "baseline_id": "linux-integration-preparation-20261009",
+      "candidate_id": "6f7c24b76030675f7475845bcd5944317a56b44b870dac59867b46bc0c1dcdab",
+      "repositories": {
+        "diva": {
+          "sha": "c241761de314478cc2c28888768b0e035c88fce7",
+          "dirty": true
+        },
+        "vivy": {
+          "sha": "3073d1e126bbe2d9579879c79869f363214938b1",
+          "dirty": true
+        },
+        "laputa": {
+          "sha": "6f2eed2d71c82261333e50883e98b404070a6801",
+          "dirty": true
+        }
+      },
+      "lock_sha256": "69f761f6f3d2b2df795b039385b4fb25f33bbcf86508aef1f422c871d47e0e8f",
+      "recipe_sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d",
+      "generation_id": null,
+      "artifact_path": null,
+      "artifact_sha256": null,
+      "os": "linux",
+      "arch": "amd64",
+      "go_version": "go1.26.4",
+      "wails_version": "v3.0.0-beta.27",
+      "model_assets": [],
+      "test_root": "/workspace/work/memory-loop/test-roots/TestMemoryLoopFixtureUsesRealComposition563314198/001",
+      "status": "blocked",
+      "missing_fields": {
+        "generation_id": "Wails go-host pack fails at GTK/WebKit compilation",
+        "artifact_path": "No sealed Wails executable produced",
+        "artifact_sha256": "No sealed Wails executable produced",
+        "model_assets": "Pinned model bytes inspected externally; no sealed candidate model package yet"
+      },
+      "integration_artifact": {
+        "path": "/workspace/work/memory-loop/artifacts/diva-kernel-reviewed/vivy-shared.so",
+        "sha256": "246c9a56952dde5c627d371745431796a93484ca79adc99a4501f0d0044f6ab9",
+        "generation_id": "bd5ed4676c8af63f227f7f3d7ff86c4cf651657287c799b093edb258b9fed99e",
+        "manifest_path": "integration-generation.json",
+        "manifest_sha256": "06b93d816cb44567912a41c0506643b97120291034c399d3fc1ff82acc8ec610",
+        "purpose": "Shared-target integration preparation only; not a Wails candidate or native desktop acceptance"
+      }
+    }
+  ],
+  "config_template": "config-template.json",
+  "candidate_inputs": "candidate-inputs.json",
+  "note": "Blocked baseline intentionally has null product fields. Checker must reject it; integration identity is separately recorded, not substituted."
+}

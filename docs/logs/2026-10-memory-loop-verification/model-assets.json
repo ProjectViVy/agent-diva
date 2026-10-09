@@ -1,0 +1,47 @@
+{
+  "schema": "diva.model-assets-inspection/v1",
+  "repository_sha": "6f2eed2d71c82261333e50883e98b404070a6801",
+  "files": [
+    {
+      "repository_path": "mentle/models/AGENTS.md",
+      "sha256": "c4e7f7ff6009f8a679d808b7857d2b2840b0ab4e1a0aad0b9638c391bbaf7c67",
+      "bytes": 2746
+    },
+    {
+      "repository_path": "mentle/models/onnx/AGENTS.md",
+      "sha256": "cc5cc337fb2e87a7e71b0a361eb0bb1c4208a3992a1cfd97c7f2bdccf254ac8f",
+      "bytes": 1902
+    },
+    {
+      "repository_path": "mentle/models/onnx/config.json",
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41",
+      "bytes": 612
+    },
+    {
+      "repository_path": "mentle/models/onnx/model.onnx",
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452",
+      "bytes": 90405214
+    },
+    {
+      "repository_path": "mentle/models/onnx/special_tokens_map.json",
+      "sha256": "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3",
+      "bytes": 112
+    },
+    {
+      "repository_path": "mentle/models/onnx/tokenizer.json",
+      "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037",
+      "bytes": 466247
+    },
+    {
+      "repository_path": "mentle/models/onnx/tokenizer_config.json",
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b",
+      "bytes": 350
+    },
+    {
+      "repository_path": "mentle/models/onnx/vocab.txt",
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+      "bytes": 231508
+    }
+  ],
+  "note": "Actual pinned model bytes used by positive tests. Binary assets are kept in the pinned repository, not duplicated here; this is a hash inventory, not a sealed model package."
+}

@@ -1,0 +1,434 @@
+{
+  "schema": "diva.memory-evidence/v1",
+  "story_id": "S02",
+  "candidate_id": "6f7c24b76030675f7475845bcd5944317a56b44b870dac59867b46bc0c1dcdab",
+  "baseline_id": "linux-integration-preparation-20261009",
+  "status": "blocked",
+  "case_results": [
+    {
+      "case_id": "V02",
+      "sample_id": "V02-preparation-1",
+      "mode": "scripted-real-storage",
+      "status": "blocked",
+      "profile_id": null,
+      "scope": null,
+      "session_a": null,
+      "session_b": null,
+      "run_id": null,
+      "event_seq": null,
+      "ingestion_id": null,
+      "capture_seq": null,
+      "processed_through": null,
+      "operation_id": null,
+      "record_id": null,
+      "revision": null,
+      "source_hash": null,
+      "prompt_hash": null,
+      "answer_check": null,
+      "timestamps": {
+        "started_at": "2026-10-09T17:57:34Z",
+        "ended_at": "2026-10-09T17:57:36Z"
+      },
+      "artifact_paths": [
+        "raw/S02-agentapi-suite.jsonl",
+        "raw/S02-garden-suite-final.jsonl"
+      ],
+      "failure_reason": "Public real backend passed with pinned local models; S01 sealed product gate absent; existing module/e2e regressions are not green.",
+      "not_applicable": {
+        "profile_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "scope": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_a": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_b": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "run_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "event_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "ingestion_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "capture_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "processed_through": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "operation_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "record_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "revision": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "source_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "prompt_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "answer_check": "Not exported or not applicable to this preparation assertion; no product identity invented."
+      }
+    },
+    {
+      "case_id": "V03",
+      "sample_id": "V03-preparation-1",
+      "mode": "scripted-real-storage",
+      "status": "blocked",
+      "profile_id": null,
+      "scope": null,
+      "session_a": null,
+      "session_b": null,
+      "run_id": null,
+      "event_seq": null,
+      "ingestion_id": null,
+      "capture_seq": null,
+      "processed_through": null,
+      "operation_id": null,
+      "record_id": null,
+      "revision": null,
+      "source_hash": null,
+      "prompt_hash": null,
+      "answer_check": null,
+      "timestamps": {
+        "started_at": "2026-10-09T17:57:34Z",
+        "ended_at": "2026-10-09T17:57:36Z"
+      },
+      "artifact_paths": [
+        "raw/S02-agentapi-suite.jsonl",
+        "raw/S02-garden-suite-final.jsonl"
+      ],
+      "failure_reason": "Public real backend passed with pinned local models; S01 sealed product gate absent; existing module/e2e regressions are not green.",
+      "not_applicable": {
+        "profile_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "scope": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_a": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_b": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "run_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "event_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "ingestion_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "capture_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "processed_through": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "operation_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "record_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "revision": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "source_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "prompt_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "answer_check": "Not exported or not applicable to this preparation assertion; no product identity invented."
+      }
+    },
+    {
+      "case_id": "V04",
+      "sample_id": "V04-preparation-1",
+      "mode": "scripted-real-storage",
+      "status": "blocked",
+      "profile_id": null,
+      "scope": null,
+      "session_a": null,
+      "session_b": null,
+      "run_id": null,
+      "event_seq": null,
+      "ingestion_id": null,
+      "capture_seq": null,
+      "processed_through": null,
+      "operation_id": null,
+      "record_id": null,
+      "revision": null,
+      "source_hash": null,
+      "prompt_hash": null,
+      "answer_check": null,
+      "timestamps": {
+        "started_at": "2026-10-09T17:57:34Z",
+        "ended_at": "2026-10-09T17:57:36Z"
+      },
+      "artifact_paths": [
+        "raw/S02-agentapi-suite.jsonl",
+        "raw/S02-garden-suite-final.jsonl"
+      ],
+      "failure_reason": "Public real backend passed with pinned local models; S01 sealed product gate absent; existing module/e2e regressions are not green.",
+      "not_applicable": {
+        "profile_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "scope": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_a": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "session_b": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "run_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "event_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "ingestion_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "capture_seq": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "processed_through": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "operation_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "record_id": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "revision": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "source_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "prompt_hash": "Not exported or not applicable to this preparation assertion; no product identity invented.",
+        "answer_check": "Not exported or not applicable to this preparation assertion; no product identity invented."
+      }
+    }
+  ],
+  "commands": [
+    {
+      "cwd": "/workspace/work/memory-loop/laputa/garden",
+      "command": "go test -json ./agentapi -count=1",
+      "log_path": "raw/S02-agentapi-suite.jsonl",
+      "exit_code": 0,
+      "tests_discovered": 64,
+      "tests_passed": 64,
+      "tests_skipped": 0
+    },
+    {
+      "cwd": "/workspace/work/memory-loop/laputa/garden",
+      "command": "go test -json ./... -count=1",
+      "log_path": "raw/S02-garden-suite-final.jsonl",
+      "exit_code": 0,
+      "tests_discovered": 479,
+      "tests_passed": 479,
+      "tests_skipped": 0
+    },
+    {
+      "cwd": "/workspace/work/memory-loop/laputa/laputa",
+      "command": "go test -json ./... -count=1",
+      "log_path": "raw/S02-laputa-suite.jsonl",
+      "exit_code": 1,
+      "tests_discovered": 60,
+      "tests_passed": 60,
+      "tests_skipped": 0
+    },
+    {
+      "cwd": "/workspace/work/memory-loop/laputa/mentle",
+      "command": "go test -json ./... -count=1",
+      "log_path": "raw/S02-mentle-suite.jsonl",
+      "exit_code": 1,
+      "tests_discovered": 392,
+      "tests_passed": 381,
+      "tests_skipped": 7
+    },
+    {
+      "cwd": "/workspace/work/memory-loop/laputa/garden",
+      "command": "GOFLAGS=-buildvcs=false go test -json -tags=e2e ./e2e/... -count=1",
+      "log_path": "raw/S02-garden-e2e-staged.jsonl",
+      "exit_code": 1,
+      "tests_discovered": 2,
+      "tests_passed": 1,
+      "tests_skipped": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "raw/S01-assets-green.txt",
+      "sha256": "41af4ece0a427f4872a75233cbc4e035efc6a12d23f4f996b0ea2c2176094dfc"
+    },
+    {
+      "path": "raw/S01-assets-red.txt",
+      "sha256": "992e10e38776339a4601b34b211811a114f52b04cd9eb5044190d05ecbc28d6d"
+    },
+    {
+      "path": "raw/S01-fixed-assets-build.txt",
+      "sha256": "14bf1013ed408af80e48ceab3ef58ae2f0e3dca50e30a2f96e85ded132f31529"
+    },
+    {
+      "path": "raw/S01-garden-compile.txt",
+      "sha256": "424ea7c36e399a6539532eebf5c6a969c886609359d4bc514628ab3291747d52"
+    },
+    {
+      "path": "raw/S01-go-build.txt",
+      "sha256": "c97a47f04fa568575c259ecb4c2cbff24e20747866264443f3dcc720801bcab1"
+    },
+    {
+      "path": "raw/S01-original-build.txt",
+      "sha256": "06251b4c57563162c5089615b94ef6978f3777b430bf7ad68433cf236fcb5ab6"
+    },
+    {
+      "path": "raw/S01-staged-build.txt",
+      "sha256": "d8b569af7b36bbab6bec77ff5b486647a42b561b5cd5ba5d08c3e5d72fbabcc8"
+    },
+    {
+      "path": "raw/S02-agentapi-suite.jsonl",
+      "sha256": "c3e9ddc5c6ff174b32f77bb18a1a6d47d4f1380768f7336f0205803c95d1d2e3"
+    },
+    {
+      "path": "raw/S02-console-build-direct.txt",
+      "sha256": "904e283af0e5940592f7108d8ef06ec5bf6d6e3fbe2e687390c5be9917475c71"
+    },
+    {
+      "path": "raw/S02-console-build.txt",
+      "sha256": "81ddddc703075eea80ec18879ef1559d799377b14e8fb0a5d9e3bcf53dc1a24b"
+    },
+    {
+      "path": "raw/S02-console-install-local.txt",
+      "sha256": "b613e614f9b867e6182f158e8ecebbbd07ca7343673f3c5dd3ebef76221cb513"
+    },
+    {
+      "path": "raw/S02-console-install.txt",
+      "sha256": "1e9e0fa9727ab49afebc7d87e1aac49241f82f923be113d17b71326c3ffb40be"
+    },
+    {
+      "path": "raw/S02-garden-e2e-staged.jsonl",
+      "sha256": "9934b48353f6f28a3dae4d8f3d6008cd67ea0d4e7314ced006c79e5c22ffba06"
+    },
+    {
+      "path": "raw/S02-garden-e2e.jsonl",
+      "sha256": "917d83d12556b5b15a5c36d3d0e2ca907953d78d5d3669b251beb576b0194425"
+    },
+    {
+      "path": "raw/S02-garden-suite-final.jsonl",
+      "sha256": "bceb64d4b51440712ab38baa1cf6f68b376dc6620a4a59a2821cc679a8f1d333"
+    },
+    {
+      "path": "raw/S02-garden-suite.jsonl",
+      "sha256": "3172588a7f593d551c8047b70b8556278ed2cfdb706a9d420691ee29c50d894f"
+    },
+    {
+      "path": "raw/S02-laputa-suite.jsonl",
+      "sha256": "7f10fbc072da1047688055bee27ec7f1b70208f490643bab04161e79fbddffa2"
+    },
+    {
+      "path": "raw/S02-mentle-suite.jsonl",
+      "sha256": "e75c6decbb13cac0cc1a5d343ff098b6be06176e56e96c3face1783eb383c8c2"
+    },
+    {
+      "path": "raw/S02-real-backend.jsonl",
+      "sha256": "778f3efa40758ab87418bb69883bb220033aed4439459911fb6768131c43b126"
+    },
+    {
+      "path": "raw/S03-app-suite-delivery.jsonl",
+      "sha256": "eb6112408247e03e07d97eafb495f27ac401ebc346d913941334a6232ac88fbe"
+    },
+    {
+      "path": "raw/S03-app-suite-final.jsonl",
+      "sha256": "ef7bbc09335a39691f298c1b786b9277617c9483dc76ec20ab3cb39db981aab6"
+    },
+    {
+      "path": "raw/S03-app-suite.jsonl",
+      "sha256": "d98094f2e294e0846718925cb542f0c8a53a5f34d982ca045ac3a14cd13e4416"
+    },
+    {
+      "path": "raw/S03-checker-green.txt",
+      "sha256": "f7184829e2b2d5276f68a108f692188c1f8f4c5154b044e2f51e51221b71450d"
+    },
+    {
+      "path": "raw/S03-checker-red.txt",
+      "sha256": "15740c95ce1a84674892c702dffab504fa65e81890b325fcfc7deabe9b92ea59"
+    },
+    {
+      "path": "raw/S03-fixture-default.txt",
+      "sha256": "80fbcd5e2441124809173385097ccb4aa469275c789eba335b2366a5ab444c99"
+    },
+    {
+      "path": "raw/S03-fixture-integration-final.jsonl",
+      "sha256": "ffd9a14b1b8c63f2cd66356537cc0635a164fe701cde4dfb80da23fd469aa120"
+    },
+    {
+      "path": "raw/S03-fixture-integration.jsonl",
+      "sha256": "1f1590f1f690ebc0851a026e7f96a78ff1cd0c09ef62210a58a59630425120e6"
+    },
+    {
+      "path": "raw/S03-fixture-provenance.jsonl",
+      "sha256": "ca59303bc92ac0ee84de7e3649616694b79f1263ecae36fd793838992cf0a4f0"
+    },
+    {
+      "path": "raw/S03-fixture-reviewed.jsonl",
+      "sha256": "02915d8b3eda6c8ed773fd4fb965d8a56f7b7645df8854af08501e24eee47685"
+    },
+    {
+      "path": "raw/S03-fixture-verified.jsonl",
+      "sha256": "056de1d41fa03bd069035ec82ec8feede66897ecc513f85f2332feef58f3f27c"
+    },
+    {
+      "path": "raw/S03-generation-overlay-final.jsonl",
+      "sha256": "c869a63f23c43ad57d190a31cb8d743de4f9bc88a2d43b85e586bf0d6a5652b0"
+    },
+    {
+      "path": "raw/S03-generation-overlay-final.txt",
+      "sha256": "ddf05b57011cc941407955b9908c8a6b34c17faa6094ca8276fbdac597917633"
+    },
+    {
+      "path": "raw/S03-generation-overlay-provenance.jsonl",
+      "sha256": "9e497e3657b24f53f2bfdf7249964c3c623a4dbdd699f12363e59c478c2fe5a9"
+    },
+    {
+      "path": "raw/S03-generation-overlay-reviewed.jsonl",
+      "sha256": "170eddeb2d19c27b4a040d122e24d0da611f71d0618991a640535e1d653ae4e9"
+    },
+    {
+      "path": "raw/S03-generation-overlay-verified.jsonl",
+      "sha256": "9d85d95dfab25b6d2b77589577751efabc90973cdf37339bf25eba3cdad58c59"
+    },
+    {
+      "path": "raw/S03-generation-overlay.txt",
+      "sha256": "d4ea013451863ae3a835c7b1df0d429c7f472ee09295dd410e2a870a5e72ec28"
+    },
+    {
+      "path": "raw/S03-kernel-pack-final.json",
+      "sha256": "0da13592d4b3da4d051c16d8a98f3fcb3c434c8f5c033d9dfc6cda6c7b1a2355"
+    },
+    {
+      "path": "raw/S03-kernel-pack-provenance.json",
+      "sha256": "f9704f545fd84b172a9c8a59ddb79d757ec048829b69bbca655f3961f607c9c9"
+    },
+    {
+      "path": "raw/S03-kernel-pack-reviewed.json",
+      "sha256": "9f5d7b0fd73d81097da9fbe3574c810dad128c930b887f04204437b8c665a8b3"
+    },
+    {
+      "path": "raw/S03-kernel-pack.txt",
+      "sha256": "889ba51cd1f43d2ac931a8b0cc8c97bd5dc4c8490eaeff8e560016e5b255d713"
+    },
+    {
+      "path": "raw/S03-malformed-hash-red.txt",
+      "sha256": "09e99f1caaa3ba2fb7e8bf77097d06b273c4a14f13419feaf5ed4a02bbbda543"
+    },
+    {
+      "path": "raw/S03-overlay-identity-red.txt",
+      "sha256": "0543fd4a9354236e82fb57f76a4b098fd7be32ec76c43df03187ca2a6c6fdcab"
+    },
+    {
+      "path": "raw/S03-python-final.txt",
+      "sha256": "5497ffa5008bec74f0711651462b9d1d2e2faefee86e0e07827e08a3fb1c06f6"
+    },
+    {
+      "path": "raw/S03-python-suite.txt",
+      "sha256": "fd2dceccd53a7902d432d84a971450c03da5cfe09e67d27cd486bf81fc4be829"
+    },
+    {
+      "path": "raw/S03-review-red.txt",
+      "sha256": "318a1a95f8880495bd104f4b745b2e0bc80fd1bed6e4883fb7eeb1a08eac61e8"
+    },
+    {
+      "path": "raw/S03-runtime-regression.jsonl",
+      "sha256": "7bed345419188773a7f7103389ecb8f9c14c5692f65645c5d2935bd006d8b7d7"
+    },
+    {
+      "path": "raw/S03-source-hash-red.txt",
+      "sha256": "96c3b567ae085c8b10136878044176488493785ed4daa36f7f4203d32b5212d0"
+    },
+    {
+      "path": "raw/S03-symlink-red.txt",
+      "sha256": "6316dbe82bc399ed6c9d300e90683d8c250a588cfd189e2e04d2beeb5ebebede"
+    },
+    {
+      "path": "raw/S04-user-source-probe.txt",
+      "sha256": "a29d944fedebe447a1226beae6ef5fd9b33d221315e9161c3ade0fc3df85aafe"
+    },
+    {
+      "path": "captured-source.txt",
+      "sha256": "e2c6751f828b50fd875237fcdd905fe728fc8466df462ca425e61496cec4c904"
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "9c8410073e5a5af2685e095430e0bf831f1bc844fc4c06b2de5edf316c1accfa"
+    },
+    {
+      "path": "snapshot.json",
+      "sha256": "0d9d1ccafe07e5371f4cd0272a2942d665618f2040781b152ef887a314f5a256"
+    },
+    {
+      "path": "integration-generation.json",
+      "sha256": "06b93d816cb44567912a41c0506643b97120291034c399d3fc1ff82acc8ec610"
+    },
+    {
+      "path": "model-assets.json",
+      "sha256": "325d63d23018cd3afe38bbf4fb197f7d2c8b51c6c6d66cf28fc933a6bc897ca2"
+    },
+    {
+      "path": "source-lock.json",
+      "sha256": "69f761f6f3d2b2df795b039385b4fb25f33bbcf86508aef1f422c871d47e0e8f"
+    },
+    {
+      "path": "recipe.yml",
+      "sha256": "2249863bcad02572f038d7d80a19ce769211bd9848e819fd29a10b3e3f8c305d"
+    },
+    {
+      "path": "candidate-inputs.json",
+      "sha256": "0e3225fe1a716d285be7eb14569dbfc9e0d4345e692567988f081491b1531207"
+    },
+    {
+      "path": "config-template.json",
+      "sha256": "e804899ea641ed41b525984e0f33cdb5a1ac4cd0b28c4bb32d3c0cb3b33849f4"
+    }
+  ],
+  "defects": [],
+  "reason": "Public real backend passed with pinned local models; S01 sealed product gate absent; existing module/e2e regressions are not green.",
+  "note": "Preparation and diagnostic evidence. Counts include named subtests; package setup failures may have no test event. Formal acceptance remains unpassed."
+}

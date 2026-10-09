@@ -1,0 +1,6 @@
+=== RUN   TestMemoryLoopOverlayRejectsMismatchedInputs
+    memory_loop_generation_test.go:142: stale recipe accepted
+--- FAIL: TestMemoryLoopOverlayRejectsMismatchedInputs (0.00s)
+FAIL
+FAIL	agent-vivy/sdk/internal	0.018s
+FAIL

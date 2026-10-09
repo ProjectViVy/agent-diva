@@ -1,0 +1,13 @@
+..............F....
+======================================================================
+FAIL: test_source_and_prompt_hashes_reference_sample_artifacts (test_check_memory_loop_evidence.EvidenceTests.test_source_and_prompt_hashes_reference_sample_artifacts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 72, in test_source_and_prompt_hashes_reference_sample_artifacts
+    self.assertTrue(any('source_hash' in e for e in self.errors()))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.219s
+
+FAILED (failures=1)

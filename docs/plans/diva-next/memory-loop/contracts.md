@@ -1,6 +1,6 @@
 # 共享测试接口与证据契约
 
-版本：`diva.memory-verification/v1`。这是验证工具的计划契约，不修改产品 RPC/领域 DTO。产品字段和权限继续以 DN-W3/C2、Garden agentapi 为准。新测试文件和校验器尚未实现。
+版本：`diva.memory-verification/v1`。这是验证工具的计划契约，不修改产品 RPC/领域 DTO。产品字段和权限继续以 DN-W3/C2、Garden agentapi 为准。校验器已实现；测试夹具已实现 ack、terminal/accepted/canonical 与同进程 close/open 冒烟。reflection/recall/reflected、跨进程 Restart 尚未实现，明确报错，S03 尚未验收。
 
 ## 1. 基线与候选
 
@@ -38,7 +38,7 @@ func (h *HumanClient) MemoryReceipt(ctx context.Context, operationID string) (me
 
 ## 3. S03 提供的测试夹具接口
 
-位置：VIVY `internal/app/memory_loop_fixture_test.go`，package `app`。以下全部是拟新增 test-only 接口，后续 Story 使用同一组名称，不另造一套 helper。
+位置：VIVY `internal/app/memory_loop_fixture_test.go`，package `app`。以下是 test-only 接口的完整验收目标（实现进度见总索引），后续 Story 使用同一组名称，不另造一套 helper。
 
 ```go
 type memoryLoopOptions struct {
@@ -161,3 +161,13 @@ CLI：`python3 scripts/ci/check_memory_loop_evidence.py --story S04 --evidence-r
 ## 7. 缺陷与跨仓库变更交接
 
 `MEM-Sxx-nn`记录：首个断点、复现命令、预期/实际、根因、最小文件范围、关联 case、修复 commit 和重测证据。多个仓库的提交要有同一个 candidate 记录。已知缺陷修复不靠大范围重构；共享接口变化更新本文件及所有直接消费者后继续。
+
+## 8. 首轮实现细节
+
+校验器的 `scope` 是对象：`subject_id` 非空，`kind` 为 `personal|workspace`，workspace 必须给 `workspace_id`。序列/版本是 JSON 整数；身份字段为非空字符串或逐项解释的 null。`answer_check` 为 `{correct: boolean}` 或解释的 null。`timestamps` 为带时区且有序的 `started_at`/`ended_at`。
+
+`source_hash`、`prompt_hash` 为原始来源/请求 artifact 的完整文件 SHA-256（无 `sha256:` 前缀），必须匹配本样本引用并注册的文件；领域自身 content_hash 另存原始快照，不能混用。崩溃样本使用 `cut_point: C01..C06`。V28 的 `category` 取 `user-fact, preference, paraphrase, unfinished-task, reflection, provenance, correction, forgetting, empty-control, scope-denial`。
+
+基线中的 `model_assets` 与宿主 binary 必须是 evidence-root 内实际文件及哈希；本轮只登记外部集成产物/模型的哈希清单，没有把共享库和模型清单冒充桌面宿主/模型文件。因此 blocked baseline 尚不能通过 checker。未来密封验收使用独立完整 evidence-root，模型大文件无需重复纳入 Git。
+
+校验器核验申报的命令计数；不会解析原始日志推断行为或认证记录作者。原始日志及行为断言仍须审阅。

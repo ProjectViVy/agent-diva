@@ -1,0 +1,6 @@
+=== RUN   TestMemoryLoopGenerateIntegrationOverlay
+    memory_loop_generation_test.go:100: packed module inputs differ for vivy/loop: version=true source=false trust=true provides=true requires=true grants=false
+--- FAIL: TestMemoryLoopGenerateIntegrationOverlay (1.98s)
+FAIL
+FAIL	agent-vivy/sdk/internal	2.012s
+FAIL

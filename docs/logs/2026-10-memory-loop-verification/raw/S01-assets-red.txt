@@ -1,0 +1,27 @@
+test_sdk_receives_index_and_assets_are_cleaned_on_failure (test_build_desktop_test_assets.TestModeAssets.test_sdk_receives_index_and_assets_are_cleaned_on_failure) ... FAIL
+
+======================================================================
+FAIL: test_sdk_receives_index_and_assets_are_cleaned_on_failure (test_build_desktop_test_assets.TestModeAssets.test_sdk_receives_index_and_assets_are_cleaned_on_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_build_desktop_test_assets.py", line 33, in test_sdk_receives_index_and_assets_are_cleaned_on_failure
+    build.mode_test(args)
+  File "/workspace/work/memory-loop/agent-diva/scripts/build-desktop.py", line 273, in mode_test
+    sdk_pack(args, lock_path, ".test-empty-assets", artifact)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 1204, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_build_desktop_test_assets.py", line 26, in require_sdk_assets
+    self.assertTrue((asset_root/'index.html').is_file(),
+AssertionError: False is not true : SDK requires index.html even for backend-only tests
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+FAILED (failures=1)
