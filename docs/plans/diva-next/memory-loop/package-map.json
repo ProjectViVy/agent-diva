@@ -1,0 +1,346 @@
+{
+  "schema": "diva.memory-plan-package/v1",
+  "date": "2026-10-10",
+  "epics": [
+    {
+      "id": "E01",
+      "title": "可复现基础与真实存储",
+      "stories": [
+        "S01",
+        "S02",
+        "S03"
+      ]
+    },
+    {
+      "id": "E02",
+      "title": "经历采集、活动整理与反思",
+      "stories": [
+        "S04",
+        "S05",
+        "S06",
+        "S07"
+      ]
+    },
+    {
+      "id": "E03",
+      "title": "记忆回用与生命周期",
+      "stories": [
+        "S08",
+        "S09"
+      ]
+    },
+    {
+      "id": "E04",
+      "title": "故障恢复与权限隔离",
+      "stories": [
+        "S10",
+        "S11"
+      ]
+    },
+    {
+      "id": "E05",
+      "title": "桌面与真实模型验收",
+      "stories": [
+        "S12",
+        "S13"
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "epic": "E01",
+      "title": "固定版本、构建与隔离环境",
+      "deps": [],
+      "days": 0.5,
+      "cases": [
+        "V01"
+      ],
+      "existing": [
+        "diva:build/vivy-sources.lock.json",
+        "diva:scripts/build-desktop.py",
+        "diva:internal/desktop/config.go",
+        "vivy:recipes/diva.vivy.yml"
+      ],
+      "new": []
+    },
+    {
+      "id": "S02",
+      "epic": "E01",
+      "title": "真实 Mentle 启动与读写回执",
+      "deps": [
+        "S01"
+      ],
+      "days": 1,
+      "cases": [
+        "V02",
+        "V03",
+        "V04"
+      ],
+      "existing": [
+        "laputa:garden/agentapi/open.go",
+        "laputa:garden/agentapi/embedded_domain.go",
+        "laputa:garden/internal/runtimecore/runtime.go",
+        "laputa:garden/backends/mentle/adapter.go",
+        "vivy:internal/modules/diva-cognitive/factory.go"
+      ],
+      "new": [
+        "laputa:garden/agentapi/memory_loop_real_backend_test.go"
+      ]
+    },
+    {
+      "id": "S03",
+      "epic": "E01",
+      "title": "统一测试夹具与证据校验",
+      "deps": [
+        "S01"
+      ],
+      "days": 0.5,
+      "cases": [],
+      "existing": [
+        "vivy:internal/app/app.go",
+        "vivy:internal/app/facehost.go",
+        "vivy:internal/app/cognitive_origin_test.go",
+        "vivy:sdk/host/v1/host.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_fixture_test.go",
+        "diva:scripts/ci/check_memory_loop_evidence.py",
+        "diva:scripts/ci/test_check_memory_loop_evidence.py"
+      ]
+    },
+    {
+      "id": "S04",
+      "epic": "E02",
+      "title": "用户对话采集与可信来源",
+      "deps": [
+        "S02",
+        "S03"
+      ],
+      "days": 1,
+      "cases": [
+        "V05",
+        "V06",
+        "V07",
+        "V08",
+        "V09"
+      ],
+      "existing": [
+        "vivy:internal/runtime/mapper.go",
+        "vivy:internal/runtime/cognitive_service.go",
+        "vivy:internal/observerhost/host.go",
+        "vivy:internal/modules/diva-cognitive/factory.go",
+        "laputa:garden/internal/ingest/service.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_capture_test.go"
+      ]
+    },
+    {
+      "id": "S05",
+      "epic": "E02",
+      "title": "ACTMEM 连续性与归档",
+      "deps": [
+        "S04"
+      ],
+      "days": 0.5,
+      "cases": [
+        "V10"
+      ],
+      "existing": [
+        "laputa:garden/agentapi/actmem.go",
+        "laputa:garden/evolution/domain.go",
+        "laputa:laputa/actmem/store.go",
+        "laputa:laputa/actmem/ops.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_activity_test.go"
+      ]
+    },
+    {
+      "id": "S06",
+      "epic": "E02",
+      "title": "自动反思与普通记忆效果",
+      "deps": [
+        "S04",
+        "S05"
+      ],
+      "days": 0.5,
+      "cases": [
+        "V11",
+        "V12",
+        "V13",
+        "V16"
+      ],
+      "existing": [
+        "vivy:internal/runtime/cognitive_service.go",
+        "vivy:internal/runtime/cognitive_binding.go",
+        "laputa:laputa/evolution/diva/strategy.go",
+        "laputa:laputa/evolution/inofy/executor.go",
+        "laputa:garden/evolution/domain.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_reflection_test.go"
+      ]
+    },
+    {
+      "id": "S07",
+      "epic": "E02",
+      "title": "人格审阅与冻结会话边界",
+      "deps": [
+        "S06"
+      ],
+      "days": 0.5,
+      "cases": [
+        "V14",
+        "V15"
+      ],
+      "existing": [
+        "laputa:laputa/persona/service.go",
+        "laputa:laputa/persona/mission_test.go",
+        "laputa:garden/agentapi/embedded_domain.go",
+        "vivy:internal/runtime/cognitive_primary_test.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_persona_test.go"
+      ]
+    },
+    {
+      "id": "S08",
+      "epic": "E03",
+      "title": "新会话召回及因果对照",
+      "deps": [
+        "S06",
+        "S07"
+      ],
+      "days": 1,
+      "cases": [
+        "V17",
+        "V18",
+        "V19"
+      ],
+      "existing": [
+        "vivy:internal/app/assembly_sources.go",
+        "vivy:internal/runtime/context.go",
+        "vivy:internal/modules/diva-cognitive/factory.go",
+        "laputa:garden/agentapi/service.go",
+        "laputa:garden/agentapi/reads.go",
+        "laputa:garden/internal/recall/fast.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_recall_test.go"
+      ]
+    },
+    {
+      "id": "S09",
+      "epic": "E03",
+      "title": "纠正、遗忘与防止旧记忆复活",
+      "deps": [
+        "S08"
+      ],
+      "days": 0.5,
+      "cases": [
+        "V20",
+        "V21"
+      ],
+      "existing": [
+        "laputa:garden/backends/mentle/adapter.go",
+        "laputa:mentle/facade/canonical.go",
+        "laputa:garden/evolution/domain.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_revision_test.go"
+      ]
+    },
+    {
+      "id": "S10",
+      "epic": "E04",
+      "title": "进程崩溃、未知结果与幂等",
+      "deps": [
+        "S06",
+        "S09"
+      ],
+      "days": 1,
+      "cases": [
+        "V22"
+      ],
+      "existing": [
+        "vivy:internal/runtime/cognitive_recovery_test.go",
+        "vivy:internal/runtime/cognitive_primary_test.go",
+        "vivy:internal/observerhost/host.go",
+        "laputa:garden/internal/ingest/service.go",
+        "laputa:garden/evolution/domain.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_crash_test.go",
+        "laputa:garden/e2e/memory_loop_recovery_test.go"
+      ]
+    },
+    {
+      "id": "S11",
+      "epic": "E04",
+      "title": "后台退化、scope 隔离和不可信记忆",
+      "deps": [
+        "S09"
+      ],
+      "days": 1,
+      "cases": [
+        "V23",
+        "V24",
+        "V25"
+      ],
+      "existing": [
+        "laputa:garden/agentapi/embedded_domain.go",
+        "laputa:garden/backends/mentle/adapter.go",
+        "laputa:garden/internal/ingest/service.go",
+        "vivy:internal/actionhost/cognitive.go"
+      ],
+      "new": [
+        "vivy:internal/app/memory_loop_isolation_test.go",
+        "laputa:garden/e2e/memory_loop_isolation_test.go"
+      ]
+    },
+    {
+      "id": "S12",
+      "epic": "E05",
+      "title": "Windows 密封桌面的完整记忆流程",
+      "deps": [
+        "S10",
+        "S11"
+      ],
+      "days": 1.5,
+      "cases": [
+        "V26",
+        "V27"
+      ],
+      "existing": [
+        "diva:internal/desktop/app.go",
+        "diva:internal/desktop/runtime_service.go",
+        "diva:internal/desktop/lifecycle.go",
+        "diva:agent-diva-gui/src/api/cognitive.ts",
+        "diva:agent-diva-gui/src/state/vivy-cognitive.ts",
+        "diva:agent-diva-gui/src/components/MemoryView.vue",
+        "diva:agent-diva-gui/src/components/EvolutionView.vue"
+      ],
+      "new": [
+        "diva:agent-diva-gui/src/state/memory-loop.test.ts"
+      ]
+    },
+    {
+      "id": "S13",
+      "epic": "E05",
+      "title": "真实模型评估与接手验收报告",
+      "deps": [
+        "S12"
+      ],
+      "days": 1,
+      "cases": [
+        "V28"
+      ],
+      "existing": [
+        "diva:docs/plans/diva-next/memory-loop/verification.md"
+      ],
+      "new": []
+    }
+  ]
+}

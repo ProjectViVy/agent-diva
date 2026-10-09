@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/memory-loop-verification.md, docs/plans/diva-next/index.md, docs/logs/2026-10-memory-loop-plan/**, TODOLIST.md, LOCK.md`
+- Scope: `docs/plans/diva-next/memory-loop/**, docs/plans/diva-next/memory-loop-verification.md, docs/plans/diva-next/index.md, docs/logs/2026-10-memory-loop-plan/v0.2.0-epic-story-package/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Memory loop verification planning only`
+- Session/Task: `Superpowers Epic-Story memory verification plan package`
 - Branch/Worktree: `docs/memory-loop-verification-20261009 / /workspace/agent-diva`
-- Started At: `2026-10-09T15:35:53Z`
-- Last Heartbeat: `2026-10-09T15:41:52Z`
+- Started At: `2026-10-09T16:57:33Z`
+- Last Heartbeat: `2026-10-09T17:06:24Z`
 - Expires At: `N/A (released)`
 
 ### Handoff for this task
@@ -42,6 +42,11 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Superpowers Epic–Story memory plan package` — **RELEASED 2026-10-09T17:06:24Z**;
+  planning only, five Epics/thirteen Stories, shared contracts/runbook and
+  static checker. Old entrypoints/backlog reconciled. No product execution
+  or remote publication.
 
 - `Memory loop verification planning` — **RELEASED 2026-10-09T15:41:52Z** by
   `Codex on behalf of repository owner`; branch

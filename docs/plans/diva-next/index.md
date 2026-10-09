@@ -148,25 +148,13 @@ stay pending with an owner/environment, never pass by inference.
 
 ## Memory loop verification
 
-Added 2026-10-09 at the owner's request to clone DIVA and plan detailed
-memory-loop verification. This is a validation workstream under W5/W7;
-it does not change historical W5 results or start implementation.
-[Verification plan and schedule](memory-loop-verification.md) defines the
-cases, evidence, gates and estimates. This index owns live task status.
+The owner requested detailed memory verification planning on 2026-10-09,
+then an Epic–Story handoff package on 2026-10-10. The dedicated
+[package index](memory-loop/README.md) is now the sole task/status/dependency
+source for this validation workstream: five Epics, thirteen Stories,
+shared fixture/evidence contracts, and 28 scenario classes.
 
-| Task | Outcome | Immediate predecessor | Status |
-| --- | --- | --- | --- |
-| M0 | Exact source/artifact baseline and isolated environments | None | Planned |
-| M1 | Real writable memory backend and reopen proof | M0 | Planned |
-| M2 | Real conversation capture and durable provenance | M1 | Planned |
-| M3 | ACTMEM, automatic reflection and governed effects | M2 | Planned |
-| M4 | Cross-session recall into actual model input | M3 | Planned |
-| M5 | Process-crash recovery, idempotency and isolation | M4 | Planned |
-| M6 | Sealed Windows desktop loop verification | M5 | Planned |
-| M7 | Live-model evaluation and evidence-based conclusion | M6 | Planned |
-
-Planning estimate: 10 engineering days for verification, plus 3–5 days
-reserved for reproduced defects. Re-estimate after M0/M1; environment waits
-are excluded. The earlier w0-5 cognitive UI pass is not a pass for this
-full memory-loop workstream. No runtime verification was performed while
-preparing this plan.
+This parent index only links the workstream; it does not duplicate its
+schedule. Earlier w0-5 cognitive UI results remain historical and do not
+establish complete memory-loop correctness. No runtime validation was
+performed while preparing the package.
