@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `internal/desktop/app.go, internal/desktop/runtime_service.go, internal/desktop/lifecycle.go, internal/desktop/runtime_service_test.go, internal/desktop/lifecycle_test.go, internal/desktop/app_test.go, internal/speech/service.go, internal/speech/service_test.go, cmd/diva/main.go, docs/logs/2026-10-09-issue32-p4.2/**, TODOLIST.md, LOCK.md`
+- Scope: `agent-diva-gui/src/api/vivy/transport.ts, agent-diva-gui/src/api/vivy/transport.test.ts, docs/logs/2026-10-09-issue32-p4.3/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.2 H5/H7 shared teardown and singleton handoff`
+- Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.3 H6 shared native event listener`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
-- Started At: `2026-10-09T10:55:00Z`
-- Last Heartbeat: `2026-10-09T10:55:00Z`
+- Started At: `2026-10-09T11:15:21Z`
+- Last Heartbeat: `2026-10-09T11:15:21Z`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -62,6 +62,16 @@ desktop lifecycle, speech teardown, command startup, regression tests, and its
 iteration record. Native two-process acceptance and public actions remain
 unauthorized/pending; no push, tag, upload, or release.
 
+### Handoff from P4.2 to P4.3
+
+P4.2 H5/H7 source and regression tests are committed as `85543ff4`; the local
+headless desktop/speech suite, `go vet`, and speech race gate passed. The Wails
+drain barrier is covered by a focused regression. Native GTK/WebKit race build,
+canonical pinned-source build, and Linux/Windows two-process acceptance remain
+pending as recorded in `docs/logs/2026-10-09-issue32-p4.2/`. The P4.2 lock is
+transferred to the non-overlapping P4.3 transport listener files; no other
+product files were edited by this handoff.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -74,7 +84,7 @@ unauthorized/pending; no push, tag, upload, or release.
 
 ## Active Lock
 
-- `Issue #32 P4.2 H5/H7 shared teardown and singleton handoff` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `internal/desktop/app.go`, `runtime_service.go`, `lifecycle.go` and related tests, `internal/speech/service.go` and tests, `cmd/diva/main.go`, P4.2 iteration evidence, `TODOLIST.md`, and `LOCK.md`. No push, tag write, upload, or release.
+- `Issue #32 P4.3 H6 shared native event listener` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `agent-diva-gui/src/api/vivy/transport.ts`, its focused test, P4.3 iteration evidence, `TODOLIST.md`, and `LOCK.md`. P4.2 H5/H7 is committed; native acceptance remains open. No push, tag write, upload, or release.
 - P1 test-environment setup may repair only ignored `deps/agent-vivy` and `deps/laputa` symlinks to the separately reviewed source checkouts; dependency versions and tracked product source remain unchanged.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by

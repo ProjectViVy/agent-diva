@@ -7,6 +7,17 @@ Tauri/C ABI source line is frozen at the paired archive refs. Checked rows
 below describe prior delivered source, not acceptance of a Wails product.
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
+## Issue #32 remediation — execution in progress
+
+- [ ] **ISSUE32-P4.2-NATIVE-LIFECYCLE-ACCEPTANCE** P1 — lifecycle and bounded
+  teardown implementation is committed as `85543ff4` and headless engineering
+  checks pass. Native Linux/Windows race builds, secondary-process handoff,
+  failed-primary relaunch, and lease/crash acceptance remain pending because
+  this environment lacks GTK/WebKit development packages and the canonical
+  pinned-source wrapper currently fails source/module checks. See
+  [P4.2 verification](docs/logs/2026-10-09-issue32-p4.2/verification.md) and
+  [P4.2 acceptance](docs/logs/2026-10-09-issue32-p4.2/acceptance.md).
+
 ## Approved migration work — planning delivered, execution not started
 
 - [ ] **WAILS-NATIVE-GATE** P0 — W0 must prove pinned Windows native caller,
