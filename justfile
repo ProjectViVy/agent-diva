@@ -86,7 +86,7 @@ go-test PLATFORM='linux-amd64':
 # Ensure Wails regenerates the committed TypeScript bindings without drift.
 desktop-bindings-check: desktop-bindings
     git diff --exit-code -- agent-diva-gui/src/generated/wails
-    @test -z "$$(git ls-files --others --exclude-standard -- agent-diva-gui/src/generated/wails)"
+    @test -z "$(git ls-files --others --exclude-standard -- agent-diva-gui/src/generated/wails)"
 
 # Check the active Go host boundary and prove each forbidden case is detected.
 desktop-boundary-check:
