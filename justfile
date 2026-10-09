@@ -103,7 +103,7 @@ transition-boundary-check:
 
 # Build and inspect a complete sealed host artifact in a disposable directory.
 desktop-seal-check:
-    @set -euo pipefail; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; python3 scripts/build-desktop.py --mode build --platform linux-amd64 --output "$$tmp/artifact"; python3 scripts/build-desktop.py --mode check-lock --platform linux-amd64 --derived-lock "$$tmp/artifact/input-lock.json"
+    @set -euo pipefail; tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; python3 scripts/build-desktop.py --mode build --platform linux-amd64 --output "$tmp/artifact"; python3 scripts/build-desktop.py --mode check-lock --platform linux-amd64 --derived-lock "$tmp/artifact/input-lock.json"
 
 # Repin build/vivy-sources.lock.json after dependency bumps.
 desktop-repin:
