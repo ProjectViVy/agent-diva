@@ -266,6 +266,10 @@ def mode_test(args: argparse.Namespace) -> None:
     # --host-dir keeps the frontend out of test mode entirely.
     empty_in_host = host_root / ".test-empty-assets"
     empty_in_host.mkdir(exist_ok=True)
+    (empty_in_host / "index.html").write_text(
+        "<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>\n",
+        encoding="utf-8",
+    )
     artifact = stage / "artifact"
     lock = build_lock(args, release=False)
     lock_path = stage / "vivy-sources.lock.json"
