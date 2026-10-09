@@ -2,13 +2,13 @@
 
 版本：2026-10-10。范围：详细行动计划与执行交接。2026-10-09 已开始开发；执行分支 `feat/memory-loop-verification-20261009`。
 
-> 执行采用 Superpowers `executing-plans`，按 Story 的前置 gate 推进。默认一位负责人顺序执行；可并行的依赖关系不等于已授权多个 agent 同时编辑。
+> 执行采用 Superpowers `executing-plans`，按 Story 的验收前置 gate 推进；已复现缺陷的开发开始条件见 continuity.md。默认一位负责人顺序执行；可并行的依赖关系不等于已授权多个 agent 同时编辑。
 
 ## 接手人从这里开始
 
 1. 阅读 [requirements.md](requirements.md)：目标、源码基线、架构约束和已经发现的证据缺口。
 2. 阅读 [contracts.md](contracts.md)：测试夹具接口、证据结构、超时和崩溃切点。
-3. 在下表选择前置已通过的 Story，先读所属 Epic，再读独立 Story 文件。
+3. 修复工作先按 [持续修复准入](continuity.md)选择可执行项，再读所属 Epic/Story；正式验收仍要求下表直接前置通过。
 4. 按 [runbook.md](runbook.md)准备隔离环境与命令；按 [verification.md](verification.md)判断结果。
 5. 执行完成后将 commit 和证据写入本页状态表；不能仅勾选步骤来宣称产品通过。
 
@@ -50,9 +50,22 @@
 [首轮执行记录与解阻顺序](../../../logs/2026-10-memory-loop-verification/handoff.md)保存三个仓库的本地提交、真实测试数量、失败记录和命令。所有 S01–S03 当前状态为 **Blocked**，不是 Done；资源补齐和夹具实现完成后重新执行 gate。
 
 - S01：桌面原生构建依赖未满足。负责人：环境维护者；下一步：在具备 GTK/WebKit 的 Linux 或 Windows 环境运行支持的密封构建/test。
-- S02：后台 API 64 项、Garden 479 项通过；独立模块/e2e 回归有失败，密封宿主证明未取得。负责人：存储集成负责人；下一步：补齐原版本依赖与模型配置、重跑原失败场景。
+- S02：后台 API 64 项、Garden 479 项通过；独立 Laputa 已解阻并通过 63 项；Mentle/e2e 仍有失败，密封宿主证明未取得。负责人：存储集成负责人；下一步：补齐原版本依赖与模型配置、重跑原失败场景。
 - S03：25 项 Python 回归、真实 DIVA composition 冒烟及产物身份校验已交付；reflection/recall、reflected、跨进程 Restart 尚缺。负责人：VIVY 测试集成负责人；下一步：按 contracts 补齐后重新验收。
-- S04：实际来源仅 `收到` 且角色缺失，不能证明用户事实进入记忆。负责人：采集链路负责人；前置通过后修复并验证 V05–V09。
+- S04：实际来源仅 `收到` 且角色缺失，不能证明用户事实进入记忆。负责人：采集链路负责人；当前 ack/真实存储证据满足修复准入，可先实施最小修复；V05–V09 正式验收仍等待前置 gate。
+
+## 当前可连续执行的工作序列
+
+以下是开发投入顺序；既有 W1–W11 表及依赖图继续表示正式验收顺序，不将修复准备计为 Story Done。负责人是执行角色，未自动分配多个 agent。
+
+| 顺序 | Epic / Story | 当前可推进动作 | 阻塞影响及负责角色 |
+|---|---|---|---|
+| 1 | E02 / S04 | 为 MEM-S04-01 增加随机用户事实、角色、截断与重投回归，修复可信 run 来源采集 | 已有 ack/full App/真实 canonical 可复现；采集负责人可开始，不等 Windows/live |
+| 2 | E01 / S02、S03 | 修复 Mentle dependency sum/Garden 模型夹具，补真实 subprocess Restart 和 reflection/recall 观察能力 | INOFY 已解阻（63 pass）；存储/测试负责人分别处理各自真实失败 |
+| 3 | E02–E04 / S05–S11 | 按具体已可用输入推进 ACTMEM、反思、召回、生命周期和故障修复 | 消费接口缺失则转到可执行项；领域约束、证据和正式前置不降级 |
+| 外部资源跟踪 | E01 / S01、E05 / S12–S13 | 补原生构建机、Windows runner、真实模型配置 | 环境维护者提供资源；限制相应验收，不冻结可执行代码修复 |
+
+具体解阻方式、每次修复的候选重建与禁止事项见 [continuity.md](continuity.md)。全部完成门槛保持原定义；没有新增完成比例或日期承诺。
 
 ## 排期：依赖批次
 

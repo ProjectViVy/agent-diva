@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `scripts/build-desktop.py, scripts/ci/*memory*, scripts/ci/test_build_desktop_test_assets.py, docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-verification/**, TODOLIST.md, LOCK.md`
+- Lock State: `HELD`
+- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-unblock/**, docs/logs/2026-10-memory-loop-verification/handoff.md, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Superpowers memory-loop execution foundation`
+- Session/Task: `Memory-loop continuous repair admission and blocker routing`
 - Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
-- Started At: `2026-10-09T17:10:00Z`
-- Last Heartbeat: `2026-10-09T18:26:08Z`
-- Expires At: `N/A (released)`
+- Started At: `2026-10-09T22:47:57Z`
+- Last Heartbeat: `2026-10-09T22:47:57Z`
+- Expires At: `2026-10-10T00:00:00Z`
 
 ### Handoff for this task
 

@@ -56,3 +56,9 @@ Read environment.md, the plan runbook §7, baseline.json and each S01–S04 evid
 Run `python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace/work/memory-loop` for package integrity. Run `python3 scripts/ci/check_memory_loop_evidence.py --story ALL --evidence-root docs/logs/2026-10-memory-loop-verification`; expected exit **1**, because product fields and gates are incomplete and later Story evidence is absent. Passing validator unit tests must not be confused with the blocked real records.
 
 Reviewer found no remaining substantive issue in the preparation changes; four original infrastructure findings were reproduced and fixed. Review does not accept the product memory loop. Worktrees are preserved for continuation; locks are released at handoff.
+
+## Follow-up ruling — continuous repair admission
+
+The initial requirement to wait for every predecessor acceptance before implementing a reproduced runtime defect was too conservative. The plan now distinguishes repair admission (pinned inputs, isolation, real reproduction and targeted tests) from acceptance admission (all original predecessor/Story/platform gates). S04 capture repair can start with the actual ack/full App/canonical evidence; reflection/recall modes and native host are not consumed by that repair. Formal S04/S01–S03 acceptance remains unpassed. See the plan continuity.md and README; these supersede the initial instruction to wait before any S04 repair.
+
+A task-local exact-pinned INOFY resource binding was subsequently verified: complete standalone Laputa suite 63 pass, 0 skip, exit 0. Original failure logs remain unchanged. Mentle/Garden e2e/native/live blockers are still open; the new record is docs/logs/2026-10-memory-loop-unblock/v0.1.0-continuous-repair/.

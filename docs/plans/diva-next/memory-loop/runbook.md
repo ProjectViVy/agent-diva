@@ -57,7 +57,7 @@ W2 的 S02/S03、W9 的 S10/S11 可在不同文件和环境上独立准备；默
 
 ## 5. 阻塞处理与重新排期
 
-Story 发现缺口时先交付可复现证据，不把发现问题当作失败的工作。Blocked 记录负责角色、解阻动作、预计新增人日与受影响后继。可以继续不依赖该结果的工作，不能越过 gate 宣称后继通过。
+Story 发现缺口时先交付可复现证据，不把发现问题当作失败的工作。Blocked 记录负责角色、解阻动作、预计新增人日与受影响后继。已复现缺陷满足 [修复准入](continuity.md)时可以继续定位与最小修复；验收仍按原前置执行，不能越过 gate 宣称后继通过。
 
 修复预留统一为 3–5 人日，不在每个 Epic 重复加一份。新架构、后台替换、模型分发机制或重大恢复协议变更超出该预留，需单独设计和重估。S01/S02 完成后第一次重估，发现召回路径缺失后再次重估。
 
@@ -95,3 +95,7 @@ TMPDIR=/workspace/work/memory-loop/test-roots VIVY_MEMORY_LOOP_EVIDENCE_DIR=/wor
 测试目录先创建。当前托管环境中 loopback HTTP 也需要工具的 network 权限。`vivy_diva_integration` 只排除默认 recipe 专属 inventory 测试；默认 App 回归另跑。共享库用途是检验真实 recipe composition，不代替 Wails host、Windows 原生 UI 或真实模型验收。
 
 Garden Console 的 pnpm shim 限制和本轮脚本正文 fallback 见 environment.md。`just`/PowerShell 不可用，VIVY justfile 允许直接 Go 命令；本轮只跑了记录的受影响回归，未声称完整 CI。原始失败日志和每条命令退出码不可删除或改写为通过。
+
+## 8. 可持续修复的选择规则
+
+每轮先查 README 的开发序列和 continuity.md。环境/平台出口为 Blocked 时，选择有真实输入和失败证据的最高优先级代码修复；不要把所有修复都挂在 sealed host 的出口。保留原始失败日志，重新构建开发 candidate 并跑相应回归；所有原始验收门槛继续保留。

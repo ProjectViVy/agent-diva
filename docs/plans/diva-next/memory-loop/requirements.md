@@ -36,7 +36,7 @@
 - VIVY `diva-cognitive/factory.go::Prepare`主要组装 Frozen Core；另有 BML context provider，但 DIVA recipe 未选入该 memory 模块。不能用另一套 BML 记忆库的成功代替 Garden/Mentle 的成功。
 - ACTMEM 的 `AppendActivity`、`FoldSession` 有领域接口及测试；对话采集是否驱动 Pulse/Recap、Work 是否得到已有活动内容，需验证实际接线。ingest row 被标记为 `SectionRecap` 不等于 `ACTMEM.MD` 已写入。
 
-本轮仅做源码、历史记录和命令入口调查，未运行产品测试、未调用真实模型、未验证 Windows 二进制。以上风险不都已成为复现缺陷。
+上述为规划调查时的历史结论。首轮实际运行结果见 README 及执行 handoff；用户来源丢失现已复现，Windows/live 未验证。
 
 ## Global Constraints
 
@@ -93,4 +93,4 @@ flowchart LR
 4. 丢回执导致重复效果或水位跳过：S10。
 5. 外域泄漏、遗忘后重现或记忆指令提升权限：S09、S11。
 
-当前只交付计划包。源码修复和运行验收尚未开始；旧文档的通过记录不会自动推进本包状态。
+首轮已交付执行基础与诊断证据；后续按修复准入连续开发，正式验收仍依赖原 gate。实时状态只在 README 维护；旧文档和其他候选的通过记录不会自动推进本包状态。
