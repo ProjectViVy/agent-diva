@@ -7,86 +7,220 @@ on:
     tags:
       - "v*.*.*"
     paths:
+      - 'cmd/diva/**'
+      - 'internal/desktop/**'
+      - 'internal/speech/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build/**'
+      - 'scripts/**'
+      - 'justfile'
       - 'agent-diva-gui/**'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main, develop]
     paths:
+      - 'cmd/diva/**'
+      - 'internal/desktop/**'
+      - 'internal/speech/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build/**'
+      - 'scripts/**'
+      - 'justfile'
       - 'agent-diva-gui/**'
-      - '.github/workflows/ci.yml'
-
-env:
-  NODE_VERSION: '20'
-  PNPM_VERSION: '10'
+      - '.github/workflows/**'
 
 permissions:
   contents: read
 
-# DN-5 adds the thin-shell gate: vivy-bridge is pure Rust with no webkit
-# dependency, so its FFI tests run in CI. The Tauri shell crate itself
-# (webkit2gtk, bundling) is verified on native runners per the plan.
 jobs:
-  gui-check:
-    name: GUI Test & Build
-    runs-on: ubuntu-latest
+  linux-desktop-aggregate:
+    name: Linux desktop aggregate (GUI, Go race, bindings, seal)
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout DIVA
+        uses: actions/checkout@v4
+        with:
+          path: agent-diva
 
-      - name: Setup pnpm
+      - name: Read canonical source-lock inputs
+        id: source-lock
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          lock = json.load(open("agent-diva/build/vivy-sources.lock.json", encoding="utf-8"))
+          package = json.load(open("agent-diva/agent-diva-gui/package.json", encoding="utf-8"))
+          print(f"vivy={lock['sources']['vivy']['commit']}")
+          print(f"laputa={lock['sources']['laputa']['commit']}")
+          print(f"go={lock['tools']['go'].removeprefix('go')}")
+          print(f"wails={lock['tools']['wails']}")
+          print(f"node={lock['tools']['node']}")
+          print(f"pnpm={package['packageManager'].split('@', 1)[1].split('+', 1)[0]}")
+          PY
+
+      - name: Checkout locked VIVY source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/agent-vivy
+          ref: ${{ steps.source-lock.outputs.vivy }}
+          fetch-depth: 0
+          path: agent-vivy
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout locked Laputa source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/laputa
+          ref: ${{ steps.source-lock.outputs.laputa }}
+          fetch-depth: 0
+          path: laputa
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.source-lock.outputs.go }}
+          cache-dependency-path: |
+            agent-diva/go.sum
+            agent-vivy/go.sum
+            laputa/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.source-lock.outputs.node }}
+          cache: pnpm
+          cache-dependency-path: agent-diva/agent-diva-gui/pnpm-lock.yaml
+
+      - name: Install pnpm from packageManager pin
         uses: pnpm/action-setup@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          version: ${{ steps.source-lock.outputs.pnpm }}
           run_install: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: agent-diva-gui/pnpm-lock.yaml
+      - name: Install Wails CLI from source-lock pin
+        shell: bash
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ steps.source-lock.outputs.wails }}
 
-      - name: Install frontend dependencies
-        working-directory: agent-diva-gui
-        run: pnpm install --frozen-lockfile
+      - name: Install Linux GTK/WebKit dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev pkg-config
 
-      - name: Test
-        working-directory: agent-diva-gui
-        run: pnpm test
-
-      - name: Build
-        working-directory: agent-diva-gui
-        run: pnpm build
-
-      - name: Legacy-call gate
-        run: node scripts/ci/check_legacy_frontend_calls.mjs --selftest
-
-  shell-bridge-check:
-    name: vivy-bridge FFI Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: agent-diva-gui/src-tauri
-      - name: Bridge FFI tests
-        working-directory: agent-diva-gui/src-tauri
-        run: cargo test -p vivy-bridge
 
-  boundary-gate:
-    name: Backend boundary gate
+      - uses: extractions/setup-just@v2
+
+      - name: Verify native Linux target lock
+        working-directory: agent-diva
+        run: python3 scripts/build-desktop.py --mode check-lock --platform linux-amd64
+
+      - name: Run aggregate gates
+        working-directory: agent-diva
+        run: just ci
+
+  windows-desktop-native:
+    name: Windows x64 locked Go host race gate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout DIVA
+        uses: actions/checkout@v4
+        with:
+          path: agent-diva
+
+      - name: Read canonical source-lock inputs
+        id: source-lock
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          lock = json.load(open("agent-diva/build/vivy-sources.lock.json", encoding="utf-8"))
+          package = json.load(open("agent-diva/agent-diva-gui/package.json", encoding="utf-8"))
+          print(f"vivy={lock['sources']['vivy']['commit']}")
+          print(f"laputa={lock['sources']['laputa']['commit']}")
+          print(f"go={lock['tools']['go'].removeprefix('go')}")
+          print(f"wails={lock['tools']['wails']}")
+          print(f"node={lock['tools']['node']}")
+          print(f"pnpm={package['packageManager'].split('@', 1)[1].split('+', 1)[0]}")
+          PY
+
+      - name: Checkout locked VIVY source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/agent-vivy
+          ref: ${{ steps.source-lock.outputs.vivy }}
+          fetch-depth: 0
+          path: agent-vivy
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout locked Laputa source
+        uses: actions/checkout@v4
+        with:
+          repository: ProjectViVy/laputa
+          ref: ${{ steps.source-lock.outputs.laputa }}
+          fetch-depth: 0
+          path: laputa
+          token: ${{ secrets.DIVA_BUILD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.source-lock.outputs.go }}
+          cache-dependency-path: |
+            agent-diva/go.sum
+            agent-vivy/go.sum
+            laputa/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.source-lock.outputs.node }}
+
+      - name: Install pnpm from packageManager pin
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ steps.source-lock.outputs.pnpm }}
+          run_install: false
+
+      - name: Install Wails CLI from source-lock pin
+        shell: bash
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ steps.source-lock.outputs.wails }}
+
+      - name: Install MinGW for native CGO and race
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc
+
+      - name: Verify target lock and run host build/race tests
+        shell: bash
+        run: |
+          python agent-diva/scripts/build-desktop.py --mode check-lock --platform windows-amd64
+          python agent-diva/scripts/build-desktop.py --mode test --platform windows-amd64
+
+  desktop-ci-required:
+    name: Issue #32 desktop gates required
+    if: always()
+    needs: [linux-desktop-aggregate, windows-desktop-native, legacy-boundary-gate, windows-shell-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both native platform gates
+        shell: bash
+        env:
+          LINUX_RESULT: ${{ needs.linux-desktop-aggregate.result }}
+          WINDOWS_RESULT: ${{ needs.windows-desktop-native.result }}
+          TRANSITION_RESULT: ${{ needs.legacy-boundary-gate.result }}
+          WINDOWS_SHELL_RESULT: ${{ needs.windows-shell-check.result }}
+        run: |
+          test "$LINUX_RESULT" = success
+          test "$WINDOWS_RESULT" = success
+          test "$TRANSITION_RESULT" = success
+          test "$WINDOWS_SHELL_RESULT" = success
+
+  legacy-boundary-gate:
+    name: VIVY boundary guard
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Boundary check (dep graph + manifest)
-        run: python3 scripts/ci/check_vivy_backend_boundary.py
+      - run: python3 scripts/ci/check_vivy_backend_boundary.py
 
-  # DN-8C Windows x64 engineering gate: the thin shell, bridge and speech
-  # crates compile on the real Windows toolchain (tauri's WebView2 loader is
-  # dynamic, no GTK needed). The sealed vivy-shared.dll is produced by the
-  # VIVY sdk pack on a Windows machine and is NOT staged here, so the
-  # env-gated real-artifact tests skip — they activate when
-  # DIVA_VIVY_RUNTIME/DIVA_VIVY_CONFIG point at a staged Windows runtime.
   windows-shell-check:
     name: Windows x64 shell compile + bridge tests
     runs-on: windows-latest
@@ -106,6 +240,6 @@ jobs:
         run: cargo check --workspace
       - name: MSVC environment (cl on PATH for fake-artifact build)
         uses: ilammy/msvc-dev-cmd@v1
-      - name: Bridge FFI tests (fake artifact; real artifact env-gated)
+      - name: Bridge FFI tests (fake-artifact build)
         working-directory: agent-diva-gui/src-tauri
         run: cargo test -p vivy-bridge

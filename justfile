@@ -80,13 +80,35 @@ desktop-bindings-build: desktop-bindings desktop-build-dev
 
 # Go build + race tests under the resolved consumer modfile (plain
 # `go test` cannot resolve VIVY's local replacement closure).
-go-test:
-    python3 scripts/build-desktop.py --mode test
+go-test PLATFORM='linux-amd64':
+    python3 scripts/build-desktop.py --mode test --platform {{PLATFORM}}
+
+# Ensure Wails regenerates the committed TypeScript bindings without drift.
+desktop-bindings-check: desktop-bindings
+    git diff --exit-code -- agent-diva-gui/src/generated/wails
+    @test -z "$$(git ls-files --others --exclude-standard -- agent-diva-gui/src/generated/wails)"
+
+# Check the active Go host boundary and prove each forbidden case is detected.
+desktop-boundary-check:
+    python3 scripts/ci/check_desktop_boundary.py --selftest
+    python3 scripts/ci/check_desktop_boundary.py
+
+# Run the legacy frontend guard's negative fixtures.
+legacy-selftest:
+    node scripts/ci/check_legacy_frontend_calls.mjs --selftest
+
+# Retain the Tauri/Rust to Go-host transition guard.
+transition-boundary-check:
+    python3 scripts/ci/check_vivy_backend_boundary.py
+
+# Build and inspect a complete sealed host artifact in a disposable directory.
+desktop-seal-check:
+    @set -euo pipefail; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; python3 scripts/build-desktop.py --mode build --platform linux-amd64 --output "$$tmp/artifact"; python3 scripts/build-desktop.py --mode check-lock --platform linux-amd64 --derived-lock "$$tmp/artifact/input-lock.json"
 
 # Repin build/vivy-sources.lock.json after dependency bumps.
 desktop-repin:
     python3 scripts/build-desktop.py --mode repin
 
 # All current checks
-ci: gui-test gui-build shell-bridge-test
+ci: gui-test gui-build go-test desktop-bindings-check desktop-boundary-check desktop-seal-check shell-bridge-test legacy-selftest transition-boundary-check
     @echo "All checks passed!"
