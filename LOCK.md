@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `.github/workflows/ci.yml, .github/workflows/desktop-release.yml, justfile, scripts/build-desktop.py, scripts/ci/**, build/vivy-sources.lock.json, docs/plans/diva-next/fixtures/wails-candidate-acceptance-v2.example.json, docs/logs/2026-10-09-issue32-p1/**, TODOLIST.md, LOCK.md`
+- Scope: `internal/desktop/**, .github/workflows/ci.yml, .github/workflows/desktop-release.yml, justfile, scripts/build-desktop.py, scripts/ci/**, build/vivy-sources.lock.json, docs/plans/diva-next/fixtures/wails-candidate-acceptance-v2.example.json, docs/logs/2026-10-09-issue32-p1/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.2-H2/P1.3-H3 desktop gates`
+- Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
-- Started At: `2026-10-09T12:15:00+08:00`
-- Last Heartbeat: `2026-10-09T12:15:00+08:00`
+- Started At: `2026-10-09T12:14:21+08:00`
+- Last Heartbeat: `2026-10-09T12:14:21+08:00`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -52,7 +52,7 @@ tag write, push, or release is authorized.
 
 ## Active Lock
 
-- `Issue #32 P1.2-H2/P1.3-H3 desktop gates` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `.github/workflows/ci.yml`, `.github/workflows/desktop-release.yml`, `justfile`, `scripts/build-desktop.py`, `scripts/ci/**`, `build/vivy-sources.lock.json`, strict candidate example/logs, `TODOLIST.md`, and `LOCK.md`. H1 is separately owned by VIVY's isolated branch. No dependency lock regeneration, push, archive-tag write, or release.
+- `Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `internal/desktop/**`, `.github/workflows/ci.yml`, `.github/workflows/desktop-release.yml`, `justfile`, `scripts/build-desktop.py`, `scripts/ci/**`, `build/vivy-sources.lock.json`, strict candidate example/logs, `TODOLIST.md`, and `LOCK.md`. No dependency lock regeneration, push, archive-tag write, or release.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by
   `Antigravity on behalf of user`; branch `main`, chat input container width
