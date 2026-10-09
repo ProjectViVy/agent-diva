@@ -10,7 +10,7 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.1-H1/P1.2-H2/P1.3-H3 desktop gates`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
 - Started At: `2026-10-09T12:14:21+08:00`
-- Last Heartbeat: `2026-10-09T12:14:21+08:00`
+- Last Heartbeat: `2026-10-09T12:35:43+08:00`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -36,9 +36,13 @@ No other working branch or live workspace is modified by this handoff.
 The reviewed `main` checkout is clean at `518a33ef09858ee1bb190579dd7529aceaa15dd6`.
 The current session uses a separate local clone and feature branch. DIVA's
 tracked `agent-diva-gui/pnpm-lock.yaml` hash matches the canonical source lock;
-this session will preserve it. Scope is the active Go-host CI/build path,
-strict candidate validation, and their iteration evidence. No public upload,
-tag write, push, or release is authorized.
+this session will preserve it. P1.1 authorization and the two host-test
+prerequisites are committed; see
+`docs/logs/2026-10-09-issue32-p1/v0.0.1-h1-authorization-and-test-closure/`.
+The canonical Linux host build reached CGO compilation but requires GTK3 and
+WebKit2GTK packages unavailable in this container. Scope remains the active
+Go-host CI/build path, strict candidate validation, and iteration evidence.
+No public upload, tag write, push, or release is authorized.
 
 ## Lock Rules
 
