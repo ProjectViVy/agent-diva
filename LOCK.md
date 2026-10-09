@@ -4,14 +4,14 @@ Codex/Cursor/manual parallel session mutex file.
 Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
-- Lock State: `RELEASED`
-- Scope: `agent-diva-gui/src/styles.css, agent-diva-gui/src/components/ChatView.vue, docs/logs/2026-10-diva-chat-width/**, LOCK.md`
-- Owner: `Antigravity on behalf of user`
-- Session/Task: `DIVA chat bar and message stream width constraints optimization`
-- Branch/Worktree: `main / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva`
-- Started At: `2026-10-05T17:03:00Z`
-- Last Heartbeat: `2026-10-05T17:08:00Z`
-- Expires At: `N/A (released)`
+- Lock State: `HELD`
+- Scope: `.github/workflows/ci.yml, .github/workflows/desktop-release.yml, justfile, scripts/build-desktop.py, scripts/ci/**, build/vivy-sources.lock.json, docs/plans/diva-next/fixtures/wails-candidate-acceptance-v2.example.json, docs/logs/2026-10-09-issue32-p1/**, TODOLIST.md, LOCK.md`
+- Owner: `Codex on behalf of mastwet`
+- Session/Task: `ProjectViVy/agent-vivy Issue #32 P1.2-H2/P1.3-H3 desktop gates`
+- Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
+- Started At: `2026-10-09T12:15:00+08:00`
+- Last Heartbeat: `2026-10-09T12:15:00+08:00`
+- Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
 
@@ -31,6 +31,15 @@ historical record below is stale, not an active lock for this new docs branch.
 The mainline merge is preserved at 5444795a2d9db31e158c2cf009d64697e6289e50.
 No other working branch or live workspace is modified by this handoff.
 
+### Handoff for Issue #32 desktop gates
+
+The reviewed `main` checkout is clean at `518a33ef09858ee1bb190579dd7529aceaa15dd6`.
+The current session uses a separate local clone and feature branch. DIVA's
+tracked `agent-diva-gui/pnpm-lock.yaml` hash matches the canonical source lock;
+this session will preserve it. Scope is the active Go-host CI/build path,
+strict candidate validation, and their iteration evidence. No public upload,
+tag write, push, or release is authorized.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -42,6 +51,8 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Issue #32 P1.2-H2/P1.3-H3 desktop gates` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `.github/workflows/ci.yml`, `.github/workflows/desktop-release.yml`, `justfile`, `scripts/build-desktop.py`, `scripts/ci/**`, `build/vivy-sources.lock.json`, strict candidate example/logs, `TODOLIST.md`, and `LOCK.md`. H1 is separately owned by VIVY's isolated branch. No dependency lock regeneration, push, archive-tag write, or release.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by
   `Antigravity on behalf of user`; branch `main`, chat input container width
