@@ -3,18 +3,18 @@
   "release": true,
   "host": {
     "modulePath": "github.com/ProjectViVy/agent-diva",
-    "repository": "https://github.com/ProjectViVy/agent-diva"
+    "repository": "https://github.com/ProjectViVy/agent-diva.git"
   },
   "sources": {
     "vivy": {
-      "repository": "https://github.com/ProjectViVy/agent-vivy",
-      "commit": "9ba59caa4816a7f66e27c50b7948ddeb09a2df9c",
-      "treeSHA256": "905d787eeceae38ff75eb75ee3217cd0a2aca40d5b7182156d9262ce72313a10"
+      "repository": "https://github.com/ProjectViVy/agent-vivy.git",
+      "commit": "54462d1553428430412600c1070d7f06161e2488",
+      "treeSHA256": "396d34a2de3a50881133f6dfe0683f3918ade2bd054a21390b07bc65ca410596"
     },
     "laputa": {
-      "repository": "https://github.com/ProjectViVy/laputa",
-      "commit": "6f2eed2d71c82261333e50883e98b404070a6801",
-      "treeSHA256": "20825d185f8e678df5adfb84d886e1975ae8c37b0fc989414a0ef742b6d340a6"
+      "repository": "https://github.com/ProjectViVy/laputa.git",
+      "commit": "30fa208e3cded4af43f8cb226d80b225b1910854",
+      "treeSHA256": "99e52ac972be48b867fd55554bc6f5195cd8af4ae75a209fa2309f48342988b4"
     },
     "inofy": {
       "module": "github.com/ProjectViVy/inofy",

@@ -14,6 +14,10 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     css: true,
+    // Wails runtime starts a short drag-init interval at import time. Under
+    // parallel happy-dom worker teardown, the callback can run after its
+    // window is gone; serial files let that runtime timer settle in-scope.
+    maxWorkers: 1,
     include: ['src/**/*.{test,spec}.ts'],
   },
 })
