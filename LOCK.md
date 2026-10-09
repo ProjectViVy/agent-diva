@@ -5,12 +5,12 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `agent-diva-gui/src/api/vivy/transport.ts, agent-diva-gui/src/api/vivy/transport.test.ts, docs/logs/2026-10-09-issue32-p4.3/**, TODOLIST.md, LOCK.md`
+- Scope: `agent-diva-gui/src/api/settings.ts, agent-diva-gui/src/api/settings.test.ts, agent-diva-gui/src/components/settings/ProvidersSettings.vue, agent-diva-gui/src/components/settings/ProvidersSettings.test.ts, agent-diva-gui/src/components/settings/ProviderListItem.vue, agent-diva-gui/src/components/settings/ProviderCard.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.vue, agent-diva-gui/src/components/settings/ProviderWizardModal.test.ts, agent-diva-gui/src/locales/en.ts, agent-diva-gui/src/locales/zh.ts, docs/logs/2026-10-09-issue32-p4.4/**, TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of mastwet`
-- Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.3 H6 shared native event listener`
+- Session/Task: `ProjectViVy/agent-vivy Issue #32 P4.4 C8 provider capability UI`
 - Branch/Worktree: `feat/issue32-desktop-gates / /workspace/work/issue32/agent-diva`
-- Started At: `2026-10-09T11:15:21Z`
-- Last Heartbeat: `2026-10-09T11:15:21Z`
+- Started At: `2026-10-09T11:19:00Z`
+- Last Heartbeat: `2026-10-09T11:19:00Z`
 - Expires At: `N/A (release the lock at handoff)`
 
 ### Handoff for this task
@@ -72,6 +72,15 @@ pending as recorded in `docs/logs/2026-10-09-issue32-p4.2/`. The P4.2 lock is
 transferred to the non-overlapping P4.3 transport listener files; no other
 product files were edited by this handoff.
 
+### Handoff from P4.3 to P4.4
+
+P4.3 H6 implementation and regression tests are committed as `8dbab9be`.
+Focused transport/client Vitest, Vue typecheck, and production Vite build passed;
+the initial red run exposed duplicate installation and an unhandled failure
+rejection. The lock now transfers to P4.4's settings/provider capability
+projection and execution-guard UI files. P4.2 native lifecycle acceptance
+remains independently open.
+
 ## Lock Rules
 
 1. Read this file before editing files, running worktree-mutating commands, or preparing a commit.
@@ -84,7 +93,7 @@ product files were edited by this handoff.
 
 ## Active Lock
 
-- `Issue #32 P4.3 H6 shared native event listener` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `agent-diva-gui/src/api/vivy/transport.ts`, its focused test, P4.3 iteration evidence, `TODOLIST.md`, and `LOCK.md`. P4.2 H5/H7 is committed; native acceptance remains open. No push, tag write, upload, or release.
+- `Issue #32 P4.4 C8 provider capability UI` — **HELD** by `Codex on behalf of mastwet`; branch `feat/issue32-desktop-gates`, workspace `/workspace/work/issue32/agent-diva`; scope `agent-diva-gui/src/api/settings.ts`, provider settings components/tests, en/zh locales, P4.4 iteration evidence, `TODOLIST.md`, and `LOCK.md`. P4.3 H6 is committed; P4.2 native acceptance remains open. No push, tag write, upload, or release.
 - P1 test-environment setup may repair only ignored `deps/agent-vivy` and `deps/laputa` symlinks to the separately reviewed source checkouts; dependency versions and tracked product source remain unchanged.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by

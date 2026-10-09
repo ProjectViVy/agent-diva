@@ -9,6 +9,12 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
 ## Issue #32 remediation — execution in progress
 
+- [x] **ISSUE32-P4.3-H6-LISTENER-IMPLEMENTATION** P2 — one pending native
+  event-listener installation is shared across concurrent subscribers; close,
+  failure/retry, and per-subscriber removal have focused regressions. Commit
+  `8dbab9be`; Vitest, Vue typecheck, and production build passed. Native shell
+  observation is still part of final acceptance. See
+  [P4.3 verification](docs/logs/2026-10-09-issue32-p4.3/verification.md).
 - [ ] **ISSUE32-P4.2-NATIVE-LIFECYCLE-ACCEPTANCE** P1 — lifecycle and bounded
   teardown implementation is committed as `85543ff4` and headless engineering
   checks pass. Native Linux/Windows race builds, secondary-process handoff,
