@@ -72,3 +72,37 @@ wails3 v3.0.0-beta.27, pwsh 7.5.4 (`powershell.exe` shim present).
   first real model turn).
 - Annotated `archive/tauri-cabi-20261004` tags and W6 cutover decision
   before any publication.
+
+## Installed-product smoke (2026-10-09, on retained candidate)
+
+### Defect found & fixed during smoke
+- `internal/desktop/sender.go` `allowedOrigins` lacked `wails://localhost` — the exact
+  asset baseURL wails v3.0.0-beta.27 uses on Linux. `/wails/runtime` requests carried a
+  forbidden Origin → 403 → native window rendered only the CSS background (flat navy).
+  Discriminated vs environment: WebKitGTK 4.1 `MiniBrowser` paints correctly on the
+  same VNC display, so it was product-side, not renderer-side.
+- Fix: added `"wails://localhost": true` + test case in `sender_media_test.go`.
+  Committed as `0921e0ee`; candidate rebuilt (old bytes `0c3d9476…` superseded).
+- Windows child session notified to build from `0921e0ee` so both legs share source SHA.
+
+### New candidate identity (source SHA `0921e0ee`)
+- `diva` sha256 `8bd341447299a8d32c5df31f93f394ff70137b5507c4ffa2bef7f6ee247c3a33`
+- `build-report.json` `a39861ea…`, `input-lock.json` `f21d68c5…` (unchanged)
+- generation `7076b8bcbf71617344cd70e231bbb8ca4a936f28de48a0687fcd2bb3dea6a8d5`
+- Re-gated: `check-lock` derived-lock pass; `go run ./sdk inspect-artifact` pass.
+
+### Smoke results on new bytes (DISPLAY=:0, isolated HOME profile)
+- Fresh-profile launch: host opens, generation `7076b8bc…` matches inspect; window maps.
+- First-run onboarding UI renders correctly (screenshot evidence; was flat navy pre-fix).
+- Single-instance: second launch logs `second instance rejected; focusing primary window`
+  and exits cleanly (verified ×2); primary window stays mapped.
+- Stale lease reclaim: previously verified — killed process's lease is reclaimed on next launch.
+- Bounded quit: SIGTERM → process exits <1s, window unmaps.
+- Path-with-spaces: binary copied to `/tmp/diva path with spaces/diva` launches and
+  renders the same onboarding UI; only benign dbus/systray warnings.
+
+### Still pending (owner / env-blocked)
+- Tray hide/reopen: no `org.kde.StatusNotifierWatcher` on this VM — env-blocked.
+- First real model turn, chat matrix, cognition/console/speech lanes, mic/keyring,
+  real STT/TTS providers: owner gate.
+- Clean install/uninstall packaging: no installer artifact for linux-amd64 (bare binary).
