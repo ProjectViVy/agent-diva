@@ -145,3 +145,28 @@ Each implementation Story updates its evidence, index status and owning
 backlog. VIVY product-contract changes run its required `just ci`; DIVA
 replacement CI must cover Go, frontend and a native package. Unavailable tests
 stay pending with an owner/environment, never pass by inference.
+
+## Memory loop verification
+
+Added 2026-10-09 at the owner's request to clone DIVA and plan detailed
+memory-loop verification. This is a validation workstream under W5/W7;
+it does not change historical W5 results or start implementation.
+[Verification plan and schedule](memory-loop-verification.md) defines the
+cases, evidence, gates and estimates. This index owns live task status.
+
+| Task | Outcome | Immediate predecessor | Status |
+| --- | --- | --- | --- |
+| M0 | Exact source/artifact baseline and isolated environments | None | Planned |
+| M1 | Real writable memory backend and reopen proof | M0 | Planned |
+| M2 | Real conversation capture and durable provenance | M1 | Planned |
+| M3 | ACTMEM, automatic reflection and governed effects | M2 | Planned |
+| M4 | Cross-session recall into actual model input | M3 | Planned |
+| M5 | Process-crash recovery, idempotency and isolation | M4 | Planned |
+| M6 | Sealed Windows desktop loop verification | M5 | Planned |
+| M7 | Live-model evaluation and evidence-based conclusion | M6 | Planned |
+
+Planning estimate: 10 engineering days for verification, plus 3–5 days
+reserved for reproduced defects. Re-estimate after M0/M1; environment waits
+are excluded. The earlier w0-5 cognitive UI pass is not a pass for this
+full memory-loop workstream. No runtime verification was performed while
+preparing this plan.

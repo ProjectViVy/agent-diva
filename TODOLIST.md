@@ -7,6 +7,34 @@ Tauri/C ABI source line is frozen at the paired archive refs. Checked rows
 below describe prior delivered source, not acceptance of a Wails product.
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
+## Memory loop verification — planned 2026-10-09
+
+See [verification plan](docs/plans/diva-next/memory-loop-verification.md)
+and [live task status](docs/plans/diva-next/index.md#memory-loop-verification).
+The following are validation gaps, not newly reproduced runtime defects.
+
+- [ ] **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
+  unavailable result and prove real Mentle write/search/expand/reopen through
+  the sealed host. Audit local-model initialization and read-only modes (M1).
+- [ ] **MEM-LOOP-USER-SOURCE** P0 — Terminal capture consumes the mapper's
+  last assistant summary; prove that user-only facts and roles survive when
+  the assistant does not repeat them, including truncation and replay (M2).
+- [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
+  automatic reflection, effect receipts and persona-review continuity;
+  domain API availability alone is not product wiring evidence (M3).
+- [ ] **MEM-LOOP-RECALL-INPUT** P0 — Prove stored ordinary memory reaches
+  the model in a new session after process restart, with empty-profile and
+  recall-disabled controls; do not substitute Frozen Core or BML (M4).
+- [ ] **MEM-LOOP-RECOVERY-ISOLATION** P0 — Six process-crash cuts, unknown
+  effect handling, backend degradation, correction/deletion, foreign scope
+  and untrusted memory content require integrated evidence (M4/M5).
+- [ ] **MEM-LOOP-NATIVE-LIVE** P1 — Verify the same sealed candidate on
+  Windows and with a real model; historical 15/17 migration rows do not
+  establish memory-loop correctness (M6/M7).
+- [ ] **MEM-LOOP-PIN-DRIFT** P1 — DIVA's source lock, historical Windows
+  artifact and current sibling repositories differ. Preserve exact baseline
+  evidence and use supported candidate repinning before acceptance (M0).
+
 ## Approved migration work — planning delivered, execution not started
 
 - [ ] **WAILS-NATIVE-GATE** P0 — W0 must prove pinned Windows native caller,
