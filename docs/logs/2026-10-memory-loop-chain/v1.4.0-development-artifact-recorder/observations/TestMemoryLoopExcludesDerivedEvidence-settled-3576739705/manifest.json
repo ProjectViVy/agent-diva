@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "1c64bec881b9da07e7d373f87cdf6b73122b71283bed83e2f47faba538140ce6",
+      "bytes": 27685
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "cc8531560dfcd042c90a83dcd39932b34880f429d5d17a4e4fb81760c72ff92c",
+      "bytes": 3042
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+      "bytes": 309
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+      "bytes": 309
+    },
+    {
+      "path": "identity.json",
+      "sha256": "39497dc98e303e17e2d414812796fdfc35adca27bb3054f0ec9447f761c0d1c3",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "settled",
+  "recorded_at": "2026-10-10T05:11:29.323903268Z",
+  "test": "TestMemoryLoopExcludesDerivedEvidence"
+}

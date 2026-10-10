@@ -1,0 +1,65 @@
+[
+  {
+    "ProcessID": 297186,
+    "RunID": "run_c3123a1075f87f89",
+    "EventSeq": 7,
+    "IngestionID": "ing_7c394ff868ff4197a801c8ea944fddee",
+    "CaptureSeq": 2,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_1b9acdafd5544b60b7d570cb0a998b6a",
+    "Revision": 1,
+    "CanonicalCount": 2,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_c3123a1075f87f89\",\"session_id\":\"sess_f998739f016fde98\",\"messages\":[{\"id\":\"msg_4c677edbe1f0a6dc\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5e59b8460205579597d5b150d5d6a15a\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_c3123a1075f87f89\",\"session_id\":\"sess_f998739f016fde98\",\"messages\":[{\"id\":\"msg_4c677edbe1f0a6dc\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5e59b8460205579597d5b150d5d6a15a\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:0a60bebe57d4f05e45e8faf267212f34603cb840444f37b29ba3e430dfd9530c",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  {
+    "ProcessID": 297186,
+    "RunID": "run_c3123a1075f87f89",
+    "EventSeq": 7,
+    "IngestionID": "ing_7c394ff868ff4197a801c8ea944fddee",
+    "CaptureSeq": 2,
+    "ProcessedThrough": 2,
+    "OperationID": "workflow_d3d2c89832b965ae//graph/nodes/effects:e0",
+    "RecordID": "mem_e3de1718e11f4a70bf95326cbd03727e",
+    "Revision": 1,
+    "CanonicalCount": 4,
+    "CanonicalBody": "synthetic user-only fact 5e59b8460205579597d5b150d5d6a15a",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_c3123a1075f87f89\",\"session_id\":\"sess_f998739f016fde98\",\"messages\":[{\"id\":\"msg_4c677edbe1f0a6dc\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5e59b8460205579597d5b150d5d6a15a\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:0a60bebe57d4f05e45e8faf267212f34603cb840444f37b29ba3e430dfd9530c",
+    "State": "applied",
+    "CanonicalSources": [
+      {
+        "source_id": "diva/scope/v1:personal:64697661/mentle",
+        "record_id": "2",
+        "revision": 0,
+        "scope": {
+          "subject_id": "diva",
+          "kind": "personal",
+          "workspace_id": ""
+        }
+      }
+    ],
+    "SourceProviderID": "diva/scope/v1:personal:64697661/mentle",
+    "BoundScope": {
+      "subject_id": "diva",
+      "kind": "personal",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "garden-source://evidence?record_id=2\u0026scope=scope%2Fv1%3Apersonal%3A64697661\u0026source_id=diva%2Fscope%2Fv1%3Apersonal%3A64697661%2Fmentle",
+    "PrimarySourceRevision": "0"
+  }
+]
