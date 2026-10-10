@@ -10,7 +10,7 @@ Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 ## Memory loop verification — execution started 2026-10-09
 
 See the [Epic–Story package and live status](docs/plans/diva-next/memory-loop/README.md).
-Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; formal Story acceptance remains open. Current repair evidence and local rerun instructions are in docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. Historical failures remain in the original verification handoff.
+Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; formal Story acceptance remains open. Environment/full-CI evidence is in docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. New reflection/Restart developer evidence and continuation are in docs/logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/. Historical failures remain unchanged.
 
 - [ ] **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
   unavailable result and prove real Mentle write/search/expand/reopen through
@@ -19,6 +19,8 @@ Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; fo
 - [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
   automatic reflection, effect receipts and persona-review continuity;
   domain API availability alone is not product wiring evidence (S05–S07).
+- [ ] **MEM-LOOP-FAILED-WINDOW** P0 — The six-stage aggregate-budget cause of an observed post-effect failure is repaired in VIVY `9d35e50c`. Verify arbitrary post-commit failures, receipt recovery and operation identity before admitting repeated automatic retries. Do not infer crash idempotence from the now-green single-source reflection case (S06/S10).
+- [ ] **MEM-LOOP-INFER-BOUNDS** P0 — Reproduce cognitive inference task truncation at the orchestration task bound; preserve complete untrusted input and schema through the supported Host/Port path. This is local developer work, not a Windows/live-resource deferral (S06).
 - [ ] **MEM-LOOP-RECALL-INPUT** P0 — Prove stored ordinary memory reaches
   the model in a new session after process restart, with empty-profile and
   recall-disabled controls; do not substitute Frozen Core or BML (S08/S09).

@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T00:12:52.721548407Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-10T00:12:52.746843405Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart"}
+{"Time":"2026-10-10T00:12:52.746883556Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart","Output":"=== RUN   TestMemoryLoopFixtureRestart\n"}
+{"Time":"2026-10-10T00:12:52.79198217Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart","Output":"2026/10/10 00:12:52 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopFixtureRestart1853046348/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:12:53.525915755Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart","Output":"    memory_loop_restart_test.go:32: cross-process restart pending S08; use separate close/open smoke explicitly\n"}
+{"Time":"2026-10-10T00:12:53.52752519Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart","Output":"--- FAIL: TestMemoryLoopFixtureRestart (0.78s)\n"}
+{"Time":"2026-10-10T00:12:53.527566071Z","Action":"fail","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopFixtureRestart","Elapsed":0.78}
+{"Time":"2026-10-10T00:12:53.527575515Z","Action":"output","Package":"agent-vivy/internal/app","Output":"FAIL\n"}
+{"Time":"2026-10-10T00:12:53.5457816Z","Action":"output","Package":"agent-vivy/internal/app","Output":"FAIL\tagent-vivy/internal/app\t0.824s\n"}
+{"Time":"2026-10-10T00:12:53.545816813Z","Action":"fail","Package":"agent-vivy/internal/app","Elapsed":0.824}

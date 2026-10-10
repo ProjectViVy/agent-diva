@@ -15,7 +15,7 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 1. 选择 README 的最高优先级且满足修复准入的工作，读取所属 Story 和 Ruling；默认单负责人执行。
 2. 保存目标测试首次失败和实际 request/Journal/source/canonical 证据，确认首个错误边界。缺资源不能用 mock backend、SQL 种数据或伪造身份替代正向路径。
 3. 实施一个最小修复，运行目标测试和直接受影响回归，记录实际数量、exit code 和原始日志；零匹配、required skip、未知写入效果均不算通过。
-4. 变更代码/依赖后创建新的开发 candidate，重新 SDK pack/Inspect 和生成 overlay；旧 baseline/evidence 原样保留。产品候选通过受支持的 development/repin 流程重建，不默改原锁定版本。
+4. 聚焦定位可使用已生成的诊断 overlay，但必须注明它不绑定新源码，不作正式验收。变更代码/依赖形成候选时重新 SDK pack/Inspect 和生成 overlay；旧 baseline/evidence 原样保留。产品候选通过受支持的 development/repin 流程重建，不默改原锁定版本。
 5. 独立提交代码、证据和未解决风险。原生/live 等仍待资源的出口保留 Blocked；继续下一项满足修复准入的工作。禁止因当前测试绿色把整套 CI 标绿。
 6. 当原生和模型资源就绪，在同一冻结候选上按原验收依赖次序复验。修改源码后重置受影响验收；不会自动继承之前候选的通过项。
 
@@ -48,3 +48,14 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 | Windows 真机或真实模型资源 | 只阻塞 S12/S13 及需要这些资源的验收；记明 runner、模型及凭据入口需求 | 持续推进可执行的 S03–S11 |
 
 每个终端会话结束前提交已完成的独立修复，刷新索引和下一动作，并释放本工作树锁。接手人从当前 checkpoint 的实际版本与工具环境恢复。持续修复指可恢复的工作循环；本轮没有部署无人值守服务或定时任务。
+
+## 中断后恢复当前工作
+
+当前开发检查点为 [反思与跨进程 Restart](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)。VIVY `9d35e50c` 修复反思累计预算，`cd080708` 补测试观察与进程协议；Laputa 为 `92d0b634`。最终候选尚未冻结；不要沿用前检查点的 conformance/source hash 宣称新源码通过完整 CI。
+
+1. 检查三工作树的 branch、HEAD、dirty 状态和 LOCK。保留既有工作，在本隔离分支认领具体范围；若环境被重建，先按锁定版本补回工具/模型，而非更换后台。
+2. 从 VIVY 工作树执行 `source /workspace/work/memory-loop/tools/environment.sh`，确认 `go version`；UI 安装需要 registry 时使用 `https://registry.npmjs.org/`。不得修改系统目录或用户真实 profile。
+3. 按新检查点 verification.md 的命令复跑所需直接消费者，记录 exit code、匹配数、required skip 和 raw log。诊断组合测试与默认生成套件分别运行，不把其中任一结果冒充最终密封候选。
+4. 回到 README 的开发序列，选一项有真实输入的缺陷：首次失败→确认 owner/根因→最小修复→直接回归→独立提交→下一项。recall、ACTMEM 等未实现能力仍归本地开发队列。
+5. 对提交后失败/未知效果的输入窗口保留 Journal 和回执，不清空数据库、不补造水位、不自动当作失败无副作用。优先在 S06/S10 验证稳定操作身份和恢复路径，再扩大自动反思负载；可同时转到不消费该窗口的测试工作。
+6. 本地实现完成后冻结源码，执行规定完整 CI、conformance 复现、重建及身份检查；随后才按原 Story 前置提交正式验收证据。只有需要 Windows runner 或真实 provider/model 配置的测试交给外部资源。

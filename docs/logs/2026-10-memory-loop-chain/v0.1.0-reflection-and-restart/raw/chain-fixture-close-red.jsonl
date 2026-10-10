@@ -1,0 +1,13 @@
+{"Time":"2026-10-10T00:18:42.247366492Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T00:18:42.266015384Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent"}
+{"Time":"2026-10-10T00:18:42.266101984Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"=== RUN   TestMemoryLoopFixtureCloseAfterRestartIsIdempotent\n"}
+{"Time":"2026-10-10T00:18:42.335650599Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:18:42 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopFixtureCloseAfterRestartIsIdempotent2049792261/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:18:42.512045421Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:18:42 WARN cron startup recovery failed err=\"storage: list cron jobs: context canceled\"\n"}
+{"Time":"2026-10-10T00:18:42.512088886Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:18:42 WARN cron list for wake time failed err=\"storage: list cron jobs: context canceled\"\n"}
+{"Time":"2026-10-10T00:18:45.714783397Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"    memory_loop_restart_test.go:72: repeated close: context deadline exceeded\n"}
+{"Time":"2026-10-10T00:18:50.719243173Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"    memory_loop_fixture_test.go:135: fixture close: context deadline exceeded\n"}
+{"Time":"2026-10-10T00:18:50.719673651Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"--- FAIL: TestMemoryLoopFixtureCloseAfterRestartIsIdempotent (8.45s)\n"}
+{"Time":"2026-10-10T00:18:50.719682585Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Elapsed":8.45}
+{"Time":"2026-10-10T00:18:50.719728384Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T00:18:50.743780887Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t8.496s\n"}
+{"Time":"2026-10-10T00:18:50.743820166Z","Action":"fail","Package":"command-line-arguments","Elapsed":8.496}

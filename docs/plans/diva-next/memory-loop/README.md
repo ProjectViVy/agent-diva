@@ -33,10 +33,10 @@
 |---|---|---|---|---:|---|---|
 | [S01](stories/S01.md) | E01 | 固定版本、构建与隔离环境 | 无 | 0.5 | Blocked | [环境/产物 gate](../../../logs/2026-10-memory-loop-verification/S01/summary.md)；`b2d8b0e9`；[Linux 开发候选与解阻](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)，正式资源 gate 仍待 |
 | [S02](stories/S02.md) | E01 | 真实 Mentle 启动与读写回执 | S01 | 1 | Blocked | [真实后台准备](../../../logs/2026-10-memory-loop-verification/S02/summary.md)；Laputa `5007f62f`，S01 未通过 |
-| [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；DIVA `0b17684d` / VIVY `968371cd`；S01/完整夹具未通过 |
+| [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；[反思与复用 Restart 开发回归](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，VIVY `cd080708`；recall/最终候选 gate 仍待 |
 | [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | [MEM-S04-01 诊断失败](../../../logs/2026-10-memory-loop-verification/S04/defects.md)；[来源修复及回执恢复](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)已验证，前置/完整 gate 未通过 |
 | [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 未执行 |
-| [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | 未执行 |
+| [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | [自动反思开发证明与输出预算修复](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，VIVY `9d35e50c`；完整 case/前置 gate 未通过 |
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | 未执行 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
@@ -51,8 +51,9 @@
 
 - S01：本地 GTK/WebKit 等依赖已补齐，支持的密封 Linux test 与 development build 已通过；完整候选及 Windows 验收仍待。负责人：集成负责人；下一步：使用本地工具环境持续重建，原始锁和历史 baseline 保持不变。
 - S02：独立 Laputa 63 pass；Mentle 536 pass、0 skip（含 MCP 8 项）；Garden 全套和进程 e2e 已复验通过。负责人：存储集成负责人；下一步：在最终同一候选中复验正式 case 与证据，不计为完整 Story Done。
-- S03：25 项 Python 回归、真实 DIVA composition 冒烟及产物身份校验已交付；reflection/recall、reflected 和复用 Restart 协议尚缺；两独立 App 进程的来源连续性测试已通过。负责人：VIVY 测试集成负责人；下一步：按 contracts 补齐后重新验收。
+- S03：25 项 Python 回归和既有 composition/身份校验已交付；reflection、reflected、复用跨进程 Restart 及关闭/重启后的 action 路径已通过开发回归，组合 10 pass / 0 skip。负责人：VIVY 测试集成负责人；下一步：补 recall，冻结新源码后重建同一候选并重新验收；历史 overlay 仅作诊断。
 - S04：用户来源丢失已修复并用随机事实、实际请求和 canonical 验证；角色来自实际持久 envelope。负责人：采集链路负责人；继续负向、旧来源补写与 V05–V09 正式验收；不把单项修复记为 Story Done。
+- S06/S10：六阶段输出的累计预算不足已通过 RED→GREEN 修复；真实自动反思已观察到一个来源、一份普通记忆、实际回执与处理水位。负责人：runtime/恢复链路负责人；下一步：输入/schema 截断及任意提交后失败的窗口恢复；不要将预算修复当作全部崩溃幂等证明。
 
 ## 当前可连续执行的工作序列
 
@@ -61,11 +62,11 @@
 | 顺序 | Epic / Story | 当前可推进动作 | 阻塞影响及负责角色 |
 |---|---|---|---|
 | 1 | E02 / S04 | 用户来源及旧收据重投已修复；继续剩余 V05–V09 和旧来源补写验证 | 已有 real App/canonical 和两进程来源证明；继续开发，不等 Windows/live |
-| 2 | E01 / S02、S03 | Mentle dependency sum/Garden 模型夹具已修复；补复用 Restart 协议与 reflection/recall 观察能力 | Laputa/Mentle/Garden 回归已通过；测试负责人补缺失观察能力 |
-| 3 | E02–E04 / S05–S11 | 按具体已可用输入推进 ACTMEM、反思、召回、生命周期和故障修复 | 消费接口缺失则转到可执行项；领域约束、证据和正式前置不降级 |
+| 2 | E01 / S02、S03 | 复用 Restart、reflection/reflected 已验证；补 recall 和最终源码绑定候选 | 测试负责人继续补缺失输入/观察能力，不等外部验收 |
+| 3 | E02–E04 / S05–S11 | 优先复现推理输入截断、提交后失败窗口，再推进 ACTMEM、召回、生命周期及权限矩阵 | 已有正常反思证明；未知效果不能盲目重投，领域约束和正式前置不降级 |
 | 外部资源跟踪 | E01 / S01、E05 / S12–S13 | 提供 Windows runner 和真实模型配置；Linux 原生构建已解阻 | 环境维护者提供剩余外部资源；限制相应验收，不冻结可执行代码修复 |
 
-当前新证据与本地复跑入口见 [连续修复记录](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)。具体解阻方式、每次修复的候选重建与禁止事项见 [continuity.md](continuity.md)。全部完成门槛保持原定义；没有新增完成比例或日期承诺。
+当前增量和本地复跑入口见 [反思/Restart 检查点](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，此前完整 CI/环境证明保留在 [连续修复记录](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)。具体解阻方式、会话恢复、候选重建与禁止事项见 [continuity.md](continuity.md)。全部完成门槛保持原定义；没有新增完成比例或日期承诺。
 
 ## 排期：依赖批次
 

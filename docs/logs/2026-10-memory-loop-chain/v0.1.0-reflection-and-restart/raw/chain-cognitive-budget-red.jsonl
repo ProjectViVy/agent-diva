@@ -1,0 +1,11 @@
+{"Time":"2026-10-10T00:07:54.766519251Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T00:07:54.785413241Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget"}
+{"Time":"2026-10-10T00:07:54.785501364Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"=== RUN   TestCognitiveStageOutputBudget\n"}
+{"Time":"2026-10-10T00:07:54.787294564Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"    cognitive_limits_test.go:36: bounded strategy failed after 1 effects: status=failed error=[NodeRunError] budget_exceeded at /graph/nodes/effects: cumulative outputs exceed max_output_bytes_total\n"}
+{"Time":"2026-10-10T00:07:54.787314024Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"        ------------------------\n"}
+{"Time":"2026-10-10T00:07:54.78731794Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"        node path: [effects]\n"}
+{"Time":"2026-10-10T00:07:54.787325731Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"--- FAIL: TestCognitiveStageOutputBudget (0.00s)\n"}
+{"Time":"2026-10-10T00:07:54.787329808Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Elapsed":0}
+{"Time":"2026-10-10T00:07:54.787335206Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T00:07:54.787671182Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.021s\n"}
+{"Time":"2026-10-10T00:07:54.787703681Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.021}

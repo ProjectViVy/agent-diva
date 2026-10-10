@@ -1,0 +1,131 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T00:24:13.929314+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "8ae7ab4a5359beab5531ed23df6b6bff942311ba",
+    "agent-vivy": "cd0807085579ae3d87d00cd6e3fd0a0402adc5b8",
+    "laputa": "92d0b6348ec20007fc174acb8a3f724d1404dc0d"
+  },
+  "budget_fix_commit": "9d35e50c",
+  "fixture_commit": "cd0807085579ae3d87d00cd6e3fd0a0402adc5b8",
+  "execution_mode": "previous SDK-generated DIVA overlay; current source diagnostic only",
+  "known_missing": [
+    "S03 recall",
+    "S04 full source cases",
+    "S05-S11 local chain implementation and verification",
+    "final new-source CI/conformance/sealing/review",
+    "S12 Windows resources",
+    "S13 real provider/model resources"
+  ],
+  "recorded_exit_codes": {
+    "chain-fixture-regression-recorded": 0,
+    "chain-app-default-regression": 0,
+    "chain-cognitive-runtime-regression": 0,
+    "chain-fixture-close-red": 1,
+    "chain-fixture-action-restart-red": 1
+  },
+  "logs": [
+    {
+      "path": "raw/chain-cognitive-budget-red.jsonl",
+      "sha256": "45545d8b773edb40e33cd28f69f36956df4cc2cd104c956dbfcd45a7cd00a5cf",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-cognitive-budget-green.jsonl",
+      "sha256": "14816a3d51af7f2d14e2891eee4c95a69d1eb79e869d1f6c1baa01b741f83203",
+      "named_tests_subtests": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-cognitive-runtime-regression.jsonl",
+      "sha256": "44212d458b0d7a6cf6fa6778966a823a4bcd45a1f9f6c45edb1104285368b27d",
+      "named_tests_subtests": {
+        "pass": 69,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-reflection-green.jsonl",
+      "sha256": "52a22149552c87011406d8319fe3aab2e141bf57c705f2038840c80668da2d34",
+      "named_tests_subtests": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-fixture-restart-red.jsonl",
+      "sha256": "7e3441e6e64c7340bfc95eb5ddf3a5687ba2805ba0052e274daf465043332e5b",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-fixture-close-red.jsonl",
+      "sha256": "fc0d9d2ecd33f521c7589d487b3fbdecedff0c646224d75eb26eff0ea8773507",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-fixture-close-green.jsonl",
+      "sha256": "bee6eb073f14b094795b1d996b30f19bfd658a19589eada0e47e18a151f7e6ad",
+      "named_tests_subtests": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-fixture-action-restart-red.jsonl",
+      "sha256": "5e7a73c438e1da3ddb253539af6d6ff39e9b8cd716ee53c41ee172133cf9f8f4",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-fixture-regression-recorded.jsonl",
+      "sha256": "da742adb112ace8679a257f741808b83f7620471b795560974571f892c8c88a4",
+      "named_tests_subtests": {
+        "pass": 10,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-app-default-regression.jsonl",
+      "sha256": "69373e9c786508ba5e65a2e253698a5e0e9141670768627dc349a43f1d7b6b8e",
+      "named_tests_subtests": {
+        "pass": 133,
+        "fail": 0,
+        "skip": 9
+      },
+      "terminal_action": "pass"
+    }
+  ]
+}
