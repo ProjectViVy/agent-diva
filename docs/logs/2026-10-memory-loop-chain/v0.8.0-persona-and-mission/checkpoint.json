@@ -1,0 +1,172 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T02:16:50.992649+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "8cd04a917d55856a5c0f4419aaa449d4d77c208c",
+    "agent-vivy": "6b35f60488fc94af650872bcdeb709c956d93662",
+    "laputa": "db46181f0618fc35ca302b1be281e15ed2d35d35"
+  },
+  "execution_mode": "previous generated diagnostic overlay; not current-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-persona-frozen-first.jsonl",
+      "sha256": "5e8b738a25476c8b48906952da175136707ec7ee8c155cac198afe3658d4c145",
+      "named_tests_subtests": {
+        "fail": 3
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-persona-frozen-second.jsonl",
+      "sha256": "01d52d6523926d480f358b4bad018654c11b22172a0050d7c3b37b93cfd01dfa",
+      "named_tests_subtests": {
+        "pass": 3
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-fence-first.jsonl",
+      "sha256": "028de7882c905d0660bc91c837c86abb9c8986b1be3b9c498f625370209e85cb",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-mission-fence-diagnostic.jsonl",
+      "sha256": "fb5f8c963efa8c67a95b55646805b6e7b917abda997671bbd79eb16c906550bc",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-zero-mission-admission-red.jsonl",
+      "sha256": "2862f85da249f5ca9bba1dbc47599580ff8e958dda49fbb2d9e3a036858a139d",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-mission-runtime-first-green.jsonl",
+      "sha256": "ad3c0868827e81cb6683b4d91e7d0556de7316521407425cc99e6c53aa95bcda",
+      "named_tests_subtests": {
+        "pass": 34,
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-mission-runtime-second-green.jsonl",
+      "sha256": "539c9791bac10a5fb7f87533306ae12e4613a3ec6130e6013ddee3af9e70f547",
+      "named_tests_subtests": {
+        "pass": 35
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-runtime-final.jsonl",
+      "sha256": "70491f2d4e368407615dbbf1c72fbdac6ea6ca1e77250dd42e19001a370fa406",
+      "named_tests_subtests": {
+        "pass": 74
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-owner-first-green.jsonl",
+      "sha256": "174ff9c49cb0204eacc7ad2601efad33644169fa2dc071ce0f2f84125601a038",
+      "named_tests_subtests": {
+        "pass": 65
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-owner-complete-green.jsonl",
+      "sha256": "e58c789ad6b72b0b8b84e30c3d9223ca64f703ddbb5be545f92df82e2c9dac4e",
+      "named_tests_subtests": {
+        "pass": 69
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-owner-race.jsonl",
+      "sha256": "8ab874663fc30121d48aac1081cbe81ae3ff480a2c93a57f18dedbe62652c623",
+      "named_tests_subtests": {
+        "pass": 12
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-fence-after-owner-green.jsonl",
+      "sha256": "e9714e5e1da7db14ad1825b2a7cef720f79ef8e8da6c8bcced59f62d5a7ca6ec",
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-fence-race.jsonl",
+      "sha256": "28fbf11bbba21936ff3c477cda5c8adbfd929f6ad402a6b9d77043c5fd4bf950",
+      "named_tests_subtests": {
+        "pass": 3
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-module-default-final.jsonl",
+      "sha256": "d380db36635e52ae7493a4ec12afb28ff1042b04f7b5a1cff7ed219dfccbfba8",
+      "named_tests_subtests": {
+        "pass": 156,
+        "skip": 20
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-mission-final-garden.jsonl",
+      "sha256": "f1a89d2d3ed6466e1871539a269b7e2f19fc70b44a0da83b731b9383bf40c7a9",
+      "named_tests_subtests": {
+        "pass": 492
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-persona-mission-final-composition.jsonl",
+      "sha256": "0d41b0589828c04d5e250c28ec576d12eb6a115a5702e21f3e6ba6276c0dcc62",
+      "named_tests_subtests": {
+        "pass": 30
+      },
+      "recorded_exit_code": 0
+    }
+  ],
+  "defects": [
+    {
+      "id": "MEM-S07-01",
+      "status": "developer verified",
+      "red": "raw/chain-mission-fence-diagnostic.jsonl",
+      "observed_break": "stale Mission settled watermark1/idle"
+    },
+    {
+      "id": "MEM-S05-01",
+      "status": "actual Pulse/Recap remain absent, local wiring pending",
+      "probe": "../v0.7.0-scoped-work/raw/memory_loop_activity_test.go"
+    }
+  ],
+  "remaining_local": [
+    "S04 remaining source/role/replay cases",
+    "S05 Pulse/Recap/archive",
+    "S06 actual busy/concurrency",
+    "S07 actor/forbidden effect/Approval Center",
+    "S08 same-backend ordinary recall",
+    "S09 correction lifecycle",
+    "S10 original-operation recovery/cuts",
+    "S11 degradation/isolation",
+    "new-source CI/conformance/SDK/native/review"
+  ],
+  "external_only": [
+    "native Windows runner",
+    "live model resources"
+  ]
+}

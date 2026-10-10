@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T02:00:48.702409492Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:00:48.746202804Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects"}
+{"Time":"2026-10-10T02:00:48.746241743Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"=== RUN   TestMemoryLoopMissionChangeFencesPendingEffects\n"}
+{"Time":"2026-10-10T02:00:48.79156516Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"2026/10/10 02:00:48 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMissionChangeFencesPendingEffects934249138/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:01:04.653210766Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"    memory_loop_mission_test.go:53: post-release status: last={Cognition:{ActiveRunID: Watermark:1 Phase:idle BlockReason:}} requests=3 error=context deadline exceeded\n"}
+{"Time":"2026-10-10T02:01:04.655538222Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"--- FAIL: TestMemoryLoopMissionChangeFencesPendingEffects (15.91s)\n"}
+{"Time":"2026-10-10T02:01:04.655560676Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Elapsed":15.91}
+{"Time":"2026-10-10T02:01:04.655567546Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T02:01:04.682952104Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t15.980s\n"}
+{"Time":"2026-10-10T02:01:04.683038865Z","Action":"fail","Package":"command-line-arguments","Elapsed":15.981}

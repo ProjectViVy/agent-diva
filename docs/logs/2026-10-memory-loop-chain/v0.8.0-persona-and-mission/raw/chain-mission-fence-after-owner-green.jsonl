@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T02:06:27.123128798Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:06:27.144575455Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects"}
+{"Time":"2026-10-10T02:06:27.14461227Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"=== RUN   TestMemoryLoopMissionChangeFencesPendingEffects\n"}
+{"Time":"2026-10-10T02:06:27.181855054Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"2026/10/10 02:06:27 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMissionChangeFencesPendingEffects1842516464/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:06:38.356931303Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"--- PASS: TestMemoryLoopMissionChangeFencesPendingEffects (11.21s)\n"}
+{"Time":"2026-10-10T02:06:38.356973046Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Elapsed":11.21}
+{"Time":"2026-10-10T02:06:38.356981088Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T02:06:38.385540314Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t11.262s\n"}
+{"Time":"2026-10-10T02:06:38.385585192Z","Action":"pass","Package":"command-line-arguments","Elapsed":11.262}
