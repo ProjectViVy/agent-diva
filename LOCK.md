@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `TODOLIST.md, LOCK.md`
+- Scope: `TODOLIST.md, defer.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Record VIVY CI run 77 failure and keep all open backlog items deferred`
+- Session/Task: `Archive deferred backlog and keep only current cross-project attention items visible`
 - Branch/Worktree: `docs/defer-all-backlog-20261010 / /workspace/work/memory-loop/agent-diva`
-- Started At: `2026-10-10T12:13:25Z`
-- Last Heartbeat: `2026-10-10T12:13:51Z`
-- Expires At: `RELEASED 2026-10-10T12:13:51Z`
+- Started At: `2026-10-10T12:20:00Z`
+- Last Heartbeat: `2026-10-10T12:22:00Z`
+- Expires At: `RELEASED 2026-10-10T12:22:00Z`
 
 ### Handoff for this task
 
@@ -23,6 +23,12 @@ takeover; no product-file changes were overwritten. The iteration is verified
 and its local delivery record is complete at
 `docs/logs/2026-10-diva-sidebar-oil-frontend/v0.0.1-sidebar-and-frontend-contract/`.
 The lock is released; no push or package release was performed.
+
+### Handoff for this documentation update
+
+Archived the prior 50-item TODO snapshot to `defer.md`; root `TODOLIST.md` now
+contains only the current DIVA/VIVY/Laputa cross-project attention items. The
+archive is not completion or acceptance. `git diff --check` passed. No push.
 
 ### Handoff for this branch
 
@@ -45,6 +51,7 @@ No other working branch or live workspace is modified by this handoff.
 
 - `TODOLIST backlog deferral` — **RELEASED 2026-10-10T12:12:47Z**; owner `Codex`; scope `TODOLIST.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:11:59Z`.
 - `VIVY CI run 77 backlog update` — **RELEASED 2026-10-10T12:13:51Z**; owner `Codex`; scope `TODOLIST.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:13:25Z`.
+- `Archive deferred backlog and curate current attention` — **RELEASED 2026-10-10T12:22:00Z**; owner `Codex`; scope `TODOLIST.md, defer.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:20:00Z`.
 
 - `Memory-loop S11 cursor and host-isolation increment` — **RELEASED 2026-10-10T09:05:08Z**; Laputa `6c2bf3c1`, VIVY `4504bfe8` plus test-fixture clarification `a1bca54b` and query timing diagnostic `9dd8150e`, DIVA checkpoint commit pending. Mentle/Garden normal and race suites pass; actual-App ordinary valid foreign-cursor and injection tests pass; scope race passes without invoking the recall source. Injection race still returns `material read failed`; test-only source timings were 3.542s and 2.342s against the 750ms ContextHost timeout, cause unconfirmed. Evidence: `docs/logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/`. S11 remains Planned; S09, backend recovery, workspace A/B and final candidate gates remain open. No push, merge or release.
 
