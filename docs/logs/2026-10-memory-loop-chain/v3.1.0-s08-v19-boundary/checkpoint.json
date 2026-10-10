@@ -1,0 +1,68 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at_date": "2026-10-10",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions": {
+    "agent-diva-evidence-branch": "0826217eee679b8ef8e4c5152452811d09dd25b2",
+    "agent-diva-product-base": "0d0cadf9567120505ea7364c91fc7fd848cc7581",
+    "agent-vivy": "bec6cc7d867d8cf4000156937c5aca24f64846e4",
+    "laputa": "2aa49e74e2c51b44cc091f34979e985abd811ab4"
+  },
+  "execution_mode": "Actual VIVY App/Garden/Mentle on isolated test profiles, loopback synthetic model, package-mode Go tests and diagnostic overlay; no live model or user profile.",
+  "diagnostic_overlay_sha256": "2ed65b8f11a7578b81fb0c6ca27b9e2b180a91c4424b90242dae91ba75a844c5",
+  "observed_tests": {
+    "s08_focused_authority_boundary_suite": {
+      "command": "go test -overlay=/tmp/diva-memory-loop-closeout-overlay.json ./internal/app -run '^(TestMemoryLoopRecallAfterProcessRestart|TestMemoryLoopRecallNegativeControls|TestMemoryLoopOrdinaryRecallAuthorityBoundary)$' -count=1 -v",
+      "pass": 12,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "elapsed_seconds": 69.601,
+      "assertions": [
+        "Three process-restart Mentle recall profiles and six empty/disabled controls pass.",
+        "Synthetic WORLD and ACTMEM markers are absent from the actual model request.",
+        "WORLD and ACTMEM values are explicitly readable through auditable human control actions.",
+        "The action IDs are not model-visible; Agent-tool read remains open."
+      ]
+    }
+  },
+  "open_limits": [
+    "S08 V19 Agent-visible explicit WORLD/ACTMEM read tool is not implemented or verified; host control actions do not satisfy it.",
+    "S08 formal prerequisites S01-S03 and same-candidate acceptance remain open.",
+    "S09 complete lifecycle matrix, S10 unknown/partial recovery, S11 backend fault/recovery and workspace A/B remain open.",
+    "No sealed candidate, formal acceptance, Windows product run, live-model evaluation, merge, push, or release."
+  ],
+  "files": [
+    {
+      "path": "summary.md",
+      "bytes": 2309,
+      "sha256": "e9ca1cd86f6693eeff8387e12cda5f79a96d66de6451efa44b5b04bf1dbdd025"
+    },
+    {
+      "path": "acceptance.md",
+      "bytes": 958,
+      "sha256": "1c4978fa54d6afcc310829ceada44d554042f63219fbf12fba0916157f92e77d"
+    },
+    {
+      "path": "commands.md",
+      "bytes": 1034,
+      "sha256": "a539026f8f0e6fc5d4a4a99562a5e1fd7ec6a60dc2099bfad02c5a2778b94405"
+    },
+    {
+      "path": "defects.md",
+      "bytes": 1007,
+      "sha256": "f2930a6b6475df1b228bf5c594018dd8699e6e57531639f7b7485efc5e0c99fc"
+    },
+    {
+      "path": "review.md",
+      "bytes": 948,
+      "sha256": "9edb311c76ff984db5438bb88fd0f5f86a0d328da31ef800a33ad2f9071f522f"
+    },
+    {
+      "path": "raw/s08-focused-suite.txt",
+      "bytes": 5338,
+      "sha256": "012f608fc224ee077dcd7e723ecdc47c87da8516403f23592aaa7881a9ea2a3a"
+    }
+  ]
+}

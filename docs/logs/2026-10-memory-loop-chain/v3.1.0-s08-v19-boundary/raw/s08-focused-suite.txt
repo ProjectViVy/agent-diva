@@ -1,0 +1,44 @@
+=== RUN   TestMemoryLoopRecallAfterProcessRestart
+=== RUN   TestMemoryLoopRecallAfterProcessRestart/profile-1
+2026/10/10 11:08:40 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallAfterProcessRestartprofile-11324611355/001/workspace/AGENTS.md] skill_roots=0
+=== RUN   TestMemoryLoopRecallAfterProcessRestart/profile-2
+2026/10/10 11:08:51 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallAfterProcessRestartprofile-21813629773/001/workspace/AGENTS.md] skill_roots=0
+=== RUN   TestMemoryLoopRecallAfterProcessRestart/profile-3
+2026/10/10 11:09:02 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallAfterProcessRestartprofile-3640823363/001/workspace/AGENTS.md] skill_roots=0
+--- PASS: TestMemoryLoopRecallAfterProcessRestart (33.29s)
+    --- PASS: TestMemoryLoopRecallAfterProcessRestart/profile-1 (11.19s)
+    --- PASS: TestMemoryLoopRecallAfterProcessRestart/profile-2 (11.07s)
+    --- PASS: TestMemoryLoopRecallAfterProcessRestart/profile-3 (11.02s)
+=== RUN   TestMemoryLoopRecallNegativeControls
+=== RUN   TestMemoryLoopRecallNegativeControls/empty-profile-1
+2026/10/10 11:09:13 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsempty-profile-11802869621/001/workspace/AGENTS.md] skill_roots=0
+2026/10/10 11:09:13 WARN cron startup recovery failed err="storage: list cron jobs: context canceled"
+2026/10/10 11:09:13 WARN cron list for wake time failed err="storage: list cron jobs: context canceled"
+=== RUN   TestMemoryLoopRecallNegativeControls/empty-profile-2
+2026/10/10 11:09:14 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsempty-profile-22838686655/001/workspace/AGENTS.md] skill_roots=0
+2026/10/10 11:09:14 WARN cron startup recovery failed err="storage: list cron jobs: context canceled"
+2026/10/10 11:09:14 WARN cron list for wake time failed err="storage: list cron jobs: context canceled"
+=== RUN   TestMemoryLoopRecallNegativeControls/empty-profile-3
+2026/10/10 11:09:15 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsempty-profile-33769635213/001/workspace/AGENTS.md] skill_roots=0
+2026/10/10 11:09:15 WARN cron startup recovery failed err="storage: list cron jobs: context canceled"
+2026/10/10 11:09:15 WARN cron list for wake time failed err="storage: list cron jobs: context canceled"
+=== RUN   TestMemoryLoopRecallNegativeControls/recall-disabled-1
+2026/10/10 11:09:16 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsrecall-disabled-1708355634/001/workspace/AGENTS.md] skill_roots=0
+=== RUN   TestMemoryLoopRecallNegativeControls/recall-disabled-2
+2026/10/10 11:09:27 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsrecall-disabled-23723078658/001/workspace/AGENTS.md] skill_roots=0
+=== RUN   TestMemoryLoopRecallNegativeControls/recall-disabled-3
+2026/10/10 11:09:38 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsrecall-disabled-31610088463/001/workspace/AGENTS.md] skill_roots=0
+--- PASS: TestMemoryLoopRecallNegativeControls (35.54s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/empty-profile-1 (1.00s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/empty-profile-2 (0.96s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/empty-profile-3 (0.95s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/recall-disabled-1 (10.84s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/recall-disabled-2 (10.92s)
+    --- PASS: TestMemoryLoopRecallNegativeControls/recall-disabled-3 (10.86s)
+=== RUN   TestMemoryLoopOrdinaryRecallAuthorityBoundary
+2026/10/10 11:09:49 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopOrdinaryRecallAuthorityBoundary4215521709/001/workspace/AGENTS.md] skill_roots=0
+    memory_loop_recall_test.go:227: explicit host control-action trace (not a model tool): method=module.action.invoke request={"action_id":"diva.cognitive.persona.read","input":{"kind":"world","session_id":"sess_5d779776720b6265"},"module_id":"vivy/diva-cognitive"} response={"status":"ok","value":{"kind":"world","file_name":"WORLD.MD","exists":true,"valid":true,"content":"private test world\n\nsynthetic-world-only synthetic user-only fact fc5b0b50972626a35eff41027411b759","revision":2,"content_hash":"sha256:a7ac472e40d3ec2cdce9bf48a9d437472b275ee6df9c2ac0a0bbd58123674a39","updated_at":"2026-10-10T11:09:49.413390179Z","pending_count":0}}
+    memory_loop_recall_test.go:233: explicit host control-action trace (not a model tool): method=module.action.invoke request={"action_id":"diva.cognitive.actmem.read","input":{"max_chars":1200,"sections":["work"],"session_id":"sess_5d779776720b6265"},"module_id":"vivy/diva-cognitive"} response={"status":"ok","value":{"changed":false,"revision":1,"entries":[{"id":"e_19b1e72dc1d6c34ff4c2c7cbcf2f94b9","section":"work","field":"goal","scope":{"subject_id":"diva","kind":"personal","workspace_id":""},"session_id":"","event_id":"","occurred_at":"2026-10-10T11:09:49.415Z","body":"synthetic-actmem-only synthetic user-only fact c2388449a8f32683f2549a5f273d6500","sources":[]}]}}
+--- PASS: TestMemoryLoopOrdinaryRecallAuthorityBoundary (0.74s)
+PASS
+ok  	agent-vivy/internal/app	69.601s
