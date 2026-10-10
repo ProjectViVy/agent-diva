@@ -1,0 +1,8 @@
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"# command-line-arguments [command-line-arguments.test]\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_activity_test.go:68:2: undefined: memoryLoopCall\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_activity_test.go:75:16: undefined: filepath\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_activity_test.go:75:46: f.root undefined (type *memoryLoopFixture has no field or method root)\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-fail"}
+{"Time":"2026-10-10T04:10:29.03088742Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:10:29.030950716Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments [build failed]\n"}
+{"Time":"2026-10-10T04:10:29.030958127Z","Action":"fail","Package":"command-line-arguments","Elapsed":0,"FailedBuild":"command-line-arguments [command-line-arguments.test]"}

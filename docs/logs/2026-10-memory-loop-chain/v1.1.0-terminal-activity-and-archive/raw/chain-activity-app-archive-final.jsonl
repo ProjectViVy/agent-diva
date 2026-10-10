@@ -1,0 +1,21 @@
+{"Time":"2026-10-10T04:17:17.342693458Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:17:17.363244497Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T04:17:17.363277126Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T04:17:17.408160806Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 04:17:17 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity4188735009/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:17:19.106912012Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"    memory_loop_activity_test.go:50: actual recap lost a short user-only fact\n"}
+{"Time":"2026-10-10T04:17:19.108380905Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- FAIL: TestMemoryLoopActivityContinuity (1.75s)\n"}
+{"Time":"2026-10-10T04:17:19.108422567Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.75}
+{"Time":"2026-10-10T04:17:19.108453133Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete"}
+{"Time":"2026-10-10T04:17:19.108455527Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"=== RUN   TestMemoryLoopActivityArchivesOnSessionDelete\n"}
+{"Time":"2026-10-10T04:17:19.144037459Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"2026/10/10 04:17:19 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityArchivesOnSessionDelete2546724498/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:17:20.183153601Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"--- PASS: TestMemoryLoopActivityArchivesOnSessionDelete (1.07s)\n"}
+{"Time":"2026-10-10T04:17:20.183192399Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Elapsed":1.07}
+{"Time":"2026-10-10T04:17:20.183198388Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation"}
+{"Time":"2026-10-10T04:17:20.183201263Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"=== RUN   TestMemoryLoopActivityDeleteDrainsLiveCancellation\n"}
+{"Time":"2026-10-10T04:17:20.220743868Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"2026/10/10 04:17:20 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityDeleteDrainsLiveCancellation444683759/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:17:21.152528642Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"    memory_loop_activity_test.go:142: live deletion archive lost admitted user or canceled terminal\n"}
+{"Time":"2026-10-10T04:17:21.153878856Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"--- FAIL: TestMemoryLoopActivityDeleteDrainsLiveCancellation (0.97s)\n"}
+{"Time":"2026-10-10T04:17:21.153888661Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Elapsed":0.97}
+{"Time":"2026-10-10T04:17:21.15389465Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:17:21.17027785Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t3.827s\n"}
+{"Time":"2026-10-10T04:17:21.170313834Z","Action":"fail","Package":"command-line-arguments","Elapsed":3.828}

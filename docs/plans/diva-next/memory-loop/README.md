@@ -35,7 +35,7 @@
 | [S02](stories/S02.md) | E01 | 真实 Mentle 启动与读写回执 | S01 | 1 | Blocked | [真实后台准备](../../../logs/2026-10-memory-loop-verification/S02/summary.md)；Laputa `5007f62f`，S01 未通过 |
 | [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；[反思与复用 Restart 开发回归](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，VIVY `cd080708`；recall/最终候选 gate 仍待 |
 | [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | [MEM-S04-01 诊断失败](../../../logs/2026-10-memory-loop-verification/S04/defects.md)；[来源修复及回执恢复](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)已验证，前置/完整 gate 未通过 |
-| [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 未执行 |
+| [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 开发证据见增量；正式矩阵待 |
 | [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | [自动反思/预算](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)；[完整推理请求及大来源数据包修复](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，VIVY `e1de33ae` / Laputa `9bc39af`；完整 case/前置 gate 未通过 |
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | 未执行 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
@@ -130,3 +130,5 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 开发增量：[公开记忆生命周期与采集重投递](../../../logs/2026-10-memory-loop-chain/v0.9.0-lifecycle-and-replay/summary.md)，VIVY `7a1086a5` / Laputa `db46181`。纠正、删除、真实重启与原回执查询通过；三次受控 ObserverHost 重投递保留原来源，变更事件内容被拒绝。组合32通过零跳过，默认 App133通过22条件跳过。无产品修改；不代替 S08 后续模型输入或 S10 崩溃矩阵；Pulse/Recap 红灯仍开放。
 
 开发增量：[原生普通召回与证据读取安全](../../../logs/2026-10-memory-loop-chain/v1.0.0-native-recall-and-read-safety/summary.md)，VIVY `9cbed3ea` / Laputa `4faf95a`。三 profile 实际新进程召回、六个空／关闭对照及纠正／删除后模型输入通过；串行组合45通过零跳过。原生缓存、Observer 启动、embedding 关闭和证据混版缺陷已分别修复。实际降级 race1通过；正向冷查询 race 超时、早先关闭超时和一次 RPC 失败均保留。默认163通过26条件跳过；仅为开发证据，完整候选与 Story 仍待。继续本地 Pulse/Recap、Agent 显式工具边界、原操作恢复及退化矩阵。
+
+开发增量：[终态活动与删除归档](../../../logs/2026-10-memory-loop-chain/v1.1.0-terminal-activity-and-archive/summary.md)，VIVY `1c0ef749` / Laputa `4da565e`。实际 Pulse/Recap、进程重启 ID/来源、已结束及运行中取消会话删除归档、旧 Work 冲突通过；组合15、原生120／race104、运行时 race44、Observer race12、ACTMEM race27通过零跳过。投影未完成水位、原始回执恢复和无需新投递的 worker 重试已接通；完整候选、崩溃／并发／隔离矩阵及正式 Story 仍待。继续本地 S03–S11；Windows/live 等待不阻断本地工作。

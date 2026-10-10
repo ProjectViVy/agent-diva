@@ -1,0 +1,1156 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T04:37:14.565143+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "cd9cdff2de71a5c3047c541109239e6a40f4c74a",
+    "agent-vivy": "1c0ef749db221a5e22bc352afca06c2eb1fcaca6",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "official generated diagnostic overlay; not final artifact/source conformance attestation",
+  "observed_final_exits": {
+    "chain-activity-app-final-prefix.jsonl": 0,
+    "chain-activity-native-source-final-race.jsonl": 0,
+    "chain-activity-native-final-default.jsonl": 0,
+    "chain-activity-runtime-final-race.jsonl": 0,
+    "chain-activity-observer-barrier-green.jsonl": 0,
+    "chain-activity-fold-provenance-final-green.jsonl": 0,
+    "chain-activity-default-app-modules.jsonl": 0,
+    "chain-activity-app-final-all.jsonl": 1,
+    "chain-activity-app-final-focused.jsonl": 1,
+    "chain-activity-app-restart-work-green.jsonl": 1,
+    "chain-activity-app-restart-work-second.jsonl": 0
+  },
+  "logs": [
+    {
+      "path": "raw/chain-activity-app-archive-final.jsonl",
+      "sha256": "aa6f35260bfdf4b4ac55a872ec831b55963bec77088d30f86c2d0a691f255906",
+      "bytes": 4166,
+      "named_tests_subtests": {
+        "fail": 2,
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-archive-first-green.jsonl",
+      "sha256": "8f7da34f3b25a3e39a978d4a22606fd0a7e6cf5c6b46e0c6165542adb18f7859",
+      "bytes": 3937,
+      "named_tests_subtests": {
+        "pass": 2,
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-archive-head-red.jsonl",
+      "sha256": "b4e8e9a7783d5d5bacb9821ab13392d52862c670048dc5e2c47954da1c456d8a",
+      "bytes": 1808,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-archive-initial.jsonl",
+      "sha256": "6f99fbe28721c4bdb2389d6eee8f542df9694b53291fb86cf229c76a217987ed",
+      "bytes": 1257,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-archive-red.jsonl",
+      "sha256": "128821bbcb498cc0268460f0475f73f65a6ba18837d24de9fe311e4e4595b9c8",
+      "bytes": 1840,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-final-all.jsonl",
+      "sha256": "7c7342f11de3a2c60f58e7528948a3ff77c79dc8cf9493d52493611d470810a8",
+      "bytes": 17789,
+      "named_tests_subtests": {
+        "fail": 1,
+        "pass": 14
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-final-focused.jsonl",
+      "sha256": "3ee9323334c64a140326f8f4141db842bfdfe6950a074562dff2a8d42cff2837",
+      "bytes": 17232,
+      "named_tests_subtests": {
+        "pass": 13,
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-final-prefix.jsonl",
+      "sha256": "1512d7602544ea445bbf2ec7a11c5ef545096afb7ec20f5ffbcc482c91091840",
+      "bytes": 17567,
+      "named_tests_subtests": {
+        "pass": 15
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-first.jsonl",
+      "sha256": "363c9f6ac7af7d027a8447175669aa04f82ce35031deede6779493d889798b3d",
+      "bytes": 1441,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-live-archive-red.jsonl",
+      "sha256": "6cd622bbe3786bb807ea72df8a2e7e5ddaaf5ebe983b688e761e5daeb222d2ca",
+      "bytes": 2153,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-live-diagnostic.jsonl",
+      "sha256": "378a7d6830d852436a264cbf817cc815e7d63d233ce9bf86402d25f0097ad033",
+      "bytes": 8137,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-restart-work-green.jsonl",
+      "sha256": "20395d89a84c94ab5675f953eb65f6c8e4452ddad813b2352500582ca2269837",
+      "bytes": 5851,
+      "named_tests_subtests": {
+        "fail": 2,
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-restart-work-second.jsonl",
+      "sha256": "63cb4bce15561369a6b35f3d10d17d640a9bcfd0a388093bbe96dc256b4cfc67",
+      "bytes": 4760,
+      "named_tests_subtests": {
+        "pass": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-app-stale-work-first.jsonl",
+      "sha256": "9961c2bbeb7eda88e67e62d7380876aaeb05056ac3cf294b93de8f646b14c355",
+      "bytes": 1599,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-budget-green.jsonl",
+      "sha256": "5fb53fb7fb268a13d7814d15c4379d7fe3c34b959f39e6c99ecc45cd2629be61",
+      "bytes": 15060,
+      "named_tests_subtests": {
+        "pass": 21
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-budget-product-red.jsonl",
+      "sha256": "370f57ff582950db577a35b40a5f6bf3e56d06918fa9412f9d631e6c5e0c12f3",
+      "bytes": 2588,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-budget-red.jsonl",
+      "sha256": "4e2de788e0ca52f9f027442a9ce88d4641daacc73fe51ae0f514f322a6acf1a3",
+      "bytes": 1014,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-continuity-product-red.jsonl",
+      "sha256": "6c4305d1a54e21ec7f31485694a9877e7cc184d03a9e609e740ca0471eb6bc86",
+      "bytes": 1761,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-continuity-red.jsonl",
+      "sha256": "89fd381ba03a8f887f622ac335671df4fc9b08fd7db960e6abf2a68cff8b67b6",
+      "bytes": 1710,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-default-app-modules.jsonl",
+      "sha256": "2719ca4cbac032c2ce2ce75774d28bc14dbd7ec399c07a8e39a2ad2b1665f3f8",
+      "bytes": 177796,
+      "named_tests_subtests": {
+        "pass": 163,
+        "skip": 28
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/modules/defaults",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/app",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-diagnostic-generation.log",
+      "sha256": "266bdd57f919e2b5f4e4576c11d3b08858812c2c823778ba0cc52a7329643038",
+      "bytes": 119
+    },
+    {
+      "path": "raw/chain-activity-empty-head-red.jsonl",
+      "sha256": "f8fd1fdb779a0850621249ba58066133ba5a5018ee8075e42119a3a98a6cdcbf",
+      "bytes": 1595,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/evolution",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-final-capture.json",
+      "sha256": "7c3da109bb9a39f3e09206ef8c9bc450c49ceb48c1754cf9a6d086ddd91aaba6",
+      "bytes": 9563
+    },
+    {
+      "path": "raw/chain-activity-fold-provenance-final-green.jsonl",
+      "sha256": "50c18425c36e72d0916cbbd42538692c79333b0fd08b056718610bb1d74a8a27",
+      "bytes": 19956,
+      "named_tests_subtests": {
+        "pass": 27
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-fold-provenance-first.jsonl",
+      "sha256": "86313656f257ecb255b0bb0076eca397b6aff1f5699204031ec4f6065f18d6ef",
+      "bytes": 2410,
+      "named_tests_subtests": {
+        "fail": 1,
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-fold-provenance-green.jsonl",
+      "sha256": "a3cf043f020a08faa4dd628e10445f58766c3341fad13de3b98f04836e5634b4",
+      "bytes": 19961,
+      "named_tests_subtests": {
+        "pass": 27
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-fold-provenance-red.jsonl",
+      "sha256": "0d1b8c5348f5541cec69ed55d860bb3a4e97868a86ea0b0b53bdb79f3fda16f7",
+      "bytes": 2695,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-archive-api-red.jsonl",
+      "sha256": "47cd01277d43c05790e3d3abbd30f1ef09f55e27e04c2b18d2a2c082bda16c4a",
+      "bytes": 1207,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-archive-regression-race.jsonl",
+      "sha256": "5bcad77d31612bb321937575fa347c5799eb36f648b4eda0ab3507566fb58106",
+      "bytes": 87104,
+      "named_tests_subtests": {
+        "pass": 103,
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "fail"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-composition-first.jsonl",
+      "sha256": "fbd995509391481b0f39e0c7bd542b84819e9e4cd68675ae4579d116950ea518",
+      "bytes": 100311,
+      "named_tests_subtests": {
+        "pass": 119
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-final-default.jsonl",
+      "sha256": "ae5a1c59ecfaf889d104d2451b72b9acfee73254cca86d3764861da17c5a734d",
+      "bytes": 101198,
+      "named_tests_subtests": {
+        "pass": 120
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-final-regression-race.jsonl",
+      "sha256": "538fd96a269dc252bd30d6d4c00312bd475c7223312d3384b9297fe8e2b23b8c",
+      "bytes": 86817,
+      "named_tests_subtests": {
+        "pass": 104
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-ingest-api-red.jsonl",
+      "sha256": "93702c04d1d46399e2eebe934d3cc54d43b3316998c94461e2a683f41fbbd44e",
+      "bytes": 3765,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-ingest-first.jsonl",
+      "sha256": "e3cf3dd44d77678b0b8458bb0be9e8b20f51518a0998f9d848a9f152d761b86d",
+      "bytes": 2321,
+      "named_tests_subtests": {
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-ingest-recovery-red.jsonl",
+      "sha256": "5e3d6901b9385889572acc43458b985278edd2799c04abef2dc27942ca87a54e",
+      "bytes": 6103,
+      "named_tests_subtests": {
+        "fail": 1,
+        "pass": 5
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-ingest-regression-race.jsonl",
+      "sha256": "cad36ff43cf3be7ae359992a136d729fa76de037be19037640e4579ac52ae4a4",
+      "bytes": 29072,
+      "named_tests_subtests": {
+        "pass": 34
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-kernel-regression.jsonl",
+      "sha256": "ec7a19c58756dc12002fcaa89b8b4e96c52718852246b83c76f97f872f957f43",
+      "bytes": 57236,
+      "named_tests_subtests": {
+        "pass": 74
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/cmd/eino_smoke",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/diva",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/testkit",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/inofy",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/persona",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-pair-api-red.jsonl",
+      "sha256": "1bb70a1f623d92f4dc5eb4c0b145d5314e14ed15f3c444b6bde7e88c9a6d3e49",
+      "bytes": 3493,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-pair-final-race.jsonl",
+      "sha256": "26f9ab40a091b042135f87af447461dc628b1fff8bcaae3c9c76d6451a00ca62",
+      "bytes": 10282,
+      "named_tests_subtests": {
+        "pass": 12
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-pair-first.jsonl",
+      "sha256": "233a1d92db75f543091d3bf4e3ebb32ea8a0efc0c665d48c084b1dd234aa0bd1",
+      "bytes": 18649,
+      "named_tests_subtests": {
+        "fail": 1,
+        "pass": 24
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-pair-initial-red.jsonl",
+      "sha256": "3b365ce192088bb14abb137c3822451ded383a56a445b98f95da662d13795a30",
+      "bytes": 3440,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-pair-race.jsonl",
+      "sha256": "6d4cafc558d995c4e0caf0bbdfb195a643593c5b17313b638494c7e356da86d3",
+      "bytes": 10280,
+      "named_tests_subtests": {
+        "pass": 12
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-native-source-final-race.jsonl",
+      "sha256": "594372e430a0a59f9ebc43f32af21283900cb7338dbf6d7ca1de9cb10175fcf6",
+      "bytes": 86804,
+      "named_tests_subtests": {
+        "pass": 104
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-observer-barrier-green.jsonl",
+      "sha256": "29592aa0eb599cff4650e2a6816d40da056fc1b3e2f79a7f899784dcfd708b94",
+      "bytes": 10566,
+      "named_tests_subtests": {
+        "pass": 12
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/observerhost",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-observer-barrier-red.jsonl",
+      "sha256": "5118c9650c34ea8dcfffdb65607598d3784a8233aeb3886ffae79ef6198bfb58",
+      "bytes": 1611,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/observerhost",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-runtime-capture-race.jsonl",
+      "sha256": "e0d200d06414b7edaa5db8c29bc020d14af22a2c9fa7ef912855f11a27755816",
+      "bytes": 30420,
+      "named_tests_subtests": {
+        "pass": 39
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-runtime-final-race.jsonl",
+      "sha256": "aead39db3c1431b15d4eac9466427c72747d3a2c512897bd7a9e801b9ee1ade0",
+      "bytes": 34671,
+      "named_tests_subtests": {
+        "pass": 44
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-runtime-watermark-red.jsonl",
+      "sha256": "02da9661c408f52fbd1d865290858b6b7cd4b9ee4640e68b236d44933911a418",
+      "bytes": 1567,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-app-first.jsonl",
+      "sha256": "4aa4ac01a411a49a4542a971166f6791994d2d4d556bdb1ae558facdfd298d41",
+      "bytes": 1553,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-default-app.jsonl",
+      "sha256": "8d548d3f5c25ac1d09dfa5fe16baa4187c51a32038b8022550b7008e0743d3c9",
+      "bytes": 142765,
+      "named_tests_subtests": {
+        "pass": 133,
+        "skip": 18
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/app",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-final-composition.jsonl",
+      "sha256": "184a4f5721611e8d57cefb8708a1f1cb8bc0d8ad829629a8101058a481852a88",
+      "bytes": 28954,
+      "named_tests_subtests": {
+        "pass": 24
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-final-garden-loopback.jsonl",
+      "sha256": "01a00aa294c0d94a46d72f399fe82a29db1207e7e2e426e28a2f2513259eb871",
+      "bytes": 439434,
+      "named_tests_subtests": {
+        "pass": 488
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/architecture-guard",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/evomap",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/garden-mcp",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/console",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/activity",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/arbiter",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/architectureguard",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution/hubtest",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/mailbox",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/personactx",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/lifecycle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/rag",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/pipeline",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/recall",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/report",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/sqliteconn",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/supervision",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/server",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/memory/memorytest",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/memory",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-final-garden.jsonl",
+      "sha256": "fdcc349369ac5c0fe66aa50cba1ec3531e115084d8945129221c1ca2eed5d86e",
+      "bytes": 373645,
+      "named_tests_subtests": {
+        "pass": 386,
+        "fail": 3
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/architecture-guard",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/evomap",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/console",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/cmd/garden-mcp",
+          "action": "fail"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/activity",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/arbiter",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/architectureguard",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution",
+          "action": "fail"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution/hubtest",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/lifecycle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/mailbox",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/personactx",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/pipeline",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/rag",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/recall",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/report",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/sqliteconn",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/memory/memorytest",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/garden/memory",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/server",
+          "action": "fail"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/supervision",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-final-laputa.jsonl",
+      "sha256": "9d2db940156a4c6ff76b218778355fd8798709cbd53dc7f184862db036908e16",
+      "bytes": 53258,
+      "named_tests_subtests": {
+        "pass": 69
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/laputa/cmd/eino_smoke",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/actmem",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/diva",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/testkit",
+          "action": "skip"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/evolution/inofy",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/laputa/persona",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-green.jsonl",
+      "sha256": "1e2fa513bfe9de9f173a1f95902f6d07ff882d2c0c48f2b772e324d042ad25c5",
+      "bytes": 64347,
+      "named_tests_subtests": {
+        "pass": 79
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-product-red.jsonl",
+      "sha256": "e846844468acadab0fb6e6eb873cecf2c031f33091c6a1387f50c774013d4e70",
+      "bytes": 2773,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/evolution",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-activity-work-red.jsonl",
+      "sha256": "520cf2ad0783492dac0a9b484f9f4baea4480b8e02ad9cc4e8a7b0828c0fd2a3",
+      "bytes": 1493,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/evolution",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    }
+  ]
+}

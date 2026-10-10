@@ -1,0 +1,12 @@
+{"Time":"2026-10-10T04:05:35.375503678Z","Action":"start","Package":"github.com/dashimaki/garden/internal/ingest"}
+{"Time":"2026-10-10T04:05:35.380817832Z","Action":"run","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityRawFirstAndExactReceiptReplay"}
+{"Time":"2026-10-10T04:05:35.380840426Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityRawFirstAndExactReceiptReplay","Output":"=== RUN   TestCaptureActivityRawFirstAndExactReceiptReplay\n"}
+{"Time":"2026-10-10T04:05:35.395275859Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityRawFirstAndExactReceiptReplay","Output":"--- PASS: TestCaptureActivityRawFirstAndExactReceiptReplay (0.01s)\n"}
+{"Time":"2026-10-10T04:05:35.395310291Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityRawFirstAndExactReceiptReplay","Elapsed":0.01}
+{"Time":"2026-10-10T04:05:35.395317552Z","Action":"run","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged"}
+{"Time":"2026-10-10T04:05:35.395319916Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged","Output":"=== RUN   TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged\n"}
+{"Time":"2026-10-10T04:05:35.397458387Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged","Output":"--- PASS: TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged (0.00s)\n"}
+{"Time":"2026-10-10T04:05:35.397486569Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/ingest","Test":"TestCaptureActivityKeepsPreviouslyAcceptedRowsUnchanged","Elapsed":0}
+{"Time":"2026-10-10T04:05:35.397490225Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Output":"PASS\n"}
+{"Time":"2026-10-10T04:05:35.397663366Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Output":"ok  \tgithub.com/dashimaki/garden/internal/ingest\t0.022s\n"}
+{"Time":"2026-10-10T04:05:35.397678549Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/ingest","Elapsed":0.022}

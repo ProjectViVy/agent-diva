@@ -1,0 +1,14 @@
+{"Time":"2026-10-10T01:51:07.126466429Z","Action":"start","Package":"github.com/dashimaki/garden/evolution"}
+{"Time":"2026-10-10T01:51:07.134046793Z","Action":"run","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectReadsExistingScopedWork"}
+{"Time":"2026-10-10T01:51:07.134115617Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectReadsExistingScopedWork","Output":"=== RUN   TestCollectReadsExistingScopedWork\n"}
+{"Time":"2026-10-10T01:51:07.134790203Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectReadsExistingScopedWork","Output":"    activity_work_test.go:26: MEM-S05-02: actual scoped Work missing from reconciliation input: {Window:{SourceID:activity After:0 Through:0} ActivityRevision:2 Entries:[] Persona:[] Sources:[]} \u003cnil\u003e\n"}
+{"Time":"2026-10-10T01:51:07.134898025Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectReadsExistingScopedWork","Output":"--- FAIL: TestCollectReadsExistingScopedWork (0.00s)\n"}
+{"Time":"2026-10-10T01:51:07.134956253Z","Action":"fail","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectReadsExistingScopedWork","Elapsed":0}
+{"Time":"2026-10-10T01:51:07.134979368Z","Action":"run","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectRejectsIncompleteWorkRead"}
+{"Time":"2026-10-10T01:51:07.134982703Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectRejectsIncompleteWorkRead","Output":"=== RUN   TestCollectRejectsIncompleteWorkRead\n"}
+{"Time":"2026-10-10T01:51:07.135288964Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectRejectsIncompleteWorkRead","Output":"    activity_work_test.go:38: incomplete old Work reached inference: {Window:{SourceID:activity After:0 Through:0} ActivityRevision:1 Entries:[] Persona:[] Sources:[]} \u003cnil\u003e\n"}
+{"Time":"2026-10-10T01:51:07.135384969Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectRejectsIncompleteWorkRead","Output":"--- FAIL: TestCollectRejectsIncompleteWorkRead (0.00s)\n"}
+{"Time":"2026-10-10T01:51:07.135418029Z","Action":"fail","Package":"github.com/dashimaki/garden/evolution","Test":"TestCollectRejectsIncompleteWorkRead","Elapsed":0}
+{"Time":"2026-10-10T01:51:07.135439942Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:51:07.135683625Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Output":"FAIL\tgithub.com/dashimaki/garden/evolution\t0.008s\n"}
+{"Time":"2026-10-10T01:51:07.135704726Z","Action":"fail","Package":"github.com/dashimaki/garden/evolution","Elapsed":0.009}

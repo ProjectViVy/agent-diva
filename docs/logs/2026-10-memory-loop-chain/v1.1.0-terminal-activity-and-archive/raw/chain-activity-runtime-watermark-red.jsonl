@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:08:59.546307716Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T04:08:59.564457253Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveHighWatermarkHonorsOwnedSourceFence"}
+{"Time":"2026-10-10T04:08:59.564502842Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveHighWatermarkHonorsOwnedSourceFence","Output":"=== RUN   TestCognitiveHighWatermarkHonorsOwnedSourceFence\n"}
+{"Time":"2026-10-10T04:08:59.590300061Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveHighWatermarkHonorsOwnedSourceFence","Output":"    cognitive_service_test.go:560: acceptance notification bypassed native source fence: high=7 err=\u003cnil\u003e\n"}
+{"Time":"2026-10-10T04:08:59.590632482Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveHighWatermarkHonorsOwnedSourceFence","Output":"--- FAIL: TestCognitiveHighWatermarkHonorsOwnedSourceFence (0.03s)\n"}
+{"Time":"2026-10-10T04:08:59.590641986Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveHighWatermarkHonorsOwnedSourceFence","Elapsed":0.03}
+{"Time":"2026-10-10T04:08:59.590720014Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:08:59.592748515Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.046s\n"}
+{"Time":"2026-10-10T04:08:59.592769576Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.046}

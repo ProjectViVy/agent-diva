@@ -1,0 +1,13 @@
+{"Time":"2026-10-10T04:16:01.730669619Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-10T04:16:01.732446711Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable"}
+{"Time":"2026-10-10T04:16:01.732522014Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"=== RUN   TestFoldCapturedProvenanceRemainsReadable\n"}
+{"Time":"2026-10-10T04:16:01.733018623Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"    fold_recovery_test.go:152: laputa/actmem: original entry metadata/body exceeds capsule capacity\n"}
+{"Time":"2026-10-10T04:16:01.733104262Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"--- FAIL: TestFoldCapturedProvenanceRemainsReadable (0.00s)\n"}
+{"Time":"2026-10-10T04:16:01.733113225Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Elapsed":0}
+{"Time":"2026-10-10T04:16:01.733119785Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources"}
+{"Time":"2026-10-10T04:16:01.73312322Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Output":"=== RUN   TestFoldOversizeMetadataRefusesBeforeRemovingSources\n"}
+{"Time":"2026-10-10T04:16:01.733632908Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Output":"--- PASS: TestFoldOversizeMetadataRefusesBeforeRemovingSources (0.00s)\n"}
+{"Time":"2026-10-10T04:16:01.73364087Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Elapsed":0}
+{"Time":"2026-10-10T04:16:01.733657195Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:16:01.734016987Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\tgithub.com/dashimaki/laputa/actmem\t0.003s\n"}
+{"Time":"2026-10-10T04:16:01.734062756Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Elapsed":0.003}

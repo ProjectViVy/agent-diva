@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:29:57.271083605Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:29:57.290170691Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityKeepsStaleWorkPatchConflicted"}
+{"Time":"2026-10-10T04:29:57.290199745Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityKeepsStaleWorkPatchConflicted","Output":"=== RUN   TestMemoryLoopActivityKeepsStaleWorkPatchConflicted\n"}
+{"Time":"2026-10-10T04:29:57.32963652Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityKeepsStaleWorkPatchConflicted","Output":"2026/10/10 04:29:57 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityKeepsStaleWorkPatchConflicted941601676/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:29:58.264085158Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityKeepsStaleWorkPatchConflicted","Output":"--- PASS: TestMemoryLoopActivityKeepsStaleWorkPatchConflicted (0.97s)\n"}
+{"Time":"2026-10-10T04:29:58.264125739Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityKeepsStaleWorkPatchConflicted","Elapsed":0.97}
+{"Time":"2026-10-10T04:29:58.264131498Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:29:58.286579862Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t1.015s\n"}
+{"Time":"2026-10-10T04:29:58.286637339Z","Action":"pass","Package":"command-line-arguments","Elapsed":1.016}

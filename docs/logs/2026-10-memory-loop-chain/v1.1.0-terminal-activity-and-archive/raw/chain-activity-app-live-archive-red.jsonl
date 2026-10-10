@@ -1,0 +1,11 @@
+{"Time":"2026-10-10T04:12:54.941574949Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:12:54.961326959Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation"}
+{"Time":"2026-10-10T04:12:54.96136717Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"=== RUN   TestMemoryLoopActivityDeleteDrainsLiveCancellation\n"}
+{"Time":"2026-10-10T04:12:55.001353305Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"2026/10/10 04:12:55 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityDeleteDrainsLiveCancellation1091301417/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:12:55.495701863Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"    memory_loop_activity_test.go:131: MEM-S05-02: live deletion lost terminal archive: [] \u003cnil\u003e\n"}
+{"Time":"2026-10-10T04:12:55.495750967Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"2026/10/10 04:12:55 ERROR set terminal run status run=run_32fc6725a0a21325 status=cancelled err=\"storage: not found\"\n"}
+{"Time":"2026-10-10T04:12:55.496993148Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"--- FAIL: TestMemoryLoopActivityDeleteDrainsLiveCancellation (0.54s)\n"}
+{"Time":"2026-10-10T04:12:55.497002813Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Elapsed":0.54}
+{"Time":"2026-10-10T04:12:55.497010955Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:12:55.510296183Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t0.568s\n"}
+{"Time":"2026-10-10T04:12:55.510353379Z","Action":"fail","Package":"command-line-arguments","Elapsed":0.569}
