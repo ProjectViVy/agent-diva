@@ -1,0 +1,4 @@
+user fact present in actual provider request; actual SourceBody= '收到' SourceRole= ''
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+AssertionError: MEM-S04-01: user-only fact lost or misattributed in durable source

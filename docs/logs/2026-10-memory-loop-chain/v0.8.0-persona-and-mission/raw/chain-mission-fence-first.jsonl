@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T01:59:48.540292931Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:59:48.561079444Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects"}
+{"Time":"2026-10-10T01:59:48.5612096Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"=== RUN   TestMemoryLoopMissionChangeFencesPendingEffects\n"}
+{"Time":"2026-10-10T01:59:48.599679142Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"2026/10/10 01:59:48 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMissionChangeFencesPendingEffects3295934571/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:00:04.474340743Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"    memory_loop_mission_test.go:53: context deadline exceeded\n"}
+{"Time":"2026-10-10T02:00:04.476930354Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Output":"--- FAIL: TestMemoryLoopMissionChangeFencesPendingEffects (15.92s)\n"}
+{"Time":"2026-10-10T02:00:04.476956363Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopMissionChangeFencesPendingEffects","Elapsed":15.92}
+{"Time":"2026-10-10T02:00:04.476970725Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T02:00:04.522747741Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t15.982s\n"}
+{"Time":"2026-10-10T02:00:04.522792979Z","Action":"fail","Package":"command-line-arguments","Elapsed":15.983}

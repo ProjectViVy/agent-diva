@@ -1,0 +1,8 @@
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"# agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/inofy_store_test.go:56:13: receipt.Replayed undefined (type \"github.com/ProjectViVy/inofy\".Receipt has no field or method Replayed)\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/inofy_store_test.go:64:29: replayed.Replayed undefined (type \"github.com/ProjectViVy/inofy\".Receipt has no field or method Replayed)\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/inofy_store_test.go:69:29: original.Replayed undefined (type \"github.com/ProjectViVy/inofy\".Receipt has no field or method Replayed)\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-fail"}
+{"Time":"2026-10-10T04:59:50.628407982Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T04:59:50.628475634Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime [build failed]\n"}
+{"Time":"2026-10-10T04:59:50.628492179Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0,"FailedBuild":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]"}

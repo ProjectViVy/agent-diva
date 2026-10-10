@@ -1,0 +1,14 @@
+{"Time":"2026-10-10T04:51:51.508608448Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:51:51.532848997Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput"}
+{"Time":"2026-10-10T04:51:51.533002819Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"=== RUN   TestMemoryLoopForegroundBusyDefersOriginalInput\n"}
+{"Time":"2026-10-10T04:51:51.575389848Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"2026/10/10 04:51:51 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopForegroundBusyDefersOriginalInput2386224318/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:52:17.80713313Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"--- PASS: TestMemoryLoopForegroundBusyDefersOriginalInput (26.27s)\n"}
+{"Time":"2026-10-10T04:52:17.807289986Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Elapsed":26.27}
+{"Time":"2026-10-10T04:52:17.8073394Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow"}
+{"Time":"2026-10-10T04:52:17.807343927Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"=== RUN   TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow\n"}
+{"Time":"2026-10-10T04:52:17.852344073Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"2026/10/10 04:52:17 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow768439535/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:52:32.961544927Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"--- PASS: TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow (15.15s)\n"}
+{"Time":"2026-10-10T04:52:32.961599088Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Elapsed":15.15}
+{"Time":"2026-10-10T04:52:32.96160698Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:52:32.989070209Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t41.480s\n"}
+{"Time":"2026-10-10T04:52:32.98911749Z","Action":"pass","Package":"command-line-arguments","Elapsed":41.481}

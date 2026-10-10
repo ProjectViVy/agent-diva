@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T01:20:27.702622866Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T01:20:27.723140173Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:20:27.7231847Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:20:27.750279438Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"    cognitive_concurrency_test.go:158: policy write lost an admitted window: state={SupervisorSeq:0 SupervisorRunID: ActiveRunID: PendingThrough:0 Watermark:0 SourceHigh:0 Attempt:0 LastCompletedUnixMS:0 Policy:{Enabled:true MinIntervalMS:55} PolicyRevision:1 LastReason: Blocked:} runs=[{ID:workflow_47ea73193146beb3 SessionID:sess_cognitive_supervisor Status:active CreatedAt:1791595227748 Kind:workflow ChildMode: ParentID:run_cognitive_supervisor_1 RootID:run_cognitive_supervisor_1 Depth:1}] err=\u003cnil\u003e\n"}
+{"Time":"2026-10-10T01:20:27.752157447Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- FAIL: TestCognitivePolicyWritePreservesAdmittedWindow (0.03s)\n"}
+{"Time":"2026-10-10T01:20:27.752180351Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.03}
+{"Time":"2026-10-10T01:20:27.752313071Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:20:27.755505891Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.052s\n"}
+{"Time":"2026-10-10T01:20:27.755523367Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.053}

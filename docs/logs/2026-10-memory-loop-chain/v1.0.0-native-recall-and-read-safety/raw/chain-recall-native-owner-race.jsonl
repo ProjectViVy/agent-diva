@@ -1,0 +1,40 @@
+{"Time":"2026-10-10T03:23:57.593732503Z","Action":"start","Package":"github.com/dashimaki/garden/agentapi"}
+{"Time":"2026-10-10T03:23:57.634535321Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBoundIndexHealthRespectsHostBindingAndClosedHandle"}
+{"Time":"2026-10-10T03:23:57.634612588Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBoundIndexHealthRespectsHostBindingAndClosedHandle","Output":"=== RUN   TestBoundIndexHealthRespectsHostBindingAndClosedHandle\n"}
+{"Time":"2026-10-10T03:23:57.634689373Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBoundIndexHealthRespectsHostBindingAndClosedHandle","Output":"--- PASS: TestBoundIndexHealthRespectsHostBindingAndClosedHandle (0.00s)\n"}
+{"Time":"2026-10-10T03:23:57.634717265Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBoundIndexHealthRespectsHostBindingAndClosedHandle","Elapsed":0}
+{"Time":"2026-10-10T03:23:57.635289267Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestDerivedHandlesAfterClose"}
+{"Time":"2026-10-10T03:23:57.635300243Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestDerivedHandlesAfterClose","Output":"=== RUN   TestDerivedHandlesAfterClose\n"}
+{"Time":"2026-10-10T03:23:57.719735851Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestDerivedHandlesAfterClose","Output":"--- PASS: TestDerivedHandlesAfterClose (0.08s)\n"}
+{"Time":"2026-10-10T03:23:57.719773408Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestDerivedHandlesAfterClose","Elapsed":0.08}
+{"Time":"2026-10-10T03:23:57.720393823Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift"}
+{"Time":"2026-10-10T03:23:57.720408615Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift","Output":"=== RUN   TestOwnedMissionPinRejectsZeroAndAssignedDrift\n"}
+{"Time":"2026-10-10T03:23:57.720665982Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned"}
+{"Time":"2026-10-10T03:23:57.720672783Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned","Output":"=== RUN   TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned\n"}
+{"Time":"2026-10-10T03:23:57.835241429Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned","Output":"--- PASS: TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned (0.11s)\n"}
+{"Time":"2026-10-10T03:23:57.835286037Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/unassigned","Elapsed":0.11}
+{"Time":"2026-10-10T03:23:57.835327549Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned"}
+{"Time":"2026-10-10T03:23:57.835330564Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned","Output":"=== RUN   TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned\n"}
+{"Time":"2026-10-10T03:23:57.936348024Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned","Output":"--- PASS: TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned (0.10s)\n"}
+{"Time":"2026-10-10T03:23:57.942416284Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift/assigned","Elapsed":0.1}
+{"Time":"2026-10-10T03:23:57.942446099Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift","Output":"--- PASS: TestOwnedMissionPinRejectsZeroAndAssignedDrift (0.22s)\n"}
+{"Time":"2026-10-10T03:23:57.942451027Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestOwnedMissionPinRejectsZeroAndAssignedDrift","Elapsed":0.22}
+{"Time":"2026-10-10T03:23:57.942464857Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestHumanMissionSaveWaitsForPinnedEffectCommit"}
+{"Time":"2026-10-10T03:23:57.942467081Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestHumanMissionSaveWaitsForPinnedEffectCommit","Output":"=== RUN   TestHumanMissionSaveWaitsForPinnedEffectCommit\n"}
+{"Time":"2026-10-10T03:23:58.146009542Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestHumanMissionSaveWaitsForPinnedEffectCommit","Output":"--- PASS: TestHumanMissionSaveWaitsForPinnedEffectCommit (0.21s)\n"}
+{"Time":"2026-10-10T03:23:58.146062251Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestHumanMissionSaveWaitsForPinnedEffectCommit","Elapsed":0.21}
+{"Time":"2026-10-10T03:23:58.146147229Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestMissionPinRejectsStaleRevision"}
+{"Time":"2026-10-10T03:23:58.146150734Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestMissionPinRejectsStaleRevision","Output":"=== RUN   TestMissionPinRejectsStaleRevision\n"}
+{"Time":"2026-10-10T03:23:58.146228652Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestMissionPinRejectsStaleRevision","Output":"--- PASS: TestMissionPinRejectsStaleRevision (0.00s)\n"}
+{"Time":"2026-10-10T03:23:58.146231576Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestMissionPinRejectsStaleRevision","Elapsed":0}
+{"Time":"2026-10-10T03:23:58.146772Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestAuthorizeFailsClosedForProfileAndUnknownOperation"}
+{"Time":"2026-10-10T03:23:58.146786722Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestAuthorizeFailsClosedForProfileAndUnknownOperation","Output":"=== RUN   TestAuthorizeFailsClosedForProfileAndUnknownOperation\n"}
+{"Time":"2026-10-10T03:23:58.146793733Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestAuthorizeFailsClosedForProfileAndUnknownOperation","Output":"--- PASS: TestAuthorizeFailsClosedForProfileAndUnknownOperation (0.00s)\n"}
+{"Time":"2026-10-10T03:23:58.146797008Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestAuthorizeFailsClosedForProfileAndUnknownOperation","Elapsed":0}
+{"Time":"2026-10-10T03:23:58.146919342Z","Action":"run","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal"}
+{"Time":"2026-10-10T03:23:58.146921986Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal","Output":"=== RUN   TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal\n"}
+{"Time":"2026-10-10T03:23:58.189124545Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal","Output":"--- PASS: TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal (0.04s)\n"}
+{"Time":"2026-10-10T03:23:58.189168942Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Test":"TestBootstrapUsesFrozenSessionAndFailsClosedWithoutPrincipal","Elapsed":0.04}
+{"Time":"2026-10-10T03:23:58.18953967Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Output":"PASS\n"}
+{"Time":"2026-10-10T03:23:59.191905063Z","Action":"output","Package":"github.com/dashimaki/garden/agentapi","Output":"ok  \tgithub.com/dashimaki/garden/agentapi\t1.596s\n"}
+{"Time":"2026-10-10T03:23:59.191968008Z","Action":"pass","Package":"github.com/dashimaki/garden/agentapi","Elapsed":1.5979999999999999}

@@ -1,0 +1,88 @@
+...........F.......EFFFFFE..
+======================================================================
+ERROR: test_wrong_command_log_type_returns_errors (test_check_memory_loop_evidence.EvidenceTests.test_wrong_command_log_type_returns_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 187, in test_wrong_command_log_type_returns_errors
+    self.assertTrue(self.errors())
+                    ^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 56, in errors
+    return checker.validate_evidence(record or self.record, self.root)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 266, in validate_evidence
+    _commands(record,root,artifacts,errors)
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 119, in _commands
+    if command.get('log_path') not in artifacts:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'list'
+
+======================================================================
+ERROR: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='case_id')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 56, in errors
+    return checker.validate_evidence(record or self.record, self.root)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 268, in validate_evidence
+    cases=_cases(record,required,artifacts,errors)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 184, in _cases
+    if cid in SOURCE_CASES and not _sha(value):
+       ^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'list'
+
+======================================================================
+FAIL: test_native_gate_rejects_linux_baseline (test_check_memory_loop_evidence.EvidenceTests.test_native_gate_rejects_linux_baseline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 197, in test_native_gate_rejects_linux_baseline
+    self.assertTrue(any('Windows' in e for e in self.errors()))
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='profile_id')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='scope')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='run_id')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='event_seq')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_wrong_identity_and_sequence_types (test_check_memory_loop_evidence.EvidenceTests.test_wrong_identity_and_sequence_types) (key='revision')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 183, in test_wrong_identity_and_sequence_types
+    self.assertTrue(self.errors(record))
+AssertionError: [] is not true
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.164s
+
+FAILED (failures=6, errors=2)

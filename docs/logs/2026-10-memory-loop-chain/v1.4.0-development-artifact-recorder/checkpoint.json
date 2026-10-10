@@ -1,0 +1,146 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:15:17.848298+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "13e1612612095b9543b209aac39c5eafb5d8200e",
+    "agent-vivy": "8d3d3fa7090cc95023c2b06b33bd12948bf158b6",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-evidence-recorder-first.jsonl": 0,
+    "chain-evidence-export-final.jsonl": 0,
+    "chain-evidence-checker-final.txt": 0,
+    "chain-evidence-artifact-check.txt": 0
+  },
+  "files": [
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/identity.json",
+      "sha256": "70bc53cc9cd98a4e78ff65ca9c6589cc00fc4fa81ebcf071aa954eb555f143a0",
+      "bytes": 155
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/manifest.json",
+      "sha256": "20eefc398b048f3c6d47f2a0bc75695401d11c9ed7fcb8f034f290498b3e2bd8",
+      "bytes": 1252
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/model-requests.json",
+      "sha256": "d77375ab90de6601a03141115e2279da8ef19ed24ca9c8d9ac16ad1e940f26e2",
+      "bytes": 55561
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/native-snapshots.json",
+      "sha256": "a4401517653bafd9fbd2afaa273bf8e81d202e94853c0f6f87ef2410b1481566",
+      "bytes": 3042
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/source-1.txt",
+      "sha256": "0a60bebe57d4f05e45e8faf267212f34603cb840444f37b29ba3e430dfd9530c",
+      "bytes": 309
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/source-2.txt",
+      "sha256": "0a60bebe57d4f05e45e8faf267212f34603cb840444f37b29ba3e430dfd9530c",
+      "bytes": 309
+    },
+    {
+      "path": "observations/TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow-settled-2326805077/status.json",
+      "sha256": "dad712a97ef7b7acde5b87189468d1515827884979edefedd7155118cee20bd9",
+      "bytes": 1000
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/identity.json",
+      "sha256": "f08197a627133184e8605d27553353adf2ef17b52a05b9a4001ae01d4ccc9ccc",
+      "bytes": 155
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/manifest.json",
+      "sha256": "c655ffc4794c25974e1997f2f3e3c18df91437000fecf3b14f510d001845b969",
+      "bytes": 1103
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/model-requests.json",
+      "sha256": "1a0736f630d20f71851c77cccd13d184bd032ffce0ad7ff33b21b8ba7808e75a",
+      "bytes": 24688
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/native-snapshots.json",
+      "sha256": "6aa5eff76c7e6524ec1d410068b1ec8c09d66ebd37d0e0c44d8e219aad0324a7",
+      "bytes": 12821
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/source-1.txt",
+      "sha256": "6b991030d580c366d1b870ca5e6b149c12f6a8633b6fceb4518f465ff6a8ce2d",
+      "bytes": 6009
+    },
+    {
+      "path": "observations/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-796010594/status.json",
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2",
+      "bytes": 1005
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/identity.json",
+      "sha256": "39497dc98e303e17e2d414812796fdfc35adca27bb3054f0ec9447f761c0d1c3",
+      "bytes": 155
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/manifest.json",
+      "sha256": "c7745102e880d003eea94758b6cc649ee94fc8571716b298b0d51f1ffb6f8033",
+      "bytes": 1233
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/model-requests.json",
+      "sha256": "1c64bec881b9da07e7d373f87cdf6b73122b71283bed83e2f47faba538140ce6",
+      "bytes": 27685
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/native-snapshots.json",
+      "sha256": "cc8531560dfcd042c90a83dcd39932b34880f429d5d17a4e4fb81760c72ff92c",
+      "bytes": 3042
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/source-1.txt",
+      "sha256": "464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+      "bytes": 309
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/source-2.txt",
+      "sha256": "464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+      "bytes": 309
+    },
+    {
+      "path": "observations/TestMemoryLoopExcludesDerivedEvidence-settled-3576739705/status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "raw/chain-evidence-artifact-check.txt",
+      "sha256": "5de073fae6c3e6d72158250766eded66003cb1c3fb82a98c5142bd0c85dff874",
+      "bytes": 107
+    },
+    {
+      "path": "raw/chain-evidence-checker-final.txt",
+      "sha256": "ced9ba7d410a6643d74f3d374b4119ffbedab3d05d85a1d60d7b989ceabe15a1",
+      "bytes": 123
+    },
+    {
+      "path": "raw/chain-evidence-export-final.jsonl",
+      "sha256": "9de9e0aa456315bdf1e404e2198c52afe043b9301122688bd4dde87917c95dc0",
+      "bytes": 4935,
+      "named_tests_subtests": {
+        "pass": 3
+      }
+    },
+    {
+      "path": "raw/chain-evidence-recorder-first.jsonl",
+      "sha256": "930bbf79ec57eb238f14fa192e9e97ab4faa204f1e5343b61a6d8d79b3ee753b",
+      "bytes": 1987,
+      "named_tests_subtests": {
+        "pass": 1
+      }
+    }
+  ]
+}

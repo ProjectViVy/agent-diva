@@ -1,0 +1,7 @@
+# Decisions and remaining work
+
+The original primary source/terminal Journal and existing ObserverHost remain the capture authority; there is no direct bypass or synthetic event. Native ingestion stores typed source intent/operation receipts only; ACTMEM remains the Markdown authority. Accepted legacy rows never backfill. Unknown original effects retain their event/head precondition; absent entries alone cannot authorize append. Native source determines readiness, while notifications are acceptance hints.
+
+Session deletion seals producer admission but allows their terminal persistence until actual drain. Finalizer/archive failure leaves source intact and Session sealed for retry. Complete Work fields are preserved under the original strict global head CAS. Capsules keep the same schema/800-character total cap and complete provenance; equivalent compact YAML and optional zero omission provide space, bounded recap may still shorten under larger metadata. Unrepresentable metadata refuses before archive/head removal.
+
+Next: actual busy/coalescing/min-interval/excluded-source and capture-vs-Work scheduling, explicit Agent tool-only reads, original-operation receipt recovery and six crash cuts, native failures/untrusted evidence/full isolation; fill S03 recorder/candidate fields after source freeze. No prior digest, plain default skip, direct kernel proof or diagnostic generation is formal acceptance.

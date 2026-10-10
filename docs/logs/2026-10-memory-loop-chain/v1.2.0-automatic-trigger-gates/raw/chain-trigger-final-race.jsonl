@@ -1,0 +1,24 @@
+{"Time":"2026-10-10T04:53:06.916768833Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:53:06.97968161Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence"}
+{"Time":"2026-10-10T04:53:06.979717054Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"=== RUN   TestMemoryLoopExcludesDerivedEvidence\n"}
+{"Time":"2026-10-10T04:53:07.768353883Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"2026/10/10 04:53:07 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopExcludesDerivedEvidence3337577492/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:53:44.80550634Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"--- PASS: TestMemoryLoopExcludesDerivedEvidence (37.83s)\n"}
+{"Time":"2026-10-10T04:53:44.805588393Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Elapsed":37.83}
+{"Time":"2026-10-10T04:53:44.805642645Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput"}
+{"Time":"2026-10-10T04:53:44.805644828Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"=== RUN   TestMemoryLoopForegroundBusyDefersOriginalInput\n"}
+{"Time":"2026-10-10T04:53:45.590495054Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"2026/10/10 04:53:45 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopForegroundBusyDefersOriginalInput1769274510/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:54:38.164178709Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"--- PASS: TestMemoryLoopForegroundBusyDefersOriginalInput (53.36s)\n"}
+{"Time":"2026-10-10T04:54:38.164368465Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Elapsed":53.36}
+{"Time":"2026-10-10T04:54:38.164399362Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource"}
+{"Time":"2026-10-10T04:54:38.164402527Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"=== RUN   TestMemoryLoopMinimumIntervalDefersActualNewSource\n"}
+{"Time":"2026-10-10T04:54:38.904058333Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"2026/10/10 04:54:38 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMinimumIntervalDefersActualNewSource2755156421/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:55:30.320329968Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"--- PASS: TestMemoryLoopMinimumIntervalDefersActualNewSource (52.16s)\n"}
+{"Time":"2026-10-10T04:55:30.320370339Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Elapsed":52.16}
+{"Time":"2026-10-10T04:55:30.32037741Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow"}
+{"Time":"2026-10-10T04:55:30.320380474Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"=== RUN   TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow\n"}
+{"Time":"2026-10-10T04:55:31.080319944Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"2026/10/10 04:55:31 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow2531367807/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:56:11.966014448Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Output":"--- PASS: TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow (41.65s)\n"}
+{"Time":"2026-10-10T04:56:11.966073326Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopConcurrentWakeKeepsOneOriginalActiveWindow","Elapsed":41.65}
+{"Time":"2026-10-10T04:56:11.966231975Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:56:13.006181184Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t186.089s\n"}
+{"Time":"2026-10-10T04:56:13.006231079Z","Action":"pass","Package":"command-line-arguments","Elapsed":186.089}

@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T00:08:51.310850346Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-10T00:08:51.332295337Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopAutomaticReflection"}
+{"Time":"2026-10-10T00:08:51.332331461Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopAutomaticReflection","Output":"=== RUN   TestMemoryLoopAutomaticReflection\n"}
+{"Time":"2026-10-10T00:08:51.367725353Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopAutomaticReflection","Output":"2026/10/10 00:08:51 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopAutomaticReflection2431382640/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:08:56.542112569Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopAutomaticReflection","Output":"--- PASS: TestMemoryLoopAutomaticReflection (5.21s)\n"}
+{"Time":"2026-10-10T00:08:56.542180952Z","Action":"pass","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopAutomaticReflection","Elapsed":5.21}
+{"Time":"2026-10-10T00:08:56.54219978Z","Action":"output","Package":"agent-vivy/internal/app","Output":"PASS\n"}
+{"Time":"2026-10-10T00:08:56.568775367Z","Action":"output","Package":"agent-vivy/internal/app","Output":"ok  \tagent-vivy/internal/app\t5.258s\n"}
+{"Time":"2026-10-10T00:08:56.568820304Z","Action":"pass","Package":"agent-vivy/internal/app","Elapsed":5.258}

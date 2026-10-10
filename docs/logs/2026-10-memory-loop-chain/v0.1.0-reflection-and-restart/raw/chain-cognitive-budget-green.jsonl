@@ -1,0 +1,8 @@
+{"Time":"2026-10-10T00:08:25.187209879Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T00:08:25.205511066Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget"}
+{"Time":"2026-10-10T00:08:25.205582384Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"=== RUN   TestCognitiveStageOutputBudget\n"}
+{"Time":"2026-10-10T00:08:25.207995919Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"--- PASS: TestCognitiveStageOutputBudget (0.00s)\n"}
+{"Time":"2026-10-10T00:08:25.20800304Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Elapsed":0}
+{"Time":"2026-10-10T00:08:25.208147197Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"PASS\n"}
+{"Time":"2026-10-10T00:08:25.208394069Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"ok  \tagent-vivy/internal/runtime\t0.021s\n"}
+{"Time":"2026-10-10T00:08:25.208413037Z","Action":"pass","Package":"agent-vivy/internal/runtime","Elapsed":0.021}

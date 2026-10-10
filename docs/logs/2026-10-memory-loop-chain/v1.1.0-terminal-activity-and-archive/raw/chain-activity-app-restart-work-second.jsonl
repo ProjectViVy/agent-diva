@@ -1,0 +1,24 @@
+{"Time":"2026-10-10T04:23:48.436434423Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:23:48.456632919Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T04:23:48.456664687Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T04:23:48.495726672Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 04:23:48 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity289066088/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:23:50.359258164Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- PASS: TestMemoryLoopActivityContinuity (1.90s)\n"}
+{"Time":"2026-10-10T04:23:50.35929545Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.9}
+{"Time":"2026-10-10T04:23:50.359311825Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete"}
+{"Time":"2026-10-10T04:23:50.359314118Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"=== RUN   TestMemoryLoopActivityArchivesOnSessionDelete\n"}
+{"Time":"2026-10-10T04:23:50.392868593Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"2026/10/10 04:23:50 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityArchivesOnSessionDelete4020455609/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:23:51.359125502Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"--- PASS: TestMemoryLoopActivityArchivesOnSessionDelete (1.00s)\n"}
+{"Time":"2026-10-10T04:23:51.359166393Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Elapsed":1}
+{"Time":"2026-10-10T04:23:51.359171841Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation"}
+{"Time":"2026-10-10T04:23:51.359174025Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"=== RUN   TestMemoryLoopActivityDeleteDrainsLiveCancellation\n"}
+{"Time":"2026-10-10T04:23:51.394430783Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"2026/10/10 04:23:51 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityDeleteDrainsLiveCancellation1021236705/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:23:52.258788402Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"--- PASS: TestMemoryLoopActivityDeleteDrainsLiveCancellation (0.90s)\n"}
+{"Time":"2026-10-10T04:23:52.258827661Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Elapsed":0.9}
+{"Time":"2026-10-10T04:23:52.258834161Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork"}
+{"Time":"2026-10-10T04:23:52.258836694Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"=== RUN   TestMemoryLoopReconciliationReadsExistingWork\n"}
+{"Time":"2026-10-10T04:23:52.292187382Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"2026/10/10 04:23:52 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopReconciliationReadsExistingWork1019002940/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:24:02.492967546Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"--- PASS: TestMemoryLoopReconciliationReadsExistingWork (10.24s)\n"}
+{"Time":"2026-10-10T04:24:02.493020746Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Elapsed":10.24}
+{"Time":"2026-10-10T04:24:02.493052233Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:24:02.52094508Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t14.084s\n"}
+{"Time":"2026-10-10T04:24:02.52099178Z","Action":"pass","Package":"command-line-arguments","Elapsed":14.085}

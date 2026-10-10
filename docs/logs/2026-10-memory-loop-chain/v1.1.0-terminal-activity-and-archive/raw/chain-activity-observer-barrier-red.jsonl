@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:13:35.054834617Z","Action":"start","Package":"agent-vivy/internal/observerhost"}
+{"Time":"2026-10-10T04:13:35.083295811Z","Action":"run","Package":"agent-vivy/internal/observerhost","Test":"TestConcurrentDeliveryBarrierSharesOriginalCursor"}
+{"Time":"2026-10-10T04:13:35.083361269Z","Action":"output","Package":"agent-vivy/internal/observerhost","Test":"TestConcurrentDeliveryBarrierSharesOriginalCursor","Output":"=== RUN   TestConcurrentDeliveryBarrierSharesOriginalCursor\n"}
+{"Time":"2026-10-10T04:13:35.105600245Z","Action":"output","Package":"agent-vivy/internal/observerhost","Test":"TestConcurrentDeliveryBarrierSharesOriginalCursor","Output":"    host_test.go:252: concurrent barrier bypassed serialized durable delivery: failures=31 deliveries=32\n"}
+{"Time":"2026-10-10T04:13:35.105651101Z","Action":"output","Package":"agent-vivy/internal/observerhost","Test":"TestConcurrentDeliveryBarrierSharesOriginalCursor","Output":"--- FAIL: TestConcurrentDeliveryBarrierSharesOriginalCursor (0.02s)\n"}
+{"Time":"2026-10-10T04:13:35.1056569Z","Action":"fail","Package":"agent-vivy/internal/observerhost","Test":"TestConcurrentDeliveryBarrierSharesOriginalCursor","Elapsed":0.02}
+{"Time":"2026-10-10T04:13:35.105717381Z","Action":"output","Package":"agent-vivy/internal/observerhost","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:13:35.105953667Z","Action":"output","Package":"agent-vivy/internal/observerhost","Output":"FAIL\tagent-vivy/internal/observerhost\t0.049s\n"}
+{"Time":"2026-10-10T04:13:35.105962861Z","Action":"fail","Package":"agent-vivy/internal/observerhost","Elapsed":0.051}

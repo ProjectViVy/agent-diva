@@ -1,0 +1,11 @@
+{"Time":"2026-10-10T00:19:06.82794682Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T00:19:06.848300931Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent"}
+{"Time":"2026-10-10T00:19:06.848337366Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"=== RUN   TestMemoryLoopFixtureCloseAfterRestartIsIdempotent\n"}
+{"Time":"2026-10-10T00:19:06.895104925Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:19:06 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopFixtureCloseAfterRestartIsIdempotent471176129/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:19:07.066588742Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:19:07 WARN cron startup recovery failed err=\"storage: list cron jobs: context canceled\"\n"}
+{"Time":"2026-10-10T00:19:07.066627831Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"2026/10/10 00:19:07 WARN cron list for wake time failed err=\"storage: list cron jobs: context canceled\"\n"}
+{"Time":"2026-10-10T00:19:07.273351713Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Output":"--- PASS: TestMemoryLoopFixtureCloseAfterRestartIsIdempotent (0.43s)\n"}
+{"Time":"2026-10-10T00:19:07.273404672Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureCloseAfterRestartIsIdempotent","Elapsed":0.43}
+{"Time":"2026-10-10T00:19:07.273413055Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T00:19:07.291138556Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t0.463s\n"}
+{"Time":"2026-10-10T00:19:07.291163895Z","Action":"pass","Package":"command-line-arguments","Elapsed":0.463}

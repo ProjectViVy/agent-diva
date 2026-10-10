@@ -1,0 +1,15 @@
+{"Time":"2026-10-09T17:53:36.973480081Z","Action":"start","Package":"github.com/dashimaki/garden/e2e"}
+{"Time":"2026-10-09T17:53:36.983684074Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd"}
+{"Time":"2026-10-09T17:53:36.983765136Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"=== RUN   TestDivaCognitiveDecisiveEndToEnd\n"}
+{"Time":"2026-10-09T17:53:37.002224573Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"--- PASS: TestDivaCognitiveDecisiveEndToEnd (0.02s)\n"}
+{"Time":"2026-10-09T17:53:37.002260137Z","Action":"pass","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Elapsed":0.02}
+{"Time":"2026-10-09T17:53:37.002268229Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd"}
+{"Time":"2026-10-09T17:53:37.002271835Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"=== RUN   TestGardenCleanBreakEndToEnd\n"}
+{"Time":"2026-10-09T17:53:37.288449365Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"    e2e_test.go:56: build garden: exit status 1\n"}
+{"Time":"2026-10-09T17:53:37.288481354Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"        error obtaining VCS status: exit status 128\n"}
+{"Time":"2026-10-09T17:53:37.288497859Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"        \tUse -buildvcs=false to disable VCS stamping.\n"}
+{"Time":"2026-10-09T17:53:37.288553242Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"--- FAIL: TestGardenCleanBreakEndToEnd (0.29s)\n"}
+{"Time":"2026-10-09T17:53:37.288557659Z","Action":"fail","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Elapsed":0.29}
+{"Time":"2026-10-09T17:53:37.288563688Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"FAIL\n"}
+{"Time":"2026-10-09T17:53:37.290056527Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"FAIL\tgithub.com/dashimaki/garden/e2e\t0.316s\n"}
+{"Time":"2026-10-09T17:53:37.290082346Z","Action":"fail","Package":"github.com/dashimaki/garden/e2e","Elapsed":0.317}

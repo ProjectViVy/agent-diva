@@ -1,0 +1,1 @@
+go test JSON test events: pass=10 fail=0 skip=0; package pass event=1; raw log=c06-canonical-before-index-race10.jsonl

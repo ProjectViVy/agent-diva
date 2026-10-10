@@ -1,0 +1,6 @@
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"# command-line-arguments [command-line-arguments.test]\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_exclusion_test.go:73:114: state.Cognition.PendingThrough undefined (type struct{ActiveRunID string \"json:\\\"active_run_id\\\"\"; Watermark uint64 \"json:\\\"watermark\\\"\"; Phase string \"json:\\\"phase\\\"\"; BlockReason string \"json:\\\"block_reason\\\"\"} has no field or method PendingThrough)\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-fail"}
+{"Time":"2026-10-10T04:39:41.308468143Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:39:41.308505028Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments [build failed]\n"}
+{"Time":"2026-10-10T04:39:41.308511498Z","Action":"fail","Package":"command-line-arguments","Elapsed":0,"FailedBuild":"command-line-arguments [command-line-arguments.test]"}

@@ -1,0 +1,28 @@
+{"Time":"2026-10-09T23:16:44.978187064Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-09T23:16:44.999284731Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource"}
+{"Time":"2026-10-09T23:16:44.999320075Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource\n"}
+{"Time":"2026-10-09T23:16:44.999789692Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed"}
+{"Time":"2026-10-09T23:16:44.999794499Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.completed\n"}
+{"Time":"2026-10-09T23:16:45.033042871Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Output":"--- PASS: TestMemoryLoopCaptureAdmittedUserSource/run.completed (0.03s)\n"}
+{"Time":"2026-10-09T23:16:45.033079977Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.completed","Elapsed":0.03}
+{"Time":"2026-10-09T23:16:45.033089261Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed"}
+{"Time":"2026-10-09T23:16:45.033092556Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.failed\n"}
+{"Time":"2026-10-09T23:16:45.060648217Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Output":"--- PASS: TestMemoryLoopCaptureAdmittedUserSource/run.failed (0.03s)\n"}
+{"Time":"2026-10-09T23:16:45.06069019Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.failed","Elapsed":0.03}
+{"Time":"2026-10-09T23:16:45.060702669Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled"}
+{"Time":"2026-10-09T23:16:45.060706535Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Output":"=== RUN   TestMemoryLoopCaptureAdmittedUserSource/run.cancelled\n"}
+{"Time":"2026-10-09T23:16:45.090149879Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Output":"--- PASS: TestMemoryLoopCaptureAdmittedUserSource/run.cancelled (0.03s)\n"}
+{"Time":"2026-10-09T23:16:45.090182488Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource/run.cancelled","Elapsed":0.03}
+{"Time":"2026-10-09T23:16:45.090188918Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Output":"--- PASS: TestMemoryLoopCaptureAdmittedUserSource (0.09s)\n"}
+{"Time":"2026-10-09T23:16:45.09019707Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureAdmittedUserSource","Elapsed":0.09}
+{"Time":"2026-10-09T23:16:45.090206064Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource"}
+{"Time":"2026-10-09T23:16:45.090208007Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Output":"=== RUN   TestMemoryLoopCaptureRefusesMissingOrForeignSource\n"}
+{"Time":"2026-10-09T23:16:45.114682386Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Output":"--- PASS: TestMemoryLoopCaptureRefusesMissingOrForeignSource (0.02s)\n"}
+{"Time":"2026-10-09T23:16:45.114711359Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRefusesMissingOrForeignSource","Elapsed":0.02}
+{"Time":"2026-10-09T23:16:45.114732772Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt"}
+{"Time":"2026-10-09T23:16:45.114736738Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Output":"=== RUN   TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt\n"}
+{"Time":"2026-10-09T23:16:45.144620846Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Output":"--- PASS: TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt (0.03s)\n"}
+{"Time":"2026-10-09T23:16:45.144661337Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Elapsed":0.03}
+{"Time":"2026-10-09T23:16:45.144671563Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"PASS\n"}
+{"Time":"2026-10-09T23:16:45.147003155Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"ok  \tagent-vivy/internal/runtime\t0.168s\n"}
+{"Time":"2026-10-09T23:16:45.147070637Z","Action":"pass","Package":"agent-vivy/internal/runtime","Elapsed":0.169}

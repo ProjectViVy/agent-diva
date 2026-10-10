@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:08:07.215628617Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:08:07.237775558Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T04:08:07.237821787Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T04:08:07.28242081Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 04:08:07 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity698722809/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:08:08.799863554Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- PASS: TestMemoryLoopActivityContinuity (1.56s)\n"}
+{"Time":"2026-10-10T04:08:08.800021282Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.56}
+{"Time":"2026-10-10T04:08:08.80006Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:08:08.815439377Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t1.600s\n"}
+{"Time":"2026-10-10T04:08:08.815464365Z","Action":"pass","Package":"command-line-arguments","Elapsed":1.6}

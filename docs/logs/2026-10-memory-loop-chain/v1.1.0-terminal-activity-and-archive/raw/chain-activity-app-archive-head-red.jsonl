@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T04:11:48.618965846Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:11:48.638722573Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete"}
+{"Time":"2026-10-10T04:11:48.638753229Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"=== RUN   TestMemoryLoopActivityArchivesOnSessionDelete\n"}
+{"Time":"2026-10-10T04:11:48.68816201Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"2026/10/10 04:11:48 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityArchivesOnSessionDelete321027817/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:11:49.806912458Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"    memory_loop_activity_test.go:83: MEM-S05-02: deleted Session left unarchived head entries\n"}
+{"Time":"2026-10-10T04:11:49.808491697Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"--- FAIL: TestMemoryLoopActivityArchivesOnSessionDelete (1.17s)\n"}
+{"Time":"2026-10-10T04:11:49.808507321Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Elapsed":1.17}
+{"Time":"2026-10-10T04:11:49.808529174Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:11:49.823628014Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.204s\n"}
+{"Time":"2026-10-10T04:11:49.823713262Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.205}

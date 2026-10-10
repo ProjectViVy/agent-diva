@@ -1,0 +1,6 @@
+{"ImportPath":"command-line-arguments.test","Action":"build-output","Output":"# command-line-arguments\n"}
+{"ImportPath":"command-line-arguments.test","Action":"build-output","Output":"internal/app/memory_loop_crash_test.go:161:2: expected declaration, found \"agent-vivy/internal/config\"\n"}
+{"ImportPath":"command-line-arguments.test","Action":"build-fail"}
+{"Time":"2026-10-10T04:57:06.900551023Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:57:06.90058187Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments [setup failed]\n"}
+{"Time":"2026-10-10T04:57:06.900587088Z","Action":"fail","Package":"command-line-arguments","Elapsed":0,"FailedBuild":"command-line-arguments.test"}

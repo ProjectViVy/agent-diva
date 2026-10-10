@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T03:47:47.525068549Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution"}
+{"Time":"2026-10-10T03:47:47.52812298Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEmptyActmemDocumentRoundTrips"}
+{"Time":"2026-10-10T03:47:47.528143711Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEmptyActmemDocumentRoundTrips","Output":"=== RUN   TestEmptyActmemDocumentRoundTrips\n"}
+{"Time":"2026-10-10T03:47:47.528192375Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEmptyActmemDocumentRoundTrips","Output":"    actmem_empty_test.go:9: empty native head cannot reopen: {Schema: Revision:0 Updated: Sections:map[]} actmem_format_error: entries must be a mapping\n"}
+{"Time":"2026-10-10T03:47:47.528200397Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEmptyActmemDocumentRoundTrips","Output":"--- FAIL: TestEmptyActmemDocumentRoundTrips (0.00s)\n"}
+{"Time":"2026-10-10T03:47:47.528203622Z","Action":"fail","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEmptyActmemDocumentRoundTrips","Elapsed":0}
+{"Time":"2026-10-10T03:47:47.528208549Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Output":"FAIL\n"}
+{"Time":"2026-10-10T03:47:47.530242273Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Output":"FAIL\tgithub.com/dashimaki/laputa/evolution\t0.005s\n"}
+{"Time":"2026-10-10T03:47:47.530264887Z","Action":"fail","Package":"github.com/dashimaki/laputa/evolution","Elapsed":0.005}

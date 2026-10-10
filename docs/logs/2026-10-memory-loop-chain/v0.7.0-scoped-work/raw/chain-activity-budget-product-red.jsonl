@@ -1,0 +1,14 @@
+{"Time":"2026-10-10T01:51:06.557168806Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-10T01:51:06.558953545Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedEnforcesAggregateBodyBudget"}
+{"Time":"2026-10-10T01:51:06.558982398Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedEnforcesAggregateBodyBudget","Output":"=== RUN   TestReadScopedEnforcesAggregateBodyBudget\n"}
+{"Time":"2026-10-10T01:51:06.560008474Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedEnforcesAggregateBodyBudget","Output":"    read_budget_test.go:18: read exceeded aggregate budget without bounded error: entries=2 err=\u003cnil\u003e\n"}
+{"Time":"2026-10-10T01:51:06.56004581Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedEnforcesAggregateBodyBudget","Output":"--- FAIL: TestReadScopedEnforcesAggregateBodyBudget (0.00s)\n"}
+{"Time":"2026-10-10T01:51:06.560050137Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedEnforcesAggregateBodyBudget","Elapsed":0}
+{"Time":"2026-10-10T01:51:06.560055505Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedDefaultBudgetIsBounded"}
+{"Time":"2026-10-10T01:51:06.560057458Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedDefaultBudgetIsBounded","Output":"=== RUN   TestReadScopedDefaultBudgetIsBounded\n"}
+{"Time":"2026-10-10T01:51:06.560059841Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedDefaultBudgetIsBounded","Output":"    read_budget_test.go:38: zero budget returned unbounded body: entries=1 err=\u003cnil\u003e\n"}
+{"Time":"2026-10-10T01:51:06.560062315Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedDefaultBudgetIsBounded","Output":"--- FAIL: TestReadScopedDefaultBudgetIsBounded (0.00s)\n"}
+{"Time":"2026-10-10T01:51:06.560064238Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Test":"TestReadScopedDefaultBudgetIsBounded","Elapsed":0}
+{"Time":"2026-10-10T01:51:06.560066421Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:51:06.560139061Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\tgithub.com/dashimaki/laputa/actmem\t0.003s\n"}
+{"Time":"2026-10-10T01:51:06.560147714Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Elapsed":0.003}

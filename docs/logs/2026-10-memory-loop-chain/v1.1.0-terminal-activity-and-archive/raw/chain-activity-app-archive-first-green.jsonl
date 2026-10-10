@@ -1,0 +1,20 @@
+{"Time":"2026-10-10T04:14:51.364232619Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:14:51.388888632Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T04:14:51.388927881Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T04:14:51.435715278Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 04:14:51 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity2302504399/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:14:53.111942503Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- PASS: TestMemoryLoopActivityContinuity (1.72s)\n"}
+{"Time":"2026-10-10T04:14:53.111987491Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.72}
+{"Time":"2026-10-10T04:14:53.111998948Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete"}
+{"Time":"2026-10-10T04:14:53.112002343Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"=== RUN   TestMemoryLoopActivityArchivesOnSessionDelete\n"}
+{"Time":"2026-10-10T04:14:53.152113679Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"2026/10/10 04:14:53 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityArchivesOnSessionDelete4198067399/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:14:54.115074276Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"--- PASS: TestMemoryLoopActivityArchivesOnSessionDelete (1.00s)\n"}
+{"Time":"2026-10-10T04:14:54.115120196Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Elapsed":1}
+{"Time":"2026-10-10T04:14:54.115126044Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation"}
+{"Time":"2026-10-10T04:14:54.115128258Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"=== RUN   TestMemoryLoopActivityDeleteDrainsLiveCancellation\n"}
+{"Time":"2026-10-10T04:14:54.156715804Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"2026/10/10 04:14:54 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityDeleteDrainsLiveCancellation1676039432/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:14:55.083587754Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"    memory_loop_activity_test.go:144: live deletion archive lost admitted user or canceled terminal\n"}
+{"Time":"2026-10-10T04:14:55.08507179Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Output":"--- FAIL: TestMemoryLoopActivityDeleteDrainsLiveCancellation (0.97s)\n"}
+{"Time":"2026-10-10T04:14:55.085083638Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityDeleteDrainsLiveCancellation","Elapsed":0.97}
+{"Time":"2026-10-10T04:14:55.085090218Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:14:55.105806215Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t3.741s\n"}
+{"Time":"2026-10-10T04:14:55.105850953Z","Action":"fail","Package":"command-line-arguments","Elapsed":3.742}

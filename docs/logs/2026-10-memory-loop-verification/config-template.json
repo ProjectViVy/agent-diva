@@ -1,0 +1,16 @@
+{
+  "storage": {
+    "backend": "sqlite",
+    "data_dir": "/absolute/isolated-root",
+    "sqlite": {
+      "path": "/absolute/isolated-root/vivy-test.db"
+    }
+  },
+  "runtime": {
+    "workspace_root": "/absolute/isolated-root/workspace"
+  },
+  "server": {
+    "addr": "127.0.0.1:0"
+  },
+  "note": "Template only. Fixture derives complete production defaults, serializes YAML under its temporary root and links actual pinned models into garden/models. No credential values."
+}

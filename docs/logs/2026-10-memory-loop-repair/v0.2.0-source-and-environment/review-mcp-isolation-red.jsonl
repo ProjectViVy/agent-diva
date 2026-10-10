@@ -1,0 +1,9 @@
+{"Time":"2026-10-09T23:13:50.796545671Z","Action":"start","Package":"github.com/dashimaki/mentle/integration"}
+{"Time":"2026-10-09T23:13:50.798293795Z","Action":"run","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPIgnoresInheritedPalaceOverrides"}
+{"Time":"2026-10-09T23:13:50.798327155Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPIgnoresInheritedPalaceOverrides","Output":"=== RUN   TestMCPIgnoresInheritedPalaceOverrides\n"}
+{"Time":"2026-10-09T23:13:52.827550628Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPIgnoresInheritedPalaceOverrides","Output":"    mcp_test.go:303: inherited foreign palace was touched: \u003cnil\u003e\n"}
+{"Time":"2026-10-09T23:13:52.845941512Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPIgnoresInheritedPalaceOverrides","Output":"--- FAIL: TestMCPIgnoresInheritedPalaceOverrides (2.05s)\n"}
+{"Time":"2026-10-09T23:13:52.845982153Z","Action":"fail","Package":"github.com/dashimaki/mentle/integration","Test":"TestMCPIgnoresInheritedPalaceOverrides","Elapsed":2.05}
+{"Time":"2026-10-09T23:13:52.846085509Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"FAIL\n"}
+{"Time":"2026-10-09T23:13:52.846817842Z","Action":"output","Package":"github.com/dashimaki/mentle/integration","Output":"FAIL\tgithub.com/dashimaki/mentle/integration\t2.050s\n"}
+{"Time":"2026-10-09T23:13:52.846833555Z","Action":"fail","Package":"github.com/dashimaki/mentle/integration","Elapsed":2.05}

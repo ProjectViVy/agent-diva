@@ -1,0 +1,52 @@
+{
+  "profile_id": "diva",
+  "scope": {
+    "subject_id": "diva",
+    "kind": "personal",
+    "workspace_id": ""
+  },
+  "destination_id": "mentle",
+  "persona": {
+    "state": "ready",
+    "current_revisions": {
+      "dark": 0,
+      "dream": 0,
+      "identity": 1,
+      "mission": 0,
+      "redline": 1,
+      "relationship": 1,
+      "user": 1,
+      "world": 1
+    }
+  },
+  "frozen": {
+    "state": "ready",
+    "revisions": {
+      "dark": 0,
+      "dream": 0,
+      "identity": 1,
+      "mission": 0,
+      "redline": 1,
+      "relationship": 1,
+      "user": 1
+    }
+  },
+  "memory": {
+    "backend_id": "mentle",
+    "health": "available",
+    "reason_code": "",
+    "canonical_state": "ok",
+    "index_state": "ok"
+  },
+  "cognition": {
+    "enabled": false,
+    "policy_revision": 0,
+    "min_interval_ms": 0,
+    "active_run_id": "",
+    "source_id": "diva/scope/v1:personal:64697661/mentle",
+    "watermark": 0,
+    "pending_through": 0,
+    "phase": "disabled",
+    "block_reason": ""
+  }
+}

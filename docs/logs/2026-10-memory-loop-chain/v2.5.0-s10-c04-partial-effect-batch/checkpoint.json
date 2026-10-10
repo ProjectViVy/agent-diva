@@ -1,0 +1,28 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T07:29:53.195449+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "6adf25a74486b4d26cae2f021f10e0df9c8e454c",
+    "agent-vivy": "70cc109c8619269dc515cb5761d492de833e9206",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "c04-partial-effect-race10.jsonl": 0,
+    "c03-index0-regression.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/c03-index0-regression.jsonl",
+      "bytes": 3181,
+      "sha256": "508862b36ca3ef2eaa037c216f2281ac66aa562fce91e59ce662a95ebece19ce"
+    },
+    {
+      "path": "raw/c04-partial-effect-race10.jsonl",
+      "bytes": 28891,
+      "sha256": "fea9303c65bdf3d01c73fac9a73f52ad2a87a3e4d033bc46bb900410592678a3"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+[
+  {
+    "ProcessID": 297186,
+    "RunID": "run_cd9b79d0f5429170",
+    "EventSeq": 7,
+    "IngestionID": "ing_11e16f460633457383a5ce884f1d4a89",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_d37c60c4d88e4bba836add4fab48ac9f",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_cd9b79d0f5429170\",\"session_id\":\"sess_d5c24777e86e20ff\",\"messages\":[{\"id\":\"msg_5a73aca6d34d295b\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5b2c9380f6cd5387166ff1266199b1de\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_cd9b79d0f5429170\",\"session_id\":\"sess_d5c24777e86e20ff\",\"messages\":[{\"id\":\"msg_5a73aca6d34d295b\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5b2c9380f6cd5387166ff1266199b1de\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  {
+    "ProcessID": 297186,
+    "RunID": "run_cd9b79d0f5429170",
+    "EventSeq": 7,
+    "IngestionID": "ing_11e16f460633457383a5ce884f1d4a89",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 1,
+    "OperationID": "workflow_a9d83571e1a3691b//graph/nodes/effects:e0",
+    "RecordID": "mem_730d509186f543c1bd2cf9fbb3bbe52d",
+    "Revision": 1,
+    "CanonicalCount": 2,
+    "CanonicalBody": "synthetic user-only fact 5b2c9380f6cd5387166ff1266199b1de",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_cd9b79d0f5429170\",\"session_id\":\"sess_d5c24777e86e20ff\",\"messages\":[{\"id\":\"msg_5a73aca6d34d295b\",\"role\":\"user\",\"content\":\"synthetic user-only fact 5b2c9380f6cd5387166ff1266199b1de\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:464a04ff34fe2e329905d6838bebf301dbe34a1e46c9370097fe555f42899f68",
+    "State": "applied",
+    "CanonicalSources": [
+      {
+        "source_id": "diva/scope/v1:personal:64697661/mentle",
+        "record_id": "1",
+        "revision": 0,
+        "scope": {
+          "subject_id": "diva",
+          "kind": "personal",
+          "workspace_id": ""
+        }
+      }
+    ],
+    "SourceProviderID": "diva/scope/v1:personal:64697661/mentle",
+    "BoundScope": {
+      "subject_id": "diva",
+      "kind": "personal",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "garden-source://evidence?record_id=1\u0026scope=scope%2Fv1%3Apersonal%3A64697661\u0026source_id=diva%2Fscope%2Fv1%3Apersonal%3A64697661%2Fmentle",
+    "PrimarySourceRevision": "0"
+  }
+]

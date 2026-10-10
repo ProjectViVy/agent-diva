@@ -1,0 +1,89 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T01:23:42.307210+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "cc10996509f35d6838dec796d51125c115b0c724",
+    "agent-vivy": "114ad97a1b5d1d72c4762d9ef4d0b53055499df4",
+    "laputa": "256d1f10b71fd2eed0947cafaaf6988f6dbaa6ff"
+  },
+  "execution_mode": "previous generated diagnostic overlay; no new-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-cognitive-concurrency-red.jsonl",
+      "sha256": "a1763d700fec9b00c3dc06f116b312509baf408d7ae99b5095d812650a096b18",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 2,
+        "skip": 0
+      },
+      "terminal_action": "fail",
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-cognitive-admission-overwrite-red.jsonl",
+      "sha256": "c5d56753aa86447ebad239bc6442e392dcc0df17bdb142a68801646f5ec34ce4",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail",
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-cognitive-concurrency-regression.jsonl",
+      "sha256": "b59c7e4a2dcdffe072c22ab7569e0c3ea0f9beea8f4017aef498c642ba48f5c0",
+      "named_tests_subtests": {
+        "pass": 30,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass",
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-cognitive-concurrency-race-regression.jsonl",
+      "sha256": "ea25a07597bee8146285e3eee6527c6509c00304a17e4da44db35927ba3d757a",
+      "named_tests_subtests": {
+        "pass": 12,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass",
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-concurrency-final-runtime.jsonl",
+      "sha256": "635471d599938e6d58e759eda92a9397ea7c13ce90bd7254b8595ae859a2d445",
+      "named_tests_subtests": {
+        "pass": 85,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass",
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-concurrency-final-composition.jsonl",
+      "sha256": "d3906dca913e9f273ccad96371065fddba6e23dc6af0ff8dadaa8c110fea41a8",
+      "named_tests_subtests": {
+        "pass": 12,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass",
+      "recorded_exit_code": 0
+    }
+  ],
+  "remaining_local_work": [
+    "same-operation receipt recovery/crash matrix",
+    "source/activity/recall/lifecycle/isolation cases",
+    "final frozen-source CI/conformance/sealing/fresh review"
+  ],
+  "external_resources": [
+    "Windows runner/UI/WebView2",
+    "real provider/model configuration and budget"
+  ]
+}

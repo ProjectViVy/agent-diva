@@ -1,0 +1,39 @@
+.................E......
+======================================================================
+ERROR: test_symlink_cycle_returns_path_errors (test_check_memory_loop_evidence.EvidenceTests.test_symlink_cycle_returns_path_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1250, in resolve
+    p.stat()
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 40] Too many levels of symbolic links: '/tmp/tmpr2fsuurn/cycle-a'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 203, in test_symlink_cycle_returns_path_errors
+    self.assertTrue(any('path' in e for e in self.errors()))
+                                             ^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_check_memory_loop_evidence.py", line 56, in errors
+    return checker.validate_evidence(record or self.record, self.root)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 285, in validate_evidence
+    _file(root,path,entry.get('sha256'),errors,'artifact')
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 45, in _file
+    path = _path(root, value)
+           ^^^^^^^^^^^^^^^^^^
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/check_memory_loop_evidence.py", line 37, in _path
+    resolved = (root / path).resolve()
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1252, in resolve
+    check_eloop(e)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/pathlib.py", line 1237, in check_eloop
+    raise RuntimeError("Symlink loop from %r" % e.filename)
+RuntimeError: Symlink loop from '/tmp/tmpr2fsuurn/cycle-a'
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.201s
+
+FAILED (errors=1)

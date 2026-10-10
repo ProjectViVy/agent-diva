@@ -1,0 +1,6 @@
+{
+  "client_consumption_asserted": false,
+  "completed_response_handlers": 2,
+  "requests": 3,
+  "requests_without_completed_response": 1
+}

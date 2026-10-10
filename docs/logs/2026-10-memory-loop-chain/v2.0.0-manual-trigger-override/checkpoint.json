@@ -1,0 +1,84 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:59:31.598762+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "f4bcb8181c412899382a4ab5d60078237813cc56",
+    "agent-vivy": "15d3e46978ddfbcf994a4e8197499e66b78372e5",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-manual-override-first.jsonl": 1,
+    "chain-manual-override-diagnostic.jsonl": 1,
+    "chain-manual-override-race-first.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/chain-manual-override-diagnostic.jsonl",
+      "bytes": 2842,
+      "sha256": "03b1f88cb38e6ad6016ab9565d37efcadada4c1c26d03f55ad3d8bd5328c7ab0"
+    },
+    {
+      "path": "raw/chain-manual-override-first.jsonl",
+      "bytes": 1893,
+      "sha256": "740d530c2dea90f7c05c35a9be91f96b8e8d109ca1d2b19263ddf201e21712d2"
+    },
+    {
+      "path": "raw/chain-manual-override-race-first.jsonl",
+      "bytes": 2057,
+      "sha256": "0cfb6152db8c63394248fd28b76dd9db20cc074f8ec85beb50fbbbacff0b9764"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/identity.json",
+      "bytes": 155,
+      "sha256": "d4a25d6e39f0e088564ec18058a0029f57d1417034d5245938e73c0d5fdc64cb"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/manifest.json",
+      "bytes": 1712,
+      "sha256": "0a2e02c5f261d562745e155d4edb186f3b653f15feee8e0182d9079098d04ffe"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/model-counts.json",
+      "bytes": 140,
+      "sha256": "39fcf26f4a284ed45840aa5444e4ffad20928348636dbb96a2a548c872c18e75"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/model-requests.json",
+      "bytes": 74952,
+      "sha256": "88381c623da98b42288c0c5e74ff50edd227d4720423336859642e48936e2309"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/model-responses.json",
+      "bytes": 4481,
+      "sha256": "d1c8180e1370c7589e0cf5fc6a887856137ab05f0812f9e4484b2d49db94ac8c"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/native-snapshots.json",
+      "bytes": 4293,
+      "sha256": "704cfd553c2f7a9074dc4d4f2e9e87fe0ec899350ff247276554766368bc286d"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/source-1.txt",
+      "bytes": 309,
+      "sha256": "75a562700c31c134f48dd3e23f23be69ad227df76c20364a304daf24e7a0db57"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/source-2.txt",
+      "bytes": 309,
+      "sha256": "be87448b7850f2b6c6ca6fcd8425da6ae2ba5b1721a9bea9d7a37ee0f2fe7aa9"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/source-3.txt",
+      "bytes": 327,
+      "sha256": "cb634a41693be25e5699d6f1baef92654975e80351dda35d0e5de54ec174ee35"
+    },
+    {
+      "path": "observations/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699/status.json",
+      "bytes": 1005,
+      "sha256": "4ef0fec55458d7bb896ce787793a170fc7becf623db9a16810d928c4649c5302"
+    }
+  ]
+}

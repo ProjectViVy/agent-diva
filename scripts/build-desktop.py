@@ -8,7 +8,7 @@ Drives the sealed go-host pack target through the VIVY SDK. Two modes:
              default; --development snapshots dirty inputs and is labeled
              non-release in the emitted lock.
     test   — stages the same dependency/modfile closure into a task-local
-             directory (pack with an empty asset tree supplies the resolved
+             directory (pack with a minimal test asset tree supplies the resolved
              consumer modfile), then runs Go build and `go test -race` with
              `-modfile consumer.mod -tags vivy_headless`. No frontend build
              is required and nothing claims a release artifact.
@@ -45,6 +45,23 @@ HOST_PACKAGE = "./cmd/diva"
 HOST_ASSETS = "agent-diva-gui/dist"
 WAILS_VERSION = "v3.0.0-beta.27"
 INOFY_MODULE = "github.com/ProjectViVy/inofy"
+DIVA_MODULE = "github.com/ProjectViVy/agent-diva"
+
+
+def go_test_package_targets(go_list_output: str) -> list[str]:
+    """Return host Go packages while keeping archived docs out of test input."""
+    docs_prefix = f"{DIVA_MODULE}/docs"
+    packages = []
+    for line in go_list_output.splitlines():
+        package = line.strip()
+        if not package:
+            continue
+        if package == docs_prefix or package.startswith(docs_prefix + "/"):
+            continue
+        packages.append(package)
+    if not packages:
+        raise SystemExit("go list returned no host test packages")
+    return packages
 
 
 def run(args: list[str], cwd: Path, capture: bool = False) -> str:
@@ -262,20 +279,24 @@ def mode_test(args: argparse.Namespace) -> None:
     stage_tracked(Path(args.vivy_dir).resolve(), staged_vivy)
     stage_tracked(Path(args.laputa_dir).resolve(), staged_laputa)
 
-    # Pack supplies the resolved consumer modfile: an empty asset tree under
-    # --host-dir keeps the frontend out of test mode entirely.
-    empty_in_host = host_root / ".test-empty-assets"
-    empty_in_host.mkdir(exist_ok=True)
     artifact = stage / "artifact"
     lock = build_lock(args, release=False)
     lock_path = stage / "vivy-sources.lock.json"
     lock_path.write_text(json.dumps(lock, indent=2) + "\n")
-    sdk_pack(args, lock_path, ".test-empty-assets", artifact)
+    # The SDK requires an entry document even for backend-only tests. Keep
+    # it task-local and remove it on success or failure; no frontend install
+    # is needed and these bytes are never a release UI.
+    with tempfile.TemporaryDirectory(prefix=".test-assets-", dir=host_root) as assets_dir:
+        assets = Path(assets_dir)
+        (assets / "index.html").write_text("<!doctype html><title>DIVA backend test</title>\n")
+        sdk_pack(args, lock_path, assets.name, artifact)
     shutil.copy2(artifact / "consumer.mod", staged_host / "consumer.mod")
     shutil.copy2(artifact / "consumer.sum", staged_host / "consumer.sum")
     tags = " ".join(["vivy_headless", *lock.get("buildTags", [])])
     run(["go", "build", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
-    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
+    listed = run(["go", "list", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
+    test_packages = go_test_package_targets(listed)
+    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, *test_packages], cwd=staged_host)
     print(f"go race tests passed under the sealed consumer modfile (stage: {stage})")
 
 

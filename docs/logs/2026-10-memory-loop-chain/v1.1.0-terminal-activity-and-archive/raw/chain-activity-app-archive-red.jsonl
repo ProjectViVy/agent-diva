@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T04:10:55.246365927Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:10:55.266238188Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete"}
+{"Time":"2026-10-10T04:10:55.266320442Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"=== RUN   TestMemoryLoopActivityArchivesOnSessionDelete\n"}
+{"Time":"2026-10-10T04:10:55.308128519Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"2026/10/10 04:10:55 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityArchivesOnSessionDelete2860952865/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:10:56.254735979Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"    memory_loop_activity_test.go:74: diva.cognitive.actmem.read transport: rpc error -32009: module action is not authorized\n"}
+{"Time":"2026-10-10T04:10:56.25644258Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Output":"--- FAIL: TestMemoryLoopActivityArchivesOnSessionDelete (0.99s)\n"}
+{"Time":"2026-10-10T04:10:56.256459596Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityArchivesOnSessionDelete","Elapsed":0.99}
+{"Time":"2026-10-10T04:10:56.256466937Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:10:56.275380999Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.029s\n"}
+{"Time":"2026-10-10T04:10:56.275424544Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.029}

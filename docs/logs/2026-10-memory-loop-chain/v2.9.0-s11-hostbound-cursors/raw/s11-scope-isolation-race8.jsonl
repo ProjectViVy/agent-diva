@@ -1,0 +1,12 @@
+{"Time":"2026-10-10T08:31:14.728317162Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T08:31:14.792290609Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding"}
+{"Time":"2026-10-10T08:31:14.792356247Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"=== RUN   TestMemoryLoopScopeAndHostBinding\n"}
+{"Time":"2026-10-10T08:31:15.535446095Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:31:15 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding3911452268/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:32:04.020163884Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:32:04 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding3911452268/002/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:32:09.362867775Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:140: ContextHost did not invoke the memory source in this race run; actual model input still contains no memory context or profile A fact\n"}
+{"Time":"2026-10-10T08:32:18.215684695Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:152: scope isolation: profileA-canonical=4 profileB-search=0 foreign-session/card/receipt and forged-cursor denied profileB-recall-observed=false\n"}
+{"Time":"2026-10-10T08:32:18.217922896Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"--- PASS: TestMemoryLoopScopeAndHostBinding (63.43s)\n"}
+{"Time":"2026-10-10T08:32:18.217970808Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Elapsed":63.43}
+{"Time":"2026-10-10T08:32:18.218193464Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T08:32:19.271071224Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t64.542s\n"}
+{"Time":"2026-10-10T08:32:19.271113037Z","Action":"pass","Package":"command-line-arguments","Elapsed":64.543}

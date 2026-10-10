@@ -1,0 +1,24 @@
+[
+  {
+    "request_index": 0,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"收到\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:42:53.441487486Z"
+  },
+  {
+    "request_index": 1,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"{\\\"base_revision\\\":1,\\\"changes\\\":[]}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:43:10.830623313Z"
+  }
+]

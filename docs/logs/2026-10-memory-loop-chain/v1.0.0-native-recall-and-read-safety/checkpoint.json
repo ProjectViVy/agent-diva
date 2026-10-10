@@ -1,0 +1,939 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T03:32:40.890967+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "0dddb1dba13b8a8dc0f11210a4cca302065d99e0",
+    "agent-vivy": "9cbed3ea76a35cf4a69e1ec327aee02f19ab47cc",
+    "laputa": "4faf95a4d78853d1e0cfa879446ed3958389e77a"
+  },
+  "execution_mode": "official generated diagnostic overlay; not final artifact/source conformance attestation",
+  "observed_final_exits": {
+    "chain-recall-serial-composition.jsonl": 0,
+    "chain-recall-final-default.jsonl": 0,
+    "chain-recall-runtime-regression.jsonl": 0,
+    "chain-recall-runtime-race.jsonl": 0,
+    "chain-recall-degradation-race-close-trace.jsonl": 0,
+    "chain-recall-expansion-revision-green.jsonl": 0,
+    "chain-recall-canonical-read-regression.jsonl": 0,
+    "chain-recall-garden-canonical-regression.jsonl": 0,
+    "chain-recall-embedder-lifetime-final.jsonl": 0,
+    "chain-recall-observer-start-green.jsonl": 0,
+    "chain-recall-final-composition.jsonl": 1,
+    "chain-recall-degradation-race-second.jsonl": 1,
+    "chain-recall-child-race-after-lifetime.jsonl": 1
+  },
+  "logs": [
+    {
+      "path": "raw/chain-recall-admission-green.jsonl",
+      "sha256": "795dec6038eab0a74516fa4f4280c8850386b7b120218d5d2232e3fb08edd267",
+      "bytes": 3822,
+      "named_tests_subtests": {
+        "pass": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-admission-red.jsonl",
+      "sha256": "b74521705c5e5c3a35dd465642762dfc7212f7d1617a47b4567b335e5ef1a212",
+      "bytes": 2011,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-backend-cache-green.jsonl",
+      "sha256": "436f7f0d3ed82ac3d0ccc6a9971fd5249ff65de0c2ed89c46554c530c88e0f7c",
+      "bytes": 3027,
+      "named_tests_subtests": {
+        "pass": 3
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-backend-cache-red.jsonl",
+      "sha256": "21e8be10ed5e5070bf82bdceefedfdfeac52867484a860a70f746e8a2fc67514",
+      "bytes": 21314,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-canonical-read-regression.jsonl",
+      "sha256": "3d3dd2dd3b76eb908f4c30b9845e27a6cff4b599441ec5f8b7dcfae12688bfa2",
+      "bytes": 55734,
+      "named_tests_subtests": {
+        "pass": 71
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/facade",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-card-collection-green.jsonl",
+      "sha256": "ac009096868fe7846822e070bbfb26dbd2d36b67371dcb26c481c1de89ea1d64",
+      "bytes": 55742,
+      "named_tests_subtests": {
+        "pass": 71
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/facade",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-card-collection-red.jsonl",
+      "sha256": "e420afabb294bd8e4eb8d9566eb41906000c98f41686b61336e006a5a02381fa",
+      "bytes": 1557,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/facade",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-causal-first.jsonl",
+      "sha256": "776c200c68f0ee7f7785108cdde8011af4c11c8110625fd6a5fcd432b544f354",
+      "bytes": 15660,
+      "named_tests_subtests": {
+        "pass": 7,
+        "fail": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-causal-race.jsonl",
+      "sha256": "27cf2bdc99f0334c4b984940f7515be157eab12bc25e93ccb605e2ae324fd6cd",
+      "bytes": 78509,
+      "named_tests_subtests": {
+        "fail": 5
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-causal-second.jsonl",
+      "sha256": "408383f6cc7b5bb6f38a315002fbe17b01aafaf26d11f72f3dddd480968bb0e8",
+      "bytes": 15664,
+      "named_tests_subtests": {
+        "pass": 7,
+        "fail": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-causal-with-revision.jsonl",
+      "sha256": "8c03003971e6aa6fb8edfaec58344577cf302d0ac4b82b8674e82fc831d81a06",
+      "bytes": 14933,
+      "named_tests_subtests": {
+        "pass": 12
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-child-race-after-lifetime.jsonl",
+      "sha256": "d176c69cb79dd0b5aed0fa538a9f399d3d558e4915327e25de59ccb418553ceb",
+      "bytes": 20002,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-child-race-reproduction.jsonl",
+      "sha256": "68e056ed292db15eea581d5dc9f3f9763a0417a1be3be5aa598667236f8c8ea0",
+      "bytes": 208751,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-composition-fixture.json",
+      "sha256": "7ca74cb04aa89b2b53649c1a5c1c27caaf0cfa49a41b6fee08a02b43ab2489b8",
+      "bytes": 9563,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-composition.jsonl",
+      "sha256": "2ff3423d1773c2c3248702d08f2d43e482a0a6483c351df588f14e42c67ffefa",
+      "bytes": 51519,
+      "named_tests_subtests": {
+        "pass": 44
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-default-after-traces.jsonl",
+      "sha256": "b642ad34f2b5c82534638d9fa981548a5c59d66c0f6e945a9f852e0fecf0f4a0",
+      "bytes": 174820,
+      "named_tests_subtests": {
+        "pass": 163,
+        "skip": 25
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/modules/defaults",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/app",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-default-with-modules.jsonl",
+      "sha256": "7c5bbe32d33a58d88e4c0051bbbea48fab3e99c1300c85f670d328283b94f134",
+      "bytes": 175099,
+      "named_tests_subtests": {
+        "pass": 163,
+        "skip": 25
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/modules/defaults",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/app",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-degradation-race-close-trace.jsonl",
+      "sha256": "2a39cabc0116b534b0430809436200ac3c2794ee5c9375df37971ae8b99705fd",
+      "bytes": 1823,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-degradation-race-second.jsonl",
+      "sha256": "8e90a77dfbfb11b80d2d2fd684f15eeac11c666b86c237cf7c44cea49ac989b3",
+      "bytes": 2315,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-degradation-race.jsonl",
+      "sha256": "03492624acd1c5a0096333aa1b8bdaca5c2d78a40649193cc8cdf9b672293631",
+      "bytes": 938,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-diagnostic-generation-second.log",
+      "sha256": "f08bf587edcfa0362947be5480c1800d8c645e868769a1127ed7a0cac4ed4235",
+      "bytes": 119,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-diagnostic-generation.log",
+      "sha256": "8ff2f2b4a8dfbfd3b275428891c1736fa59778ca7ef09c64dbfbf3b7c0a9c655",
+      "bytes": 119,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-disabled-correct-session.jsonl",
+      "sha256": "7f1f69d433b87035bde4737207004c61320a856d2c8a9b4a3030b3a94afca621",
+      "bytes": 2326,
+      "named_tests_subtests": {
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-embedder-facade-regression.jsonl",
+      "sha256": "c3d94187fdd19b96c7278468232fbc62a1d108837b66385633b7f32ba3fcf91c",
+      "bytes": 60952,
+      "named_tests_subtests": {
+        "pass": 77
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/facade",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/mentle/internal/embedder",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-embedder-lifetime-final.jsonl",
+      "sha256": "af0466ce7d17f3ac853f2c078474eb71207efb2c7100abb30b62e037e7d56f6a",
+      "bytes": 3046,
+      "named_tests_subtests": {
+        "pass": 3
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/internal/embedder",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-embedder-lifetime-green.jsonl",
+      "sha256": "a70754b8598b0d3ac6843d673b4908da60e3ab046f71df5616754b5e7ce95e5f",
+      "bytes": 3047,
+      "named_tests_subtests": {
+        "pass": 3
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/internal/embedder",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-embedder-lifetime-red.jsonl",
+      "sha256": "24a15312b6ecec1f5a11be323c1789e74c02460b92202d9fed2e9d66bbe351bd",
+      "bytes": 65358,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/mentle/internal/embedder",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-expansion-revision-green.jsonl",
+      "sha256": "1302e5c0dfed6200a71d85b57a43e5e40d216ab4d8f4b5182fc1f558f1dd767c",
+      "bytes": 9144,
+      "named_tests_subtests": {
+        "pass": 10
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-expansion-revision-race-red.jsonl",
+      "sha256": "72136658b68fdae4398f0368ba5d2321e041b560ce72389eebff70a78a56c5a5",
+      "bytes": 15550,
+      "named_tests_subtests": {
+        "fail": 10
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-expansion-revision-red.jsonl",
+      "sha256": "84a0340f62f51deea499e8705e75baed78cfe87bb1cef4ab7945ae2a73ca916c",
+      "bytes": 1923,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-expansion-revision-second-red.jsonl",
+      "sha256": "5242288844045ab9052db7197286518d7a9b0ed61d32a323d0de556cb3d33d3b",
+      "bytes": 1423,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-final-composition-fixture.json",
+      "sha256": "791350ba70156f9ac13a74c8162e4b6397915127aff72bd9042772a9a9ea0e07",
+      "bytes": 9563,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-final-composition.jsonl",
+      "sha256": "8c43d22e0e2984b7830809a47d11410722ce4b10c4fa234fa07f8956d822cffe",
+      "bytes": 53429,
+      "named_tests_subtests": {
+        "pass": 44,
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-final-default.jsonl",
+      "sha256": "6a47c562ccb4dfc6bbacc1b49e14b4573b7b99f9924388ca440fbfce6fb65cee",
+      "bytes": 175846,
+      "named_tests_subtests": {
+        "pass": 163,
+        "skip": 26
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/modules/defaults",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/app",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-garden-canonical-regression.jsonl",
+      "sha256": "4cff5e4a8fcba7c0ec965223dce0d3c29994995e64b94e3a124c68efaae05372",
+      "bytes": 415352,
+      "named_tests_subtests": {
+        "pass": 461
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/backends/mentle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/activity",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/arbiter",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/architectureguard",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/mailbox",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/pipeline",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/personactx",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/recall",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/report",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/lifecycle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/sqliteconn",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/supervision",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/server",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-garden-regression.jsonl",
+      "sha256": "e90a8480a7beff62df4a7cee98216f37235f1427d42311539e42b602968f1d44",
+      "bytes": 350117,
+      "named_tests_subtests": {
+        "pass": 383
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/internal/activity",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/arbiter",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/architectureguard",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/evolution",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/ingest",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/pipeline",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/mailbox",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/recall",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/report",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/personactx",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/lifecycle",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/sqliteconn",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/supervision",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/server",
+          "action": "pass"
+        },
+        {
+          "package": "github.com/dashimaki/garden/internal/runtimecore",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-generation.txt",
+      "sha256": "ce852db499ccf4105d5ec735660824a5d10e3440427f9febc338228b5e62b962",
+      "bytes": 119,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-initial-red.jsonl",
+      "sha256": "1ccd6c017ae90e81b7f7182d4e75d9e0a68da469281600392c379141d3ea31fc",
+      "bytes": 57594,
+      "named_tests_subtests": {
+        "fail": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-native-input-diagnostic.jsonl",
+      "sha256": "efd6d12de189b085aebe48f8bae9e684449ed80264a9640baaa038a52fa32eb7",
+      "bytes": 20388,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-native-input-first.jsonl",
+      "sha256": "11bb060cdeb31e195b730b3318eaecb1c681db227309dd585c16ae8068b95b52",
+      "bytes": 57596,
+      "named_tests_subtests": {
+        "fail": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-native-input-no-collection.jsonl",
+      "sha256": "c155e4dd181c3dbecc87d4f8215ac8a4da8e5fc2d49d7a2cb8e1b5994818edd7",
+      "bytes": 2303,
+      "named_tests_subtests": {
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-native-input-short-query.jsonl",
+      "sha256": "bd7a0c8c0dcb0923c534163f0f883594ce594b6cd6be54fda02d214aa5187f7b",
+      "bytes": 20287,
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-native-owner-race.jsonl",
+      "sha256": "8d0114a4c3937b51b966b606e09475553b9aef7b089d08a4059a143eea8337b5",
+      "bytes": 8006,
+      "named_tests_subtests": {
+        "pass": 9
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "github.com/dashimaki/garden/agentapi",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-observer-start-green.jsonl",
+      "sha256": "335707e7b813137127d0c4ca1580dd6645246b262eb9c6ba9a58d842f33fd6bf",
+      "bytes": 9747,
+      "named_tests_subtests": {
+        "pass": 11
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/observerhost",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-observer-start-red.jsonl",
+      "sha256": "2adc9bc652f52661d7fdd1be8ae24ef5d8e237469d0f898b5215dfbd82fa966a",
+      "bytes": 10781,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/observerhost",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-public-revision-retry.jsonl",
+      "sha256": "e31403e72d6e8192cb3b376fb729a10a5b5b139c3c3fb89a7d53d0338bb6d96d",
+      "bytes": 1625,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-runtime-race.jsonl",
+      "sha256": "a4414be62cbe06e587080619e5d1611844d3fe6bbc5593a4fa6cc096163bfbb8",
+      "bytes": 29590,
+      "named_tests_subtests": {
+        "pass": 38
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-runtime-regression.jsonl",
+      "sha256": "762beab911e060787d1fe66cffe435ddc9a295890f4849c73a9a7f8e0a1c4007",
+      "bytes": 66274,
+      "named_tests_subtests": {
+        "pass": 83
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-serial-composition.jsonl",
+      "sha256": "b2e9f0b4f9cbb6af231f535849449df520aec404825929fa6503917b0f16541b",
+      "bytes": 53123,
+      "named_tests_subtests": {
+        "pass": 45
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-serial-fixture.json",
+      "sha256": "765ec893f6a72ade3a7aa210d94e501231cda98b4384227413faa1a23ec3dc7d",
+      "bytes": 9563,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-source-green.jsonl",
+      "sha256": "5c2a293a734883a7d62f972178a0a9a7e9542dc74b61e4bfe1b147d5794695c7",
+      "bytes": 25129,
+      "named_tests_subtests": {
+        "pass": 30
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "pass"
+        },
+        {
+          "package": "agent-vivy/internal/modules/defaults",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-recall-source-red.jsonl",
+      "sha256": "8bc4736115ebbf97a68b0e3c5be6872865da4d36934c23583edc2acc51b18715",
+      "bytes": 1142,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/modules/diva-cognitive",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/diagnostic-helper.go.txt",
+      "sha256": "63f436a0b6ffb1ad3e6f985a7bf149d174b1f75b09dccd50785d17d52de40a98",
+      "kind": "diagnostic-input-not-artifact-attestation"
+    },
+    {
+      "path": "raw/diagnostic-manifest.json",
+      "sha256": "132f1fbe2a6a47b39ae26f70a6d36942c8d02b1e464595478140c3d7367f5f19",
+      "kind": "diagnostic-input-not-artifact-attestation"
+    },
+    {
+      "path": "raw/diva.vivy.yml",
+      "sha256": "2c017bd9d1a2e186168ad2a102bfeddeca1719e7670647ddc97d3f9a59567c00",
+      "kind": "diagnostic-input-not-artifact-attestation"
+    }
+  ],
+  "open_observations": [
+    "MEM-S05-01 actual Pulse/Recap remain empty, untracked probe preserved",
+    "Positive cold recall under race exceeds unchanged 750ms source deadline",
+    "Earlier degraded Close timeout and correction RPC failure preserved; newest serialized/degraded checks pass, robustness acceptance remains open",
+    "Explicit Agent WORLD/ACTMEM tool-only proof not implemented",
+    "Original-operation recovery and six-cut crash matrix remain local work",
+    "Full new-source CI/conformance/SDK pack/Inspect/native identity and fresh whole-phase review pending",
+    "Windows/live resource waits only their cases"
+  ]
+}

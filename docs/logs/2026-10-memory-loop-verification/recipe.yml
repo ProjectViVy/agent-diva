@@ -1,0 +1,30 @@
+apiVersion: vivy.generation/v1
+profile: diva
+# DIVA Next (agent-diva P0): the sealed embedded library Generation the Tauri
+# thin shell links through the C ABI. DIVA renders its own face and owns its
+# channels, so no embedded Web UI and no channel adapters.
+# persona/evolution/memory/notebook backend surfaces are deferred to DN-4
+# (agent-diva backend-separation-contracts §3.7/§3.9); vivy/masks stays for
+# the maskcontract module action until DN-4 resolves the mask RPC gap.
+modules:
+  - vivy/loop
+  - vivy/model
+  - vivy/storage
+  - vivy/checkpoint
+  - vivy/credential
+  - vivy/sandbox
+  - vivy/tool-host
+  - vivy/protected-tools
+  - vivy/mcp-host
+  - vivy/context-host
+  - vivy/context-source
+  - vivy/skill-host
+  - vivy/skill-source
+  - vivy/observer-host
+  - vivy/status-host
+  - vivy/presentation-host
+  - vivy/action-host
+  - vivy/face-host
+  - vivy/provider-profiles
+  - vivy/masks
+  - vivy/diva-cognitive

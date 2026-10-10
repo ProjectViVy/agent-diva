@@ -1,0 +1,14 @@
+{"Time":"2026-10-10T01:33:35.389112639Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:33:35.409621875Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflection"}
+{"Time":"2026-10-10T01:33:35.409658781Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflection","Output":"=== RUN   TestMemoryLoopAutomaticReflection\n"}
+{"Time":"2026-10-10T01:33:35.454242876Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflection","Output":"2026/10/10 01:33:35 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopAutomaticReflection1595344767/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:33:40.627618144Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflection","Output":"--- PASS: TestMemoryLoopAutomaticReflection (5.22s)\n"}
+{"Time":"2026-10-10T01:33:40.627667308Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflection","Elapsed":5.22}
+{"Time":"2026-10-10T01:33:40.627677263Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource"}
+{"Time":"2026-10-10T01:33:40.627679606Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"=== RUN   TestMemoryLoopAutomaticReflectionLargeSource\n"}
+{"Time":"2026-10-10T01:33:40.672133205Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"2026/10/10 01:33:40 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopAutomaticReflectionLargeSource644876549/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:33:45.760450622Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"--- PASS: TestMemoryLoopAutomaticReflectionLargeSource (5.13s)\n"}
+{"Time":"2026-10-10T01:33:45.760491613Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Elapsed":5.13}
+{"Time":"2026-10-10T01:33:45.760497322Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:33:45.79448242Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t10.405s\n"}
+{"Time":"2026-10-10T01:33:45.794527037Z","Action":"pass","Package":"command-line-arguments","Elapsed":10.405}

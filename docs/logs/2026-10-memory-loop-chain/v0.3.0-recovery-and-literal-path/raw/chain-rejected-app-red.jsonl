@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T01:15:14.840086995Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:15:14.859600294Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced"}
+{"Time":"2026-10-10T01:15:14.859663219Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"=== RUN   TestMemoryLoopRejectedEffectRemainsVisibleAndFenced\n"}
+{"Time":"2026-10-10T01:15:14.905869312Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"2026/10/10 01:15:14 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRejectedEffectRemainsVisibleAndFenced2268885607/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:15:15.747561148Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"    memory_loop_rejected_test.go:85: public status hid the durable unresolved window: {ActiveRunID:workflow_260369c07b146bf9 Watermark:0 PendingThrough:0 Phase: BlockReason:}\n"}
+{"Time":"2026-10-10T01:15:15.74901612Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"--- FAIL: TestMemoryLoopRejectedEffectRemainsVisibleAndFenced (0.89s)\n"}
+{"Time":"2026-10-10T01:15:15.749055469Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Elapsed":0.89}
+{"Time":"2026-10-10T01:15:15.749076461Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:15:15.76389319Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t0.923s\n"}
+{"Time":"2026-10-10T01:15:15.763946169Z","Action":"fail","Package":"command-line-arguments","Elapsed":0.924}

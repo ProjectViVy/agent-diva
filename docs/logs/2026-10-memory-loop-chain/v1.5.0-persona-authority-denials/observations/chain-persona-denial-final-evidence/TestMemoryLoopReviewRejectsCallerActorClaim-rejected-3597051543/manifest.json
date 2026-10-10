@@ -1,0 +1,36 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "1b7c5561d6a5a2324d91fec169b563cb2ddb993bef907dc24335b3472d938bcb",
+      "bytes": 27685
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "2f76beb48af2fc7ee03599a1061809fc2582f6a7584e51cdac4c92ab610a1add",
+      "bytes": 1421
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "f9f1846adcb5a1c6d66ac1fe6f59c20e322a31869e26fe0a1dd2400e9acc5767",
+      "bytes": 309
+    },
+    {
+      "path": "identity.json",
+      "sha256": "989fd98eaa73fe6341d5ff110ad2e8e981e92caf7e3117415e2f8883b34a50a9",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "rejected",
+  "recorded_at": "2026-10-10T05:18:57.829011289Z",
+  "test": "TestMemoryLoopReviewRejectsCallerActorClaim"
+}

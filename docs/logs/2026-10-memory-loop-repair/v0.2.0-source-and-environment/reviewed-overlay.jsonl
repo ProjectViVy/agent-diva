@@ -1,0 +1,13 @@
+{"Time":"2026-10-09T23:21:56.230382805Z","Action":"start","Package":"agent-vivy/sdk/internal"}
+{"Time":"2026-10-09T23:21:56.275477553Z","Action":"run","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopGenerateIntegrationOverlay"}
+{"Time":"2026-10-09T23:21:56.275575521Z","Action":"output","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopGenerateIntegrationOverlay","Output":"=== RUN   TestMemoryLoopGenerateIntegrationOverlay\n"}
+{"Time":"2026-10-09T23:21:58.040093759Z","Action":"output","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopGenerateIntegrationOverlay","Output":"    memory_loop_generation_test.go:123: generated DIVA integration overlay: /workspace/work/memory-loop/tools/diva-overlay/overlay.json\n"}
+{"Time":"2026-10-09T23:21:58.04013419Z","Action":"output","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopGenerateIntegrationOverlay","Output":"--- PASS: TestMemoryLoopGenerateIntegrationOverlay (1.76s)\n"}
+{"Time":"2026-10-09T23:21:58.041608701Z","Action":"pass","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopGenerateIntegrationOverlay","Elapsed":1.76}
+{"Time":"2026-10-09T23:21:58.041626718Z","Action":"run","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopOverlayRejectsMismatchedInputs"}
+{"Time":"2026-10-09T23:21:58.041629372Z","Action":"output","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopOverlayRejectsMismatchedInputs","Output":"=== RUN   TestMemoryLoopOverlayRejectsMismatchedInputs\n"}
+{"Time":"2026-10-09T23:21:58.041634771Z","Action":"output","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopOverlayRejectsMismatchedInputs","Output":"--- PASS: TestMemoryLoopOverlayRejectsMismatchedInputs (0.00s)\n"}
+{"Time":"2026-10-09T23:21:58.04164119Z","Action":"pass","Package":"agent-vivy/sdk/internal","Test":"TestMemoryLoopOverlayRejectsMismatchedInputs","Elapsed":0}
+{"Time":"2026-10-09T23:21:58.041643313Z","Action":"output","Package":"agent-vivy/sdk/internal","Output":"PASS\n"}
+{"Time":"2026-10-09T23:21:58.051312674Z","Action":"output","Package":"agent-vivy/sdk/internal","Output":"ok  \tagent-vivy/sdk/internal\t1.820s\n"}
+{"Time":"2026-10-09T23:21:58.051350151Z","Action":"pass","Package":"agent-vivy/sdk/internal","Elapsed":1.821}

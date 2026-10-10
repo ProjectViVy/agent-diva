@@ -1,0 +1,14 @@
+{"Time":"2026-10-10T04:15:46.774478459Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-10T04:15:46.776460339Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable"}
+{"Time":"2026-10-10T04:15:46.776516845Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"=== RUN   TestFoldCapturedProvenanceRemainsReadable\n"}
+{"Time":"2026-10-10T04:15:46.777535129Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"    fold_recovery_test.go:156: native writer produced unreadable capsule chars=945: laputa/actmem: capsule exceeds its capacity\n"}
+{"Time":"2026-10-10T04:15:46.777567547Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Output":"--- FAIL: TestFoldCapturedProvenanceRemainsReadable (0.00s)\n"}
+{"Time":"2026-10-10T04:15:46.777574889Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCapturedProvenanceRemainsReadable","Elapsed":0}
+{"Time":"2026-10-10T04:15:46.777579495Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources"}
+{"Time":"2026-10-10T04:15:46.777581488Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Output":"=== RUN   TestFoldOversizeMetadataRefusesBeforeRemovingSources\n"}
+{"Time":"2026-10-10T04:15:46.778189835Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Output":"    fold_recovery_test.go:177: unreadable oversized capsule was accepted\n"}
+{"Time":"2026-10-10T04:15:46.778217447Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Output":"--- FAIL: TestFoldOversizeMetadataRefusesBeforeRemovingSources (0.00s)\n"}
+{"Time":"2026-10-10T04:15:46.778220862Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldOversizeMetadataRefusesBeforeRemovingSources","Elapsed":0}
+{"Time":"2026-10-10T04:15:46.778239319Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:15:46.778831552Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\tgithub.com/dashimaki/laputa/actmem\t0.004s\n"}
+{"Time":"2026-10-10T04:15:46.778840836Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Elapsed":0.004}

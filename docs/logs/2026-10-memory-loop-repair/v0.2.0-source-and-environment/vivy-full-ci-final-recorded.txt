@@ -1,0 +1,523 @@
+powershell -NoProfile -Command '$files = & git ls-files -- ''*.go''; if ($LASTEXITCODE) { exit $LASTEXITCODE }; $unformatted = $files | ForEach-Object { & ''gofmt'' -l $_ }; if ($unformatted) { Write-Output $unformatted; exit 1 }'
+Set-Location ui; pnpm install --frozen-lockfile; if ($LASTEXITCODE) { exit $LASTEXITCODE }; pnpm typecheck; if ($LASTEXITCODE) { exit $LASTEXITCODE }; pnpm test; if ($LASTEXITCODE) { exit $LASTEXITCODE }; pnpm build
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1
++
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.33.2 → 12.10.1.   │
+   │   Changelog: https://pnpm.io/v/12.10.1   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+Progress: resolved 1, reused 1, downloaded 0, added 1, done
+
+Done in 1s using pnpm v10.33.2
+
+> vivy-ui@1.0.0 pretypecheck /workspace/work/memory-loop/agent-vivy/ui
+> node scripts/stage-ui-assembly.mjs
+
+{"recipe":"/workspace/work/memory-loop/agent-vivy/recipes/default.vivy.yml","output":"/workspace/work/memory-loop/agent-vivy/ui/src/generated","assembly":"/workspace/work/memory-loop/agent-vivy/ui/src/generated/assembly.ts","sdkVersion":"1.0.0","extensions":["vivy.persona.sidebar","vivy.evolution.sidebar","vivy.memory.sidebar","vivy.notebook.sidebar","vivy.masks-ui.sidebar","vivy.workflow-ui.sidebar"]}
+
+> vivy-ui@1.0.0 typecheck /workspace/work/memory-loop/agent-vivy/ui
+> tsc --noEmit
+
+
+> vivy-ui@1.0.0 pretest /workspace/work/memory-loop/agent-vivy/ui
+> node scripts/stage-ui-assembly.mjs
+
+{"recipe":"/workspace/work/memory-loop/agent-vivy/recipes/default.vivy.yml","output":"/workspace/work/memory-loop/agent-vivy/ui/src/generated","assembly":"/workspace/work/memory-loop/agent-vivy/ui/src/generated/assembly.ts","sdkVersion":"1.0.0","extensions":["vivy.persona.sidebar","vivy.evolution.sidebar","vivy.memory.sidebar","vivy.notebook.sidebar","vivy.masks-ui.sidebar","vivy.workflow-ui.sidebar"]}
+
+> vivy-ui@1.0.0 test /workspace/work/memory-loop/agent-vivy/ui
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/work/memory-loop/agent-vivy/ui
+
+ ✓ src/generated/ui/vivy-workflow/src/face-bridge.test.ts (13 tests) 1018ms
+   ✓ FaceBridge.subscribe (inofy.events over run/subscribe) > resubscribes from the committed cursor after a stream error  1006ms
+ ✓ src/lib/store.test.ts (54 tests) 670ms
+ ✓ src/lib/work-subscription.test.ts (3 tests) 2268ms
+   ✓ work subscription > refreshes backend WorkView on reconnect before subscribing and deduplicates the session sequence  1155ms
+   ✓ work subscription > retries through the existing reconnect path after a failed event refresh  1060ms
+ ✓ src/i18n/index.test.ts (16 tests) 238ms
+ ✓ src/components/chat/MessageBubble.test.tsx (7 tests) 57ms
+ ✓ src/components/planning/SessionTodoPanel.test.tsx (6 tests) 30ms
+ ✓ src/components/chat/ToolRow.test.tsx (4 tests) 23ms
+ ✓ src/components/ui/DiffView.test.tsx (2 tests) 13ms
+ ✓ src/components/chat/ReasoningRow.test.tsx (4 tests) 18ms
+ ✓ src/mask-omission.test.ts (4 tests) 13ms
+ ✓ src/hooks/use-theme.test.ts (9 tests) 24ms
+ ✓ src/i18n/surfaces.test.tsx (8 tests) 99ms
+ ✓ src/lib/demo-api.evolution.test.ts (6 tests) 15ms
+ ✓ src/lib/demo-api.test.ts (9 tests) 11ms
+ ✓ src/components/settings/custom-providers.test.ts (18 tests) 11ms
+ ✓ src/i18n/completeness.test.ts (23 tests) 5591ms
+   ✓ catalog completeness command > rejects direct English JSX chrome and missing translation references  311ms
+ ✓ src/components/settings/channel-store.test.ts (12 tests) 14ms
+ ✓ src/components/chat/session-workspaces.test.ts (2 tests) 9ms
+ ✓ src/components/trajectory/trajectory-utils.test.ts (18 tests) 16ms
+ ✓ src/lib/diff.test.ts (11 tests) 11ms
+ ✓ src/lib/rpc.test.ts (4 tests) 12ms
+ ✓ src/lib/run-rows.test.ts (19 tests) 13ms
+ ✓ src/generated/ui/vivy-workflow/src/studio/edit.test.ts (5 tests) 4ms
+ ✓ src/components/settings/saved-models.test.ts (19 tests) 8ms
+ ✓ src/lib/runtime-config.test.ts (4 tests) 8ms
+ ✓ src/components/settings/provider-catalog.test.ts (11 tests) 8ms
+ ✓ src/lib/run-subscription.test.ts (2 tests) 7ms
+ ✓ src/lib/failure.test.ts (6 tests) 4ms
+ ✓ src/lib/api.test.ts (5 tests) 6ms
+ ✓ src/components/chat/tool-presentation.test.ts (8 tests) 6ms
+ ✓ src/components/settings/LanguagePicker.test.tsx (5 tests) 7ms
+ ✓ src/components/settings/channel-schema.test.ts (19 tests) 6ms
+ ✓ src/components/mcp/mcp-import.test.ts (7 tests) 6ms
+ ✓ src/generated/ui/vivy-workflow/src/studio/graph.test.ts (7 tests) 7ms
+ ✓ src/lib/todos.test.ts (5 tests) 5ms
+ ✓ src/generated/ui/vivy-masks/src/mask-client.test.ts (3 tests) 5ms
+ ✓ src/components/settings/diva-preview-data.test.ts (1 test) 3ms
+ ✓ src/plugins/host-icons.test.ts (3 tests) 4ms
+ ✓ src/hooks/use-welcome.test.ts (5 tests) 5ms
+ ✓ src/generated/ui/vivy-masks/src/mask-state.test.ts (3 tests) 4ms
+ ✓ src/lib/workflow-api.test.ts (1 test) 4ms
+ ✓ src/lib/child-api.test.ts (1 test) 3ms
+ ✓ src/lib/chat-actions.test.ts (6 tests) 3ms
+ ✓ src/components/trajectory/trajectory-session.test.ts (5 tests) 3ms
+ ✓ src/lib/ui-sdk-face-compat.test.ts (1 test) 2ms
+ ✓ src/lib/ui-build-provenance.test.ts (1 test) 3ms
+ ✓ src/components/chat/HistoryPicker.test.tsx (7 tests) 357ms
+ ✓ src/generated/ui/vivy-memory/src/view.test.tsx (9 tests) 743ms
+   ✓ MemoryView > drives vivy.memory.search from the search box  424ms
+ ✓ src/components/chat/ConversationSidebar.test.tsx (6 tests) 369ms
+stderr | src/plugins/presentation-host.test.tsx > PresentationHost > keeps typed header render failures inside the existing error boundary and cleans owners
+Error: fixture header failed
+    at Object.render (/workspace/work/memory-loop/agent-vivy/ui/src/plugins/presentation-host.test.tsx:211:31)
+    at /workspace/work/memory-loop/agent-vivy/ui/src/plugins/presentation-host.tsx:916:18
+    at Array.map (<anonymous>)
+    at ChatHeaderSlot (/workspace/work/memory-loop/agent-vivy/ui/src/plugins/presentation-host.tsx:913:54)
+    at Object.react_stack_bottom_frame (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:25904:20)
+    at renderWithHooks (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:7662:22)
+    at updateFunctionComponent (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:10166:19)
+    at beginWork (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:11778:18)
+    at runWithFiberInDEV (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at performUnitOfWork (/workspace/work/memory-loop/agent-vivy/ui/node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/cjs/react-dom-client.development.js:17641:22) {
+  [stack]: [Getter/Setter],
+  [message]: 'fixture header failed'
+}
+
+The above error occurred in the <ChatHeaderSlot> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, PresentationErrorBoundary.
+
+
+stderr | src/plugins/presentation-host.test.tsx > PresentationHost > lets an extension observe initialized RPC capabilities during installation
+An update to ChatHeaderSlot inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/plugins/presentation-host.test.tsx (32 tests) 213ms
+ ✓ src/components/chat/WorkspaceSelector.test.tsx (8 tests) 184ms
+ ✓ src/components/settings/CompactionSettingsCard.test.tsx (3 tests) 119ms
+ ✓ src/components/settings/ToolsSettingsCard.test.tsx (4 tests) 95ms
+ ✓ src/components/chat/ChatView.test.tsx (5 tests) 164ms
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > renders partial coverage counts and hides partial cost
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > renders partial coverage counts and hides partial cost
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > renders partial coverage counts and hides partial cost
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > shows unknown buckets as dashes in detail view
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > shows unknown buckets as dashes in detail view
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > shows unknown buckets as dashes in detail view
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > shows unknown buckets as dashes in detail view
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/components/demo/TokenStatsPanel.test.tsx > TokenStatsPanel > refreshes once per burst of authoritative run events
+The current testing environment is not configured to support act(...)
+
+ ✓ src/components/demo/TokenStatsPanel.test.tsx (3 tests) 92ms
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > renders the module tabs and lists published workflows on the Workflows tab
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/generated/ui/vivy-workflow/src/workflow-page.test.tsx > WorkflowPage > opens a seeded draft for an unknown workflow id
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ src/generated/ui/vivy-workflow/src/workflow-page.test.tsx (3 tests) 139ms
+ ✓ src/components/chat/DeliverableCard.test.tsx (5 tests) 104ms
+ ✓ src/components/settings/ModelSettingsCard.test.tsx (5 tests) 149ms
+ ✓ src/components/chat/WorkControlBar.test.tsx (10 tests) 99ms
+ ✓ src/components/chat/ReferenceDetail.test.tsx (4 tests) 86ms
+ ✓ src/components/settings/ApprovalTimeoutCard.test.tsx (4 tests) 73ms
+ ✓ src/plugins/conformance.test.tsx (6 tests) 64ms
+ ✓ src/generated/ui/vivy-masks/src/MaskPage.test.tsx (2 tests) 37ms
+ ✓ src/components/chat/ContextReferenceChip.test.tsx (2 tests) 54ms
+ ✓ src/generated/ui/vivy-masks/src/MaskHeader.test.tsx (1 test) 25ms
+ ✓ src/components/chat/CodeModeControl.test.tsx (2 tests) 28ms
+ ✓ src/generated/ui/vivy-masks/src/MaskSelector.test.tsx (2 tests) 22ms
+ ✓ src/lib/deliverable-download.test.ts (8 tests) 14ms
+ ✓ src/lib/reveal-engine.test.ts (2 tests) 8ms
+ ✓ src/components/chat/session-list-view.test.ts (9 tests) 5ms
+
+ Test Files  70 passed (70)
+      Tests  527 passed (527)
+   Start at  23:47:06
+   Duration  14.43s (transform 2.45s, setup 0ms, collect 11.18s, tests 13.54s, environment 5.18s, prepare 3.78s)
+
+
+> vivy-ui@1.0.0 prebuild /workspace/work/memory-loop/agent-vivy/ui
+> node scripts/stage-ui-assembly.mjs
+
+{"recipe":"/workspace/work/memory-loop/agent-vivy/recipes/default.vivy.yml","output":"/workspace/work/memory-loop/agent-vivy/ui/src/generated","assembly":"/workspace/work/memory-loop/agent-vivy/ui/src/generated/assembly.ts","sdkVersion":"1.0.0","extensions":["vivy.persona.sidebar","vivy.evolution.sidebar","vivy.memory.sidebar","vivy.notebook.sidebar","vivy.masks-ui.sidebar","vivy.workflow-ui.sidebar"]}
+
+> vivy-ui@1.0.0 build /workspace/work/memory-loop/agent-vivy/ui
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2567 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     2.00 kB │ gzip:   1.07 kB
+dist/assets/index-DDCgjUp4.css    149.30 kB │ gzip:  24.04 kB
+dist/assets/index-VF9ZiCuL.js   1,764.36 kB │ gzip: 532.59 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.91s
+node scripts/check-i18n-completeness.js
+PASS: en=1515 keys / 156 placeholders; zh=1515 keys / 156 placeholders; runtime copy audit clean.
+node --test scripts/check-i18n-cross-face.test.js
+✔ accepts complete shared projections and explicit face-specific units (1.405978ms)
+✔ rejects a missing shared projection (0.306141ms)
+✔ rejects placeholder drift across faces (0.312912ms)
+✔ rejects unclassified face-specific keys (0.189516ms)
+✔ rejects an unmapped Web key under an existing face-specific family (0.190998ms)
+✔ rejects an unmapped TUI key under an existing face-specific family (0.148824ms)
+✔ rejects a declared Web face-specific key missing from the catalogs (0.198459ms)
+✔ rejects a declared TUI face-specific key missing from the catalogs (0.144388ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.118732
+node scripts/check-i18n-cross-face.js
+PASS: 13 shared semantic units; Web and TUI en/zh projections and arguments conform.
+& "go" vet ./...
+# The Windows runtime package exercises hundreds of SQLite-backed real paths
+# and now legitimately exceeds Go's default 10-minute per-package timeout;
+# the SDK's pack/eval suite (sdk/internal) builds ~20 temporary modules and
+# exceeds it too. internal/runtime crossed the 20-minute bound on the
+# Windows runner, so the shared bound is 35m.
+& "go" test -timeout 35m ./...
+ok  	agent-vivy/cmd/vivy	(cached)
+?   	agent-vivy/cmd/vivy-code	[no test files]
+ok  	agent-vivy/cmd/vivy-shared	(cached)
+?   	agent-vivy/cmd/vivy-studio	[no test files]
+ok  	agent-vivy/internal/actionhost	(cached)
+ok  	agent-vivy/internal/app	(cached)
+ok  	agent-vivy/internal/app/settings	(cached)
+ok  	agent-vivy/internal/attachment	(cached)
+?   	agent-vivy/internal/buildinfo	[no test files]
+ok  	agent-vivy/internal/channelhost	(cached)
+?   	agent-vivy/internal/channelhost/fake	[no test files]
+ok  	agent-vivy/internal/codeface	(cached)
+?   	agent-vivy/internal/cognitivecontract	[no test files]
+ok  	agent-vivy/internal/commandpolicy	(cached)
+ok  	agent-vivy/internal/config	(cached)
+ok  	agent-vivy/internal/contexthost	(cached)
+ok  	agent-vivy/internal/domain	(cached)
+ok  	agent-vivy/internal/embedded	(cached)
+?   	agent-vivy/internal/embedded/abi	[no test files]
+ok  	agent-vivy/internal/eval	(cached)
+ok  	agent-vivy/internal/events	(cached)
+?   	agent-vivy/internal/generated/assembly	[no test files]
+?   	agent-vivy/internal/generated/presentation	[no test files]
+ok  	agent-vivy/internal/i18n	(cached)
+ok  	agent-vivy/internal/logging	(cached)
+ok  	agent-vivy/internal/maskcontract	(cached)
+ok  	agent-vivy/internal/mcphost	(cached)
+ok  	agent-vivy/internal/modelhost	(cached)
+ok  	agent-vivy/internal/modulehost	(cached)
+ok  	agent-vivy/internal/moduleport	(cached)
+ok  	agent-vivy/internal/modules	(cached)
+ok  	agent-vivy/internal/modules/checkpoint	(cached)
+ok  	agent-vivy/internal/modules/credential	(cached)
+ok  	agent-vivy/internal/modules/defaults	(cached)
+ok  	agent-vivy/internal/modules/diva-cognitive	(cached)
+ok  	agent-vivy/internal/modules/loop	(cached)
+ok  	agent-vivy/internal/modules/masks	(cached)
+ok  	agent-vivy/internal/modules/memory	(cached)
+ok  	agent-vivy/internal/modules/model	(cached)
+ok  	agent-vivy/internal/modules/optional	(cached)
+ok  	agent-vivy/internal/modules/sandbox	(cached)
+ok  	agent-vivy/internal/modules/storage	(cached)
+ok  	agent-vivy/internal/observerhost	(cached)
+?   	agent-vivy/internal/orchestration	[no test files]
+ok  	agent-vivy/internal/provider	(cached)
+ok  	agent-vivy/internal/rpc	(cached)
+ok  	agent-vivy/internal/runtime	(cached)
+ok  	agent-vivy/internal/runtime/compaction	(cached)
+ok  	agent-vivy/internal/skillhost	(cached)
+?   	agent-vivy/internal/sourcehash	[no test files]
+ok  	agent-vivy/internal/statushost	(cached)
+ok  	agent-vivy/internal/storage	(cached)
+?   	agent-vivy/internal/storage/conformance	[no test files]
+ok  	agent-vivy/internal/storage/migrations	(cached)
+ok  	agent-vivy/internal/storage/postgres	(cached)
+ok  	agent-vivy/internal/storage/sqlite	(cached)
+ok  	agent-vivy/internal/studio	(cached)
+ok  	agent-vivy/internal/studiocore	(cached)
+?   	agent-vivy/internal/testsupport	[no test files]
+ok  	agent-vivy/internal/toolhost	(cached)
+ok  	agent-vivy/internal/tools	(cached)
+?   	agent-vivy/internal/tui	[no test files]
+ok  	agent-vivy/plugins/hello-fs	(cached)
+?   	agent-vivy/sdk	[no test files]
+ok  	agent-vivy/sdk/conformance	(cached)
+ok  	agent-vivy/sdk/generation	(cached)
+ok  	agent-vivy/sdk/host/v1	(cached)
+ok  	agent-vivy/sdk/internal	392.217s
+ok  	agent-vivy/sdk/internal/assembly	8.732s
+?   	agent-vivy/sdk/internal/cmd/generate-default	[no test files]
+?   	agent-vivy/sdk/internal/cmd/source-hash	[no test files]
+ok  	agent-vivy/sdk/internal/conformance	(cached)
+ok  	agent-vivy/sdk/module	(cached)
+ok  	agent-vivy/sdk/port	(cached)
+ok  	agent-vivy/sdk/port/channel	(cached)
+ok  	agent-vivy/sdk/port/contextsource	(cached)
+ok  	agent-vivy/sdk/port/controlaction	(cached)
+ok  	agent-vivy/sdk/port/face	(cached)
+ok  	agent-vivy/sdk/port/observer	(cached)
+ok  	agent-vivy/sdk/port/pretool	(cached)
+ok  	agent-vivy/sdk/port/providerprofile	(cached)
+ok  	agent-vivy/sdk/port/skillsource	(cached)
+ok  	agent-vivy/sdk/port/status	(cached)
+ok  	agent-vivy/sdk/port/tool	(cached)
+ok  	agent-vivy/sdk/port/toolworld	(cached)
+ok  	agent-vivy/sdk/tui/command	(cached)
+ok  	agent-vivy/sdk/tui/face	(cached)
+ok  	agent-vivy/sdk/tui/i18n	(cached)
+?   	agent-vivy/sdk/tui/internal/textsafe	[no test files]
+ok  	agent-vivy/sdk/tui/live	(cached)
+ok  	agent-vivy/sdk/tui/stream	(cached)
+?   	agent-vivy/sdk/tui/surface	[no test files]
+ok  	agent-vivy/sdk/tui/view	(cached)
+ok  	agent-vivy/sdk/ui	(cached)
+?   	agent-vivy/spike/einoverify	[no test files]
+ok  	agent-vivy/ui	(cached)
+& "go" test -run '^$' -tags vivy_headless ./cmd/vivy ./cmd/vivy-code ./ui
+ok  	agent-vivy/cmd/vivy	(cached) [no tests to run]
+?   	agent-vivy/cmd/vivy-code	[no test files]
+ok  	agent-vivy/ui	(cached) [no tests to run]
+powershell -NoProfile -Command '$fail = 0; foreach ($root in @(''plugins'', ''faces'')) { if (-not (Test-Path $root)) { continue }; $mods = Get-ChildItem $root -Directory | Where-Object { Test-Path (Join-Path $_.FullName ''go.mod'') }; foreach ($m in $mods) { Write-Output (''== plugin-ci: '' + $root + ''/'' + $m.Name); Push-Location $m.FullName; & ''go'' vet ./...; if ($LASTEXITCODE) { $fail = 1 }; & ''go'' test ./...; if ($LASTEXITCODE) { $fail = 1 }; Pop-Location } }; exit $fail'
+== plugin-ci: plugins/dingtalk
+ok  	agent-vivy/plugins/dingtalk	(cached)
+== plugin-ci: plugins/discord
+ok  	agent-vivy/plugins/discord	(cached)
+== plugin-ci: plugins/feishu
+ok  	agent-vivy/plugins/feishu	(cached)
+== plugin-ci: plugins/governance
+ok  	agent-vivy/plugins/governance	(cached)
+== plugin-ci: plugins/lsp
+ok  	agent-vivy/plugins/lsp	(cached)
+== plugin-ci: plugins/qq
+ok  	agent-vivy/plugins/qq	(cached)
+== plugin-ci: plugins/scx-reference
+ok  	agent-vivy/plugins/scxreference	(cached)
+== plugin-ci: plugins/telegram
+ok  	agent-vivy/plugins/telegram	(cached)
+== plugin-ci: plugins/vivy-evolution
+ok  	agent-vivy/plugins/vivy-evolution	(cached)
+== plugin-ci: plugins/vivy-masks-ui
+?   	agent-vivy/plugins/vivy-masks-ui	[no test files]
+== plugin-ci: plugins/vivy-memory
+ok  	agent-vivy/plugins/vivy-memory	(cached)
+== plugin-ci: plugins/vivy-notebook
+ok  	agent-vivy/plugins/vivy-notebook	(cached)
+== plugin-ci: plugins/vivy-persona
+ok  	agent-vivy/plugins/vivy-persona	(cached)
+== plugin-ci: plugins/vivy-workflow
+?   	agent-vivy/plugins/vivy-workflow	[no test files]
+== plugin-ci: faces/headless
+ok  	agent-vivy/faces/headless	(cached)
+== plugin-ci: faces/tui
+ok  	agent-vivy/faces/tui	(cached)

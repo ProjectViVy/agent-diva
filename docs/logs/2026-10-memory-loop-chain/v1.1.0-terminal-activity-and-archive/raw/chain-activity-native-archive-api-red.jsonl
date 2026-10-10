@@ -1,0 +1,6 @@
+{"ImportPath":"github.com/dashimaki/garden/internal/ingest [github.com/dashimaki/garden/internal/ingest.test]","Action":"build-output","Output":"# github.com/dashimaki/garden/internal/ingest [github.com/dashimaki/garden/internal/ingest.test]\n"}
+{"ImportPath":"github.com/dashimaki/garden/internal/ingest [github.com/dashimaki/garden/internal/ingest.test]","Action":"build-output","Output":"internal/ingest/capture_activity_test.go:269:16: svc.ArchiveSession undefined (type *Service has no field or method ArchiveSession)\n"}
+{"ImportPath":"github.com/dashimaki/garden/internal/ingest [github.com/dashimaki/garden/internal/ingest.test]","Action":"build-fail"}
+{"Time":"2026-10-10T04:12:10.064791738Z","Action":"start","Package":"github.com/dashimaki/garden/internal/ingest"}
+{"Time":"2026-10-10T04:12:10.064838969Z","Action":"output","Package":"github.com/dashimaki/garden/internal/ingest","Output":"FAIL\tgithub.com/dashimaki/garden/internal/ingest [build failed]\n"}
+{"Time":"2026-10-10T04:12:10.064845099Z","Action":"fail","Package":"github.com/dashimaki/garden/internal/ingest","Elapsed":0,"FailedBuild":"github.com/dashimaki/garden/internal/ingest [github.com/dashimaki/garden/internal/ingest.test]"}

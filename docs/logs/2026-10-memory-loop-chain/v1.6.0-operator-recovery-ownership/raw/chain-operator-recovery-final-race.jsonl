@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:21:27.220735856Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:21:27.281819192Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun"}
+{"Time":"2026-10-10T05:21:27.281880044Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun","Output":"=== RUN   TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun\n"}
+{"Time":"2026-10-10T05:21:28.024647004Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun","Output":"2026/10/10 05:21:28 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun1236150824/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:21:47.092779131Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun","Output":"    memory_loop_operator_recovery_test.go:53: actual development artifacts: /workspace/work/memory-loop/logs/chain-operator-recovery-evidence/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132 (6 hashed files)\n"}
+{"Time":"2026-10-10T05:21:47.099198541Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun","Output":"--- PASS: TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun (19.82s)\n"}
+{"Time":"2026-10-10T05:21:47.099222186Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun","Elapsed":19.82}
+{"Time":"2026-10-10T05:21:47.099278Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T05:21:48.149864519Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t20.929s\n"}
+{"Time":"2026-10-10T05:21:48.149984179Z","Action":"pass","Package":"command-line-arguments","Elapsed":20.929}

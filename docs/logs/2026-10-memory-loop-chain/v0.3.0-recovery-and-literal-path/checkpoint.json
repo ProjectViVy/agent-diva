@@ -1,0 +1,171 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T01:18:34.410603+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "7eb669c596bf3ee51db51b9e67e55fc412ba6ee0",
+    "agent-vivy": "d72add0917535277d94c7db4489a0fc31d1e1d0b",
+    "laputa": "256d1f10b71fd2eed0947cafaaf6988f6dbaa6ff"
+  },
+  "execution_mode": "previous generated diagnostic overlay; no new-source artifact attestation",
+  "implementation_revision": "diva-cognitive/v1-review-3",
+  "recorded_exit_codes": {
+    "chain-unresolved-settlement-red": 1,
+    "chain-unresolved-identity-red": 1,
+    "chain-work-receipt-red": 1,
+    "chain-rejected-app-red": 1,
+    "chain-rejected-app-regression": 0,
+    "chain-sqlite-path-identity-red": 1,
+    "chain-sqlite-literal-final-regression": 0,
+    "chain-recovery-final-runtime": 0,
+    "chain-recovery-final-composition": 0,
+    "chain-recovery-final-default-app": 0,
+    "chain-work-receipt-regression": 0,
+    "chain-garden-work-receipt-regression": 0,
+    "chain-cancellation-ledger-regression": 0
+  },
+  "remaining_local_work": [
+    "same-operation recovery and six-cut process crash matrix",
+    "source/policy concurrency and remaining bounds",
+    "S03 recall; remaining S04 source cases",
+    "S05-S11 ACTMEM/persona/recall/lifecycle/provenance/isolation",
+    "final frozen-source CI/conformance/sealing/fresh review"
+  ],
+  "external_resources": [
+    "Windows runner/UI/WebView2",
+    "real provider/model configuration and budget"
+  ],
+  "logs": [
+    {
+      "path": "raw/chain-unresolved-settlement-red.jsonl",
+      "sha256": "00b035a95f7f747ef595bfc21cdcc7c0bb9c6188764ca4f2d3442a271f3621b1",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 4,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-unresolved-identity-red.jsonl",
+      "sha256": "b3a963fc475c250a8f871dd827f9d31c426cd207e93f79d8b26fb76b9b527438",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 5,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-work-receipt-red.jsonl",
+      "sha256": "a5f621c964193589d7a58e59ec0bd2979956e2362f78417541d44a80855fa151",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 3,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-rejected-app-red.jsonl",
+      "sha256": "9d7b7805010d1e1d6647cbc90c3ddddfd9a1ac1473f4dbad1704365b4c64c270",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-rejected-app-regression.jsonl",
+      "sha256": "fce4e7c0bc577d470f0f3df1b1b3c132fb87f9c9c27d1972b11513909ef8b378",
+      "named_tests_subtests": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-sqlite-path-identity-red.jsonl",
+      "sha256": "bf68ab408bdc4f187d4453b5a87e2727f895d92d6741bb0a985eb04eb6cfcdb3",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 4,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-sqlite-literal-final-regression.jsonl",
+      "sha256": "6f861a56681ea124b0d4dd6264e7456e18e0115cf57c7fd39b3eddb536be7f08",
+      "named_tests_subtests": {
+        "pass": 158,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-recovery-final-runtime.jsonl",
+      "sha256": "c76d88f402fad78d09c0032624fbb2d84a9d404716f31354027dd62bbf5fc0de",
+      "named_tests_subtests": {
+        "pass": 81,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-recovery-final-composition.jsonl",
+      "sha256": "c763131dfd61ae0f97cac85548f945cf404f3bda9747de7418e14fc9c9e46eea",
+      "named_tests_subtests": {
+        "pass": 12,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-recovery-final-default-app.jsonl",
+      "sha256": "6224ac9f60c41e768afb5954ce2a6cb8843328cc3a7b24be123e4bd2d27dadee",
+      "named_tests_subtests": {
+        "pass": 133,
+        "fail": 0,
+        "skip": 11
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-work-receipt-regression.jsonl",
+      "sha256": "25de0263d0b3911f5dcb668207a9d2587bcdf35906a5c3141e808d9eaa222773",
+      "named_tests_subtests": {
+        "pass": 67,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-garden-work-receipt-regression.jsonl",
+      "sha256": "829e8439e7470a7fb3ab1f1a0f043fa4e8c4ea8684d1bcd4d616810fad303388",
+      "named_tests_subtests": {
+        "pass": 480,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-cancellation-ledger-regression.jsonl",
+      "sha256": "c5474601cf7567795fa22ce6b47941d6ff8bbb636bf13b8a33057901d74eed4c",
+      "named_tests_subtests": {
+        "pass": 10,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    }
+  ]
+}

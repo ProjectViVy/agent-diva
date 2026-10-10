@@ -1,0 +1,8 @@
+{"Time":"2026-10-10T03:18:37.564287188Z","Action":"start","Package":"github.com/dashimaki/garden/backends/mentle"}
+{"Time":"2026-10-10T03:18:37.569226068Z","Action":"run","Package":"github.com/dashimaki/garden/backends/mentle","Test":"TestConcurrentExpansionKeepsOneCanonicalRevision"}
+{"Time":"2026-10-10T03:18:37.569249122Z","Action":"output","Package":"github.com/dashimaki/garden/backends/mentle","Test":"TestConcurrentExpansionKeepsOneCanonicalRevision","Output":"=== RUN   TestConcurrentExpansionKeepsOneCanonicalRevision\n"}
+{"Time":"2026-10-10T03:18:37.751626554Z","Action":"output","Package":"github.com/dashimaki/garden/backends/mentle","Test":"TestConcurrentExpansionKeepsOneCanonicalRevision","Output":"--- PASS: TestConcurrentExpansionKeepsOneCanonicalRevision (0.18s)\n"}
+{"Time":"2026-10-10T03:18:37.751665292Z","Action":"pass","Package":"github.com/dashimaki/garden/backends/mentle","Test":"TestConcurrentExpansionKeepsOneCanonicalRevision","Elapsed":0.18}
+{"Time":"2026-10-10T03:18:37.751672743Z","Action":"output","Package":"github.com/dashimaki/garden/backends/mentle","Output":"PASS\n"}
+{"Time":"2026-10-10T03:18:37.753457437Z","Action":"output","Package":"github.com/dashimaki/garden/backends/mentle","Output":"ok  \tgithub.com/dashimaki/garden/backends/mentle\t0.189s\n"}
+{"Time":"2026-10-10T03:18:37.75348615Z","Action":"pass","Package":"github.com/dashimaki/garden/backends/mentle","Elapsed":0.189}

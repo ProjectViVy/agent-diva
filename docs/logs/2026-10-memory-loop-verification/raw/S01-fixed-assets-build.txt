@@ -1,0 +1,6 @@
+go run ./sdk pack --target go-host --recipe recipes/diva.vivy.yml --host-dir /workspace/work/memory-loop/agent-diva --host-package ./cmd/diva --host-assets .test-assets-ow_0f3t3 --host-lock /tmp/diva-gohost-stage-r7lhi2e7/vivy-sources.lock.json --output /tmp/diva-gohost-stage-r7lhi2e7/artifact failed in /workspace/work/memory-loop/agent-vivy:
+build go-host generation: exit status 1: error obtaining VCS status: exit status 128
+	Use -buildvcs=false to disable VCS stamping.
+
+exit status 1
+

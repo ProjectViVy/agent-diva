@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T10:31:25.526103722Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-10T10:31:25.589891576Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely"}
+{"Time":"2026-10-10T10:31:25.589953169Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"=== RUN   TestMemoryLoopRecallDeadlineDegradesSafely\n"}
+{"Time":"2026-10-10T10:31:26.411842097Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"2026/10/10 10:31:26 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallDeadlineDegradesSafely2261514848/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T10:31:57.113546857Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"    memory_loop_recall_test.go:243: actual bounded Source degraded; late native query error=\"material read failed\" candidates=0\n"}
+{"Time":"2026-10-10T10:32:05.137396889Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"--- PASS: TestMemoryLoopRecallDeadlineDegradesSafely (39.55s)\n"}
+{"Time":"2026-10-10T10:32:05.137431642Z","Action":"pass","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Elapsed":39.55}
+{"Time":"2026-10-10T10:32:05.137658844Z","Action":"output","Package":"agent-vivy/internal/app","Output":"PASS\n"}
+{"Time":"2026-10-10T10:32:06.192595481Z","Action":"output","Package":"agent-vivy/internal/app","Output":"ok  \tagent-vivy/internal/app\t40.666s\n"}
+{"Time":"2026-10-10T10:32:06.192635451Z","Action":"pass","Package":"agent-vivy/internal/app","Elapsed":40.667}

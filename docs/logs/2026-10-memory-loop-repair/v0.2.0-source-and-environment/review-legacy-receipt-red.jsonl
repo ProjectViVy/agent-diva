@@ -1,0 +1,9 @@
+{"Time":"2026-10-09T23:15:55.690668998Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-09T23:15:55.718838642Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt"}
+{"Time":"2026-10-09T23:15:55.71887658Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Output":"=== RUN   TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt\n"}
+{"Time":"2026-10-09T23:15:55.751884227Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Output":"    memory_loop_capture_test.go:140: legacy receipt lost: {EventID::0 ReceiptID: State:} event_conflict: original assistant-only payload already accepted\n"}
+{"Time":"2026-10-09T23:15:55.752223708Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Output":"--- FAIL: TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt (0.03s)\n"}
+{"Time":"2026-10-09T23:15:55.752288857Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestMemoryLoopCaptureRejoinsLegacyAcceptedReceipt","Elapsed":0.03}
+{"Time":"2026-10-09T23:15:55.752358732Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-09T23:15:55.755166932Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.064s\n"}
+{"Time":"2026-10-09T23:15:55.755206131Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.065}

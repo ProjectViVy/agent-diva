@@ -1,0 +1,288 @@
+{"Time":"2026-10-10T03:19:02.110970983Z","Action":"start","Package":"github.com/dashimaki/mentle/facade"}
+{"Time":"2026-10-10T03:19:02.115624102Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables"}
+{"Time":"2026-10-10T03:19:02.115745304Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables","Output":"=== RUN   TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables\n"}
+{"Time":"2026-10-10T03:19:02.118339462Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables","Output":"--- PASS: TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.118354745Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogReopensCanonicalFileWithoutChangingAuthorityTables","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.118360063Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogInvalidPathReturnsError"}
+{"Time":"2026-10-10T03:19:02.118363198Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogInvalidPathReturnsError","Output":"=== RUN   TestCatalogInvalidPathReturnsError\n"}
+{"Time":"2026-10-10T03:19:02.118462657Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogInvalidPathReturnsError","Output":"--- PASS: TestCatalogInvalidPathReturnsError (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.118467365Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogInvalidPathReturnsError","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.11847114Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault"}
+{"Time":"2026-10-10T03:19:02.118472903Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Output":"=== RUN   TestCardCollectionMatchesCanonicalDefault\n"}
+{"Time":"2026-10-10T03:19:02.12054203Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Output":"--- PASS: TestCardCollectionMatchesCanonicalDefault (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.120558725Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.12056191Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsNoFullContent"}
+{"Time":"2026-10-10T03:19:02.120564263Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsNoFullContent","Output":"=== RUN   TestSearchCardsNoFullContent\n"}
+{"Time":"2026-10-10T03:19:02.122336262Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsNoFullContent","Output":"--- PASS: TestSearchCardsNoFullContent (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.12239471Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsNoFullContent","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.12240156Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsStatusFilter"}
+{"Time":"2026-10-10T03:19:02.122404144Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsStatusFilter","Output":"=== RUN   TestSearchCardsStatusFilter\n"}
+{"Time":"2026-10-10T03:19:02.124879593Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsStatusFilter","Output":"--- PASS: TestSearchCardsStatusFilter (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.124897239Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsStatusFilter","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.124901416Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsSupersededFilter"}
+{"Time":"2026-10-10T03:19:02.124905842Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsSupersededFilter","Output":"=== RUN   TestSearchCardsSupersededFilter\n"}
+{"Time":"2026-10-10T03:19:02.126879225Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsSupersededFilter","Output":"--- PASS: TestSearchCardsSupersededFilter (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.126893947Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsSupersededFilter","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.126897733Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsScopeFilter"}
+{"Time":"2026-10-10T03:19:02.126900497Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsScopeFilter","Output":"=== RUN   TestSearchCardsScopeFilter\n"}
+{"Time":"2026-10-10T03:19:02.129208674Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsScopeFilter","Output":"--- PASS: TestSearchCardsScopeFilter (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.129223386Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsScopeFilter","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.129227332Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsLimitAndDedup"}
+{"Time":"2026-10-10T03:19:02.129230226Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsLimitAndDedup","Output":"=== RUN   TestSearchCardsLimitAndDedup\n"}
+{"Time":"2026-10-10T03:19:02.132368112Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsLimitAndDedup","Output":"--- PASS: TestSearchCardsLimitAndDedup (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.132389074Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsLimitAndDedup","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.132394162Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsUnavailable"}
+{"Time":"2026-10-10T03:19:02.132397947Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsUnavailable","Output":"=== RUN   TestSearchCardsUnavailable\n"}
+{"Time":"2026-10-10T03:19:02.132403065Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsUnavailable","Output":"--- PASS: TestSearchCardsUnavailable (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.13240632Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSearchCardsUnavailable","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.132411858Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEmbedderIdentityFields"}
+{"Time":"2026-10-10T03:19:02.132414602Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEmbedderIdentityFields","Output":"=== RUN   TestEmbedderIdentityFields\n"}
+{"Time":"2026-10-10T03:19:02.132418428Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEmbedderIdentityFields","Output":"--- PASS: TestEmbedderIdentityFields (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.132422024Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEmbedderIdentityFields","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.132425228Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogSaveAndGetIdentity"}
+{"Time":"2026-10-10T03:19:02.132427993Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogSaveAndGetIdentity","Output":"=== RUN   TestCatalogSaveAndGetIdentity\n"}
+{"Time":"2026-10-10T03:19:02.133301939Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogSaveAndGetIdentity","Output":"--- PASS: TestCatalogSaveAndGetIdentity (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.133312936Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogSaveAndGetIdentity","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.133317122Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogIdentityNotFound"}
+{"Time":"2026-10-10T03:19:02.133326746Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogIdentityNotFound","Output":"=== RUN   TestCatalogIdentityNotFound\n"}
+{"Time":"2026-10-10T03:19:02.13417198Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogIdentityNotFound","Output":"--- PASS: TestCatalogIdentityNotFound (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.134183086Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCatalogIdentityNotFound","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.134187663Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEnqueueReindexJob"}
+{"Time":"2026-10-10T03:19:02.134191729Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEnqueueReindexJob","Output":"=== RUN   TestEnqueueReindexJob\n"}
+{"Time":"2026-10-10T03:19:02.134949441Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEnqueueReindexJob","Output":"--- PASS: TestEnqueueReindexJob (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.134959366Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEnqueueReindexJob","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.134963151Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestDimensionMismatchRejection"}
+{"Time":"2026-10-10T03:19:02.134966256Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestDimensionMismatchRejection","Output":"=== RUN   TestDimensionMismatchRejection\n"}
+{"Time":"2026-10-10T03:19:02.135764889Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestDimensionMismatchRejection","Output":"--- PASS: TestDimensionMismatchRejection (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.13579198Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestDimensionMismatchRejection","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.135796597Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit"}
+{"Time":"2026-10-10T03:19:02.135800262Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit\n"}
+{"Time":"2026-10-10T03:19:02.135804689Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension"}
+{"Time":"2026-10-10T03:19:02.135807513Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension\n"}
+{"Time":"2026-10-10T03:19:02.137257026Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.13727285Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/dimension","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.137280542Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric"}
+{"Time":"2026-10-10T03:19:02.137284037Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric\n"}
+{"Time":"2026-10-10T03:19:02.138559138Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.138571787Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/metric","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.138586899Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize"}
+{"Time":"2026-10-10T03:19:02.138591196Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize\n"}
+{"Time":"2026-10-10T03:19:02.140318773Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.140332373Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/normalize","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.140335829Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model"}
+{"Time":"2026-10-10T03:19:02.140338202Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model\n"}
+{"Time":"2026-10-10T03:19:02.141588385Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.141593263Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/model","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.141595516Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider"}
+{"Time":"2026-10-10T03:19:02.141597088Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider\n"}
+{"Time":"2026-10-10T03:19:02.142996947Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.143003036Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/provider","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.143005429Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version"}
+{"Time":"2026-10-10T03:19:02.143007503Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version","Output":"=== RUN   TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version\n"}
+{"Time":"2026-10-10T03:19:02.144314121Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.144321291Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit/version","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.144324476Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit","Output":"--- PASS: TestEveryEmbeddingIdentityFieldMismatchIsExplicit (0.01s)\n"}
+{"Time":"2026-10-10T03:19:02.144327471Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEveryEmbeddingIdentityFieldMismatchIsExplicit","Elapsed":0.01}
+{"Time":"2026-10-10T03:19:02.144330776Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidencePerItemBudget"}
+{"Time":"2026-10-10T03:19:02.144332929Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidencePerItemBudget","Output":"=== RUN   TestReadEvidencePerItemBudget\n"}
+{"Time":"2026-10-10T03:19:02.146397779Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidencePerItemBudget","Output":"--- PASS: TestReadEvidencePerItemBudget (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.14640519Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidencePerItemBudget","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.146408245Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceTotalBudget"}
+{"Time":"2026-10-10T03:19:02.146410138Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceTotalBudget","Output":"=== RUN   TestReadEvidenceTotalBudget\n"}
+{"Time":"2026-10-10T03:19:02.149834441Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceTotalBudget","Output":"--- PASS: TestReadEvidenceTotalBudget (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.149850034Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceTotalBudget","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.149854551Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceContentHash"}
+{"Time":"2026-10-10T03:19:02.149857656Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceContentHash","Output":"=== RUN   TestReadEvidenceContentHash\n"}
+{"Time":"2026-10-10T03:19:02.151742184Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceContentHash","Output":"--- PASS: TestReadEvidenceContentHash (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.151756966Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceContentHash","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.151761153Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceMissingCard"}
+{"Time":"2026-10-10T03:19:02.151767192Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceMissingCard","Output":"=== RUN   TestReadEvidenceMissingCard\n"}
+{"Time":"2026-10-10T03:19:02.153571139Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceMissingCard","Output":"--- PASS: TestReadEvidenceMissingCard (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.153584549Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceMissingCard","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.153589567Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceValidity"}
+{"Time":"2026-10-10T03:19:02.153592762Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceValidity","Output":"=== RUN   TestReadEvidenceValidity\n"}
+{"Time":"2026-10-10T03:19:02.154995575Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceValidity","Output":"--- PASS: TestReadEvidenceValidity (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.155009345Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceValidity","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.155013141Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceUnavailable"}
+{"Time":"2026-10-10T03:19:02.155016596Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceUnavailable","Output":"=== RUN   TestReadEvidenceUnavailable\n"}
+{"Time":"2026-10-10T03:19:02.155020262Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceUnavailable","Output":"--- PASS: TestReadEvidenceUnavailable (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.15507201Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestReadEvidenceUnavailable","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.155075836Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalMemoryLifecycleAndIdempotency"}
+{"Time":"2026-10-10T03:19:02.15508557Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalMemoryLifecycleAndIdempotency","Output":"=== RUN   TestCanonicalMemoryLifecycleAndIdempotency\n"}
+{"Time":"2026-10-10T03:19:02.157709052Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalMemoryLifecycleAndIdempotency","Output":"--- PASS: TestCanonicalMemoryLifecycleAndIdempotency (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.157725316Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalMemoryLifecycleAndIdempotency","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.157729833Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestUninitializedServiceReportsUnavailable"}
+{"Time":"2026-10-10T03:19:02.157733238Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestUninitializedServiceReportsUnavailable","Output":"=== RUN   TestUninitializedServiceReportsUnavailable\n"}
+{"Time":"2026-10-10T03:19:02.157804435Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestUninitializedServiceReportsUnavailable","Output":"--- PASS: TestUninitializedServiceReportsUnavailable (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.157809293Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestUninitializedServiceReportsUnavailable","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.157812438Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestConcurrentUpdateUsesSingleVersionWinner"}
+{"Time":"2026-10-10T03:19:02.157815562Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestConcurrentUpdateUsesSingleVersionWinner","Output":"=== RUN   TestConcurrentUpdateUsesSingleVersionWinner\n"}
+{"Time":"2026-10-10T03:19:02.159821969Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestConcurrentUpdateUsesSingleVersionWinner","Output":"--- PASS: TestConcurrentUpdateUsesSingleVersionWinner (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.159835429Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestConcurrentUpdateUsesSingleVersionWinner","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.159841649Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery"}
+{"Time":"2026-10-10T03:19:02.159843512Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery","Output":"=== RUN   TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery\n"}
+{"Time":"2026-10-10T03:19:02.161546642Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery","Output":"--- PASS: TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.161562436Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCanonicalCommitSurvivesDerivedIndexFailureAndRecovery","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.161568746Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCloseNilService"}
+{"Time":"2026-10-10T03:19:02.161572551Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCloseNilService","Output":"=== RUN   TestCloseNilService\n"}
+{"Time":"2026-10-10T03:19:02.161576377Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCloseNilService","Output":"--- PASS: TestCloseNilService (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.161579722Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCloseNilService","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.161583328Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestServiceRealCRUDAndRetrieval"}
+{"Time":"2026-10-10T03:19:02.161586362Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestServiceRealCRUDAndRetrieval","Output":"=== RUN   TestServiceRealCRUDAndRetrieval\n"}
+{"Time":"2026-10-10T03:19:02.163688949Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestServiceRealCRUDAndRetrieval","Output":"--- PASS: TestServiceRealCRUDAndRetrieval (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.163704192Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestServiceRealCRUDAndRetrieval","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.16370927Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState"}
+{"Time":"2026-10-10T03:19:02.163713186Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState","Output":"=== RUN   TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState\n"}
+{"Time":"2026-10-10T03:19:02.165212574Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState","Output":"--- PASS: TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.165226996Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsMissingEmbeddingIdentityWithoutHidingCanonicalState","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.165232735Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsDerivedDivergenceAndTombstonePressure"}
+{"Time":"2026-10-10T03:19:02.165236931Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsDerivedDivergenceAndTombstonePressure","Output":"=== RUN   TestIndexHealthReportsDerivedDivergenceAndTombstonePressure\n"}
+{"Time":"2026-10-10T03:19:02.166862059Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsDerivedDivergenceAndTombstonePressure","Output":"--- PASS: TestIndexHealthReportsDerivedDivergenceAndTombstonePressure (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.16687616Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsDerivedDivergenceAndTombstonePressure","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.166882259Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsPendingAndFailedOutboxJobs"}
+{"Time":"2026-10-10T03:19:02.166885915Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsPendingAndFailedOutboxJobs","Output":"=== RUN   TestIndexHealthReportsPendingAndFailedOutboxJobs\n"}
+{"Time":"2026-10-10T03:19:02.168616672Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsPendingAndFailedOutboxJobs","Output":"--- PASS: TestIndexHealthReportsPendingAndFailedOutboxJobs (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.168630773Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthReportsPendingAndFailedOutboxJobs","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.168634799Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails"}
+{"Time":"2026-10-10T03:19:02.168637773Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails","Output":"=== RUN   TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails\n"}
+{"Time":"2026-10-10T03:19:02.168708149Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails","Output":"--- PASS: TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.168714088Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestIndexHealthUnavailableOnlyWhenCanonicalProbeFails","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.168717754Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsMissingDespiteBundledCWD"}
+{"Time":"2026-10-10T03:19:02.168720959Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsMissingDespiteBundledCWD","Output":"=== RUN   TestInitRequireLocalModelRejectsMissingDespiteBundledCWD\n"}
+{"Time":"2026-10-10T03:19:02.168896593Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsMissingDespiteBundledCWD","Output":"--- PASS: TestInitRequireLocalModelRejectsMissingDespiteBundledCWD (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.168931215Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsMissingDespiteBundledCWD","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.168935682Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsEmptyDirectory"}
+{"Time":"2026-10-10T03:19:02.168938717Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsEmptyDirectory","Output":"=== RUN   TestInitRequireLocalModelRejectsEmptyDirectory\n"}
+{"Time":"2026-10-10T03:19:02.169249435Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsEmptyDirectory","Output":"--- PASS: TestInitRequireLocalModelRejectsEmptyDirectory (0.00s)\n"}
+{"Time":"2026-10-10T03:19:02.169264157Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitRequireLocalModelRejectsEmptyDirectory","Elapsed":0}
+{"Time":"2026-10-10T03:19:02.169278819Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPalaceReopenCanonicalLifecycle"}
+{"Time":"2026-10-10T03:19:02.169282114Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPalaceReopenCanonicalLifecycle","Output":"=== RUN   TestInitExplicitPalaceReopenCanonicalLifecycle\n"}
+{"Time":"2026-10-10T03:19:02.829164616Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPalaceReopenCanonicalLifecycle","Output":"--- PASS: TestInitExplicitPalaceReopenCanonicalLifecycle (0.66s)\n"}
+{"Time":"2026-10-10T03:19:02.829223024Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPalaceReopenCanonicalLifecycle","Elapsed":0.66}
+{"Time":"2026-10-10T03:19:02.829230665Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsIgnoreAmbientConfigAndEnv"}
+{"Time":"2026-10-10T03:19:02.829234321Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsIgnoreAmbientConfigAndEnv","Output":"=== RUN   TestInitExplicitPathsIgnoreAmbientConfigAndEnv\n"}
+{"Time":"2026-10-10T03:19:02.895224073Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsIgnoreAmbientConfigAndEnv","Output":"--- PASS: TestInitExplicitPathsIgnoreAmbientConfigAndEnv (0.07s)\n"}
+{"Time":"2026-10-10T03:19:02.89526198Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsIgnoreAmbientConfigAndEnv","Elapsed":0.07}
+{"Time":"2026-10-10T03:19:02.895267589Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsOverrideLoadedConfig"}
+{"Time":"2026-10-10T03:19:02.895270403Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsOverrideLoadedConfig","Output":"=== RUN   TestInitExplicitPathsOverrideLoadedConfig\n"}
+{"Time":"2026-10-10T03:19:02.958865403Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsOverrideLoadedConfig","Output":"--- PASS: TestInitExplicitPathsOverrideLoadedConfig (0.06s)\n"}
+{"Time":"2026-10-10T03:19:02.95890283Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitExplicitPathsOverrideLoadedConfig","Elapsed":0.06}
+{"Time":"2026-10-10T03:19:02.958908999Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues"}
+{"Time":"2026-10-10T03:19:02.958911963Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues","Output":"=== RUN   TestInitPartialOverridesKeepConfiguredValues\n"}
+{"Time":"2026-10-10T03:19:02.958943511Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/palace_only"}
+{"Time":"2026-10-10T03:19:02.958946215Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/palace_only","Output":"=== RUN   TestInitPartialOverridesKeepConfiguredValues/palace_only\n"}
+{"Time":"2026-10-10T03:19:03.018789414Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/palace_only","Output":"--- PASS: TestInitPartialOverridesKeepConfiguredValues/palace_only (0.06s)\n"}
+{"Time":"2026-10-10T03:19:03.018830797Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/palace_only","Elapsed":0.06}
+{"Time":"2026-10-10T03:19:03.018838558Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/models_only"}
+{"Time":"2026-10-10T03:19:03.018847802Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/models_only","Output":"=== RUN   TestInitPartialOverridesKeepConfiguredValues/models_only\n"}
+{"Time":"2026-10-10T03:19:03.114109994Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/models_only","Output":"--- PASS: TestInitPartialOverridesKeepConfiguredValues/models_only (0.10s)\n"}
+{"Time":"2026-10-10T03:19:03.114149574Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues/models_only","Elapsed":0.1}
+{"Time":"2026-10-10T03:19:03.114156034Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues","Output":"--- PASS: TestInitPartialOverridesKeepConfiguredValues (0.16s)\n"}
+{"Time":"2026-10-10T03:19:03.114159278Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitPartialOverridesKeepConfiguredValues","Elapsed":0.16}
+{"Time":"2026-10-10T03:19:03.114162003Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitConfigDirStillSuppliesPathsWithoutOverrides"}
+{"Time":"2026-10-10T03:19:03.114163935Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitConfigDirStillSuppliesPathsWithoutOverrides","Output":"=== RUN   TestInitConfigDirStillSuppliesPathsWithoutOverrides\n"}
+{"Time":"2026-10-10T03:19:03.184300154Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitConfigDirStillSuppliesPathsWithoutOverrides","Output":"--- PASS: TestInitConfigDirStillSuppliesPathsWithoutOverrides (0.07s)\n"}
+{"Time":"2026-10-10T03:19:03.18828093Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestInitConfigDirStillSuppliesPathsWithoutOverrides","Elapsed":0.07}
+{"Time":"2026-10-10T03:19:03.188298627Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites"}
+{"Time":"2026-10-10T03:19:03.188301201Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites","Output":"=== RUN   TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites\n"}
+{"Time":"2026-10-10T03:19:03.188305998Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites","Output":"--- PASS: TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.188308572Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyOpensExistingCanonicalWithoutModelOrDerivedWrites","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.188311606Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsMutationsWithoutChangingCanonical"}
+{"Time":"2026-10-10T03:19:03.188319568Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsMutationsWithoutChangingCanonical","Output":"=== RUN   TestLexicalOnlyRejectsMutationsWithoutChangingCanonical\n"}
+{"Time":"2026-10-10T03:19:03.188322393Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsMutationsWithoutChangingCanonical","Output":"--- PASS: TestLexicalOnlyRejectsMutationsWithoutChangingCanonical (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.188324416Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsMutationsWithoutChangingCanonical","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.188326338Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore"}
+{"Time":"2026-10-10T03:19:03.188328131Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore","Output":"=== RUN   TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore\n"}
+{"Time":"2026-10-10T03:19:03.189909433Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore","Output":"--- PASS: TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.190092769Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyIndexHealthDoesNotCrashOnAbsentVectorStore","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.190113861Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyCloseMakesSearchUnavailable"}
+{"Time":"2026-10-10T03:19:03.190116846Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyCloseMakesSearchUnavailable","Output":"=== RUN   TestLexicalOnlyCloseMakesSearchUnavailable\n"}
+{"Time":"2026-10-10T03:19:03.191592899Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyCloseMakesSearchUnavailable","Output":"--- PASS: TestLexicalOnlyCloseMakesSearchUnavailable (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.192443931Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyCloseMakesSearchUnavailable","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.192459665Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyDoesNotMigrateOldSchema"}
+{"Time":"2026-10-10T03:19:03.192462068Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyDoesNotMigrateOldSchema","Output":"=== RUN   TestLexicalOnlyDoesNotMigrateOldSchema\n"}
+{"Time":"2026-10-10T03:19:03.194205495Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyDoesNotMigrateOldSchema","Output":"--- PASS: TestLexicalOnlyDoesNotMigrateOldSchema (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.194247718Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyDoesNotMigrateOldSchema","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.194261779Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths"}
+{"Time":"2026-10-10T03:19:03.194264043Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths","Output":"=== RUN   TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths\n"}
+{"Time":"2026-10-10T03:19:03.195537181Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths","Output":"--- PASS: TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.195571983Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRejectsRequireLocalModelBeforeOpeningPaths","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.195590822Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRequiresExistingCanonical"}
+{"Time":"2026-10-10T03:19:03.195593486Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRequiresExistingCanonical","Output":"=== RUN   TestLexicalOnlyRequiresExistingCanonical\n"}
+{"Time":"2026-10-10T03:19:03.195683581Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRequiresExistingCanonical","Output":"--- PASS: TestLexicalOnlyRequiresExistingCanonical (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.195707217Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestLexicalOnlyRequiresExistingCanonical","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.195717513Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox"}
+{"Time":"2026-10-10T03:19:03.195719556Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox","Output":"=== RUN   TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox\n"}
+{"Time":"2026-10-10T03:19:03.197923005Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox","Output":"--- PASS: TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.197951748Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateCommitsProvenanceWithCanonicalAndOutbox","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.197969234Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateCreateAndReplay"}
+{"Time":"2026-10-10T03:19:03.197972479Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateCreateAndReplay","Output":"=== RUN   TestMutateCreateAndReplay\n"}
+{"Time":"2026-10-10T03:19:03.200401558Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateCreateAndReplay","Output":"--- PASS: TestMutateCreateAndReplay (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.200443972Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateCreateAndReplay","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.200457963Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateReplayConflicts"}
+{"Time":"2026-10-10T03:19:03.200460126Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateReplayConflicts","Output":"=== RUN   TestMutateReplayConflicts\n"}
+{"Time":"2026-10-10T03:19:03.202529644Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateReplayConflicts","Output":"--- PASS: TestMutateReplayConflicts (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.202542012Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateReplayConflicts","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.202545087Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateIdenticalTextSeparateScopes"}
+{"Time":"2026-10-10T03:19:03.2025472Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateIdenticalTextSeparateScopes","Output":"=== RUN   TestMutateIdenticalTextSeparateScopes\n"}
+{"Time":"2026-10-10T03:19:03.204640944Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateIdenticalTextSeparateScopes","Output":"--- PASS: TestMutateIdenticalTextSeparateScopes (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.204674425Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateIdenticalTextSeparateScopes","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.204689447Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateVersionAndScope"}
+{"Time":"2026-10-10T03:19:03.204692542Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateVersionAndScope","Output":"=== RUN   TestMutateUpdateVersionAndScope\n"}
+{"Time":"2026-10-10T03:19:03.206797713Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateVersionAndScope","Output":"--- PASS: TestMutateUpdateVersionAndScope (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.212313712Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateUpdateVersionAndScope","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.212328464Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateTombstone"}
+{"Time":"2026-10-10T03:19:03.212330868Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateTombstone","Output":"=== RUN   TestMutateTombstone\n"}
+{"Time":"2026-10-10T03:19:03.212335284Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateTombstone","Output":"--- PASS: TestMutateTombstone (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.212337618Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateTombstone","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.212340122Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationStatusBoundToScopeAndDestination"}
+{"Time":"2026-10-10T03:19:03.212342004Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationStatusBoundToScopeAndDestination","Output":"=== RUN   TestMutationStatusBoundToScopeAndDestination\n"}
+{"Time":"2026-10-10T03:19:03.212344819Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationStatusBoundToScopeAndDestination","Output":"--- PASS: TestMutationStatusBoundToScopeAndDestination (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.212346732Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationStatusBoundToScopeAndDestination","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.212349275Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateValidatesRequest"}
+{"Time":"2026-10-10T03:19:03.212350898Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateValidatesRequest","Output":"=== RUN   TestMutateValidatesRequest\n"}
+{"Time":"2026-10-10T03:19:03.212353702Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateValidatesRequest","Output":"--- PASS: TestMutateValidatesRequest (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.212355645Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutateValidatesRequest","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.212357348Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationReceiptSurvivesRestart"}
+{"Time":"2026-10-10T03:19:03.2123589Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationReceiptSurvivesRestart","Output":"=== RUN   TestMutationReceiptSurvivesRestart\n"}
+{"Time":"2026-10-10T03:19:03.214329098Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationReceiptSurvivesRestart","Output":"--- PASS: TestMutationReceiptSurvivesRestart (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.214367395Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestMutationReceiptSurvivesRestart","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.214395478Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReadsConfigDirectory"}
+{"Time":"2026-10-10T03:19:03.214397691Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReadsConfigDirectory","Output":"=== RUN   TestResolveLegacyPathsReadsConfigDirectory\n"}
+{"Time":"2026-10-10T03:19:03.214598674Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReadsConfigDirectory","Output":"--- PASS: TestResolveLegacyPathsReadsConfigDirectory (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.214640887Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReadsConfigDirectory","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.214653636Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace"}
+{"Time":"2026-10-10T03:19:03.214659896Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace","Output":"=== RUN   TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace\n"}
+{"Time":"2026-10-10T03:19:03.214843973Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace","Output":"--- PASS: TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.214905336Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsHonorsEnvironmentAndExpandsPalace","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.214918255Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsUsesDefaultModelsDirectory"}
+{"Time":"2026-10-10T03:19:03.214920508Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsUsesDefaultModelsDirectory","Output":"=== RUN   TestResolveLegacyPathsUsesDefaultModelsDirectory\n"}
+{"Time":"2026-10-10T03:19:03.215107851Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsUsesDefaultModelsDirectory","Output":"--- PASS: TestResolveLegacyPathsUsesDefaultModelsDirectory (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.215145087Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsUsesDefaultModelsDirectory","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.215157095Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReportsMalformedConfig"}
+{"Time":"2026-10-10T03:19:03.215159228Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReportsMalformedConfig","Output":"=== RUN   TestResolveLegacyPathsReportsMalformedConfig\n"}
+{"Time":"2026-10-10T03:19:03.216638907Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReportsMalformedConfig","Output":"--- PASS: TestResolveLegacyPathsReportsMalformedConfig (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.216651346Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestResolveLegacyPathsReportsMalformedConfig","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.216664716Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCreateMemoryAcceptsArtifactKinds"}
+{"Time":"2026-10-10T03:19:03.216667069Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCreateMemoryAcceptsArtifactKinds","Output":"=== RUN   TestCreateMemoryAcceptsArtifactKinds\n"}
+{"Time":"2026-10-10T03:19:03.216882584Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCreateMemoryAcceptsArtifactKinds","Output":"--- PASS: TestCreateMemoryAcceptsArtifactKinds (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.216887872Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestCreateMemoryAcceptsArtifactKinds","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.216890756Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestProvenanceRoundTrip"}
+{"Time":"2026-10-10T03:19:03.216892779Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestProvenanceRoundTrip","Output":"=== RUN   TestProvenanceRoundTrip\n"}
+{"Time":"2026-10-10T03:19:03.218290294Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestProvenanceRoundTrip","Output":"--- PASS: TestProvenanceRoundTrip (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.218298567Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestProvenanceRoundTrip","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.218301591Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceRealOffsetsAndExcerptHash"}
+{"Time":"2026-10-10T03:19:03.218303324Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceRealOffsetsAndExcerptHash","Output":"=== RUN   TestEvidenceRealOffsetsAndExcerptHash\n"}
+{"Time":"2026-10-10T03:19:03.219770394Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceRealOffsetsAndExcerptHash","Output":"--- PASS: TestEvidenceRealOffsetsAndExcerptHash (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.219778116Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceRealOffsetsAndExcerptHash","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.21978113Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceLegacySyntheticOffsets"}
+{"Time":"2026-10-10T03:19:03.219783303Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceLegacySyntheticOffsets","Output":"=== RUN   TestEvidenceLegacySyntheticOffsets\n"}
+{"Time":"2026-10-10T03:19:03.221311305Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceLegacySyntheticOffsets","Output":"--- PASS: TestEvidenceLegacySyntheticOffsets (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.221335612Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestEvidenceLegacySyntheticOffsets","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.221338786Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable"}
+{"Time":"2026-10-10T03:19:03.221340759Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable","Output":"=== RUN   TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable\n"}
+{"Time":"2026-10-10T03:19:03.22268232Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable","Output":"--- PASS: TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable (0.00s)\n"}
+{"Time":"2026-10-10T03:19:03.222692035Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Test":"TestSessionCursorIsMonotonicAndLeaseIsCrashReclaimable","Elapsed":0}
+{"Time":"2026-10-10T03:19:03.222694609Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Output":"PASS\n"}
+{"Time":"2026-10-10T03:19:03.244348792Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Output":"ok  \tgithub.com/dashimaki/mentle/facade\t1.133s\n"}
+{"Time":"2026-10-10T03:19:03.244376103Z","Action":"pass","Package":"github.com/dashimaki/mentle/facade","Elapsed":1.133}

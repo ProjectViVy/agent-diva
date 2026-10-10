@@ -1,0 +1,46 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "772e966c8064f7a644fbcda43640a26166d929fa535a6f3dca08f3bf632fc372",
+      "bytes": 1043
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "model-responses.json",
+      "sha256": "38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed",
+      "bytes": 5
+    },
+    {
+      "path": "model-counts.json",
+      "sha256": "7227d525a6e53139e71d267e9c5d0688678e360f9978b6f57af7e000c330ddbc",
+      "bytes": 140
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "0acadec4f64775f3e47bd0960f957e65ad492d2e2b1792ec2a31dab632bd7773",
+      "bytes": 1421
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "38db9d4cf22e2e3ab1d206d1086a6121a49ae4f398d8736a72c40b30610502b1",
+      "bytes": 309
+    },
+    {
+      "path": "identity.json",
+      "sha256": "ee7c71e0be5c297c7ad4b3a942b940b364bc06acde7d054d13bd5b4d435490a7",
+      "bytes": 93
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "after-crash",
+  "recorded_at": "2026-10-10T05:43:51.981485306Z",
+  "test": "TestMemoryLoopInterruptedInferenceKeepsOriginalWindow"
+}

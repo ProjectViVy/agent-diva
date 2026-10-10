@@ -1,0 +1,11 @@
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"# agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:13:12: undefined: AuthorizeContextSourceRequest\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:13:90: undefined: ErrContextSourceUnauthorized\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:16:9: undefined: withContextSourceAdmission\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:17:12: undefined: AuthorizeContextSourceRequest\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:26:14: undefined: AuthorizeContextSourceRequest\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/contextsource_admission_test.go:26:75: undefined: ErrContextSourceUnauthorized\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-fail"}
+{"Time":"2026-10-10T02:41:06.820715801Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T02:41:06.820772676Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime [build failed]\n"}
+{"Time":"2026-10-10T02:41:06.82078198Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0,"FailedBuild":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]"}

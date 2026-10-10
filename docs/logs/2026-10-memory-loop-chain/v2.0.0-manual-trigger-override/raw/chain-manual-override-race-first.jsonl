@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:56:48.66175429Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:56:48.725160242Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates"}
+{"Time":"2026-10-10T05:56:48.725435287Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"=== RUN   TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates\n"}
+{"Time":"2026-10-10T05:56:49.536333014Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"2026/10/10 05:56:49 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates3390297826/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:58:03.468502791Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"    memory_loop_manual_override_test.go:85: actual development artifacts: /workspace/work/memory-loop/logs/chain-manual-override-evidence/TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates-manual-override-2011590699 (9 hashed files)\n"}
+{"Time":"2026-10-10T05:58:03.476651767Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"--- PASS: TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates (74.75s)\n"}
+{"Time":"2026-10-10T05:58:03.476675542Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Elapsed":74.75}
+{"Time":"2026-10-10T05:58:03.476683374Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T05:58:04.529050015Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t75.867s\n"}
+{"Time":"2026-10-10T05:58:04.529241133Z","Action":"pass","Package":"command-line-arguments","Elapsed":75.867}

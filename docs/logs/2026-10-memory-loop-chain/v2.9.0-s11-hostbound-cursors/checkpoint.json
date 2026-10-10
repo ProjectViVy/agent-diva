@@ -1,0 +1,223 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T09:04:37Z",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_checkpoint": {
+    "agent-diva-product-base": "dbd2d81cbcbf1e41280af4a7e00c253375f191e0",
+    "agent-vivy": "9dd8150ee7dfee66a3897535fcee61a676f56d02",
+    "laputa": "6c2bf3c1fd34e20b92ebb1da32e3012fbb5cfc44"
+  },
+  "execution_mode": "Actual App/Garden/Mentle with test-local SQLite, loopback synthetic model, Go diagnostic overlay; Mentle/Garden package normal and race suites.",
+  "observed_tests": {
+    "ordinary_scope_and_injection": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1
+    },
+    "injection_normal_with_timing_observer": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1
+    },
+    "scope_race_with_valid_foreign_cursor": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "recall_source_observed": false
+    },
+    "injection_race": {
+      "pass": 0,
+      "fail": 2,
+      "skip": 0,
+      "exit": 1,
+      "runs": 2,
+      "source_errors": 4,
+      "latest_provider_wall_time_ms": [
+        3542,
+        2342
+      ],
+      "error": "material read failed"
+    },
+    "mentle_facade_and_hybrid_normal": {
+      "exit": 0,
+      "runs": 1
+    },
+    "mentle_facade_and_hybrid_race": {
+      "exit": 0,
+      "runs": 1
+    },
+    "garden_mentle_adapter_normal": {
+      "exit": 0,
+      "runs": 1
+    },
+    "garden_mentle_adapter_race": {
+      "exit": 0,
+      "runs": 1
+    }
+  },
+  "resolved_items": [
+    "MEM-S11-01 bounded pagination, opaque host-bound cursors, and stable score tie ordering",
+    "Valid Profile A continuation cursor rejected by Profile B in actual-App ordinary and scope-race tests"
+  ],
+  "open_limits": [
+    "S09 direct prerequisite remains Planned",
+    "Race-enabled hostile-memory recall returns material read failed; provider completion takes 2.342–3.542 seconds in the timed run, cause unknown",
+    "Backend disconnect/read-only/disk-full/index-fault recovery matrix not run",
+    "Workspace A/B authorization not tested; cognitive profile identity is fixed to diva",
+    "No sealed candidate or formal acceptance"
+  ],
+  "files": [
+    {
+      "path": "acceptance.md",
+      "bytes": 1945,
+      "sha256": "b48bb590d70f3dfb7a9a298a92d24c00bf4e3c51960559350fa6d63a0b5e925e"
+    },
+    {
+      "path": "defects.md",
+      "bytes": 2398,
+      "sha256": "8270f4ea13857abfb015507426eb5724e6a1b97e1e5148710f18c4af1ee25fbc"
+    },
+    {
+      "path": "raw/s11-garden-normal-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-garden-normal.txt",
+      "bytes": 56,
+      "sha256": "ba5d12338fee755a2886be20e192a3020b0a24aea8093a8d38efae5d399e5849"
+    },
+    {
+      "path": "raw/s11-garden-race-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-garden-race.txt",
+      "bytes": 56,
+      "sha256": "48e082c6a8c783bf0f7644b3ab6f0608c35956ea7cb496233dffa30ec24aa4b3"
+    },
+    {
+      "path": "raw/s11-injection-normal-timing-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-injection-normal-timing.jsonl",
+      "bytes": 1716,
+      "sha256": "ae9a82cab33759cc0696df90ed985b803ef349dee981f900a578aabd9aca7589"
+    },
+    {
+      "path": "raw/s11-injection-race-final-exit.txt",
+      "bytes": 2,
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "raw/s11-injection-race-final.jsonl",
+      "bytes": 2327,
+      "sha256": "73957ab15ad1f3ea4c1672d824f1b01a01c301a753786a5025bbd65a4c1091cc"
+    },
+    {
+      "path": "raw/s11-injection-race-timing-exit.txt",
+      "bytes": 2,
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "raw/s11-injection-race-timing.jsonl",
+      "bytes": 2363,
+      "sha256": "6a60650191419159368403057d4984a57ae0fd1cc4cc0e04330eeb84d397e636"
+    },
+    {
+      "path": "raw/s11-memory-injection-race1-exit.txt",
+      "bytes": 7,
+      "sha256": "cf205dbb8cea84897b488abcc281bf96698d5e94b1096b16657b4caba9082a22"
+    },
+    {
+      "path": "raw/s11-memory-injection-race1.jsonl",
+      "bytes": 2329,
+      "sha256": "d377503d30b54c68e5efbfa9f7618fa282b56ed1cdab76f1507286c4fbd9f87a"
+    },
+    {
+      "path": "raw/s11-mentle-normal-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-mentle-normal.txt",
+      "bytes": 103,
+      "sha256": "f784aec09d6549ba403d991c388160ed8e6efee8fe153c05465bd34796b9c5c0"
+    },
+    {
+      "path": "raw/s11-mentle-race-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-mentle-race.txt",
+      "bytes": 104,
+      "sha256": "985c36689d62ca7f960b2e60761fa6fa1eabea16520a1f8ef24a3395a847b5b6"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-cursor-final-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-cursor-final.jsonl",
+      "bytes": 3388,
+      "sha256": "55d7ec1f718e2b26ca14b036277bc91ed0219d8e21b43152a7ff83409c6fdaf5"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-final2-exit.txt",
+      "bytes": 7,
+      "sha256": "19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-final2.jsonl",
+      "bytes": 3377,
+      "sha256": "ae28f957163f394b2e23e3e92de3124ef89426c112e5042ad444b91792967b8f"
+    },
+    {
+      "path": "raw/s11-scope-isolation-cursor-race-final-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/s11-scope-isolation-cursor-race-final.jsonl",
+      "bytes": 2450,
+      "sha256": "0342b45d488fa31f52fdfb4f8810cc7d1c5d86153c891ae50947b27c6839637d"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race1-exit.txt",
+      "bytes": 7,
+      "sha256": "cf205dbb8cea84897b488abcc281bf96698d5e94b1096b16657b4caba9082a22"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race1.jsonl",
+      "bytes": 2086,
+      "sha256": "9501ea4024b97d55beb8d2e9bbae2edbbb21d3804e80de02ccd8e2e2e8a5b36e"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race8-exit.txt",
+      "bytes": 7,
+      "sha256": "19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race8.jsonl",
+      "bytes": 2427,
+      "sha256": "5e709eb0ecfa68ab6ca4a6843f7479a78c132bb44f85f0cf80d15389e743eed7"
+    },
+    {
+      "path": "summary.md",
+      "bytes": 3449,
+      "sha256": "8392426b180e481a058bd1bdd66cafacb4972da8a9a633bd9864c08f7f5183e5"
+    }
+  ]
+}

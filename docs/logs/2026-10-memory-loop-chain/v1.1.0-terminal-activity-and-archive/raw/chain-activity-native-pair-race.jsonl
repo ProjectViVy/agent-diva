@@ -1,0 +1,52 @@
+{"Time":"2026-10-10T03:48:14.118099262Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-10T03:48:14.126889745Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive"}
+{"Time":"2026-10-10T03:48:14.126963175Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"=== RUN   TestCapturedPairCommitsOneRevisionAndRejoinsArchive\n"}
+{"Time":"2026-10-10T03:48:14.134229722Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"--- PASS: TestCapturedPairCommitsOneRevisionAndRejoinsArchive (0.01s)\n"}
+{"Time":"2026-10-10T03:48:14.134255411Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Elapsed":0.01}
+{"Time":"2026-10-10T03:48:14.1342613Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite"}
+{"Time":"2026-10-10T03:48:14.134265095Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"=== RUN   TestCapturedPairRejectsSecondBodyBeforeAnyWrite\n"}
+{"Time":"2026-10-10T03:48:14.134433189Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"--- PASS: TestCapturedPairRejectsSecondBodyBeforeAnyWrite (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.13444042Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.134463464Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload"}
+{"Time":"2026-10-10T03:48:14.134465708Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"=== RUN   TestCapturedPairFencesStaleHeadAndChangedPayload\n"}
+{"Time":"2026-10-10T03:48:14.137734031Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"--- PASS: TestCapturedPairFencesStaleHeadAndChangedPayload (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.137748383Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.137752559Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect"}
+{"Time":"2026-10-10T03:48:14.137755123Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"=== RUN   TestCapturedPairRefusesPartialLegacyEffect\n"}
+{"Time":"2026-10-10T03:48:14.138719656Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"--- PASS: TestCapturedPairRefusesPartialLegacyEffect (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.138732045Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.138767378Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive"}
+{"Time":"2026-10-10T03:48:14.138769882Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"=== RUN   TestCapturedPairCommitsOneRevisionAndRejoinsArchive\n"}
+{"Time":"2026-10-10T03:48:14.145851269Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"--- PASS: TestCapturedPairCommitsOneRevisionAndRejoinsArchive (0.01s)\n"}
+{"Time":"2026-10-10T03:48:14.145867273Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Elapsed":0.01}
+{"Time":"2026-10-10T03:48:14.145897849Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite"}
+{"Time":"2026-10-10T03:48:14.145903047Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"=== RUN   TestCapturedPairRejectsSecondBodyBeforeAnyWrite\n"}
+{"Time":"2026-10-10T03:48:14.146136449Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"--- PASS: TestCapturedPairRejectsSecondBodyBeforeAnyWrite (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.146142027Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.146171001Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload"}
+{"Time":"2026-10-10T03:48:14.146172854Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"=== RUN   TestCapturedPairFencesStaleHeadAndChangedPayload\n"}
+{"Time":"2026-10-10T03:48:14.149372283Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"--- PASS: TestCapturedPairFencesStaleHeadAndChangedPayload (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.14938352Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.149388237Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect"}
+{"Time":"2026-10-10T03:48:14.14939012Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"=== RUN   TestCapturedPairRefusesPartialLegacyEffect\n"}
+{"Time":"2026-10-10T03:48:14.150262434Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"--- PASS: TestCapturedPairRefusesPartialLegacyEffect (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.150270537Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.150390758Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive"}
+{"Time":"2026-10-10T03:48:14.150393552Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"=== RUN   TestCapturedPairCommitsOneRevisionAndRejoinsArchive\n"}
+{"Time":"2026-10-10T03:48:14.157374218Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Output":"--- PASS: TestCapturedPairCommitsOneRevisionAndRejoinsArchive (0.01s)\n"}
+{"Time":"2026-10-10T03:48:14.157391584Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairCommitsOneRevisionAndRejoinsArchive","Elapsed":0.01}
+{"Time":"2026-10-10T03:48:14.157429782Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite"}
+{"Time":"2026-10-10T03:48:14.157433057Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"=== RUN   TestCapturedPairRejectsSecondBodyBeforeAnyWrite\n"}
+{"Time":"2026-10-10T03:48:14.157611786Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Output":"--- PASS: TestCapturedPairRejectsSecondBodyBeforeAnyWrite (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.157648762Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRejectsSecondBodyBeforeAnyWrite","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.157658076Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload"}
+{"Time":"2026-10-10T03:48:14.157660029Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"=== RUN   TestCapturedPairFencesStaleHeadAndChangedPayload\n"}
+{"Time":"2026-10-10T03:48:14.160930195Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Output":"--- PASS: TestCapturedPairFencesStaleHeadAndChangedPayload (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.160940441Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairFencesStaleHeadAndChangedPayload","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.160943115Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect"}
+{"Time":"2026-10-10T03:48:14.160945078Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"=== RUN   TestCapturedPairRefusesPartialLegacyEffect\n"}
+{"Time":"2026-10-10T03:48:14.16185589Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Output":"--- PASS: TestCapturedPairRefusesPartialLegacyEffect (0.00s)\n"}
+{"Time":"2026-10-10T03:48:14.161868368Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapturedPairRefusesPartialLegacyEffect","Elapsed":0}
+{"Time":"2026-10-10T03:48:14.161872274Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"PASS\n"}
+{"Time":"2026-10-10T03:48:15.164693912Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"ok  \tgithub.com/dashimaki/laputa/actmem\t1.046s\n"}
+{"Time":"2026-10-10T03:48:15.164799451Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Elapsed":1.047}

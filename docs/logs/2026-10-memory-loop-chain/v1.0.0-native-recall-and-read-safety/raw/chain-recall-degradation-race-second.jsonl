@@ -1,0 +1,12 @@
+{"Time":"2026-10-10T03:21:07.347105471Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T03:21:07.408572048Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely"}
+{"Time":"2026-10-10T03:21:07.408810357Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"=== RUN   TestMemoryLoopRecallDeadlineDegradesSafely\n"}
+{"Time":"2026-10-10T03:21:08.156177168Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"2026/10/10 03:21:08 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallDeadlineDegradesSafely1703570064/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T03:21:43.558991112Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"    memory_loop_recall_test.go:243: actual bounded Source degraded; late native query error=\"material read failed\" candidates=0\n"}
+{"Time":"2026-10-10T03:21:53.569528767Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"    memory_loop_recall_test.go:248: owned Close after native query: context deadline exceeded\n"}
+{"Time":"2026-10-10T03:21:53.569579644Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"    memory_loop_fixture_test.go:182: fixture close: context deadline exceeded\n"}
+{"Time":"2026-10-10T03:21:53.570999042Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"--- FAIL: TestMemoryLoopRecallDeadlineDegradesSafely (46.16s)\n"}
+{"Time":"2026-10-10T03:21:53.571016218Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Elapsed":46.16}
+{"Time":"2026-10-10T03:21:53.571049618Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T03:21:53.608650358Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t46.261s\n"}
+{"Time":"2026-10-10T03:21:53.608697279Z","Action":"fail","Package":"command-line-arguments","Elapsed":46.262}

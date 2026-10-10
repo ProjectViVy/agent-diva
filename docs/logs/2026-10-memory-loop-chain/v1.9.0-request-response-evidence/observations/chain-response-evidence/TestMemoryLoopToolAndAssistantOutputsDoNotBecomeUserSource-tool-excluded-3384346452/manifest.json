@@ -1,0 +1,51 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "eb6d3359fc4fe006f1564bf4efa3a25d045bb5ab4e72c3a6b570fecf347036cf",
+      "bytes": 47565
+    },
+    {
+      "path": "model-responses.json",
+      "sha256": "828d6c39c6438aa0a1508b74130a2023e40e3eea6c34a9a24d027f0e9da31923",
+      "bytes": 3184
+    },
+    {
+      "path": "model-counts.json",
+      "sha256": "e54ba315a5da874c89f682cff9849138e87b3bd467b4ace16c692cd036134bf3",
+      "bytes": 140
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "0676afe1562004dad59aebdd901640a1bd61f478e3dbe88b0476fce4dbe942a4",
+      "bytes": 3143
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "20918a4cbb4cf41cfe6ffea234987970382002c726646fe06d15e3f8fdf01d5d",
+      "bytes": 342
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "20918a4cbb4cf41cfe6ffea234987970382002c726646fe06d15e3f8fdf01d5d",
+      "bytes": 342
+    },
+    {
+      "path": "identity.json",
+      "sha256": "6a302949f20aadd7911e2c4aca4b7bc09c7997ad636c39e36ca0fc50f10e9e69",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "tool-excluded",
+  "recorded_at": "2026-10-10T05:44:44.287730183Z",
+  "test": "TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource"
+}

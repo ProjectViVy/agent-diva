@@ -1,0 +1,308 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:22:29.040178+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "0eb6e6c2dcf8b048c68c5f9bffed5d446ead36f5",
+    "agent-vivy": "63ce624ed96eb81f8c84fb2d45338d02aa7240b0",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-persona-denial-first.jsonl": 1,
+    "chain-persona-actor-diagnostic.jsonl": 1,
+    "chain-persona-denial-final.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/identity.json",
+      "sha256": "eb033d6fec182bfab9fa9c9953e6a7e65ab720d0833e837ddeb9c8236f52757a",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/manifest.json",
+      "sha256": "8e21c1368e86cba51cbcf199d9b4cb84f32e59cc0fb3a0291260e67f5b1e5fc5",
+      "bytes": 1250
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/model-requests.json",
+      "sha256": "31b5b6172b8c8a91327178bc9200bd83f9d1b08141305402b99b45864e839a59",
+      "bytes": 27730
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/native-snapshots.json",
+      "sha256": "9da86277d6a765e91af1375306d7d0909b7f24d99ec41bf985a3a4f81e9d3f3d",
+      "bytes": 2899
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/source-1.txt",
+      "sha256": "2f4f7854b680e15d0f70f4dc2110782839182d5cf9f12a9e9d7ce8c48c8485db",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/source-2.txt",
+      "sha256": "2f4f7854b680e15d0f70f4dc2110782839182d5cf9f12a9e9d7ce8c48c8485db",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-2364007519/status.json",
+      "sha256": "b6b371d078e9a0a10cccd54eb7b811a2c45c485aa03201d6ab207b5302d7e358",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/identity.json",
+      "sha256": "d802fa64946fefc99b4aedb8195e065f9e00a2cf1b90fdcc5e93f94dd40fda2e",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/manifest.json",
+      "sha256": "5a22706f8656d86117ba77d8304ddd1f1b067d2fd7912b0f7f689214cd07242a",
+      "bytes": 1250
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/model-requests.json",
+      "sha256": "dcbbd198bf5bbcf7cc126699f1a565d0bbc8da59ac2c7f554616d31504080aae",
+      "bytes": 27730
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/native-snapshots.json",
+      "sha256": "f03552707ff54cf5be553eb24895fbeefaf33537306753588e4095456c3248ec",
+      "bytes": 2899
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/source-1.txt",
+      "sha256": "3074c4dadf8c827fcc8b876503e4f65a8838f204c63dfaca745162e9984b5c59",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/source-2.txt",
+      "sha256": "3074c4dadf8c827fcc8b876503e4f65a8838f204c63dfaca745162e9984b5c59",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-3828334401/status.json",
+      "sha256": "db36e831b871465c7b274b5c121d9b88c54611dff23637a7dade901a1de6b657",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/identity.json",
+      "sha256": "1490573f44bc3eca898d32e4a3f94f9c7ecc9e7a8da1bed231641ddd77dbfd59",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/manifest.json",
+      "sha256": "b0e653d8e540de1c711cc7fb5638e2b9ae7dfae6a64dd439eb362e518193b1f1",
+      "bytes": 1252
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/model-requests.json",
+      "sha256": "5d434158ddb0bb9d85096f7fd80b03fc3d86f15c432fb42189e5639cfeeae2ef",
+      "bytes": 27736
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/native-snapshots.json",
+      "sha256": "b8e4457a890fa3ff68851da7b06b21b7c04f70895560ddb17ff2728d0c57e27e",
+      "bytes": 2907
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/source-1.txt",
+      "sha256": "bfae188968bf42c466d7527057c6d62b098940f808c351d6b4fbd17d8a32dac3",
+      "bytes": 326
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/source-2.txt",
+      "sha256": "bfae188968bf42c466d7527057c6d62b098940f808c351d6b4fbd17d8a32dac3",
+      "bytes": 326
+    },
+    {
+      "path": "observations/chain-persona-denial-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-1731660235/status.json",
+      "sha256": "a1875266b5321a5cfb8541f1baf35e685da29122ffefd53a4e8e361cf86b762d",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/identity.json",
+      "sha256": "97200ffce7489fd7574085d3bc87fb097afdfd5ffa00aa71813dd7d269c086eb",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/manifest.json",
+      "sha256": "fc0fa270e09d44a44b1db8f0887bc4aefe83814f609f6c34757ad3c4d649813a",
+      "bytes": 1250
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/model-requests.json",
+      "sha256": "63a95d6f2d146896057499b9aca2d815837dca3894f51ed6b14ed963a447695b",
+      "bytes": 27730
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/native-snapshots.json",
+      "sha256": "d52717d5e871a053357df983b3e160ff1179e1de2b03b39d978ed10cb4148d4d",
+      "bytes": 2899
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/source-1.txt",
+      "sha256": "9e81d63172a999a2c0837f6a5c0f5fb11eee4189e127e8e66c6ad4b4fb1058c3",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/source-2.txt",
+      "sha256": "9e81d63172a999a2c0837f6a5c0f5fb11eee4189e127e8e66c6ad4b4fb1058c3",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_actor-denied-3449026771/status.json",
+      "sha256": "629f2a9f2e8db916881625754c2ae27234498bdf0a25933faefa75d27658d923",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/identity.json",
+      "sha256": "84fce5d712d039a6ccc59bdc681bfc5a6a2661effa359f25d6ff5e3e0b0e7f83",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/manifest.json",
+      "sha256": "12bc104fdd1f47c934d90ded30806c79fa09c3fa5a92668b4e92a255c78c1c74",
+      "bytes": 1250
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/model-requests.json",
+      "sha256": "d2fffc770a43152f48437c91cca88183ebd9dec9b03436fad1210a398f0a5fbd",
+      "bytes": 27730
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/native-snapshots.json",
+      "sha256": "197c22cfba57a12be1ca2e7a8733f3a26916a2e03af5930262674ae8934dacea",
+      "bytes": 2899
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/source-1.txt",
+      "sha256": "f12139ee0b3164470b2ae19dbc295553854b2406c97d7b0d093ec7f89df0e1e8",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/source-2.txt",
+      "sha256": "f12139ee0b3164470b2ae19dbc295553854b2406c97d7b0d093ec7f89df0e1e8",
+      "bytes": 324
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_dream-denied-1933177051/status.json",
+      "sha256": "307ee6375f3b23b9dbf7ed295a268eae0b2225a537baa80d9f7f32ca4880e777",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/identity.json",
+      "sha256": "6baa18868571d226d3bb23b1e50a8b87920c99f05ea6db9bf6f65bae8ae0c546",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/manifest.json",
+      "sha256": "ac61bc348c575d0516f9f8fa8845049cd4b2a6e68b8f471d4685c253e8ac87c5",
+      "bytes": 1252
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/model-requests.json",
+      "sha256": "d90c054f0e68e28fc2dd703e03c7ab641ee35936562cafc87581e26ccda11a45",
+      "bytes": 27736
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/native-snapshots.json",
+      "sha256": "d5a73f1ba5341dfe3204a4f82e22b4a22dd34b095bb23fbd5e932b87e1f453a1",
+      "bytes": 2907
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/source-1.txt",
+      "sha256": "8d9cf8091d30841323d03d2b6b3a02667e691e2ee81452170cd57423dbb67df9",
+      "bytes": 326
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/source-2.txt",
+      "sha256": "8d9cf8091d30841323d03d2b6b3a02667e691e2ee81452170cd57423dbb67df9",
+      "bytes": 326
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopModelCannotEscalatePersonaAuthority_mission-denied-3323551854/status.json",
+      "sha256": "cf4d3670c4bbe07d6c4067cf9521a498a87c59b2e1f60dddae5217bf7da18ebd",
+      "bytes": 1043
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/identity.json",
+      "sha256": "989fd98eaa73fe6341d5ff110ad2e8e981e92caf7e3117415e2f8883b34a50a9",
+      "bytes": 155
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/manifest.json",
+      "sha256": "13e1017c69bf44e79bb404b607baf7461f072be5ae5e4c353b6cd5c2fc414a83",
+      "bytes": 1094
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/model-requests.json",
+      "sha256": "1b7c5561d6a5a2324d91fec169b563cb2ddb993bef907dc24335b3472d938bcb",
+      "bytes": 27685
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/native-snapshots.json",
+      "sha256": "2f76beb48af2fc7ee03599a1061809fc2582f6a7584e51cdac4c92ab610a1add",
+      "bytes": 1421
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/source-1.txt",
+      "sha256": "f9f1846adcb5a1c6d66ac1fe6f59c20e322a31869e26fe0a1dd2400e9acc5767",
+      "bytes": 309
+    },
+    {
+      "path": "observations/chain-persona-denial-final-evidence/TestMemoryLoopReviewRejectsCallerActorClaim-rejected-3597051543/status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "raw/chain-persona-actor-diagnostic.jsonl",
+      "sha256": "20842af3d585edb21e24b1038bf5bf577cf5be9074ee71dde9593ceba068965b",
+      "bytes": 3395,
+      "named_tests_subtests": {
+        "fail": 1
+      }
+    },
+    {
+      "path": "raw/chain-persona-denial-final.jsonl",
+      "sha256": "e70251b3355db417f2f6f341e92b0cc881fec58cc8bafd7b6d700220e815e201",
+      "bytes": 10495,
+      "named_tests_subtests": {
+        "pass": 8
+      }
+    },
+    {
+      "path": "raw/chain-persona-denial-first.jsonl",
+      "sha256": "5afbd175cf23884efaf75df3d15e241a631abe1e9ac6104778e82fdd4cf3c7e1",
+      "bytes": 7304,
+      "named_tests_subtests": {
+        "pass": 4,
+        "fail": 1
+      }
+    },
+    {
+      "path": "raw/chain-persona-frozen-first.jsonl",
+      "sha256": "5e8b738a25476c8b48906952da175136707ec7ee8c155cac198afe3658d4c145",
+      "bytes": 3991,
+      "named_tests_subtests": {
+        "fail": 3
+      }
+    },
+    {
+      "path": "raw/chain-persona-frozen-second.jsonl",
+      "sha256": "01d52d6523926d480f358b4bad018654c11b22172a0050d7c3b37b93cfd01dfa",
+      "bytes": 3489,
+      "named_tests_subtests": {
+        "pass": 3
+      }
+    },
+    {
+      "path": "raw/chain-persona-mission-final-composition.jsonl",
+      "sha256": "0d41b0589828c04d5e250c28ec576d12eb6a115a5702e21f3e6ba6276c0dcc62",
+      "bytes": 35334,
+      "named_tests_subtests": {
+        "pass": 30
+      }
+    }
+  ]
+}

@@ -7,6 +7,34 @@ Tauri/C ABI source line is frozen at the paired archive refs. Checked rows
 below describe prior delivered source, not acceptance of a Wails product.
 Severity: P0 blocking correctness, P1 high, P2 medium, P3 low.
 
+## Memory loop verification — execution started 2026-10-09
+
+See the [Epic–Story package and live status](docs/plans/diva-next/memory-loop/README.md).
+Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; formal Story acceptance remains open. Environment/full-CI evidence is in docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. New reflection/Restart developer evidence and continuation are in docs/logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/. Historical failures remain unchanged.
+
+- [ ] **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
+  unavailable result and prove real Mentle write/search/expand/reopen through
+  the sealed host. Audit local-model initialization and read-only modes (S02).
+- [ ] **MEM-LOOP-USER-SOURCE** P0 acceptance — Admitted durable user-source/role repair and random-fact canonical/process regression are implemented. Trusted accepted receipt recovery is repaired without rewriting old effects. Finish S04 V05–V09 and separately verify any legacy source backfill; do not mark full Story Done from partial proofs. See docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/.
+- [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
+  automatic reflection, effect receipts and persona-review continuity;
+  Actual Pulse/Recap/Restart/completed and live cancellation Session archive, preserved old Work and stale-patch rejection now have v1.1 developer proof (VIVY 1c0ef749 / Laputa 4da565e). Complete concurrent Work/trigger and all formal same-candidate gates; domain API availability alone is not product wiring evidence (S05–S07).
+- [ ] **MEM-LOOP-FAILED-WINDOW** P0 — Budget and unresolved-window fences are repaired; VIVY `d72add09` preserves run/window/watermark and exposes blocked status, Laputa `256d1f1` stops after unresolved work. VIVY e62a929e / v1.3 repairs real-process recovery commit collision and exposes unknown_outcome; runtime race45 / actual App race2 pass. Continue original-operation receipt recovery and six-cut crash matrix before acceptance. Do not infer crash idempotence from the now-green single-source reflection case (S06/S10).
+- [ ] **MEM-LOOP-INFER-BOUNDS** P0 acceptance — Truncation and duplicate post-reflection evidence packets repaired: VIVY `e1de33ae`, Laputa `9bc39af`. Actual over-4-KiB Unicode-source reflection, runtime 75, selected composition 11, Laputa 64 and Garden 480 pass with zero skip. Complete remaining input limits/policy matrix and final new-source CI/sealing; this remains local work (S06).
+- [ ] **MEM-LOOP-RECALL-INPUT** P0 acceptance — Native manifested Context Source and actual three-profile Restart recall/six controls/later correction-delete input now have developer proof (VIVY 9cbed3ea; v1.0 checkpoint). Complete formal S08/S09, explicit Agent tool-only boundary and final same-candidate gates; do not substitute Frozen Core/BML or scripted replies for live acceptance.
+- [ ] **MEM-LOOP-RECOVERY-ISOLATION** P0 — Six process-crash cuts, unknown
+  effect handling, backend degradation, correction/deletion in later model input, foreign scope
+  and untrusted memory content require integrated evidence (S09–S11). Public
+  correction/tombstone/restart and accepted-source redelivery now have developer
+  proof (VIVY 7a1086a5, v0.9 checkpoint); later model-input proof is in v1.0. Full S08 and crash cuts remain open.
+- [ ] **MEM-LOOP-NATIVE-READ-LIFETIME** P0 acceptance — Cache admission, Observer recovery startup, canceled ONNX Close and canonical evidence/collection REDs repaired (VIVY b348803c; Laputa fa95945/19816ce/4faf95a). Preserve positive cold-recall race deadline failure, earlier Close timeout and correction RPC failure; complete S11 robustness/full-candidate evidence before acceptance (v1.0 checkpoint).
+- [ ] **MEM-LOOP-NATIVE-LIVE** P1 — Verify the same sealed candidate on
+  Windows and with a real model; historical 15/17 migration rows do not
+  establish memory-loop correctness (S12/S13).
+- [ ] **MEM-LOOP-PIN-DRIFT** P1 — DIVA's source lock, historical Windows
+  artifact and current sibling repositories differ. Preserve exact baseline
+  evidence and use supported candidate repinning before acceptance (S01).
+
 ## Approved migration work — planning delivered, execution not started
 
 - [ ] **WAILS-NATIVE-GATE** P0 — W0 must prove pinned Windows native caller,
@@ -120,7 +148,7 @@ implementation and makes no Ready/Done implementation claim.
 - [ ] **LAPUTA-ACTMEM-EMPTY-RENDER** P3 — Upstream defect found by DN-4A:
   laputa `evolution.ActmemDocument.Render()` emits `entries:` null for an
   empty entry map, producing an ACTMEM head that its own reader rejects.
-  Deferred per DN-4A handoff (no ownership change); fix upstream in laputa.
+  Task-local native repair 5a5b436 now emits the valid empty map and has real fold/reopen proof; ce919da also repairs readable bounded provenance capsules. Upstream integration and new DN-4A artifact verification remain pending (v1.1 checkpoint).
 - [ ] **GARDEN-CONSOLE-DIST** P3 — laputa `garden/console` fails
   `go build ./...` until the console UI build produces `dist/`; recorded in
   `closure-build-inputs.json` captured_failures, not patched.
@@ -173,3 +201,9 @@ implementation and makes no Ready/Done implementation claim.
 
 - [ ] **GUI-SESSION-PIN-PERSISTENCE** P3 — no verified session pin write contract exists; the no-op pin action and stale grouping were removed until persistence is available.
 
+
+## Memory execution environment and fixture blockers
+
+- [x] **MEM-LOOP-NATIVE-BUILD-DEPS** — Resolved task-locally without system/HOME changes: extracted native headers/libraries, supported sealed Linux host test/race and development build pass. Original product lock is unchanged. Windows/native UI/live-model acceptance remains separate (S01/S12/S13).
+- [ ] **MEM-LOOP-FIXTURE-COMPLETE** P1 — ack/full App/real storage evidence works; reflection/recall modes, reflected observation and real process Restart are explicitly pending. Complete S03 contract before downstream gate acceptance.
+- [ ] **MEM-LOOP-PINNED-REGRESSION** acceptance — Underlying blockers repaired: Laputa 63 pass; Mentle 536 pass / 0 skip; Garden 480 pass / 0 skip and process e2e 2 pass. Exact dependency closure/model/config bindings preserved. Managed ancestor instruction/VCS and Codeface home-write fixtures repaired; complete frozen-source just ci now exits 0. Formal same-candidate Story evidence remains open.

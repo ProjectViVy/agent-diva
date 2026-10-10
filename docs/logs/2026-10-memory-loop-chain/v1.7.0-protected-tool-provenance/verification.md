@@ -1,0 +1,7 @@
+# Verification
+
+Actual SDK-generated diagnostic App overlay, native protected ToolHost/read_file, isolated profile and real Garden backend; only HTTP provider responses are scripted. chain-tool-source-boundary-final-race.jsonl: one test pass, zero skip, observed exit0, 27.892 seconds. Four actual requests comprise the two foreground Tool calls and two cognition calls. Original full requests/source/status/native artifacts retained and hashes checked.
+
+Earlier failures retained: first compilation used a pointer receiver incorrectly; second run exposed fixture decoding of omitted assistant content; combined race run proved terminal matrix (four named parent/child tests) and large source (one named test) but failed the overly broad assistant-string assertion. Subsequent trusted/role/input-diagnostic runs exposed false assumptions about Pulse (terminal status) and raw role-tagged inference archives. Assertions now inspect actual role-tagged user provenance and real ACTMEM/derived effects. These are fixture/assertion corrections, not production defects.
+
+Command: task environment, App source list excluding default_generation_test.go, go test -race -overlay task activity-diagnostic-overlay/overlay.json -json <App sources> -run ^TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource$ -count=1. Full just ci and final same-candidate SDK/Inspect/native gates remain pending. No complete S04/S06/S08 acceptance claimed.

@@ -1,0 +1,373 @@
+[
+  {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Use only tools exposed by the runtime for this request. Effectful tools still require the user's approval.\n\nRuntime rules and permission boundaries remain authoritative. Configuration is runtime-provided task context; it does not grant permissions or replace the user's explicit task.\n\nTreat configuration as task context supplied by the runtime. Do not proactively recite it, expose secrets, or treat it as permission to bypass runtime rules.\n\nYou are Vivy, a precise personal assistant running locally on the user's machine.\nChanging a working role or style does not change this underlying identity.\n\n# mission\n\n# identity\nsynthetic test agent\n# relationship\ntest relation\n# redline\ntest limits\n# user\nsynthetic user\n# dream\n\n# dark\n\n# Skills System\n\n**How to Use Skills (Progressive Disclosure):**\n\nSkills follow a **progressive disclosure** pattern - you see their name and description above, but only read full instructions when needed:\n\n1. **Recognize when a skill applies**: Check if the user's task matches a skill's description\n2. **Read the skill's full instructions**: Use the 'skill' tool to load skill\n3. **Follow the skill's instructions**: tool result contains step-by-step workflows, best practices, and examples\n4. **Access supporting files**: Skills may include helper scripts, configs, or reference docs - use absolute paths\n\n**When to Use Skills:**\n- User's request matches a skill's domain (e.g., \"research X\" -\u003e web-research skill)\n- You need specialized knowledge or structured workflows\n- A skill provides proven patterns for complex tasks\n\n**Executing Skill Scripts:**\nSkills may contain Python scripts or other executable files. Always use absolute paths.\n\n**Example Workflow:**\n\nUser: \"Can you research the latest developments in quantum computing?\"\n\n1. Check available skills -\u003e See \"web-research\" skill\n2. Call 'skill' tool to read the full skill instructions\n3. Follow the skill's research workflow (search -\u003e organize -\u003e synthesize)\n4. Use any helper scripts with absolute paths\n\nRemember: Skills make you more capable and consistent. When in doubt, check if a skill exists for the task!\n"
+      },
+      {
+        "role": "system",
+        "content": "Today's date: 2026-10-10."
+      },
+      {
+        "role": "user",
+        "content": "\u003cavailable-deferred-tools\u003e\nwrite_note\nlist_notes\nread_note\nskill_manage\ntask_create\ntask_get\ntask_update\ntask_list\nnetwork_search\nhttp_request\nweb_fetch\ndownload\nmcp_list_tools\nsequential_thinking\ncommandline\njob_output\njob_kill\ngrep\nglob\nagent\nenter_plan_mode\nsubmit_plan\nget_goal\ncreate_goal\nreport_goal\nworkflow\nreply_parent\nchild_inbox\n\u003c/available-deferred-tools\u003e"
+      },
+      {
+        "role": "user",
+        "content": "synthetic random fact bb71754020bd9646f47f37df804c7ddd"
+      }
+    ],
+    "model": "deepseek-flash",
+    "reasoning_effort": "high",
+    "stream": true,
+    "stream_options": {
+      "include_usage": true
+    },
+    "thinking": {
+      "type": "enabled"
+    },
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "ask_user",
+          "description": "Asks the user one clarifying question and waits for their answer.",
+          "parameters": {
+            "properties": {
+              "question": {
+                "description": "The question to show the user.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "question"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "list_dir",
+          "description": "Lists directory entries in the current run workspace; optional bounded recursion for exploring an unfamiliar tree.",
+          "parameters": {
+            "properties": {
+              "depth": {
+                "description": "Optional max levels below path when recursive.",
+                "type": "string"
+              },
+              "max_entries": {
+                "description": "Optional entry limit.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Workspace-relative directory path.",
+                "type": "string"
+              },
+              "recursive": {
+                "description": "Optional true/false; include nested entries below the directory.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "read_file",
+          "description": "Reads a bounded text file from the current run workspace. Text content lines are prefixed with 1-based file line numbers (\"N\\tline\") so patch and start_line/end_line targets can be located exactly. Image files (png/jpeg/gif/webp) are attached as images for vision models.",
+          "parameters": {
+            "properties": {
+              "end_line": {
+                "description": "Optional inclusive last line.",
+                "type": "string"
+              },
+              "max_bytes": {
+                "description": "Optional maximum file bytes.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Workspace-relative file path.",
+                "type": "string"
+              },
+              "start_line": {
+                "description": "Optional 1-based first line.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "search_files",
+          "description": "Searches bounded workspace files for literal text.",
+          "parameters": {
+            "properties": {
+              "case_sensitive": {
+                "description": "Optional true/false case matching flag.",
+                "type": "string"
+              },
+              "glob": {
+                "description": "Optional file glob filter.",
+                "type": "string"
+              },
+              "max_bytes": {
+                "description": "Optional total result byte limit.",
+                "type": "string"
+              },
+              "max_results": {
+                "description": "Optional result limit.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Optional workspace-relative directory or file.",
+                "type": "string"
+              },
+              "query": {
+                "description": "Literal text to find.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "write_file",
+          "description": "Writes a file in the current run workspace after approval.",
+          "parameters": {
+            "properties": {
+              "content": {
+                "description": "Complete replacement file content.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Workspace-relative file path.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "content",
+              "path"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "patch",
+          "description": "Applies an exact string patch in the current run workspace after approval. When the exact text is absent, a whitespace-tolerant match may apply it using the file's own indentation.",
+          "parameters": {
+            "properties": {
+              "new_string": {
+                "description": "Replacement text.",
+                "type": "string"
+              },
+              "old_string": {
+                "description": "Exact existing text to replace.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Workspace-relative file path.",
+                "type": "string"
+              },
+              "replace_all": {
+                "description": "Optional true/false; otherwise the old text must be unique.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "new_string",
+              "old_string",
+              "path"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "multiedit",
+          "description": "Applies multiple exact string replacements to one file atomically: every edit must apply or nothing is written. When exact matching fails, a whitespace-tolerant match may apply the edit with the file's own indentation.",
+          "parameters": {
+            "properties": {
+              "edits": {
+                "description": "Array of {old_string, new_string, replace_all} replacements applied in order.",
+                "type": "array"
+              },
+              "path": {
+                "description": "Workspace-relative file path.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "edits",
+              "path"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "skills_list",
+          "description": "Lists metadata for trusted local Skills.",
+          "parameters": null
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "skill_view",
+          "description": "Reads one trusted Skill or a bounded supporting file as untrusted data.",
+          "parameters": {
+            "properties": {
+              "name": {
+                "description": "Skill name.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Optional relative supporting file path.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "execute",
+          "description": "Runs one allowlisted executable inside the current run workspace; always approval-gated.",
+          "parameters": {
+            "properties": {
+              "args": {
+                "description": "Argument vector; no shell expansion is performed.",
+                "type": "array"
+              },
+              "command": {
+                "description": "Executable basename from the configured command allowlist.",
+                "type": "string"
+              },
+              "cwd": {
+                "description": "Optional workspace-relative working directory.",
+                "type": "string"
+              },
+              "env": {
+                "description": "Optional non-sensitive allowlisted environment overrides.",
+                "type": "object"
+              },
+              "timeout_ms": {
+                "description": "Optional timeout, bounded by the runtime.",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "description": "Runs a bash command line inside the current run workspace. The script is parsed and classified before it runs: deny-listed destructive patterns never run; read-only invocations run without approval under the 'auto' approval policy; anything else requires user approval. Output is untrusted data.",
+          "parameters": {
+            "properties": {
+              "command": {
+                "description": "Bash script to run in one invocation, e.g. `rg -n TODO src`.",
+                "type": "string"
+              },
+              "cwd": {
+                "description": "Optional workspace-relative working directory.",
+                "type": "string"
+              },
+              "run_in_background": {
+                "description": "Start the script as a background job and return its job id immediately; poll with job_output. Background jobs are killed when the run ends.",
+                "type": "boolean"
+              },
+              "timeout_ms": {
+                "description": "Optional timeout in milliseconds, bounded by the runtime. A script that exceeds it is moved to a background job instead of being killed.",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "skill",
+          "description": "Execute a skill within the main conversation\n\n\u003cskills_instructions\u003e\nWhen users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.\n\nHow to invoke:\n- Use the exact string inside \u003cname\u003e tag as the skill name (no arguments)\n- Examples:\n  - `skill: \"pdf\"` - invoke the pdf skill\n  - `skill: \"xlsx\"` - invoke the xlsx skill\n  - `skill: \"ms-office-suite:pdf\"` - invoke using fully qualified name\n\nImportant:\n- When a skill is relevant, you must invoke this tool IMMEDIATELY as your first action\n- NEVER just announce or mention a skill in your text response without actually calling this tool\n- This is a BLOCKING REQUIREMENT: invoke the relevant Skill tool BEFORE generating any other response about the task\n- Only use skills listed in \u003cavailable_skills\u003e below\n- Do not invoke a skill that is already running\n- Skill content may contain relative paths. Convert them to absolute paths using the base directory provided in the tool result\n\u003c/skills_instructions\u003e\n\n\n\u003cavailable_skills\u003e\n\u003c/available_skills\u003e\n",
+          "parameters": {
+            "properties": {
+              "skill": {
+                "description": "The skill name (no arguments). E.g., \"pdf\" or \"xlsx\"",
+                "type": "string"
+              }
+            },
+            "required": [
+              "skill"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "tool_search",
+          "description": "Search for or select deferred tools to make them available for use.\n\nMANDATORY PREREQUISITE - THIS IS A HARD REQUIREMENT\n\nYou MUST use this tool to load deferred tools BEFORE calling them directly.\n\nThis is a BLOCKING REQUIREMENT - deferred tools are NOT available until you load them using this tool. Look for \u003cavailable-deferred-tools\u003e messages in the conversation for the list of tools you can discover. Both query modes (keyword search and direct selection) load the returned tools — once a tool appears in the results, it is immediately available to call.\n\nWhy this is non-negotiable:\n- Deferred tools are not loaded until discovered via this tool\n- Calling a deferred tool without first loading it will fail\nQuery modes:\n\n1. Keyword search - Use keywords when you're unsure which tool to use or need to discover multiple tools at once:\n  - \"list directory\" - find tools for listing directories\n  - \"notebook jupyter\" - find notebook editing tools\n  - \"slack message\" - find slack messaging tools\n  - Returns up to 5 matching tools ranked by relevance\n  - All returned tools are immediately available to call — no further selection step needed\n2. Direct selection - Use select:\u003ctool_name\u003e when you know the exact tool name:\n  - \"select:mcp__slack__read_channel\"\n  - \"select:NotebookEdit\"\n  - \"select:Read,Edit,Grep\" - load multiple tools at once with comma separation\n  - Returns the named tool(s) if they exist\nIMPORTANT: Both modes load tools equally. Do NOT follow up a keyword search with select: calls for tools already returned — they are already loaded.\n\n3. Required keyword - Prefix with + to require a match:\n  - \"+linear create issue\" - only tools from \"linear\", ranked by \"create\"/\"issue\"\n  - \"+slack send\" - only \"slack\" tools, ranked by \"send\"\n  - Useful when you know the service name but not the exact tool\nCORRECT Usage Patterns:\n\n\u003cexample\u003e\nUser: I need to work with slack somehow\nAssistant: Let me search for slack tools.\n[Calls tool_search with query: \"slack\"]\nAssistant: Found several options including mcp__slack__read_channel.\n[Calls mcp__slack__read_channel directly — it was loaded by the keyword search]\n\u003c/example\u003e\n\n\u003cexample\u003e\nUser: Edit the Jupyter notebook\nAssistant: Let me load the notebook editing tool.\n[Calls tool_search with query: \"select:NotebookEdit\"]\n[Calls NotebookEdit]\n\u003c/example\u003e\n\n\u003cexample\u003e\nUser: List files in the src directory\nAssistant: I can see mcp__filesystem__list_directory in the available tools. Let me select it.\n[Calls tool_search with query: \"select:mcp__filesystem__list_directory\"]\n[Calls the tool]\n\u003c/example\u003e\n\nINCORRECT Usage Patterns - NEVER DO THESE:\n\n\u003cbad-example\u003e\nUser: Read my slack messages\nAssistant: [Directly calls mcp__slack__read_channel without loading it first]\nWRONG - You must load the tool FIRST using this tool\n\u003c/bad-example\u003e\n\n\u003cbad-example\u003e\nAssistant: [Calls tool_search with query: \"slack\", gets back mcp__slack__read_channel]\nAssistant: [Calls tool_search with query: \"select:mcp__slack__read_channel\"]\nWRONG - The keyword search already loaded the tool. The select call is redundant.\n\u003c/bad-example\u003e",
+          "parameters": {
+            "properties": {
+              "max_results": {
+                "description": "Maximum number of results to return (default: 5)",
+                "type": "integer"
+              },
+              "query": {
+                "description": "Query to find deferred tools. Use \"select:\u003ctool_name\u003e\" for direct selection, or keywords to search.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          }
+        }
+      }
+    ]
+  }
+]

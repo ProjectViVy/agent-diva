@@ -1,0 +1,28 @@
+go run ./sdk pack --target go-host --recipe recipes/diva.vivy.yml --host-dir /workspace/work/memory-loop/agent-diva --host-package ./cmd/diva --host-assets .test-assets-7cm137gg --host-lock /tmp/diva-gohost-stage-5x3ftzrc/vivy-sources.lock.json --output /tmp/diva-gohost-stage-5x3ftzrc/artifact failed in /workspace/work/memory-loop/agent-vivy:
+build go-host generation: exit status 1: # github.com/wailsapp/wails/v3/internal/assetserver/webview
+# [pkg-config --cflags  -- glib-2.0 glib-2.0 gobject-2.0 gtk+-3.0 webkit2gtk-4.1 gio-unix-2.0 gtk+-3.0 webkit2gtk-4.1 gtk+-3.0 webkit2gtk-4.1 libsoup-3.0 gio-unix-2.0]
+Package glib-2.0 was not found in the pkg-config search path.
+Perhaps you should add the directory containing `glib-2.0.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'glib-2.0', required by 'virtual:world', not found
+Package 'glib-2.0', required by 'virtual:world', not found
+Package 'gobject-2.0', required by 'virtual:world', not found
+Package 'gtk+-3.0', required by 'virtual:world', not found
+Package 'webkit2gtk-4.1', required by 'virtual:world', not found
+Package 'gio-unix-2.0', required by 'virtual:world', not found
+Package 'gtk+-3.0', required by 'virtual:world', not found
+Package 'webkit2gtk-4.1', required by 'virtual:world', not found
+Package 'gtk+-3.0', required by 'virtual:world', not found
+Package 'webkit2gtk-4.1', required by 'virtual:world', not found
+Package 'libsoup-3.0', required by 'virtual:world', not found
+Package 'gio-unix-2.0', required by 'virtual:world', not found
+# github.com/wailsapp/wails/v3/internal/operatingsystem
+# [pkg-config --cflags  -- gtk+-3.0 webkit2gtk-4.1]
+Package gtk+-3.0 was not found in the pkg-config search path.
+Perhaps you should add the directory containing `gtk+-3.0.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'gtk+-3.0', required by 'virtual:world', not found
+Package 'webkit2gtk-4.1', required by 'virtual:world', not found
+
+exit status 1
+

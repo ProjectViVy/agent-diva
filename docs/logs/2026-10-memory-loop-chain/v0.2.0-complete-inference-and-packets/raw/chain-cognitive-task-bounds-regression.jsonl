@@ -1,0 +1,305 @@
+{"Time":"2026-10-10T00:37:01.841460864Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T00:37:01.859489151Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildUsesServiceApprovalResume"}
+{"Time":"2026-10-10T00:37:01.859527329Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildUsesServiceApprovalResume","Output":"=== RUN   TestNativeOneShotChildUsesServiceApprovalResume\n"}
+{"Time":"2026-10-10T00:37:01.916922245Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildUsesServiceApprovalResume","Output":"--- PASS: TestNativeOneShotChildUsesServiceApprovalResume (0.06s)\n"}
+{"Time":"2026-10-10T00:37:01.916972942Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildUsesServiceApprovalResume","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:01.916982146Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart"}
+{"Time":"2026-10-10T00:37:01.916984459Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart","Output":"=== RUN   TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart\n"}
+{"Time":"2026-10-10T00:37:01.9543139Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart","Output":"2026/10/10 00:37:01 INFO restart recovery: run failed definitively run=run-child-service-parent-first reason=\"no pending approval\"\n"}
+{"Time":"2026-10-10T00:37:01.965898305Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart","Output":"--- PASS: TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart (0.05s)\n"}
+{"Time":"2026-10-10T00:37:01.965931896Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestNativeOneShotChildApprovalRecoversThroughServiceAfterRestart","Elapsed":0.05}
+{"Time":"2026-10-10T00:37:01.965940569Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveModelAuthoredEvolutionNodeRejected"}
+{"Time":"2026-10-10T00:37:01.965944264Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveModelAuthoredEvolutionNodeRejected","Output":"=== RUN   TestCognitiveModelAuthoredEvolutionNodeRejected\n"}
+{"Time":"2026-10-10T00:37:01.990014917Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveModelAuthoredEvolutionNodeRejected","Output":"--- PASS: TestCognitiveModelAuthoredEvolutionNodeRejected (0.02s)\n"}
+{"Time":"2026-10-10T00:37:01.990064863Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveModelAuthoredEvolutionNodeRejected","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:01.990070902Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartRequiresBinding"}
+{"Time":"2026-10-10T00:37:01.99007638Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartRequiresBinding","Output":"=== RUN   TestCognitiveStartRequiresBinding\n"}
+{"Time":"2026-10-10T00:37:02.011329255Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartRequiresBinding","Output":"--- PASS: TestCognitiveStartRequiresBinding (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.011396296Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartRequiresBinding","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.011428915Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveForgedStrategyRejected"}
+{"Time":"2026-10-10T00:37:02.011431589Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveForgedStrategyRejected","Output":"=== RUN   TestCognitiveForgedStrategyRejected\n"}
+{"Time":"2026-10-10T00:37:02.038467764Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveForgedStrategyRejected","Output":"--- PASS: TestCognitiveForgedStrategyRejected (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.038510919Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveForgedStrategyRejected","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.03851764Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowRunsToNoChangeOutcome"}
+{"Time":"2026-10-10T00:37:02.038519603Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowRunsToNoChangeOutcome","Output":"=== RUN   TestCognitiveWorkflowRunsToNoChangeOutcome\n"}
+{"Time":"2026-10-10T00:37:02.075758031Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowRunsToNoChangeOutcome","Output":"--- PASS: TestCognitiveWorkflowRunsToNoChangeOutcome (0.04s)\n"}
+{"Time":"2026-10-10T00:37:02.07579078Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowRunsToNoChangeOutcome","Elapsed":0.04}
+{"Time":"2026-10-10T00:37:02.075797791Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowAppliesBoundEffects"}
+{"Time":"2026-10-10T00:37:02.075800304Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowAppliesBoundEffects","Output":"=== RUN   TestCognitiveWorkflowAppliesBoundEffects\n"}
+{"Time":"2026-10-10T00:37:02.208313951Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowAppliesBoundEffects","Output":"--- PASS: TestCognitiveWorkflowAppliesBoundEffects (0.13s)\n"}
+{"Time":"2026-10-10T00:37:02.208400822Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWorkflowAppliesBoundEffects","Elapsed":0.13}
+{"Time":"2026-10-10T00:37:02.208447041Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveEffectFailureStopsRemaining"}
+{"Time":"2026-10-10T00:37:02.208450026Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveEffectFailureStopsRemaining","Output":"=== RUN   TestCognitiveEffectFailureStopsRemaining\n"}
+{"Time":"2026-10-10T00:37:02.325135183Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveEffectFailureStopsRemaining","Output":"--- PASS: TestCognitiveEffectFailureStopsRemaining (0.12s)\n"}
+{"Time":"2026-10-10T00:37:02.325173811Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveEffectFailureStopsRemaining","Elapsed":0.12}
+{"Time":"2026-10-10T00:37:02.32517971Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartDedupesOnOperationKey"}
+{"Time":"2026-10-10T00:37:02.325183175Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartDedupesOnOperationKey","Output":"=== RUN   TestCognitiveStartDedupesOnOperationKey\n"}
+{"Time":"2026-10-10T00:37:02.359168799Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartDedupesOnOperationKey","Output":"--- PASS: TestCognitiveStartDedupesOnOperationKey (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.359204984Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStartDedupesOnOperationKey","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.359210272Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveChildTaskWideningRejected"}
+{"Time":"2026-10-10T00:37:02.359213507Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveChildTaskWideningRejected","Output":"=== RUN   TestCognitiveChildTaskWideningRejected\n"}
+{"Time":"2026-10-10T00:37:02.381259716Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveChildTaskWideningRejected","Output":"--- PASS: TestCognitiveChildTaskWideningRejected (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.381289961Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveChildTaskWideningRejected","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.38129579Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget"}
+{"Time":"2026-10-10T00:37:02.381298614Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"=== RUN   TestCognitiveStageOutputBudget\n"}
+{"Time":"2026-10-10T00:37:02.383338166Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Output":"--- PASS: TestCognitiveStageOutputBudget (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.383385307Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStageOutputBudget","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.383388312Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryResumesAdmitted"}
+{"Time":"2026-10-10T00:37:02.383390886Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryResumesAdmitted","Output":"=== RUN   TestCognitiveRecoveryResumesAdmitted\n"}
+{"Time":"2026-10-10T00:37:02.419604606Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryResumesAdmitted","Output":"--- PASS: TestCognitiveRecoveryResumesAdmitted (0.04s)\n"}
+{"Time":"2026-10-10T00:37:02.419635884Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryResumesAdmitted","Elapsed":0.04}
+{"Time":"2026-10-10T00:37:02.419641442Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning"}
+{"Time":"2026-10-10T00:37:02.419644967Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Output":"=== RUN   TestCognitiveRecoveryClassifiesRunning\n"}
+{"Time":"2026-10-10T00:37:02.474056489Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Output":"--- PASS: TestCognitiveRecoveryClassifiesRunning (0.05s)\n"}
+{"Time":"2026-10-10T00:37:02.474132394Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Elapsed":0.05}
+{"Time":"2026-10-10T00:37:02.474164382Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRejectsAlteredDescriptor"}
+{"Time":"2026-10-10T00:37:02.474166635Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRejectsAlteredDescriptor","Output":"=== RUN   TestCognitiveRecoveryRejectsAlteredDescriptor\n"}
+{"Time":"2026-10-10T00:37:02.500413953Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRejectsAlteredDescriptor","Output":"--- PASS: TestCognitiveRecoveryRejectsAlteredDescriptor (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.500441254Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRejectsAlteredDescriptor","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.500446932Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRequiresBinding"}
+{"Time":"2026-10-10T00:37:02.500449717Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRequiresBinding","Output":"=== RUN   TestCognitiveRecoveryRequiresBinding\n"}
+{"Time":"2026-10-10T00:37:02.523490494Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRequiresBinding","Output":"--- PASS: TestCognitiveRecoveryRequiresBinding (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.523518106Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryRequiresBinding","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.523523303Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWakeCoalescesToOneActiveRun"}
+{"Time":"2026-10-10T00:37:02.523525246Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWakeCoalescesToOneActiveRun","Output":"=== RUN   TestCognitiveWakeCoalescesToOneActiveRun\n"}
+{"Time":"2026-10-10T00:37:02.558429163Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWakeCoalescesToOneActiveRun","Output":"--- PASS: TestCognitiveWakeCoalescesToOneActiveRun (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.558462694Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveWakeCoalescesToOneActiveRun","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.558475223Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNoNewInputCallsNoModel"}
+{"Time":"2026-10-10T00:37:02.558477837Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNoNewInputCallsNoModel","Output":"=== RUN   TestCognitiveNoNewInputCallsNoModel\n"}
+{"Time":"2026-10-10T00:37:02.580187159Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNoNewInputCallsNoModel","Output":"--- PASS: TestCognitiveNoNewInputCallsNoModel (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.583003586Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNoNewInputCallsNoModel","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.583020321Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveManualFollowsAdmission"}
+{"Time":"2026-10-10T00:37:02.583038939Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveManualFollowsAdmission","Output":"=== RUN   TestCognitiveManualFollowsAdmission\n"}
+{"Time":"2026-10-10T00:37:02.606107083Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveManualFollowsAdmission","Output":"--- PASS: TestCognitiveManualFollowsAdmission (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.606138981Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveManualFollowsAdmission","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.606145311Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveDisabledPolicyBlocks"}
+{"Time":"2026-10-10T00:37:02.60615156Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveDisabledPolicyBlocks","Output":"=== RUN   TestCognitiveDisabledPolicyBlocks\n"}
+{"Time":"2026-10-10T00:37:02.627093856Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveDisabledPolicyBlocks","Output":"--- PASS: TestCognitiveDisabledPolicyBlocks (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.627121037Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveDisabledPolicyBlocks","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.627129019Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveFailedRunRetriesWithNewKey"}
+{"Time":"2026-10-10T00:37:02.627131182Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveFailedRunRetriesWithNewKey","Output":"=== RUN   TestCognitiveFailedRunRetriesWithNewKey\n"}
+{"Time":"2026-10-10T00:37:02.664281724Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveFailedRunRetriesWithNewKey","Output":"--- PASS: TestCognitiveFailedRunRetriesWithNewKey (0.04s)\n"}
+{"Time":"2026-10-10T00:37:02.664335275Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveFailedRunRetriesWithNewKey","Elapsed":0.04}
+{"Time":"2026-10-10T00:37:02.664342736Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStaleMissionBlocks"}
+{"Time":"2026-10-10T00:37:02.664346892Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStaleMissionBlocks","Output":"=== RUN   TestCognitiveStaleMissionBlocks\n"}
+{"Time":"2026-10-10T00:37:02.692296774Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStaleMissionBlocks","Output":"--- PASS: TestCognitiveStaleMissionBlocks (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.692330315Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveStaleMissionBlocks","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.692336784Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureProviderPreservesIdentity"}
+{"Time":"2026-10-10T00:37:02.692342793Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureProviderPreservesIdentity","Output":"=== RUN   TestCognitiveCaptureProviderPreservesIdentity\n"}
+{"Time":"2026-10-10T00:37:02.716397117Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureProviderPreservesIdentity","Output":"--- PASS: TestCognitiveCaptureProviderPreservesIdentity (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.716441735Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureProviderPreservesIdentity","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.716449506Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureCursorFollowsAcceptance"}
+{"Time":"2026-10-10T00:37:02.716452861Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureCursorFollowsAcceptance","Output":"=== RUN   TestCognitiveCaptureCursorFollowsAcceptance\n"}
+{"Time":"2026-10-10T00:37:02.716647905Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureCursorFollowsAcceptance","Output":"--- PASS: TestCognitiveCaptureCursorFollowsAcceptance (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.716657329Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveCaptureCursorFollowsAcceptance","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.716661165Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNotifyInputFeedsWindow"}
+{"Time":"2026-10-10T00:37:02.716664961Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNotifyInputFeedsWindow","Output":"=== RUN   TestCognitiveNotifyInputFeedsWindow\n"}
+{"Time":"2026-10-10T00:37:02.748865426Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNotifyInputFeedsWindow","Output":"--- PASS: TestCognitiveNotifyInputFeedsWindow (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.749241642Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveNotifyInputFeedsWindow","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.749251037Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest"}
+{"Time":"2026-10-10T00:37:02.74925336Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Output":"=== RUN   TestCognitiveInferencePreservesCompleteBoundedRequest\n"}
+{"Time":"2026-10-10T00:37:02.749258097Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Output":"--- PASS: TestCognitiveInferencePreservesCompleteBoundedRequest (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.749261582Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.749264917Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCronRecoveryDisablesPastOneShot"}
+{"Time":"2026-10-10T00:37:02.749267301Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCronRecoveryDisablesPastOneShot","Output":"=== RUN   TestCronRecoveryDisablesPastOneShot\n"}
+{"Time":"2026-10-10T00:37:02.78185251Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCronRecoveryDisablesPastOneShot","Output":"--- PASS: TestCronRecoveryDisablesPastOneShot (0.03s)\n"}
+{"Time":"2026-10-10T00:37:02.781886522Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCronRecoveryDisablesPastOneShot","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:02.782040674Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYToolSchemaExposesOnlyHostChildTasks"}
+{"Time":"2026-10-10T00:37:02.782046272Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYToolSchemaExposesOnlyHostChildTasks","Output":"=== RUN   TestINOFYToolSchemaExposesOnlyHostChildTasks\n"}
+{"Time":"2026-10-10T00:37:02.783465711Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYToolSchemaExposesOnlyHostChildTasks","Output":"--- PASS: TestINOFYToolSchemaExposesOnlyHostChildTasks (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.78347864Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYToolSchemaExposesOnlyHostChildTasks","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.783491069Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions"}
+{"Time":"2026-10-10T00:37:02.783494464Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions\n"}
+{"Time":"2026-10-10T00:37:02.783502406Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph"}
+{"Time":"2026-10-10T00:37:02.783507473Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph\n"}
+{"Time":"2026-10-10T00:37:02.784090482Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.784100917Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_dependent_graph","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.784106386Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join"}
+{"Time":"2026-10-10T00:37:02.784109741Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join\n"}
+{"Time":"2026-10-10T00:37:02.784765388Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.784779049Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/valid_parallel_join","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.784788223Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor"}
+{"Time":"2026-10-10T00:37:02.784791257Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor\n"}
+{"Time":"2026-10-10T00:37:02.784938008Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.784946201Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/old_descriptor","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.784950067Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node"}
+{"Time":"2026-10-10T00:37:02.784953311Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node\n"}
+{"Time":"2026-10-10T00:37:02.785092171Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.785100794Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_node","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.785114054Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields"}
+{"Time":"2026-10-10T00:37:02.785134885Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields\n"}
+{"Time":"2026-10-10T00:37:02.785265081Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.785273784Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/cross-kind_fields","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.785278011Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool"}
+{"Time":"2026-10-10T00:37:02.785281045Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool\n"}
+{"Time":"2026-10-10T00:37:02.785414056Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.785425723Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/write_tool","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.78543017Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task"}
+{"Time":"2026-10-10T00:37:02.785433104Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task\n"}
+{"Time":"2026-10-10T00:37:02.785766176Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.785774669Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/long_task","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.785778444Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs"}
+{"Time":"2026-10-10T00:37:02.785781068Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs\n"}
+{"Time":"2026-10-10T00:37:02.785946217Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.785954099Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/too_many_outputs","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.785960449Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding"}
+{"Time":"2026-10-10T00:37:02.785963864Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding\n"}
+{"Time":"2026-10-10T00:37:02.78610107Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.786109884Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/ambiguous_binding","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.786113419Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config"}
+{"Time":"2026-10-10T00:37:02.786116644Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config\n"}
+{"Time":"2026-10-10T00:37:02.786252889Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.786259299Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unknown_config","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.786267691Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry"}
+{"Time":"2026-10-10T00:37:02.786270536Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry\n"}
+{"Time":"2026-10-10T00:37:02.78641266Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.786420932Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/unsupported_retry","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.78642599Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input"}
+{"Time":"2026-10-10T00:37:02.786428864Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input","Output":"=== RUN   TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input\n"}
+{"Time":"2026-10-10T00:37:02.787013565Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.787048397Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions/oversized_literal_input","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.787054537Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions","Output":"--- PASS: TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.787058262Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsUnsupportedOrWidenedDefinitions","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.787062499Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsDuplicateConfigKeys"}
+{"Time":"2026-10-10T00:37:02.787070921Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsDuplicateConfigKeys","Output":"=== RUN   TestINOFYAdmissionRejectsDuplicateConfigKeys\n"}
+{"Time":"2026-10-10T00:37:02.787215048Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsDuplicateConfigKeys","Output":"--- PASS: TestINOFYAdmissionRejectsDuplicateConfigKeys (0.00s)\n"}
+{"Time":"2026-10-10T00:37:02.787224292Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYAdmissionRejectsDuplicateConfigKeys","Elapsed":0}
+{"Time":"2026-10-10T00:37:02.787227958Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStartRejectsWithoutPersisting"}
+{"Time":"2026-10-10T00:37:02.787231774Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStartRejectsWithoutPersisting","Output":"=== RUN   TestINOFYStartRejectsWithoutPersisting\n"}
+{"Time":"2026-10-10T00:37:02.809546752Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStartRejectsWithoutPersisting","Output":"--- PASS: TestINOFYStartRejectsWithoutPersisting (0.02s)\n"}
+{"Time":"2026-10-10T00:37:02.809572881Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStartRejectsWithoutPersisting","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:02.809578019Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRunsStableGovernedChild"}
+{"Time":"2026-10-10T00:37:02.809580213Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRunsStableGovernedChild","Output":"=== RUN   TestINOFYChildExecutorRunsStableGovernedChild\n"}
+{"Time":"2026-10-10T00:37:02.874399538Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRunsStableGovernedChild","Output":"--- PASS: TestINOFYChildExecutorRunsStableGovernedChild (0.06s)\n"}
+{"Time":"2026-10-10T00:37:02.874439839Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRunsStableGovernedChild","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:02.874448221Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorParallelFanOutBindsOutputs"}
+{"Time":"2026-10-10T00:37:02.874450925Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorParallelFanOutBindsOutputs","Output":"=== RUN   TestINOFYChildExecutorParallelFanOutBindsOutputs\n"}
+{"Time":"2026-10-10T00:37:02.981115779Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorParallelFanOutBindsOutputs","Output":"--- PASS: TestINOFYChildExecutorParallelFanOutBindsOutputs (0.11s)\n"}
+{"Time":"2026-10-10T00:37:02.981155099Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorParallelFanOutBindsOutputs","Elapsed":0.11}
+{"Time":"2026-10-10T00:37:02.98116274Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorConflictingOperationInput"}
+{"Time":"2026-10-10T00:37:02.981165334Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorConflictingOperationInput","Output":"=== RUN   TestINOFYChildExecutorConflictingOperationInput\n"}
+{"Time":"2026-10-10T00:37:03.049920367Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorConflictingOperationInput","Output":"--- PASS: TestINOFYChildExecutorConflictingOperationInput (0.07s)\n"}
+{"Time":"2026-10-10T00:37:03.049961078Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorConflictingOperationInput","Elapsed":0.07}
+{"Time":"2026-10-10T00:37:03.049967277Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRejectsUntrustedCallShape"}
+{"Time":"2026-10-10T00:37:03.049969901Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRejectsUntrustedCallShape","Output":"=== RUN   TestINOFYChildExecutorRejectsUntrustedCallShape\n"}
+{"Time":"2026-10-10T00:37:03.070628355Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRejectsUntrustedCallShape","Output":"--- PASS: TestINOFYChildExecutorRejectsUntrustedCallShape (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.070656868Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRejectsUntrustedCallShape","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.070661866Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRechecksToolCeiling"}
+{"Time":"2026-10-10T00:37:03.07066459Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRechecksToolCeiling","Output":"=== RUN   TestINOFYChildExecutorRechecksToolCeiling\n"}
+{"Time":"2026-10-10T00:37:03.132994775Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRechecksToolCeiling","Output":"--- PASS: TestINOFYChildExecutorRechecksToolCeiling (0.06s)\n"}
+{"Time":"2026-10-10T00:37:03.133054896Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorRechecksToolCeiling","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:03.133062477Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorDepthCeiling"}
+{"Time":"2026-10-10T00:37:03.133065201Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorDepthCeiling","Output":"=== RUN   TestINOFYChildExecutorDepthCeiling\n"}
+{"Time":"2026-10-10T00:37:03.158155686Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorDepthCeiling","Output":"--- PASS: TestINOFYChildExecutorDepthCeiling (0.03s)\n"}
+{"Time":"2026-10-10T00:37:03.158195576Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorDepthCeiling","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:03.158201636Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorProgramBinding"}
+{"Time":"2026-10-10T00:37:03.15820428Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorProgramBinding","Output":"=== RUN   TestINOFYChildExecutorProgramBinding\n"}
+{"Time":"2026-10-10T00:37:03.181732566Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorProgramBinding","Output":"--- PASS: TestINOFYChildExecutorProgramBinding (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.181760889Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorProgramBinding","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.181767319Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorTerminalOutcomeIsDurable"}
+{"Time":"2026-10-10T00:37:03.181769562Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorTerminalOutcomeIsDurable","Output":"=== RUN   TestINOFYChildExecutorTerminalOutcomeIsDurable\n"}
+{"Time":"2026-10-10T00:37:03.243370494Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorTerminalOutcomeIsDurable","Output":"--- PASS: TestINOFYChildExecutorTerminalOutcomeIsDurable (0.06s)\n"}
+{"Time":"2026-10-10T00:37:03.2434145Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorTerminalOutcomeIsDurable","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:03.243422502Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss"}
+{"Time":"2026-10-10T00:37:03.243430274Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss","Output":"=== RUN   TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss\n"}
+{"Time":"2026-10-10T00:37:03.268140455Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss","Output":"--- PASS: TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.268165413Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorUnknownOutcomeAfterAdmissionLoss","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.268186495Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorChildFailureIsTerminalError"}
+{"Time":"2026-10-10T00:37:03.26818986Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorChildFailureIsTerminalError","Output":"=== RUN   TestINOFYChildExecutorChildFailureIsTerminalError\n"}
+{"Time":"2026-10-10T00:37:03.334534688Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorChildFailureIsTerminalError","Output":"--- PASS: TestINOFYChildExecutorChildFailureIsTerminalError (0.07s)\n"}
+{"Time":"2026-10-10T00:37:03.334569671Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorChildFailureIsTerminalError","Elapsed":0.07}
+{"Time":"2026-10-10T00:37:03.334577392Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorCancelPropagatesToChild"}
+{"Time":"2026-10-10T00:37:03.334580297Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorCancelPropagatesToChild","Output":"=== RUN   TestINOFYChildExecutorCancelPropagatesToChild\n"}
+{"Time":"2026-10-10T00:37:03.381591402Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorCancelPropagatesToChild","Output":"--- PASS: TestINOFYChildExecutorCancelPropagatesToChild (0.05s)\n"}
+{"Time":"2026-10-10T00:37:03.381624161Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYChildExecutorCancelPropagatesToChild","Elapsed":0.05}
+{"Time":"2026-10-10T00:37:03.3816301Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYProgramRunCommitsThroughCoreStorage"}
+{"Time":"2026-10-10T00:37:03.38163654Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYProgramRunCommitsThroughCoreStorage","Output":"=== RUN   TestINOFYProgramRunCommitsThroughCoreStorage\n"}
+{"Time":"2026-10-10T00:37:03.490313129Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYProgramRunCommitsThroughCoreStorage","Output":"--- PASS: TestINOFYProgramRunCommitsThroughCoreStorage (0.11s)\n"}
+{"Time":"2026-10-10T00:37:03.491540438Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYProgramRunCommitsThroughCoreStorage","Elapsed":0.11}
+{"Time":"2026-10-10T00:37:03.491557153Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitLoadRoundTrip"}
+{"Time":"2026-10-10T00:37:03.491560128Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitLoadRoundTrip","Output":"=== RUN   TestINOFYStoreCommitLoadRoundTrip\n"}
+{"Time":"2026-10-10T00:37:03.515591547Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitLoadRoundTrip","Output":"--- PASS: TestINOFYStoreCommitLoadRoundTrip (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.515634322Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitLoadRoundTrip","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.515641883Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitPublishesCommittedEvents"}
+{"Time":"2026-10-10T00:37:03.515645138Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitPublishesCommittedEvents","Output":"=== RUN   TestINOFYStoreCommitPublishesCommittedEvents\n"}
+{"Time":"2026-10-10T00:37:03.539408563Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitPublishesCommittedEvents","Output":"--- PASS: TestINOFYStoreCommitPublishesCommittedEvents (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.540044551Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCommitPublishesCommittedEvents","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.540073325Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreErrorMapping"}
+{"Time":"2026-10-10T00:37:03.54007696Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreErrorMapping","Output":"=== RUN   TestINOFYStoreErrorMapping\n"}
+{"Time":"2026-10-10T00:37:03.565731935Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreErrorMapping","Output":"--- PASS: TestINOFYStoreErrorMapping (0.03s)\n"}
+{"Time":"2026-10-10T00:37:03.565811635Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreErrorMapping","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:03.565819808Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCheckpointBlobRoundTrip"}
+{"Time":"2026-10-10T00:37:03.565822992Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCheckpointBlobRoundTrip","Output":"=== RUN   TestINOFYStoreCheckpointBlobRoundTrip\n"}
+{"Time":"2026-10-10T00:37:03.590747978Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCheckpointBlobRoundTrip","Output":"--- PASS: TestINOFYStoreCheckpointBlobRoundTrip (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.590774408Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreCheckpointBlobRoundTrip","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.590780627Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowAdmitRunInspect"}
+{"Time":"2026-10-10T00:37:03.590784383Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowAdmitRunInspect","Output":"=== RUN   TestINOFYWorkflowAdmitRunInspect\n"}
+{"Time":"2026-10-10T00:37:03.709089586Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowAdmitRunInspect","Output":"--- PASS: TestINOFYWorkflowAdmitRunInspect (0.12s)\n"}
+{"Time":"2026-10-10T00:37:03.70912575Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowAdmitRunInspect","Elapsed":0.12}
+{"Time":"2026-10-10T00:37:03.709135355Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowOperationDedup"}
+{"Time":"2026-10-10T00:37:03.709138179Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowOperationDedup","Output":"=== RUN   TestINOFYWorkflowOperationDedup\n"}
+{"Time":"2026-10-10T00:37:03.830275002Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowOperationDedup","Output":"--- PASS: TestINOFYWorkflowOperationDedup (0.12s)\n"}
+{"Time":"2026-10-10T00:37:03.830312248Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowOperationDedup","Elapsed":0.12}
+{"Time":"2026-10-10T00:37:03.83031976Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRejectsLegacyAndMalformed"}
+{"Time":"2026-10-10T00:37:03.830321983Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRejectsLegacyAndMalformed","Output":"=== RUN   TestINOFYWorkflowRejectsLegacyAndMalformed\n"}
+{"Time":"2026-10-10T00:37:03.855138355Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRejectsLegacyAndMalformed","Output":"--- PASS: TestINOFYWorkflowRejectsLegacyAndMalformed (0.02s)\n"}
+{"Time":"2026-10-10T00:37:03.855169402Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRejectsLegacyAndMalformed","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:03.855175491Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowCancelPropagates"}
+{"Time":"2026-10-10T00:37:03.855178335Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowCancelPropagates","Output":"=== RUN   TestINOFYWorkflowCancelPropagates\n"}
+{"Time":"2026-10-10T00:37:03.92001056Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowCancelPropagates","Output":"--- PASS: TestINOFYWorkflowCancelPropagates (0.06s)\n"}
+{"Time":"2026-10-10T00:37:03.920059113Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowCancelPropagates","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:03.920066374Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRecoveryRequiredOnInterruptedRun"}
+{"Time":"2026-10-10T00:37:03.920075067Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRecoveryRequiredOnInterruptedRun","Output":"=== RUN   TestINOFYWorkflowRecoveryRequiredOnInterruptedRun\n"}
+{"Time":"2026-10-10T00:37:03.975438398Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRecoveryRequiredOnInterruptedRun","Output":"--- PASS: TestINOFYWorkflowRecoveryRequiredOnInterruptedRun (0.06s)\n"}
+{"Time":"2026-10-10T00:37:03.97551901Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowRecoveryRequiredOnInterruptedRun","Elapsed":0.06}
+{"Time":"2026-10-10T00:37:03.975545019Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowResumesAdmittedAfterCrash"}
+{"Time":"2026-10-10T00:37:03.975557137Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowResumesAdmittedAfterCrash","Output":"=== RUN   TestINOFYWorkflowResumesAdmittedAfterCrash\n"}
+{"Time":"2026-10-10T00:37:04.098169613Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowResumesAdmittedAfterCrash","Output":"--- PASS: TestINOFYWorkflowResumesAdmittedAfterCrash (0.12s)\n"}
+{"Time":"2026-10-10T00:37:04.09821425Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowResumesAdmittedAfterCrash","Elapsed":0.12}
+{"Time":"2026-10-10T00:37:04.098222182Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowLegacyRowsStayHistorical"}
+{"Time":"2026-10-10T00:37:04.098229373Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowLegacyRowsStayHistorical","Output":"=== RUN   TestINOFYWorkflowLegacyRowsStayHistorical\n"}
+{"Time":"2026-10-10T00:37:04.123980588Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowLegacyRowsStayHistorical","Output":"--- PASS: TestINOFYWorkflowLegacyRowsStayHistorical (0.03s)\n"}
+{"Time":"2026-10-10T00:37:04.12827367Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestINOFYWorkflowLegacyRowsStayHistorical","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:04.128289714Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildCannotSelectEffectfulParentTool"}
+{"Time":"2026-10-10T00:37:04.128292719Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildCannotSelectEffectfulParentTool","Output":"=== RUN   TestOneShotChildCannotSelectEffectfulParentTool\n"}
+{"Time":"2026-10-10T00:37:04.145389823Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildCannotSelectEffectfulParentTool","Output":"--- PASS: TestOneShotChildCannotSelectEffectfulParentTool (0.02s)\n"}
+{"Time":"2026-10-10T00:37:04.145410474Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildCannotSelectEffectfulParentTool","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:04.145416433Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages"}
+{"Time":"2026-10-10T00:37:04.145419207Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages","Output":"=== RUN   TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages\n"}
+{"Time":"2026-10-10T00:37:04.173710333Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages","Output":"--- PASS: TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages (0.03s)\n"}
+{"Time":"2026-10-10T00:37:04.173794019Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestOneShotChildUsesNativeRunnerWithoutCreatingAddressableSessionOrParentMessages","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:04.173838366Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftLifecycle"}
+{"Time":"2026-10-10T00:37:04.173849002Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftLifecycle","Output":"=== RUN   TestWorkflowProductDraftLifecycle\n"}
+{"Time":"2026-10-10T00:37:04.201963432Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftLifecycle","Output":"--- PASS: TestWorkflowProductDraftLifecycle (0.03s)\n"}
+{"Time":"2026-10-10T00:37:04.201997032Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftLifecycle","Elapsed":0.03}
+{"Time":"2026-10-10T00:37:04.202003102Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRootPointerOutput"}
+{"Time":"2026-10-10T00:37:04.202006467Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRootPointerOutput","Output":"=== RUN   TestWorkflowProductRootPointerOutput\n"}
+{"Time":"2026-10-10T00:37:04.225833649Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRootPointerOutput","Output":"--- PASS: TestWorkflowProductRootPointerOutput (0.02s)\n"}
+{"Time":"2026-10-10T00:37:04.225878827Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRootPointerOutput","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:04.225883524Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductPublishRejectsUnknownNode"}
+{"Time":"2026-10-10T00:37:04.22588765Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductPublishRejectsUnknownNode","Output":"=== RUN   TestWorkflowProductPublishRejectsUnknownNode\n"}
+{"Time":"2026-10-10T00:37:04.24733001Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductPublishRejectsUnknownNode","Output":"--- PASS: TestWorkflowProductPublishRejectsUnknownNode (0.02s)\n"}
+{"Time":"2026-10-10T00:37:04.247378212Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductPublishRejectsUnknownNode","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:04.247406525Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRunBindsRevision"}
+{"Time":"2026-10-10T00:37:04.24740958Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRunBindsRevision","Output":"=== RUN   TestWorkflowProductRunBindsRevision\n"}
+{"Time":"2026-10-10T00:37:04.324951133Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRunBindsRevision","Output":"--- PASS: TestWorkflowProductRunBindsRevision (0.08s)\n"}
+{"Time":"2026-10-10T00:37:04.324987448Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductRunBindsRevision","Elapsed":0.08}
+{"Time":"2026-10-10T00:37:04.32499522Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftStartRun"}
+{"Time":"2026-10-10T00:37:04.324998044Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftStartRun","Output":"=== RUN   TestWorkflowProductDraftStartRun\n"}
+{"Time":"2026-10-10T00:37:04.399932281Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftStartRun","Output":"--- PASS: TestWorkflowProductDraftStartRun (0.07s)\n"}
+{"Time":"2026-10-10T00:37:04.39997174Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDraftStartRun","Elapsed":0.07}
+{"Time":"2026-10-10T00:37:04.399982016Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductHonestCapabilities"}
+{"Time":"2026-10-10T00:37:04.39998513Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductHonestCapabilities","Output":"=== RUN   TestWorkflowProductHonestCapabilities\n"}
+{"Time":"2026-10-10T00:37:04.422637818Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductHonestCapabilities","Output":"--- PASS: TestWorkflowProductHonestCapabilities (0.02s)\n"}
+{"Time":"2026-10-10T00:37:04.423454534Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductHonestCapabilities","Elapsed":0.02}
+{"Time":"2026-10-10T00:37:04.423499702Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductCancelRun"}
+{"Time":"2026-10-10T00:37:04.423504569Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductCancelRun","Output":"=== RUN   TestWorkflowProductCancelRun\n"}
+{"Time":"2026-10-10T00:37:04.474786702Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductCancelRun","Output":"--- PASS: TestWorkflowProductCancelRun (0.05s)\n"}
+{"Time":"2026-10-10T00:37:04.474834204Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductCancelRun","Elapsed":0.05}
+{"Time":"2026-10-10T00:37:04.474843177Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDisabledKeepsCorePath"}
+{"Time":"2026-10-10T00:37:04.474846673Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDisabledKeepsCorePath","Output":"=== RUN   TestWorkflowProductDisabledKeepsCorePath\n"}
+{"Time":"2026-10-10T00:37:04.589758253Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDisabledKeepsCorePath","Output":"--- PASS: TestWorkflowProductDisabledKeepsCorePath (0.11s)\n"}
+{"Time":"2026-10-10T00:37:04.58980221Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestWorkflowProductDisabledKeepsCorePath","Elapsed":0.11}
+{"Time":"2026-10-10T00:37:04.589809811Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"PASS\n"}
+{"Time":"2026-10-10T00:37:04.593165416Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"ok  \tagent-vivy/internal/runtime\t2.751s\n"}
+{"Time":"2026-10-10T00:37:04.593184715Z","Action":"pass","Package":"agent-vivy/internal/runtime","Elapsed":2.752}

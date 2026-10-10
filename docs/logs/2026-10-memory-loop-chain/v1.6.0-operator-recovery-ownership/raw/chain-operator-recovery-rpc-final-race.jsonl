@@ -1,0 +1,901 @@
+{"Time":"2026-10-10T05:21:26.243941274Z","Action":"start","Package":"agent-vivy/internal/rpc"}
+{"Time":"2026-10-10T05:21:26.301319759Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogRecordsStatusAndDuration"}
+{"Time":"2026-10-10T05:21:26.3013538Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogRecordsStatusAndDuration","Output":"=== RUN   TestAccessLogRecordsStatusAndDuration\n"}
+{"Time":"2026-10-10T05:21:26.303720665Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogRecordsStatusAndDuration","Output":"--- PASS: TestAccessLogRecordsStatusAndDuration (0.00s)\n"}
+{"Time":"2026-10-10T05:21:26.303738281Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogRecordsStatusAndDuration","Elapsed":0}
+{"Time":"2026-10-10T05:21:26.303749829Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWarnsOnServerError"}
+{"Time":"2026-10-10T05:21:26.303753574Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWarnsOnServerError","Output":"=== RUN   TestAccessLogWarnsOnServerError\n"}
+{"Time":"2026-10-10T05:21:26.304791107Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWarnsOnServerError","Output":"--- PASS: TestAccessLogWarnsOnServerError (0.00s)\n"}
+{"Time":"2026-10-10T05:21:26.304809815Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWarnsOnServerError","Elapsed":0}
+{"Time":"2026-10-10T05:21:26.304815664Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogHealthzStaysBelowInfo"}
+{"Time":"2026-10-10T05:21:26.30481943Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogHealthzStaysBelowInfo","Output":"=== RUN   TestAccessLogHealthzStaysBelowInfo\n"}
+{"Time":"2026-10-10T05:21:26.306078777Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogHealthzStaysBelowInfo","Output":"--- PASS: TestAccessLogHealthzStaysBelowInfo (0.00s)\n"}
+{"Time":"2026-10-10T05:21:26.306172909Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogHealthzStaysBelowInfo","Elapsed":0}
+{"Time":"2026-10-10T05:21:26.30618032Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWebSocketUpgradeLogs101"}
+{"Time":"2026-10-10T05:21:26.306183595Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWebSocketUpgradeLogs101","Output":"=== RUN   TestAccessLogWebSocketUpgradeLogs101\n"}
+{"Time":"2026-10-10T05:21:28.306835365Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWebSocketUpgradeLogs101","Output":"--- PASS: TestAccessLogWebSocketUpgradeLogs101 (2.00s)\n"}
+{"Time":"2026-10-10T05:21:28.306875706Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAccessLogWebSocketUpgradeLogs101","Elapsed":2}
+{"Time":"2026-10-10T05:21:28.306882987Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOBeforeOpen"}
+{"Time":"2026-10-10T05:21:28.306885441Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOBeforeOpen","Output":"=== RUN   TestResolveProjectAttachmentsRejectsFIFOBeforeOpen\n"}
+{"Time":"2026-10-10T05:21:28.307181076Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOBeforeOpen","Output":"--- PASS: TestResolveProjectAttachmentsRejectsFIFOBeforeOpen (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.307187085Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOBeforeOpen","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.307191111Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking"}
+{"Time":"2026-10-10T05:21:28.307193205Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking","Output":"=== RUN   TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking\n"}
+{"Time":"2026-10-10T05:21:28.307434698Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking","Output":"--- PASS: TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.307497563Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsFIFOReplacementWithoutBlocking","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.307508269Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames"}
+{"Time":"2026-10-10T05:21:28.307511504Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames\n"}
+{"Time":"2026-10-10T05:21:28.307517904Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal"}
+{"Time":"2026-10-10T05:21:28.307520758Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal\n"}
+{"Time":"2026-10-10T05:21:28.30763521Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.307642001Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/parent_traversal","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.307647078Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal"}
+{"Time":"2026-10-10T05:21:28.307650804Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal\n"}
+{"Time":"2026-10-10T05:21:28.307806058Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.307812427Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/mixed_separator_traversal","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.307835372Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal"}
+{"Time":"2026-10-10T05:21:28.307841661Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal\n"}
+{"Time":"2026-10-10T05:21:28.307918077Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.307922974Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/embedded_traversal","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.307927941Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute"}
+{"Time":"2026-10-10T05:21:28.307931076Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute\n"}
+{"Time":"2026-10-10T05:21:28.308004357Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308013741Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unix_absolute","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308020371Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute"}
+{"Time":"2026-10-10T05:21:28.30803955Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute\n"}
+{"Time":"2026-10-10T05:21:28.308091668Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308096626Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_absolute","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308126891Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative"}
+{"Time":"2026-10-10T05:21:28.308129775Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative\n"}
+{"Time":"2026-10-10T05:21:28.308186992Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308190918Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_drive_relative","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308198229Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream"}
+{"Time":"2026-10-10T05:21:28.308200973Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream\n"}
+{"Time":"2026-10-10T05:21:28.308301654Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.30831202Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/windows_alternate_data_stream","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308316467Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream"}
+{"Time":"2026-10-10T05:21:28.308319001Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream\n"}
+{"Time":"2026-10-10T05:21:28.308386933Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.30839178Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nested_alternate_data_stream","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308408806Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unc"}
+{"Time":"2026-10-10T05:21:28.30841185Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unc","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/unc\n"}
+{"Time":"2026-10-10T05:21:28.308467955Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unc","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/unc (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308472532Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/unc","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308477179Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nul"}
+{"Time":"2026-10-10T05:21:28.308480304Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nul","Output":"=== RUN   TestResolveProjectAttachmentsRejectsUnsafeNames/nul\n"}
+{"Time":"2026-10-10T05:21:28.308534495Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nul","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames/nul (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308538251Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames/nul","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308624711Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames","Output":"--- PASS: TestResolveProjectAttachmentsRejectsUnsafeNames (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308629699Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsUnsafeNames","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308636309Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsNativeWindowsADS"}
+{"Time":"2026-10-10T05:21:28.308639093Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsNativeWindowsADS","Output":"=== RUN   TestResolveProjectAttachmentsRejectsNativeWindowsADS\n"}
+{"Time":"2026-10-10T05:21:28.308688187Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsNativeWindowsADS","Output":"    attachments_test.go:58: Windows ADS semantics\n"}
+{"Time":"2026-10-10T05:21:28.30871019Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsNativeWindowsADS","Output":"--- SKIP: TestResolveProjectAttachmentsRejectsNativeWindowsADS (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.308716409Z","Action":"skip","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsNativeWindowsADS","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.308743109Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitivePaths"}
+{"Time":"2026-10-10T05:21:28.308746685Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitivePaths","Output":"=== RUN   TestResolveProjectAttachmentsRejectsSensitivePaths\n"}
+{"Time":"2026-10-10T05:21:28.309120828Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitivePaths","Output":"--- PASS: TestResolveProjectAttachmentsRejectsSensitivePaths (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.309129231Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitivePaths","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.309132576Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestValidateAttachmentPathIdentityRejectsReplacement"}
+{"Time":"2026-10-10T05:21:28.30913535Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestValidateAttachmentPathIdentityRejectsReplacement","Output":"=== RUN   TestValidateAttachmentPathIdentityRejectsReplacement\n"}
+{"Time":"2026-10-10T05:21:28.309310524Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestValidateAttachmentPathIdentityRejectsReplacement","Output":"--- PASS: TestValidateAttachmentPathIdentityRejectsReplacement (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.30932089Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestValidateAttachmentPathIdentityRejectsReplacement","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.309323093Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsPostReadReplacement"}
+{"Time":"2026-10-10T05:21:28.309325036Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsPostReadReplacement","Output":"=== RUN   TestResolveProjectAttachmentsRejectsPostReadReplacement\n"}
+{"Time":"2026-10-10T05:21:28.309548703Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsPostReadReplacement","Output":"--- PASS: TestResolveProjectAttachmentsRejectsPostReadReplacement (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.309553831Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsPostReadReplacement","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.309556885Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent"}
+{"Time":"2026-10-10T05:21:28.309559049Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent","Output":"=== RUN   TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent\n"}
+{"Time":"2026-10-10T05:21:28.309793782Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent","Output":"--- PASS: TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.309800522Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsNormalizesSeparatorsAndSniffsContent","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.309803216Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize"}
+{"Time":"2026-10-10T05:21:28.309805019Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize","Output":"=== RUN   TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize\n"}
+{"Time":"2026-10-10T05:21:28.38518106Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory"}
+{"Time":"2026-10-10T05:21:28.3852273Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory","Output":"=== RUN   TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory\n"}
+{"Time":"2026-10-10T05:21:28.385541493Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory","Output":"--- PASS: TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.38555925Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/directory","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.385590297Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof"}
+{"Time":"2026-10-10T05:21:28.385593932Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof","Output":"=== RUN   TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof\n"}
+{"Time":"2026-10-10T05:21:28.386012503Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof","Output":"--- PASS: TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.386048307Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/mime_spoof","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.386060946Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize"}
+{"Time":"2026-10-10T05:21:28.386064601Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize","Output":"=== RUN   TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize\n"}
+{"Time":"2026-10-10T05:21:28.386252674Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize","Output":"--- PASS: TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.386262649Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize/oversize","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.386998758Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize","Output":"--- PASS: TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize (0.08s)\n"}
+{"Time":"2026-10-10T05:21:28.3870133Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsDirectorySpoofAndOversize","Elapsed":0.08}
+{"Time":"2026-10-10T05:21:28.38706618Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot"}
+{"Time":"2026-10-10T05:21:28.387075324Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot","Output":"=== RUN   TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot\n"}
+{"Time":"2026-10-10T05:21:28.387328996Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot","Output":"--- PASS: TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.387339392Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsTooManyAndUnconfiguredRoot","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.387346322Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits"}
+{"Time":"2026-10-10T05:21:28.387349657Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits","Output":"=== RUN   TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits\n"}
+{"Time":"2026-10-10T05:21:28.991307246Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits","Output":"--- PASS: TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits (0.60s)\n"}
+{"Time":"2026-10-10T05:21:28.991348649Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsAcceptsExactCountAndSizeLimits","Elapsed":0.6}
+{"Time":"2026-10-10T05:21:28.991546076Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsContainsSymlinkTargets"}
+{"Time":"2026-10-10T05:21:28.991550122Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsContainsSymlinkTargets","Output":"=== RUN   TestResolveProjectAttachmentsContainsSymlinkTargets\n"}
+{"Time":"2026-10-10T05:21:28.991961201Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsContainsSymlinkTargets","Output":"--- PASS: TestResolveProjectAttachmentsContainsSymlinkTargets (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.991968893Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsContainsSymlinkTargets","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.991989734Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget"}
+{"Time":"2026-10-10T05:21:28.992014391Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget","Output":"=== RUN   TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget\n"}
+{"Time":"2026-10-10T05:21:28.992534335Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget","Output":"--- PASS: TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.992544921Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsRejectsSensitiveSymlinkTarget","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.992548205Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsSupportsAllWhitelistedMagic"}
+{"Time":"2026-10-10T05:21:28.992550429Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsSupportsAllWhitelistedMagic","Output":"=== RUN   TestResolveProjectAttachmentsSupportsAllWhitelistedMagic\n"}
+{"Time":"2026-10-10T05:21:28.992678201Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsSupportsAllWhitelistedMagic","Output":"--- PASS: TestResolveProjectAttachmentsSupportsAllWhitelistedMagic (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.992681056Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectAttachmentsSupportsAllWhitelistedMagic","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.99268375Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength"}
+{"Time":"2026-10-10T05:21:28.992685462Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength","Output":"=== RUN   TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength\n"}
+{"Time":"2026-10-10T05:21:28.993072656Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength","Output":"--- PASS: TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength (0.00s)\n"}
+{"Time":"2026-10-10T05:21:28.993078454Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSafeAttachmentNameRemovesTerminalControlsAndBoundsLength","Elapsed":0}
+{"Time":"2026-10-10T05:21:28.993103232Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionHistoryRepairsDurableAssistantProjection"}
+{"Time":"2026-10-10T05:21:28.993105645Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionHistoryRepairsDurableAssistantProjection","Output":"=== RUN   TestSessionHistoryRepairsDurableAssistantProjection\n"}
+{"Time":"2026-10-10T05:21:29.618147608Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionHistoryRepairsDurableAssistantProjection","Output":"--- PASS: TestSessionHistoryRepairsDurableAssistantProjection (0.62s)\n"}
+{"Time":"2026-10-10T05:21:29.618191354Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionHistoryRepairsDurableAssistantProjection","Elapsed":0.62}
+{"Time":"2026-10-10T05:21:29.618198364Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionStopsWhenPeerClosesWhileIdle"}
+{"Time":"2026-10-10T05:21:29.618201208Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionStopsWhenPeerClosesWhileIdle","Output":"=== RUN   TestRunSubscriptionStopsWhenPeerClosesWhileIdle\n"}
+{"Time":"2026-10-10T05:21:30.296290475Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionStopsWhenPeerClosesWhileIdle","Output":"--- PASS: TestRunSubscriptionStopsWhenPeerClosesWhileIdle (0.68s)\n"}
+{"Time":"2026-10-10T05:21:30.296331036Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionStopsWhenPeerClosesWhileIdle","Elapsed":0.68}
+{"Time":"2026-10-10T05:21:30.296338467Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionTerminalReplayCleansUpImmediately"}
+{"Time":"2026-10-10T05:21:30.296348292Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionTerminalReplayCleansUpImmediately","Output":"=== RUN   TestRunSubscriptionTerminalReplayCleansUpImmediately\n"}
+{"Time":"2026-10-10T05:21:30.914182246Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionTerminalReplayCleansUpImmediately","Output":"--- PASS: TestRunSubscriptionTerminalReplayCleansUpImmediately (0.62s)\n"}
+{"Time":"2026-10-10T05:21:30.914228496Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionTerminalReplayCleansUpImmediately","Elapsed":0.62}
+{"Time":"2026-10-10T05:21:30.914239142Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResubscribesAfterBusDrop"}
+{"Time":"2026-10-10T05:21:30.914242747Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResubscribesAfterBusDrop","Output":"=== RUN   TestRunSubscriptionResubscribesAfterBusDrop\n"}
+{"Time":"2026-10-10T05:21:31.737243728Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResubscribesAfterBusDrop","Output":"2026/10/10 05:21:31 WARN event subscriber dropped; it will re-sync from the journal run=run_drop_resubscribe seq=11\n"}
+{"Time":"2026-10-10T05:21:36.755352548Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResubscribesAfterBusDrop","Output":"--- PASS: TestRunSubscriptionResubscribesAfterBusDrop (5.84s)\n"}
+{"Time":"2026-10-10T05:21:36.755635705Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResubscribesAfterBusDrop","Elapsed":5.84}
+{"Time":"2026-10-10T05:21:36.755647492Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionEmptyReplayAfterTerminalCleansUp"}
+{"Time":"2026-10-10T05:21:36.755650897Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionEmptyReplayAfterTerminalCleansUp","Output":"=== RUN   TestRunSubscriptionEmptyReplayAfterTerminalCleansUp\n"}
+{"Time":"2026-10-10T05:21:37.588319194Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionEmptyReplayAfterTerminalCleansUp","Output":"--- PASS: TestRunSubscriptionEmptyReplayAfterTerminalCleansUp (0.83s)\n"}
+{"Time":"2026-10-10T05:21:37.588366626Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionEmptyReplayAfterTerminalCleansUp","Elapsed":0.83}
+{"Time":"2026-10-10T05:21:37.58838308Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionUnknownRunReleasesSubscription"}
+{"Time":"2026-10-10T05:21:37.588386826Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionUnknownRunReleasesSubscription","Output":"=== RUN   TestRunSubscriptionUnknownRunReleasesSubscription\n"}
+{"Time":"2026-10-10T05:21:38.340059837Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionUnknownRunReleasesSubscription","Output":"--- PASS: TestRunSubscriptionUnknownRunReleasesSubscription (0.75s)\n"}
+{"Time":"2026-10-10T05:21:38.340101841Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionUnknownRunReleasesSubscription","Elapsed":0.75}
+{"Time":"2026-10-10T05:21:38.344322789Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResponseCloseCleansPendingEntry"}
+{"Time":"2026-10-10T05:21:38.34434338Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResponseCloseCleansPendingEntry","Output":"=== RUN   TestRunSubscriptionResponseCloseCleansPendingEntry\n"}
+{"Time":"2026-10-10T05:21:39.288725079Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResponseCloseCleansPendingEntry","Output":"--- PASS: TestRunSubscriptionResponseCloseCleansPendingEntry (0.94s)\n"}
+{"Time":"2026-10-10T05:21:39.288831118Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionResponseCloseCleansPendingEntry","Elapsed":0.94}
+{"Time":"2026-10-10T05:21:39.288840422Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionContextCancelCleansPendingEntry"}
+{"Time":"2026-10-10T05:21:39.288850728Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionContextCancelCleansPendingEntry","Output":"=== RUN   TestRunSubscriptionContextCancelCleansPendingEntry\n"}
+{"Time":"2026-10-10T05:21:40.295696402Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionContextCancelCleansPendingEntry","Output":"--- PASS: TestRunSubscriptionContextCancelCleansPendingEntry (1.00s)\n"}
+{"Time":"2026-10-10T05:21:40.295754449Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunSubscriptionContextCancelCleansPendingEntry","Elapsed":1}
+{"Time":"2026-10-10T05:21:40.295762151Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlSessionCreateKeepsEmptyTitleUntitled"}
+{"Time":"2026-10-10T05:21:40.295765846Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlSessionCreateKeepsEmptyTitleUntitled","Output":"=== RUN   TestControlSessionCreateKeepsEmptyTitleUntitled\n"}
+{"Time":"2026-10-10T05:21:41.144375513Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlSessionCreateKeepsEmptyTitleUntitled","Output":"--- PASS: TestControlSessionCreateKeepsEmptyTitleUntitled (0.85s)\n"}
+{"Time":"2026-10-10T05:21:41.14441319Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlSessionCreateKeepsEmptyTitleUntitled","Elapsed":0.85}
+{"Time":"2026-10-10T05:21:41.144419199Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns"}
+{"Time":"2026-10-10T05:21:41.144422193Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns","Output":"=== RUN   TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns\n"}
+{"Time":"2026-10-10T05:21:41.904735948Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns","Output":"--- PASS: TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns (0.76s)\n"}
+{"Time":"2026-10-10T05:21:41.908300668Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkflowRPCValidatesAdmissionAndMapsMissingRuns","Elapsed":0.76}
+{"Time":"2026-10-10T05:21:41.908333307Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUsesVersionedSnakeCaseContracts"}
+{"Time":"2026-10-10T05:21:41.908336782Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUsesVersionedSnakeCaseContracts","Output":"=== RUN   TestControlHandlerUsesVersionedSnakeCaseContracts\n"}
+{"Time":"2026-10-10T05:21:42.684318156Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUsesVersionedSnakeCaseContracts","Output":"--- PASS: TestControlHandlerUsesVersionedSnakeCaseContracts (0.78s)\n"}
+{"Time":"2026-10-10T05:21:42.684359729Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUsesVersionedSnakeCaseContracts","Elapsed":0.78}
+{"Time":"2026-10-10T05:21:42.684365968Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestInitializeProjectsCodeModeCapability"}
+{"Time":"2026-10-10T05:21:42.684368842Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestInitializeProjectsCodeModeCapability","Output":"=== RUN   TestInitializeProjectsCodeModeCapability\n"}
+{"Time":"2026-10-10T05:21:44.606289192Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestInitializeProjectsCodeModeCapability","Output":"--- PASS: TestInitializeProjectsCodeModeCapability (1.93s)\n"}
+{"Time":"2026-10-10T05:21:44.608319711Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestInitializeProjectsCodeModeCapability","Elapsed":1.93}
+{"Time":"2026-10-10T05:21:44.608346591Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUnknownMethodAndInvalidParams"}
+{"Time":"2026-10-10T05:21:44.608349275Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUnknownMethodAndInvalidParams","Output":"=== RUN   TestControlHandlerUnknownMethodAndInvalidParams\n"}
+{"Time":"2026-10-10T05:21:45.348315866Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUnknownMethodAndInvalidParams","Output":"--- PASS: TestControlHandlerUnknownMethodAndInvalidParams (0.74s)\n"}
+{"Time":"2026-10-10T05:21:45.348354845Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUnknownMethodAndInvalidParams","Elapsed":0.74}
+{"Time":"2026-10-10T05:21:45.348361044Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlShellStartIsGovernedAndStrict"}
+{"Time":"2026-10-10T05:21:45.348363918Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlShellStartIsGovernedAndStrict","Output":"=== RUN   TestControlShellStartIsGovernedAndStrict\n"}
+{"Time":"2026-10-10T05:21:46.122524038Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlShellStartIsGovernedAndStrict","Output":"--- PASS: TestControlShellStartIsGovernedAndStrict (0.78s)\n"}
+{"Time":"2026-10-10T05:21:46.122637019Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlShellStartIsGovernedAndStrict","Elapsed":0.78}
+{"Time":"2026-10-10T05:21:46.122702207Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMessageProjectionNeverExposesOrdinaryBashArguments"}
+{"Time":"2026-10-10T05:21:46.122708947Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMessageProjectionNeverExposesOrdinaryBashArguments","Output":"=== RUN   TestMessageProjectionNeverExposesOrdinaryBashArguments\n"}
+{"Time":"2026-10-10T05:21:46.123074528Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMessageProjectionNeverExposesOrdinaryBashArguments","Output":"--- PASS: TestMessageProjectionNeverExposesOrdinaryBashArguments (0.00s)\n"}
+{"Time":"2026-10-10T05:21:46.123085013Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMessageProjectionNeverExposesOrdinaryBashArguments","Elapsed":0}
+{"Time":"2026-10-10T05:21:46.123089981Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerChildLifecycleContract"}
+{"Time":"2026-10-10T05:21:46.123092585Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerChildLifecycleContract","Output":"=== RUN   TestControlHandlerChildLifecycleContract\n"}
+{"Time":"2026-10-10T05:21:47.07035131Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerChildLifecycleContract","Output":"--- PASS: TestControlHandlerChildLifecycleContract (0.95s)\n"}
+{"Time":"2026-10-10T05:21:47.070442928Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerChildLifecycleContract","Elapsed":0.95}
+{"Time":"2026-10-10T05:21:47.070493904Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerContinuableChildContract"}
+{"Time":"2026-10-10T05:21:47.070498942Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerContinuableChildContract","Output":"=== RUN   TestControlHandlerContinuableChildContract\n"}
+{"Time":"2026-10-10T05:21:47.656697863Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerContinuableChildContract","Output":"--- PASS: TestControlHandlerContinuableChildContract (0.59s)\n"}
+{"Time":"2026-10-10T05:21:47.656787127Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerContinuableChildContract","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:47.656839877Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestStudioRPCEmptyListAndPromote"}
+{"Time":"2026-10-10T05:21:47.656843532Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestStudioRPCEmptyListAndPromote","Output":"=== RUN   TestStudioRPCEmptyListAndPromote\n"}
+{"Time":"2026-10-10T05:21:48.250570829Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestStudioRPCEmptyListAndPromote","Output":"--- PASS: TestStudioRPCEmptyListAndPromote (0.59s)\n"}
+{"Time":"2026-10-10T05:21:48.250668556Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestStudioRPCEmptyListAndPromote","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:48.250725191Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSpeciesInspectBuiltinThenPromoted"}
+{"Time":"2026-10-10T05:21:48.250729247Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSpeciesInspectBuiltinThenPromoted","Output":"=== RUN   TestSpeciesInspectBuiltinThenPromoted\n"}
+{"Time":"2026-10-10T05:21:48.841285106Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSpeciesInspectBuiltinThenPromoted","Output":"--- PASS: TestSpeciesInspectBuiltinThenPromoted (0.59s)\n"}
+{"Time":"2026-10-10T05:21:48.841390144Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSpeciesInspectBuiltinThenPromoted","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:48.841450234Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestGenerationsRejectRPC"}
+{"Time":"2026-10-10T05:21:48.841454771Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestGenerationsRejectRPC","Output":"=== RUN   TestGenerationsRejectRPC\n"}
+{"Time":"2026-10-10T05:21:49.430752562Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestGenerationsRejectRPC","Output":"--- PASS: TestGenerationsRejectRPC (0.59s)\n"}
+{"Time":"2026-10-10T05:21:49.43083803Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestGenerationsRejectRPC","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:49.430880254Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestEvalsStartUnknownSuiteAndFailedProbe"}
+{"Time":"2026-10-10T05:21:49.430886253Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestEvalsStartUnknownSuiteAndFailedProbe","Output":"=== RUN   TestEvalsStartUnknownSuiteAndFailedProbe\n"}
+{"Time":"2026-10-10T05:21:50.020459851Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestEvalsStartUnknownSuiteAndFailedProbe","Output":"--- PASS: TestEvalsStartUnknownSuiteAndFailedProbe (0.59s)\n"}
+{"Time":"2026-10-10T05:21:50.020616998Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestEvalsStartUnknownSuiteAndFailedProbe","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:50.020649337Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetAndUpdate"}
+{"Time":"2026-10-10T05:21:50.020654154Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetAndUpdate","Output":"=== RUN   TestSettingsGetAndUpdate\n"}
+{"Time":"2026-10-10T05:21:50.638191379Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetAndUpdate","Output":"--- PASS: TestSettingsGetAndUpdate (0.62s)\n"}
+{"Time":"2026-10-10T05:21:50.638231008Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetAndUpdate","Elapsed":0.62}
+{"Time":"2026-10-10T05:21:50.638237658Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetExposesBackendAuthoritativeLocale"}
+{"Time":"2026-10-10T05:21:50.638240513Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetExposesBackendAuthoritativeLocale","Output":"=== RUN   TestSettingsGetExposesBackendAuthoritativeLocale\n"}
+{"Time":"2026-10-10T05:21:51.241479858Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetExposesBackendAuthoritativeLocale","Output":"--- PASS: TestSettingsGetExposesBackendAuthoritativeLocale (0.60s)\n"}
+{"Time":"2026-10-10T05:21:51.241561611Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetExposesBackendAuthoritativeLocale","Elapsed":0.6}
+{"Time":"2026-10-10T05:21:51.241604396Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors"}
+{"Time":"2026-10-10T05:21:51.241607961Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors","Output":"=== RUN   TestSettingsGetPropagatesDocumentErrors\n"}
+{"Time":"2026-10-10T05:21:51.241678467Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/malformed_yaml"}
+{"Time":"2026-10-10T05:21:51.241689103Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/malformed_yaml","Output":"=== RUN   TestSettingsGetPropagatesDocumentErrors/malformed_yaml\n"}
+{"Time":"2026-10-10T05:21:51.840660209Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/malformed_yaml","Output":"--- PASS: TestSettingsGetPropagatesDocumentErrors/malformed_yaml (0.60s)\n"}
+{"Time":"2026-10-10T05:21:51.840768282Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/malformed_yaml","Elapsed":0.6}
+{"Time":"2026-10-10T05:21:51.840837136Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/invalid_locale"}
+{"Time":"2026-10-10T05:21:51.840841422Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/invalid_locale","Output":"=== RUN   TestSettingsGetPropagatesDocumentErrors/invalid_locale\n"}
+{"Time":"2026-10-10T05:21:52.425505856Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/invalid_locale","Output":"--- PASS: TestSettingsGetPropagatesDocumentErrors/invalid_locale (0.58s)\n"}
+{"Time":"2026-10-10T05:21:52.425613628Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/invalid_locale","Elapsed":0.58}
+{"Time":"2026-10-10T05:21:52.42828324Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/read_error"}
+{"Time":"2026-10-10T05:21:52.428303761Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/read_error","Output":"=== RUN   TestSettingsGetPropagatesDocumentErrors/read_error\n"}
+{"Time":"2026-10-10T05:21:53.015805744Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/read_error","Output":"--- PASS: TestSettingsGetPropagatesDocumentErrors/read_error (0.59s)\n"}
+{"Time":"2026-10-10T05:21:53.015916702Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors/read_error","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:53.016016211Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors","Output":"--- PASS: TestSettingsGetPropagatesDocumentErrors (1.77s)\n"}
+{"Time":"2026-10-10T05:21:53.016105025Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetPropagatesDocumentErrors","Elapsed":1.77}
+{"Time":"2026-10-10T05:21:53.016184735Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetMissingDocumentReturnsEmptyOverlay"}
+{"Time":"2026-10-10T05:21:53.016189513Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetMissingDocumentReturnsEmptyOverlay","Output":"=== RUN   TestSettingsGetMissingDocumentReturnsEmptyOverlay\n"}
+{"Time":"2026-10-10T05:21:53.599887835Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetMissingDocumentReturnsEmptyOverlay","Output":"--- PASS: TestSettingsGetMissingDocumentReturnsEmptyOverlay (0.58s)\n"}
+{"Time":"2026-10-10T05:21:53.600003339Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsGetMissingDocumentReturnsEmptyOverlay","Elapsed":0.58}
+{"Time":"2026-10-10T05:21:53.600127026Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestToolsListPropagatesSettingsDocumentError"}
+{"Time":"2026-10-10T05:21:53.60013632Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsListPropagatesSettingsDocumentError","Output":"=== RUN   TestToolsListPropagatesSettingsDocumentError\n"}
+{"Time":"2026-10-10T05:21:54.198498955Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsListPropagatesSettingsDocumentError","Output":"--- PASS: TestToolsListPropagatesSettingsDocumentError (0.60s)\n"}
+{"Time":"2026-10-10T05:21:54.200340764Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestToolsListPropagatesSettingsDocumentError","Elapsed":0.6}
+{"Time":"2026-10-10T05:21:54.20037789Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider"}
+{"Time":"2026-10-10T05:21:54.200381466Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider","Output":"=== RUN   TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider\n"}
+{"Time":"2026-10-10T05:21:54.795777435Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider","Output":"--- PASS: TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider (0.60s)\n"}
+{"Time":"2026-10-10T05:21:54.800332828Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleUpdatesOnlyLocaleAndAllowsFrozenProvider","Elapsed":0.6}
+{"Time":"2026-10-10T05:21:54.800366569Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleIsReadOnlyWithoutSettingsPath"}
+{"Time":"2026-10-10T05:21:54.800370194Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleIsReadOnlyWithoutSettingsPath","Output":"=== RUN   TestSettingsLocaleIsReadOnlyWithoutSettingsPath\n"}
+{"Time":"2026-10-10T05:21:55.382956237Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleIsReadOnlyWithoutSettingsPath","Output":"--- PASS: TestSettingsLocaleIsReadOnlyWithoutSettingsPath (0.59s)\n"}
+{"Time":"2026-10-10T05:21:55.383096778Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsLocaleIsReadOnlyWithoutSettingsPath","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:55.383162558Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsCapabilitiesAdvertised"}
+{"Time":"2026-10-10T05:21:55.383166423Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsCapabilitiesAdvertised","Output":"=== RUN   TestSettingsCapabilitiesAdvertised\n"}
+{"Time":"2026-10-10T05:21:55.969827819Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsCapabilitiesAdvertised","Output":"--- PASS: TestSettingsCapabilitiesAdvertised (0.59s)\n"}
+{"Time":"2026-10-10T05:21:55.969911725Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsCapabilitiesAdvertised","Elapsed":0.59}
+{"Time":"2026-10-10T05:21:55.969970644Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogListAndSetActive"}
+{"Time":"2026-10-10T05:21:55.96997449Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogListAndSetActive","Output":"=== RUN   TestToolsCatalogListAndSetActive\n"}
+{"Time":"2026-10-10T05:21:56.585597945Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogListAndSetActive","Output":"--- PASS: TestToolsCatalogListAndSetActive (0.62s)\n"}
+{"Time":"2026-10-10T05:21:56.585723704Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogListAndSetActive","Elapsed":0.62}
+{"Time":"2026-10-10T05:21:56.585776163Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh"}
+{"Time":"2026-10-10T05:21:56.585780139Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh","Output":"=== RUN   TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh\n"}
+{"Time":"2026-10-10T05:21:57.197514316Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh","Output":"--- PASS: TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh (0.61s)\n"}
+{"Time":"2026-10-10T05:21:57.197639805Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogLiveSnapshotStaysWholeDuringConcurrentRefresh","Elapsed":0.61}
+{"Time":"2026-10-10T05:21:57.197690912Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection"}
+{"Time":"2026-10-10T05:21:57.197694928Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection","Output":"=== RUN   TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection\n"}
+{"Time":"2026-10-10T05:21:57.80325883Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection","Output":"--- PASS: TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection (0.61s)\n"}
+{"Time":"2026-10-10T05:21:57.803384309Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestToolsCatalogDropsStaleMCPSelectionWithoutCurrentProjection","Elapsed":0.61}
+{"Time":"2026-10-10T05:21:57.803442537Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsCRUDAndProbe"}
+{"Time":"2026-10-10T05:21:57.803446563Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsCRUDAndProbe","Output":"=== RUN   TestMCPSettingsCRUDAndProbe\n"}
+{"Time":"2026-10-10T05:21:58.411926507Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsCRUDAndProbe","Output":"--- PASS: TestMCPSettingsCRUDAndProbe (0.61s)\n"}
+{"Time":"2026-10-10T05:21:58.412007169Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsCRUDAndProbe","Elapsed":0.61}
+{"Time":"2026-10-10T05:21:58.412076974Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsStdioTransportAndMissingChildEnv"}
+{"Time":"2026-10-10T05:21:58.412080389Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsStdioTransportAndMissingChildEnv","Output":"=== RUN   TestMCPSettingsProjectsStdioTransportAndMissingChildEnv\n"}
+{"Time":"2026-10-10T05:21:59.031979742Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsStdioTransportAndMissingChildEnv","Output":"--- PASS: TestMCPSettingsProjectsStdioTransportAndMissingChildEnv (0.62s)\n"}
+{"Time":"2026-10-10T05:21:59.032141496Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsStdioTransportAndMissingChildEnv","Elapsed":0.62}
+{"Time":"2026-10-10T05:21:59.032202928Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation"}
+{"Time":"2026-10-10T05:21:59.032208066Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation","Output":"=== RUN   TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation\n"}
+{"Time":"2026-10-10T05:21:59.684440857Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation","Output":"--- PASS: TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation (0.65s)\n"}
+{"Time":"2026-10-10T05:21:59.684558254Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsProjectsCompleteSnapshotStatesWithoutActivation","Elapsed":0.65}
+{"Time":"2026-10-10T05:21:59.684638274Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled"}
+{"Time":"2026-10-10T05:21:59.684642681Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled","Output":"=== RUN   TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled\n"}
+{"Time":"2026-10-10T05:22:00.312894871Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled","Output":"--- PASS: TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled (0.63s)\n"}
+{"Time":"2026-10-10T05:22:00.313005898Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMCPSettingsRejectsResourceBridgeWhenContextHostNotCompiled","Elapsed":0.63}
+{"Time":"2026-10-10T05:22:00.313092168Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertMigratesRetiredMockSettings"}
+{"Time":"2026-10-10T05:22:00.313099339Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertMigratesRetiredMockSettings","Output":"=== RUN   TestProviderRegistryUpsertMigratesRetiredMockSettings\n"}
+{"Time":"2026-10-10T05:22:00.978926469Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertMigratesRetiredMockSettings","Output":"--- PASS: TestProviderRegistryUpsertMigratesRetiredMockSettings (0.67s)\n"}
+{"Time":"2026-10-10T05:22:00.979066791Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertMigratesRetiredMockSettings","Elapsed":0.67}
+{"Time":"2026-10-10T05:22:00.97911294Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryRPC"}
+{"Time":"2026-10-10T05:22:00.979116786Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryRPC","Output":"=== RUN   TestProviderRegistryRPC\n"}
+{"Time":"2026-10-10T05:22:02.333776535Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryRPC","Output":"--- PASS: TestProviderRegistryRPC (1.35s)\n"}
+{"Time":"2026-10-10T05:22:02.333890617Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryRPC","Elapsed":1.35}
+{"Time":"2026-10-10T05:22:02.333948734Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertPatchPreservesStoredFields"}
+{"Time":"2026-10-10T05:22:02.33395233Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertPatchPreservesStoredFields","Output":"=== RUN   TestProviderRegistryUpsertPatchPreservesStoredFields\n"}
+{"Time":"2026-10-10T05:22:03.010435854Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertPatchPreservesStoredFields","Output":"--- PASS: TestProviderRegistryUpsertPatchPreservesStoredFields (0.68s)\n"}
+{"Time":"2026-10-10T05:22:03.012374333Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProviderRegistryUpsertPatchPreservesStoredFields","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:03.012429316Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected"}
+{"Time":"2026-10-10T05:22:03.012433001Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected","Output":"=== RUN   TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected\n"}
+{"Time":"2026-10-10T05:22:03.708475493Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected","Output":"--- PASS: TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected (0.69s)\n"}
+{"Time":"2026-10-10T05:22:03.708517987Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProviderProfileStatusIsRedactedAndDeferredSelectionIsRejected","Elapsed":0.69}
+{"Time":"2026-10-10T05:22:03.708524537Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProviderRefreshRPC"}
+{"Time":"2026-10-10T05:22:03.708528233Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRefreshRPC","Output":"=== RUN   TestProviderRefreshRPC\n"}
+{"Time":"2026-10-10T05:22:05.682682292Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProviderRefreshRPC","Output":"--- PASS: TestProviderRefreshRPC (1.98s)\n"}
+{"Time":"2026-10-10T05:22:05.682729914Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProviderRefreshRPC","Elapsed":1.98}
+{"Time":"2026-10-10T05:22:05.682739338Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsUpdatePreservesRegistry"}
+{"Time":"2026-10-10T05:22:05.682741922Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsUpdatePreservesRegistry","Output":"=== RUN   TestSettingsUpdatePreservesRegistry\n"}
+{"Time":"2026-10-10T05:22:06.349470487Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsUpdatePreservesRegistry","Output":"--- PASS: TestSettingsUpdatePreservesRegistry (0.67s)\n"}
+{"Time":"2026-10-10T05:22:06.349513442Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsUpdatePreservesRegistry","Elapsed":0.67}
+{"Time":"2026-10-10T05:22:06.349529006Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSettingsApprovalTimeoutOverlay"}
+{"Time":"2026-10-10T05:22:06.34953208Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsApprovalTimeoutOverlay","Output":"=== RUN   TestSettingsApprovalTimeoutOverlay\n"}
+{"Time":"2026-10-10T05:22:06.979968509Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSettingsApprovalTimeoutOverlay","Output":"--- PASS: TestSettingsApprovalTimeoutOverlay (0.63s)\n"}
+{"Time":"2026-10-10T05:22:06.98429766Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSettingsApprovalTimeoutOverlay","Elapsed":0.63}
+{"Time":"2026-10-10T05:22:06.984326083Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProvidersCatalogServesEmbeddedData"}
+{"Time":"2026-10-10T05:22:06.984329879Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProvidersCatalogServesEmbeddedData","Output":"=== RUN   TestProvidersCatalogServesEmbeddedData\n"}
+{"Time":"2026-10-10T05:22:07.599581918Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProvidersCatalogServesEmbeddedData","Output":"--- PASS: TestProvidersCatalogServesEmbeddedData (0.62s)\n"}
+{"Time":"2026-10-10T05:22:07.599680437Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProvidersCatalogServesEmbeddedData","Elapsed":0.62}
+{"Time":"2026-10-10T05:22:07.59972912Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSelectModelUsesCatalogAndPreservesUnrelatedSettings"}
+{"Time":"2026-10-10T05:22:07.599732415Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSelectModelUsesCatalogAndPreservesUnrelatedSettings","Output":"=== RUN   TestSelectModelUsesCatalogAndPreservesUnrelatedSettings\n"}
+{"Time":"2026-10-10T05:22:09.369435323Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSelectModelUsesCatalogAndPreservesUnrelatedSettings","Output":"--- PASS: TestSelectModelUsesCatalogAndPreservesUnrelatedSettings (1.77s)\n"}
+{"Time":"2026-10-10T05:22:09.369528654Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSelectModelUsesCatalogAndPreservesUnrelatedSettings","Elapsed":1.77}
+{"Time":"2026-10-10T05:22:09.369594103Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionTodos"}
+{"Time":"2026-10-10T05:22:09.369601814Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionTodos","Output":"=== RUN   TestControlHandlerListsSessionTodos\n"}
+{"Time":"2026-10-10T05:22:09.999907139Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionTodos","Output":"--- PASS: TestControlHandlerListsSessionTodos (0.63s)\n"}
+{"Time":"2026-10-10T05:22:09.999998146Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionTodos","Elapsed":0.63}
+{"Time":"2026-10-10T05:22:10.000095223Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUpdatesTodo"}
+{"Time":"2026-10-10T05:22:10.000101212Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUpdatesTodo","Output":"=== RUN   TestControlHandlerUpdatesTodo\n"}
+{"Time":"2026-10-10T05:22:10.633646072Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUpdatesTodo","Output":"--- PASS: TestControlHandlerUpdatesTodo (0.63s)\n"}
+{"Time":"2026-10-10T05:22:10.633693123Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerUpdatesTodo","Elapsed":0.63}
+{"Time":"2026-10-10T05:22:10.63373089Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionCompactions"}
+{"Time":"2026-10-10T05:22:10.633734185Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionCompactions","Output":"=== RUN   TestControlHandlerListsSessionCompactions\n"}
+{"Time":"2026-10-10T05:22:11.236431856Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionCompactions","Output":"--- PASS: TestControlHandlerListsSessionCompactions (0.60s)\n"}
+{"Time":"2026-10-10T05:22:11.236487119Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerListsSessionCompactions","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:11.236497485Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerSkillsCatalog"}
+{"Time":"2026-10-10T05:22:11.236501281Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerSkillsCatalog","Output":"=== RUN   TestControlHandlerSkillsCatalog\n"}
+{"Time":"2026-10-10T05:22:11.838062151Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerSkillsCatalog","Output":"--- PASS: TestControlHandlerSkillsCatalog (0.60s)\n"}
+{"Time":"2026-10-10T05:22:11.838109603Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerSkillsCatalog","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:11.838119588Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerMCPPromptCommands"}
+{"Time":"2026-10-10T05:22:11.838123734Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerMCPPromptCommands","Output":"=== RUN   TestControlHandlerMCPPromptCommands\n"}
+{"Time":"2026-10-10T05:22:12.447878477Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerMCPPromptCommands","Output":"--- PASS: TestControlHandlerMCPPromptCommands (0.61s)\n"}
+{"Time":"2026-10-10T05:22:12.452296562Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerMCPPromptCommands","Elapsed":0.61}
+{"Time":"2026-10-10T05:22:12.452316101Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestContextCompactionRPC"}
+{"Time":"2026-10-10T05:22:12.452319286Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestContextCompactionRPC","Output":"=== RUN   TestContextCompactionRPC\n"}
+{"Time":"2026-10-10T05:22:13.054744231Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestContextCompactionRPC","Output":"--- PASS: TestContextCompactionRPC (0.61s)\n"}
+{"Time":"2026-10-10T05:22:13.058629399Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestContextCompactionRPC","Elapsed":0.61}
+{"Time":"2026-10-10T05:22:13.058657612Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectRPC"}
+{"Time":"2026-10-10T05:22:13.058661337Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectRPC","Output":"=== RUN   TestChannelInspectRPC\n"}
+{"Time":"2026-10-10T05:22:14.804323897Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectRPC","Output":"2026/10/10 05:22:14 INFO channelhost: channel disabled by config; not started channel=fake\n"}
+{"Time":"2026-10-10T05:22:15.395723183Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectRPC","Output":"--- PASS: TestChannelInspectRPC (2.34s)\n"}
+{"Time":"2026-10-10T05:22:15.395855212Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectRPC","Elapsed":2.34}
+{"Time":"2026-10-10T05:22:15.395923264Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectAllowFromAlwaysArray"}
+{"Time":"2026-10-10T05:22:15.39592691Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectAllowFromAlwaysArray","Output":"=== RUN   TestChannelInspectAllowFromAlwaysArray\n"}
+{"Time":"2026-10-10T05:22:15.396080661Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectAllowFromAlwaysArray","Output":"--- PASS: TestChannelInspectAllowFromAlwaysArray (0.00s)\n"}
+{"Time":"2026-10-10T05:22:15.396130236Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestChannelInspectAllowFromAlwaysArray","Elapsed":0}
+{"Time":"2026-10-10T05:22:15.396158599Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestChannelGetAndUpdateRPC"}
+{"Time":"2026-10-10T05:22:15.396202655Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelGetAndUpdateRPC","Output":"=== RUN   TestChannelGetAndUpdateRPC\n"}
+{"Time":"2026-10-10T05:22:17.822407623Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelGetAndUpdateRPC","Output":"--- PASS: TestChannelGetAndUpdateRPC (2.43s)\n"}
+{"Time":"2026-10-10T05:22:17.822507333Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestChannelGetAndUpdateRPC","Elapsed":2.43}
+{"Time":"2026-10-10T05:22:17.822582396Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartAttachmentsValidationAndRoundTrip"}
+{"Time":"2026-10-10T05:22:17.822586402Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartAttachmentsValidationAndRoundTrip","Output":"=== RUN   TestTurnStartAttachmentsValidationAndRoundTrip\n"}
+{"Time":"2026-10-10T05:22:19.098372476Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartAttachmentsValidationAndRoundTrip","Output":"--- PASS: TestTurnStartAttachmentsValidationAndRoundTrip (1.28s)\n"}
+{"Time":"2026-10-10T05:22:19.098419416Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartAttachmentsValidationAndRoundTrip","Elapsed":1.28}
+{"Time":"2026-10-10T05:22:19.098427138Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentPathsFlowAndMessageDTOConsistency"}
+{"Time":"2026-10-10T05:22:19.098430363Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentPathsFlowAndMessageDTOConsistency","Output":"=== RUN   TestAttachmentPathsFlowAndMessageDTOConsistency\n"}
+{"Time":"2026-10-10T05:22:19.83535672Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentPathsFlowAndMessageDTOConsistency","Output":"--- PASS: TestAttachmentPathsFlowAndMessageDTOConsistency (0.74s)\n"}
+{"Time":"2026-10-10T05:22:19.836330753Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentPathsFlowAndMessageDTOConsistency","Elapsed":0.74}
+{"Time":"2026-10-10T05:22:19.83636237Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentResolverCapabilityRequiresExplicitProjectRoot"}
+{"Time":"2026-10-10T05:22:19.836366517Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentResolverCapabilityRequiresExplicitProjectRoot","Output":"=== RUN   TestAttachmentResolverCapabilityRequiresExplicitProjectRoot\n"}
+{"Time":"2026-10-10T05:22:21.176559879Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentResolverCapabilityRequiresExplicitProjectRoot","Output":"--- PASS: TestAttachmentResolverCapabilityRequiresExplicitProjectRoot (1.34s)\n"}
+{"Time":"2026-10-10T05:22:21.176608833Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestAttachmentResolverCapabilityRequiresExplicitProjectRoot","Elapsed":1.34}
+{"Time":"2026-10-10T05:22:21.176615012Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlMessageProvenanceProjected"}
+{"Time":"2026-10-10T05:22:21.176618347Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlMessageProvenanceProjected","Output":"=== RUN   TestControlMessageProvenanceProjected\n"}
+{"Time":"2026-10-10T05:22:21.864322534Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlMessageProvenanceProjected","Output":"--- PASS: TestControlMessageProvenanceProjected (0.68s)\n"}
+{"Time":"2026-10-10T05:22:21.864367291Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlMessageProvenanceProjected","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:21.86437325Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerHTTPSettingsSegment"}
+{"Time":"2026-10-10T05:22:21.864376205Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerHTTPSettingsSegment","Output":"=== RUN   TestControlHandlerHTTPSettingsSegment\n"}
+{"Time":"2026-10-10T05:22:22.468090859Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerHTTPSettingsSegment","Output":"--- PASS: TestControlHandlerHTTPSettingsSegment (0.61s)\n"}
+{"Time":"2026-10-10T05:22:22.468624873Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlHandlerHTTPSettingsSegment","Elapsed":0.61}
+{"Time":"2026-10-10T05:22:22.46864283Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestMarketplaceInstallModeAndCheckRoute"}
+{"Time":"2026-10-10T05:22:22.468646316Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMarketplaceInstallModeAndCheckRoute","Output":"=== RUN   TestMarketplaceInstallModeAndCheckRoute\n"}
+{"Time":"2026-10-10T05:22:23.74112919Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestMarketplaceInstallModeAndCheckRoute","Output":"--- PASS: TestMarketplaceInstallModeAndCheckRoute (1.27s)\n"}
+{"Time":"2026-10-10T05:22:23.741242571Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestMarketplaceInstallModeAndCheckRoute","Elapsed":1.27}
+{"Time":"2026-10-10T05:22:23.741318255Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTrajectorySessionRoute"}
+{"Time":"2026-10-10T05:22:23.741326978Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTrajectorySessionRoute","Output":"=== RUN   TestTrajectorySessionRoute\n"}
+{"Time":"2026-10-10T05:22:24.402705049Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTrajectorySessionRoute","Output":"--- PASS: TestTrajectorySessionRoute (0.66s)\n"}
+{"Time":"2026-10-10T05:22:24.402792731Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTrajectorySessionRoute","Elapsed":0.66}
+{"Time":"2026-10-10T05:22:24.40284511Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartThinkingRoute"}
+{"Time":"2026-10-10T05:22:24.402849206Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartThinkingRoute","Output":"=== RUN   TestTurnStartThinkingRoute\n"}
+{"Time":"2026-10-10T05:22:25.013176766Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartThinkingRoute","Output":"--- PASS: TestTurnStartThinkingRoute (0.61s)\n"}
+{"Time":"2026-10-10T05:22:25.01445375Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartThinkingRoute","Elapsed":0.61}
+{"Time":"2026-10-10T05:22:25.01448045Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute"}
+{"Time":"2026-10-10T05:22:25.014484176Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute","Output":"=== RUN   TestSessionRewindRoute\n"}
+{"Time":"2026-10-10T05:22:25.014922396Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute","Output":"2026/10/10 05:22:25 WARN run failed run=run_31b44bfe9a4a3979 err=\"runtime: reconcile durable session history: list existing message projection: storage: list message file contexts sess_c0b555349dbf8787: sql: database is closed\"\n"}
+{"Time":"2026-10-10T05:22:25.015146013Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute","Output":"2026/10/10 05:22:25 ERROR journal append of terminal event failed run=run_31b44bfe9a4a3979 type=run.failed err=\"storage: begin append: sql: database is closed\"\n"}
+{"Time":"2026-10-10T05:22:25.692769853Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute","Output":"--- PASS: TestSessionRewindRoute (0.68s)\n"}
+{"Time":"2026-10-10T05:22:25.692877024Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionRewindRoute","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:25.692948882Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionForkRoute"}
+{"Time":"2026-10-10T05:22:25.69295398Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionForkRoute","Output":"=== RUN   TestSessionForkRoute\n"}
+{"Time":"2026-10-10T05:22:26.39948712Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionForkRoute","Output":"--- PASS: TestSessionForkRoute (0.71s)\n"}
+{"Time":"2026-10-10T05:22:26.399616345Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionForkRoute","Elapsed":0.71}
+{"Time":"2026-10-10T05:22:26.39969322Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC"}
+{"Time":"2026-10-10T05:22:26.39969944Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"=== RUN   TestChannelDeliveriesRPC\n"}
+{"Time":"2026-10-10T05:22:28.245441856Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"2026/10/10 05:22:28 INFO channelhost: channel started channel=fake allow_from_count=1\n"}
+{"Time":"2026-10-10T05:22:28.246913723Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"2026/10/10 05:22:28 WARN channelhost: armed intent has no terminal run after recovery; settling run=run-chan-armed\n"}
+{"Time":"2026-10-10T05:22:28.248133611Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"2026/10/10 05:22:28 INFO channelhost: operator redelivery requested run=run-chan-failed channel=fake chat_id=chat-1 attempts=3\n"}
+{"Time":"2026-10-10T05:22:28.252388261Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"2026/10/10 05:22:28 INFO channelhost: outbound delivered run=run-chan-failed channel=fake chat_id=chat-1\n"}
+{"Time":"2026-10-10T05:22:28.259468456Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Output":"--- PASS: TestChannelDeliveriesRPC (1.86s)\n"}
+{"Time":"2026-10-10T05:22:28.259539483Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestChannelDeliveriesRPC","Elapsed":1.86}
+{"Time":"2026-10-10T05:22:28.259600255Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCapabilitiesRegistered"}
+{"Time":"2026-10-10T05:22:28.25960337Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCapabilitiesRegistered","Output":"=== RUN   TestControlCronCapabilitiesRegistered\n"}
+{"Time":"2026-10-10T05:22:28.927062515Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCapabilitiesRegistered","Output":"--- PASS: TestControlCronCapabilitiesRegistered (0.67s)\n"}
+{"Time":"2026-10-10T05:22:28.928285722Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCapabilitiesRegistered","Elapsed":0.67}
+{"Time":"2026-10-10T05:22:28.928307996Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateListUpdateDelete"}
+{"Time":"2026-10-10T05:22:28.928311902Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateListUpdateDelete","Output":"=== RUN   TestControlCronCreateListUpdateDelete\n"}
+{"Time":"2026-10-10T05:22:29.664353579Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateListUpdateDelete","Output":"--- PASS: TestControlCronCreateListUpdateDelete (0.74s)\n"}
+{"Time":"2026-10-10T05:22:29.664435443Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateListUpdateDelete","Elapsed":0.74}
+{"Time":"2026-10-10T05:22:29.664444176Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateValidation"}
+{"Time":"2026-10-10T05:22:29.664448122Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateValidation","Output":"=== RUN   TestControlCronCreateValidation\n"}
+{"Time":"2026-10-10T05:22:30.373162608Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateValidation","Output":"--- PASS: TestControlCronCreateValidation (0.71s)\n"}
+{"Time":"2026-10-10T05:22:30.373201126Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlCronCreateValidation","Elapsed":0.71}
+{"Time":"2026-10-10T05:22:30.373207195Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlCronTriggerConflictAndNotFound"}
+{"Time":"2026-10-10T05:22:30.37321038Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronTriggerConflictAndNotFound","Output":"=== RUN   TestControlCronTriggerConflictAndNotFound\n"}
+{"Time":"2026-10-10T05:22:32.047805515Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronTriggerConflictAndNotFound","Output":"--- PASS: TestControlCronTriggerConflictAndNotFound (1.67s)\n"}
+{"Time":"2026-10-10T05:22:32.047856291Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlCronTriggerConflictAndNotFound","Elapsed":1.67}
+{"Time":"2026-10-10T05:22:32.047862791Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation"}
+{"Time":"2026-10-10T05:22:32.047865666Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation","Output":"=== RUN   TestControlCronDeliverValidation\n"}
+{"Time":"2026-10-10T05:22:32.049643254Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation","Output":"2026/10/10 05:22:32 WARN run failed run=run_5fd318dfc1a6eeea err=\"runtime: reconcile durable session history: list runs for message projection: storage: list run tree: sql: database is closed\"\n"}
+{"Time":"2026-10-10T05:22:32.049763565Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation","Output":"2026/10/10 05:22:32 ERROR journal append of terminal event failed run=run_5fd318dfc1a6eeea type=run.failed err=\"storage: begin append: sql: database is closed\"\n"}
+{"Time":"2026-10-10T05:22:32.729582491Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation","Output":"--- PASS: TestControlCronDeliverValidation (0.68s)\n"}
+{"Time":"2026-10-10T05:22:32.729623362Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlCronDeliverValidation","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:32.729631885Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesAdvertisedAndHiddenWithoutService"}
+{"Time":"2026-10-10T05:22:32.729634169Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesAdvertisedAndHiddenWithoutService","Output":"=== RUN   TestDeliverablesAdvertisedAndHiddenWithoutService\n"}
+{"Time":"2026-10-10T05:22:34.054088237Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesAdvertisedAndHiddenWithoutService","Output":"--- PASS: TestDeliverablesAdvertisedAndHiddenWithoutService (1.32s)\n"}
+{"Time":"2026-10-10T05:22:34.054131602Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesAdvertisedAndHiddenWithoutService","Elapsed":1.32}
+{"Time":"2026-10-10T05:22:34.054137501Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesListGetCloseRoundtrip"}
+{"Time":"2026-10-10T05:22:34.054141107Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesListGetCloseRoundtrip","Output":"=== RUN   TestDeliverablesListGetCloseRoundtrip\n"}
+{"Time":"2026-10-10T05:22:34.696135669Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesListGetCloseRoundtrip","Output":"--- PASS: TestDeliverablesListGetCloseRoundtrip (0.64s)\n"}
+{"Time":"2026-10-10T05:22:34.696185925Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesListGetCloseRoundtrip","Elapsed":0.64}
+{"Time":"2026-10-10T05:22:34.69619608Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadOverTransport"}
+{"Time":"2026-10-10T05:22:34.696200297Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadOverTransport","Output":"=== RUN   TestDeliverablesReadOverTransport\n"}
+{"Time":"2026-10-10T05:22:35.351150747Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadOverTransport","Output":"--- PASS: TestDeliverablesReadOverTransport (0.65s)\n"}
+{"Time":"2026-10-10T05:22:35.351200582Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadOverTransport","Elapsed":0.65}
+{"Time":"2026-10-10T05:22:35.351209385Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadErrorKeepsStableReason"}
+{"Time":"2026-10-10T05:22:35.35121303Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadErrorKeepsStableReason","Output":"=== RUN   TestDeliverablesReadErrorKeepsStableReason\n"}
+{"Time":"2026-10-10T05:22:36.040322128Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadErrorKeepsStableReason","Output":"--- PASS: TestDeliverablesReadErrorKeepsStableReason (0.69s)\n"}
+{"Time":"2026-10-10T05:22:36.040363801Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesReadErrorKeepsStableReason","Elapsed":0.69}
+{"Time":"2026-10-10T05:22:36.04037031Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesRejectSpoofedUnknownAndForeign"}
+{"Time":"2026-10-10T05:22:36.040372564Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesRejectSpoofedUnknownAndForeign","Output":"=== RUN   TestDeliverablesRejectSpoofedUnknownAndForeign\n"}
+{"Time":"2026-10-10T05:22:36.719556387Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesRejectSpoofedUnknownAndForeign","Output":"--- PASS: TestDeliverablesRejectSpoofedUnknownAndForeign (0.68s)\n"}
+{"Time":"2026-10-10T05:22:36.720298439Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesRejectSpoofedUnknownAndForeign","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:36.72031892Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesForeignSetReturnsForbidden"}
+{"Time":"2026-10-10T05:22:36.720322275Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesForeignSetReturnsForbidden","Output":"=== RUN   TestDeliverablesForeignSetReturnsForbidden\n"}
+{"Time":"2026-10-10T05:22:37.411456135Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesForeignSetReturnsForbidden","Output":"--- PASS: TestDeliverablesForeignSetReturnsForbidden (0.69s)\n"}
+{"Time":"2026-10-10T05:22:37.412297277Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeliverablesForeignSetReturnsForbidden","Elapsed":0.69}
+{"Time":"2026-10-10T05:22:37.412322265Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCMissingCapability"}
+{"Time":"2026-10-10T05:22:37.41232594Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCMissingCapability","Output":"=== RUN   TestDiagnosticsRPCMissingCapability\n"}
+{"Time":"2026-10-10T05:22:38.038137666Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCMissingCapability","Output":"--- PASS: TestDiagnosticsRPCMissingCapability (0.63s)\n"}
+{"Time":"2026-10-10T05:22:38.038207321Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCMissingCapability","Elapsed":0.63}
+{"Time":"2026-10-10T05:22:38.03821339Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCRoundtrip"}
+{"Time":"2026-10-10T05:22:38.038218959Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCRoundtrip","Output":"=== RUN   TestDiagnosticsRPCRoundtrip\n"}
+{"Time":"2026-10-10T05:22:38.72896607Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCRoundtrip","Output":"--- PASS: TestDiagnosticsRPCRoundtrip (0.69s)\n"}
+{"Time":"2026-10-10T05:22:38.729008845Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCRoundtrip","Elapsed":0.69}
+{"Time":"2026-10-10T05:22:38.729015325Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCInvalidParams"}
+{"Time":"2026-10-10T05:22:38.72901866Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCInvalidParams","Output":"=== RUN   TestDiagnosticsRPCInvalidParams\n"}
+{"Time":"2026-10-10T05:22:39.4881295Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCInvalidParams","Output":"--- PASS: TestDiagnosticsRPCInvalidParams (0.76s)\n"}
+{"Time":"2026-10-10T05:22:39.48935462Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDiagnosticsRPCInvalidParams","Elapsed":0.76}
+{"Time":"2026-10-10T05:22:39.489384756Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestHistoryRPCRejectsBrowserActorAndScopeClaims"}
+{"Time":"2026-10-10T05:22:39.489395792Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHistoryRPCRejectsBrowserActorAndScopeClaims","Output":"=== RUN   TestHistoryRPCRejectsBrowserActorAndScopeClaims\n"}
+{"Time":"2026-10-10T05:22:39.489401881Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHistoryRPCRejectsBrowserActorAndScopeClaims","Output":"--- PASS: TestHistoryRPCRejectsBrowserActorAndScopeClaims (0.00s)\n"}
+{"Time":"2026-10-10T05:22:39.489404876Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestHistoryRPCRejectsBrowserActorAndScopeClaims","Elapsed":0}
+{"Time":"2026-10-10T05:22:39.489407971Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestHistorySessionCursorIsBounded"}
+{"Time":"2026-10-10T05:22:39.489410294Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHistorySessionCursorIsBounded","Output":"=== RUN   TestHistorySessionCursorIsBounded\n"}
+{"Time":"2026-10-10T05:22:39.489413098Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHistorySessionCursorIsBounded","Output":"--- PASS: TestHistorySessionCursorIsBounded (0.00s)\n"}
+{"Time":"2026-10-10T05:22:39.489415011Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestHistorySessionCursorIsBounded","Elapsed":0}
+{"Time":"2026-10-10T05:22:39.489416824Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestINOFYProductRPCSurface"}
+{"Time":"2026-10-10T05:22:39.489419588Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestINOFYProductRPCSurface","Output":"=== RUN   TestINOFYProductRPCSurface\n"}
+{"Time":"2026-10-10T05:22:40.262867432Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestINOFYProductRPCSurface","Output":"--- PASS: TestINOFYProductRPCSurface (0.77s)\n"}
+{"Time":"2026-10-10T05:22:40.262961554Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestINOFYProductRPCSurface","Elapsed":0.77}
+{"Time":"2026-10-10T05:22:40.263017268Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCProjectsAllowlistedMaskError"}
+{"Time":"2026-10-10T05:22:40.263020853Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCProjectsAllowlistedMaskError","Output":"=== RUN   TestModuleActionRPCProjectsAllowlistedMaskError\n"}
+{"Time":"2026-10-10T05:22:40.263268506Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCProjectsAllowlistedMaskError","Output":"--- PASS: TestModuleActionRPCProjectsAllowlistedMaskError (0.00s)\n"}
+{"Time":"2026-10-10T05:22:40.263307535Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCProjectsAllowlistedMaskError","Elapsed":0}
+{"Time":"2026-10-10T05:22:40.263332913Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult"}
+{"Time":"2026-10-10T05:22:40.263335477Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult","Output":"=== RUN   TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult\n"}
+{"Time":"2026-10-10T05:22:41.005522896Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult","Output":"--- PASS: TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult (0.74s)\n"}
+{"Time":"2026-10-10T05:22:41.005606883Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesAuthenticatedCallerAndReturnsBoundResult","Elapsed":0.74}
+{"Time":"2026-10-10T05:22:41.005650358Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesPeerBoundCaller"}
+{"Time":"2026-10-10T05:22:41.005657079Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesPeerBoundCaller","Output":"=== RUN   TestModuleActionRPCUsesPeerBoundCaller\n"}
+{"Time":"2026-10-10T05:22:41.720342908Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesPeerBoundCaller","Output":"--- PASS: TestModuleActionRPCUsesPeerBoundCaller (0.71s)\n"}
+{"Time":"2026-10-10T05:22:41.720395608Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCUsesPeerBoundCaller","Elapsed":0.71}
+{"Time":"2026-10-10T05:22:41.72040405Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRequiresAuthenticatedTransportContext"}
+{"Time":"2026-10-10T05:22:41.720407185Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRequiresAuthenticatedTransportContext","Output":"=== RUN   TestModuleActionRPCRequiresAuthenticatedTransportContext\n"}
+{"Time":"2026-10-10T05:22:42.381216448Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRequiresAuthenticatedTransportContext","Output":"--- PASS: TestModuleActionRPCRequiresAuthenticatedTransportContext (0.66s)\n"}
+{"Time":"2026-10-10T05:22:42.381258401Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRequiresAuthenticatedTransportContext","Elapsed":0.66}
+{"Time":"2026-10-10T05:22:42.381266954Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims"}
+{"Time":"2026-10-10T05:22:42.381269348Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims","Output":"=== RUN   TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims\n"}
+{"Time":"2026-10-10T05:22:43.034920992Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims","Output":"--- PASS: TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims (0.65s)\n"}
+{"Time":"2026-10-10T05:22:43.036293375Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsSpoofedModuleIDAndForgedAuthorityClaims","Elapsed":0.65}
+{"Time":"2026-10-10T05:22:43.03631694Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsOversizedDeepAndInvalidInput"}
+{"Time":"2026-10-10T05:22:43.036320215Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsOversizedDeepAndInvalidInput","Output":"=== RUN   TestModuleActionRPCRejectsOversizedDeepAndInvalidInput\n"}
+{"Time":"2026-10-10T05:22:43.888312565Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsOversizedDeepAndInvalidInput","Output":"--- PASS: TestModuleActionRPCRejectsOversizedDeepAndInvalidInput (0.85s)\n"}
+{"Time":"2026-10-10T05:22:43.888352105Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsOversizedDeepAndInvalidInput","Elapsed":0.85}
+{"Time":"2026-10-10T05:22:43.888358064Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods"}
+{"Time":"2026-10-10T05:22:43.888366937Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods","Output":"=== RUN   TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods\n"}
+{"Time":"2026-10-10T05:22:44.532100938Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods","Output":"--- PASS: TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods (0.65s)\n"}
+{"Time":"2026-10-10T05:22:44.532189942Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsUnknownActionAndPluginDefinedMethods","Elapsed":0.65}
+{"Time":"2026-10-10T05:22:44.532236252Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsCancellationAndTimeout"}
+{"Time":"2026-10-10T05:22:44.532260028Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsCancellationAndTimeout","Output":"=== RUN   TestModuleActionRPCRejectsCancellationAndTimeout\n"}
+{"Time":"2026-10-10T05:22:45.886205221Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsCancellationAndTimeout","Output":"--- PASS: TestModuleActionRPCRejectsCancellationAndTimeout (1.35s)\n"}
+{"Time":"2026-10-10T05:22:45.886303209Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRejectsCancellationAndTimeout","Elapsed":1.35}
+{"Time":"2026-10-10T05:22:45.88636389Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRedactsProviderErrorsAndSecrets"}
+{"Time":"2026-10-10T05:22:45.886371461Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRedactsProviderErrorsAndSecrets","Output":"=== RUN   TestModuleActionRPCRedactsProviderErrorsAndSecrets\n"}
+{"Time":"2026-10-10T05:22:46.491214821Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRedactsProviderErrorsAndSecrets","Output":"--- PASS: TestModuleActionRPCRedactsProviderErrorsAndSecrets (0.60s)\n"}
+{"Time":"2026-10-10T05:22:46.491362493Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestModuleActionRPCRedactsProviderErrorsAndSecrets","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:46.491417706Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestHumanPlanEntryDrainsGoalBeforeBecomingEffective"}
+{"Time":"2026-10-10T05:22:46.491421612Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHumanPlanEntryDrainsGoalBeforeBecomingEffective","Output":"=== RUN   TestHumanPlanEntryDrainsGoalBeforeBecomingEffective\n"}
+{"Time":"2026-10-10T05:22:47.159889019Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestHumanPlanEntryDrainsGoalBeforeBecomingEffective","Output":"--- PASS: TestHumanPlanEntryDrainsGoalBeforeBecomingEffective (0.67s)\n"}
+{"Time":"2026-10-10T05:22:47.159972695Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestHumanPlanEntryDrainsGoalBeforeBecomingEffective","Elapsed":0.67}
+{"Time":"2026-10-10T05:22:47.160021158Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDeleteDuringGoalDrainCannotResurrectPlan"}
+{"Time":"2026-10-10T05:22:47.16004296Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeleteDuringGoalDrainCannotResurrectPlan","Output":"=== RUN   TestDeleteDuringGoalDrainCannotResurrectPlan\n"}
+{"Time":"2026-10-10T05:22:47.833127352Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeleteDuringGoalDrainCannotResurrectPlan","Output":"2026/10/10 05:22:47 ERROR set terminal run status run=run_ffadf99449140aac status=cancelled err=\"storage: not found\"\n"}
+{"Time":"2026-10-10T05:22:47.843176766Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDeleteDuringGoalDrainCannotResurrectPlan","Output":"--- PASS: TestDeleteDuringGoalDrainCannotResurrectPlan (0.68s)\n"}
+{"Time":"2026-10-10T05:22:47.843264278Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDeleteDuringGoalDrainCannotResurrectPlan","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:47.843330197Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective"}
+{"Time":"2026-10-10T05:22:47.843337097Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective","Output":"=== RUN   TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective\n"}
+{"Time":"2026-10-10T05:22:48.577436916Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective","Output":"--- PASS: TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective (0.73s)\n"}
+{"Time":"2026-10-10T05:22:48.577546962Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPlanEntryDrainCancellationLeavesGoalPausedAndPlanIneffective","Elapsed":0.73}
+{"Time":"2026-10-10T05:22:48.577604418Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReplayedStartGoalDecisionDoesNotRearmAfterRestart"}
+{"Time":"2026-10-10T05:22:48.577607803Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReplayedStartGoalDecisionDoesNotRearmAfterRestart","Output":"=== RUN   TestReplayedStartGoalDecisionDoesNotRearmAfterRestart\n"}
+{"Time":"2026-10-10T05:22:49.483607559Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReplayedStartGoalDecisionDoesNotRearmAfterRestart","Output":"--- PASS: TestReplayedStartGoalDecisionDoesNotRearmAfterRestart (0.91s)\n"}
+{"Time":"2026-10-10T05:22:49.483758816Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReplayedStartGoalDecisionDoesNotRearmAfterRestart","Elapsed":0.91}
+{"Time":"2026-10-10T05:22:49.48384088Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPlanEnterUsesAuthenticatedPeerSessionBinding"}
+{"Time":"2026-10-10T05:22:49.483846388Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanEnterUsesAuthenticatedPeerSessionBinding","Output":"=== RUN   TestPlanEnterUsesAuthenticatedPeerSessionBinding\n"}
+{"Time":"2026-10-10T05:22:50.085801264Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanEnterUsesAuthenticatedPeerSessionBinding","Output":"--- PASS: TestPlanEnterUsesAuthenticatedPeerSessionBinding (0.60s)\n"}
+{"Time":"2026-10-10T05:22:50.085909367Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPlanEnterUsesAuthenticatedPeerSessionBinding","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:50.085973454Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestListProjectContextsReturnsSafeTextMetadataOnly"}
+{"Time":"2026-10-10T05:22:50.08597748Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestListProjectContextsReturnsSafeTextMetadataOnly","Output":"=== RUN   TestListProjectContextsReturnsSafeTextMetadataOnly\n"}
+{"Time":"2026-10-10T05:22:50.086938017Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestListProjectContextsReturnsSafeTextMetadataOnly","Output":"--- PASS: TestListProjectContextsReturnsSafeTextMetadataOnly (0.00s)\n"}
+{"Time":"2026-10-10T05:22:50.086994612Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestListProjectContextsReturnsSafeTextMetadataOnly","Elapsed":0}
+{"Time":"2026-10-10T05:22:50.087015884Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListErrorsDoNotLeakProjectRoot"}
+{"Time":"2026-10-10T05:22:50.087018418Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListErrorsDoNotLeakProjectRoot","Output":"=== RUN   TestProjectContextListErrorsDoNotLeakProjectRoot\n"}
+{"Time":"2026-10-10T05:22:51.254799648Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListErrorsDoNotLeakProjectRoot","Output":"--- PASS: TestProjectContextListErrorsDoNotLeakProjectRoot (1.17s)\n"}
+{"Time":"2026-10-10T05:22:51.254885688Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListErrorsDoNotLeakProjectRoot","Elapsed":1.17}
+{"Time":"2026-10-10T05:22:51.254937486Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery"}
+{"Time":"2026-10-10T05:22:51.25494046Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery","Output":"=== RUN   TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery\n"}
+{"Time":"2026-10-10T05:22:51.261723228Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery","Output":"--- PASS: TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery (0.01s)\n"}
+{"Time":"2026-10-10T05:22:51.2617845Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextListQueryFiltersBeforeLimitAndRejectsUnsafeQuery","Elapsed":0.01}
+{"Time":"2026-10-10T05:22:51.261828867Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs"}
+{"Time":"2026-10-10T05:22:51.261832603Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs\n"}
+{"Time":"2026-10-10T05:22:51.262005844Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent"}
+{"Time":"2026-10-10T05:22:51.262011342Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent\n"}
+{"Time":"2026-10-10T05:22:51.262146636Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262176681Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/parent","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.26219621Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute"}
+{"Time":"2026-10-10T05:22:51.262198704Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute\n"}
+{"Time":"2026-10-10T05:22:51.262273166Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262299676Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/absolute","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262321139Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive"}
+{"Time":"2026-10-10T05:22:51.262323332Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive\n"}
+{"Time":"2026-10-10T05:22:51.262397834Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262421219Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/drive","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262438615Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads"}
+{"Time":"2026-10-10T05:22:51.262440799Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads\n"}
+{"Time":"2026-10-10T05:22:51.262533088Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262558536Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/ads","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262575602Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc"}
+{"Time":"2026-10-10T05:22:51.262577605Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc\n"}
+{"Time":"2026-10-10T05:22:51.262662563Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262686379Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/unc","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262703014Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul"}
+{"Time":"2026-10-10T05:22:51.262705217Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul\n"}
+{"Time":"2026-10-10T05:22:51.262782263Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262804787Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/nul","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262823686Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline"}
+{"Time":"2026-10-10T05:22:51.262825989Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline\n"}
+{"Time":"2026-10-10T05:22:51.26289968Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.262922014Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/newline","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.262941243Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab"}
+{"Time":"2026-10-10T05:22:51.262943536Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab\n"}
+{"Time":"2026-10-10T05:22:51.263013852Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.263055815Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/tab","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.263075004Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive"}
+{"Time":"2026-10-10T05:22:51.263077117Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive\n"}
+{"Time":"2026-10-10T05:22:51.26315851Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.263181144Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/sensitive","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.26320528Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password"}
+{"Time":"2026-10-10T05:22:51.263207804Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password\n"}
+{"Time":"2026-10-10T05:22:51.263323759Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264112697Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_password","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.26412781Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token"}
+{"Time":"2026-10-10T05:22:51.264131225Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token\n"}
+{"Time":"2026-10-10T05:22:51.264137304Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264139738Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/naked_token","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264141691Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file"}
+{"Time":"2026-10-10T05:22:51.264143444Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file\n"}
+{"Time":"2026-10-10T05:22:51.264145767Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.26414792Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys_file","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264149833Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys"}
+{"Time":"2026-10-10T05:22:51.264151466Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys\n"}
+{"Time":"2026-10-10T05:22:51.264153769Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264155722Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/keys","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264157535Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary"}
+{"Time":"2026-10-10T05:22:51.264159287Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary","Output":"=== RUN   TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary\n"}
+{"Time":"2026-10-10T05:22:51.264166769Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264168812Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs/binary","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264170915Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs","Output":"--- PASS: TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264172888Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsUnsafeSensitiveAndBinaryInputs","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264175352Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsSensitiveSymlinkTarget"}
+{"Time":"2026-10-10T05:22:51.264178216Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsSensitiveSymlinkTarget","Output":"=== RUN   TestResolveProjectContextsRejectsSensitiveSymlinkTarget\n"}
+{"Time":"2026-10-10T05:22:51.26418105Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsSensitiveSymlinkTarget","Output":"--- PASS: TestResolveProjectContextsRejectsSensitiveSymlinkTarget (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264183284Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsRejectsSensitiveSymlinkTarget","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264185156Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsKeepsEmptyBodyNonNil"}
+{"Time":"2026-10-10T05:22:51.264186739Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsKeepsEmptyBodyNonNil","Output":"=== RUN   TestResolveProjectContextsKeepsEmptyBodyNonNil\n"}
+{"Time":"2026-10-10T05:22:51.264572009Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsKeepsEmptyBodyNonNil","Output":"--- PASS: TestResolveProjectContextsKeepsEmptyBodyNonNil (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264580021Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsKeepsEmptyBodyNonNil","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264582675Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsHonorsLiveRequestContext"}
+{"Time":"2026-10-10T05:22:51.264584348Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsHonorsLiveRequestContext","Output":"=== RUN   TestResolveProjectContextsHonorsLiveRequestContext\n"}
+{"Time":"2026-10-10T05:22:51.264587212Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsHonorsLiveRequestContext","Output":"--- PASS: TestResolveProjectContextsHonorsLiveRequestContext (0.00s)\n"}
+{"Time":"2026-10-10T05:22:51.264589135Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsHonorsLiveRequestContext","Elapsed":0}
+{"Time":"2026-10-10T05:22:51.264590988Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartUsesLiveContextForProjectFiles"}
+{"Time":"2026-10-10T05:22:51.26459258Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartUsesLiveContextForProjectFiles","Output":"=== RUN   TestTurnStartUsesLiveContextForProjectFiles\n"}
+{"Time":"2026-10-10T05:22:51.844102055Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartUsesLiveContextForProjectFiles","Output":"--- PASS: TestTurnStartUsesLiveContextForProjectFiles (0.58s)\n"}
+{"Time":"2026-10-10T05:22:51.844754118Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTurnStartUsesLiveContextForProjectFiles","Elapsed":0.58}
+{"Time":"2026-10-10T05:22:51.844775079Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsBoundsAndSymlinkContainment"}
+{"Time":"2026-10-10T05:22:51.844777733Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsBoundsAndSymlinkContainment","Output":"=== RUN   TestResolveProjectContextsBoundsAndSymlinkContainment\n"}
+{"Time":"2026-10-10T05:22:51.853538892Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsBoundsAndSymlinkContainment","Output":"--- PASS: TestResolveProjectContextsBoundsAndSymlinkContainment (0.01s)\n"}
+{"Time":"2026-10-10T05:22:51.853602648Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestResolveProjectContextsBoundsAndSymlinkContainment","Elapsed":0.01}
+{"Time":"2026-10-10T05:22:51.853643459Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly"}
+{"Time":"2026-10-10T05:22:51.853647395Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly","Output":"=== RUN   TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly\n"}
+{"Time":"2026-10-10T05:22:52.51114848Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly","Output":"--- PASS: TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly (0.66s)\n"}
+{"Time":"2026-10-10T05:22:52.511186678Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProjectContextRPCAndTurnPersistSnapshotMetadataOnly","Elapsed":0.66}
+{"Time":"2026-10-10T05:22:52.511195261Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed"}
+{"Time":"2026-10-10T05:22:52.511197624Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed","Output":"=== RUN   TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed\n"}
+{"Time":"2026-10-10T05:22:53.10646335Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed","Output":"--- PASS: TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed (0.60s)\n"}
+{"Time":"2026-10-10T05:22:53.10830513Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUsesAuthoritativeRootAndFailsClosed","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:53.108341415Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUnavailableWithoutProjectRoot"}
+{"Time":"2026-10-10T05:22:53.108345611Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUnavailableWithoutProjectRoot","Output":"=== RUN   TestProjectInitStatusUnavailableWithoutProjectRoot\n"}
+{"Time":"2026-10-10T05:22:53.697976558Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUnavailableWithoutProjectRoot","Output":"--- PASS: TestProjectInitStatusUnavailableWithoutProjectRoot (0.59s)\n"}
+{"Time":"2026-10-10T05:22:53.698169208Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestProjectInitStatusUnavailableWithoutProjectRoot","Elapsed":0.59}
+{"Time":"2026-10-10T05:22:53.698233435Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope"}
+{"Time":"2026-10-10T05:22:53.69823686Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope","Output":"=== RUN   TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope\n"}
+{"Time":"2026-10-10T05:22:53.698366926Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope","Output":"--- PASS: TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope (0.00s)\n"}
+{"Time":"2026-10-10T05:22:53.69841586Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestDefaultFrameLimitCarriesMaximumInlineAttachmentEnvelope","Elapsed":0}
+{"Time":"2026-10-10T05:22:53.69846241Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerCallAndServerInitiatedCall"}
+{"Time":"2026-10-10T05:22:53.698467868Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerCallAndServerInitiatedCall","Output":"=== RUN   TestPeerCallAndServerInitiatedCall\n"}
+{"Time":"2026-10-10T05:22:53.699194633Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerCallAndServerInitiatedCall","Output":"--- PASS: TestPeerCallAndServerInitiatedCall (0.00s)\n"}
+{"Time":"2026-10-10T05:22:53.699209986Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerCallAndServerInitiatedCall","Elapsed":0}
+{"Time":"2026-10-10T05:22:53.699215545Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerReturnsRemoteError"}
+{"Time":"2026-10-10T05:22:53.699219481Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerReturnsRemoteError","Output":"=== RUN   TestPeerReturnsRemoteError\n"}
+{"Time":"2026-10-10T05:22:53.699597831Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerReturnsRemoteError","Output":"--- PASS: TestPeerReturnsRemoteError (0.00s)\n"}
+{"Time":"2026-10-10T05:22:53.699610429Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerReturnsRemoteError","Elapsed":0}
+{"Time":"2026-10-10T05:22:53.699635908Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsOverloadedOutgoingQueue"}
+{"Time":"2026-10-10T05:22:53.699639724Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsOverloadedOutgoingQueue","Output":"=== RUN   TestPeerRejectsOverloadedOutgoingQueue\n"}
+{"Time":"2026-10-10T05:22:53.699771692Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsOverloadedOutgoingQueue","Output":"--- PASS: TestPeerRejectsOverloadedOutgoingQueue (0.00s)\n"}
+{"Time":"2026-10-10T05:22:53.699779825Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsOverloadedOutgoingQueue","Elapsed":0}
+{"Time":"2026-10-10T05:22:53.699784221Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextWaitsForCapacityAndCancels"}
+{"Time":"2026-10-10T05:22:53.699786895Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextWaitsForCapacityAndCancels","Output":"=== RUN   TestPeerNotifyContextWaitsForCapacityAndCancels\n"}
+{"Time":"2026-10-10T05:22:53.725238427Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextWaitsForCapacityAndCancels","Output":"--- PASS: TestPeerNotifyContextWaitsForCapacityAndCancels (0.03s)\n"}
+{"Time":"2026-10-10T05:22:53.725275393Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextWaitsForCapacityAndCancels","Elapsed":0.03}
+{"Time":"2026-10-10T05:22:53.725285277Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerResponseEnqueueWaitsForCapacity"}
+{"Time":"2026-10-10T05:22:53.725289504Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerResponseEnqueueWaitsForCapacity","Output":"=== RUN   TestPeerResponseEnqueueWaitsForCapacity\n"}
+{"Time":"2026-10-10T05:22:53.745692289Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerResponseEnqueueWaitsForCapacity","Output":"--- PASS: TestPeerResponseEnqueueWaitsForCapacity (0.02s)\n"}
+{"Time":"2026-10-10T05:22:53.745723536Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerResponseEnqueueWaitsForCapacity","Elapsed":0.02}
+{"Time":"2026-10-10T05:22:53.745729816Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextDeliversBurstThroughBoundedQueue"}
+{"Time":"2026-10-10T05:22:53.74573259Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextDeliversBurstThroughBoundedQueue","Output":"=== RUN   TestPeerNotifyContextDeliversBurstThroughBoundedQueue\n"}
+{"Time":"2026-10-10T05:22:53.753819423Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextDeliversBurstThroughBoundedQueue","Output":"--- PASS: TestPeerNotifyContextDeliversBurstThroughBoundedQueue (0.01s)\n"}
+{"Time":"2026-10-10T05:22:53.753856389Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerNotifyContextDeliversBurstThroughBoundedQueue","Elapsed":0.01}
+{"Time":"2026-10-10T05:22:53.753862418Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsInvalidJSON"}
+{"Time":"2026-10-10T05:22:53.753866153Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsInvalidJSON","Output":"=== RUN   TestPeerRejectsInvalidJSON\n"}
+{"Time":"2026-10-10T05:22:53.754001738Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsInvalidJSON","Output":"--- PASS: TestPeerRejectsInvalidJSON (0.00s)\n"}
+{"Time":"2026-10-10T05:22:53.7540101Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerRejectsInvalidJSON","Elapsed":0}
+{"Time":"2026-10-10T05:22:53.754058183Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewAdvertisedAndRouted"}
+{"Time":"2026-10-10T05:22:53.754061167Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewAdvertisedAndRouted","Output":"=== RUN   TestReferencePreviewAdvertisedAndRouted\n"}
+{"Time":"2026-10-10T05:22:54.375176129Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewAdvertisedAndRouted","Output":"--- PASS: TestReferencePreviewAdvertisedAndRouted (0.62s)\n"}
+{"Time":"2026-10-10T05:22:54.375283541Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewAdvertisedAndRouted","Elapsed":0.62}
+{"Time":"2026-10-10T05:22:54.375292324Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewRejectsSpoofedAndUnknownFields"}
+{"Time":"2026-10-10T05:22:54.375294557Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewRejectsSpoofedAndUnknownFields","Output":"=== RUN   TestReferencePreviewRejectsSpoofedAndUnknownFields\n"}
+{"Time":"2026-10-10T05:22:54.959651915Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewRejectsSpoofedAndUnknownFields","Output":"--- PASS: TestReferencePreviewRejectsSpoofedAndUnknownFields (0.58s)\n"}
+{"Time":"2026-10-10T05:22:54.959692816Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewRejectsSpoofedAndUnknownFields","Elapsed":0.58}
+{"Time":"2026-10-10T05:22:54.959705946Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewHiddenWithoutService"}
+{"Time":"2026-10-10T05:22:54.95970884Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewHiddenWithoutService","Output":"=== RUN   TestReferencePreviewHiddenWithoutService\n"}
+{"Time":"2026-10-10T05:22:55.540879522Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewHiddenWithoutService","Output":"--- PASS: TestReferencePreviewHiddenWithoutService (0.58s)\n"}
+{"Time":"2026-10-10T05:22:55.54091782Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferencePreviewHiddenWithoutService","Elapsed":0.58}
+{"Time":"2026-10-10T05:22:55.540925201Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityDecoding"}
+{"Time":"2026-10-10T05:22:55.540928456Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityDecoding","Output":"=== RUN   TestTurnContinuityDecoding\n"}
+{"Time":"2026-10-10T05:22:55.541164722Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityDecoding","Output":"--- PASS: TestTurnContinuityDecoding (0.00s)\n"}
+{"Time":"2026-10-10T05:22:55.541177511Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityDecoding","Elapsed":0}
+{"Time":"2026-10-10T05:22:55.541181497Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityRejectsForgedBodies"}
+{"Time":"2026-10-10T05:22:55.54118334Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityRejectsForgedBodies","Output":"=== RUN   TestTurnContinuityRejectsForgedBodies\n"}
+{"Time":"2026-10-10T05:22:55.541571114Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityRejectsForgedBodies","Output":"--- PASS: TestTurnContinuityRejectsForgedBodies (0.00s)\n"}
+{"Time":"2026-10-10T05:22:55.5415749Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestTurnContinuityRejectsForgedBodies","Elapsed":0}
+{"Time":"2026-10-10T05:22:55.541580528Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRoutedWithOperatorAuthority"}
+{"Time":"2026-10-10T05:22:55.541582542Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRoutedWithOperatorAuthority","Output":"=== RUN   TestReferenceGetRoutedWithOperatorAuthority\n"}
+{"Time":"2026-10-10T05:22:56.152699236Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRoutedWithOperatorAuthority","Output":"--- PASS: TestReferenceGetRoutedWithOperatorAuthority (0.61s)\n"}
+{"Time":"2026-10-10T05:22:56.152742571Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRoutedWithOperatorAuthority","Elapsed":0.61}
+{"Time":"2026-10-10T05:22:56.152748771Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRejectsSpoofedAndMissingFields"}
+{"Time":"2026-10-10T05:22:56.152751575Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRejectsSpoofedAndMissingFields","Output":"=== RUN   TestReferenceGetRejectsSpoofedAndMissingFields\n"}
+{"Time":"2026-10-10T05:22:56.755536123Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRejectsSpoofedAndMissingFields","Output":"--- PASS: TestReferenceGetRejectsSpoofedAndMissingFields (0.60s)\n"}
+{"Time":"2026-10-10T05:22:56.755574882Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetRejectsSpoofedAndMissingFields","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:56.755582583Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetHiddenWithoutService"}
+{"Time":"2026-10-10T05:22:56.755585698Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetHiddenWithoutService","Output":"=== RUN   TestReferenceGetHiddenWithoutService\n"}
+{"Time":"2026-10-10T05:22:57.342288689Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetHiddenWithoutService","Output":"--- PASS: TestReferenceGetHiddenWithoutService (0.59s)\n"}
+{"Time":"2026-10-10T05:22:57.342329371Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestReferenceGetHiddenWithoutService","Elapsed":0.59}
+{"Time":"2026-10-10T05:22:57.342336812Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarUsesAuthoritativeOwners"}
+{"Time":"2026-10-10T05:22:57.342340147Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarUsesAuthoritativeOwners","Output":"=== RUN   TestSessionSidebarUsesAuthoritativeOwners\n"}
+{"Time":"2026-10-10T05:22:57.944329986Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarUsesAuthoritativeOwners","Output":"--- PASS: TestSessionSidebarUsesAuthoritativeOwners (0.60s)\n"}
+{"Time":"2026-10-10T05:22:57.944370197Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarUsesAuthoritativeOwners","Elapsed":0.6}
+{"Time":"2026-10-10T05:22:57.944376486Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns"}
+{"Time":"2026-10-10T05:22:57.944379391Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns","Output":"=== RUN   TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns\n"}
+{"Time":"2026-10-10T05:22:58.524307852Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns","Output":"--- PASS: TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns (0.58s)\n"}
+{"Time":"2026-10-10T05:22:58.524348082Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarProjectsMCPStatusPriorityAndWireUnknowns","Elapsed":0.58}
+{"Time":"2026-10-10T05:22:58.524374652Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarCatalogOnlyMCPRemainsConfigured"}
+{"Time":"2026-10-10T05:22:58.524380211Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarCatalogOnlyMCPRemainsConfigured","Output":"=== RUN   TestSessionSidebarCatalogOnlyMCPRemainsConfigured\n"}
+{"Time":"2026-10-10T05:22:59.11042116Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarCatalogOnlyMCPRemainsConfigured","Output":"--- PASS: TestSessionSidebarCatalogOnlyMCPRemainsConfigured (0.59s)\n"}
+{"Time":"2026-10-10T05:22:59.110517054Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionSidebarCatalogOnlyMCPRemainsConfigured","Elapsed":0.59}
+{"Time":"2026-10-10T05:22:59.110570255Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct"}
+{"Time":"2026-10-10T05:22:59.11057369Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct","Output":"=== RUN   TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct\n"}
+{"Time":"2026-10-10T05:22:59.110654602Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct","Output":"--- PASS: TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.11070638Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildSidebarUsageKeepsUnknownAndPartialCostDistinct","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.110727061Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotEmpty"}
+{"Time":"2026-10-10T05:22:59.110730376Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotEmpty","Output":"=== RUN   TestBuildTokenSnapshotEmpty\n"}
+{"Time":"2026-10-10T05:22:59.110816125Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotEmpty","Output":"--- PASS: TestBuildTokenSnapshotEmpty (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.110843146Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotEmpty","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.110865099Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotAggregation"}
+{"Time":"2026-10-10T05:22:59.110867032Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotAggregation","Output":"=== RUN   TestBuildTokenSnapshotAggregation\n"}
+{"Time":"2026-10-10T05:22:59.110961604Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotAggregation","Output":"--- PASS: TestBuildTokenSnapshotAggregation (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.111036812Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotAggregation","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.111076963Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotSessionLimit"}
+{"Time":"2026-10-10T05:22:59.111080047Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotSessionLimit","Output":"=== RUN   TestBuildTokenSnapshotSessionLimit\n"}
+{"Time":"2026-10-10T05:22:59.111240719Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotSessionLimit","Output":"--- PASS: TestBuildTokenSnapshotSessionLimit (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.111278116Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotSessionLimit","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.111299067Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSinceForPeriod"}
+{"Time":"2026-10-10T05:22:59.111302342Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSinceForPeriod","Output":"=== RUN   TestSinceForPeriod\n"}
+{"Time":"2026-10-10T05:22:59.111410145Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSinceForPeriod","Output":"--- PASS: TestSinceForPeriod (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.111448733Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSinceForPeriod","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.111472719Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotMissingRunStarted"}
+{"Time":"2026-10-10T05:22:59.111474942Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotMissingRunStarted","Output":"=== RUN   TestBuildTokenSnapshotMissingRunStarted\n"}
+{"Time":"2026-10-10T05:22:59.111551468Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotMissingRunStarted","Output":"--- PASS: TestBuildTokenSnapshotMissingRunStarted (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.111577727Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotMissingRunStarted","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.111594973Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCost"}
+{"Time":"2026-10-10T05:22:59.111600161Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCost","Output":"=== RUN   TestBuildTokenSnapshotCost\n"}
+{"Time":"2026-10-10T05:22:59.111818019Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCost","Output":"--- PASS: TestBuildTokenSnapshotCost (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.111850508Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCost","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.111870678Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverage"}
+{"Time":"2026-10-10T05:22:59.111872932Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverage","Output":"=== RUN   TestBuildTokenSnapshotCoverage\n"}
+{"Time":"2026-10-10T05:22:59.111980954Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverage","Output":"--- PASS: TestBuildTokenSnapshotCoverage (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.112010779Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverage","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.112050389Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverageStates"}
+{"Time":"2026-10-10T05:22:59.112053704Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverageStates","Output":"=== RUN   TestBuildTokenSnapshotCoverageStates\n"}
+{"Time":"2026-10-10T05:22:59.112165042Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverageStates","Output":"--- PASS: TestBuildTokenSnapshotCoverageStates (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.112194516Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildTokenSnapshotCoverageStates","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.112212033Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerRequiresTokenAndServesRPC"}
+{"Time":"2026-10-10T05:22:59.112214076Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerRequiresTokenAndServesRPC","Output":"=== RUN   TestWebSocketServerRequiresTokenAndServesRPC\n"}
+{"Time":"2026-10-10T05:22:59.114268971Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerRequiresTokenAndServesRPC","Output":"--- PASS: TestWebSocketServerRequiresTokenAndServesRPC (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.114310574Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerRequiresTokenAndServesRPC","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.114349182Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers"}
+{"Time":"2026-10-10T05:22:59.114351776Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers","Output":"=== RUN   TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers\n"}
+{"Time":"2026-10-10T05:22:59.116123074Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers","Output":"--- PASS: TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.116165909Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWebSocketServerAllowsConfiguredOriginAndRejectsOthers","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.116192249Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerBindsServerValidatedSessionAndRun"}
+{"Time":"2026-10-10T05:22:59.116195023Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerBindsServerValidatedSessionAndRun","Output":"=== RUN   TestPeerBindsServerValidatedSessionAndRun\n"}
+{"Time":"2026-10-10T05:22:59.116296225Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerBindsServerValidatedSessionAndRun","Output":"--- PASS: TestPeerBindsServerValidatedSessionAndRun (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.116327212Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerBindsServerValidatedSessionAndRun","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.116350677Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPeerWithoutTransportIdentityCannotAcquireBinding"}
+{"Time":"2026-10-10T05:22:59.116353201Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerWithoutTransportIdentityCannotAcquireBinding","Output":"=== RUN   TestPeerWithoutTransportIdentityCannotAcquireBinding\n"}
+{"Time":"2026-10-10T05:22:59.116408294Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPeerWithoutTransportIdentityCannotAcquireBinding","Output":"--- PASS: TestPeerWithoutTransportIdentityCannotAcquireBinding (0.00s)\n"}
+{"Time":"2026-10-10T05:22:59.116432551Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPeerWithoutTransportIdentityCannotAcquireBinding","Elapsed":0}
+{"Time":"2026-10-10T05:22:59.116453082Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlBindsPeerOnlyFromValidatedSessionAndRun"}
+{"Time":"2026-10-10T05:22:59.116455395Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlBindsPeerOnlyFromValidatedSessionAndRun","Output":"=== RUN   TestControlBindsPeerOnlyFromValidatedSessionAndRun\n"}
+{"Time":"2026-10-10T05:22:59.794019941Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlBindsPeerOnlyFromValidatedSessionAndRun","Output":"--- PASS: TestControlBindsPeerOnlyFromValidatedSessionAndRun (0.68s)\n"}
+{"Time":"2026-10-10T05:22:59.796358433Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlBindsPeerOnlyFromValidatedSessionAndRun","Elapsed":0.68}
+{"Time":"2026-10-10T05:22:59.796388548Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestControlRunBindingIgnoresBrowserSessionClaim"}
+{"Time":"2026-10-10T05:22:59.796391853Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlRunBindingIgnoresBrowserSessionClaim","Output":"=== RUN   TestControlRunBindingIgnoresBrowserSessionClaim\n"}
+{"Time":"2026-10-10T05:23:00.474567869Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestControlRunBindingIgnoresBrowserSessionClaim","Output":"--- PASS: TestControlRunBindingIgnoresBrowserSessionClaim (0.68s)\n"}
+{"Time":"2026-10-10T05:23:00.47467475Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestControlRunBindingIgnoresBrowserSessionClaim","Elapsed":0.68}
+{"Time":"2026-10-10T05:23:00.474722642Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildGoalEditMutationCarriesCurrentReference"}
+{"Time":"2026-10-10T05:23:00.474726528Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildGoalEditMutationCarriesCurrentReference","Output":"=== RUN   TestBuildGoalEditMutationCarriesCurrentReference\n"}
+{"Time":"2026-10-10T05:23:00.474870625Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildGoalEditMutationCarriesCurrentReference","Output":"--- PASS: TestBuildGoalEditMutationCarriesCurrentReference (0.00s)\n"}
+{"Time":"2026-10-10T05:23:00.474916745Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildGoalEditMutationCarriesCurrentReference","Elapsed":0}
+{"Time":"2026-10-10T05:23:00.474952959Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation"}
+{"Time":"2026-10-10T05:23:00.474956785Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation","Output":"=== RUN   TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation\n"}
+{"Time":"2026-10-10T05:23:00.475059279Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused"}
+{"Time":"2026-10-10T05:23:00.475065819Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused","Output":"=== RUN   TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused\n"}
+{"Time":"2026-10-10T05:23:00.475159961Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused","Output":"--- PASS: TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused (0.00s)\n"}
+{"Time":"2026-10-10T05:23:00.475194563Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/paused","Elapsed":0}
+{"Time":"2026-10-10T05:23:00.475221063Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared"}
+{"Time":"2026-10-10T05:23:00.475224298Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared","Output":"=== RUN   TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared\n"}
+{"Time":"2026-10-10T05:23:00.475295826Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared","Output":"--- PASS: TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared (0.00s)\n"}
+{"Time":"2026-10-10T05:23:00.475326312Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation/cleared","Elapsed":0}
+{"Time":"2026-10-10T05:23:00.475387153Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation","Output":"--- PASS: TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation (0.00s)\n"}
+{"Time":"2026-10-10T05:23:00.475414514Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewDisarmsDurablyPausedOrClearedGoalDuringCancellation","Elapsed":0}
+{"Time":"2026-10-10T05:23:00.475448005Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling"}
+{"Time":"2026-10-10T05:23:00.47545117Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling","Output":"=== RUN   TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling\n"}
+{"Time":"2026-10-10T05:23:00.475506633Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause"}
+{"Time":"2026-10-10T05:23:00.47551102Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause","Output":"=== RUN   TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause\n"}
+{"Time":"2026-10-10T05:23:01.139312916Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause","Output":"--- PASS: TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause (0.66s)\n"}
+{"Time":"2026-10-10T05:23:01.139402661Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/pause","Elapsed":0.66}
+{"Time":"2026-10-10T05:23:01.139468791Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear"}
+{"Time":"2026-10-10T05:23:01.139473218Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear","Output":"=== RUN   TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear\n"}
+{"Time":"2026-10-10T05:23:01.889729633Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear","Output":"--- PASS: TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear (0.75s)\n"}
+{"Time":"2026-10-10T05:23:01.889890586Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling/goal/clear","Elapsed":0.75}
+{"Time":"2026-10-10T05:23:01.889972109Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling","Output":"--- PASS: TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling (1.41s)\n"}
+{"Time":"2026-10-10T05:23:01.890011298Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPauseAndClearReturnDisarmedWorkViewWhileOwnedRunIsCancelling","Elapsed":1.41}
+{"Time":"2026-10-10T05:23:01.890108224Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestGoalEditResponseReflectsRearmedOwnedRun"}
+{"Time":"2026-10-10T05:23:01.89011277Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestGoalEditResponseReflectsRearmedOwnedRun","Output":"=== RUN   TestGoalEditResponseReflectsRearmedOwnedRun\n"}
+{"Time":"2026-10-10T05:23:02.060395689Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestGoalEditResponseReflectsRearmedOwnedRun","Output":"2026/10/10 05:23:02 WARN cron terminal watcher gave up job=cron_b00873bb490ca0e8 run=run_5fd318dfc1a6eeea\n"}
+{"Time":"2026-10-10T05:23:02.544317419Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestGoalEditResponseReflectsRearmedOwnedRun","Output":"--- PASS: TestGoalEditResponseReflectsRearmedOwnedRun (0.65s)\n"}
+{"Time":"2026-10-10T05:23:02.544358251Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestGoalEditResponseReflectsRearmedOwnedRun","Elapsed":0.65}
+{"Time":"2026-10-10T05:23:02.54436455Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestEditedGoalStartsNewRevisionAfterOldRunCleanup"}
+{"Time":"2026-10-10T05:23:02.544367204Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestEditedGoalStartsNewRevisionAfterOldRunCleanup","Output":"=== RUN   TestEditedGoalStartsNewRevisionAfterOldRunCleanup\n"}
+{"Time":"2026-10-10T05:23:03.299513432Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestEditedGoalStartsNewRevisionAfterOldRunCleanup","Output":"--- PASS: TestEditedGoalStartsNewRevisionAfterOldRunCleanup (0.76s)\n"}
+{"Time":"2026-10-10T05:23:03.299640304Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestEditedGoalStartsNewRevisionAfterOldRunCleanup","Elapsed":0.76}
+{"Time":"2026-10-10T05:23:03.299696478Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDisarmsOwnedGoalBeforeSignallingRun"}
+{"Time":"2026-10-10T05:23:03.299700835Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDisarmsOwnedGoalBeforeSignallingRun","Output":"=== RUN   TestRunCancelDisarmsOwnedGoalBeforeSignallingRun\n"}
+{"Time":"2026-10-10T05:23:03.968694446Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDisarmsOwnedGoalBeforeSignallingRun","Output":"--- PASS: TestRunCancelDisarmsOwnedGoalBeforeSignallingRun (0.67s)\n"}
+{"Time":"2026-10-10T05:23:03.968835439Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDisarmsOwnedGoalBeforeSignallingRun","Elapsed":0.67}
+{"Time":"2026-10-10T05:23:03.968897693Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal"}
+{"Time":"2026-10-10T05:23:03.968901438Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal","Output":"=== RUN   TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal\n"}
+{"Time":"2026-10-10T05:23:04.593015572Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal","Output":"--- PASS: TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal (0.62s)\n"}
+{"Time":"2026-10-10T05:23:04.593131176Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPersistenceFailureDoesNotSignalOwnedGoal","Elapsed":0.62}
+{"Time":"2026-10-10T05:23:04.593176985Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPreservesOrdinaryNonGoalCancellation"}
+{"Time":"2026-10-10T05:23:04.59318062Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPreservesOrdinaryNonGoalCancellation","Output":"=== RUN   TestRunCancelPreservesOrdinaryNonGoalCancellation\n"}
+{"Time":"2026-10-10T05:23:05.20941247Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPreservesOrdinaryNonGoalCancellation","Output":"--- PASS: TestRunCancelPreservesOrdinaryNonGoalCancellation (0.62s)\n"}
+{"Time":"2026-10-10T05:23:05.209507443Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelPreservesOrdinaryNonGoalCancellation","Elapsed":0.62}
+{"Time":"2026-10-10T05:23:05.209552171Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDoesNotBlockGoalAfterItsRunCompleted"}
+{"Time":"2026-10-10T05:23:05.209555596Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDoesNotBlockGoalAfterItsRunCompleted","Output":"=== RUN   TestRunCancelDoesNotBlockGoalAfterItsRunCompleted\n"}
+{"Time":"2026-10-10T05:23:05.956658746Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDoesNotBlockGoalAfterItsRunCompleted","Output":"--- PASS: TestRunCancelDoesNotBlockGoalAfterItsRunCompleted (0.75s)\n"}
+{"Time":"2026-10-10T05:23:05.956967512Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestRunCancelDoesNotBlockGoalAfterItsRunCompleted","Elapsed":0.75}
+{"Time":"2026-10-10T05:23:05.957021263Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestBuildWorkMutationRejectsModelOnlyPlanSubmit"}
+{"Time":"2026-10-10T05:23:05.957105209Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildWorkMutationRejectsModelOnlyPlanSubmit","Output":"=== RUN   TestBuildWorkMutationRejectsModelOnlyPlanSubmit\n"}
+{"Time":"2026-10-10T05:23:05.957236737Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestBuildWorkMutationRejectsModelOnlyPlanSubmit","Output":"--- PASS: TestBuildWorkMutationRejectsModelOnlyPlanSubmit (0.00s)\n"}
+{"Time":"2026-10-10T05:23:05.957264259Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestBuildWorkMutationRejectsModelOnlyPlanSubmit","Elapsed":0}
+{"Time":"2026-10-10T05:23:05.957291169Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPublicPlanSubmitRejectsCallerOriginWithoutMutation"}
+{"Time":"2026-10-10T05:23:05.957294835Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPublicPlanSubmitRejectsCallerOriginWithoutMutation","Output":"=== RUN   TestPublicPlanSubmitRejectsCallerOriginWithoutMutation\n"}
+{"Time":"2026-10-10T05:23:06.574110854Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPublicPlanSubmitRejectsCallerOriginWithoutMutation","Output":"--- PASS: TestPublicPlanSubmitRejectsCallerOriginWithoutMutation (0.62s)\n"}
+{"Time":"2026-10-10T05:23:06.575245293Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPublicPlanSubmitRejectsCallerOriginWithoutMutation","Elapsed":0.62}
+{"Time":"2026-10-10T05:23:06.57526288Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestPlanGetCarriesReplayStateAcrossPages"}
+{"Time":"2026-10-10T05:23:06.575279134Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanGetCarriesReplayStateAcrossPages","Output":"=== RUN   TestPlanGetCarriesReplayStateAcrossPages\n"}
+{"Time":"2026-10-10T05:23:12.128731175Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestPlanGetCarriesReplayStateAcrossPages","Output":"--- PASS: TestPlanGetCarriesReplayStateAcrossPages (5.55s)\n"}
+{"Time":"2026-10-10T05:23:12.132311038Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestPlanGetCarriesReplayStateAcrossPages","Elapsed":5.55}
+{"Time":"2026-10-10T05:23:12.132357978Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive"}
+{"Time":"2026-10-10T05:23:12.132361704Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive","Output":"=== RUN   TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive\n"}
+{"Time":"2026-10-10T05:23:12.740318712Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive","Output":"--- PASS: TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive (0.61s)\n"}
+{"Time":"2026-10-10T05:23:12.740362378Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionReplaysFromDerivedStateAndContinuesLive","Elapsed":0.61}
+{"Time":"2026-10-10T05:23:12.740369248Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionBuffersCommitAfterCapturedWatermark"}
+{"Time":"2026-10-10T05:23:12.740372323Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionBuffersCommitAfterCapturedWatermark","Output":"=== RUN   TestWorkSubscriptionBuffersCommitAfterCapturedWatermark\n"}
+{"Time":"2026-10-10T05:23:13.403536914Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionBuffersCommitAfterCapturedWatermark","Output":"--- PASS: TestWorkSubscriptionBuffersCommitAfterCapturedWatermark (0.66s)\n"}
+{"Time":"2026-10-10T05:23:13.404303072Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkSubscriptionBuffersCommitAfterCapturedWatermark","Elapsed":0.66}
+{"Time":"2026-10-10T05:23:13.404347469Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewUsesNewEpochAfterControlRestart"}
+{"Time":"2026-10-10T05:23:13.404351105Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewUsesNewEpochAfterControlRestart","Output":"=== RUN   TestWorkViewUsesNewEpochAfterControlRestart\n"}
+{"Time":"2026-10-10T05:23:14.052335814Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewUsesNewEpochAfterControlRestart","Output":"--- PASS: TestWorkViewUsesNewEpochAfterControlRestart (0.64s)\n"}
+{"Time":"2026-10-10T05:23:14.052381853Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkViewUsesNewEpochAfterControlRestart","Elapsed":0.64}
+{"Time":"2026-10-10T05:23:14.052388393Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCreateSetAndStartedConflict"}
+{"Time":"2026-10-10T05:23:14.052391748Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCreateSetAndStartedConflict","Output":"=== RUN   TestSessionWorkspaceCreateSetAndStartedConflict\n"}
+{"Time":"2026-10-10T05:23:14.696320185Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCreateSetAndStartedConflict","Output":"--- PASS: TestSessionWorkspaceCreateSetAndStartedConflict (0.64s)\n"}
+{"Time":"2026-10-10T05:23:14.696365453Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCreateSetAndStartedConflict","Elapsed":0.64}
+{"Time":"2026-10-10T05:23:14.696372234Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault"}
+{"Time":"2026-10-10T05:23:14.696374267Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault","Output":"=== RUN   TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault\n"}
+{"Time":"2026-10-10T05:23:15.31941305Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault","Output":"--- PASS: TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault (0.63s)\n"}
+{"Time":"2026-10-10T05:23:15.319495294Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceRejectsInvalidDirectoryAndAllowsDefault","Elapsed":0.63}
+{"Time":"2026-10-10T05:23:15.319540853Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring"}
+{"Time":"2026-10-10T05:23:15.319544268Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring","Output":"=== RUN   TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring\n"}
+{"Time":"2026-10-10T05:23:16.648020447Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring","Output":"--- PASS: TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring (1.33s)\n"}
+{"Time":"2026-10-10T05:23:16.648220589Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestSessionWorkspaceCapabilityRequiresRuntimeMutationWiring","Elapsed":1.33}
+{"Time":"2026-10-10T05:23:16.648325717Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseReturnsBoundedSortedRealDirectories"}
+{"Time":"2026-10-10T05:23:16.648333499Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseReturnsBoundedSortedRealDirectories","Output":"=== RUN   TestWorkspaceBrowseReturnsBoundedSortedRealDirectories\n"}
+{"Time":"2026-10-10T05:23:17.235814163Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseReturnsBoundedSortedRealDirectories","Output":"--- PASS: TestWorkspaceBrowseReturnsBoundedSortedRealDirectories (0.59s)\n"}
+{"Time":"2026-10-10T05:23:17.235907513Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseReturnsBoundedSortedRealDirectories","Elapsed":0.59}
+{"Time":"2026-10-10T05:23:17.235949857Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseRejectsMissingPath"}
+{"Time":"2026-10-10T05:23:17.235953122Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseRejectsMissingPath","Output":"=== RUN   TestWorkspaceBrowseRejectsMissingPath\n"}
+{"Time":"2026-10-10T05:23:17.839076431Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseRejectsMissingPath","Output":"--- PASS: TestWorkspaceBrowseRejectsMissingPath (0.60s)\n"}
+{"Time":"2026-10-10T05:23:17.839186547Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseRejectsMissingPath","Elapsed":0.6}
+{"Time":"2026-10-10T05:23:17.839248961Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseBoundsScannedEntries"}
+{"Time":"2026-10-10T05:23:17.839253007Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseBoundsScannedEntries","Output":"=== RUN   TestWorkspaceBrowseBoundsScannedEntries\n"}
+{"Time":"2026-10-10T05:23:17.900488965Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseBoundsScannedEntries","Output":"--- PASS: TestWorkspaceBrowseBoundsScannedEntries (0.06s)\n"}
+{"Time":"2026-10-10T05:23:17.900597379Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceBrowseBoundsScannedEntries","Elapsed":0.06}
+{"Time":"2026-10-10T05:23:17.900692231Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCDisabledWithoutDep"}
+{"Time":"2026-10-10T05:23:17.900696959Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCDisabledWithoutDep","Output":"=== RUN   TestWorkspaceRPCDisabledWithoutDep\n"}
+{"Time":"2026-10-10T05:23:18.505750184Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCDisabledWithoutDep","Output":"--- PASS: TestWorkspaceRPCDisabledWithoutDep (0.60s)\n"}
+{"Time":"2026-10-10T05:23:18.505857256Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCDisabledWithoutDep","Elapsed":0.6}
+{"Time":"2026-10-10T05:23:18.505903746Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCListAndRead"}
+{"Time":"2026-10-10T05:23:18.505907051Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCListAndRead","Output":"=== RUN   TestWorkspaceRPCListAndRead\n"}
+{"Time":"2026-10-10T05:23:19.099698502Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCListAndRead","Output":"--- PASS: TestWorkspaceRPCListAndRead (0.59s)\n"}
+{"Time":"2026-10-10T05:23:19.099794116Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCListAndRead","Elapsed":0.59}
+{"Time":"2026-10-10T05:23:19.099837501Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCSurfacesInternalErrors"}
+{"Time":"2026-10-10T05:23:19.099841638Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCSurfacesInternalErrors","Output":"=== RUN   TestWorkspaceRPCSurfacesInternalErrors\n"}
+{"Time":"2026-10-10T05:23:19.708327114Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCSurfacesInternalErrors","Output":"--- PASS: TestWorkspaceRPCSurfacesInternalErrors (0.61s)\n"}
+{"Time":"2026-10-10T05:23:19.71230763Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCSurfacesInternalErrors","Elapsed":0.61}
+{"Time":"2026-10-10T05:23:19.712336193Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCFailsClosedForUnknownRun"}
+{"Time":"2026-10-10T05:23:19.712339619Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCFailsClosedForUnknownRun","Output":"=== RUN   TestWorkspaceRPCFailsClosedForUnknownRun\n"}
+{"Time":"2026-10-10T05:23:20.289881726Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCFailsClosedForUnknownRun","Output":"--- PASS: TestWorkspaceRPCFailsClosedForUnknownRun (0.58s)\n"}
+{"Time":"2026-10-10T05:23:20.292429283Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCFailsClosedForUnknownRun","Elapsed":0.58}
+{"Time":"2026-10-10T05:23:20.292491207Z","Action":"run","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCWorkspaceNotFoundIsNotFound"}
+{"Time":"2026-10-10T05:23:20.292493771Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCWorkspaceNotFoundIsNotFound","Output":"=== RUN   TestWorkspaceRPCWorkspaceNotFoundIsNotFound\n"}
+{"Time":"2026-10-10T05:23:20.894554193Z","Action":"output","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCWorkspaceNotFoundIsNotFound","Output":"--- PASS: TestWorkspaceRPCWorkspaceNotFoundIsNotFound (0.60s)\n"}
+{"Time":"2026-10-10T05:23:20.894608475Z","Action":"pass","Package":"agent-vivy/internal/rpc","Test":"TestWorkspaceRPCWorkspaceNotFoundIsNotFound","Elapsed":0.6}
+{"Time":"2026-10-10T05:23:20.894621595Z","Action":"output","Package":"agent-vivy/internal/rpc","Output":"PASS\n"}
+{"Time":"2026-10-10T05:23:21.902466102Z","Action":"output","Package":"agent-vivy/internal/rpc","Output":"ok  \tagent-vivy/internal/rpc\t115.658s\n"}
+{"Time":"2026-10-10T05:23:21.902505721Z","Action":"pass","Package":"agent-vivy/internal/rpc","Elapsed":115.659}

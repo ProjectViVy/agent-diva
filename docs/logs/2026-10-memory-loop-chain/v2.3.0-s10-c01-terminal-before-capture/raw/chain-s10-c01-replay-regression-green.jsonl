@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T06:45:22.828483519Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T06:45:22.890648136Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict"}
+{"Time":"2026-10-10T06:45:22.890726644Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"=== RUN   TestMemoryLoopCaptureReplayAndContentConflict\n"}
+{"Time":"2026-10-10T06:45:23.635505817Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"2026/10/10 06:45:23 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopCaptureReplayAndContentConflict939707918/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T06:45:41.794692167Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"--- PASS: TestMemoryLoopCaptureReplayAndContentConflict (18.90s)\n"}
+{"Time":"2026-10-10T06:45:41.794737585Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Elapsed":18.9}
+{"Time":"2026-10-10T06:45:41.794844166Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T06:45:42.839826219Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t20.011s\n"}
+{"Time":"2026-10-10T06:45:42.839867231Z","Action":"pass","Package":"command-line-arguments","Elapsed":20.011}

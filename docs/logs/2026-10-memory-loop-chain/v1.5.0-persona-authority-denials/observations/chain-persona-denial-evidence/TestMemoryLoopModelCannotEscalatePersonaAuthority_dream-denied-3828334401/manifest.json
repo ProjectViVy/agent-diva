@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "db36e831b871465c7b274b5c121d9b88c54611dff23637a7dade901a1de6b657",
+      "bytes": 1043
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "dcbbd198bf5bbcf7cc126699f1a565d0bbc8da59ac2c7f554616d31504080aae",
+      "bytes": 27730
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "f03552707ff54cf5be553eb24895fbeefaf33537306753588e4095456c3248ec",
+      "bytes": 2899
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "3074c4dadf8c827fcc8b876503e4f65a8838f204c63dfaca745162e9984b5c59",
+      "bytes": 324
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "3074c4dadf8c827fcc8b876503e4f65a8838f204c63dfaca745162e9984b5c59",
+      "bytes": 324
+    },
+    {
+      "path": "identity.json",
+      "sha256": "d802fa64946fefc99b4aedb8195e065f9e00a2cf1b90fdcc5e93f94dd40fda2e",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "denied",
+  "recorded_at": "2026-10-10T05:15:24.401110815Z",
+  "test": "TestMemoryLoopModelCannotEscalatePersonaAuthority/dream"
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "shared-sdk-integration-observation",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "generation_id": "d963302d3aea3c458e0089f2903788295ef7241ce6d45286454dfcb4004d382d",
+  "artifact_directory": "/workspace/work/memory-loop/artifacts/diva-kernel-review-20261010",
+  "binary_path": "/workspace/work/memory-loop/artifacts/diva-kernel-review-20261010/vivy-shared.so",
+  "binary_sha256": "d284b0badf0ca9db934e08793fb94894638785c2d14eb7e473e33c1562fc6cb6",
+  "vivy_revision": "15d3e46978ddfbcf994a4e8197499e66b78372e5"
+}

@@ -1,0 +1,4 @@
+# command-line-arguments [command-line-arguments.test]
+internal/app/memory_loop_crash_test.go:231:59: unknown field CaptureAttemptHandshakePath in struct literal of type memoryLoopOptions
+FAIL	command-line-arguments [build failed]
+FAIL

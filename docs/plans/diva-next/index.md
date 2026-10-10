@@ -145,3 +145,16 @@ Each implementation Story updates its evidence, index status and owning
 backlog. VIVY product-contract changes run its required `just ci`; DIVA
 replacement CI must cover Go, frontend and a native package. Unavailable tests
 stay pending with an owner/environment, never pass by inference.
+
+## Memory loop verification
+
+The owner requested detailed memory verification planning on 2026-10-09,
+then an Epic–Story handoff package on 2026-10-10. The dedicated
+[package index](memory-loop/README.md) is now the sole task/status/dependency
+source for this validation workstream: five Epics, thirteen Stories,
+shared fixture/evidence contracts, and 28 scenario classes.
+
+This parent index only links the workstream; it does not duplicate its
+schedule. Earlier w0-5 cognitive UI results remain historical and do not
+establish complete memory-loop correctness. No runtime validation was
+performed while preparing the package.

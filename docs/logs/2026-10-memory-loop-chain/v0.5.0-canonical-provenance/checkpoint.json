@@ -1,0 +1,196 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T01:38:45.234507+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "884f4dc801a59f0122b8789efe56c91b8391f349",
+    "agent-vivy": "34de683b143ebfd9ce9a886919fe7cfe4541707c",
+    "laputa": "884ae3fc2a93875996e289202c31ac45fe6348a8"
+  },
+  "execution_mode": "previous generated diagnostic overlay; no new-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-source-provenance-red.jsonl",
+      "sha256": "5cf53255a1685e8304cf2b12d7f6e6a9bbc329207f864a815e8db9b7eaf71ac9",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 4,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 0,
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-source-provenance-regression.jsonl",
+      "sha256": "856df15e90a746a202d739b73d5e4e9b80f7d8fea20e5eff16144d8178a369a5",
+      "named_tests_subtests": {
+        "pass": 6,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-source-update-provenance-red.jsonl",
+      "sha256": "928dec10a2c2942b0748aefe799cffd1601d191c0c9eb76e68de7c46d318bad7",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 0,
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-native-provenance-update-red.jsonl",
+      "sha256": "9a6e8308ec91406f1642b1873b0f389eb85d2297b12662e4c3e1011c9a5e8623",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 0,
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-native-provenance-update-regression.jsonl",
+      "sha256": "25523df63cf8b526aa2dcbe134df5efc75909a7acd60c35f791fbb17c2e97767",
+      "named_tests_subtests": {
+        "pass": 69,
+        "fail": 1,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 0,
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-native-provenance-update-final.jsonl",
+      "sha256": "b44118d18609d7e8a20d4c0a7b835ef7c9281420d3a6a3abd1cba1192cae870e",
+      "named_tests_subtests": {
+        "pass": 70,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-provenance-native-baseline.jsonl",
+      "sha256": "8c3d87eed4a1e4914bd2a99c053532c1745837703257e54f7e07d27eb7b50ff6",
+      "named_tests_subtests": {
+        "pass": 69,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-provenance-garden-final-union.jsonl",
+      "sha256": "bac8f620dfcadd8cfe30eeeaf3a398454a0f2b66db44dd12805c498e3278241b",
+      "named_tests_subtests": {
+        "pass": 486,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 21,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-provenance-final-mentle.jsonl",
+      "sha256": "33603d054a4d3935d19f431fff03855da770574b0831e5de478ec524a69dbb6e",
+      "named_tests_subtests": {
+        "pass": 537,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 23,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-real-app-source-provenance.jsonl",
+      "sha256": "51a51b3e3dec1552494ef6e778ec91eaeecc1395bd29a7e947a8d49cb7d538b6",
+      "named_tests_subtests": {
+        "pass": 2,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-provenance-final-composition.jsonl",
+      "sha256": "7dddcf37015650acf53276e5dc6b45a3c83c6470dda1057260ee8eec7ca9507c",
+      "named_tests_subtests": {
+        "pass": 13,
+        "fail": 0,
+        "skip": 0
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-provenance-default-app.jsonl",
+      "sha256": "e0de980d1dbec06520cf4ee0af15d63c15c8ffddd6034abbb9ecae257ad12768",
+      "named_tests_subtests": {
+        "pass": 133,
+        "fail": 0,
+        "skip": 12
+      },
+      "completed_package_counts": {
+        "pass": 1,
+        "fail": 0
+      },
+      "recorded_exit_code": 0
+    }
+  ],
+  "remaining_local_work": [
+    "S04 terminal/long-source/replay matrix",
+    "S05 ACTMEM wiring",
+    "S03/S08 ordinary recall and controls",
+    "S07 persona boundary",
+    "S09 lifecycle",
+    "S10 original-operation reconciliation/crash matrix",
+    "S11 profile/backend/injection cases",
+    "final frozen-source CI/conformance/sealing/fresh review"
+  ],
+  "external_resources": [
+    "Windows runner/UI/WebView2",
+    "real provider/model configuration and budget"
+  ]
+}

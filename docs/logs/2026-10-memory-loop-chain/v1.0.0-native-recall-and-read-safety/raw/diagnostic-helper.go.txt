@@ -1,0 +1,41 @@
+package main
+
+import (
+ "bytes"
+ "context"
+ "encoding/base64"
+ "encoding/json"
+ "fmt"
+ "os"
+ "path/filepath"
+ "strconv"
+ "agent-vivy/internal/modules/defaults"
+ a "agent-vivy/sdk/internal/assembly"
+ "agent-vivy/sdk/port"
+ "gopkg.in/yaml.v3"
+)
+func must(err error) { if err != nil { panic(err) } }
+func main() {
+ root,err:=os.Getwd(); must(err)
+ output:=os.Args[1]; must(os.MkdirAll(output,0700))
+ raw,err:=os.ReadFile(filepath.Join(root,"recipes/diva.vivy.yml")); must(err)
+ var recipe a.Recipe; decoder:=yaml.NewDecoder(bytes.NewReader(raw)); decoder.KnownFields(true); must(decoder.Decode(&recipe))
+ internal,err:=defaults.Catalog(root); must(err)
+ var records []a.SourceRecord
+ for _,r:=range internal { records=append(records,a.SourceRecord{Descriptor:r.Descriptor,Trust:a.TrustT1,Root:filepath.Join(root,"internal"),Ref:"file:internal",Binding:a.GoBinding{ImportPath:r.Binding.ImportPath,Package:r.Binding.Package,Constructor:r.Binding.Constructor,ProviderConstructor:r.Binding.ProviderConstructor,ProviderCollection:r.Binding.ProviderCollection,MaskFactory:r.Binding.MaskFactory,CognitiveFactory:r.Binding.CognitiveFactory,ContextSourceProvider:r.Binding.ContextSourceProvider,SkillSourceProvider:r.Binding.SkillSourceProvider,MCPHostProvider:r.Binding.MCPHostProvider,RunObserverProvider:r.Binding.RunObserverProvider}}) }
+ catalog,err:=a.NewSourceCatalog(records); must(err)
+ plan,err:=(a.Compiler{Ports:port.PublicCatalog(),Sources:catalog,PortEvidence:a.SupportedPortEvidence(),ConformanceResults:a.SupportedPortConformance()}).Compile(context.Background(),recipe); must(err)
+ generated,err:=a.GenerateRuntimeAssembly(plan,"assembly"); must(err)
+ must(os.WriteFile(filepath.Join(output,"zz_default.go"),generated,0600))
+ canonical,err:=a.CanonicalRecipe(recipe); must(err)
+ manifest,encoded,err:=a.SealManifest(plan,a.SealInputs{SpecificationVersion:"vivy.module/v1",CompilerVersion:"plg-p9",SDKVersion:"v1",CanonicalRecipe:canonical}); must(err)
+ must(os.WriteFile(filepath.Join(output,"manifest.json"),encoded,0600))
+ sourcePath:=filepath.Join(root,"sdk/generation/manifest.go"); source,err:=os.ReadFile(sourcePath); must(err)
+ declaration:=[]byte("var EmbeddedManifestBase64 string"); if bytes.Count(source,declaration)!=1 { panic("unexpected SDK manifest declaration") }
+ embedded:="VIVY_GENERATION_V1_BEGIN["+base64.StdEncoding.EncodeToString(encoded)+"]VIVY_GENERATION_V1_END"
+ source=bytes.Replace(source,declaration,[]byte("var EmbeddedManifestBase64 = "+strconv.Quote(embedded)),1)
+ must(os.WriteFile(filepath.Join(output,"manifest.go"),source,0600))
+ overlay,err:=json.Marshal(map[string]any{"Replace":map[string]string{filepath.Join(root,"internal/generated/assembly/zz_default.go"):filepath.Join(output,"zz_default.go"),sourcePath:filepath.Join(output,"manifest.go")}}); must(err)
+ must(os.WriteFile(filepath.Join(output,"overlay.json"),overlay,0600))
+ fmt.Println("diagnostic only, no artifact/conformance attestation:",manifest.GenerationID)
+}

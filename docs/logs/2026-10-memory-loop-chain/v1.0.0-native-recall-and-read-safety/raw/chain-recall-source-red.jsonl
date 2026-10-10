@@ -1,0 +1,6 @@
+{"ImportPath":"agent-vivy/internal/modules/diva-cognitive [agent-vivy/internal/modules/diva-cognitive.test]","Action":"build-output","Output":"# agent-vivy/internal/modules/diva-cognitive [agent-vivy/internal/modules/diva-cognitive.test]\n"}
+{"ImportPath":"agent-vivy/internal/modules/diva-cognitive [agent-vivy/internal/modules/diva-cognitive.test]","Action":"build-output","Output":"internal/modules/diva-cognitive/recall_test.go:13:12: undefined: NewRecallSource\n"}
+{"ImportPath":"agent-vivy/internal/modules/diva-cognitive [agent-vivy/internal/modules/diva-cognitive.test]","Action":"build-fail"}
+{"Time":"2026-10-10T02:42:42.250847633Z","Action":"start","Package":"agent-vivy/internal/modules/diva-cognitive"}
+{"Time":"2026-10-10T02:42:42.250911529Z","Action":"output","Package":"agent-vivy/internal/modules/diva-cognitive","Output":"FAIL\tagent-vivy/internal/modules/diva-cognitive [build failed]\n"}
+{"Time":"2026-10-10T02:42:42.250918049Z","Action":"fail","Package":"agent-vivy/internal/modules/diva-cognitive","Elapsed":0,"FailedBuild":"agent-vivy/internal/modules/diva-cognitive [agent-vivy/internal/modules/diva-cognitive.test]"}

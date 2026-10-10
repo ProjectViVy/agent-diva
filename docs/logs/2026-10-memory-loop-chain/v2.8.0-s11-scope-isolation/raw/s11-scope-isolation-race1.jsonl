@@ -1,0 +1,11 @@
+{"Time":"2026-10-10T08:16:56.627398551Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T08:16:56.69544294Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding"}
+{"Time":"2026-10-10T08:16:56.695483521Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"=== RUN   TestMemoryLoopScopeAndHostBinding\n"}
+{"Time":"2026-10-10T08:16:57.584543788Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:16:57 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding2832616900/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:16:59.235396649Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:16:59 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding2832616900/002/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:17:45.078852957Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:55: profile A did not mint a bounded next-page cursor: {Items:[{ID:mem_6f61972c0d284b2bbd965ebd5d70b6b3 Revision:1}] NextCursor:}\n"}
+{"Time":"2026-10-10T08:17:45.092303819Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"--- FAIL: TestMemoryLoopScopeAndHostBinding (48.40s)\n"}
+{"Time":"2026-10-10T08:17:45.092338701Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Elapsed":48.4}
+{"Time":"2026-10-10T08:17:45.092496354Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T08:17:45.129900207Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t48.502s\n"}
+{"Time":"2026-10-10T08:17:45.129948119Z","Action":"fail","Package":"command-line-arguments","Elapsed":48.503}

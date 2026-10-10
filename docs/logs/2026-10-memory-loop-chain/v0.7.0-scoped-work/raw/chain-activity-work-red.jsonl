@@ -1,0 +1,8 @@
+{"ImportPath":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]","Action":"build-output","Output":"# github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]\n"}
+{"ImportPath":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]","Action":"build-output","Output":"evolution/activity_work_test.go:14:192: undefined: laputaevolution.WorkGoal\n"}
+{"ImportPath":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]","Action":"build-output","Output":"evolution/activity_work_test.go:19:202: undefined: laputaevolution.WorkGoal\n"}
+{"ImportPath":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]","Action":"build-output","Output":"evolution/activity_work_test.go:32:191: undefined: laputaevolution.WorkGoal\n"}
+{"ImportPath":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]","Action":"build-fail"}
+{"Time":"2026-10-10T01:50:48.200225533Z","Action":"start","Package":"github.com/dashimaki/garden/evolution"}
+{"Time":"2026-10-10T01:50:48.200302409Z","Action":"output","Package":"github.com/dashimaki/garden/evolution","Output":"FAIL\tgithub.com/dashimaki/garden/evolution [build failed]\n"}
+{"Time":"2026-10-10T01:50:48.200309349Z","Action":"fail","Package":"github.com/dashimaki/garden/evolution","Elapsed":0,"FailedBuild":"github.com/dashimaki/garden/evolution [github.com/dashimaki/garden/evolution.test]"}

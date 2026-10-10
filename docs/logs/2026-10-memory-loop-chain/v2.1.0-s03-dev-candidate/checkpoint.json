@@ -1,0 +1,137 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T06:12:59.215215+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "71af4a0ee31a6d278040606e6bf49609d33da379",
+    "agent-vivy": "15d3e46978ddfbcf994a4e8197499e66b78372e5",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-s03-sealed-consumer-race.jsonl": 1,
+    "chain-s03-test-target-red.txt": 1,
+    "chain-s03-test-target-green.txt": 0,
+    "chain-s03-sealed-consumer-race-final.jsonl": 0,
+    "chain-s03-package-review.jsonl": 0,
+    "chain-s03-package-inspect.json": 0,
+    "chain-s03-overlay-review.jsonl": 0,
+    "chain-s03-app-review.jsonl": 0,
+    "chain-s03-full-dev-build-final.jsonl": 0,
+    "chain-s03-gohost-inspect-final.json": 0,
+    "chain-s03-gohost-overlay-review.jsonl": 1
+  },
+  "files": [
+    {
+      "path": "raw/chain-s03-app-review.jsonl",
+      "bytes": 2707,
+      "sha256": "6157bbde89def918b7e3162c028f934bfeca8aa148c3170b1b32dcf1fe4d4570"
+    },
+    {
+      "path": "raw/chain-s03-full-dev-build-final.jsonl",
+      "bytes": 191,
+      "sha256": "8fa6db9be46f19542f5731b785ba3727b8ee4fd346440a27a0a32931a7fb3331"
+    },
+    {
+      "path": "raw/chain-s03-gohost-inspect-final.json",
+      "bytes": 24342,
+      "sha256": "461879d05a51206fcd6b29ce320ef3cb7433fd799715875ee0b0b659eb4d5741"
+    },
+    {
+      "path": "raw/chain-s03-gohost-overlay-review.jsonl",
+      "bytes": 2207,
+      "sha256": "fa2addeedd4d3724aec2cadb9fd2802fd20a141ac4880b2cc41c72dab7ce966b"
+    },
+    {
+      "path": "raw/chain-s03-overlay-review.jsonl",
+      "bytes": 2256,
+      "sha256": "7959b535c4a5573365573f490bc4c15f57d00a6d60f9d5345f194d187f107bcd"
+    },
+    {
+      "path": "raw/chain-s03-package-inspect.json",
+      "bytes": 23372,
+      "sha256": "d45093a46f2004e4af9ad3e896560056ac6df90f9862df9e260583f0cd115d26"
+    },
+    {
+      "path": "raw/chain-s03-package-review.jsonl",
+      "bytes": 23372,
+      "sha256": "d45093a46f2004e4af9ad3e896560056ac6df90f9862df9e260583f0cd115d26"
+    },
+    {
+      "path": "raw/chain-s03-sealed-consumer-race-final.jsonl",
+      "bytes": 96,
+      "sha256": "2397abbe942898d48a1a07a5b220de4b0fc78b256f2d162e566155c0f8f5bde4"
+    },
+    {
+      "path": "raw/chain-s03-sealed-consumer-race.jsonl",
+      "bytes": 1021,
+      "sha256": "b361328ac353199640a4fcfa862d617d88a7af639069d9ccc9b292b9265598e0"
+    },
+    {
+      "path": "raw/chain-s03-test-target-green.txt",
+      "bytes": 581,
+      "sha256": "ee80421afe90ab17d592a48a004e8266babc7061434effbdba51e422915e5bde"
+    },
+    {
+      "path": "raw/chain-s03-test-target-red.txt",
+      "bytes": 1714,
+      "sha256": "771e587603f1262a535c512280caf49c54279ffdad732869b10f610333a424e7"
+    },
+    {
+      "path": "observations/chain-s03-app-evidence-bound/TestMemoryLoopFixtureUsesRealComposition/captured-source.txt",
+      "bytes": 306,
+      "sha256": "35146bb161463d361e5922a0d8389c011d744163b4eaef51d48a2950d955c2d2"
+    },
+    {
+      "path": "observations/chain-s03-app-evidence-bound/TestMemoryLoopFixtureUsesRealComposition/identity.json",
+      "bytes": 536,
+      "sha256": "052760d44a97c4f627d542752e6db6870b523af96de28ab13c897848874f82ed"
+    },
+    {
+      "path": "observations/chain-s03-app-evidence-bound/TestMemoryLoopFixtureUsesRealComposition/manifest.json",
+      "bytes": 933,
+      "sha256": "620e4a6db9af329cc4b4ab560326e01d4e1aa67815bf3e4cdfffcf6c359e19d2"
+    },
+    {
+      "path": "observations/chain-s03-app-evidence-bound/TestMemoryLoopFixtureUsesRealComposition/model-requests.json",
+      "bytes": 18984,
+      "sha256": "211f051225a5db7543bb8eb421721629e14a0ef8d7433d51a225da3965773768"
+    },
+    {
+      "path": "observations/chain-s03-app-evidence-bound/TestMemoryLoopFixtureUsesRealComposition/snapshot.json",
+      "bytes": 3258,
+      "sha256": "dfe946d147bdcb09e393e0ea6d977cee40285862ebe916eb7fe3e9b05c74d87e"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/build-report.json",
+      "bytes": 1026,
+      "sha256": "0b70961d9ca42f2a3a5ee9f929311aebfea085f82c4c97e9769eeea3688985d0"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/candidate.json",
+      "bytes": 1829,
+      "sha256": "4a56b117ef35c17fcc3a3f2fa05cd51efef5024eb137299c17da67e065f9e9f8"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/checksums.sha256",
+      "bytes": 5335,
+      "sha256": "9a2d62c0f8f457eb3912c91a3643802dc74c115bc161d254e60c252fc94cca6d"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/generation.json",
+      "bytes": 24164,
+      "sha256": "096258ca6dc875e3d34c4c237af216b13f9c1eb3175902ab90d566b4e4fc442e"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/manifest.json",
+      "bytes": 1053,
+      "sha256": "89c9a2b5863b0d89f4399424354dc49df12a911307e47fe9bacbae4c7149337a"
+    },
+    {
+      "path": "observations/chain-s03-full-dev-candidate/go-host/sdk-inspect.json",
+      "bytes": 24342,
+      "sha256": "461879d05a51206fcd6b29ce320ef3cb7433fd799715875ee0b0b659eb4d5741"
+    }
+  ]
+}

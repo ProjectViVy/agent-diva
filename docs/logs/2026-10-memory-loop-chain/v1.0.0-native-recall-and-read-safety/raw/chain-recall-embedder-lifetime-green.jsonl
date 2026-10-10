@@ -1,0 +1,16 @@
+{"Time":"2026-10-10T03:15:12.181103965Z","Action":"start","Package":"github.com/dashimaki/mentle/internal/embedder"}
+{"Time":"2026-10-10T03:15:12.194599017Z","Action":"run","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely"}
+{"Time":"2026-10-10T03:15:12.194626869Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"=== RUN   TestCanceledNativeEmbeddingCanCloseSafely\n"}
+{"Time":"2026-10-10T03:15:14.504720528Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"--- PASS: TestCanceledNativeEmbeddingCanCloseSafely (2.31s)\n"}
+{"Time":"2026-10-10T03:15:14.50489457Z","Action":"pass","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Elapsed":2.31}
+{"Time":"2026-10-10T03:15:14.504902832Z","Action":"run","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely"}
+{"Time":"2026-10-10T03:15:14.504906538Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"=== RUN   TestCanceledNativeEmbeddingCanCloseSafely\n"}
+{"Time":"2026-10-10T03:15:16.789555563Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"--- PASS: TestCanceledNativeEmbeddingCanCloseSafely (2.29s)\n"}
+{"Time":"2026-10-10T03:15:16.789589384Z","Action":"pass","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Elapsed":2.29}
+{"Time":"2026-10-10T03:15:16.789671348Z","Action":"run","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely"}
+{"Time":"2026-10-10T03:15:16.789675704Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"=== RUN   TestCanceledNativeEmbeddingCanCloseSafely\n"}
+{"Time":"2026-10-10T03:15:18.999377619Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Output":"--- PASS: TestCanceledNativeEmbeddingCanCloseSafely (2.21s)\n"}
+{"Time":"2026-10-10T03:15:18.999421956Z","Action":"pass","Package":"github.com/dashimaki/mentle/internal/embedder","Test":"TestCanceledNativeEmbeddingCanCloseSafely","Elapsed":2.21}
+{"Time":"2026-10-10T03:15:18.999427915Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Output":"PASS\n"}
+{"Time":"2026-10-10T03:15:20.053510937Z","Action":"output","Package":"github.com/dashimaki/mentle/internal/embedder","Output":"ok  \tgithub.com/dashimaki/mentle/internal/embedder\t7.872s\n"}
+{"Time":"2026-10-10T03:15:20.053578109Z","Action":"pass","Package":"github.com/dashimaki/mentle/internal/embedder","Elapsed":7.872}

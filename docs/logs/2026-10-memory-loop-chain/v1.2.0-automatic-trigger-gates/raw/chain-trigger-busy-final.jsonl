@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T04:45:06.579856179Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:45:06.59885345Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput"}
+{"Time":"2026-10-10T04:45:06.598931688Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"=== RUN   TestMemoryLoopForegroundBusyDefersOriginalInput\n"}
+{"Time":"2026-10-10T04:45:06.63547812Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"2026/10/10 04:45:06 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopForegroundBusyDefersOriginalInput2835458220/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:45:26.835558726Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"    memory_loop_policy_test.go:156: released original source did not settle once: {Cognition:{ActiveRunID: Watermark:2 Phase:idle BlockReason:}} requests=6\n"}
+{"Time":"2026-10-10T04:45:26.837300229Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"--- FAIL: TestMemoryLoopForegroundBusyDefersOriginalInput (20.24s)\n"}
+{"Time":"2026-10-10T04:45:26.83731357Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Elapsed":20.24}
+{"Time":"2026-10-10T04:45:26.837320059Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:45:26.864409709Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t20.284s\n"}
+{"Time":"2026-10-10T04:45:26.864447847Z","Action":"fail","Package":"command-line-arguments","Elapsed":20.285}

@@ -1,0 +1,268 @@
+{"ImportPath":"github.com/ProjectViVy/inofy","Action":"build-output","Output":"# github.com/dashimaki/laputa/evolution/inofy\n"}
+{"ImportPath":"github.com/ProjectViVy/inofy","Action":"build-output","Output":"evolution/inofy/definition.go:12:2: github.com/ProjectViVy/inofy@v0.0.0-00010101000000-000000000000: replacement directory ../../INOFY does not exist\n"}
+{"ImportPath":"github.com/ProjectViVy/inofy","Action":"build-fail"}
+{"Time":"2026-10-09T17:53:37.307214544Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution/inofy"}
+{"Time":"2026-10-09T17:53:37.307252972Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/inofy","Output":"FAIL\tgithub.com/dashimaki/laputa/evolution/inofy [setup failed]\n"}
+{"Time":"2026-10-09T17:53:37.307258199Z","Action":"fail","Package":"github.com/dashimaki/laputa/evolution/inofy","Elapsed":0,"FailedBuild":"github.com/ProjectViVy/inofy"}
+{"Time":"2026-10-09T17:53:38.715970113Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-09T17:53:38.730840669Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldSessionArchivesAndRemoves"}
+{"Time":"2026-10-09T17:53:38.7308815Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldSessionArchivesAndRemoves","Output":"=== RUN   TestFoldSessionArchivesAndRemoves\n"}
+{"Time":"2026-10-09T17:53:38.732630645Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldSessionArchivesAndRemoves","Output":"--- PASS: TestFoldSessionArchivesAndRemoves (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.732651346Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldSessionArchivesAndRemoves","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.732657366Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCrashRecovery"}
+{"Time":"2026-10-09T17:53:38.732661081Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCrashRecovery","Output":"=== RUN   TestFoldCrashRecovery\n"}
+{"Time":"2026-10-09T17:53:38.733435127Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCrashRecovery","Output":"--- PASS: TestFoldCrashRecovery (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.733447005Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldCrashRecovery","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.733450701Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldMismatchedCapsuleConflicts"}
+{"Time":"2026-10-09T17:53:38.733453705Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldMismatchedCapsuleConflicts","Output":"=== RUN   TestFoldMismatchedCapsuleConflicts\n"}
+{"Time":"2026-10-09T17:53:38.733872636Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldMismatchedCapsuleConflicts","Output":"--- PASS: TestFoldMismatchedCapsuleConflicts (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.733877253Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestFoldMismatchedCapsuleConflicts","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.733883553Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestV2GrammarRoundTrip"}
+{"Time":"2026-10-09T17:53:38.733886177Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestV2GrammarRoundTrip","Output":"=== RUN   TestV2GrammarRoundTrip\n"}
+{"Time":"2026-10-09T17:53:38.744298362Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestV2GrammarRoundTrip","Output":"--- PASS: TestV2GrammarRoundTrip (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.74433028Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestV2GrammarRoundTrip","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744334817Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestLegacyHeadIsUnclassified"}
+{"Time":"2026-10-09T17:53:38.744338092Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestLegacyHeadIsUnclassified","Output":"=== RUN   TestLegacyHeadIsUnclassified\n"}
+{"Time":"2026-10-09T17:53:38.7443505Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestLegacyHeadIsUnclassified","Output":"--- PASS: TestLegacyHeadIsUnclassified (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744353865Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestLegacyHeadIsUnclassified","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744359824Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedProjectionIsolatesScope"}
+{"Time":"2026-10-09T17:53:38.744362468Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedProjectionIsolatesScope","Output":"=== RUN   TestScopedProjectionIsolatesScope\n"}
+{"Time":"2026-10-09T17:53:38.744367877Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedProjectionIsolatesScope","Output":"--- PASS: TestScopedProjectionIsolatesScope (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744371192Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedProjectionIsolatesScope","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744374466Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestInvalidV2Rejected"}
+{"Time":"2026-10-09T17:53:38.74437695Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestInvalidV2Rejected","Output":"=== RUN   TestInvalidV2Rejected\n"}
+{"Time":"2026-10-09T17:53:38.744380145Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestInvalidV2Rejected","Output":"--- PASS: TestInvalidV2Rejected (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.74438318Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestInvalidV2Rejected","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744386414Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendEntry"}
+{"Time":"2026-10-09T17:53:38.744389199Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendEntry","Output":"=== RUN   TestSystemAppendEntry\n"}
+{"Time":"2026-10-09T17:53:38.744392003Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendEntry","Output":"--- PASS: TestSystemAppendEntry (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744394757Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendEntry","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744397591Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendDedupesEventID"}
+{"Time":"2026-10-09T17:53:38.744400075Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendDedupesEventID","Output":"=== RUN   TestSystemAppendDedupesEventID\n"}
+{"Time":"2026-10-09T17:53:38.74440353Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendDedupesEventID","Output":"--- PASS: TestSystemAppendDedupesEventID (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744406525Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestSystemAppendDedupesEventID","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744409369Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRingEvictsOldest"}
+{"Time":"2026-10-09T17:53:38.744411973Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRingEvictsOldest","Output":"=== RUN   TestRingEvictsOldest\n"}
+{"Time":"2026-10-09T17:53:38.744414937Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRingEvictsOldest","Output":"--- PASS: TestRingEvictsOldest (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744417822Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRingEvictsOldest","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744420506Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkPatchLifecycle"}
+{"Time":"2026-10-09T17:53:38.74442314Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkPatchLifecycle","Output":"=== RUN   TestWorkPatchLifecycle\n"}
+{"Time":"2026-10-09T17:53:38.744430621Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkPatchLifecycle","Output":"--- PASS: TestWorkPatchLifecycle (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744434066Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkPatchLifecycle","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.74443689Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkOverflowRejects"}
+{"Time":"2026-10-09T17:53:38.744439575Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkOverflowRejects","Output":"=== RUN   TestWorkOverflowRejects\n"}
+{"Time":"2026-10-09T17:53:38.744442439Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkOverflowRejects","Output":"--- PASS: TestWorkOverflowRejects (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744445293Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestWorkOverflowRejects","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744448478Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestOwnerSave"}
+{"Time":"2026-10-09T17:53:38.744451142Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestOwnerSave","Output":"=== RUN   TestOwnerSave\n"}
+{"Time":"2026-10-09T17:53:38.74445674Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestOwnerSave","Output":"--- PASS: TestOwnerSave (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744459434Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestOwnerSave","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744462078Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedOpsRejectLegacyHead"}
+{"Time":"2026-10-09T17:53:38.744464432Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedOpsRejectLegacyHead","Output":"=== RUN   TestScopedOpsRejectLegacyHead\n"}
+{"Time":"2026-10-09T17:53:38.744467837Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedOpsRejectLegacyHead","Output":"--- PASS: TestScopedOpsRejectLegacyHead (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744470812Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestScopedOpsRejectLegacyHead","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744473786Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestMissingHeadIsEmptyWithoutCreatingDirectories"}
+{"Time":"2026-10-09T17:53:38.74447655Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestMissingHeadIsEmptyWithoutCreatingDirectories","Output":"=== RUN   TestMissingHeadIsEmptyWithoutCreatingDirectories\n"}
+{"Time":"2026-10-09T17:53:38.744480476Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestMissingHeadIsEmptyWithoutCreatingDirectories","Output":"--- PASS: TestMissingHeadIsEmptyWithoutCreatingDirectories (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744483591Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestMissingHeadIsEmptyWithoutCreatingDirectories","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744486655Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestAppendCASAndRestart"}
+{"Time":"2026-10-09T17:53:38.744488959Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestAppendCASAndRestart","Output":"=== RUN   TestAppendCASAndRestart\n"}
+{"Time":"2026-10-09T17:53:38.744492945Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestAppendCASAndRestart","Output":"--- PASS: TestAppendCASAndRestart (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744495929Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestAppendCASAndRestart","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744498674Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapsuleLifecycle"}
+{"Time":"2026-10-09T17:53:38.744501077Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapsuleLifecycle","Output":"=== RUN   TestCapsuleLifecycle\n"}
+{"Time":"2026-10-09T17:53:38.744506035Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapsuleLifecycle","Output":"--- PASS: TestCapsuleLifecycle (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.744509059Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestCapsuleLifecycle","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.744511893Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestQueryRespectsScope"}
+{"Time":"2026-10-09T17:53:38.744514317Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestQueryRespectsScope","Output":"=== RUN   TestQueryRespectsScope\n"}
+{"Time":"2026-10-09T17:53:38.747942211Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestQueryRespectsScope","Output":"--- PASS: TestQueryRespectsScope (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.747963033Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestQueryRespectsScope","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.747968811Z","Action":"run","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRecapFromFinalResponse"}
+{"Time":"2026-10-09T17:53:38.747972056Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRecapFromFinalResponse","Output":"=== RUN   TestRecapFromFinalResponse\n"}
+{"Time":"2026-10-09T17:53:38.747991325Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRecapFromFinalResponse","Output":"--- PASS: TestRecapFromFinalResponse (0.00s)\n"}
+{"Time":"2026-10-09T17:53:38.747995451Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Test":"TestRecapFromFinalResponse","Elapsed":0}
+{"Time":"2026-10-09T17:53:38.747998867Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"PASS\n"}
+{"Time":"2026-10-09T17:53:38.748699923Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"ok  \tgithub.com/dashimaki/laputa/actmem\t0.024s\n"}
+{"Time":"2026-10-09T17:53:38.748713022Z","Action":"pass","Package":"github.com/dashimaki/laputa/actmem","Elapsed":0.033}
+{"Time":"2026-10-09T17:53:46.10968488Z","Action":"start","Package":"github.com/dashimaki/laputa/cmd/eino_smoke"}
+{"Time":"2026-10-09T17:53:46.109722947Z","Action":"output","Package":"github.com/dashimaki/laputa/cmd/eino_smoke","Output":"?   \tgithub.com/dashimaki/laputa/cmd/eino_smoke\t[no test files]\n"}
+{"Time":"2026-10-09T17:53:46.10973137Z","Action":"skip","Package":"github.com/dashimaki/laputa/cmd/eino_smoke","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.109813343Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution"}
+{"Time":"2026-10-09T17:53:46.109868697Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution/diva"}
+{"Time":"2026-10-09T17:53:46.110796971Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution/testkit"}
+{"Time":"2026-10-09T17:53:46.110810721Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/testkit","Output":"?   \tgithub.com/dashimaki/laputa/evolution/testkit\t[no test files]\n"}
+{"Time":"2026-10-09T17:53:46.110815589Z","Action":"skip","Package":"github.com/dashimaki/laputa/evolution/testkit","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.110831142Z","Action":"start","Package":"github.com/dashimaki/laputa/persona"}
+{"Time":"2026-10-09T17:53:46.111417085Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyEmptyBatchNoModelCalls"}
+{"Time":"2026-10-09T17:53:46.111426559Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyEmptyBatchNoModelCalls","Output":"=== RUN   TestStrategyEmptyBatchNoModelCalls\n"}
+{"Time":"2026-10-09T17:53:46.112327005Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyEmptyBatchNoModelCalls","Output":"--- PASS: TestStrategyEmptyBatchNoModelCalls (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.1197444Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeExactMatch"}
+{"Time":"2026-10-09T17:53:46.119763218Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeExactMatch","Output":"=== RUN   TestScopeExactMatch\n"}
+{"Time":"2026-10-09T17:53:46.119788566Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeExactMatch","Output":"--- PASS: TestScopeExactMatch (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119791Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeExactMatch","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119793694Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeStrictDecode"}
+{"Time":"2026-10-09T17:53:46.119795396Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeStrictDecode","Output":"=== RUN   TestScopeStrictDecode\n"}
+{"Time":"2026-10-09T17:53:46.1197979Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeStrictDecode","Output":"--- PASS: TestScopeStrictDecode (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119799903Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestScopeStrictDecode","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119801686Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestRunBindingRejectsEmptyTrustedIdentity"}
+{"Time":"2026-10-09T17:53:46.119803238Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestRunBindingRejectsEmptyTrustedIdentity","Output":"=== RUN   TestRunBindingRejectsEmptyTrustedIdentity\n"}
+{"Time":"2026-10-09T17:53:46.119807424Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestRunBindingRejectsEmptyTrustedIdentity","Output":"--- PASS: TestRunBindingRejectsEmptyTrustedIdentity (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119809387Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestRunBindingRejectsEmptyTrustedIdentity","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.1198113Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectStrictUnion"}
+{"Time":"2026-10-09T17:53:46.119812983Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectStrictUnion","Output":"=== RUN   TestEffectStrictUnion\n"}
+{"Time":"2026-10-09T17:53:46.119814956Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectStrictUnion","Output":"--- PASS: TestEffectStrictUnion (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.11981789Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectStrictUnion","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119820294Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestFrozenCoreV2"}
+{"Time":"2026-10-09T17:53:46.119821966Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestFrozenCoreV2","Output":"=== RUN   TestFrozenCoreV2\n"}
+{"Time":"2026-10-09T17:53:46.119827475Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyEmptyBatchNoModelCalls","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.11983078Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRoutesTypedEffectsInOrder"}
+{"Time":"2026-10-09T17:53:46.119832512Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRoutesTypedEffectsInOrder","Output":"=== RUN   TestStrategyRoutesTypedEffectsInOrder\n"}
+{"Time":"2026-10-09T17:53:46.119835387Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRoutesTypedEffectsInOrder","Output":"--- PASS: TestStrategyRoutesTypedEffectsInOrder (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.11983734Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRoutesTypedEffectsInOrder","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119840124Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRejectsForbiddenAndInvalidOutput"}
+{"Time":"2026-10-09T17:53:46.119841896Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRejectsForbiddenAndInvalidOutput","Output":"=== RUN   TestStrategyRejectsForbiddenAndInvalidOutput\n"}
+{"Time":"2026-10-09T17:53:46.119845722Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRejectsForbiddenAndInvalidOutput","Output":"--- PASS: TestStrategyRejectsForbiddenAndInvalidOutput (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119848566Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyRejectsForbiddenAndInvalidOutput","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.1198507Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyNoChangeIsValid"}
+{"Time":"2026-10-09T17:53:46.119852402Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyNoChangeIsValid","Output":"=== RUN   TestStrategyNoChangeIsValid\n"}
+{"Time":"2026-10-09T17:53:46.119855076Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyNoChangeIsValid","Output":"--- PASS: TestStrategyNoChangeIsValid (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119857109Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyNoChangeIsValid","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119859082Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyFailureAfterFirstEffectPreservesReceipt"}
+{"Time":"2026-10-09T17:53:46.119860755Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyFailureAfterFirstEffectPreservesReceipt","Output":"=== RUN   TestStrategyFailureAfterFirstEffectPreservesReceipt\n"}
+{"Time":"2026-10-09T17:53:46.119863339Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyFailureAfterFirstEffectPreservesReceipt","Output":"--- PASS: TestStrategyFailureAfterFirstEffectPreservesReceipt (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119866463Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyFailureAfterFirstEffectPreservesReceipt","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119868336Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyUnknownOutcomeStopsAndMarksRecovery"}
+{"Time":"2026-10-09T17:53:46.119869959Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyUnknownOutcomeStopsAndMarksRecovery","Output":"=== RUN   TestStrategyUnknownOutcomeStopsAndMarksRecovery\n"}
+{"Time":"2026-10-09T17:53:46.119872022Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyUnknownOutcomeStopsAndMarksRecovery","Output":"--- PASS: TestStrategyUnknownOutcomeStopsAndMarksRecovery (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119873855Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyUnknownOutcomeStopsAndMarksRecovery","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119876188Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayResolvesCommittedEffect"}
+{"Time":"2026-10-09T17:53:46.11987777Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayResolvesCommittedEffect","Output":"=== RUN   TestStrategyReplayResolvesCommittedEffect\n"}
+{"Time":"2026-10-09T17:53:46.119879834Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayResolvesCommittedEffect","Output":"--- PASS: TestStrategyReplayResolvesCommittedEffect (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119881646Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayResolvesCommittedEffect","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119883409Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayConflictFails"}
+{"Time":"2026-10-09T17:53:46.119885122Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayConflictFails","Output":"=== RUN   TestStrategyReplayConflictFails\n"}
+{"Time":"2026-10-09T17:53:46.119888426Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayConflictFails","Output":"--- PASS: TestStrategyReplayConflictFails (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.119890149Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestStrategyReplayConflictFails","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.119891812Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Output":"PASS\n"}
+{"Time":"2026-10-09T17:53:46.12016261Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionKindIdentity"}
+{"Time":"2026-10-09T17:53:46.120171653Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionKindIdentity","Output":"=== RUN   TestMissionKindIdentity\n"}
+{"Time":"2026-10-09T17:53:46.120185003Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionKindIdentity","Output":"--- PASS: TestMissionKindIdentity (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.120215679Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionKindIdentity","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.120218944Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionMissingIsUnassigned"}
+{"Time":"2026-10-09T17:53:46.120221759Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionMissingIsUnassigned","Output":"=== RUN   TestMissionMissingIsUnassigned\n"}
+{"Time":"2026-10-09T17:53:46.121914068Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionMissingIsUnassigned","Output":"--- PASS: TestMissionMissingIsUnassigned (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.121927608Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionMissingIsUnassigned","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.121931614Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionHumanWriteEditClearRestore"}
+{"Time":"2026-10-09T17:53:46.121933778Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionHumanWriteEditClearRestore","Output":"=== RUN   TestMissionHumanWriteEditClearRestore\n"}
+{"Time":"2026-10-09T17:53:46.124743334Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Output":"ok  \tgithub.com/dashimaki/laputa/evolution/diva\t0.015s\n"}
+{"Time":"2026-10-09T17:53:46.124762012Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution/diva","Elapsed":0.015}
+{"Time":"2026-10-09T17:53:46.1251288Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestFrozenCoreV2","Output":"--- PASS: TestFrozenCoreV2 (0.01s)\n"}
+{"Time":"2026-10-09T17:53:46.125137654Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestFrozenCoreV2","Elapsed":0.01}
+{"Time":"2026-10-09T17:53:46.125143743Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectReplayDigest"}
+{"Time":"2026-10-09T17:53:46.125145906Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectReplayDigest","Output":"=== RUN   TestEffectReplayDigest\n"}
+{"Time":"2026-10-09T17:53:46.125181069Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectReplayDigest","Output":"--- PASS: TestEffectReplayDigest (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.125183643Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEffectReplayDigest","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.125185846Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestActmemGoldenGrammar"}
+{"Time":"2026-10-09T17:53:46.125187649Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestActmemGoldenGrammar","Output":"=== RUN   TestActmemGoldenGrammar\n"}
+{"Time":"2026-10-09T17:53:46.126306434Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionHumanWriteEditClearRestore","Output":"--- PASS: TestMissionHumanWriteEditClearRestore (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.126320255Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionHumanWriteEditClearRestore","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.126322759Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionRejectsNonHumanPaths"}
+{"Time":"2026-10-09T17:53:46.126325052Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionRejectsNonHumanPaths","Output":"=== RUN   TestMissionRejectsNonHumanPaths\n"}
+{"Time":"2026-10-09T17:53:46.126746387Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestActmemGoldenGrammar","Output":"--- PASS: TestActmemGoldenGrammar (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.126750503Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestActmemGoldenGrammar","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.126767128Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEvaluateEligibilityOrder"}
+{"Time":"2026-10-09T17:53:46.126769963Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEvaluateEligibilityOrder","Output":"=== RUN   TestEvaluateEligibilityOrder\n"}
+{"Time":"2026-10-09T17:53:46.126790614Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEvaluateEligibilityOrder","Output":"--- PASS: TestEvaluateEligibilityOrder (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.126806368Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestEvaluateEligibilityOrder","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.126809462Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestReflectionOutputExactlyOneBranch"}
+{"Time":"2026-10-09T17:53:46.126811295Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestReflectionOutputExactlyOneBranch","Output":"=== RUN   TestReflectionOutputExactlyOneBranch\n"}
+{"Time":"2026-10-09T17:53:46.126952388Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestReflectionOutputExactlyOneBranch","Output":"--- PASS: TestReflectionOutputExactlyOneBranch (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.126955482Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestReflectionOutputExactlyOneBranch","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.126959759Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestPersonaKindNumbersUnmoved"}
+{"Time":"2026-10-09T17:53:46.126961461Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestPersonaKindNumbersUnmoved","Output":"=== RUN   TestPersonaKindNumbersUnmoved\n"}
+{"Time":"2026-10-09T17:53:46.126981511Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestPersonaKindNumbersUnmoved","Output":"--- PASS: TestPersonaKindNumbersUnmoved (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.127001021Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestPersonaKindNumbersUnmoved","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.127100421Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestContractDeltaRecordPresent"}
+{"Time":"2026-10-09T17:53:46.127102904Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestContractDeltaRecordPresent","Output":"=== RUN   TestContractDeltaRecordPresent\n"}
+{"Time":"2026-10-09T17:53:46.12717996Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestContractDeltaRecordPresent","Output":"--- PASS: TestContractDeltaRecordPresent (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.127200511Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestContractDeltaRecordPresent","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.127203756Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution","Test":"TestAuthorityKindRoster"}
+{"Time":"2026-10-09T17:53:46.127207882Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestAuthorityKindRoster","Output":"=== RUN   TestAuthorityKindRoster\n"}
+{"Time":"2026-10-09T17:53:46.12722602Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Test":"TestAuthorityKindRoster","Output":"--- PASS: TestAuthorityKindRoster (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.127227943Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Test":"TestAuthorityKindRoster","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.127230597Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Output":"PASS\n"}
+{"Time":"2026-10-09T17:53:46.127771185Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution","Output":"ok  \tgithub.com/dashimaki/laputa/evolution\t0.018s\n"}
+{"Time":"2026-10-09T17:53:46.127782883Z","Action":"pass","Package":"github.com/dashimaki/laputa/evolution","Elapsed":0.018}
+{"Time":"2026-10-09T17:53:46.128613841Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionRejectsNonHumanPaths","Output":"--- PASS: TestMissionRejectsNonHumanPaths (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.128624537Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionRejectsNonHumanPaths","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.128627301Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionCapEnforced"}
+{"Time":"2026-10-09T17:53:46.128629484Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionCapEnforced","Output":"=== RUN   TestMissionCapEnforced\n"}
+{"Time":"2026-10-09T17:53:46.130789037Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionCapEnforced","Output":"--- PASS: TestMissionCapEnforced (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.13085069Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestMissionCapEnforced","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.130853394Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestNormalizeAndVisibleLen"}
+{"Time":"2026-10-09T17:53:46.130855257Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestNormalizeAndVisibleLen","Output":"=== RUN   TestNormalizeAndVisibleLen\n"}
+{"Time":"2026-10-09T17:53:46.130904201Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestNormalizeAndVisibleLen","Output":"--- PASS: TestNormalizeAndVisibleLen (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.130906334Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestNormalizeAndVisibleLen","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.130908277Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestSectionExtractAndReplace"}
+{"Time":"2026-10-09T17:53:46.130909919Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestSectionExtractAndReplace","Output":"=== RUN   TestSectionExtractAndReplace\n"}
+{"Time":"2026-10-09T17:53:46.130912954Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestSectionExtractAndReplace","Output":"--- PASS: TestSectionExtractAndReplace (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.130914687Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestSectionExtractAndReplace","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.130917521Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestKindContract"}
+{"Time":"2026-10-09T17:53:46.130918993Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestKindContract","Output":"=== RUN   TestKindContract\n"}
+{"Time":"2026-10-09T17:53:46.130933946Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestKindContract","Output":"--- PASS: TestKindContract (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.130938012Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestKindContract","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.130940926Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusUninitializedWhenAllRequiredAbsent"}
+{"Time":"2026-10-09T17:53:46.130947236Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusUninitializedWhenAllRequiredAbsent","Output":"=== RUN   TestStatusUninitializedWhenAllRequiredAbsent\n"}
+{"Time":"2026-10-09T17:53:46.131204523Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusUninitializedWhenAllRequiredAbsent","Output":"--- PASS: TestStatusUninitializedWhenAllRequiredAbsent (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.131210703Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusUninitializedWhenAllRequiredAbsent","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.131213417Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusHistoryMismatch"}
+{"Time":"2026-10-09T17:53:46.131215049Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusHistoryMismatch","Output":"=== RUN   TestStatusHistoryMismatch\n"}
+{"Time":"2026-10-09T17:53:46.131363673Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusHistoryMismatch","Output":"--- PASS: TestStatusHistoryMismatch (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.131366968Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusHistoryMismatch","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.131368931Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusReadyWithMatchingHistory"}
+{"Time":"2026-10-09T17:53:46.131370754Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusReadyWithMatchingHistory","Output":"=== RUN   TestStatusReadyWithMatchingHistory\n"}
+{"Time":"2026-10-09T17:53:46.131698618Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusReadyWithMatchingHistory","Output":"--- PASS: TestStatusReadyWithMatchingHistory (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.131705087Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestStatusReadyWithMatchingHistory","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.131707791Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentAndHistory"}
+{"Time":"2026-10-09T17:53:46.131709614Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentAndHistory","Output":"=== RUN   TestGetDocumentAndHistory\n"}
+{"Time":"2026-10-09T17:53:46.131938649Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentAndHistory","Output":"--- PASS: TestGetDocumentAndHistory (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.131944358Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentAndHistory","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.131948895Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentUninitialized"}
+{"Time":"2026-10-09T17:53:46.131951128Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentUninitialized","Output":"=== RUN   TestGetDocumentUninitialized\n"}
+{"Time":"2026-10-09T17:53:46.132053733Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentUninitialized","Output":"--- PASS: TestGetDocumentUninitialized (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.132059441Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestGetDocumentUninitialized","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.132062426Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestCapExceeded"}
+{"Time":"2026-10-09T17:53:46.132064859Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestCapExceeded","Output":"=== RUN   TestCapExceeded\n"}
+{"Time":"2026-10-09T17:53:46.132207464Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestCapExceeded","Output":"--- PASS: TestCapExceeded (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.132212542Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestCapExceeded","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.132219042Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeWritesFiveAndStaysReady"}
+{"Time":"2026-10-09T17:53:46.132221265Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeWritesFiveAndStaysReady","Output":"=== RUN   TestInitializeWritesFiveAndStaysReady\n"}
+{"Time":"2026-10-09T17:53:46.140280165Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeWritesFiveAndStaysReady","Output":"--- PASS: TestInitializeWritesFiveAndStaysReady (0.01s)\n"}
+{"Time":"2026-10-09T17:53:46.140299264Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeWritesFiveAndStaysReady","Elapsed":0.01}
+{"Time":"2026-10-09T17:53:46.140302869Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeFailsWhenNotUninitialized"}
+{"Time":"2026-10-09T17:53:46.140304892Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeFailsWhenNotUninitialized","Output":"=== RUN   TestInitializeFailsWhenNotUninitialized\n"}
+{"Time":"2026-10-09T17:53:46.140995402Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeFailsWhenNotUninitialized","Output":"--- PASS: TestInitializeFailsWhenNotUninitialized (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.14100688Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestInitializeFailsWhenNotUninitialized","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.141010585Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteBumpsRevisionAndHistory"}
+{"Time":"2026-10-09T17:53:46.141012759Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteBumpsRevisionAndHistory","Output":"=== RUN   TestWriteBumpsRevisionAndHistory\n"}
+{"Time":"2026-10-09T17:53:46.142568833Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteBumpsRevisionAndHistory","Output":"--- PASS: TestWriteBumpsRevisionAndHistory (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.142580801Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteBumpsRevisionAndHistory","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.142585758Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteRevisionConflict"}
+{"Time":"2026-10-09T17:53:46.142588122Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteRevisionConflict","Output":"=== RUN   TestWriteRevisionConflict\n"}
+{"Time":"2026-10-09T17:53:46.143425623Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteRevisionConflict","Output":"--- PASS: TestWriteRevisionConflict (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.1434368Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteRevisionConflict","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.143440806Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestCreateRequestAndAccept"}
+{"Time":"2026-10-09T17:53:46.143444893Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestCreateRequestAndAccept","Output":"=== RUN   TestCreateRequestAndAccept\n"}
+{"Time":"2026-10-09T17:53:46.150109943Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestCreateRequestAndAccept","Output":"--- PASS: TestCreateRequestAndAccept (0.01s)\n"}
+{"Time":"2026-10-09T17:53:46.150127058Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestCreateRequestAndAccept","Elapsed":0.01}
+{"Time":"2026-10-09T17:53:46.150131495Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestRejectRequest"}
+{"Time":"2026-10-09T17:53:46.150133929Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestRejectRequest","Output":"=== RUN   TestRejectRequest\n"}
+{"Time":"2026-10-09T17:53:46.152264348Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestRejectRequest","Output":"--- PASS: TestRejectRequest (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.17233298Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestRejectRequest","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.172364207Z","Action":"run","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteLockedOrderHistorySynced"}
+{"Time":"2026-10-09T17:53:46.172367352Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteLockedOrderHistorySynced","Output":"=== RUN   TestWriteLockedOrderHistorySynced\n"}
+{"Time":"2026-10-09T17:53:46.173189811Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteLockedOrderHistorySynced","Output":"--- PASS: TestWriteLockedOrderHistorySynced (0.00s)\n"}
+{"Time":"2026-10-09T17:53:46.17320919Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Test":"TestWriteLockedOrderHistorySynced","Elapsed":0}
+{"Time":"2026-10-09T17:53:46.173218394Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Output":"PASS\n"}
+{"Time":"2026-10-09T17:53:46.174674037Z","Action":"output","Package":"github.com/dashimaki/laputa/persona","Output":"ok  \tgithub.com/dashimaki/laputa/persona\t0.064s\n"}
+{"Time":"2026-10-09T17:53:46.174687627Z","Action":"pass","Package":"github.com/dashimaki/laputa/persona","Elapsed":0.064}

@@ -1,0 +1,23 @@
+test_cli_codes (test_check_memory_loop_evidence.EvidenceTests.test_cli_codes) ... ok
+test_crash_matrix_requires_every_cut (test_check_memory_loop_evidence.EvidenceTests.test_crash_matrix_requires_every_cut) ... ok
+test_duplicate_samples (test_check_memory_loop_evidence.EvidenceTests.test_duplicate_samples) ... ok
+test_invalid_baseline_schema (test_check_memory_loop_evidence.EvidenceTests.test_invalid_baseline_schema) ... ok
+test_live_scores_and_safety_thresholds (test_check_memory_loop_evidence.EvidenceTests.test_live_scores_and_safety_thresholds) ... ok
+test_malformed_nested_values_return_errors (test_check_memory_loop_evidence.EvidenceTests.test_malformed_nested_values_return_errors) ... ok
+test_missing_artifact_and_hash_mismatch (test_check_memory_loop_evidence.EvidenceTests.test_missing_artifact_and_hash_mismatch) ... ok
+test_missing_required_case (test_check_memory_loop_evidence.EvidenceTests.test_missing_required_case) ... ok
+test_missing_source_and_request (test_check_memory_loop_evidence.EvidenceTests.test_missing_source_and_request) ... ok
+test_mixed_candidate (test_check_memory_loop_evidence.EvidenceTests.test_mixed_candidate) ... ok
+test_native_requires_three_distinct_profiles (test_check_memory_loop_evidence.EvidenceTests.test_native_requires_three_distinct_profiles) ... ok
+test_null_requires_explanation (test_check_memory_loop_evidence.EvidenceTests.test_null_requires_explanation) ... ok
+test_path_escape (test_check_memory_loop_evidence.EvidenceTests.test_path_escape) ... ok
+test_skipped_case_and_command (test_check_memory_loop_evidence.EvidenceTests.test_skipped_case_and_command) ... ok
+test_unregistered_case_artifact (test_check_memory_loop_evidence.EvidenceTests.test_unregistered_case_artifact) ... ok
+test_valid_independent_samples (test_check_memory_loop_evidence.EvidenceTests.test_valid_independent_samples) ... ok
+test_wrong_model_mode (test_check_memory_loop_evidence.EvidenceTests.test_wrong_model_mode) ... ok
+test_zero_tests_and_failed_exit (test_check_memory_loop_evidence.EvidenceTests.test_zero_tests_and_failed_exit) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.175s
+
+OK

@@ -1,0 +1,16 @@
+{"Time":"2026-10-09T22:56:47.088911244Z","Action":"start","Package":"github.com/dashimaki/garden/e2e"}
+{"Time":"2026-10-09T22:56:47.093434864Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd"}
+{"Time":"2026-10-09T22:56:47.093503827Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"=== RUN   TestDivaCognitiveDecisiveEndToEnd\n"}
+{"Time":"2026-10-09T22:56:47.101543018Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Output":"--- PASS: TestDivaCognitiveDecisiveEndToEnd (0.01s)\n"}
+{"Time":"2026-10-09T22:56:47.101567294Z","Action":"pass","Package":"github.com/dashimaki/garden/e2e","Test":"TestDivaCognitiveDecisiveEndToEnd","Elapsed":0.01}
+{"Time":"2026-10-09T22:56:47.101574215Z","Action":"run","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd"}
+{"Time":"2026-10-09T22:56:47.101576829Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"=== RUN   TestGardenCleanBreakEndToEnd\n"}
+{"Time":"2026-10-09T22:56:48.387558896Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 22:56:48 lifecycle: logging to /tmp/TestGardenCleanBreakEndToEnd3656073200/001/logs/garden.log\n"}
+{"Time":"2026-10-09T22:56:48.388294384Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 22:56:48 lifecycle: garden running on 127.0.0.1:37783\n"}
+{"Time":"2026-10-09T22:56:49.107306578Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 22:56:49 lifecycle: logging to /tmp/TestGardenCleanBreakEndToEnd3656073200/001/logs/garden.log\n"}
+{"Time":"2026-10-09T22:56:49.107341821Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"2026/10/09 22:56:49 lifecycle: garden running on 127.0.0.1:37783\n"}
+{"Time":"2026-10-09T22:56:49.368898905Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Output":"--- PASS: TestGardenCleanBreakEndToEnd (2.27s)\n"}
+{"Time":"2026-10-09T22:56:49.368936812Z","Action":"pass","Package":"github.com/dashimaki/garden/e2e","Test":"TestGardenCleanBreakEndToEnd","Elapsed":2.27}
+{"Time":"2026-10-09T22:56:49.36895507Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"PASS\n"}
+{"Time":"2026-10-09T22:56:49.369816447Z","Action":"output","Package":"github.com/dashimaki/garden/e2e","Output":"ok  \tgithub.com/dashimaki/garden/e2e\t2.281s\n"}
+{"Time":"2026-10-09T22:56:49.369834384Z","Action":"pass","Package":"github.com/dashimaki/garden/e2e","Elapsed":2.281}

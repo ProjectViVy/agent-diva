@@ -1,0 +1,193 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:37:43.939378+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "ea1c99058a6377dcc3be0b20ea6661c0a8d38258",
+    "agent-vivy": "2ca5798d1c8f8b687b23f70230a88942decf545e",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-tool-source-first.jsonl": 1,
+    "chain-tool-source-second.jsonl": 1,
+    "chain-tool-source-final-race.jsonl": 1,
+    "chain-tool-source-trusted-final-race.jsonl": 1,
+    "chain-tool-source-role-final-race.jsonl": 1,
+    "chain-tool-source-input-diagnostic.jsonl": 1,
+    "chain-tool-source-boundary-final-race.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/chain-tool-source-boundary-final-race.jsonl",
+      "bytes": 2495,
+      "sha256": "4e49d8dc3a9f7e4c9e12d798b0e27facb53e0ecb84ac0785374de025235720fe"
+    },
+    {
+      "path": "raw/chain-tool-source-final-race.jsonl",
+      "bytes": 9202,
+      "sha256": "ba597a90f8af72a3eab9846264211f5f7cd4e4e4011ab5b80cae645366e7cd5b"
+    },
+    {
+      "path": "raw/chain-tool-source-first.jsonl",
+      "bytes": 942,
+      "sha256": "c8c19d5a7456fa539f2fef101f1fd1cf142b3ab811bf9bf317d8f329bbeb29aa"
+    },
+    {
+      "path": "raw/chain-tool-source-input-diagnostic.jsonl",
+      "bytes": 2371,
+      "sha256": "709d898111d5ef2bc036606a4fe0d8c258f5616a5629f1275bfb04dc309b716e"
+    },
+    {
+      "path": "raw/chain-tool-source-role-final-race.jsonl",
+      "bytes": 1947,
+      "sha256": "a5199574d439f8cda43e9b5df37f523dca4ce6ce80fa62d17aa5d08c979e1251"
+    },
+    {
+      "path": "raw/chain-tool-source-second.jsonl",
+      "bytes": 2409,
+      "sha256": "e1ddcc3671d42cfda19d193955f8796a159a9464f3e3429190ea6d9c8a9e4a2b"
+    },
+    {
+      "path": "raw/chain-tool-source-trusted-final-race.jsonl",
+      "bytes": 2336,
+      "sha256": "2397272cf37c77abfc9dd875d8150b1ecf26bea38263c9e0433a17dc30777e67"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/identity.json",
+      "bytes": 155,
+      "sha256": "9d63b3cfab2108ae6790bc558b4e7d5cb62d4e39c5ca6c41b05e0f25fe7d2e90"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/manifest.json",
+      "bytes": 1268,
+      "sha256": "1400b2855885e619dfdac9d4c2e229608bc3310ed0390aaaf7f118733cf0c7da"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/model-requests.json",
+      "bytes": 47565,
+      "sha256": "a091d7f33fd13fa9b3b6c110bec4ba7187f560d43a4eb4c50298a525eb33dc7c"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/native-snapshots.json",
+      "bytes": 3143,
+      "sha256": "afba0c2ce7a613926ff6d88b467ea6cc20e5cf415d25b5048d049bf498e40224"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/source-1.txt",
+      "bytes": 342,
+      "sha256": "2687db41d00f49c610557c1ecb2ac881faacd92ef612a9163ce9254455c37de3"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/source-2.txt",
+      "bytes": 342,
+      "sha256": "2687db41d00f49c610557c1ecb2ac881faacd92ef612a9163ce9254455c37de3"
+    },
+    {
+      "path": "observations/chain-tool-source-diagnostic-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2938080062/status.json",
+      "bytes": 1000,
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/identity.json",
+      "bytes": 155,
+      "sha256": "96f1a4f1e55d40d78ae4de838ee428dccb37a2a0a9ea8edb61e8e8eac1bf47c9"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/manifest.json",
+      "bytes": 1103,
+      "sha256": "1d7e7d3c9dcd087d44e53a6b26ee97b5a6891c1c80c5221c98c20581d35b2840"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/model-requests.json",
+      "bytes": 24688,
+      "sha256": "942c9a49dec946772ae96d2081b61d2c60585b31e6cfdb198cccd7395af804d3"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/native-snapshots.json",
+      "bytes": 12821,
+      "sha256": "bf51218d9f79ec3b8bc87f1acd8fcd16fda9f2944111bc9cc817b12db14f8802"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/source-1.txt",
+      "bytes": 6009,
+      "sha256": "90d1e1ab72d15da4bdbf881a815650f88c1484bd7b37e08f8853ce57c7f1d128"
+    },
+    {
+      "path": "observations/chain-tool-source-evidence/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-1228469220/status.json",
+      "bytes": 1005,
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/identity.json",
+      "bytes": 155,
+      "sha256": "51e451962a033e93f664ee9683bb5976334a182a240bb077494b9cd1c5bf7dd3"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/manifest.json",
+      "bytes": 1260,
+      "sha256": "3eb93365d5c6105523e2dae7c362333482b665935870ca537264fb77848b390a"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/model-requests.json",
+      "bytes": 47565,
+      "sha256": "dab5aa37385de1b9df8ef5e88d3b040463532043e3e0619a6d3ac44a72abd576"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/native-snapshots.json",
+      "bytes": 3143,
+      "sha256": "84a5cde240d8ddd541d6c479dbfd8a0eb218294b4408ab32ab367de27a5e6a84"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/source-1.txt",
+      "bytes": 342,
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/source-2.txt",
+      "bytes": 342,
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-excluded-2305072845/status.json",
+      "bytes": 1000,
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/identity.json",
+      "bytes": 155,
+      "sha256": "51e451962a033e93f664ee9683bb5976334a182a240bb077494b9cd1c5bf7dd3"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/manifest.json",
+      "bytes": 1268,
+      "sha256": "60d9fa969cb51753f3fedee6eebef489a2473e8a44e6f251785ebbc884cae762"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/model-requests.json",
+      "bytes": 47565,
+      "sha256": "dab5aa37385de1b9df8ef5e88d3b040463532043e3e0619a6d3ac44a72abd576"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/native-snapshots.json",
+      "bytes": 3143,
+      "sha256": "84a5cde240d8ddd541d6c479dbfd8a0eb218294b4408ab32ab367de27a5e6a84"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/source-1.txt",
+      "bytes": 342,
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/source-2.txt",
+      "bytes": 342,
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0"
+    },
+    {
+      "path": "observations/chain-tool-source-final-evidence/TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource-tool-input-diagnostic-2017337442/status.json",
+      "bytes": 1000,
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075"
+    }
+  ]
+}

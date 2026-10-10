@@ -1,0 +1,93 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T02:35:37.542995+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "79f778e2d1fdf5a03621db85c66dd8348fcc7d26",
+    "agent-vivy": "7a1086a530f4c622fc13b6c5f2c554fe0353b827",
+    "laputa": "db46181f0618fc35ca302b1be281e15ed2d35d35"
+  },
+  "execution_mode": "previous generated diagnostic overlay; not current-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-public-revision-first.jsonl",
+      "sha256": "fb33d83ba53986b30c8f5630b34ed4a34a12f07934f9508cd5426241e7dd6f04",
+      "named_tests_subtests": {},
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-public-revision-second.jsonl",
+      "sha256": "e35d11eb9fa728fa5cdfbc50ae2fba3d6fed5ebba4f2d837ad2260d7337de9ad",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-public-revision-third.jsonl",
+      "sha256": "24381883b0b8169b5d25ecf2f64eeeb19d4a47976096531cc7596633fcd9d51a",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-public-revision-fourth.jsonl",
+      "sha256": "6bf274f661a564c2ff793142c6666e52b7476f6dab1732ac18577c101a9208b8",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-public-revision-fifth.jsonl",
+      "sha256": "5091dae8789ba5784e0e2a71513e7a1239d8bd8a11a0f2a2df06a71b9407ae4f",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-public-revision-sixth.jsonl",
+      "sha256": "3338968c771f416897f42b6be7e3c485dfde1eb31ec3e01ee696695e929c113f",
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-capture-replay-first.jsonl",
+      "sha256": "33bfa6d3ecfa41fcf66da9b50f1d7e09480ae05b6f86fac85bfa0e0488024a7f",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-capture-replay-second.jsonl",
+      "sha256": "a78951cf31b2717c0891352de774a4b9f8e6e8447a08cdee8da33dd67f697f71",
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-lifecycle-composition-final.jsonl",
+      "sha256": "c7fc19e4d7d558c1a8c481e4116f28d2eb4029f08cad84aadcb19b5bce65bc6c",
+      "named_tests_subtests": {
+        "pass": 32
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-lifecycle-default-final.jsonl",
+      "sha256": "66634624720d6040a91c2feb610c076e920e54e42ebed3732ca5987d09bd21b8",
+      "named_tests_subtests": {
+        "pass": 133,
+        "skip": 22
+      },
+      "recorded_exit_code": 0
+    }
+  ]
+}

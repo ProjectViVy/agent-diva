@@ -1,0 +1,6 @@
+test_sdk_receives_index_and_assets_are_cleaned_on_failure (test_build_desktop_test_assets.TestModeAssets.test_sdk_receives_index_and_assets_are_cleaned_on_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

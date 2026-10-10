@@ -1,0 +1,6 @@
+{"ImportPath":"github.com/dashimaki/laputa/actmem [github.com/dashimaki/laputa/actmem.test]","Action":"build-output","Output":"# github.com/dashimaki/laputa/actmem [github.com/dashimaki/laputa/actmem.test]\n"}
+{"ImportPath":"github.com/dashimaki/laputa/actmem [github.com/dashimaki/laputa/actmem.test]","Action":"build-output","Output":"actmem/read_budget_test.go:34:171: undefined: evolution.WorkGoal\n"}
+{"ImportPath":"github.com/dashimaki/laputa/actmem [github.com/dashimaki/laputa/actmem.test]","Action":"build-fail"}
+{"Time":"2026-10-10T01:50:48.151057795Z","Action":"start","Package":"github.com/dashimaki/laputa/actmem"}
+{"Time":"2026-10-10T01:50:48.151095893Z","Action":"output","Package":"github.com/dashimaki/laputa/actmem","Output":"FAIL\tgithub.com/dashimaki/laputa/actmem [build failed]\n"}
+{"Time":"2026-10-10T01:50:48.151102232Z","Action":"fail","Package":"github.com/dashimaki/laputa/actmem","Elapsed":0,"FailedBuild":"github.com/dashimaki/laputa/actmem [github.com/dashimaki/laputa/actmem.test]"}

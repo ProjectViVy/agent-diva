@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `agent-diva-gui/src/styles.css, agent-diva-gui/src/components/ChatView.vue, docs/logs/2026-10-diva-chat-width/**, LOCK.md`
-- Owner: `Antigravity on behalf of user`
-- Session/Task: `DIVA chat bar and message stream width constraints optimization`
-- Branch/Worktree: `main / C:/Users/Administrator/Desktop/morediva/newdiva/agent-diva`
-- Started At: `2026-10-05T17:03:00Z`
-- Last Heartbeat: `2026-10-05T17:08:00Z`
-- Expires At: `N/A (released)`
+- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-chain/**, TODOLIST.md, LOCK.md, .superpowers/sdd/memory-loop/progress.md; scripts/build-desktop.py, scripts/ci/test_build_desktop_test_assets.py, scripts/ci/test_build_desktop_packages.py; agent-vivy/internal/app/app.go, agent-vivy/internal/app/memory_loop_*; agent-vivy/docs/logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/**; /workspace/work/memory-loop/tools/diva-c06-index-overlay/**; /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt.go, /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt_test.go, /workspace/work/memory-loop/laputa/mentle/facade/cards.go, /workspace/work/memory-loop/laputa/mentle/facade/cards_test.go, /workspace/work/memory-loop/laputa/mentle/internal/hybrid/searcher.go, /workspace/work/memory-loop/laputa/mentle/internal/hybrid/searcher_lexical_test.go, /workspace/work/memory-loop/laputa/garden/backends/mentle/adapter.go, /workspace/work/memory-loop/laputa/garden/backends/mentle/adapter_test.go`
+- Owner: `Codex on behalf of repository owner`
+- Session/Task: `S11 cursor increment complete; race-only memory-source read remains an open follow-up`
+- Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
+- Started At: `2026-10-10T01:25:07Z`
+- Last Heartbeat: `2026-10-10T09:05:08Z`
+- Expires At: `RELEASED 2026-10-10T09:05:08Z`
 
 ### Handoff for this task
 
@@ -42,6 +42,33 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `Memory-loop S11 cursor and host-isolation increment` — **RELEASED 2026-10-10T09:05:08Z**; Laputa `6c2bf3c1`, VIVY `4504bfe8` plus test-fixture clarification `a1bca54b` and query timing diagnostic `9dd8150e`, DIVA checkpoint commit pending. Mentle/Garden normal and race suites pass; actual-App ordinary valid foreign-cursor and injection tests pass; scope race passes without invoking the recall source. Injection race still returns `material read failed`; test-only source timings were 3.542s and 2.342s against the 750ms ContextHost timeout, cause unconfirmed. Evidence: `docs/logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/`. S11 remains Planned; S09, backend recovery, workspace A/B and final candidate gates remain open. No push, merge or release.
+
+- `Memory-loop unresolved-window and shared-state repair increment` — **RELEASED 2026-10-10T01:24:08Z**; VIVY `114ad97a` (with `d72add09`, `ab5ed872`), Laputa `256d1f1`. Focused runtime85/actual composition12/race12 and concurrency30 pass, zero skips. Evidence: docs/logs/2026-10-memory-loop-chain/v0.4.0-state-concurrency/ and v0.3.0-recovery-and-literal-path/. Full local goal remains active; same-operation recovery, S03–S11 and final CI/source sealing/review remain open. Reclaim isolated scope before the next mutation. External Windows/live resource waits do not stop local repair. No push/merge/release or unattended service deployment.
+
+- `Memory-loop reflection and Restart increment` — **RELEASED 2026-10-10T00:24:37Z**; VIVY budget fix `9d35e50c`, fixture `cd080708`. Combined diagnostic regression 10 pass/0 skip; default App 133 pass/9 conditional skips. Source sealing/full CI/review and local S03–S11 work remain open; Windows/live waits are separate. Evidence: docs/logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/. No push, merge or release.
+
+- `Memory-loop source/environment continuous repair` — **RELEASED 2026-10-09T23:55:44Z**; isolated execution branch. Source capture and accepted receipt recovery fixed, environment and native Linux blockers resolved; required VIVY CI and rebuilt native host tests pass. Evidence: docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. Full Story acceptance and S03–S11 developer work remain open; Windows/live resources are separate. No push, merge or release.
+
+- `Memory-loop execution foundation` — **RELEASED 2026-10-09T18:26:08Z**; isolated
+  execution branch feat/memory-loop-verification-20261009. Test asset fix,
+  evidence checker and paired VIVY/Laputa real-path fixtures locally committed.
+  S01–S03 remain Blocked; MEM-S04-01 user-fact loss reproduced. Evidence and
+  continuation: docs/logs/2026-10-memory-loop-verification/handoff.md.
+  No push, merge, product acceptance or release. Worktrees preserved.
+
+
+- `Superpowers Epic–Story memory plan package` — **RELEASED 2026-10-09T17:06:24Z**;
+  planning only, five Epics/thirteen Stories, shared contracts/runbook and
+  static checker. Old entrypoints/backlog reconciled. No product execution
+  or remote publication.
+
+- `Memory loop verification planning` — **RELEASED 2026-10-09T15:41:52Z** by
+  `Codex on behalf of repository owner`; branch
+  `docs/memory-loop-verification-20261009`; plan, index, backlog and iteration
+  records only. Eight tasks, 28 cases, source links and 10-day schedule
+  checked. No product tests, implementation, push or release.
 
 - `DIVA chat bar and message stream width constraints optimization` — **RELEASED 2026-10-05T17:08:00Z** by
   `Antigravity on behalf of user`; branch `main`, chat input container width

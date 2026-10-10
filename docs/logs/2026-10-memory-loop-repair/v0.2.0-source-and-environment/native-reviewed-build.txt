@@ -1,0 +1,2 @@
+sealed go-host artifact: /workspace/work/memory-loop/artifacts/diva-native-reviewed
+build report: /workspace/work/memory-loop/artifacts/diva-native-reviewed/build-report.json

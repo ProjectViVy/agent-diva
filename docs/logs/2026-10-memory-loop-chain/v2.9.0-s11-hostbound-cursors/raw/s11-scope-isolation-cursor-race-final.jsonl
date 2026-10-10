@@ -1,0 +1,12 @@
+{"Time":"2026-10-10T08:54:40.878652549Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T08:54:40.943492842Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding"}
+{"Time":"2026-10-10T08:54:40.943533233Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"=== RUN   TestMemoryLoopScopeAndHostBinding\n"}
+{"Time":"2026-10-10T08:54:41.7152269Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:54:41 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding939143832/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:55:29.988325293Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:55:29 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding939143832/002/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:55:35.326520148Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:156: ContextHost did not invoke the memory source in this run; actual model input still contains no memory context or profile A fact\n"}
+{"Time":"2026-10-10T08:55:43.802007125Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:168: scope isolation: profileA-canonical=4 profileB-search=0 stale-revision and foreign-session/card/receipt plus Profile A and forged cursors denied profileB-recall-observed=false\n"}
+{"Time":"2026-10-10T08:55:43.80361013Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"--- PASS: TestMemoryLoopScopeAndHostBinding (62.86s)\n"}
+{"Time":"2026-10-10T08:55:43.803627436Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Elapsed":62.86}
+{"Time":"2026-10-10T08:55:43.803854498Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T08:55:44.863570077Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t63.985s\n"}
+{"Time":"2026-10-10T08:55:44.8636121Z","Action":"pass","Package":"command-line-arguments","Elapsed":63.985}

@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T10:30:35.572843164Z","Action":"start","Package":"agent-vivy/internal/app"}
+{"Time":"2026-10-10T10:30:35.636276094Z","Action":"run","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection"}
+{"Time":"2026-10-10T10:30:35.636330416Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection","Output":"=== RUN   TestMemoryLoopMemoryInjection\n"}
+{"Time":"2026-10-10T10:30:36.388314852Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection","Output":"2026/10/10 10:30:36 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMemoryInjection1482292754/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T10:31:17.557561188Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection","Output":"    memory_loop_isolation_test.go:311: memory injection: hostile bytes appeared in user context only; mission/policy/effect receipts unchanged; native source query_ms=[3044 2000]\n"}
+{"Time":"2026-10-10T10:31:17.566614818Z","Action":"output","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection","Output":"--- PASS: TestMemoryLoopMemoryInjection (41.93s)\n"}
+{"Time":"2026-10-10T10:31:17.566641879Z","Action":"pass","Package":"agent-vivy/internal/app","Test":"TestMemoryLoopMemoryInjection","Elapsed":41.93}
+{"Time":"2026-10-10T10:31:17.567008681Z","Action":"output","Package":"agent-vivy/internal/app","Output":"PASS\n"}
+{"Time":"2026-10-10T10:31:18.601555706Z","Action":"output","Package":"agent-vivy/internal/app","Output":"ok  \tagent-vivy/internal/app\t43.028s\n"}
+{"Time":"2026-10-10T10:31:18.601587925Z","Action":"pass","Package":"agent-vivy/internal/app","Elapsed":43.029}

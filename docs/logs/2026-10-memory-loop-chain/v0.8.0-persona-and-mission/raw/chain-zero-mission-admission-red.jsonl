@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T02:04:47.145545499Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T02:04:47.16228418Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestUnassignedMissionAdmissionIsStillPinned"}
+{"Time":"2026-10-10T02:04:47.162331972Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestUnassignedMissionAdmissionIsStillPinned","Output":"=== RUN   TestUnassignedMissionAdmissionIsStillPinned\n"}
+{"Time":"2026-10-10T02:04:47.185931676Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestUnassignedMissionAdmissionIsStillPinned","Output":"    cognitive_primary_test.go:165: unassigned Mission pin admitted after actual revision changed: \u003cnil\u003e\n"}
+{"Time":"2026-10-10T02:04:47.186249215Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestUnassignedMissionAdmissionIsStillPinned","Output":"--- FAIL: TestUnassignedMissionAdmissionIsStillPinned (0.02s)\n"}
+{"Time":"2026-10-10T02:04:47.186267903Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestUnassignedMissionAdmissionIsStillPinned","Elapsed":0.02}
+{"Time":"2026-10-10T02:04:47.186373101Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T02:04:47.186596658Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.041s\n"}
+{"Time":"2026-10-10T02:04:47.186609848Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.041}

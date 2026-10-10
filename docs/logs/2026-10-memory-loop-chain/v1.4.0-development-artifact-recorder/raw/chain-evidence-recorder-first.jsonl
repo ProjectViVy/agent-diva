@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:09:28.874349715Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:09:28.893440162Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource"}
+{"Time":"2026-10-10T05:09:28.893494934Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource","Output":"=== RUN   TestMemoryLoopEvidenceExportsActualLargeUserSource\n"}
+{"Time":"2026-10-10T05:09:28.931625583Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource","Output":"2026/10/10 05:09:28 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopEvidenceExportsActualLargeUserSource3920017698/002/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:09:31.131329594Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource","Output":"    memory_loop_evidence_test.go:104: actual development artifacts: /tmp/TestMemoryLoopEvidenceExportsActualLargeUserSource3920017698/001/TestMemoryLoopEvidenceExportsActualLargeUserSource-captured-2239955300 (5 hashed files)\n"}
+{"Time":"2026-10-10T05:09:31.132956975Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource","Output":"--- PASS: TestMemoryLoopEvidenceExportsActualLargeUserSource (2.24s)\n"}
+{"Time":"2026-10-10T05:09:31.132972008Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopEvidenceExportsActualLargeUserSource","Elapsed":2.24}
+{"Time":"2026-10-10T05:09:31.133067632Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T05:09:31.154889163Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t2.280s\n"}
+{"Time":"2026-10-10T05:09:31.154922594Z","Action":"pass","Package":"command-line-arguments","Elapsed":2.281}

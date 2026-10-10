@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T01:49:44.353887925Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:49:44.374822948Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T01:49:44.374914435Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T01:49:44.414256761Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 01:49:44 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity4163216728/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:49:45.622809846Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"    memory_loop_activity_test.go:36: MEM-S05-01: real completed turns left actual ACTMEM empty: revision=0 pulse=0 recap=0 (ingest rows are not Markdown activity)\n"}
+{"Time":"2026-10-10T01:49:45.624087641Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- FAIL: TestMemoryLoopActivityContinuity (1.25s)\n"}
+{"Time":"2026-10-10T01:49:45.624114671Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.25}
+{"Time":"2026-10-10T01:49:45.62415361Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:49:45.641287241Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.287s\n"}
+{"Time":"2026-10-10T01:49:45.641314632Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.287}

@@ -1,0 +1,6 @@
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"# command-line-arguments [command-line-arguments.test]\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_recall_test.go:190:33: cannot call pointer method HasCognitiveFactory on \"agent-vivy/internal/generated/assembly\".RuntimeAssembly\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-fail"}
+{"Time":"2026-10-10T03:19:48.481728752Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T03:19:48.481766849Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments [build failed]\n"}
+{"Time":"2026-10-10T03:19:48.481772588Z","Action":"fail","Package":"command-line-arguments","Elapsed":0,"FailedBuild":"command-line-arguments [command-line-arguments.test]"}

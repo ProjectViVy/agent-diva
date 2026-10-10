@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T04:40:02.288212791Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:40:02.31416566Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence"}
+{"Time":"2026-10-10T04:40:02.31424527Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"=== RUN   TestMemoryLoopExcludesDerivedEvidence\n"}
+{"Time":"2026-10-10T04:40:02.362320591Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"2026/10/10 04:40:02 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopExcludesDerivedEvidence2696931153/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:40:23.558694595Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"    memory_loop_exclusion_test.go:80: derived activity reentered actual source: rows=1 high=1 source=1 state={Cognition:{Watermark:1 PendingThrough:1 Phase:idle}}\n"}
+{"Time":"2026-10-10T04:40:23.560843181Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"--- FAIL: TestMemoryLoopExcludesDerivedEvidence (21.25s)\n"}
+{"Time":"2026-10-10T04:40:23.560855279Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Elapsed":21.25}
+{"Time":"2026-10-10T04:40:23.56086893Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:40:23.58796171Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t21.299s\n"}
+{"Time":"2026-10-10T04:40:23.587999697Z","Action":"fail","Package":"command-line-arguments","Elapsed":21.3}

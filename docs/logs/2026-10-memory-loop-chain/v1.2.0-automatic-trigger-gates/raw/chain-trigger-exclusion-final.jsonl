@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:41:14.508515304Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:41:14.529199605Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence"}
+{"Time":"2026-10-10T04:41:14.529239555Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"=== RUN   TestMemoryLoopExcludesDerivedEvidence\n"}
+{"Time":"2026-10-10T04:41:14.567325761Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"2026/10/10 04:41:14 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopExcludesDerivedEvidence2082527182/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:41:35.757549124Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Output":"--- PASS: TestMemoryLoopExcludesDerivedEvidence (21.23s)\n"}
+{"Time":"2026-10-10T04:41:35.75768291Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopExcludesDerivedEvidence","Elapsed":21.23}
+{"Time":"2026-10-10T04:41:35.757697212Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:41:35.795147554Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t21.286s\n"}
+{"Time":"2026-10-10T04:41:35.795190759Z","Action":"pass","Package":"command-line-arguments","Elapsed":21.287}

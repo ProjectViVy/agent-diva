@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T05:01:26.222468279Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T05:01:26.242944138Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission"}
+{"Time":"2026-10-10T05:01:26.242976196Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"=== RUN   TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission\n"}
+{"Time":"2026-10-10T05:01:26.270101095Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"    inofy_store_test.go:62: actual interrupted classification collides with original admission: idempotency_conflict: storage: workflow step idempotency conflict\n"}
+{"Time":"2026-10-10T05:01:26.270271511Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"--- FAIL: TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission (0.03s)\n"}
+{"Time":"2026-10-10T05:01:26.270276499Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Elapsed":0.03}
+{"Time":"2026-10-10T05:01:26.27036357Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:01:26.27248764Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.050s\n"}
+{"Time":"2026-10-10T05:01:26.272498536Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.05}

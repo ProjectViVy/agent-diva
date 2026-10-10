@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2",
+      "bytes": 1005
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "37442b42269521303dfbc8b3304b4b1f695532cda305fde487c91a4cded69c66",
+      "bytes": 19006
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "1321de9b33d4eebe63611f0f98f2212466283cc5ea9bbbd3bbb7ce4aea99145c",
+      "bytes": 2911
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "12785716fe9cbed3e4a386f98074218db08ce167f3c258dc20e5b194df2bbb48",
+      "bytes": 327
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "12785716fe9cbed3e4a386f98074218db08ce167f3c258dc20e5b194df2bbb48",
+      "bytes": 327
+    },
+    {
+      "path": "identity.json",
+      "sha256": "f85195b5ee41cd42489b50bdc2d6c5256d0edef5bfd94a74b2fe1a729b025dbc",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "native-restored",
+  "recorded_at": "2026-10-10T05:41:19.649625556Z",
+  "test": "TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry"
+}

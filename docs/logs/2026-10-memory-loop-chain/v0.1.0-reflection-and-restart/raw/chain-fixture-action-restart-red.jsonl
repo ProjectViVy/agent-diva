@@ -1,0 +1,33 @@
+{"Time":"2026-10-10T00:19:32.761707006Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T00:19:32.782373546Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart"}
+{"Time":"2026-10-10T00:19:32.782404974Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"=== RUN   TestMemoryLoopFixtureRestart\n"}
+{"Time":"2026-10-10T00:19:32.823247838Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"2026/10/10 00:19:32 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopFixtureRestart3842409193/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:19:33.767269119Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"    memory_loop_restart_test.go:51: fixture process restart: 224681 -\u003e 224691\n"}
+{"Time":"2026-10-10T00:19:33.784516695Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"--- FAIL: TestMemoryLoopFixtureRestart (1.00s)\n"}
+{"Time":"2026-10-10T00:19:33.786655847Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]\n"}
+{"Time":"2026-10-10T00:19:33.786668767Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"[signal SIGSEGV: segmentation violation code=0x1 addr=0x108 pc=0x1959d3a]\n"}
+{"Time":"2026-10-10T00:19:33.786685132Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\n"}
+{"Time":"2026-10-10T00:19:33.786694145Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"goroutine 19 [running]:\n"}
+{"Time":"2026-10-10T00:19:33.786708947Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"testing.tRunner.func1.2({0x26a3ba0, 0x4acf030})\n"}
+{"Time":"2026-10-10T00:19:33.786713785Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/testing/testing.go:1974 +0x232\n"}
+{"Time":"2026-10-10T00:19:33.786716809Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"testing.tRunner.func1()\n"}
+{"Time":"2026-10-10T00:19:33.786720184Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/testing/testing.go:1977 +0x349\n"}
+{"Time":"2026-10-10T00:19:33.786723039Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"panic({0x26a3ba0?, 0x4acf030?})\n"}
+{"Time":"2026-10-10T00:19:33.786726504Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/runtime/panic.go:860 +0x13a\n"}
+{"Time":"2026-10-10T00:19:33.786729649Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"sync/atomic.(*Uint64).Add(...)\n"}
+{"Time":"2026-10-10T00:19:33.786733104Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/sync/atomic/type.go:195\n"}
+{"Time":"2026-10-10T00:19:33.786740555Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"agent-vivy/internal/rpc.(*Peer).Call(0x0, {0x2f95778, 0x2634ab1ba2a0}, {0x2bf9629, 0x14}, {0x2740400?, 0x2634ad11d260?})\n"}
+{"Time":"2026-10-10T00:19:33.786745122Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/agent-vivy/internal/rpc/protocol.go:479 +0x13a\n"}
+{"Time":"2026-10-10T00:19:33.786749008Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"command-line-arguments.invokeCognitive(0x2634ad4e0690?, 0x0, {0x2c09098, 0x19}, 0x2634ad11d230)\n"}
+{"Time":"2026-10-10T00:19:33.786771001Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/agent-vivy/internal/app/cognitive_origin_test.go:134 +0x1e9\n"}
+{"Time":"2026-10-10T00:19:33.78677679Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"command-line-arguments.memoryLoopAction(0x26349ad63b08, 0x26349b00bb00, {0x2c09098, 0x19}, 0x2634ad11d230, {0x252e480, 0x26349b05bda0})\n"}
+{"Time":"2026-10-10T00:19:33.786780225Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/agent-vivy/internal/app/memory_loop_reflection_test.go:18 +0x8a\n"}
+{"Time":"2026-10-10T00:19:33.786783369Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"command-line-arguments.TestMemoryLoopFixtureRestart(0x26349ad63b08)\n"}
+{"Time":"2026-10-10T00:19:33.786786094Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/agent-vivy/internal/app/memory_loop_restart_test.go:55 +0x9a5\n"}
+{"Time":"2026-10-10T00:19:33.786788818Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"testing.tRunner(0x26349ad63b08, 0x2f3cee8)\n"}
+{"Time":"2026-10-10T00:19:33.786791432Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/testing/testing.go:2036 +0xea\n"}
+{"Time":"2026-10-10T00:19:33.786794887Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"created by testing.(*T).Run in goroutine 1\n"}
+{"Time":"2026-10-10T00:19:33.786799614Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Output":"\t/workspace/work/memory-loop/tools/go/src/testing/testing.go:2101 +0x4c5\n"}
+{"Time":"2026-10-10T00:19:33.804666197Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopFixtureRestart","Elapsed":1}
+{"Time":"2026-10-10T00:19:33.804714971Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.043s\n"}
+{"Time":"2026-10-10T00:19:33.804728972Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.043}

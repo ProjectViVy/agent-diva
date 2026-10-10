@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T03:25:25.971648385Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T03:25:25.993560316Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart"}
+{"Time":"2026-10-10T03:25:25.993622349Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"=== RUN   TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart\n"}
+{"Time":"2026-10-10T03:25:26.032499251Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"2026/10/10 03:25:26 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart2009295738/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T03:25:32.160052784Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"--- PASS: TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart (6.17s)\n"}
+{"Time":"2026-10-10T03:25:32.160110682Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Elapsed":6.17}
+{"Time":"2026-10-10T03:25:32.160118263Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T03:25:32.176084273Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t6.204s\n"}
+{"Time":"2026-10-10T03:25:32.176144544Z","Action":"pass","Package":"command-line-arguments","Elapsed":6.205}

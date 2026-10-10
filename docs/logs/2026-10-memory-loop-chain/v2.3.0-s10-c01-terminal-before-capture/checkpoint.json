@@ -1,0 +1,46 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T06:46:18.440708+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "ff0ebfc7cbfdab60913c15cfc50e05fdf713671b",
+    "agent-vivy": "160349caaf2c6e5e805e732f25839d6c3628a7b6",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-s10-c01-test-target-red.txt": 1,
+    "chain-s10-c01-single-sample-green.jsonl": 0,
+    "chain-s10-c01-race-ten-samples-green.jsonl": 0,
+    "chain-s10-c02-after-c01-composition-green.jsonl": 0,
+    "chain-s10-c01-replay-regression-green.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/chain-s10-c01-race-ten-samples-green.jsonl",
+      "bytes": 26545,
+      "sha256": "3d1d280dc86b5218b47c054f2bcdc08a2d77ee0bbfce9afc40ecbe79ee8b3163"
+    },
+    {
+      "path": "raw/chain-s10-c01-replay-regression-green.jsonl",
+      "bytes": 1555,
+      "sha256": "009fa98516d3abf85e8da43b9f03015c2a338f4326e92292c7f502562ebca683"
+    },
+    {
+      "path": "raw/chain-s10-c01-single-sample-green.jsonl",
+      "bytes": 3066,
+      "sha256": "93bb858ea498da52caa5ded759d56e6f2923f290b9398ba0d0ef1824ea692b96"
+    },
+    {
+      "path": "raw/chain-s10-c01-test-target-red.txt",
+      "bytes": 236,
+      "sha256": "30e44788495558076c72417aef078a6b75181a56c02dc044060169e0b3d3db4f"
+    },
+    {
+      "path": "raw/chain-s10-c02-after-c01-composition-green.jsonl",
+      "bytes": 3106,
+      "sha256": "a49b29f947327de2836a0c4aa73fdffd4213f390285284f44a1b78ee9009a7cf"
+    }
+  ]
+}

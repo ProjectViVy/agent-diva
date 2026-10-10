@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:39:18.963381258Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:39:18.98833492Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry"}
+{"Time":"2026-10-10T05:39:18.988371986Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry","Output":"=== RUN   TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry\n"}
+{"Time":"2026-10-10T05:39:19.027371046Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry","Output":"2026/10/10 05:39:19 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry3852808362/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:39:20.420614444Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry","Output":"    memory_loop_activity_failure_test.go:92: failed archive deleted original history:  rpc error -32603: internal error\n"}
+{"Time":"2026-10-10T05:39:20.422354415Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry","Output":"--- FAIL: TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry (1.44s)\n"}
+{"Time":"2026-10-10T05:39:20.422401866Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry","Elapsed":1.44}
+{"Time":"2026-10-10T05:39:20.422465953Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:39:20.443313008Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.480s\n"}
+{"Time":"2026-10-10T05:39:20.443347731Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.48}
