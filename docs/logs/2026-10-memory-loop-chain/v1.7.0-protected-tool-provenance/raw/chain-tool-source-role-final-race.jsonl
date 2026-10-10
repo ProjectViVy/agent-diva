@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:33:27.783358449Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:33:27.85195418Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource"}
+{"Time":"2026-10-10T05:33:27.852063334Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource","Output":"=== RUN   TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource\n"}
+{"Time":"2026-10-10T05:33:28.721124037Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource","Output":"2026/10/10 05:33:28 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource991326245/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:33:54.743715322Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource","Output":"    memory_loop_tool_source_test.go:134: actual cognitive input contains Tool/assistant instead of user evidence\n"}
+{"Time":"2026-10-10T05:33:54.750472301Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource","Output":"--- FAIL: TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource (26.90s)\n"}
+{"Time":"2026-10-10T05:33:54.750514715Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource","Elapsed":26.9}
+{"Time":"2026-10-10T05:33:54.750629788Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:33:54.794833932Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t27.011s\n"}
+{"Time":"2026-10-10T05:33:54.794877107Z","Action":"fail","Package":"command-line-arguments","Elapsed":27.012}

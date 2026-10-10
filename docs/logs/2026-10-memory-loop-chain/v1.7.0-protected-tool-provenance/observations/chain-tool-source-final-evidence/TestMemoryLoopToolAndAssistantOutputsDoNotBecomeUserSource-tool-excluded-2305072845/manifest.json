@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "6e525e6e9b35df9e8e712365ae67406b431cc489b5b4727a7023e517b6f55075",
+      "bytes": 1000
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "dab5aa37385de1b9df8ef5e88d3b040463532043e3e0619a6d3ac44a72abd576",
+      "bytes": 47565
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "84a5cde240d8ddd541d6c479dbfd8a0eb218294b4408ab32ab367de27a5e6a84",
+      "bytes": 3143
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0",
+      "bytes": 342
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "f22be2bf9b48337d0712326f5745bdfcffc093f33447dcf24d3eae92013996d0",
+      "bytes": 342
+    },
+    {
+      "path": "identity.json",
+      "sha256": "51e451962a033e93f664ee9683bb5976334a182a240bb077494b9cd1c5bf7dd3",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "tool-excluded",
+  "recorded_at": "2026-10-10T05:36:37.287164132Z",
+  "test": "TestMemoryLoopToolAndAssistantOutputsDoNotBecomeUserSource"
+}

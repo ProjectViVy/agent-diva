@@ -136,3 +136,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Operator recovery development checkpoint
 
 [V1.6 ownership fence](../../../logs/2026-10-memory-loop-chain/v1.6.0-operator-recovery-ownership/summary.md), VIVY `189a9f1b`: public operator recovery now uses the existing busy ownership fence. Actual App race regression 1 pass/0 skip; RPC race regression 220 pass/1 Windows skip; both observed exit0. Formal S10 remains Planned and final same-candidate gates remain pending. Next local increment: actual protected Tool output and assistant exclusion from captured user provenance.
+
+## Development checkpoint v1.7.0-protected-tool-provenance
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v1.7.0-protected-tool-provenance/summary.md), VIVY `2ca5798d`. Formal Story states and final candidate gates stay pending. Next local work: Actual native projection failure, archive preservation and recovery; shared response evidence and remaining local queue.

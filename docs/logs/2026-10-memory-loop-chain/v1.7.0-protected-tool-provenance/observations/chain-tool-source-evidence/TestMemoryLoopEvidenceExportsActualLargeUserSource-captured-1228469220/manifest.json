@@ -1,0 +1,36 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2",
+      "bytes": 1005
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "942c9a49dec946772ae96d2081b61d2c60585b31e6cfdb198cccd7395af804d3",
+      "bytes": 24688
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "bf51218d9f79ec3b8bc87f1acd8fcd16fda9f2944111bc9cc817b12db14f8802",
+      "bytes": 12821
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "90d1e1ab72d15da4bdbf881a815650f88c1484bd7b37e08f8853ce57c7f1d128",
+      "bytes": 6009
+    },
+    {
+      "path": "identity.json",
+      "sha256": "96f1a4f1e55d40d78ae4de838ee428dccb37a2a0a9ea8edb61e8e8eac1bf47c9",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "captured",
+  "recorded_at": "2026-10-10T05:31:23.589013518Z",
+  "test": "TestMemoryLoopEvidenceExportsActualLargeUserSource"
+}
