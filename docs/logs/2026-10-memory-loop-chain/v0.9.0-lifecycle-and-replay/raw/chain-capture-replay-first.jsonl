@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T02:31:34.729495152Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:31:34.749662105Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict"}
+{"Time":"2026-10-10T02:31:34.749703778Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"=== RUN   TestMemoryLoopCaptureReplayAndContentConflict\n"}
+{"Time":"2026-10-10T02:31:34.755101358Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"    memory_loop_replay_test.go:29: unsupported model mode; recall remains pending S08\n"}
+{"Time":"2026-10-10T02:31:34.755629484Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Output":"--- FAIL: TestMemoryLoopCaptureReplayAndContentConflict (0.01s)\n"}
+{"Time":"2026-10-10T02:31:34.755641582Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopCaptureReplayAndContentConflict","Elapsed":0.01}
+{"Time":"2026-10-10T02:31:34.755648242Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T02:31:34.755881909Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t0.026s\n"}
+{"Time":"2026-10-10T02:31:34.755910612Z","Action":"fail","Package":"command-line-arguments","Elapsed":0.026}

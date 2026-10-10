@@ -126,3 +126,5 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 开发增量：[作用域 Work 与读取预算](../../../logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/summary.md)，VIVY `d2f751cc` / Laputa `b4e266c`。实际整理请求拿到现有 Work，前台 prompt 无自动 ACTMEM；原生69/488及组合24通过零跳过。`MEM-S05-01` 仍红：两个实际回合后 Pulse/Recap 均为空，需本地产线接线及归档设计，不能以外部 Windows/live 等待代替。完整 Story/候选仍待。
 
 开发增量：[人格审阅与 Mission 效果边界](../../../logs/2026-10-memory-loop-chain/v0.8.0-persona-and-mission/summary.md)，VIVY `6b35f604` / Laputa `db46181`。`MEM-S07-01` 实际红→绿：Mission 变更不再推进过期窗口；人工写入与效果检查/提交共享短时宿主门。人格拒绝/批准及真实进程重启后的新旧 Frozen Core 已验证。组合30、Mission race3、owner race12、Garden492通过零跳过；仅为开发证据，完整 S07/候选及其他本地工作仍待。
+
+开发增量：[公开记忆生命周期与采集重投递](../../../logs/2026-10-memory-loop-chain/v0.9.0-lifecycle-and-replay/summary.md)，VIVY `7a1086a5` / Laputa `db46181`。纠正、删除、真实重启与原回执查询通过；三次受控 ObserverHost 重投递保留原来源，变更事件内容被拒绝。组合32通过零跳过，默认 App133通过22条件跳过。无产品修改；不代替 S08 后续模型输入或 S10 崩溃矩阵；Pulse/Recap 红灯仍开放。

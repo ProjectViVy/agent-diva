@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T02:29:22.060916507Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:29:22.079001584Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart"}
+{"Time":"2026-10-10T02:29:22.07909144Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"=== RUN   TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart\n"}
+{"Time":"2026-10-10T02:29:22.116715644Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"2026/10/10 02:29:22 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart1694125117/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:29:27.977433446Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"    memory_loop_revision_test.go:81: invalid/stale expansion did not fail closed: {\"status\":\"failed\",\"value\":{\"items\":null,\"truncated\":false},\"error\":{\"code\":\"effect_not_found\",\"message\":\"memory expansion failed\",\"retryable\":false}}\n"}
+{"Time":"2026-10-10T02:29:27.998646369Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Output":"--- FAIL: TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart (5.92s)\n"}
+{"Time":"2026-10-10T02:29:27.998697546Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopPublicCorrectionAndTombstoneAfterRestart","Elapsed":5.92}
+{"Time":"2026-10-10T02:29:27.998708933Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T02:29:28.01595162Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t5.955s\n"}
+{"Time":"2026-10-10T02:29:28.015985171Z","Action":"fail","Package":"command-line-arguments","Elapsed":5.955}

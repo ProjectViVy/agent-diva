@@ -25,8 +25,10 @@ Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; fo
   the model in a new session after process restart, with empty-profile and
   recall-disabled controls; do not substitute Frozen Core or BML (S08/S09).
 - [ ] **MEM-LOOP-RECOVERY-ISOLATION** P0 — Six process-crash cuts, unknown
-  effect handling, backend degradation, correction/deletion, foreign scope
-  and untrusted memory content require integrated evidence (S09–S11).
+  effect handling, backend degradation, correction/deletion in later model input, foreign scope
+  and untrusted memory content require integrated evidence (S09–S11). Public
+  correction/tombstone/restart and accepted-source redelivery now have developer
+  proof (VIVY 7a1086a5, v0.9 checkpoint); S08 and crash cuts remain open.
 - [ ] **MEM-LOOP-NATIVE-LIVE** P1 — Verify the same sealed candidate on
   Windows and with a real model; historical 15/17 migration rows do not
   establish memory-loop correctness (S12/S13).

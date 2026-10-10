@@ -1,0 +1,7 @@
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"# command-line-arguments [command-line-arguments.test]\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_revision_test.go:44:55: invalid operation: card.Revision == update.Revision (mismatched types int and uint64)\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-output","Output":"internal/app/memory_loop_revision_test.go:53:51: evidence.Items[0].Body undefined (type \"github.com/dashimaki/garden/memory\".EvidenceFragment has no field or method Body)\n"}
+{"ImportPath":"command-line-arguments [command-line-arguments.test]","Action":"build-fail"}
+{"Time":"2026-10-10T02:22:34.114788331Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:22:34.114843614Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments [build failed]\n"}
+{"Time":"2026-10-10T02:22:34.114869523Z","Action":"fail","Package":"command-line-arguments","Elapsed":0,"FailedBuild":"command-line-arguments [command-line-arguments.test]"}
