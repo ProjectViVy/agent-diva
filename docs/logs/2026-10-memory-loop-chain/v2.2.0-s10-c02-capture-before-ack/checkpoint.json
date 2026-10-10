@@ -1,0 +1,52 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T06:32:36.571253+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "0b0add4e0304c2e1764d9d5e2e50db80f2cf2367",
+    "agent-vivy": "fc78d0c6c77c2906c4f3ecbc7f3a4a33bb00796d",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-s10-c02-tdd-red.txt": 1,
+    "chain-s10-c02-first-attempt-setup-failure.jsonl": 1,
+    "chain-s10-c02-single-sample-green.jsonl": 0,
+    "chain-s10-c02-race-ten-samples-green.jsonl": 0,
+    "chain-s10-c02-adjacent-regressions-race.jsonl": 0,
+    "chain-s10-c02-replay-helper-regression-race.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/chain-s10-c02-adjacent-regressions-race.jsonl",
+      "bytes": 4253,
+      "sha256": "f8b26bd93d00bdca89e9103fb4482ab583c00ebfbf0d9b0383764c9c2c14accb"
+    },
+    {
+      "path": "raw/chain-s10-c02-first-attempt-setup-failure.jsonl",
+      "bytes": 2996,
+      "sha256": "ade8fcfbec3abdd79feb65e254691c39455bd3564690ff17056f2bebaf56309c"
+    },
+    {
+      "path": "raw/chain-s10-c02-race-ten-samples-green.jsonl",
+      "bytes": 26898,
+      "sha256": "742555ff109649171a8ebd577f69f39d87a6177dd79901fc48f93e38e2ba4344"
+    },
+    {
+      "path": "raw/chain-s10-c02-replay-helper-regression-race.jsonl",
+      "bytes": 1555,
+      "sha256": "ba651730a2359f60a4a74a018519832da6843e3b3ec172e3344f09f376b1f21c"
+    },
+    {
+      "path": "raw/chain-s10-c02-single-sample-green.jsonl",
+      "bytes": 3105,
+      "sha256": "7f3d96a6c1d47331ae843f0df36076455c62591060f16d35afd8a9020705f59c"
+    },
+    {
+      "path": "raw/chain-s10-c02-tdd-red.txt",
+      "bytes": 1151,
+      "sha256": "159e493da42cf602ec74230539f924ae91d11c4eaad6312c2f26fdf8e7b5c486"
+    }
+  ]
+}

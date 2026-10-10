@@ -1,0 +1,7 @@
+# command-line-arguments [command-line-arguments.test]
+internal/app/memory_loop_crash_test.go:201:59: unknown field CaptureHandshakePath in struct literal of type memoryLoopOptions
+internal/app/memory_loop_crash_test.go:223:75: cognitionBefore.Cognition.PendingThrough undefined (type struct{ActiveRunID string "json:\"active_run_id\""; Watermark uint64 "json:\"watermark\""; Phase string "json:\"phase\""; BlockReason string "json:\"block_reason\""} has no field or method PendingThrough)
+internal/app/memory_loop_crash_test.go:258:87: cognitionAfter.Cognition.PendingThrough undefined (type struct{ActiveRunID string "json:\"active_run_id\""; Watermark uint64 "json:\"watermark\""; Phase string "json:\"phase\""; BlockReason string "json:\"block_reason\""} has no field or method PendingThrough)
+internal/app/memory_loop_crash_test.go:261: cognitionAfter.Cognition.PendingThrough undefined (type struct{ActiveRunID string "json:\"active_run_id\""; Watermark uint64 "json:\"watermark\""; Phase string "json:\"phase\""; BlockReason string "json:\"block_reason\""} has no field or method PendingThrough)
+FAIL	command-line-arguments [build failed]
+FAIL
