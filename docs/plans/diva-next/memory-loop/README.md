@@ -164,3 +164,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.3.0-s10-c01-terminal-before-capture
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md), VIVY `160349ca`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C03–C06 exact handshakes and operation-level unknown/partial-effect recovery. C01 and C02 each have 10 developer race samples; keep formal S10 pending until remaining cuts and same-candidate gates pass.
+
+## Development checkpoint v2.4.0-s10-c03-canonical-before-caller-receipt
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.4.0-s10-c03-canonical-before-caller-receipt/summary.md), VIVY `03bfe793`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C04 multi-effect partial success; keep the Story Planned until C04–C06, unknown and partial recovery, and same-candidate gates are verified.

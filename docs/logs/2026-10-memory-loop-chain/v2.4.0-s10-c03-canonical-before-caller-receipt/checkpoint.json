@@ -1,0 +1,22 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T07:02:55.829268+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "51893ba1c8f48e2014485a533e52b04418f8c6a6",
+    "agent-vivy": "03bfe793608c6a6910a19e3670c45688d1a3dc7c",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "c03-effect-receipt-race10.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/c03-effect-receipt-race10.jsonl",
+      "bytes": 26835,
+      "sha256": "f3bd7132625c14dd9f6529dc58cac4d9f33caaff27403e857c678d94522cf7c3"
+    }
+  ]
+}
