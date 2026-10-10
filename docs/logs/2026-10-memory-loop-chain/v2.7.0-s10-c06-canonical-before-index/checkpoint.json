@@ -1,0 +1,52 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T08:13:37.464745+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "2debde39081dd9735f5f7dc6216244c61057061a",
+    "agent-vivy": "1489825de894205ae19b724235d0564df5d10bcf",
+    "laputa": "58ba9735f36b99f055d60776d85076e8eb695547"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "c06-canonical-before-index-race10.jsonl": 0,
+    "c06-race10-validation.txt": 0,
+    "c03-c05-after-c06-fix-race1.jsonl": 0,
+    "c03-c05-after-c06-fix-exit.txt": 0,
+    "c06-laputa-facade-tests.txt": 0,
+    "c06-vivy-build.txt": 0
+  },
+  "files": [
+    {
+      "path": "raw/c03-c05-after-c06-fix-exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "raw/c03-c05-after-c06-fix-race1.jsonl",
+      "bytes": 8874,
+      "sha256": "d62b59d500afb5005e9a4ce9da7624f69260cb715c975183c0bc462d98f444ae"
+    },
+    {
+      "path": "raw/c06-canonical-before-index-race10.jsonl",
+      "bytes": 28141,
+      "sha256": "e56ae0970d6778449ebb34bbcf0f58440f3c4418216b42f5df93bed3dbc0e1e4"
+    },
+    {
+      "path": "raw/c06-laputa-facade-tests.txt",
+      "bytes": 54,
+      "sha256": "ec97726b4752e3cffc0ede41bfe69f821ebad89d8513a579485d89a862e50eb6"
+    },
+    {
+      "path": "raw/c06-race10-validation.txt",
+      "bytes": 119,
+      "sha256": "800cdaa54318fc935af13aec1d7db5d9c3debcae542897e78809ed25dbab75a4"
+    },
+    {
+      "path": "raw/c06-vivy-build.txt",
+      "bytes": 55,
+      "sha256": "def89badee7510bb50c17e5de09493885c29a8bd63d2e55f0117d49e0f7e34ed"
+    }
+  ]
+}

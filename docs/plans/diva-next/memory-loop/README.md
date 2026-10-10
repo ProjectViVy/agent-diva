@@ -176,3 +176,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.6.0-s10-c05-effects-before-watermark
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.6.0-s10-c05-effects-before-watermark/summary.md), VIVY `0cd1b8f7`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C06 canonical memory committed before derived-index completion; keep final source-sealed and same-candidate acceptance gates pending.
+
+## Development checkpoint v2.7.0-s10-c06-canonical-before-index
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/summary.md), VIVY `1489825d`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 unknown-effect and partial-effect recovery cases, then complete remaining same-candidate and source-sealing gates; keep S10 Planned until every required case passes.

@@ -1,0 +1,2 @@
+ok  	github.com/dashimaki/mentle/facade	1.139s
+exit=0
