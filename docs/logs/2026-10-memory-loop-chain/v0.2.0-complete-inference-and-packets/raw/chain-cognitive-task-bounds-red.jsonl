@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T00:36:35.424410761Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T00:36:35.441410864Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest"}
+{"Time":"2026-10-10T00:36:35.441497094Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Output":"=== RUN   TestCognitiveInferencePreservesCompleteBoundedRequest\n"}
+{"Time":"2026-10-10T00:36:35.441511777Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Output":"    cognitive_task_bounds_test.go:25: admitted child task lost the complete source JSON\n"}
+{"Time":"2026-10-10T00:36:35.441522503Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Output":"--- FAIL: TestCognitiveInferencePreservesCompleteBoundedRequest (0.00s)\n"}
+{"Time":"2026-10-10T00:36:35.441528502Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveInferencePreservesCompleteBoundedRequest","Elapsed":0}
+{"Time":"2026-10-10T00:36:35.441546028Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T00:36:35.441771167Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.017s\n"}
+{"Time":"2026-10-10T00:36:35.441782985Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.017}

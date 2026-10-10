@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T00:40:17.810551813Z","Action":"start","Package":"github.com/dashimaki/laputa/evolution/diva"}
+{"Time":"2026-10-10T00:40:17.812871688Z","Action":"run","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestReflectionPacketKeepsEffectsWithinPacketBound"}
+{"Time":"2026-10-10T00:40:17.812889695Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestReflectionPacketKeepsEffectsWithinPacketBound","Output":"=== RUN   TestReflectionPacketKeepsEffectsWithinPacketBound\n"}
+{"Time":"2026-10-10T00:40:17.81344444Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestReflectionPacketKeepsEffectsWithinPacketBound","Output":"    packet_bounds_test.go:39: reflection packet repeats evidence beside its effect: 10006 bytes\n"}
+{"Time":"2026-10-10T00:40:17.813796811Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestReflectionPacketKeepsEffectsWithinPacketBound","Output":"--- FAIL: TestReflectionPacketKeepsEffectsWithinPacketBound (0.00s)\n"}
+{"Time":"2026-10-10T00:40:17.813804022Z","Action":"fail","Package":"github.com/dashimaki/laputa/evolution/diva","Test":"TestReflectionPacketKeepsEffectsWithinPacketBound","Elapsed":0}
+{"Time":"2026-10-10T00:40:17.81380946Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Output":"FAIL\n"}
+{"Time":"2026-10-10T00:40:17.8138321Z","Action":"output","Package":"github.com/dashimaki/laputa/evolution/diva","Output":"FAIL\tgithub.com/dashimaki/laputa/evolution/diva\t0.003s\n"}
+{"Time":"2026-10-10T00:40:17.813846441Z","Action":"fail","Package":"github.com/dashimaki/laputa/evolution/diva","Elapsed":0.003}

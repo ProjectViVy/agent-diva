@@ -51,7 +51,7 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 
 ## 中断后恢复当前工作
 
-当前开发检查点为 [反思与跨进程 Restart](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)。VIVY `9d35e50c` 修复反思累计预算，`cd080708` 补测试观察与进程协议；Laputa 为 `92d0b634`。最终候选尚未冻结；不要沿用前检查点的 conformance/source hash 宣称新源码通过完整 CI。
+当前开发检查点为 [完整请求与大来源数据包](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)。VIVY `e1de33ae` 保留完整 JSON/schema，Laputa `9bc39af` 移除后续阶段不再使用的重复证据；策略 implementation revision 为 `diva-cognitive/v1-review-2`。之前预算、反思观察和进程协议的提交继续保留。最终候选尚未冻结；不要沿用前检查点的 conformance/source hash 宣称新源码通过完整 CI。
 
 1. 检查三工作树的 branch、HEAD、dirty 状态和 LOCK。保留既有工作，在本隔离分支认领具体范围；若环境被重建，先按锁定版本补回工具/模型，而非更换后台。
 2. 从 VIVY 工作树执行 `source /workspace/work/memory-loop/tools/environment.sh`，确认 `go version`；UI 安装需要 registry 时使用 `https://registry.npmjs.org/`。不得修改系统目录或用户真实 profile。

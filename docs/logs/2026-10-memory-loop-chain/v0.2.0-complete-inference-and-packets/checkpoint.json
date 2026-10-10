@@ -1,0 +1,144 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T00:46:36.221074+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "62ba09fccc89ff746d60eed7613f8732854d3f09",
+    "agent-vivy": "e1de33ae37884e3535002fb1c808aa3edc62d51a",
+    "laputa": "9bc39af5cf6e8e5dcf7f81a1832e830ffb4634d0"
+  },
+  "execution_mode": "previous generated diagnostic overlay; no new-source artifact attestation",
+  "implementation_revision": "diva-cognitive/v1-review-2",
+  "unchanged_limits": {
+    "authored_task_bytes": 4096,
+    "native_child_task_bytes": 65536,
+    "stage_output_bytes": 8192
+  },
+  "large_source_utf8_suffix_bytes": 4500,
+  "recorded_exit_codes": {
+    "chain-cognitive-task-bounds-red": 1,
+    "chain-cognitive-task-bounds-regression": 0,
+    "chain-reflection-large-source-observation": 1,
+    "chain-reflection-packet-red": 1,
+    "chain-laputa-packet-regression": 0,
+    "chain-reflection-large-source-green": 0,
+    "chain-cognitive-packet-runtime-observation": 1,
+    "chain-cognitive-packet-runtime-regression": 0,
+    "chain-bounded-composition-regression": 0,
+    "chain-garden-packet-regression": 0
+  },
+  "remaining_local_work": [
+    "remaining input limits/policy matrix",
+    "unknown post-effect recovery and old admitted identity",
+    "S03 recall and S04 full source/provenance cases",
+    "S05-S11 activity/persona/recall/lifecycle/crash/isolation",
+    "final source CI/conformance/sealing/review"
+  ],
+  "external_resources": [
+    "Windows runner/UI/WebView2",
+    "real provider/model configuration and budget"
+  ],
+  "logs": [
+    {
+      "path": "raw/chain-cognitive-task-bounds-red.jsonl",
+      "sha256": "07c6df9a9c6ef17521024184999d38e753d270b7d4d3de88712e111d7a4b5506",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-cognitive-task-bounds-regression.jsonl",
+      "sha256": "f8642e7882a09465c83bea934c58b39588a62cf22fc9db6a97d0ee76b6855bb9",
+      "named_tests_subtests": {
+        "pass": 75,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-reflection-large-source-observation.jsonl",
+      "sha256": "dd40c1f97967df4945c7f371650f61cd2945af5382aff42d1551113496e5c4c0",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-reflection-packet-red.jsonl",
+      "sha256": "6abef419352d01850170c616c461706a8f6a8f9c20d8b04a4f6080bc7a9a162b",
+      "named_tests_subtests": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-laputa-packet-regression.jsonl",
+      "sha256": "726b2664aec2d8a1e4842c4c01a3886329748b6e707327725faf17c2eca18bf7",
+      "named_tests_subtests": {
+        "pass": 64,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-reflection-large-source-green.jsonl",
+      "sha256": "53b69fb5ff75015bb7ff57953f591c10244b555ada23178c87fe91871295c230",
+      "named_tests_subtests": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-cognitive-packet-runtime-observation.jsonl",
+      "sha256": "9dd9ea524459a03b25bc65d16664bbf88bda739392882aad3e5e836dc69caa77",
+      "named_tests_subtests": {
+        "pass": 74,
+        "fail": 1,
+        "skip": 0
+      },
+      "terminal_action": "fail"
+    },
+    {
+      "path": "raw/chain-cognitive-packet-runtime-regression.jsonl",
+      "sha256": "84c07a3fcf9baa656f5aac7ba6da45c5c9a6d60949df155022bd022cce074122",
+      "named_tests_subtests": {
+        "pass": 75,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-bounded-composition-regression.jsonl",
+      "sha256": "bd528c66398f790dc8c437f795a26a516cf97e0e76f82a8b5781364b9dd15041",
+      "named_tests_subtests": {
+        "pass": 11,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    },
+    {
+      "path": "raw/chain-garden-packet-regression.jsonl",
+      "sha256": "d4a972aed6ba63cb04b251b143760682b313711de3d3fa8c71be12c9300af8c0",
+      "named_tests_subtests": {
+        "pass": 480,
+        "fail": 0,
+        "skip": 0
+      },
+      "terminal_action": "pass"
+    }
+  ]
+}

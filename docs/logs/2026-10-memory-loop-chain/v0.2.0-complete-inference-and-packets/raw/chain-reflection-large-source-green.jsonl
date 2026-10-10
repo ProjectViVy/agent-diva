@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T00:41:11.085254196Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T00:41:11.108292249Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource"}
+{"Time":"2026-10-10T00:41:11.108329666Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"=== RUN   TestMemoryLoopAutomaticReflectionLargeSource\n"}
+{"Time":"2026-10-10T00:41:11.147218917Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"2026/10/10 00:41:11 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopAutomaticReflectionLargeSource1433027996/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T00:41:16.32038008Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Output":"--- PASS: TestMemoryLoopAutomaticReflectionLargeSource (5.21s)\n"}
+{"Time":"2026-10-10T00:41:16.320448573Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopAutomaticReflectionLargeSource","Elapsed":5.21}
+{"Time":"2026-10-10T00:41:16.320468393Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T00:41:16.352182757Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t5.267s\n"}
+{"Time":"2026-10-10T00:41:16.352227284Z","Action":"pass","Package":"command-line-arguments","Elapsed":5.267}
