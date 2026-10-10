@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-chain/**, TODOLIST.md, LOCK.md, .superpowers/sdd/memory-loop/progress.md; scripts/build-desktop.py, scripts/ci/test_build_desktop_test_assets.py, scripts/ci/test_build_desktop_packages.py; agent-vivy/internal/app/app.go, agent-vivy/internal/app/memory_loop_*; agent-vivy/docs/logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/**; /workspace/work/memory-loop/tools/diva-c06-index-overlay/**; /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt.go, /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt_test.go, /workspace/work/memory-loop/laputa/mentle/facade/cards.go, /workspace/work/memory-loop/laputa/mentle/facade/cards_test.go, /workspace/work/memory-loop/laputa/mentle/internal/hybrid/searcher.go, /workspace/work/memory-loop/laputa/mentle/internal/hybrid/searcher_lexical_test.go, /workspace/work/memory-loop/laputa/garden/backends/mentle/adapter.go, /workspace/work/memory-loop/laputa/garden/backends/mentle/adapter_test.go`
+- Scope: `TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `S11 cursor increment complete; race-only memory-source read remains an open follow-up`
-- Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
-- Started At: `2026-10-10T01:25:07Z`
-- Last Heartbeat: `2026-10-10T09:05:08Z`
-- Expires At: `RELEASED 2026-10-10T09:05:08Z`
+- Session/Task: `Mark all open backlog rows DEFERRED and record current memory-loop closeout residuals`
+- Branch/Worktree: `docs/defer-all-backlog-20261010 / /workspace/work/memory-loop/agent-diva`
+- Started At: `2026-10-10T12:11:59Z`
+- Last Heartbeat: `2026-10-10T12:12:47Z`
+- Expires At: `RELEASED 2026-10-10T12:12:47Z`
 
 ### Handoff for this task
 
@@ -42,6 +42,8 @@ No other working branch or live workspace is modified by this handoff.
 7. Use `GLOBAL` only for repo-wide migrations, bulk formatting, or similarly broad work.
 
 ## Active Lock
+
+- `TODOLIST backlog deferral` — **RELEASED 2026-10-10T12:12:47Z**; owner `Codex`; scope `TODOLIST.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:11:59Z`.
 
 - `Memory-loop S11 cursor and host-isolation increment` — **RELEASED 2026-10-10T09:05:08Z**; Laputa `6c2bf3c1`, VIVY `4504bfe8` plus test-fixture clarification `a1bca54b` and query timing diagnostic `9dd8150e`, DIVA checkpoint commit pending. Mentle/Garden normal and race suites pass; actual-App ordinary valid foreign-cursor and injection tests pass; scope race passes without invoking the recall source. Injection race still returns `material read failed`; test-only source timings were 3.542s and 2.342s against the 750ms ContextHost timeout, cause unconfirmed. Evidence: `docs/logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/`. S11 remains Planned; S09, backend recovery, workspace A/B and final candidate gates remain open. No push, merge or release.
 
