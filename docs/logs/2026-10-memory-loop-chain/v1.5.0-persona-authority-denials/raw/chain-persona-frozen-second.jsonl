@@ -1,0 +1,18 @@
+{"Time":"2026-10-10T01:58:13.037121077Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:58:13.05941136Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions"}
+{"Time":"2026-10-10T01:58:13.05947747Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions\n"}
+{"Time":"2026-10-10T01:58:13.06159517Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject"}
+{"Time":"2026-10-10T01:58:13.061609272Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions/reject\n"}
+{"Time":"2026-10-10T01:58:13.100567349Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"2026/10/10 01:58:13 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPersonaReviewAndFrozenSessionsreject1049269700/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:58:19.426783358Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"--- PASS: TestMemoryLoopPersonaReviewAndFrozenSessions/reject (6.37s)\n"}
+{"Time":"2026-10-10T01:58:19.426817329Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Elapsed":6.37}
+{"Time":"2026-10-10T01:58:19.426826763Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept"}
+{"Time":"2026-10-10T01:58:19.426829878Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions/accept\n"}
+{"Time":"2026-10-10T01:58:19.46155668Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"2026/10/10 01:58:19 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPersonaReviewAndFrozenSessionsaccept3005352350/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:58:25.695828926Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"--- PASS: TestMemoryLoopPersonaReviewAndFrozenSessions/accept (6.27s)\n"}
+{"Time":"2026-10-10T01:58:25.695894104Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Elapsed":6.27}
+{"Time":"2026-10-10T01:58:25.695900784Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Output":"--- PASS: TestMemoryLoopPersonaReviewAndFrozenSessions (12.64s)\n"}
+{"Time":"2026-10-10T01:58:25.695903288Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Elapsed":12.64}
+{"Time":"2026-10-10T01:58:25.695907764Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:58:25.728939454Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t12.691s\n"}
+{"Time":"2026-10-10T01:58:25.728982789Z","Action":"pass","Package":"command-line-arguments","Elapsed":12.692}

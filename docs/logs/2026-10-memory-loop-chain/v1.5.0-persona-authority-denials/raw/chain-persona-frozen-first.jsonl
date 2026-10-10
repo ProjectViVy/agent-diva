@@ -1,0 +1,20 @@
+{"Time":"2026-10-10T01:57:46.713175691Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:57:46.732183179Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions"}
+{"Time":"2026-10-10T01:57:46.732315258Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions\n"}
+{"Time":"2026-10-10T01:57:46.735080113Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject"}
+{"Time":"2026-10-10T01:57:46.735094685Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions/reject\n"}
+{"Time":"2026-10-10T01:57:46.776322792Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"2026/10/10 01:57:46 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPersonaReviewAndFrozenSessionsreject3969245528/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:57:47.581334349Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"    memory_loop_persona_test.go:37: rpc error -32004: module action is unavailable\n"}
+{"Time":"2026-10-10T01:57:47.58294821Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Output":"--- FAIL: TestMemoryLoopPersonaReviewAndFrozenSessions/reject (0.85s)\n"}
+{"Time":"2026-10-10T01:57:47.582959677Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/reject","Elapsed":0.85}
+{"Time":"2026-10-10T01:57:47.582969923Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept"}
+{"Time":"2026-10-10T01:57:47.582972827Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"=== RUN   TestMemoryLoopPersonaReviewAndFrozenSessions/accept\n"}
+{"Time":"2026-10-10T01:57:47.618371893Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"2026/10/10 01:57:47 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopPersonaReviewAndFrozenSessionsaccept319298531/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:57:48.386971221Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"    memory_loop_persona_test.go:37: rpc error -32004: module action is unavailable\n"}
+{"Time":"2026-10-10T01:57:48.388290349Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Output":"--- FAIL: TestMemoryLoopPersonaReviewAndFrozenSessions/accept (0.81s)\n"}
+{"Time":"2026-10-10T01:57:48.388307184Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions/accept","Elapsed":0.81}
+{"Time":"2026-10-10T01:57:48.388327374Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Output":"--- FAIL: TestMemoryLoopPersonaReviewAndFrozenSessions (1.66s)\n"}
+{"Time":"2026-10-10T01:57:48.388342377Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopPersonaReviewAndFrozenSessions","Elapsed":1.66}
+{"Time":"2026-10-10T01:57:48.388346984Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:57:48.406315588Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.693s\n"}
+{"Time":"2026-10-10T01:57:48.406366074Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.693}

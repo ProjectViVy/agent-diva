@@ -1,0 +1,54 @@
+[
+  {
+    "ProcessID": 298311,
+    "RunID": "run_4fae57892c4a4aa6",
+    "EventSeq": 7,
+    "IngestionID": "ing_68392d15408a49b2809637e476490992",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_cc0caf10801842c196a2c6530d7bfa31",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_4fae57892c4a4aa6\",\"session_id\":\"sess_8c4060c4b5eba864\",\"messages\":[{\"id\":\"msg_128ae5b84ed2e09f\",\"role\":\"user\",\"content\":\"[forbid=actor] synthetic user-only fact 30cabd578400b2a6acf53e7063e072aa\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_4fae57892c4a4aa6\",\"session_id\":\"sess_8c4060c4b5eba864\",\"messages\":[{\"id\":\"msg_128ae5b84ed2e09f\",\"role\":\"user\",\"content\":\"[forbid=actor] synthetic user-only fact 30cabd578400b2a6acf53e7063e072aa\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:2f4f7854b680e15d0f70f4dc2110782839182d5cf9f12a9e9d7ce8c48c8485db",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  {
+    "ProcessID": 298311,
+    "RunID": "run_4fae57892c4a4aa6",
+    "EventSeq": 7,
+    "IngestionID": "ing_68392d15408a49b2809637e476490992",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_cc0caf10801842c196a2c6530d7bfa31",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_4fae57892c4a4aa6\",\"session_id\":\"sess_8c4060c4b5eba864\",\"messages\":[{\"id\":\"msg_128ae5b84ed2e09f\",\"role\":\"user\",\"content\":\"[forbid=actor] synthetic user-only fact 30cabd578400b2a6acf53e7063e072aa\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_4fae57892c4a4aa6\",\"session_id\":\"sess_8c4060c4b5eba864\",\"messages\":[{\"id\":\"msg_128ae5b84ed2e09f\",\"role\":\"user\",\"content\":\"[forbid=actor] synthetic user-only fact 30cabd578400b2a6acf53e7063e072aa\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:2f4f7854b680e15d0f70f4dc2110782839182d5cf9f12a9e9d7ce8c48c8485db",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  }
+]

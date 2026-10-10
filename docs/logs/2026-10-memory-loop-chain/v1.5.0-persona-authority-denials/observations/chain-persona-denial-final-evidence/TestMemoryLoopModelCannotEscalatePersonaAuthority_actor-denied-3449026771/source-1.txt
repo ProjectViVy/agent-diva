@@ -1,0 +1,1 @@
+{"schema":"vivy.conversation-source/v1","run_id":"run_9778dc98433608b3","session_id":"sess_b77679976e6476ec","messages":[{"id":"msg_85ed4b78322c177c","role":"user","content":"[forbid=actor] synthetic user-only fact e82dc65b5877be30990a370a20270907","complete":true},{"role":"assistant","content":"收到","complete":false}]}
