@@ -1,0 +1,93 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:41:58.686500+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "1a7c68ea7a8e5656c966e9c1a06af2c0e49727e1",
+    "agent-vivy": "a4891f1ca5039f2edeb23c1b782d7240cb4e1be6",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-activity-fault-first.jsonl": 1,
+    "chain-activity-fault-final-race.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "raw/chain-activity-fault-final-race.jsonl",
+      "bytes": 2503,
+      "sha256": "7826f407755b4e56af07c68fc7d4dded9e01e87c736aae765903cdad061e8233"
+    },
+    {
+      "path": "raw/chain-activity-fault-first.jsonl",
+      "bytes": 1960,
+      "sha256": "b98c6a01c5dec30968d9eb816f54c8aaef3ecf01919d8cb9ae804c1d8fc24e02"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/identity.json",
+      "bytes": 155,
+      "sha256": "f85195b5ee41cd42489b50bdc2d6c5256d0edef5bfd94a74b2fe1a729b025dbc"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/manifest.json",
+      "bytes": 1114,
+      "sha256": "5b30ea9391f5d8f69783a39bccbb7bc91570d67af797789ed6c9d0e2f226899d"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/model-requests.json",
+      "bytes": 19006,
+      "sha256": "37442b42269521303dfbc8b3304b4b1f695532cda305fde487c91a4cded69c66"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/native-snapshots.json",
+      "bytes": 1457,
+      "sha256": "1c337a9b0a5c70df21553aa80cafdeb10223ec4d691ba53b3a92c0912ac1a84d"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/source-1.txt",
+      "bytes": 327,
+      "sha256": "12785716fe9cbed3e4a386f98074218db08ce167f3c258dc20e5b194df2bbb48"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-fault-2535894850/status.json",
+      "bytes": 1005,
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/identity.json",
+      "bytes": 155,
+      "sha256": "f85195b5ee41cd42489b50bdc2d6c5256d0edef5bfd94a74b2fe1a729b025dbc"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/manifest.json",
+      "bytes": 1263,
+      "sha256": "8a95e1a45bf9b8631c03441aac3a50ff0da4a3622705838112c18e0d1c044077"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/model-requests.json",
+      "bytes": 19006,
+      "sha256": "37442b42269521303dfbc8b3304b4b1f695532cda305fde487c91a4cded69c66"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/native-snapshots.json",
+      "bytes": 2911,
+      "sha256": "1321de9b33d4eebe63611f0f98f2212466283cc5ea9bbbd3bbb7ce4aea99145c"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/source-1.txt",
+      "bytes": 327,
+      "sha256": "12785716fe9cbed3e4a386f98074218db08ce167f3c258dc20e5b194df2bbb48"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/source-2.txt",
+      "bytes": 327,
+      "sha256": "12785716fe9cbed3e4a386f98074218db08ce167f3c258dc20e5b194df2bbb48"
+    },
+    {
+      "path": "observations/chain-activity-fault-evidence/TestMemoryLoopActivityFailurePreservesSourceAndArchiveRetry-native-restored-2032751048/status.json",
+      "bytes": 1005,
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2"
+    }
+  ]
+}

@@ -140,3 +140,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v1.7.0-protected-tool-provenance
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v1.7.0-protected-tool-provenance/summary.md), VIVY `2ca5798d`. Formal Story states and final candidate gates stay pending. Next local work: Actual native projection failure, archive preservation and recovery; shared response evidence and remaining local queue.
+
+## Development checkpoint v1.8.0-native-fault-and-archive-retry
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v1.8.0-native-fault-and-archive-retry/summary.md), VIVY `a4891f1c`. Formal Story states and final candidate gates stay pending. Next local work: Complete actual request/response recording, manual trigger override and remaining local gates.
