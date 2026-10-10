@@ -1,0 +1,25 @@
+test_excludes_archived_go_test_logs_and_keeps_host_packages (test_build_desktop_packages.TestGoTestPackageTargets.test_excludes_archived_go_test_logs_and_keeps_host_packages) ... ERROR
+test_rejects_empty_go_list_output (test_build_desktop_packages.TestGoTestPackageTargets.test_rejects_empty_go_list_output) ... ERROR
+
+======================================================================
+ERROR: test_excludes_archived_go_test_logs_and_keeps_host_packages (test_build_desktop_packages.TestGoTestPackageTargets.test_excludes_archived_go_test_logs_and_keeps_host_packages)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_build_desktop_packages.py", line 27, in test_excludes_archived_go_test_logs_and_keeps_host_packages
+    build.go_test_package_targets(output),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'build_desktop' has no attribute 'go_test_package_targets'
+
+======================================================================
+ERROR: test_rejects_empty_go_list_output (test_build_desktop_packages.TestGoTestPackageTargets.test_rejects_empty_go_list_output)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/work/memory-loop/agent-diva/scripts/ci/test_build_desktop_packages.py", line 39, in test_rejects_empty_go_list_output
+    build.go_test_package_targets("\n")
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'build_desktop' has no attribute 'go_test_package_targets'
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (errors=2)

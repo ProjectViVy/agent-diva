@@ -1,0 +1,30 @@
+{
+  "kind": "developer-observation",
+  "phase": "S03 real App composition using shared SDK integration artifact",
+  "recorded_at": "2026-10-10T06:12:41.018882+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "generation_id": "d963302d3aea3c458e0089f2903788295ef7241ce6d45286454dfcb4004d382d",
+  "artifacts": [
+    {
+      "path": "captured-source.txt",
+      "bytes": 306,
+      "sha256": "35146bb161463d361e5922a0d8389c011d744163b4eaef51d48a2950d955c2d2"
+    },
+    {
+      "path": "model-requests.json",
+      "bytes": 18984,
+      "sha256": "211f051225a5db7543bb8eb421721629e14a0ef8d7433d51a225da3965773768"
+    },
+    {
+      "path": "snapshot.json",
+      "bytes": 3258,
+      "sha256": "dfe946d147bdcb09e393e0ea6d977cee40285862ebe916eb7fe3e9b05c74d87e"
+    },
+    {
+      "path": "identity.json",
+      "bytes": 536,
+      "sha256": "052760d44a97c4f627d542752e6db6870b523af96de28ab13c897848874f82ed"
+    }
+  ]
+}

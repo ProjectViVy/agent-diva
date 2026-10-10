@@ -1,0 +1,35 @@
+{
+  "kind": "developer-observation",
+  "phase": "S03 full development candidate",
+  "recorded_at": "2026-10-10T06:12:40.911638+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "generation_id": "e7e26e20a2fb2f587c608ea263f679d5ebdaff6900e63bbc741f9c919dd63baa",
+  "artifacts": [
+    {
+      "path": "build-report.json",
+      "bytes": 1026,
+      "sha256": "0b70961d9ca42f2a3a5ee9f929311aebfea085f82c4c97e9769eeea3688985d0"
+    },
+    {
+      "path": "generation.json",
+      "bytes": 24164,
+      "sha256": "096258ca6dc875e3d34c4c237af216b13f9c1eb3175902ab90d566b4e4fc442e"
+    },
+    {
+      "path": "checksums.sha256",
+      "bytes": 5335,
+      "sha256": "9a2d62c0f8f457eb3912c91a3643802dc74c115bc161d254e60c252fc94cca6d"
+    },
+    {
+      "path": "sdk-inspect.json",
+      "bytes": 24342,
+      "sha256": "461879d05a51206fcd6b29ce320ef3cb7433fd799715875ee0b0b659eb4d5741"
+    },
+    {
+      "path": "candidate.json",
+      "bytes": 1829,
+      "sha256": "4a56b117ef35c17fcc3a3f2fa05cd51efef5024eb137299c17da67e065f9e9f8"
+    }
+  ]
+}

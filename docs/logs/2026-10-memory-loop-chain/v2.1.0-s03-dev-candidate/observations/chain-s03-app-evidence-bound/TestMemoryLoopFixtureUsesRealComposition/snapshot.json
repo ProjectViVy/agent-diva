@@ -1,0 +1,82 @@
+{
+  "accepted": {
+    "ProcessID": 311729,
+    "RunID": "run_f958160fcd249b4b",
+    "EventSeq": 7,
+    "IngestionID": "ing_760971403368431c994816477106375a",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "",
+    "Revision": 0,
+    "CanonicalCount": 0,
+    "CanonicalBody": "",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_f958160fcd249b4b\",\"session_id\":\"sess_c203e6adebbfce97\",\"messages\":[{\"id\":\"msg_abd5cab530b653e4\",\"role\":\"user\",\"content\":\"synthetic random fact bb71754020bd9646f47f37df804c7ddd\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:35146bb161463d361e5922a0d8389c011d744163b4eaef51d48a2950d955c2d2",
+    "State": "accepted",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  "canonical": {
+    "ProcessID": 311729,
+    "RunID": "run_f958160fcd249b4b",
+    "EventSeq": 7,
+    "IngestionID": "ing_760971403368431c994816477106375a",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_be88538dc37a4a608339a2f3aababf47",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_f958160fcd249b4b\",\"session_id\":\"sess_c203e6adebbfce97\",\"messages\":[{\"id\":\"msg_abd5cab530b653e4\",\"role\":\"user\",\"content\":\"synthetic random fact bb71754020bd9646f47f37df804c7ddd\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_f958160fcd249b4b\",\"session_id\":\"sess_c203e6adebbfce97\",\"messages\":[{\"id\":\"msg_abd5cab530b653e4\",\"role\":\"user\",\"content\":\"synthetic random fact bb71754020bd9646f47f37df804c7ddd\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:35146bb161463d361e5922a0d8389c011d744163b4eaef51d48a2950d955c2d2",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  "generation_id": "d963302d3aea3c458e0089f2903788295ef7241ce6d45286454dfcb4004d382d",
+  "terminal": {
+    "ProcessID": 311729,
+    "RunID": "run_f958160fcd249b4b",
+    "EventSeq": 7,
+    "IngestionID": "",
+    "CaptureSeq": 0,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "",
+    "Revision": 0,
+    "CanonicalCount": 0,
+    "CanonicalBody": "",
+    "SourceBody": "",
+    "SourceRole": "",
+    "SourceHash": "",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  "test_root": "/workspace/work/memory-loop/test-roots/TestMemoryLoopFixtureUsesRealComposition3693440125/001"
+}

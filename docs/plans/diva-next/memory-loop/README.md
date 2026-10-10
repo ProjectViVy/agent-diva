@@ -152,3 +152,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.0.0-manual-trigger-override
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.0.0-manual-trigger-override/summary.md), VIVY `15d3e469`. Formal Story states and final candidate gates stay pending. Next local work: Continue the local S03–S11 queue; prioritize S10 operation recovery and S04/S05/S11 crash, scope, and native-fault matrices.
+
+## Development checkpoint v2.1.0-s03-dev-candidate
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.1.0-s03-dev-candidate/summary.md), VIVY `15d3e469`. Formal Story states and final candidate gates stay pending. Next local work: Continue local S04/S05/S10/S11 gaps; keep S08 Agent WORLD/ACTMEM Tool-only design at its review gate, then finish final CI and same-candidate evidence.

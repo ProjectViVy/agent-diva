@@ -1,0 +1,45 @@
+{
+  "kind": "development-candidate-identity",
+  "formal_acceptance": false,
+  "release": false,
+  "candidate_id": null,
+  "development_generation_id": "e7e26e20a2fb2f587c608ea263f679d5ebdaff6900e63bbc741f9c919dd63baa",
+  "recipe_digest": "b44092c97ee9a05a2c19bff256967f0faa84bfa17b6c10ea6bc571f6ec927c17",
+  "module_count": 22,
+  "artifact_directory": "/workspace/work/memory-loop/artifacts/diva-full-dev-20261010-final",
+  "binary_path": "/workspace/work/memory-loop/artifacts/diva-full-dev-20261010-final/diva",
+  "binary_sha256": "78fb1948206d4591804cc366871844f552bee8f39361fafc340f691355ad4f6e",
+  "source_revisions": {
+    "consumerModfileSHA256": "ea0aadc636739bc8e2359fa7846822e5e31f3e0c5cb091be876f2dc4814b2f36",
+    "consumerSumSHA256": "6d3b112c151aa63bc54da9ef9f1110762b32ca9c409cebae698978cf14aedf49",
+    "dependencyLockSHA256": "a2f47deb7563de4f0b4a889e3b9abbd7568835901bf52c55dd5803fb9a4d3740",
+    "host": {
+      "commit": "71af4a0ee31a6d278040606e6bf49609d33da379",
+      "treeSHA256": "2c7bb634b93a9094cea8ca642d57761cfa9ba0ece702c899371ab52f2f7e2735"
+    },
+    "laputa": {
+      "commit": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a",
+      "treeSHA256": "63caaff0af489fda0c3a593081ba2e5b7a84f0319a12c37d966868e83650f452"
+    },
+    "modulePath": "github.com/ProjectViVy/agent-diva",
+    "package": "./cmd/diva",
+    "tools": {
+      "go": "go1.26.4",
+      "wails": "v3.0.0-beta.27",
+      "goos": "linux",
+      "goarch": "amd64",
+      "cgo": true,
+      "buildTags": [
+        "gtk3"
+      ]
+    },
+    "vivy": {
+      "commit": "15d3e46978ddfbcf994a4e8197499e66b78372e5",
+      "treeSHA256": "4e6fd7755d8657d316a8d96693668c9e11c7c1b561f6c7737abdc76c70c5c2cf"
+    }
+  },
+  "limitations": [
+    "not a formal memory-loop candidate or acceptance baseline",
+    "no live provider/model run is claimed"
+  ]
+}

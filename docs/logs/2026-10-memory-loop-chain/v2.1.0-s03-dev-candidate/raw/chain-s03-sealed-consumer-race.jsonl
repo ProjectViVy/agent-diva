@@ -1,0 +1,13 @@
+go test -race -modfile consumer.mod -mod=readonly -tags vivy_headless gtk3 ./... failed in /tmp/diva-gohost-stage-8m56fdxm/host:
+# github.com/ProjectViVy/agent-diva/docs/logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/raw
+package github.com/ProjectViVy/agent-diva/docs/logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/raw (test)
+	docs/logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/raw/memory_loop_activity_test.go:8:2: use of internal package agent-vivy/internal/generated/assembly not allowed
+FAIL	github.com/ProjectViVy/agent-diva/docs/logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/raw [setup failed]
+?   	github.com/ProjectViVy/agent-diva/agent-diva-gui	[no test files]
+?   	github.com/ProjectViVy/agent-diva/cmd/diva	[no test files]
+ok  	github.com/ProjectViVy/agent-diva/internal/desktop	1.873s
+ok  	github.com/ProjectViVy/agent-diva/internal/speech	1.140s
+?   	github.com/ProjectViVy/agent-diva/tools/speech-credprobe	[no test files]
+ok  	github.com/ProjectViVy/agent-diva/tools/wails-probe	1.690s
+FAIL
+
