@@ -2,6 +2,48 @@
 
 Archived: 2026-10-10. This preserves the 47 non-current deferred entries and their historical context from the former `TODOLIST.md`. These entries are postponed, not completed or accepted. The current cross-project follow-ups are listed in [`TODOLIST.md`](TODOLIST.md).
 
+## 最新版本盘点 — 2026-10-10
+
+本节把旧归档与当前实现/决策对齐，不改变下面的历史记录，也不把局部修复误报为 Epic/Story 验收通过。对照基线：DIVA main `ceff6f2e`、VIVY main `003bc01e`、Laputa main `44f5a2c5`；另外检查了本地记忆闭环候选 VIVY `7eceb2b8`、Laputa `1c791ea`。Laputa 候选修复 `caeed1c` 尚未进入其 main。DIVA Wails host 分支 `96f5dd3f` 已包含在 DIVA main。
+
+### 已交付或已有局部修复
+
+| 旧条目 | 盘点结果 |
+| --- | --- |
+| `GO-HOST-AND-SEALED-PACK` | W1/W2 已交付；旧项可视为完成。后续 W5/W6/W7 不是本项的剩余工作。 |
+| `WAILS-NATIVE-GATE` | W0 的 F1/F2/F3/F5/F6 已修复并有 Windows 实测；F4 音频设备仍缺，因此整个 native gate 没有关闭。 |
+| `GO-DESKTOP-AND-SPEECH` | W3/W4 的 Linux host、前端 seam 与 Go speech 实现已交付；Windows speech 和真实 provider 证据仍缺，不能把整项标完成。 |
+| `MEM-LOOP-USER-SOURCE`、`MEM-LOOP-REFLECTION-ACTMEM`、`MEM-LOOP-FAILED-WINDOW`、`MEM-LOOP-INFER-BOUNDS`、`MEM-LOOP-RECALL-INPUT`、`MEM-LOOP-RECOVERY-ISOLATION`、`MEM-LOOP-NATIVE-READ-LIFETIME` | 记忆闭环本地候选已修复/证明若干组件：可信来源与回执恢复、ACTMEM/反思/归档、未完成窗口保留 run 与水位、截断与大中文来源、重启召回/纠正/删除、墓碑重投、多个崩溃切点、读取生命周期与安全降级。各项完整矩阵、同一候选和前置 Story gate 仍未通过；状态见[记忆闭环 Story 表](docs/plans/diva-next/memory-loop/README.md)。这些是开发级局部证明，不是产品验收。 |
+| `MEM-LOOP-FIXTURE-COMPLETE`、`MEM-LOOP-PINNED-REGRESSION` | 反思/recall/Restart 开发夹具和冻结源码 `just ci` 已补齐并通过；S03 schema、同一候选与正式验收仍未完成。 |
+| `LAPUTA-ACTMEM-EMPTY-RENDER` | Laputa 候选 `caeed1c` 已修复空 entries 序列化并加验证；修复尚未进入 Laputa main `44f5a2c5`。当前清单已有 Laputa PR #5 / VIVY PR #46 的依赖顺序跟踪。 |
+| `OLD-SECURITY-ISSUE-DISPOSITION` | 原 Issue #8 的旧依赖范围已由 DN-M-C 盘点替代；它不是“全仓库无安全问题”的结论。最新记录为 Rust audit 0 个漏洞、2 个 warning，`pnpm audit --prod` 记录 8 条 advisory，仍需按审计记录处理。 |
+
+### 已被新计划或新决策吸收，不再单独排期
+
+| 旧条目 | 新归属 / 处理 |
+| --- | --- |
+| `WAILS-NATIVE-GATE`、`GO-HOST-AND-SEALED-PACK`、`GO-DESKTOP-AND-SPEECH`、`WAILS-PARITY-AND-RECOVERY`、`CABI-RUST-RETIREMENT`、`PAIRED-ARCHIVE-TAGS`、`WINDOWS-WAILS-ACCEPTANCE` | 旧描述由[当前 W0–W7 迁移索引](docs/plans/diva-next/index.md)统一维护。已完成、部分完成和仍阻塞的状态以上述索引为准；W5 promotion 未通过，W6 仍被 W5/配对 tag 阻塞，W7 尚待最终 owner acceptance。 |
+| `MEM-LOOP-PIN-DRIFT`、`MEM-LOOP-REAL-BACKEND` | 候选来源锁定、真实后台与复验现在归 E01 的 S01/S02；S01/S02 仍 Blocked，不能从“已有局部测试”推导完成。 |
+| `COGNITIVE-EMBEDDED-LIFECYCLE`、`VIVYSHUTDOWN-DEADLINE-UTIL` | 旧 Tauri 生命周期/单次 shutdown 记录归并到 Go host 的 W1/W5 teardown、recovery 验收；验收缺口仍在，不再作为独立功能项。 |
+| `NATIVE-ACCEPTANCE-HANDOFF`、`DN-0S-PENDING-GATES`、`W3 Windows candidate acceptance`、`W4 real-provider evidence`、`W4 Windows speech leg` | 旧验收清单已拆到 W0/W4/W5/W7 的具体行；音频、凭据、完整矩阵与最终 Windows 包仍待完成。 |
+| `DN-6B-SHELL-COMPILE`、`tauriVoiceFileReader`/`isTauri*` 命名、`W6 cleanup pending` | 旧 Rust/Tauri 编译和清理工作改由 Go speech 的 W4 与宿主退役 W6 处理。DIVA main 仍保留 `src-tauri`、Tauri 依赖及旧命名，因此不能标为代码清理已完成。 |
+| `GARDEN-CONSOLE-DIST` | 旧 `go:embed` 失败记录被执行顺序吸收：先按[runbook](docs/plans/diva-next/memory-loop/runbook.md)构建 console UI，再编译/测试。它不是已落地的源码修复，也无需作为独立功能排期。 |
+| `GENERAL-REPORTS-RESOURCES`、`GUI-PET-DORMANT`、`LOCAL-VOICE-OLVRS`、`desktop_pet_*` dispatch noop、`desktop_pet_start_drag` noop | 新范围决策明确：通用报表/资源、宠物窗口与拖拽、local ONNX/OLVRS 不纳入当前迁移/记忆验收；这些是有意搁置，不应当作待修 bug 或恢复旧功能的理由。 |
+
+### 仍是实际未完成项，或只知道绕过方式
+
+| 旧条目 | 当前状态 |
+| --- | --- |
+| `MEM-LOOP-NATIVE-LIVE` | Windows 密封产品和真实模型验收未执行。 |
+| `WAILS-PARITY-AND-RECOVERY`、`CABI-RUST-RETIREMENT`、`PAIRED-ARCHIVE-TAGS`、`WINDOWS-WAILS-ACCEPTANCE` | 仍未完成：Linux W5-1 为 8/17；另一个 Windows fixture 为 15/17，两者是不同候选/验收层，均不能单独关闭 promotion gate。配对 archive tags 也仍未创建。 |
+| `W5 promotion gate`、`W0-F4 mic/audio untestable` | Promotion 尚未通过；当前 Windows runner 没有可用音频端点。 |
+| `Windows deps-link gotcha` | 已知 `mklink /D` 可绕过 junction 的 hash 问题；这是环境操作说明，不是代码修复。 |
+| `Generated bindings drift` | 仍没有 CI drift check。 |
+| `GOVERNANCE-DOCS-STALE` | 根目录架构/代理说明仍与 Go/Wails 现状不一致，尚无替代决策或修订证据。 |
+| `SKILL-MANAGEMENT-RESIDUAL`、`COMMAND-RULES-AND-WIPE`、`SEARCH-MCP-TUNING-RESIDUAL`、`UI-COPY-CLEANUP`、`GUI-SESSION-PIN-PERSISTENCE` | 没找到最新实现已覆盖的证据；仍是明确的功能/契约缺口或低优先级清理。 |
+
+核对来源：[记忆闭环状态](docs/plans/diva-next/memory-loop/README.md)、[Wails 迁移状态](docs/plans/diva-next/index.md)、[W0–5 证据](docs/logs/2026-10-wails-migration/)、[DN-M-C 安全盘点](docs/logs/2026-10-diva-next-closure/v0.4.13-dn-mc-audit/summary.md)。除上表标明“可视为完成”的项外，其余归档 checkbox 保持原样；`TODOLIST.md` 仍是当前唯一待办清单。
+
 ---
 
 ## Memory loop verification — execution started 2026-10-09
