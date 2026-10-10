@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T01:15:55.106926852Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:15:55.126987691Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced"}
+{"Time":"2026-10-10T01:15:55.127043725Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"=== RUN   TestMemoryLoopRejectedEffectRemainsVisibleAndFenced\n"}
+{"Time":"2026-10-10T01:15:55.166554001Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"2026/10/10 01:15:55 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRejectedEffectRemainsVisibleAndFenced1932222996/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:15:55.955911153Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Output":"--- PASS: TestMemoryLoopRejectedEffectRemainsVisibleAndFenced (0.83s)\n"}
+{"Time":"2026-10-10T01:15:55.955950372Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRejectedEffectRemainsVisibleAndFenced","Elapsed":0.83}
+{"Time":"2026-10-10T01:15:55.95595541Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:15:55.982834249Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t0.876s\n"}
+{"Time":"2026-10-10T01:15:55.982873187Z","Action":"pass","Package":"command-line-arguments","Elapsed":0.876}

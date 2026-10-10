@@ -40,8 +40,8 @@
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | 未执行 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
-| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | 未执行 |
-| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | 未执行 |
+| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [未解决窗口防护开发证明](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `d72add09` / Laputa `256d1f1`；原操作恢复和崩溃矩阵仍待 |
+| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [SQLite 字面路径隔离修复](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `ab5ed872`；完整后台/scope/来源矩阵仍待 |
 | [S12](stories/S12.md) | E05 | Windows 密封桌面的完整记忆流程 | S10, S11 | 1.5 | Planned | 未执行 |
 | [S13](stories/S13.md) | E05 | 真实模型评估与接手验收报告 | S12 | 1 | Planned | 未执行 |
 
@@ -63,10 +63,10 @@
 |---|---|---|---|
 | 1 | E02 / S04 | 用户来源及旧收据重投已修复；继续剩余 V05–V09 和旧来源补写验证 | 已有 real App/canonical 和两进程来源证明；继续开发，不等 Windows/live |
 | 2 | E01 / S02、S03 | 复用 Restart、reflection/reflected 已验证；补 recall 和最终源码绑定候选 | 测试负责人继续补缺失输入/观察能力，不等外部验收 |
-| 3 | E02–E04 / S05–S11 | 推理截断/重复数据包已修复；优先提交后失败窗口和剩余边界，再推进 ACTMEM、召回、生命周期及权限矩阵 | 已有普通/大来源反思证明；未知效果不能盲目重投，领域约束和正式前置不降级 |
+| 3 | E02–E04 / S05–S11 | 推理截断/重复数据包已修复；优先提交后失败窗口和剩余边界，再推进 ACTMEM、召回、生命周期及权限矩阵 | 已有普通/大来源反思证明；未解决窗口已保留原 run/水位并公开原因；继续原操作恢复/并发状态和完整崩溃矩阵，领域约束和正式前置不降级 |
 | 外部资源跟踪 | E01 / S01、E05 / S12–S13 | 提供 Windows runner 和真实模型配置；Linux 原生构建已解阻 | 环境维护者提供剩余外部资源；限制相应验收，不冻结可执行代码修复 |
 
-当前增量和本地复跑入口见 [完整请求/大来源检查点](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，[反思/Restart](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)与此前完整 CI/环境证明仍保留。具体解阻方式、会话恢复、候选重建与禁止事项见 [continuity.md](continuity.md)。全部完成门槛保持原定义；没有新增完成比例或日期承诺。
+当前增量和本地复跑入口见 [未解决窗口/字面路径检查点](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)及 [完整请求/大来源检查点](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，[反思/Restart](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)与此前完整 CI/环境证明仍保留。具体解阻方式、会话恢复、候选重建与禁止事项见 [continuity.md](continuity.md)。全部完成门槛保持原定义；没有新增完成比例或日期承诺。
 
 ## 排期：依赖批次
 

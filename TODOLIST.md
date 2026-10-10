@@ -19,7 +19,7 @@ Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; fo
 - [ ] **MEM-LOOP-REFLECTION-ACTMEM** P1 — Prove actual Pulse/Recap/Work,
   automatic reflection, effect receipts and persona-review continuity;
   domain API availability alone is not product wiring evidence (S05–S07).
-- [ ] **MEM-LOOP-FAILED-WINDOW** P0 — The six-stage aggregate-budget cause of an observed post-effect failure is repaired in VIVY `9d35e50c`. Verify arbitrary post-commit failures, receipt recovery and operation identity before admitting repeated automatic retries. Do not infer crash idempotence from the now-green single-source reflection case (S06/S10).
+- [ ] **MEM-LOOP-FAILED-WINDOW** P0 — Budget and unresolved-window fences are repaired; VIVY `d72add09` preserves run/window/watermark and exposes blocked status, Laputa `256d1f1` stops after unresolved work. Continue original-operation receipt recovery and six-cut crash matrix before acceptance. Do not infer crash idempotence from the now-green single-source reflection case (S06/S10).
 - [ ] **MEM-LOOP-INFER-BOUNDS** P0 acceptance — Truncation and duplicate post-reflection evidence packets repaired: VIVY `e1de33ae`, Laputa `9bc39af`. Actual over-4-KiB Unicode-source reflection, runtime 75, selected composition 11, Laputa 64 and Garden 480 pass with zero skip. Complete remaining input limits/policy matrix and final new-source CI/sealing; this remains local work (S06).
 - [ ] **MEM-LOOP-RECALL-INPUT** P0 — Prove stored ordinary memory reaches
   the model in a new session after process restart, with empty-profile and
