@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T05:05:49.235415964Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T05:05:49.254619771Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning"}
+{"Time":"2026-10-10T05:05:49.254657388Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Output":"=== RUN   TestCognitiveRecoveryClassifiesRunning\n"}
+{"Time":"2026-10-10T05:05:49.314487413Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Output":"    cognitive_recovery_test.go:243: interrupted controller not visibly fenced: {Run:false Reason:active} \u003cnil\u003e\n"}
+{"Time":"2026-10-10T05:05:49.314686593Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Output":"--- FAIL: TestCognitiveRecoveryClassifiesRunning (0.06s)\n"}
+{"Time":"2026-10-10T05:05:49.314692742Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestCognitiveRecoveryClassifiesRunning","Elapsed":0.06}
+{"Time":"2026-10-10T05:05:49.314788757Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:05:49.316726155Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.081s\n"}
+{"Time":"2026-10-10T05:05:49.316771824Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.081}

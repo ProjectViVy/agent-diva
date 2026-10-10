@@ -1,0 +1,6 @@
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"# agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-output","Output":"internal/runtime/cognitive_recovery_test.go:241:20: svc.CognitiveTrigger undefined (type *Service has no field or method CognitiveTrigger)\n"}
+{"ImportPath":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]","Action":"build-fail"}
+{"Time":"2026-10-10T05:05:10.889638613Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T05:05:10.889691843Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime [build failed]\n"}
+{"Time":"2026-10-10T05:05:10.889700296Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0,"FailedBuild":"agent-vivy/internal/runtime [agent-vivy/internal/runtime.test]"}

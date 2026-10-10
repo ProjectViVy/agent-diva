@@ -1,0 +1,272 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:10:22.761481+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "ab4224e6d8e17471f7c7ade0db870d2651256fb3",
+    "agent-vivy": "e62a929e2b6b084cb34a718bca2cd6f4657f3236",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-crash-recovery-id-collision-red.jsonl": 1,
+    "chain-crash-inference-real-lease-second.jsonl": 1,
+    "chain-crash-recovery-id-final-race.jsonl": 0,
+    "chain-crash-recovery-id-bounded-final-race.jsonl": 0,
+    "chain-crash-inference-classification-green.jsonl": 0,
+    "chain-crash-inference-final-race.jsonl": 0,
+    "chain-crash-visible-block-product-red.jsonl": 1,
+    "chain-crash-visible-block-final-race.jsonl": 0,
+    "chain-crash-visible-app-final-race.jsonl": 0
+  },
+  "logs": [
+    {
+      "path": "raw/chain-crash-inference-classification-green.jsonl",
+      "sha256": "f0edad2526eb5c4cd8aa33e2bbfd3e6e9f739f5f98930c434e5590ba96afe0a6",
+      "bytes": 3160,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-diagnostic.jsonl",
+      "sha256": "80457b9d3c8ce2632b363edc8573cd9a650e3cef80655b4cb5bce702a3ab58da",
+      "bytes": 3621,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-final-race.jsonl",
+      "sha256": "36edb010a8b41001062f7e58d1b173a15ecd06340ddb67cc712fb981296ef3ca",
+      "bytes": 3162,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-first.jsonl",
+      "sha256": "c4554743b2c43c4c793f585aafc24db60b2dcdd23438de522e9883dc634f87a3",
+      "bytes": 934,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-real-lease-second.jsonl",
+      "sha256": "153825ce16def3656854690a2e809e0e35042047bbacc7184348a3835010d153",
+      "bytes": 3182,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-real-lease.jsonl",
+      "sha256": "c7b91fbfaf9d797a2c890f8a136843b6d8d48d2cf47f84a8bad503f3908406f3",
+      "bytes": 755,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-inference-second.jsonl",
+      "sha256": "0360e79b92849accad38d6d9f2c7910b8f049f13c3b4c524c0c4a8b8b0585976",
+      "bytes": 2776,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-bounded-final-race.jsonl",
+      "sha256": "8ad47b9bd1900373c9e99507f5e9a7776476b3ba85d2f358758db51fb3717a6d",
+      "bytes": 16542,
+      "named_tests_subtests": {
+        "pass": 21
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-collision-red.jsonl",
+      "sha256": "37d52ebac87f67e55b8c1bd3ae10c87081afec1faa4849bd0ef225bc105ebf11",
+      "bytes": 1715,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-final-race.jsonl",
+      "sha256": "e321db89f75dc93e2f462b49e0326ac7a9a5a2caa38abef2b173bfc594b147a4",
+      "bytes": 12345,
+      "named_tests_subtests": {
+        "pass": 16
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-product-red.jsonl",
+      "sha256": "68cd5e4dc8f4fe167c65d55ac3b1bc7acded3aec56d8bc154e0efee2171cb285",
+      "bytes": 1649,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-red.jsonl",
+      "sha256": "54b20fbb15ea6c2100a046a3005446d1c4fb64e99a9fa83351d6df360cfd960f",
+      "bytes": 1540,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-recovery-id-second-red.jsonl",
+      "sha256": "be5f419deca1818283c7cc1367ab4ff33d11058ce3e118e8be0dcff6dd716c03",
+      "bytes": 1649,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-visible-app-final-race.jsonl",
+      "sha256": "b1c31a4ed7be431978a19030aac7a157c5217352a594309c52b134363fea19a2",
+      "bytes": 4345,
+      "named_tests_subtests": {
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-visible-block-final-race.jsonl",
+      "sha256": "a6a42c8c993647e7f16eda95751f34013fff093075d230d3dfc955d73c7f36f6",
+      "bytes": 34525,
+      "named_tests_subtests": {
+        "pass": 45
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-visible-block-product-red.jsonl",
+      "sha256": "f091bc3397448a6cca57688f7e3194d4e3fa5a9421aca124864ad08ef2a22870",
+      "bytes": 1502,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-crash-visible-block-red.jsonl",
+      "sha256": "234acafacb84c33e432314615d2e52efbe8dc9777240bd16d5fc3c49cc6ef2c8",
+      "bytes": 990,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "agent-vivy/internal/runtime",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    }
+  ]
+}

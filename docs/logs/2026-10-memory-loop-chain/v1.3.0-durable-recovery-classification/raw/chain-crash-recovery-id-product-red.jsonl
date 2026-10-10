@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T05:00:15.017699491Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T05:00:15.034569658Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission"}
+{"Time":"2026-10-10T05:00:15.034600314Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"=== RUN   TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission\n"}
+{"Time":"2026-10-10T05:00:15.060657193Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"    inofy_store_test.go:44: checkpoint_incompatible: storage: workflow step identity conflict\n"}
+{"Time":"2026-10-10T05:00:15.060841711Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Output":"--- FAIL: TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission (0.03s)\n"}
+{"Time":"2026-10-10T05:00:15.060846899Z","Action":"fail","Package":"agent-vivy/internal/runtime","Test":"TestINOFYStoreRecoveryClassificationDoesNotCollideWithAdmission","Elapsed":0.03}
+{"Time":"2026-10-10T05:00:15.06278249Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:00:15.062878785Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"FAIL\tagent-vivy/internal/runtime\t0.045s\n"}
+{"Time":"2026-10-10T05:00:15.062911965Z","Action":"fail","Package":"agent-vivy/internal/runtime","Elapsed":0.045}
