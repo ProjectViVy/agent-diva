@@ -41,7 +41,7 @@
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
 | [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [C01 终态-before-Capture 10 次](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md)，VIVY `160349ca`；[C02 receipt-before-ACK 10 次](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；[C03](../../../logs/2026-10-memory-loop-chain/v2.4.0-s10-c03-canonical-before-caller-receipt/summary.md)、[C04](../../../logs/2026-10-memory-loop-chain/v2.5.0-s10-c04-partial-effect-batch/summary.md)、[C05](../../../logs/2026-10-memory-loop-chain/v2.6.0-s10-c05-effects-before-watermark/summary.md)、[C06](../../../logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/summary.md) 各有 10 次开发 race 样本；未知 effect/半批恢复和同候选 gate 仍待 |
-| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [部分 scope/注入开发检查点](../../../logs/2026-10-memory-loop-chain/v2.8.0-s11-scope-isolation/summary.md)，VIVY `382525d9`：普通 App 用例 2 pass，scope race 1 pass；真实分页 cursor、race recall/source 与 backend recovery 仍待，S09 前置未通过 |
+| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [v2.8 scope/注入基线](../../../logs/2026-10-memory-loop-chain/v2.8.0-s11-scope-isolation/summary.md)；[v2.9 host-bound cursor 开发检查点](../../../logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/summary.md)：有效跨宿主 cursor 在普通及 scope race 中拒绝；普通 scope/注入 2 pass，Mentle/Garden normal+race 通过；注入 race 仍报 `material read failed`，backend recovery/workspace A/B 未执行，S09 前置未通过 |
 | [S12](stories/S12.md) | E05 | Windows 密封桌面的完整记忆流程 | S10, S11 | 1.5 | Planned | 未执行 |
 | [S13](stories/S13.md) | E05 | 真实模型评估与接手验收报告 | S12 | 1 | Planned | 未执行 |
 
@@ -184,3 +184,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.8.0-s11-scope-isolation
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.8.0-s11-scope-isolation/summary.md), VIVY `382525d9`. Two actual App cases pass in the ordinary test run; scope isolation also passes under race, while memory recall is not observed in that race run and the race injection path reports a material-read failure. Mentle card search does not mint pagination cursors, so valid foreign-cursor binding is unverified. Backend recovery and the S09 prerequisite remain open; S11 stays Planned.
+
+## Development checkpoint v2.9.0-s11-hostbound-cursors
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/summary.md), Laputa `6c2bf3c1`, VIVY `9dd8150e`. Mentle/Garden pagination, opaque host-bound cursors, and deterministic score tie ordering pass normal and race tests. The actual App ordinary scope/injection cases pass; a valid A cursor is rejected by B in ordinary and scope-race runs. The race scope sample did not invoke ContextHost, and injection race again returned `material read failed`. Backend recovery, workspace A/B, and S09 remain open; S11 stays Planned.

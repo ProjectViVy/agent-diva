@@ -1,0 +1,17 @@
+{"Time":"2026-10-10T08:39:08.503204839Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T08:39:08.524314231Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding"}
+{"Time":"2026-10-10T08:39:08.524422575Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"=== RUN   TestMemoryLoopScopeAndHostBinding\n"}
+{"Time":"2026-10-10T08:39:08.567523498Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:39:08 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding3382132011/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:39:28.907583423Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"2026/10/10 08:39:28 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopScopeAndHostBinding3382132011/002/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:39:29.764623176Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"    memory_loop_isolation_test.go:160: scope isolation: profileA-canonical=4 profileB-search=0 stale-revision and foreign-session/card/receipt plus forged-cursor denied profileB-recall-observed=true\n"}
+{"Time":"2026-10-10T08:39:29.765995314Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Output":"--- PASS: TestMemoryLoopScopeAndHostBinding (21.24s)\n"}
+{"Time":"2026-10-10T08:39:29.766073351Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopScopeAndHostBinding","Elapsed":21.24}
+{"Time":"2026-10-10T08:39:29.766136927Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection"}
+{"Time":"2026-10-10T08:39:29.766143837Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"=== RUN   TestMemoryLoopMemoryInjection\n"}
+{"Time":"2026-10-10T08:39:29.80901584Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"2026/10/10 08:39:29 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMemoryInjection644258095/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T08:39:40.716272315Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"    memory_loop_isolation_test.go:286: memory injection: hostile bytes appeared in user context only; mission/policy/effect receipts unchanged\n"}
+{"Time":"2026-10-10T08:39:40.718345468Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"--- PASS: TestMemoryLoopMemoryInjection (10.95s)\n"}
+{"Time":"2026-10-10T08:39:40.718381192Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Elapsed":10.95}
+{"Time":"2026-10-10T08:39:40.718389625Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T08:39:40.735851256Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t32.232s\n"}
+{"Time":"2026-10-10T08:39:40.735892939Z","Action":"pass","Package":"command-line-arguments","Elapsed":32.233}

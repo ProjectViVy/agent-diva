@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T09:04:01.70831166Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T09:04:01.739324081Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection"}
+{"Time":"2026-10-10T09:04:01.739426345Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"=== RUN   TestMemoryLoopMemoryInjection\n"}
+{"Time":"2026-10-10T09:04:01.793052089Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"2026/10/10 09:04:01 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMemoryInjection235846080/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T09:04:12.946489755Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"    memory_loop_isolation_test.go:297: memory injection: hostile bytes appeared in user context only; mission/policy/effect receipts unchanged\n"}
+{"Time":"2026-10-10T09:04:12.948627615Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Output":"--- PASS: TestMemoryLoopMemoryInjection (11.21s)\n"}
+{"Time":"2026-10-10T09:04:12.94871746Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopMemoryInjection","Elapsed":11.21}
+{"Time":"2026-10-10T09:04:12.948727175Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T09:04:12.967470279Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t11.259s\n"}
+{"Time":"2026-10-10T09:04:12.967509257Z","Action":"pass","Package":"command-line-arguments","Elapsed":11.259}
