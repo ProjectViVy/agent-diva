@@ -1,0 +1,69 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T05:26:33.157813+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "2f933973212535bc3cb7d48cf3015ec7e3720c4b",
+    "agent-vivy": "189a9f1b738d09cacd7319ad86f0fec9c2c3b406",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-operator-recovery-red.jsonl": 1,
+    "chain-operator-recovery-final-race.jsonl": 0,
+    "chain-operator-recovery-rpc-final-race.jsonl": 0
+  },
+  "files": [
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/identity.json",
+      "sha256": "c8921cb7379f736356223159b0630f68440a8d3feae7f5c6b373d17d3749a578",
+      "bytes": 155
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/manifest.json",
+      "sha256": "51f34339bd379b3b43901cd7ecc9fd8778a1cc22fbbacc67421303e91e720b3e",
+      "bytes": 1252
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/model-requests.json",
+      "sha256": "118049c3aee70f78f6a612adab271c2dc65a385eefef482b2557f03336af6aff",
+      "bytes": 19006
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/native-snapshots.json",
+      "sha256": "cbd3ce0ae68f10ea81d28dcd4ce911580cd23aee1e58abe40adb8a4e6ea5598e",
+      "bytes": 2911
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/source-1.txt",
+      "sha256": "c44d36c53ae1bd7468dc95a6767918e1e328ecbbf1ceaf69a56f43556ba923f6",
+      "bytes": 327
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/source-2.txt",
+      "sha256": "c44d36c53ae1bd7468dc95a6767918e1e328ecbbf1ceaf69a56f43556ba923f6",
+      "bytes": 327
+    },
+    {
+      "path": "observations/TestMemoryLoopOperatorRecoveryDoesNotInterruptOwnedRun-recovered-1448087132/status.json",
+      "sha256": "70c681635147ce91607a637d19034e114f0a08ac10503f1bd264c8f2ad98c6e2",
+      "bytes": 1005
+    },
+    {
+      "path": "raw/chain-operator-recovery-final-race.jsonl",
+      "sha256": "937b277c780cb800f7e89ae578172c3ac385290b20169c6265e3cf26ef296264",
+      "bytes": 2033
+    },
+    {
+      "path": "raw/chain-operator-recovery-red.jsonl",
+      "sha256": "8be5124c6f551e7a6d41f150b0a71a0be06d548ff82084a6eebcd077b6c9be67",
+      "bytes": 3484
+    },
+    {
+      "path": "raw/chain-operator-recovery-rpc-final-race.jsonl",
+      "sha256": "41954d1626d918c32375e370ca41bb78e35b5a5d9c44ad07bafb1e1b6ef85b8f",
+      "bytes": 175527
+    }
+  ]
+}

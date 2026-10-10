@@ -59,3 +59,5 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 4. 回到 README 的开发序列，选一项有真实输入的缺陷：首次失败→确认 owner/根因→最小修复→直接回归→独立提交→下一项。recall、ACTMEM 等未实现能力仍归本地开发队列。
 5. 对提交后失败/未知效果的输入窗口保留 Journal 和回执，不清空数据库、不补造水位、不自动当作失败无副作用。当前 v1.3 已有真实持有推理响应、杀掉独立进程、等待实际租约过期、保留原 Run/window/source/水位并显式 unknown_outcome 阻塞的证明；这不是六个正式切点或原操作恢复。优先在 S06/S10 继续验证稳定操作身份和恢复路径，再扩大自动反思负载；可同时转到不消费该窗口的测试工作。
 6. 本地实现完成后冻结源码，执行规定完整 CI、conformance 复现、重建及身份检查；随后才按原 Story 前置提交正式验收证据。只有需要 Windows runner 或真实 provider/model 配置的测试交给外部资源。
+
+Operator recovery checkpoint v1.6: the startup-only recovery path must not be used by live background/recover. The existing RecoverBackground fence now refuses owned active/pending runs. Busy refusal and idle preservation were verified through the actual App and complete RPC race regression. Continue local source-boundary and recovery work; formal acceptance gates stay unchanged.

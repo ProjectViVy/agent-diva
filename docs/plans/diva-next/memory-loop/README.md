@@ -132,3 +132,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 开发增量：[原生普通召回与证据读取安全](../../../logs/2026-10-memory-loop-chain/v1.0.0-native-recall-and-read-safety/summary.md)，VIVY `9cbed3ea` / Laputa `4faf95a`。三 profile 实际新进程召回、六个空／关闭对照及纠正／删除后模型输入通过；串行组合45通过零跳过。原生缓存、Observer 启动、embedding 关闭和证据混版缺陷已分别修复。实际降级 race1通过；正向冷查询 race 超时、早先关闭超时和一次 RPC 失败均保留。默认163通过26条件跳过；仅为开发证据，完整候选与 Story 仍待。继续本地 Pulse/Recap、Agent 显式工具边界、原操作恢复及退化矩阵。
 
 开发增量：[终态活动与删除归档](../../../logs/2026-10-memory-loop-chain/v1.1.0-terminal-activity-and-archive/summary.md)，VIVY `1c0ef749` / Laputa `4da565e`。实际 Pulse/Recap、进程重启 ID/来源、已结束及运行中取消会话删除归档、旧 Work 冲突通过；组合15、原生120／race104、运行时 race44、Observer race12、ACTMEM race27通过零跳过。投影未完成水位、原始回执恢复和无需新投递的 worker 重试已接通；完整候选、崩溃／并发／隔离矩阵及正式 Story 仍待。继续本地 S03–S11；Windows/live 等待不阻断本地工作。
+
+## Operator recovery development checkpoint
+
+[V1.6 ownership fence](../../../logs/2026-10-memory-loop-chain/v1.6.0-operator-recovery-ownership/summary.md), VIVY `189a9f1b`: public operator recovery now uses the existing busy ownership fence. Actual App race regression 1 pass/0 skip; RPC race regression 220 pass/1 Windows skip; both observed exit0. Formal S10 remains Planned and final same-candidate gates remain pending. Next local increment: actual protected Tool output and assistant exclusion from captured user provenance.
