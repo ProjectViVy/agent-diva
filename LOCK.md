@@ -7,11 +7,11 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `HELD`
 - Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-chain/**, TODOLIST.md, LOCK.md, .superpowers/sdd/memory-loop/progress.md; scripts/build-desktop.py, scripts/ci/test_build_desktop_test_assets.py, scripts/ci/test_build_desktop_packages.py; agent-vivy/internal/app/app.go, agent-vivy/internal/app/memory_loop_*; agent-vivy/docs/logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/**; /workspace/work/memory-loop/tools/diva-c06-index-overlay/**; /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt.go, /workspace/work/memory-loop/laputa/mentle/facade/mutation_receipt_test.go`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Complete all locally executable memory-loop chain work; repair sealed consumer test discovery; defer only Windows/live-resource checks`
+- Session/Task: `Continue local S10/S11 memory-loop verification; preserve incomplete acceptance and race/resource limits`
 - Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
 - Started At: `2026-10-10T01:25:07Z`
-- Last Heartbeat: `2026-10-10T08:13:37Z`
-- Expires At: `2026-10-10T10:13:37Z`
+- Last Heartbeat: `2026-10-10T08:40:06Z`
+- Expires At: `2026-10-10T10:40:06Z`
 
 ### Handoff for this task
 

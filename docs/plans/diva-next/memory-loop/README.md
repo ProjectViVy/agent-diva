@@ -40,8 +40,8 @@
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | [模型／调用者人格权限开发证明](../../../logs/2026-10-memory-loop-chain/v1.5.0-persona-authority-denials/summary.md)，VIVY `63ce624e`；八项正负向通过；完整矩阵／前置待 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
-| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [未解决窗口防护开发证明](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `d72add09` / Laputa `256d1f1`；[真实进程中断与恢复分类](../../../logs/2026-10-memory-loop-chain/v1.3.0-durable-recovery-classification/summary.md)，VIVY `e62a929e`；[C01 终态-before-Capture 10 次开发验证](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md)，VIVY `160349ca`；[C02 receipt-before-ACK 10 次开发验证](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；C03–C06、未知 effect/半批恢复和同候选 gate 仍待 |
-| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [SQLite 字面路径隔离修复](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `ab5ed872`；[canonical 来源/读取并集修复](../../../logs/2026-10-memory-loop-chain/v0.5.0-canonical-provenance/summary.md)，Laputa `884ae3f`；完整后台/scope/来源矩阵仍待 |
+| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [C01 终态-before-Capture 10 次](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md)，VIVY `160349ca`；[C02 receipt-before-ACK 10 次](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；[C03](../../../logs/2026-10-memory-loop-chain/v2.4.0-s10-c03-canonical-before-caller-receipt/summary.md)、[C04](../../../logs/2026-10-memory-loop-chain/v2.5.0-s10-c04-partial-effect-batch/summary.md)、[C05](../../../logs/2026-10-memory-loop-chain/v2.6.0-s10-c05-effects-before-watermark/summary.md)、[C06](../../../logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/summary.md) 各有 10 次开发 race 样本；未知 effect/半批恢复和同候选 gate 仍待 |
+| [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [部分 scope/注入开发检查点](../../../logs/2026-10-memory-loop-chain/v2.8.0-s11-scope-isolation/summary.md)，VIVY `382525d9`：普通 App 用例 2 pass，scope race 1 pass；真实分页 cursor、race recall/source 与 backend recovery 仍待，S09 前置未通过 |
 | [S12](stories/S12.md) | E05 | Windows 密封桌面的完整记忆流程 | S10, S11 | 1.5 | Planned | 未执行 |
 | [S13](stories/S13.md) | E05 | 真实模型评估与接手验收报告 | S12 | 1 | Planned | 未执行 |
 
@@ -180,3 +180,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.7.0-s10-c06-canonical-before-index
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/summary.md), VIVY `1489825d`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 unknown-effect and partial-effect recovery cases, then complete remaining same-candidate and source-sealing gates; keep S10 Planned until every required case passes.
+
+## Development checkpoint v2.8.0-s11-scope-isolation
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.8.0-s11-scope-isolation/summary.md), VIVY `382525d9`. Two actual App cases pass in the ordinary test run; scope isolation also passes under race, while memory recall is not observed in that race run and the race injection path reports a material-read failure. Mentle card search does not mint pagination cursors, so valid foreign-cursor binding is unverified. Backend recovery and the S09 prerequisite remain open; S11 stays Planned.

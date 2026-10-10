@@ -1,0 +1,109 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T08:42:00Z",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_checkpoint": {
+    "agent-diva": "dbd2d81cbcbf1e41280af4a7e00c253375f191e0",
+    "agent-vivy": "382525d9a41c4cfc68517adbc921d5cb1c4d3985",
+    "laputa": "58ba9735f36b99f055d60776d85076e8eb695547"
+  },
+  "execution_mode": "actual App/Garden/Mentle with test-local SQLite, loopback synthetic model, and Go diagnostic overlay",
+  "observed_tests": {
+    "ordinary_scope_and_injection": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0
+    },
+    "scope_race": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "recall_source_observed": false
+    },
+    "injection_race": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "exit": 1
+    },
+    "initial_cursor_probe": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "exit": 1
+    }
+  },
+  "observed_final_exits": {
+    "raw/s11-scope-and-injection-final2.jsonl": 0,
+    "raw/s11-scope-isolation-race8.jsonl": 0,
+    "raw/s11-memory-injection-race1.jsonl": 1,
+    "raw/s11-scope-isolation-race1.jsonl": 1
+  },
+  "open_limits": [
+    "S09 direct prerequisite remains Planned",
+    "backend recovery matrix not run",
+    "valid foreign cursor unavailable because Mentle SearchCards emits no next_cursor",
+    "race injection returned material read failed; root cause unknown",
+    "workspace A/B scope matrix not run"
+  ],
+  "files": [
+    {
+      "path": "summary.md",
+      "bytes": 2965,
+      "sha256": "2f717967b83f03e4036556c8015a1531e26e15fbeae3dd6cfb7dd5c1c49a31d6"
+    },
+    {
+      "path": "acceptance.md",
+      "bytes": 2193,
+      "sha256": "70eee393ffbe184d6fa6f68f32c5464ac7fdc24ca4e8bd87b021453deacef4b3"
+    },
+    {
+      "path": "defects.md",
+      "bytes": 2437,
+      "sha256": "62e57f21f7ebb37780a619ece45e2ed3911dea44c8c06e66ce2386a4f2a5274d"
+    },
+    {
+      "path": "raw/s11-memory-injection-race1-exit.txt",
+      "bytes": 7,
+      "sha256": "cf205dbb8cea84897b488abcc281bf96698d5e94b1096b16657b4caba9082a22"
+    },
+    {
+      "path": "raw/s11-memory-injection-race1.jsonl",
+      "bytes": 2329,
+      "sha256": "d377503d30b54c68e5efbfa9f7618fa282b56ed1cdab76f1507286c4fbd9f87a"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-final2-exit.txt",
+      "bytes": 7,
+      "sha256": "19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061"
+    },
+    {
+      "path": "raw/s11-scope-and-injection-final2.jsonl",
+      "bytes": 3377,
+      "sha256": "ae28f957163f394b2e23e3e92de3124ef89426c112e5042ad444b91792967b8f"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race1-exit.txt",
+      "bytes": 7,
+      "sha256": "cf205dbb8cea84897b488abcc281bf96698d5e94b1096b16657b4caba9082a22"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race1.jsonl",
+      "bytes": 2086,
+      "sha256": "9501ea4024b97d55beb8d2e9bbae2edbbb21d3804e80de02ccd8e2e2e8a5b36e"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race8-exit.txt",
+      "bytes": 7,
+      "sha256": "19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061"
+    },
+    {
+      "path": "raw/s11-scope-isolation-race8.jsonl",
+      "bytes": 2427,
+      "sha256": "5e709eb0ecfa68ab6ca4a6843f7479a78c132bb44f85f0cf80d15389e743eed7"
+    }
+  ]
+}
