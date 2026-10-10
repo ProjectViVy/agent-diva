@@ -7,11 +7,11 @@ Use this file to declare the current writer scope before mutating the workspace.
 - Lock State: `RELEASED`
 - Scope: `TODOLIST.md, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Mark all open backlog rows DEFERRED and record current memory-loop closeout residuals`
+- Session/Task: `Record VIVY CI run 77 failure and keep all open backlog items deferred`
 - Branch/Worktree: `docs/defer-all-backlog-20261010 / /workspace/work/memory-loop/agent-diva`
-- Started At: `2026-10-10T12:11:59Z`
-- Last Heartbeat: `2026-10-10T12:12:47Z`
-- Expires At: `RELEASED 2026-10-10T12:12:47Z`
+- Started At: `2026-10-10T12:13:25Z`
+- Last Heartbeat: `2026-10-10T12:13:51Z`
+- Expires At: `RELEASED 2026-10-10T12:13:51Z`
 
 ### Handoff for this task
 
@@ -44,6 +44,7 @@ No other working branch or live workspace is modified by this handoff.
 ## Active Lock
 
 - `TODOLIST backlog deferral` — **RELEASED 2026-10-10T12:12:47Z**; owner `Codex`; scope `TODOLIST.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:11:59Z`.
+- `VIVY CI run 77 backlog update` — **RELEASED 2026-10-10T12:13:51Z**; owner `Codex`; scope `TODOLIST.md, LOCK.md`; branch `docs/defer-all-backlog-20261010`; started `2026-10-10T12:13:25Z`.
 
 - `Memory-loop S11 cursor and host-isolation increment` — **RELEASED 2026-10-10T09:05:08Z**; Laputa `6c2bf3c1`, VIVY `4504bfe8` plus test-fixture clarification `a1bca54b` and query timing diagnostic `9dd8150e`, DIVA checkpoint commit pending. Mentle/Garden normal and race suites pass; actual-App ordinary valid foreign-cursor and injection tests pass; scope race passes without invoking the recall source. Injection race still returns `material read failed`; test-only source timings were 3.542s and 2.342s against the 750ms ContextHost timeout, cause unconfirmed. Evidence: `docs/logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/`. S11 remains Planned; S09, backend recovery, workspace A/B and final candidate gates remain open. No push, merge or release.
 

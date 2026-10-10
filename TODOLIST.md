@@ -17,15 +17,17 @@ records prioritization only; it does not mean the work is complete or accepted.
   require rewriting shared `main` and is deferred.
 - Laputa PR #5 and VIVY PR #46 remain open and are mergeable. GitHub resolves
   all commits in both PRs to `mastwet`.
-- VIVY CI run #77 is still in progress; its result has not been accepted yet.
+- VIVY CI run #77 failed. `ui ci`, `full UI browser smoke`, and `backend ci`
+  hit the same compile failure: the bootstrapped Laputa dependency does not
+  expose APIs present on Laputa PR #5; the aggregate `just ci` gate failed.
 
 ## Memory loop verification — execution started 2026-10-09
 
 See the [Epic–Story package and live status](docs/plans/diva-next/memory-loop/README.md).
 Formal Story acceptance and final same-candidate gates remain open even where developer-level repairs are recorded. Environment/full-CI evidence is in docs/logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/. New reflection/Restart developer evidence and continuation are in docs/logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/. Historical failures remain unchanged.
 
-- [ ] **DEFERRED** **MEM-LOOP-PR-REVIEW** P1 — Laputa PR #5 and VIVY PR #46 are open and mergeable; await review and owner disposition.
-- [ ] **DEFERRED** **MEM-LOOP-VIVY-CI-77** P1 — Review VIVY CI run #77 when complete and address any failures before claiming the candidate gate.
+- [ ] **DEFERRED** **MEM-LOOP-PR-REVIEW** P1 — Laputa PR #5 and VIVY PR #46 are open and mergeable; resolve their API dependency sequencing, then await review and owner disposition.
+- [ ] **DEFERRED** **MEM-LOOP-VIVY-CI-77** P1 — CI run #77 failed: `factory.go` cannot compile against the bootstrapped Laputa source because it lacks `EvolutionPorts.WithMissionRevision`, `CaptureActivity`/`CaptureRequest.Activity`, and `BoundClient.LookupCapture`/`ArchiveCapturedSession` from PR #5. After the API source is integrated or the pin is updated, rerun all VIVY CI lanes and confirm the aggregate gate.
 - [ ] **DEFERRED** **DIVA-PR21-AUTHOR-ATTRIBUTION** P1 — PR #21 is already merged, but its commits resolve to `mas19192` via `0104988com@gmail.com`. Correcting this would require rewriting shared `main`; do not do that without an explicit history-rewrite decision.
 
 - [ ] **DEFERRED** **MEM-LOOP-REAL-BACKEND** P0 — Reproduce w0-5's selected-backend
