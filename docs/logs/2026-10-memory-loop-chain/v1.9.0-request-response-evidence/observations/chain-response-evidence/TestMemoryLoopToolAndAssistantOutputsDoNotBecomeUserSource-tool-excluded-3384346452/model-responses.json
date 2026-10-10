@@ -1,0 +1,46 @@
+[
+  {
+    "request_index": 0,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"path\\\":\\\"memory-loop-tool-source.txt\\\"}\",\"name\":\"read_file\"},\"id\":\"actual-read-file\",\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\"}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:44:21.94548446Z"
+  },
+  {
+    "request_index": 1,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic-assistant-only-do-not-capture\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:44:22.057710694Z"
+  },
+  {
+    "request_index": 2,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"{\\\"base_revision\\\":1,\\\"changes\\\":[]}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:44:39.329074489Z"
+  },
+  {
+    "request_index": 3,
+    "status": 200,
+    "headers": {
+      "Content-Type": [
+        "text/event-stream"
+      ]
+    },
+    "body": "data: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"{\\\"candidates\\\":[{\\\"kind\\\":\\\"memory_mutation\\\",\\\"memory_mutation\\\":{\\\"body\\\":\\\"synthetic user-only fact 5487fd38b3806f19ba1a4160294b7ac1\\\",\\\"expected_absent\\\":true,\\\"inference\\\":\\\"observed\\\",\\\"operation\\\":\\\"create\\\",\\\"record_id\\\":\\\"ml-64d267b110968e5ef9858aa62750c09f\\\",\\\"sources\\\":[{\\\"source_id\\\":\\\"diva/scope/v1:personal:64697661/mentle\\\",\\\"record_id\\\":\\\"1\\\",\\\"revision\\\":0,\\\"scope\\\":{\\\"subject_id\\\":\\\"diva\\\",\\\"kind\\\":\\\"personal\\\",\\\"workspace_id\\\":\\\"\\\"}}]}}]}\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"memory-loop\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\ndata: [DONE]\n\n",
+    "finished_at": "2026-10-10T05:44:39.432835704Z"
+  }
+]

@@ -144,3 +144,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v1.8.0-native-fault-and-archive-retry
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v1.8.0-native-fault-and-archive-retry/summary.md), VIVY `a4891f1c`. Formal Story states and final candidate gates stay pending. Next local work: Complete actual request/response recording, manual trigger override and remaining local gates.
+
+## Development checkpoint v1.9.0-request-response-evidence
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v1.9.0-request-response-evidence/summary.md), VIVY `15d3e469`. Formal Story states and final candidate gates stay pending. Next local work: Validate explicit manual trigger against busy and interval gates; continue S03–S11 local repairs.
