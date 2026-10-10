@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T01:43:33.10610306Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:43:33.127211819Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopLiteralProfilePath"}
+{"Time":"2026-10-10T01:43:33.127246912Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopLiteralProfilePath","Output":"=== RUN   TestMemoryLoopLiteralProfilePath\n"}
+{"Time":"2026-10-10T01:43:33.170428622Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopLiteralProfilePath","Output":"2026/10/10 01:43:33 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopLiteralProfilePath109091856/001/profile#fragment%25?literal-query/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:43:38.366972088Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopLiteralProfilePath","Output":"--- PASS: TestMemoryLoopLiteralProfilePath (5.24s)\n"}
+{"Time":"2026-10-10T01:43:38.36700688Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopLiteralProfilePath","Elapsed":5.24}
+{"Time":"2026-10-10T01:43:38.367012168Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:43:38.397932308Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t5.292s\n"}
+{"Time":"2026-10-10T01:43:38.398064587Z","Action":"pass","Package":"command-line-arguments","Elapsed":5.292}

@@ -1,0 +1,69 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T01:48:26.233899+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "ec1d90b3c294f58cd2950b92e166ef8adc12b69e",
+    "agent-vivy": "2247c39afc5f0d3fce79543d184e224347a336d9",
+    "laputa": "884ae3fc2a93875996e289202c31ac45fe6348a8"
+  },
+  "execution_mode": "previous diagnostic generated overlay; not current-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-terminal-matrix-first.jsonl",
+      "sha256": "cfe833b40b0fd0da298a5eaf9e39821357433e4b6f9b0cacf94faee4e6f8c498",
+      "named_tests_subtests": {
+        "pass": 5
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-literal-profile-first.jsonl",
+      "sha256": "c5cfbafe131acda2e6bd44d477672ef769f2aad3434861c22ad1cc9286c8ef30",
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-policy-matrix-first.jsonl",
+      "sha256": "3da9bff7251d8d7f087c7d1abf2316d29d9ce99e988cb6cf96990871aff5f042",
+      "named_tests_subtests": {
+        "pass": 4
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-terminal-policy-final-composition.jsonl",
+      "sha256": "3eb59f4c29fdf19087018a4b8914227e4d63d1aad1ad7b69e941341ffdb4c90a",
+      "named_tests_subtests": {
+        "pass": 23
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-terminal-policy-default-app.jsonl",
+      "sha256": "5e92c75180dda4b444af22c2775f049d1c04befd60b548a16f362e274966846c",
+      "named_tests_subtests": {
+        "pass": 133,
+        "skip": 16
+      },
+      "recorded_exit_code": 0
+    }
+  ],
+  "remaining_local": [
+    "S04 role/replay/redaction cases",
+    "actual App busy/concurrent admission",
+    "S05 ACTMEM product continuity/archive and old Work input",
+    "S08 ordinary recall and controls",
+    "S09 correction lifecycle",
+    "S10 same-operation recovery and fault cuts",
+    "S11 degradation/isolation",
+    "final source freeze/CI/conformance/SDK/native/review"
+  ],
+  "external_only": [
+    "native Windows profile runner",
+    "live model configuration"
+  ]
+}

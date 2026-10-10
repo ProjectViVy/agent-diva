@@ -120,3 +120,5 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ```
 
 `--workspace` 指向包含 agent-diva、agent-vivy、laputa 的目录。检查依赖图、索引/机器镜像、场景映射、链接、现有源码路径和工期；它不会运行产品测试。
+
+开发增量：[终态来源与策略](../../../logs/2026-10-memory-loop-chain/v0.6.0-terminal-and-policy/summary.md)，VIVY `2247c39a`。实际完成/失败/取消、12,057 字节中文来源及特殊路径通过；disabled/无新输入/no-change 在两个实际后台间隔内无额外推理。组合23通过零跳过；仅为开发证据，S04/S06 完整矩阵与正式候选仍待。继续本地 ACTMEM/召回/恢复/隔离工作。

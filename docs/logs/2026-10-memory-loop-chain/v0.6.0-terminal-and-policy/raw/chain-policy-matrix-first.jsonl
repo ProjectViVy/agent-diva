@@ -1,0 +1,23 @@
+{"Time":"2026-10-10T01:44:52.050762184Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:44:52.072057619Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy"}
+{"Time":"2026-10-10T01:44:52.072092672Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy","Output":"=== RUN   TestMemoryLoopNoChangeAndTriggerPolicy\n"}
+{"Time":"2026-10-10T01:44:52.075174464Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/disabled"}
+{"Time":"2026-10-10T01:44:52.075188265Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/disabled","Output":"=== RUN   TestMemoryLoopNoChangeAndTriggerPolicy/disabled\n"}
+{"Time":"2026-10-10T01:44:52.114171822Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/disabled","Output":"2026/10/10 01:44:52 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopNoChangeAndTriggerPolicydisabled3798033482/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:44:58.978267077Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/disabled","Output":"--- PASS: TestMemoryLoopNoChangeAndTriggerPolicy/disabled (6.90s)\n"}
+{"Time":"2026-10-10T01:44:58.978314469Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/disabled","Elapsed":6.9}
+{"Time":"2026-10-10T01:44:58.978384324Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input"}
+{"Time":"2026-10-10T01:44:58.978387609Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input","Output":"=== RUN   TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input\n"}
+{"Time":"2026-10-10T01:44:59.014835235Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input","Output":"2026/10/10 01:44:59 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopNoChangeAndTriggerPolicyno-new-input292223934/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:45:05.176314408Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input","Output":"--- PASS: TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input (6.19s)\n"}
+{"Time":"2026-10-10T01:45:05.176356101Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-new-input","Elapsed":6.19}
+{"Time":"2026-10-10T01:45:05.17636213Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop"}
+{"Time":"2026-10-10T01:45:05.176364283Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop","Output":"=== RUN   TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop\n"}
+{"Time":"2026-10-10T01:45:05.207738888Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop","Output":"2026/10/10 01:45:05 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopNoChangeAndTriggerPolicyno-change-and-no-self-loo1559922546/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:45:21.444690733Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop","Output":"--- PASS: TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop (16.27s)\n"}
+{"Time":"2026-10-10T01:45:21.44495409Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy/no-change-and-no-self-loop","Elapsed":16.27}
+{"Time":"2026-10-10T01:45:21.444968081Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy","Output":"--- PASS: TestMemoryLoopNoChangeAndTriggerPolicy (29.37s)\n"}
+{"Time":"2026-10-10T01:45:21.44498026Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopNoChangeAndTriggerPolicy","Elapsed":29.37}
+{"Time":"2026-10-10T01:45:21.444988252Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:45:21.473058624Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t29.422s\n"}
+{"Time":"2026-10-10T01:45:21.473100437Z","Action":"pass","Package":"command-line-arguments","Elapsed":29.422}
