@@ -1,0 +1,151 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T10:39:45Z",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_checkpoint": {
+    "agent-diva-product-base": "0d0cadf9567120505ea7364c91fc7fd848cc7581",
+    "agent-vivy": "c58732e3d832078a1154c402b302fa59e4650b22",
+    "laputa": "2aa49e74e2c51b44cc091f34979e985abd811ab4"
+  },
+  "execution_mode": "Actual VIVY App/Garden/Mentle with test-local SQLite, synthetic loopback model, package-mode Go tests and diagnostic overlay; no live user memory or model.",
+  "observed_tests": {
+    "s08_s09_actual_app_suite": {
+      "pass": 5,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "elapsed_seconds": 103.54
+    },
+    "s09_final_three_redeliveries": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "elapsed_seconds": 12.41
+    },
+    "s11_ordinary_injection": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "source_query_ms": [
+        168,
+        140
+      ]
+    },
+    "s11_injection_race_test_only_5s_source_budget": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "source_query_ms": [
+        3044,
+        2000
+      ]
+    },
+    "s11_default_750ms_race_degradation": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "exit": 0,
+      "runs": 1,
+      "result": "no candidates; normalized material read failed"
+    },
+    "s11_default_750ms_race_injection_diagnostic": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "exit": 1,
+      "runs": 1,
+      "cause": "context deadline exceeded",
+      "native_card_search_ms_approx": 2294,
+      "evidence_expansion_ms_approx": 11
+    },
+    "laputa_garden_agentapi": {
+      "exit": 0,
+      "runs": 1
+    },
+    "diva_plan_package_static_check": {
+      "exit": 0,
+      "epics": 5,
+      "stories": 13,
+      "unique_cases": 28,
+      "person_days": 10.5
+    }
+  },
+  "resolved_items": [
+    "S08 actual recall after App process restart and negative controls pass in targeted developer suite",
+    "S09 correction/deletion model-input path and old-source tombstone replay pass; final helper performs exactly three redeliveries",
+    "S11 race timeout cause identified as native hybrid card search exceeding the unchanged 750ms default",
+    "Garden normalized material error exposes an unexported cause to Go callers without changing wire JSON"
+  ],
+  "open_limits": [
+    "S08 V19 automatic WORLD/ACTMEM separation and explicit tool-read audit remain open",
+    "S09 complete formal matrix and S08/S01-S03 prerequisite gates remain open",
+    "S11 backend fault/recovery and workspace A/B authorization remain untested",
+    "Race-enabled positive recall still exceeds the production 750ms default; the 5s timeout is a test-only injection-boundary seam",
+    "No sealed candidate, formal acceptance, real-model evaluation, merge, push, or release"
+  ],
+  "files": [
+    {
+      "path": "acceptance.md",
+      "bytes": 2076,
+      "sha256": "5dc9142f04d4c359efdf48950d61a09be4a85a036fd0b452fd8c85e0c723045e"
+    },
+    {
+      "path": "commands.md",
+      "bytes": 2364,
+      "sha256": "f73a56c1950f7d3b123d6b662b553634aabe6af5fb36edab7f322b470e7b1562"
+    },
+    {
+      "path": "defects.md",
+      "bytes": 2172,
+      "sha256": "c45812bcdb7329f12b92913d8f9289b21b3e8724839fbd270d195b043f010841"
+    },
+    {
+      "path": "raw/laputa-agentapi.txt",
+      "bytes": 49,
+      "sha256": "88e4998b139e6d8d40295779ad0b774c33907c3fc570356a771582031ceb18d8"
+    },
+    {
+      "path": "raw/s08-s09-final-suite.jsonl",
+      "bytes": 17260,
+      "sha256": "b0e76ccf6232adb7c313ed2ffe73d31bae8bd533561e86a3daaf3ce6b2665665"
+    },
+    {
+      "path": "raw/s09-replay-final.jsonl",
+      "bytes": 1583,
+      "sha256": "080ddb6f69388b46f564875eb87b31fc05be82a1a04ea6385b5e970619e012e2"
+    },
+    {
+      "path": "raw/s11-degrade-default-timeout-race.jsonl",
+      "bytes": 1834,
+      "sha256": "f4e9b839c502c0d030c55bf08f179624fe1c07c02956ed1eb47f60ae9a057078"
+    },
+    {
+      "path": "raw/s11-injection-normal.jsonl",
+      "bytes": 1762,
+      "sha256": "93521e520428bd2a177dc215adc8675ed0c04137c68915b762ce934761bd65e5"
+    },
+    {
+      "path": "raw/s11-injection-race-default-timeout-diagnostic.jsonl",
+      "bytes": 3098,
+      "sha256": "003286c762d60e887df6bf516a565996d50ab3023db9cae208a04438fbbf955c"
+    },
+    {
+      "path": "raw/s11-injection-race-test-budget.jsonl",
+      "bytes": 1766,
+      "sha256": "dbd9a9322aa230bb733dc4430d912abda833aa1b96f17411c8e39eb1c938eb78"
+    },
+    {
+      "path": "summary.md",
+      "bytes": 3456,
+      "sha256": "a892deca1fcc638155306a791ba5f973af15d61d7784056dd743b3740da9784e"
+    }
+  ]
+}
