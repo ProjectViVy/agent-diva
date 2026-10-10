@@ -168,3 +168,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.4.0-s10-c03-canonical-before-caller-receipt
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.4.0-s10-c03-canonical-before-caller-receipt/summary.md), VIVY `03bfe793`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C04 multi-effect partial success; keep the Story Planned until C04–C06, unknown and partial recovery, and same-candidate gates are verified.
+
+## Development checkpoint v2.5.0-s10-c04-partial-effect-batch
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.5.0-s10-c04-partial-effect-batch/summary.md), VIVY `70cc109c`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C05 effects-complete before watermark persistence, then C06 canonical commit before derived-index completion; keep same-candidate acceptance gates pending.
