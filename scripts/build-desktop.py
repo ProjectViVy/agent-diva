@@ -45,6 +45,23 @@ HOST_PACKAGE = "./cmd/diva"
 HOST_ASSETS = "agent-diva-gui/dist"
 WAILS_VERSION = "v3.0.0-beta.27"
 INOFY_MODULE = "github.com/ProjectViVy/inofy"
+DIVA_MODULE = "github.com/ProjectViVy/agent-diva"
+
+
+def go_test_package_targets(go_list_output: str) -> list[str]:
+    """Return host Go packages while keeping archived docs out of test input."""
+    docs_prefix = f"{DIVA_MODULE}/docs"
+    packages = []
+    for line in go_list_output.splitlines():
+        package = line.strip()
+        if not package:
+            continue
+        if package == docs_prefix or package.startswith(docs_prefix + "/"):
+            continue
+        packages.append(package)
+    if not packages:
+        raise SystemExit("go list returned no host test packages")
+    return packages
 
 
 def run(args: list[str], cwd: Path, capture: bool = False) -> str:
@@ -277,7 +294,9 @@ def mode_test(args: argparse.Namespace) -> None:
     shutil.copy2(artifact / "consumer.sum", staged_host / "consumer.sum")
     tags = " ".join(["vivy_headless", *lock.get("buildTags", [])])
     run(["go", "build", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
-    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
+    listed = run(["go", "list", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, "./..."], cwd=staged_host)
+    test_packages = go_test_package_targets(listed)
+    run(["go", "test", "-race", "-modfile", "consumer.mod", "-mod=readonly", "-tags", tags, *test_packages], cwd=staged_host)
     print(f"go race tests passed under the sealed consumer modfile (stage: {stage})")
 
 

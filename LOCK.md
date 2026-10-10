@@ -5,13 +5,13 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `HELD`
-- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-chain/**, TODOLIST.md, LOCK.md, .superpowers/sdd/memory-loop/progress.md; agent-vivy/internal/app/memory_loop_*`
+- Scope: `docs/plans/diva-next/memory-loop/**, docs/logs/2026-10-memory-loop-chain/**, TODOLIST.md, LOCK.md, .superpowers/sdd/memory-loop/progress.md; scripts/build-desktop.py, scripts/ci/test_build_desktop_test_assets.py, scripts/ci/test_build_desktop_packages.py; agent-vivy/internal/app/memory_loop_*`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Complete all locally executable memory-loop chain work; defer only Windows/live-resource checks`
+- Session/Task: `Complete all locally executable memory-loop chain work; repair sealed consumer test discovery; defer only Windows/live-resource checks`
 - Branch/Worktree: `feat/memory-loop-verification-20261009 / /workspace/work/memory-loop/agent-diva`
 - Started At: `2026-10-10T01:25:07Z`
-- Last Heartbeat: `2026-10-10T05:59:31Z`
-- Expires At: `2026-10-10T07:59:31Z`
+- Last Heartbeat: `2026-10-10T06:06:03Z`
+- Expires At: `2026-10-10T08:06:03Z`
 
 ### Handoff for this task
 
