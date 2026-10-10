@@ -1,0 +1,80 @@
+[
+  {
+    "ProcessID": 309579,
+    "RunID": "run_2a340d336b8325d9",
+    "EventSeq": 7,
+    "IngestionID": "ing_cc736e03faa547419ba872de1258e159",
+    "CaptureSeq": 1,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_c056bbec1cbb40ee9035b25ec72cf0cb",
+    "Revision": 1,
+    "CanonicalCount": 1,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_2a340d336b8325d9\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_c4a708af37a00d95\",\"role\":\"user\",\"content\":\"synthetic user-only fact b1021b1ba8a67947b12ef8423d3d5c8c\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_2a340d336b8325d9\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_c4a708af37a00d95\",\"role\":\"user\",\"content\":\"synthetic user-only fact b1021b1ba8a67947b12ef8423d3d5c8c\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:75a562700c31c134f48dd3e23f23be69ad227df76c20364a304daf24e7a0db57",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  {
+    "ProcessID": 309579,
+    "RunID": "run_358b05bbd8f5c53f",
+    "EventSeq": 7,
+    "IngestionID": "ing_4fec95c8474e46f39c2ca69793a057ee",
+    "CaptureSeq": 2,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_66384ab001ab47b6b3d1a4431fc86adf",
+    "Revision": 1,
+    "CanonicalCount": 2,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_358b05bbd8f5c53f\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_766480c387a474a7\",\"role\":\"user\",\"content\":\"synthetic user-only fact a77c1da435d9eafe8cc4817ef691c3d7\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_358b05bbd8f5c53f\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_766480c387a474a7\",\"role\":\"user\",\"content\":\"synthetic user-only fact a77c1da435d9eafe8cc4817ef691c3d7\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:be87448b7850f2b6c6ca6fcd8425da6ae2ba5b1721a9bea9d7a37ee0f2fe7aa9",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  },
+  {
+    "ProcessID": 309579,
+    "RunID": "run_5ad131893f48edcb",
+    "EventSeq": 7,
+    "IngestionID": "ing_b8871e2c3917479a8d5a8ff0d225f87e",
+    "CaptureSeq": 3,
+    "ProcessedThrough": 0,
+    "OperationID": "",
+    "RecordID": "mem_585de546d42c4521bc63903ffb006acd",
+    "Revision": 1,
+    "CanonicalCount": 3,
+    "CanonicalBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_5ad131893f48edcb\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_1cad680c07d7cccf\",\"role\":\"user\",\"content\":\"[hold-foreground] synthetic user-only fact bbfaff9c20b5c702d2fbd1fc4a77fd86\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceBody": "{\"schema\":\"vivy.conversation-source/v1\",\"run_id\":\"run_5ad131893f48edcb\",\"session_id\":\"sess_3fa96975dfb6a53a\",\"messages\":[{\"id\":\"msg_1cad680c07d7cccf\",\"role\":\"user\",\"content\":\"[hold-foreground] synthetic user-only fact bbfaff9c20b5c702d2fbd1fc4a77fd86\",\"complete\":true},{\"role\":\"assistant\",\"content\":\"收到\",\"complete\":false}]}",
+    "SourceRole": "user",
+    "SourceHash": "sha256:cb634a41693be25e5699d6f1baef92654975e80351dda35d0e5de54ec174ee35",
+    "State": "completed",
+    "CanonicalSources": null,
+    "SourceProviderID": "",
+    "BoundScope": {
+      "subject_id": "",
+      "kind": "",
+      "workspace_id": ""
+    },
+    "PrimarySourceURI": "",
+    "PrimarySourceRevision": ""
+  }
+]

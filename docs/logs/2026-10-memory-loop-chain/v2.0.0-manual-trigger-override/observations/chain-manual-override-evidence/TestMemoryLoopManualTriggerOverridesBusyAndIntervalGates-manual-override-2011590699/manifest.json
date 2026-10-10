@@ -1,0 +1,56 @@
+{
+  "artifacts": [
+    {
+      "path": "status.json",
+      "sha256": "4ef0fec55458d7bb896ce787793a170fc7becf623db9a16810d928c4649c5302",
+      "bytes": 1005
+    },
+    {
+      "path": "model-requests.json",
+      "sha256": "88381c623da98b42288c0c5e74ff50edd227d4720423336859642e48936e2309",
+      "bytes": 74952
+    },
+    {
+      "path": "model-responses.json",
+      "sha256": "d1c8180e1370c7589e0cf5fc6a887856137ab05f0812f9e4484b2d49db94ac8c",
+      "bytes": 4481
+    },
+    {
+      "path": "model-counts.json",
+      "sha256": "39fcf26f4a284ed45840aa5444e4ffad20928348636dbb96a2a548c872c18e75",
+      "bytes": 140
+    },
+    {
+      "path": "native-snapshots.json",
+      "sha256": "704cfd553c2f7a9074dc4d4f2e9e87fe0ec899350ff247276554766368bc286d",
+      "bytes": 4293
+    },
+    {
+      "path": "source-1.txt",
+      "sha256": "75a562700c31c134f48dd3e23f23be69ad227df76c20364a304daf24e7a0db57",
+      "bytes": 309
+    },
+    {
+      "path": "source-2.txt",
+      "sha256": "be87448b7850f2b6c6ca6fcd8425da6ae2ba5b1721a9bea9d7a37ee0f2fe7aa9",
+      "bytes": 309
+    },
+    {
+      "path": "source-3.txt",
+      "sha256": "cb634a41693be25e5699d6f1baef92654975e80351dda35d0e5de54ec174ee35",
+      "bytes": 327
+    },
+    {
+      "path": "identity.json",
+      "sha256": "d4a25d6e39f0e088564ec18058a0029f57d1417034d5245938e73c0d5fdc64cb",
+      "bytes": 155
+    }
+  ],
+  "candidate_id": null,
+  "formal_acceptance": false,
+  "kind": "developer-observation",
+  "limitation": "final source/artifact identity must be bound externally; no pass status inferred",
+  "phase": "manual-override",
+  "recorded_at": "2026-10-10T05:58:03.468066389Z",
+  "test": "TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates"
+}

@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T05:54:39.874377972Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T05:54:39.898246123Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates"}
+{"Time":"2026-10-10T05:54:39.898291572Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"=== RUN   TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates\n"}
+{"Time":"2026-10-10T05:54:39.947375049Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"2026/10/10 05:54:39 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates1725028027/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T05:55:00.14392175Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"    memory_loop_manual_override_test.go:69: actual reflect request missing\n"}
+{"Time":"2026-10-10T05:55:00.148300276Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Output":"--- FAIL: TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates (20.25s)\n"}
+{"Time":"2026-10-10T05:55:00.148331443Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopManualTriggerOverridesBusyAndIntervalGates","Elapsed":20.25}
+{"Time":"2026-10-10T05:55:00.148338173Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T05:55:00.187956041Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t20.313s\n"}
+{"Time":"2026-10-10T05:55:00.187992736Z","Action":"fail","Package":"command-line-arguments","Elapsed":20.314}
