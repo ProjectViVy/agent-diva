@@ -1,0 +1,124 @@
+{"Time":"2026-10-10T01:21:04.790400485Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T01:21:04.809358272Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:04.809409449Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:05.036136141Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:05.036197293Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:05.036203893Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:05.03620851Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:05.26173682Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.23s)\n"}
+{"Time":"2026-10-10T01:21:05.261774477Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:05.261781057Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:05.261783721Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:05.492889901Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:05.492933937Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:05.493021229Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:05.493069091Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:05.720289671Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:05.720327207Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:05.720332856Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:05.720335911Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:05.943333114Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.22s)\n"}
+{"Time":"2026-10-10T01:21:05.943404702Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:05.94345622Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:05.943467587Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:06.19099774Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.25s)\n"}
+{"Time":"2026-10-10T01:21:06.191084781Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.25}
+{"Time":"2026-10-10T01:21:06.191234706Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:06.191238753Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:06.415149717Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.22s)\n"}
+{"Time":"2026-10-10T01:21:06.415196407Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:06.415209677Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:06.415212862Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:06.637379007Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.22s)\n"}
+{"Time":"2026-10-10T01:21:06.63742112Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:06.63742786Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:06.637430795Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:06.867677511Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:06.867717301Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:06.867766636Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:06.867770361Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:07.095741387Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:07.095780826Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:07.095786394Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:07.095789219Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:07.326249059Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.23s)\n"}
+{"Time":"2026-10-10T01:21:07.326287867Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:07.326294207Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:07.326297762Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:07.552128411Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:07.552164596Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:07.552215603Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:07.552218908Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:07.774244982Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.22s)\n"}
+{"Time":"2026-10-10T01:21:07.77428325Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:07.774292133Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:07.774294988Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:08.000314827Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.23s)\n"}
+{"Time":"2026-10-10T01:21:08.000356039Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:08.000365974Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:08.000369029Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:08.225476768Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:08.225513834Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:08.225586753Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:08.225590669Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:08.448175834Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.22s)\n"}
+{"Time":"2026-10-10T01:21:08.448221753Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:08.448231628Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:08.448294042Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:08.672810105Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.22s)\n"}
+{"Time":"2026-10-10T01:21:08.672848002Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:08.672856545Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:08.6728597Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:08.904295306Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:08.906306046Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:08.906323562Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:08.906326997Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:09.131529488Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:09.131567936Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:09.131573715Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:09.13157667Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:09.359096287Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.23s)\n"}
+{"Time":"2026-10-10T01:21:09.35916497Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:09.359175306Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:09.359179212Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:09.587993342Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:09.588061585Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:09.588121445Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:09.588126022Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:09.816328438Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:09.81636946Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:09.816375459Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:09.816378233Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:10.044311055Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.23s)\n"}
+{"Time":"2026-10-10T01:21:10.044350514Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:10.044357214Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:10.044360078Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:10.270541282Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:10.270577116Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:10.270617416Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:10.270620771Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:10.493826432Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.22s)\n"}
+{"Time":"2026-10-10T01:21:10.493867314Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:10.493873373Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:10.493879272Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:10.717316292Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.22s)\n"}
+{"Time":"2026-10-10T01:21:10.71735485Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:10.717373177Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:10.717377153Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:10.947982936Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:10.948325387Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:10.948343644Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner"}
+{"Time":"2026-10-10T01:21:10.948352498Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"=== RUN   TestCognitivePolicyCASHasOneConcurrentWinner\n"}
+{"Time":"2026-10-10T01:21:11.175751933Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Output":"--- PASS: TestCognitivePolicyCASHasOneConcurrentWinner (0.23s)\n"}
+{"Time":"2026-10-10T01:21:11.175787206Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyCASHasOneConcurrentWinner","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:11.175793255Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh"}
+{"Time":"2026-10-10T01:21:11.175795869Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"=== RUN   TestCognitivePolicyWritePreservesAcceptedSourceHigh\n"}
+{"Time":"2026-10-10T01:21:11.399597897Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Output":"--- PASS: TestCognitivePolicyWritePreservesAcceptedSourceHigh (0.22s)\n"}
+{"Time":"2026-10-10T01:21:11.399635243Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAcceptedSourceHigh","Elapsed":0.22}
+{"Time":"2026-10-10T01:21:11.399641612Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow"}
+{"Time":"2026-10-10T01:21:11.399647631Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"=== RUN   TestCognitivePolicyWritePreservesAdmittedWindow\n"}
+{"Time":"2026-10-10T01:21:11.627390715Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Output":"--- PASS: TestCognitivePolicyWritePreservesAdmittedWindow (0.23s)\n"}
+{"Time":"2026-10-10T01:21:11.627426829Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestCognitivePolicyWritePreservesAdmittedWindow","Elapsed":0.23}
+{"Time":"2026-10-10T01:21:11.627521892Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"PASS\n"}
+{"Time":"2026-10-10T01:21:11.630277128Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"ok  \tagent-vivy/internal/runtime\t6.840s\n"}
+{"Time":"2026-10-10T01:21:11.630299401Z","Action":"pass","Package":"agent-vivy/internal/runtime","Elapsed":6.84}
