@@ -40,7 +40,7 @@
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | [模型／调用者人格权限开发证明](../../../logs/2026-10-memory-loop-chain/v1.5.0-persona-authority-denials/summary.md)，VIVY `63ce624e`；八项正负向通过；完整矩阵／前置待 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
-| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [未解决窗口防护开发证明](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `d72add09` / Laputa `256d1f1`；[真实进程中断与恢复分类](../../../logs/2026-10-memory-loop-chain/v1.3.0-durable-recovery-classification/summary.md)，VIVY `e62a929e`；[C02 receipt-before-ACK 10 次开发验证](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；C01、C03–C06、未知 effect/半批恢复和同候选 gate 仍待 |
+| [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [未解决窗口防护开发证明](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `d72add09` / Laputa `256d1f1`；[真实进程中断与恢复分类](../../../logs/2026-10-memory-loop-chain/v1.3.0-durable-recovery-classification/summary.md)，VIVY `e62a929e`；[C01 终态-before-Capture 10 次开发验证](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md)，VIVY `160349ca`；[C02 receipt-before-ACK 10 次开发验证](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；C03–C06、未知 effect/半批恢复和同候选 gate 仍待 |
 | [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [SQLite 字面路径隔离修复](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)，VIVY `ab5ed872`；[canonical 来源/读取并集修复](../../../logs/2026-10-memory-loop-chain/v0.5.0-canonical-provenance/summary.md)，Laputa `884ae3f`；完整后台/scope/来源矩阵仍待 |
 | [S12](stories/S12.md) | E05 | Windows 密封桌面的完整记忆流程 | S10, S11 | 1.5 | Planned | 未执行 |
 | [S13](stories/S13.md) | E05 | 真实模型评估与接手验收报告 | S12 | 1 | Planned | 未执行 |
@@ -160,3 +160,7 @@ python3 docs/plans/diva-next/memory-loop/check_package.py --workspace /workspace
 ## Development checkpoint v2.2.0-s10-c02-capture-before-ack
 
 [Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md), VIVY `fc78d0c6`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with exact C01 and C03–C06 handshakes; verify unknown-effect and partial-batch recovery. Keep formal S10 pending until all six cutpoints × 10 samples and same-candidate gates pass.
+
+## Development checkpoint v2.3.0-s10-c01-terminal-before-capture
+
+[Preserved evidence](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md), VIVY `160349ca`. Formal Story states and final candidate gates stay pending. Next local work: Continue S10 with C03–C06 exact handshakes and operation-level unknown/partial-effect recovery. C01 and C02 each have 10 developer race samples; keep formal S10 pending until remaining cuts and same-candidate gates pass.
