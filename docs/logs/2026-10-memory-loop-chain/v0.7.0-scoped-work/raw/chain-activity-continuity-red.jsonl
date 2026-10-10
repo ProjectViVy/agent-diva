@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T01:49:24.65860982Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:49:24.682216076Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity"}
+{"Time":"2026-10-10T01:49:24.682300904Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"=== RUN   TestMemoryLoopActivityContinuity\n"}
+{"Time":"2026-10-10T01:49:24.728172531Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"2026/10/10 01:49:24 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopActivityContinuity1794360456/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:49:26.074897449Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"    memory_loop_activity_test.go:27: diva.actmem.read transport: rpc error -32004: module action is unavailable\n"}
+{"Time":"2026-10-10T01:49:26.076633915Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Output":"--- FAIL: TestMemoryLoopActivityContinuity (1.39s)\n"}
+{"Time":"2026-10-10T01:49:26.076647285Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopActivityContinuity","Elapsed":1.39}
+{"Time":"2026-10-10T01:49:26.076654125Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T01:49:26.096046739Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.437s\n"}
+{"Time":"2026-10-10T01:49:26.096075883Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.437}

@@ -1,0 +1,156 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T01:56:12.191740+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "51ab853d906252f36d13b01f2908480db485dd6e",
+    "agent-vivy": "d2f751cc08578b240327192df02629055bf53a94",
+    "laputa": "b4e266c060947dace2e2141aabd2e011ccac1e2d"
+  },
+  "vivy_owned_untracked_probe": "internal/app/memory_loop_activity_test.go",
+  "probe_sha256": "03e10163e5e57da6c17c37a5cdddf4f875eeab8d2919448de2db3f9045129c6e",
+  "execution_mode": "previous diagnostic overlay, not current-source artifact attestation",
+  "logs": [
+    {
+      "path": "raw/chain-activity-continuity-red.jsonl",
+      "sha256": "89fd381ba03a8f887f622ac335671df4fc9b08fd7db960e6abf2a68cff8b67b6",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-continuity-product-red.jsonl",
+      "sha256": "6c4305d1a54e21ec7f31485694a9877e7cc184d03a9e609e740ca0471eb6bc86",
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-budget-red.jsonl",
+      "sha256": "4e2de788e0ca52f9f027442a9ce88d4641daacc73fe51ae0f514f322a6acf1a3",
+      "named_tests_subtests": {},
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-work-red.jsonl",
+      "sha256": "520cf2ad0783492dac0a9b484f9f4baea4480b8e02ad9cc4e8a7b0828c0fd2a3",
+      "named_tests_subtests": {},
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-budget-product-red.jsonl",
+      "sha256": "370f57ff582950db577a35b40a5f6bf3e56d06918fa9412f9d631e6c5e0c12f3",
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-work-product-red.jsonl",
+      "sha256": "e846844468acadab0fb6e6eb873cecf2c031f33091c6a1387f50c774013d4e70",
+      "named_tests_subtests": {
+        "fail": 2
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-budget-green.jsonl",
+      "sha256": "5fb53fb7fb268a13d7814d15c4379d7fe3c34b959f39e6c99ecc45cd2629be61",
+      "named_tests_subtests": {
+        "pass": 21
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-green.jsonl",
+      "sha256": "1e2fa513bfe9de9f173a1f95902f6d07ff882d2c0c48f2b772e324d042ad25c5",
+      "named_tests_subtests": {
+        "pass": 79
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-final-laputa.jsonl",
+      "sha256": "9d2db940156a4c6ff76b218778355fd8798709cbd53dc7f184862db036908e16",
+      "named_tests_subtests": {
+        "pass": 69
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-final-garden.jsonl",
+      "sha256": "fdcc349369ac5c0fe66aa50cba1ec3531e115084d8945129221c1ca2eed5d86e",
+      "named_tests_subtests": {
+        "pass": 386,
+        "fail": 3
+      },
+      "recorded_exit_code": 1
+    },
+    {
+      "path": "raw/chain-activity-work-final-garden-loopback.jsonl",
+      "sha256": "01a00aa294c0d94a46d72f399fe82a29db1207e7e2e426e28a2f2513259eb871",
+      "named_tests_subtests": {
+        "pass": 488
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-app-first.jsonl",
+      "sha256": "4aa4ac01a411a49a4542a971166f6791994d2d4d556bdb1ae558facdfd298d41",
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-final-composition.jsonl",
+      "sha256": "184a4f5721611e8d57cefb8708a1f1cb8bc0d8ad829629a8101058a481852a88",
+      "named_tests_subtests": {
+        "pass": 24
+      },
+      "recorded_exit_code": 0
+    },
+    {
+      "path": "raw/chain-activity-work-default-app.jsonl",
+      "sha256": "8d548d3f5c25ac1d09dfa5fe16baa4187c51a32038b8022550b7008e0743d3c9",
+      "named_tests_subtests": {
+        "pass": 133,
+        "skip": 18
+      },
+      "recorded_exit_code": 0
+    }
+  ],
+  "open_defects": [
+    {
+      "id": "MEM-S05-01",
+      "status": "reproduced, local product wiring pending",
+      "evidence": "raw/chain-activity-continuity-product-red.jsonl"
+    },
+    {
+      "id": "MEM-S05-02",
+      "status": "developer verified: scoped old Work missing before repair"
+    },
+    {
+      "id": "MEM-S11-02",
+      "status": "developer verified: explicit activity read budget ignored before repair"
+    }
+  ],
+  "remaining_local": [
+    "S05 real Pulse/Recap and archive wiring",
+    "S04 remaining role/replay/redaction cases",
+    "actual App busy/concurrency",
+    "S07 persona/frozen/Mission",
+    "S08 recall",
+    "S09 mutation lifecycle",
+    "S10 receipt recovery/cuts",
+    "S11 degradation/isolation",
+    "final new-source CI/SDK/native/conformance/review"
+  ],
+  "external_only": [
+    "native Windows runner",
+    "live model configuration"
+  ]
+}

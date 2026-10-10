@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T01:52:04.177682275Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T01:52:04.205846433Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork"}
+{"Time":"2026-10-10T01:52:04.205878511Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"=== RUN   TestMemoryLoopReconciliationReadsExistingWork\n"}
+{"Time":"2026-10-10T01:52:04.254133454Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"2026/10/10 01:52:04 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopReconciliationReadsExistingWork3776638174/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T01:52:09.433772762Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Output":"--- PASS: TestMemoryLoopReconciliationReadsExistingWork (5.23s)\n"}
+{"Time":"2026-10-10T01:52:09.433832282Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopReconciliationReadsExistingWork","Elapsed":5.23}
+{"Time":"2026-10-10T01:52:09.433854345Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T01:52:09.462354338Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t5.284s\n"}
+{"Time":"2026-10-10T01:52:09.462394989Z","Action":"pass","Package":"command-line-arguments","Elapsed":5.285}
