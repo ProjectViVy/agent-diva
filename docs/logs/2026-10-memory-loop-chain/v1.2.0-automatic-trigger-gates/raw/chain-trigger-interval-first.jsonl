@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T04:43:06.686206567Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:43:06.7093834Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource"}
+{"Time":"2026-10-10T04:43:06.709417041Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"=== RUN   TestMemoryLoopMinimumIntervalDefersActualNewSource\n"}
+{"Time":"2026-10-10T04:43:06.765884433Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"2026/10/10 04:43:06 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopMinimumIntervalDefersActualNewSource1079427562/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:43:41.95332071Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Output":"--- PASS: TestMemoryLoopMinimumIntervalDefersActualNewSource (35.24s)\n"}
+{"Time":"2026-10-10T04:43:41.953355473Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopMinimumIntervalDefersActualNewSource","Elapsed":35.24}
+{"Time":"2026-10-10T04:43:41.953361051Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T04:43:41.981538225Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t35.295s\n"}
+{"Time":"2026-10-10T04:43:41.981573248Z","Action":"pass","Package":"command-line-arguments","Elapsed":35.295}

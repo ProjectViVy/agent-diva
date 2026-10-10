@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T04:42:30.015522252Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T04:42:30.034416053Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput"}
+{"Time":"2026-10-10T04:42:30.034491546Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"=== RUN   TestMemoryLoopForegroundBusyDefersOriginalInput\n"}
+{"Time":"2026-10-10T04:42:30.075557335Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"2026/10/10 04:42:30 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopForegroundBusyDefersOriginalInput3896803516/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T04:42:31.270172567Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"    memory_loop_policy_test.go:140: actual trigger: {Eligibility:{Run:true Reason:eligible}}, want foreground_busy\n"}
+{"Time":"2026-10-10T04:42:31.275741425Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Output":"--- FAIL: TestMemoryLoopForegroundBusyDefersOriginalInput (1.24s)\n"}
+{"Time":"2026-10-10T04:42:31.275819823Z","Action":"fail","Package":"command-line-arguments","Test":"TestMemoryLoopForegroundBusyDefersOriginalInput","Elapsed":1.24}
+{"Time":"2026-10-10T04:42:31.275826984Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\n"}
+{"Time":"2026-10-10T04:42:31.291941128Z","Action":"output","Package":"command-line-arguments","Output":"FAIL\tcommand-line-arguments\t1.276s\n"}
+{"Time":"2026-10-10T04:42:31.291971233Z","Action":"fail","Package":"command-line-arguments","Elapsed":1.276}

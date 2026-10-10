@@ -1,0 +1,152 @@
+{
+  "kind": "developer-checkpoint",
+  "recorded_at": "2026-10-10T04:58:01.495190+00:00",
+  "formal_acceptance": false,
+  "candidate_id": null,
+  "source_revisions_at_start_of_handoff": {
+    "agent-diva": "b145f0409bb244872575bd4e11cae7db06a7483c",
+    "agent-vivy": "b2e937b18ad01c391d3633b23a593303136513d7",
+    "laputa": "4da565ed6f8831f09e2d42b9f5feeaf852c27b1a"
+  },
+  "execution_mode": "SDK-generated diagnostic overlay; no final source/artifact attestation",
+  "observed_final_exits": {
+    "chain-trigger-policy-second.jsonl": 0,
+    "chain-trigger-final-race.jsonl": 0,
+    "chain-trigger-busy-first.jsonl": 1
+  },
+  "logs": [
+    {
+      "path": "raw/chain-trigger-busy-final.jsonl",
+      "sha256": "e14fdef6660d9546fe59ea9021db664f8f503a7e3ea483b8a9417720fb902c81",
+      "bytes": 1891,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-busy-first.jsonl",
+      "sha256": "25579471c4cddf91233408a05b3125213f1b86f9f1f5a7ce551e1b5e61a6c1a2",
+      "bytes": 1849,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-coalescing-first.jsonl",
+      "sha256": "e6bf8b23f5ec6987bbfa3de8032333d59700777d159aea7a66e7443e5a575e07",
+      "bytes": 2243,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-exclusion-final.jsonl",
+      "sha256": "bff2a37d92244c83d9647afc7cab582539514b977bbc323bc922602d0b8e3053",
+      "bytes": 1492,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-exclusion-first.jsonl",
+      "sha256": "e76af84293196b5686c8f9eb141f9dcfa441a8dcc52b0b7d6162c845b5bc8137",
+      "bytes": 1108,
+      "named_tests_subtests": {},
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-exclusion-second.jsonl",
+      "sha256": "e25952c8a2c8406169cb4a491725a3dce599503e3545480f820843b6b98501c6",
+      "bytes": 1805,
+      "named_tests_subtests": {
+        "fail": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "fail"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-final-race.jsonl",
+      "sha256": "591fde11ba86c2baa98f00a6b224ff7d0bb31b4c34712d0acb9c6cecc50a38ed",
+      "bytes": 4918,
+      "named_tests_subtests": {
+        "pass": 4
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-interval-first.jsonl",
+      "sha256": "40659df6c2695259a808fcd237413a3c5461026d618762142eb59e7f609dc551",
+      "bytes": 1594,
+      "named_tests_subtests": {
+        "pass": 1
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    },
+    {
+      "path": "raw/chain-trigger-policy-second.jsonl",
+      "sha256": "eb7e1479ea647bad30037d07d50540b51035cbd1f0cf9dbd5755655f6baef931",
+      "bytes": 2749,
+      "named_tests_subtests": {
+        "pass": 2
+      },
+      "go_test_package_terminal_actions": [
+        {
+          "package": "command-line-arguments",
+          "action": "pass"
+        }
+      ],
+      "terminal_action_is_not_separate_shell_exit_measurement": true
+    }
+  ]
+}

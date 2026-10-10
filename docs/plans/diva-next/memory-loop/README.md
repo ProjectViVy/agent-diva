@@ -36,7 +36,7 @@
 | [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；[反思与复用 Restart 开发回归](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，VIVY `cd080708`；recall/最终候选 gate 仍待 |
 | [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | [MEM-S04-01 诊断失败](../../../logs/2026-10-memory-loop-verification/S04/defects.md)；[来源修复及回执恢复](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)已验证，前置/完整 gate 未通过 |
 | [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 开发证据见增量；正式矩阵待 |
-| [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | [自动反思/预算](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)；[完整推理请求及大来源数据包修复](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，VIVY `e1de33ae` / Laputa `9bc39af`；完整 case/前置 gate 未通过 |
+| [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | [自动反思/预算](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)；[完整推理请求及大来源数据包修复](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，VIVY `e1de33ae` / Laputa `9bc39af`；[自动门槛开发证明](../../../logs/2026-10-memory-loop-chain/v1.2.0-automatic-trigger-gates/summary.md)，VIVY `b2e937b1`；四项 race 通过零跳过；完整 case/前置 gate 未通过 |
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | 未执行 |
 | [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | 未执行 |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | 未执行 |
