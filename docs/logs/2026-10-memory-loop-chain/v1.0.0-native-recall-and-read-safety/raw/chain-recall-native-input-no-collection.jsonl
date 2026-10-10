@@ -1,0 +1,13 @@
+{"Time":"2026-10-10T02:50:18.285875586Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:50:18.311651448Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart"}
+{"Time":"2026-10-10T02:50:18.311744218Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart","Output":"=== RUN   TestMemoryLoopRecallAfterProcessRestart\n"}
+{"Time":"2026-10-10T02:50:18.314079866Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart/profile-1"}
+{"Time":"2026-10-10T02:50:18.314105325Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart/profile-1","Output":"=== RUN   TestMemoryLoopRecallAfterProcessRestart/profile-1\n"}
+{"Time":"2026-10-10T02:50:18.356727658Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart/profile-1","Output":"2026/10/10 02:50:18 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallAfterProcessRestartprofile-11985484472/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:50:24.000552715Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart/profile-1","Output":"--- PASS: TestMemoryLoopRecallAfterProcessRestart/profile-1 (5.69s)\n"}
+{"Time":"2026-10-10T02:50:24.000787488Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart/profile-1","Elapsed":5.69}
+{"Time":"2026-10-10T02:50:24.00079557Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart","Output":"--- PASS: TestMemoryLoopRecallAfterProcessRestart (5.69s)\n"}
+{"Time":"2026-10-10T02:50:24.000802541Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRecallAfterProcessRestart","Elapsed":5.69}
+{"Time":"2026-10-10T02:50:24.000829502Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T02:50:24.032642593Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t5.741s\n"}
+{"Time":"2026-10-10T02:50:24.032690736Z","Action":"pass","Package":"command-line-arguments","Elapsed":5.747}

@@ -43,7 +43,7 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 | 类别 | 处理与恢复条件 | 后续工作 |
 |---|---|---|
 | 工具、目录、依赖、模型安装等环境问题 | 在任务目录补齐锁定资源，保留失败日志，实际复跑成功后解除 | 继续当前修复 |
-| 已复现的代码缺陷 | 保存失败回归，修复拥有该契约的模块，复跑受影响测试和规定 CI | 冻结源码、重建候选，再开始下一项 |
+| 已复现的代码缺陷 | 保存失败回归，修复拥有该契约的模块，复跑受影响测试和规定 CI | 直接回归通过并独立提交后继续下一项；阶段完成后冻结源码、重建候选并执行完整检查 |
 | 消费接口或测试观察能力缺失 | 先实现相应 S03/S04 能力；保持真实 App、后台与进程路径 | 转到已有输入的修复，或先补直接前置接口 |
 | Windows 真机或真实模型资源 | 只阻塞 S12/S13 及需要这些资源的验收；记明 runner、模型及凭据入口需求 | 持续推进可执行的 S03–S11 |
 
@@ -51,7 +51,7 @@ S01 的原生宿主验收不能作为所有 runtime 修复的开始条件。S03 
 
 ## 中断后恢复当前工作
 
-当前开发检查点为 [公开记忆生命周期与采集重投递](../../../logs/2026-10-memory-loop-chain/v0.9.0-lifecycle-and-replay/summary.md)（VIVY `7a1086a5` / Laputa `db46181`；组合32通过零跳过，S08/ACTMEM/恢复仍待）；此前 [人格审阅与 Mission 效果边界](../../../logs/2026-10-memory-loop-chain/v0.8.0-persona-and-mission/summary.md)（VIVY `6b35f604` / Laputa `db46181`）；此前 [作用域 Work 与读取预算](../../../logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/summary.md)（VIVY `d2f751cc` / Laputa `b4e266c`；Pulse/Recap 接线仍红）；此前 [终态来源与策略](../../../logs/2026-10-memory-loop-chain/v0.6.0-terminal-and-policy/summary.md)（VIVY `2247c39a` / Laputa `884ae3f`）；此前 [canonical 来源](../../../logs/2026-10-memory-loop-chain/v0.5.0-canonical-provenance/summary.md)（VIVY `34de683b` / Laputa `884ae3f`）。此前 [并发状态](../../../logs/2026-10-memory-loop-chain/v0.4.0-state-concurrency/summary.md)（VIVY `114ad97a`）。前一增量为 [未解决窗口与字面路径](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)（VIVY `d72add09` / Laputa `256d1f1`，策略 revision 3）。此前 [完整请求与大来源数据包](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)。VIVY `e1de33ae` 保留完整 JSON/schema，Laputa `9bc39af` 移除后续阶段不再使用的重复证据；该历史检查点的策略 implementation revision 为 `diva-cognitive/v1-review-2`。之前预算、反思观察和进程协议的提交继续保留。最终候选尚未冻结；不要沿用前检查点的 conformance/source hash 宣称新源码通过完整 CI。
+当前开发检查点为 [原生普通召回与证据读取安全](../../../logs/2026-10-memory-loop-chain/v1.0.0-native-recall-and-read-safety/summary.md)（VIVY `9cbed3ea` / Laputa `4faf95a`；串行组合45/降级race1通过，正向冷查询race超时及早先关闭/RPC失败保留；完整 S08、ACTMEM、恢复仍待）；此前 [公开记忆生命周期与采集重投递](../../../logs/2026-10-memory-loop-chain/v0.9.0-lifecycle-and-replay/summary.md)（VIVY `7a1086a5` / Laputa `db46181`；组合32通过零跳过，S08/ACTMEM/恢复仍待）；此前 [人格审阅与 Mission 效果边界](../../../logs/2026-10-memory-loop-chain/v0.8.0-persona-and-mission/summary.md)（VIVY `6b35f604` / Laputa `db46181`）；此前 [作用域 Work 与读取预算](../../../logs/2026-10-memory-loop-chain/v0.7.0-scoped-work/summary.md)（VIVY `d2f751cc` / Laputa `b4e266c`；Pulse/Recap 接线仍红）；此前 [终态来源与策略](../../../logs/2026-10-memory-loop-chain/v0.6.0-terminal-and-policy/summary.md)（VIVY `2247c39a` / Laputa `884ae3f`）；此前 [canonical 来源](../../../logs/2026-10-memory-loop-chain/v0.5.0-canonical-provenance/summary.md)（VIVY `34de683b` / Laputa `884ae3f`）。此前 [并发状态](../../../logs/2026-10-memory-loop-chain/v0.4.0-state-concurrency/summary.md)（VIVY `114ad97a`）。前一增量为 [未解决窗口与字面路径](../../../logs/2026-10-memory-loop-chain/v0.3.0-recovery-and-literal-path/summary.md)（VIVY `d72add09` / Laputa `256d1f1`，策略 revision 3）。此前 [完整请求与大来源数据包](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)。VIVY `e1de33ae` 保留完整 JSON/schema，Laputa `9bc39af` 移除后续阶段不再使用的重复证据；该历史检查点的策略 implementation revision 为 `diva-cognitive/v1-review-2`。之前预算、反思观察和进程协议的提交继续保留。最终候选尚未冻结；不要沿用前检查点的 conformance/source hash 宣称新源码通过完整 CI。
 
 1. 检查三工作树的 branch、HEAD、dirty 状态和 LOCK。保留既有工作，在本隔离分支认领具体范围；若环境被重建，先按锁定版本补回工具/模型，而非更换后台。
 2. 从 VIVY 工作树执行 `source /workspace/work/memory-loop/tools/environment.sh`，确认 `go version`；UI 安装需要 registry 时使用 `https://registry.npmjs.org/`。不得修改系统目录或用户真实 profile。

@@ -21,14 +21,13 @@ Most rows remain validation gaps. MEM-LOOP-USER-SOURCE has a verified repair; fo
   domain API availability alone is not product wiring evidence (S05–S07).
 - [ ] **MEM-LOOP-FAILED-WINDOW** P0 — Budget and unresolved-window fences are repaired; VIVY `d72add09` preserves run/window/watermark and exposes blocked status, Laputa `256d1f1` stops after unresolved work. Continue original-operation receipt recovery and six-cut crash matrix before acceptance. Do not infer crash idempotence from the now-green single-source reflection case (S06/S10).
 - [ ] **MEM-LOOP-INFER-BOUNDS** P0 acceptance — Truncation and duplicate post-reflection evidence packets repaired: VIVY `e1de33ae`, Laputa `9bc39af`. Actual over-4-KiB Unicode-source reflection, runtime 75, selected composition 11, Laputa 64 and Garden 480 pass with zero skip. Complete remaining input limits/policy matrix and final new-source CI/sealing; this remains local work (S06).
-- [ ] **MEM-LOOP-RECALL-INPUT** P0 — Prove stored ordinary memory reaches
-  the model in a new session after process restart, with empty-profile and
-  recall-disabled controls; do not substitute Frozen Core or BML (S08/S09).
+- [ ] **MEM-LOOP-RECALL-INPUT** P0 acceptance — Native manifested Context Source and actual three-profile Restart recall/six controls/later correction-delete input now have developer proof (VIVY 9cbed3ea; v1.0 checkpoint). Complete formal S08/S09, explicit Agent tool-only boundary and final same-candidate gates; do not substitute Frozen Core/BML or scripted replies for live acceptance.
 - [ ] **MEM-LOOP-RECOVERY-ISOLATION** P0 — Six process-crash cuts, unknown
   effect handling, backend degradation, correction/deletion in later model input, foreign scope
   and untrusted memory content require integrated evidence (S09–S11). Public
   correction/tombstone/restart and accepted-source redelivery now have developer
-  proof (VIVY 7a1086a5, v0.9 checkpoint); S08 and crash cuts remain open.
+  proof (VIVY 7a1086a5, v0.9 checkpoint); later model-input proof is in v1.0. Full S08 and crash cuts remain open.
+- [ ] **MEM-LOOP-NATIVE-READ-LIFETIME** P0 acceptance — Cache admission, Observer recovery startup, canceled ONNX Close and canonical evidence/collection REDs repaired (VIVY b348803c; Laputa fa95945/19816ce/4faf95a). Preserve positive cold-recall race deadline failure, earlier Close timeout and correction RPC failure; complete S11 robustness/full-candidate evidence before acceptance (v1.0 checkpoint).
 - [ ] **MEM-LOOP-NATIVE-LIVE** P1 — Verify the same sealed candidate on
   Windows and with a real model; historical 15/17 migration rows do not
   establish memory-loop correctness (S12/S13).

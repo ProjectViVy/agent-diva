@@ -1,0 +1,9 @@
+{"Time":"2026-10-10T03:18:18.418429041Z","Action":"start","Package":"github.com/dashimaki/mentle/facade"}
+{"Time":"2026-10-10T03:18:18.423190198Z","Action":"run","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault"}
+{"Time":"2026-10-10T03:18:18.42326412Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Output":"=== RUN   TestCardCollectionMatchesCanonicalDefault\n"}
+{"Time":"2026-10-10T03:18:18.425376782Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Output":"    card_collection_test.go:28: card collection \"\" differs from canonical \"knowledge\"\n"}
+{"Time":"2026-10-10T03:18:18.42556158Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Output":"--- FAIL: TestCardCollectionMatchesCanonicalDefault (0.00s)\n"}
+{"Time":"2026-10-10T03:18:18.425571555Z","Action":"fail","Package":"github.com/dashimaki/mentle/facade","Test":"TestCardCollectionMatchesCanonicalDefault","Elapsed":0}
+{"Time":"2026-10-10T03:18:18.425577755Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Output":"FAIL\n"}
+{"Time":"2026-10-10T03:18:18.425798087Z","Action":"output","Package":"github.com/dashimaki/mentle/facade","Output":"FAIL\tgithub.com/dashimaki/mentle/facade\t0.007s\n"}
+{"Time":"2026-10-10T03:18:18.425812518Z","Action":"fail","Package":"github.com/dashimaki/mentle/facade","Elapsed":0.007}

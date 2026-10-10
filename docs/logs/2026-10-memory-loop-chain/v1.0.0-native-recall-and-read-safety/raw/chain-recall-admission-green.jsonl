@@ -1,0 +1,20 @@
+{"Time":"2026-10-10T02:41:40.255554604Z","Action":"start","Package":"agent-vivy/internal/runtime"}
+{"Time":"2026-10-10T02:41:40.273853664Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest"}
+{"Time":"2026-10-10T02:41:40.273888156Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest","Output":"=== RUN   TestContextSourceAdmissionCannotBeForgedByRequest\n"}
+{"Time":"2026-10-10T02:41:40.273935918Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/tenant"}
+{"Time":"2026-10-10T02:41:40.273939283Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/tenant","Output":"=== RUN   TestContextSourceAdmissionCannotBeForgedByRequest/tenant\n"}
+{"Time":"2026-10-10T02:41:40.27394434Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/tenant","Output":"--- PASS: TestContextSourceAdmissionCannotBeForgedByRequest/tenant (0.00s)\n"}
+{"Time":"2026-10-10T02:41:40.273946864Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/tenant","Elapsed":0}
+{"Time":"2026-10-10T02:41:40.273950349Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/session"}
+{"Time":"2026-10-10T02:41:40.273953945Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/session","Output":"=== RUN   TestContextSourceAdmissionCannotBeForgedByRequest/session\n"}
+{"Time":"2026-10-10T02:41:40.273956669Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/session","Output":"--- PASS: TestContextSourceAdmissionCannotBeForgedByRequest/session (0.00s)\n"}
+{"Time":"2026-10-10T02:41:40.273958792Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/session","Elapsed":0}
+{"Time":"2026-10-10T02:41:40.273961406Z","Action":"run","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/workspace"}
+{"Time":"2026-10-10T02:41:40.273963099Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/workspace","Output":"=== RUN   TestContextSourceAdmissionCannotBeForgedByRequest/workspace\n"}
+{"Time":"2026-10-10T02:41:40.273967054Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/workspace","Output":"--- PASS: TestContextSourceAdmissionCannotBeForgedByRequest/workspace (0.00s)\n"}
+{"Time":"2026-10-10T02:41:40.27397103Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest/workspace","Elapsed":0}
+{"Time":"2026-10-10T02:41:40.273974936Z","Action":"output","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest","Output":"--- PASS: TestContextSourceAdmissionCannotBeForgedByRequest (0.00s)\n"}
+{"Time":"2026-10-10T02:41:40.273976759Z","Action":"pass","Package":"agent-vivy/internal/runtime","Test":"TestContextSourceAdmissionCannotBeForgedByRequest","Elapsed":0}
+{"Time":"2026-10-10T02:41:40.274237302Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"PASS\n"}
+{"Time":"2026-10-10T02:41:40.274293521Z","Action":"output","Package":"agent-vivy/internal/runtime","Output":"ok  \tagent-vivy/internal/runtime\t0.018s\n"}
+{"Time":"2026-10-10T02:41:40.274310657Z","Action":"pass","Package":"agent-vivy/internal/runtime","Elapsed":0.019}

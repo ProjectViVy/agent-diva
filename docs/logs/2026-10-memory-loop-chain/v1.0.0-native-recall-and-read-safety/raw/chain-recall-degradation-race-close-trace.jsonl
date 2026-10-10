@@ -1,0 +1,10 @@
+{"Time":"2026-10-10T03:23:38.446540834Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T03:23:38.513329572Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely"}
+{"Time":"2026-10-10T03:23:38.513370774Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"=== RUN   TestMemoryLoopRecallDeadlineDegradesSafely\n"}
+{"Time":"2026-10-10T03:23:39.349016498Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"2026/10/10 03:23:39 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallDeadlineDegradesSafely1494357275/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T03:24:10.773350661Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"    memory_loop_recall_test.go:243: actual bounded Source degraded; late native query error=\"material read failed\" candidates=0\n"}
+{"Time":"2026-10-10T03:24:19.927725626Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Output":"--- PASS: TestMemoryLoopRecallDeadlineDegradesSafely (41.41s)\n"}
+{"Time":"2026-10-10T03:24:19.927776452Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRecallDeadlineDegradesSafely","Elapsed":41.41}
+{"Time":"2026-10-10T03:24:19.928335124Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T03:24:20.988335196Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t42.542s\n"}
+{"Time":"2026-10-10T03:24:20.988383859Z","Action":"pass","Package":"command-line-arguments","Elapsed":42.542}

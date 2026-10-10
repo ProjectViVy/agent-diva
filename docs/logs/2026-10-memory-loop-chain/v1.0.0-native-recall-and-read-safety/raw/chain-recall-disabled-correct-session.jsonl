@@ -1,0 +1,13 @@
+{"Time":"2026-10-10T02:57:55.828322424Z","Action":"start","Package":"command-line-arguments"}
+{"Time":"2026-10-10T02:57:55.848455617Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls"}
+{"Time":"2026-10-10T02:57:55.848525161Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls","Output":"=== RUN   TestMemoryLoopRecallNegativeControls\n"}
+{"Time":"2026-10-10T02:57:55.850519085Z","Action":"run","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls/recall-disabled-1"}
+{"Time":"2026-10-10T02:57:55.850527137Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls/recall-disabled-1","Output":"=== RUN   TestMemoryLoopRecallNegativeControls/recall-disabled-1\n"}
+{"Time":"2026-10-10T02:57:55.889476828Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls/recall-disabled-1","Output":"2026/10/10 02:57:55 INFO project instructions discovered root=/tmp agents_md=[TestMemoryLoopRecallNegativeControlsrecall-disabled-11564672416/001/workspace/AGENTS.md] skill_roots=0\n"}
+{"Time":"2026-10-10T02:58:01.458511053Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls/recall-disabled-1","Output":"--- PASS: TestMemoryLoopRecallNegativeControls/recall-disabled-1 (5.61s)\n"}
+{"Time":"2026-10-10T02:58:01.458549671Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls/recall-disabled-1","Elapsed":5.61}
+{"Time":"2026-10-10T02:58:01.458556992Z","Action":"output","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls","Output":"--- PASS: TestMemoryLoopRecallNegativeControls (5.61s)\n"}
+{"Time":"2026-10-10T02:58:01.458564523Z","Action":"pass","Package":"command-line-arguments","Test":"TestMemoryLoopRecallNegativeControls","Elapsed":5.61}
+{"Time":"2026-10-10T02:58:01.458567668Z","Action":"output","Package":"command-line-arguments","Output":"PASS\n"}
+{"Time":"2026-10-10T02:58:01.483650451Z","Action":"output","Package":"command-line-arguments","Output":"ok  \tcommand-line-arguments\t5.655s\n"}
+{"Time":"2026-10-10T02:58:01.483690872Z","Action":"pass","Package":"command-line-arguments","Elapsed":5.655}

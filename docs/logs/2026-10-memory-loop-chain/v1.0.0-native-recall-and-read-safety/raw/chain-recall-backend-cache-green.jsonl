@@ -1,0 +1,16 @@
+{"Time":"2026-10-10T03:08:31.924681346Z","Action":"start","Package":"github.com/dashimaki/garden/internal/runtimecore"}
+{"Time":"2026-10-10T03:08:31.939599794Z","Action":"run","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings"}
+{"Time":"2026-10-10T03:08:31.939625302Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"=== RUN   TestBackendForConcurrentScopeBindings\n"}
+{"Time":"2026-10-10T03:08:31.968784826Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"--- PASS: TestBackendForConcurrentScopeBindings (0.03s)\n"}
+{"Time":"2026-10-10T03:08:31.968819959Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Elapsed":0.03}
+{"Time":"2026-10-10T03:08:31.968964848Z","Action":"run","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings"}
+{"Time":"2026-10-10T03:08:31.968968533Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"=== RUN   TestBackendForConcurrentScopeBindings\n"}
+{"Time":"2026-10-10T03:08:31.993816503Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"--- PASS: TestBackendForConcurrentScopeBindings (0.02s)\n"}
+{"Time":"2026-10-10T03:08:31.993846137Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Elapsed":0.02}
+{"Time":"2026-10-10T03:08:31.993919939Z","Action":"run","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings"}
+{"Time":"2026-10-10T03:08:31.993945858Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"=== RUN   TestBackendForConcurrentScopeBindings\n"}
+{"Time":"2026-10-10T03:08:32.017138519Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Output":"--- PASS: TestBackendForConcurrentScopeBindings (0.02s)\n"}
+{"Time":"2026-10-10T03:08:32.017173001Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/runtimecore","Test":"TestBackendForConcurrentScopeBindings","Elapsed":0.02}
+{"Time":"2026-10-10T03:08:32.017234513Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Output":"PASS\n"}
+{"Time":"2026-10-10T03:08:33.021367815Z","Action":"output","Package":"github.com/dashimaki/garden/internal/runtimecore","Output":"ok  \tgithub.com/dashimaki/garden/internal/runtimecore\t1.096s\n"}
+{"Time":"2026-10-10T03:08:33.021427015Z","Action":"pass","Package":"github.com/dashimaki/garden/internal/runtimecore","Elapsed":1.097}
