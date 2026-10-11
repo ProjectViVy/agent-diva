@@ -1,5 +1,22 @@
 # 执行与交接手册
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
+## Current compatibility limitation — 2026-10-11
+
+Commands below reproduce the pinned DIVA go-host baseline. Current VIVY main
+retired `sdk/host/v1` and `shared`/`go-host` SDK targets, while DIVA's unchanged
+`internal/desktop/app.go` and `scripts/build-desktop.py` still consume them.
+Do not claim these historical commands build current VIVY or silently replace
+DIVA source pins. The consumer compatibility/replacement seam requires a
+separately authorized implementation decision and candidate build. Current
+App.Run memory tests and successful VIVY CI are different evidence.
+
 ## 1. 接手检查
 
 - 读当前仓库及修改目录的 AGENTS、requirements、contracts、所属 Epic 和 Story。

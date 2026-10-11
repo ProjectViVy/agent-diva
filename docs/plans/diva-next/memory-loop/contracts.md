@@ -1,5 +1,12 @@
 # 共享测试接口与证据契约
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 版本：`diva.memory-verification/v1`。这是验证工具的计划契约，不修改产品 RPC/领域 DTO。产品字段和权限继续以 DN-W3/C2、Garden agentapi 为准。校验器已实现；测试夹具已实现 ack、terminal/accepted/canonical 与同进程 close/open 冒烟。reflection/recall/reflected、跨进程 Restart 尚未实现，明确报错，S03 尚未验收。
 
 ## 1. 基线与候选

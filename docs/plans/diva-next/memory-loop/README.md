@@ -1,8 +1,43 @@
 # DIVA 记忆闭环验证 — Epic–Story 计划包
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 版本：2026-10-10。范围：详细行动计划与执行交接。2026-10-09 已开始开发；执行分支 `feat/memory-loop-verification-20261009`。
 
 > 执行采用 Superpowers `executing-plans`，按 Story 的验收前置 gate 推进；已复现缺陷的开发开始条件见 continuity.md。默认一位负责人顺序执行；可并行的依赖关系不等于已授权多个 agent 同时编辑。
+
+## Current policy and integration handoff — 2026-10-11
+
+The selected policy follows [the dated memory amendment](../../../architecture/memory-policy-alignment.md).
+V10/S05 now require one subject-level free-form Recap, full inspect/edit/delete
+UI, revision conflicts and commit-before-raw-context-unload. V19/S08 now permit
+admitted Recap through the existing context path while preserving WORLD's
+no-injection rule and requiring explicit deferred ACTMEM Agent tools. Old
+Pulse/Recap/Work and no-ACTMEM-injection checkpoints below remain historical
+proofs for their exact sources, not the new acceptance criteria. Existing
+Work/reconcile/capture compatibility is planned and is not being deleted.
+
+Laputa PR #5 and VIVY PR #46/#48 merged; BML-FIRST-INIT-CANCEL was fixed in #48.
+VIVY `ce33bc8`, [run 38095646661](https://github.com/ProjectViVy/agent-vivy/actions/runs/38095646661),
+has all four checks successful, including the supported DIVA memory lane.
+This closes the former integration/CI follow-ups; it does not repin DIVA's
+installed product, complete Story gates or implement the new Recap/UI policy.
+BML is validated first; the owner validates Mentle through DIVA with the same
+capability-aware abstraction. No switch, dual write or data migration is authorized.
+
+S05/V10 and S08/V19 need a revised implementation/test design before their new
+policy can be accepted. The dependency graph/case IDs below stay stable; old
+effort estimates remain historical and must be re-estimated for changed scope.
+Developer recall/correction/delete and six crash-cut proofs remain valid;
+Windows/live, unknown/partial-effect recovery, backend recovery and workspace
+matrices stay unclosed. Human control actions do not fill the absent model-callable
+ACTMEM read-tool gap. Current work is recorded in root TODOLIST; no Story is
+promoted by this documentation change.
 
 ## 接手人从这里开始
 
@@ -35,10 +70,10 @@
 | [S02](stories/S02.md) | E01 | 真实 Mentle 启动与读写回执 | S01 | 1 | Blocked | [真实后台准备](../../../logs/2026-10-memory-loop-verification/S02/summary.md)；Laputa `5007f62f`，S01 未通过 |
 | [S03](stories/S03.md) | E01 | 统一测试夹具与证据校验 | S01 | 0.5 | Blocked | [夹具/校验器准备](../../../logs/2026-10-memory-loop-verification/S03/summary.md)；[反思与复用 Restart 开发回归](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)，VIVY `cd080708`；[完整开发证据导出](../../../logs/2026-10-memory-loop-chain/v1.4.0-development-artifact-recorder/summary.md)，VIVY `8d3d3fa7`；正式 schema/最终候选 gate 仍待 |
 | [S04](stories/S04.md) | E02 | 用户对话采集与可信来源 | S02, S03 | 1 | Planned | [MEM-S04-01 诊断失败](../../../logs/2026-10-memory-loop-verification/S04/defects.md)；[来源修复及回执恢复](../../../logs/2026-10-memory-loop-repair/v0.2.0-source-and-environment/summary.md)已验证，前置/完整 gate 未通过 |
-| [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | 开发证据见增量；正式矩阵待 |
+| [S05](stories/S05.md) | E02 | ACTMEM 连续性与归档 | S04 | 0.5 | Planned | Selected-policy V10 redesign/implementation remains pending; older activity/archive developer evidence is preserved below, not Recap-only/UI acceptance. |
 | [S06](stories/S06.md) | E02 | 自动反思与普通记忆效果 | S04, S05 | 0.5 | Planned | [自动反思/预算](../../../logs/2026-10-memory-loop-chain/v0.1.0-reflection-and-restart/summary.md)；[完整推理请求及大来源数据包修复](../../../logs/2026-10-memory-loop-chain/v0.2.0-complete-inference-and-packets/summary.md)，VIVY `e1de33ae` / Laputa `9bc39af`；[自动门槛开发证明](../../../logs/2026-10-memory-loop-chain/v1.2.0-automatic-trigger-gates/summary.md)，VIVY `b2e937b1`；四项 race 通过零跳过；完整 case/前置 gate 未通过 |
 | [S07](stories/S07.md) | E02 | 人格审阅与冻结会话边界 | S06 | 0.5 | Planned | [模型／调用者人格权限开发证明](../../../logs/2026-10-memory-loop-chain/v1.5.0-persona-authority-denials/summary.md)，VIVY `63ce624e`；八项正负向通过；完整矩阵／前置待 |
-| [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | [v3.1 V19 边界检查](../../../logs/2026-10-memory-loop-chain/v3.1.0-s08-v19-boundary/summary.md)：WORLD/ACTMEM 不自动进入真实模型请求，显式 UI 控制动作可审计；模型可调用的读取工具仍不存在，V19/正式前置仍待。既有重启召回和六项负对照见 [v3.0](../../../logs/2026-10-memory-loop-chain/v3.0.0-s08-s11-closeout/summary.md) |
+| [S08](stories/S08.md) | E03 | 新会话召回及因果对照 | S06, S07 | 1 | Planned | [v3.1 V19 边界检查](../../../logs/2026-10-memory-loop-chain/v3.1.0-s08-v19-boundary/summary.md)：Historical baseline: WORLD/ACTMEM did not automatically enter model input and UI controls were audited; Agent read tools were absent. Current V19 now follows selected-policy admission/deferred tools; redesign/implementation and formal gates remain pending.既有重启召回和六项负对照见 [v3.0](../../../logs/2026-10-memory-loop-chain/v3.0.0-s08-s11-closeout/summary.md) |
 | [S09](stories/S09.md) | E03 | 纠正、遗忘与防止旧记忆复活 | S08 | 0.5 | Planned | [v3.0 开发收口记录](../../../logs/2026-10-memory-loop-chain/v3.0.0-s08-s11-closeout/summary.md)：纠正后新会话读取修订事实；删除后重启并三次重投旧 run，canonical 不变、墓碑不复活、新会话不含旧事实；正式前置/完整矩阵仍待 |
 | [S10](stories/S10.md) | E04 | 进程崩溃、未知结果与幂等 | S06, S09 | 1 | Planned | [C01 终态-before-Capture 10 次](../../../logs/2026-10-memory-loop-chain/v2.3.0-s10-c01-terminal-before-capture/summary.md)，VIVY `160349ca`；[C02 receipt-before-ACK 10 次](../../../logs/2026-10-memory-loop-chain/v2.2.0-s10-c02-capture-before-ack/summary.md)，VIVY `fc78d0c6`；[C03](../../../logs/2026-10-memory-loop-chain/v2.4.0-s10-c03-canonical-before-caller-receipt/summary.md)、[C04](../../../logs/2026-10-memory-loop-chain/v2.5.0-s10-c04-partial-effect-batch/summary.md)、[C05](../../../logs/2026-10-memory-loop-chain/v2.6.0-s10-c05-effects-before-watermark/summary.md)、[C06](../../../logs/2026-10-memory-loop-chain/v2.7.0-s10-c06-canonical-before-index/summary.md) 各有 10 次开发 race 样本；未知 effect/半批恢复和同候选 gate 仍待 |
 | [S11](stories/S11.md) | E04 | 后台退化、scope 隔离和不可信记忆 | S09 | 1 | Planned | [v2.9 host-bound cursor 检查点](../../../logs/2026-10-memory-loop-chain/v2.9.0-s11-hostbound-cursors/summary.md)；[v3.0 开发收口记录](../../../logs/2026-10-memory-loop-chain/v3.0.0-s08-s11-closeout/summary.md)：ordinary injection 通过；race 延迟根因确认为 hybrid search；race-only 5s 测试预算下数据边界通过，默认 750ms 超时安全降级单独通过；backend recovery/workspace A/B 仍未执行 |

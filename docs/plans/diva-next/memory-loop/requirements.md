@@ -1,16 +1,32 @@
 # 记忆闭环验证目标与源码依据
 
-版本：2026-10-10。本计划包承接 2026-10-09 调查结论，原始基线不自动等同当前远端 HEAD。
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
+版本：2026-10-11。本计划包承接 2026-10-09 调查结论，原始基线不自动等同当前远端 HEAD。
 
 ## 目标与架构
 
 证明 DIVA 的真实对话能形成持久记忆，经反思整理后，在重启后的新会话中被正确召回并影响实际回答，同时具有来源、权限和恢复证据。
 
-**Architecture:** 保持 DIVA Go/Wails → VIVY Service.Run / Journal / ObserverHost → Garden → Mentle / Laputa → INOFY → 后续模型输入的既有架构。先在真实存储和真实宿主路径上使用可控模型验证因果链，再使用真实模型和 Windows 桌面验证产品行为。
+**Architecture:** Keep DIVA Go/Wails → the existing VIVY Service.Run / Journal /
+policy/context assembly → the selected Garden/backend/Laputa boundary. VIVY
+owns admission, authorized scope and budgets; BML/Mentle/providers own CRUD,
+search, storage/indexing and returned content through one capability-aware
+abstraction. BML validation comes first; the owner validates Mentle via DIVA,
+without authorizing a DIVA switch, dual writes or migration. LIFE is the first
+default-enabled pilot of the VIVY-wide foundation; coding is excluded in phase 1.
+No second runtime, memory authority, compaction or LIFE path is permitted.
+Use controllable inference in the real host/storage path for causal evidence,
+then separately validate the installed Windows product and real model.
 
 **Tech Stack:** Go 1.26.4、Wails v3.0.0-beta.27、Vue/TypeScript、pnpm 10.33.2、Eino v0.9.13、INOFY `71e2c9bbe47d`、Garden/Mentle/Laputa、SQLite。
 
-**Spec:** [DN-W3 架构](../p0-design.md)、[现有接口与权限契约](../backend-separation-contracts.md)、[W5 验收范围](../wails/W5.md)，以及本文件的闭环验收定义。跨仓库依据为 Laputa ADR-0017 和 `docs/superpowers/plans/2026-10-02-diva-cognitive/contracts.md`。本计划扩展验证深度，不改写这些领域契约。
+**Spec:** [DN-W3 架构](../p0-design.md)、[现有接口与权限契约](../backend-separation-contracts.md)、[W5 验收范围](../wails/W5.md)，以及本文件的闭环验收定义。跨仓库依据为 Laputa ADR-0017 和 `docs/superpowers/plans/2026-10-02-diva-cognitive/contracts.md`。The dated memory-policy amendment supersedes only conflicting selected-policy requirements; other domain and validation boundaries remain in force.
 
 ## 基线与现有证据
 
@@ -36,12 +52,35 @@
 - VIVY `diva-cognitive/factory.go::Prepare`主要组装 Frozen Core；另有 BML context provider，但 DIVA recipe 未选入该 memory 模块。不能用另一套 BML 记忆库的成功代替 Garden/Mentle 的成功。
 - ACTMEM 的 `AppendActivity`、`FoldSession` 有领域接口及测试；对话采集是否驱动 Pulse/Recap、Work 是否得到已有活动内容，需验证实际接线。ingest row 被标记为 `SectionRecap` 不等于 `ACTMEM.MD` 已写入。
 
-上述为规划调查时的历史结论。首轮实际运行结果见 README 及执行 handoff；用户来源丢失现已复现，Windows/live 未验证。
+The bullets and SHA table above preserve the 2026-10-09 investigation baseline,
+not current defect state. Subsequent developer source/capture, recall,
+correction/deletion and crash-cut repairs remain real evidence in README;
+Windows/live and complete recovery/isolation acceptance remain unclosed.
+VIVY `ce33bc8` CI run 38095646661 passed all four checks, including the supported
+DIVA memory lane; it does not implement or accept the new Recap/UI policy.
 
 ## Global Constraints
 
 - 单一 Runtime、Journal、Garden owner 和绑定的记忆后台；所有模型推理保持 Service.Run / INOFY 路径。
-- 人格、普通记忆、ACTMEM 各自保持原有权威。WORLD/ACTMEM 只能由显式工具读取，禁止为让测试通过而自动注入上下文。
+- Persona, ordinary memory and ACTMEM retain their existing authorities. The selected
+  policy admits one subject-level free-form Recap across persistent same-subject
+  sessions through the existing VIVY context path. WORLD remains tool-only and
+  must never be automatically injected.
+- Commit the next Recap from prior committed Recap plus the retiring raw segment
+  before unloading that segment from active context; raw evidence persists.
+  Concurrent consolidation/human edits require revision conflicts or explicit
+  reconciliation, never silent replacement. Budgets remain experimental.
+- Dedicated UI exposes the full Recap for inspect/edit/delete. ACTMEM Agent
+  inspect/update/delete tools are normally hidden and explicitly activated via
+  deferred discovery; mechanics remain open. UI control is not Agent-tool proof.
+- Active ACTMEM delete affects only Recap/state/projection, not archived/raw
+  erasure; backend delete affects explicitly selected authorized resources only.
+  Ordinary editing is not permanent pinning. “Must not be forgotten” uses the
+  existing human-controlled Laputa Frozen Core workflow, never automatic
+  Mission/Dream/frozen persona writes.
+- Role-only workers (#57) have no default persona, unrestricted history or
+  inherited memory permission. Keep existing Work/reconcile/capture compatible
+  pending separately authorized implementation; do not delete current paths.
 - Mission 由人类控制；反思不能写 Mission 或 DREAM；人格提案与批准生效分开，普通记忆遵守已启用策略。
 - 所有场景使用独立测试 profile 和绝对配置路径；通过 `DIVA_VIVY_CONFIG` 或 `--config` 指向测试配置，配置中的数据库、工作区、模型目录也必须隔离。不读写用户生产 Journal。
 - 权限、scope、destination 由宿主绑定；模型输出、UI 的 `session_id` 和存储记录 ID 均不能提供授权。
@@ -60,9 +99,12 @@
 flowchart LR
  A[用户在会话 A 提供事实] --> B[持久 Journal 及终态]
  B --> C[带来源的 Capture 与接收回执]
- C --> D[真实 Mentle canonical 写入]
- C --> E[INOFY 反思与 Work 整理]
+ C --> D[Selected backend canonical write]
+ C --> E[Existing inference and policy path]
  E --> D
+ E --> R[Revision-checked subject Recap commit]
+ R --> U[Unload retiring raw context; retain evidence]
+ R --> G
  E --> P[人格提案及人工审阅]
  D --> F[同一作用域卡片与证据召回]
  F --> G[重启后会话 B 的实际模型输入]
@@ -74,6 +116,13 @@ flowchart LR
 必须分别记录 `accepted`、canonical 已写入、索引可用、反思已处理、召回已命中、模型已接收；不能把任意一步代替全部完成。实际状态字段以现有接口为准，缺少观测项应作为观测缺口登记，不伪造新的后台状态。
 
 **决定性场景：** 测试器在运行时生成一个随机值，例如项目别名和对应的随机编号。用户在会话 A 提供该事实；可控模型只回答“收到”，不重复事实。允许真实采集、写入和反思完成后关闭进程，用同一 profile 重启，创建无历史的会话 B，问对应编号。必须证明模型请求中的记忆证据包含正确值、来源来自 A、回答使用该值。再用未写入该事实的独立 profile 和禁用召回的测试变体重放同一个问题，两者都不得获得该值。请求正文、测试配置和系统人格中不得预置答案。
+
+For the selected shared-subject policy, “new session without history” means no
+copied raw A transcript; its authorized committed Recap may be admitted. Record
+Recap and ordinary-backend recall separately in the actual request. A backend
+causality claim must isolate Recap contribution. A full-memory-disabled control
+disables both Recap and ordinary recall, rather than assuming backend recall-off
+also removes Recap. Never inject the random answer into prompts or persona.
 
 该场景分两次运行：一次验证正常采集及普通记忆召回；一次要求反思产生可核验的记忆修订或归纳，再验证会话 B 使用该修订，避免“原始对话入库成功”掩盖反思路径失效。两次均不向领域层手工注入记忆。
 

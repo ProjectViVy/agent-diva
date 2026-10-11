@@ -5,13 +5,27 @@ Use this file to declare the current writer scope before mutating the workspace.
 
 ## Status
 - Lock State: `RELEASED`
-- Scope: `defer.md, LOCK.md`
+- Scope: `AGENTS.md, AGENTS-ARCH.MD, LAPUTA.md, README.md, README.zh-CN.md, TODOLIST.md, defer.md, docs/plans/diva-next/**/*.md, docs/architecture/memory-policy-alignment.md, docs/logs/2026-10-memory-policy-alignment/**, LOCK.md`
 - Owner: `Codex on behalf of repository owner`
-- Session/Task: `Audit deferred backlog against latest implementation and decisions`
-- Branch/Worktree: `docs/defer-all-backlog-20261010 / /workspace/work/memory-loop/agent-diva`
-- Started At: `2026-10-10T13:29:53Z`
-- Last Heartbeat: `2026-10-10T13:32:57Z`
-- Expires At: `RELEASED 2026-10-10T13:32:57Z`
+- Session/Task: `Documentation reconciliation with VIVY #58 / #57 owner decisions`
+- Branch/Worktree: `docs/memory-policy-alignment-20261011 / /workspace/doc-alignment/agent-diva`
+- Started At: `2026-10-11T14:12:25Z`
+- Last Heartbeat: `2026-10-11T14:18:45Z`
+- Expires At: `RELEASED 2026-10-11T14:18:45Z`
+
+### Handoff for policy alignment
+
+Fresh origin/main is `0a64d1ce152440f1f63d4224a155c4616d2aff5b`.
+The mounted worktree remains unchanged; this isolated worktree owns documentation
+only. No production code, tests, scripts, migrations or source pins are in scope.
+Earlier released/stale handoffs below remain historical records.
+
+Documentation-only alignment is complete. Package check, 24 evidence-checker
+regressions, backend boundary gate, local notice/log links and diff checks pass.
+`just ci` could not start because `just` is unavailable (exit 127). No prior
+logs, pins, code, tests or scripts changed. Current Recap implementation/design,
+DIVA consumer compatibility and final product acceptance remain open. The lead
+publishes this branch and a draft PR; no merge or issue edit is authorized here.
 
 ### Handoff for this task
 

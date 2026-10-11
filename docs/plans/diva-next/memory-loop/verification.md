@@ -1,5 +1,12 @@
 # 验收矩阵与评分规范
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 本文件定义测试门槛，不记录执行通过状态。证据由 contracts.md 定义，实时 Story 状态由 README.md 维护。
 
 ## 28 类必需场景
@@ -15,18 +22,18 @@
 | V07 | [S04](stories/S04.md) | completed / failed / canceled | 如实保留终态；未完成任务不产生“完成”事实 |
 | V08 | [S04](stories/S04.md) | 相同事件重投、同 ID 不同内容 | 原回执复用；冲突拒绝；无双份 canonical 记录 |
 | V09 | [S04](stories/S04.md) | 收到 Capture 但后台未完成 | 可见接受/处理状态差异及重试去向，来源身份不变 |
-| V10 | [S05](stories/S05.md) | Pulse/Recap/Work 与折叠归档 | 活动来自真实用户回合；作用域、revision、capsule 对应；重开不丢失 |
+| V10 | [S05](stories/S05.md) | One subject-level Recap and editable UI | Same-subject persistent sessions share a free-form Recap; next revision commits before old raw context unload; raw evidence persists. Concurrent AI/human edits conflict explicitly. Full Recap inspect/edit/active-delete works without claiming archive erasure; existing Work/capture compatibility is retained. |
 | V11 | [S06](stories/S06.md) | 手动和自动触发 | 同一权限与策略路径；自动测试无需手动 trigger |
 | V12 | [S06](stories/S06.md) | disabled、无新输入、前台繁忙、重复触发 | 零不必要模型调用；延期/合并可见；最多一个活动演化 |
 | V13 | [S06](stories/S06.md) | 反思生成 memory mutation / no-change | 前者有 canonical 变更及回执；后者没有伪造新增记忆 |
 | V14 | [S07](stories/S07.md) | 人格提案、拒绝、批准 | submitted 不等于 applied；旧会话冻结，新会话采纳已批准版本 |
 | V15 | [S07](stories/S07.md) | Mission 变更、伪造 actor、DREAM 输出 | 剩余过期操作被阻断；反思不能越权写 Mission/DREAM |
 | V16 | [S06](stories/S06.md) | 反思/子 Run/主管 Run 终态 | 不进入新证据，不形成自我放大循环 |
-| V17 | [S08](stories/S08.md) | 重启后新会话查询随机事实 | 卡片→来源→模型输入→回答可追踪，旧聊天未带入 |
-| V18 | [S08](stories/S08.md) | 无记忆 profile / 召回禁用对照 | 不出现随机答案；不存在旁路答案泄漏 |
-| V19 | [S08](stories/S08.md) | 普通记忆与人格/ACTMEM 分离 | 普通召回命中 Mentle；WORLD/ACTMEM 未自动注入；显式工具读取可审计 |
+| V17 | [S08](stories/S08.md) | Restarted new-session random-fact query | Backend card and/or admitted same-subject Recap → source → actual input → answer is traceable. Old raw chat is not copied into B; backend-recall causal claims isolate shared-Recap contribution. |
+| V18 | [S08](stories/S08.md) | Empty profile / selected memory disabled controls | No random answer or side-channel leakage; disable both ordinary recall and admitted Recap for a full-memory negative control and identify each source in causality evidence. |
+| V19 | [S08](stories/S08.md) | Selected-policy context and memory authority | Ordinary recall uses the selected backend; admitted subject Recap uses the same VIVY policy/context path. WORLD is never automatically injected. ACTMEM inspect/update/delete Agent tools are normally hidden, explicitly discovered and scoped/audited; human UI actions alone are insufficient. Role-only workers inherit no unrestricted history/memory/persona. |
 | V20 | [S09](stories/S09.md) | 用户纠正旧事实 | 新回答采用最新有效版本，旧版本不作为现行事实 |
-| V21 | [S09](stories/S09.md) | 删除/撤销后重启与再次反思 | tombstone 生效，已处理旧源不无意复活；新源策略另行记录 |
+| V21 | [S09](stories/S09.md) | Explicit targeted deletion and restart | Selected backend resources respect tombstones and no unintended old-effect revival; active ACTMEM delete removes only Recap/state/projection and makes no raw/archive erasure claim. Explicit raw-resource deletion and later new-source policy are separately authorized/recorded. |
 | V22 | [S10](stories/S10.md) | 未接收、已接收未 ACK、已写入未回执、半批 effects、已完成未推进水位、索引中断 | 六个独立进程崩溃切点；恢复无重复、无跳过，未知态停住 |
 | V23 | [S11](stories/S11.md) | 后台断开/权限只读/存储满 | 错误及已提交部分可见；水位不错误推进；恢复后受控继续 |
 | V24 | [S11](stories/S11.md) | profile A/B、workspace A/B、伪造 session/card/cursor | 未授权内容、数量及来源均不泄漏；当前产品不支持 workspace 时明确阻塞该产品项 |
@@ -39,14 +46,14 @@
 
 | 类别 | 合成输入/操作 | 正确结果判据 |
 |---|---|---|
-| 用户独有事实 | 用户随机编号，助手未复述 | 新会话请求含受权来源，回答等于该编号 |
+| 用户独有事实 | 用户随机编号，助手未复述 | New-session request contains an authorized, identified backend/Recap source; answer equals the random value |
 | 稳定偏好 | 明确偏好某种输出形式 | 新会话遵循该偏好，能关联记忆证据 |
 | 改写提问 | 用同义问法查询已写事实 | 使用同一有效事实，非关键词原样拷贝偶然命中 |
 | 待办延续 | 明确尚未完成的合成任务 | 新会话识别未完成状态，不编造完成 |
 | 反思修订 | 提供可归纳的两段事实 | 有实际 reflection effect，回答使用有效修订 |
 | 来源辨认 | 同时给用户事实与不同的工具内容 | 区分角色和来源，不将工具内容冒充用户主张 |
 | 纠正 | 旧值后明确给新值 | 使用新值，旧值最多作为已失效历史 |
-| 遗忘 | 经公共操作撤销某事实 | 后续模型输入及回答无该受删正文 |
+| 遗忘 | 经公共操作撤销某事实 | Later input/answer excludes the explicitly deleted active/backend resource; raw/archive erasure is not inferred. Later consolidation after active delete requires a defined policy. |
 | 空记忆对照 | 新隔离 profile 问同一随机问题 | 答未知/请求信息，不捏造随机值 |
 | 作用域拒绝 | A 私有事实在 B 查询 | 不暴露事实、计数和来源；合理拒绝或未知 |
 

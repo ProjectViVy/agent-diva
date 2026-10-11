@@ -1,4 +1,11 @@
 > **Historical under DN-W3 (2026-10-04).** This file preserves prior scope,
+
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
 > contracts and evidence. Its Tauri/C ABI/Rust host execution steps and
 > scheduling/readiness statements are inactive. Use the [current index](index.md)
 > and its W0–W7 plans. Domain behavior and explicitly deferred scope remain

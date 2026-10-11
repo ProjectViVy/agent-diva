@@ -1,5 +1,12 @@
 # DIVA Next — authoritative delivery index
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 Revision **DN-W3-P1**, 2026-10-04. This is the single live migration status
 and dependency authority. [Architecture](p0-design.md) and
 [contracts](backend-separation-contracts.md) remain in their existing locations.

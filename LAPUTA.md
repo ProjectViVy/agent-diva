@@ -1,5 +1,12 @@
 # LAPUTA
 
+> Current memory-policy authority (2026-10-11): [Unified context pipeline](docs/architecture/memory-policy-alignment.md).
+> The 2026-08-14 baseline below is historical; its Pulse/Recap schedule,
+> AutoDream/subagent descriptions and missing architecture-directory links are
+> not current implementation requirements. Current Laputa authority is in the
+> sibling repository; DIVA follows the existing governed Frozen Core/Mission
+> human workflow and one subject-level editable Recap. WORLD stays tool-only.
+
 - 状态：现行入口（2026-08-14）
 - 完整架构：**[`docs/architecture/laputa/`](docs/architecture/laputa/README.md)**
 

@@ -1,5 +1,12 @@
 # Agent Diva
 
+> Current memory-policy authority (2026-10-11): [Unified context pipeline](docs/architecture/memory-policy-alignment.md).
+> The Rust-era structure, memory/backend naming and memory-policy descriptions below
+> are historical baseline material where they conflict with that authority.
+> The current desktop uses Go/Wails and the existing VIVY runtime; use
+> [DIVA Next](docs/plans/diva-next/index.md), the current `justfile` and source pins.
+> Development, commit, lock and documentation rules in AGENTS.md still apply.
+
 > **Branch status (DIVA Next wire-cut):** the legacy Rust workspace and Tauri backend described below have been removed on this branch (issue #13, plan DN-P1). Only the Vue frontend remains, pending rewiring to the VIVY backend. See `docs/plans/diva-next/index.md`.
 
 <img src="docs/resources/diva.png" align="right" width="500" />

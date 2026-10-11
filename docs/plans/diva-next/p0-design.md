@@ -1,5 +1,12 @@
 # DIVA Next closure — detailed architecture
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 ## DN-W3: Go-owned desktop migration (2026-10-04)
 
 **Current architectural amendment; planned, not implemented.**
@@ -363,10 +370,13 @@ Extend the owner with internally issued principal-specific capabilities sharing
 its runtime. Only trusted composition obtains human control. Model arguments
 cannot obtain that capability.
 
-The first supported Garden-backed memory adapter is the existing Mentle adapter,
-selected explicitly as `backend_id: mentle` during fresh setup. No BML adapter
-is added speculatively. Full memory acceptance requires its canonical writer /
-receipt and required resources to be available; frozen-only/spooled/index-
+DIVA's existing Garden-backed route uses the Mentle adapter selected explicitly
+as `backend_id: mentle` during fresh setup. Under the current #58 foundation,
+validate BML first and let the owner validate Mentle through DIVA, using the same
+capability-aware backend abstraction. VIVY owns authorized scope, admission and
+experimental budgets; adapters own storage/indexing/returned content. This does
+not authorize a DIVA switch, dual write or migration. Full memory acceptance
+requires its canonical writer / receipt and required resources to be available; frozen-only/spooled/index-
 degraded behavior remains visible and is not called full memory delivery.
 This is a design choice for the new composition, not an automatic backend
 switch in an existing home. Backend changes are stopped-host reconfiguration.
@@ -450,8 +460,12 @@ Use existing VIVY static-instruction/mask ordering; add validated FrozenCore
 as required authority context in the per-run preparation path, before optional
 recall/history consumes its budget. Tests establish that mask guidance/evidence
 cannot replace or claim Persona authority. Seven ordered slots: Mission,
-Identity, Relationship, Redline, User, Dream, Dark. WORLD/ACTMEM are tool-only.
-No full ACTMEM automatic injection or changing profile in global static prompt.
+Identity, Relationship, Redline, User, Dream, Dark. WORLD remains tool-only and
+must never be automatically injected. For the selected #58 policy, one
+subject-level Recap is admitted through this existing context path under VIVY
+scope/admission/budget controls, not a new authority or global profile prompt.
+ACTMEM Agent inspect/update/delete tools remain normally hidden until explicit
+deferred discovery; implementation mechanics are still open.
 
 Ordinary ContextSource candidates are currently appended as user evidence;
 that is not an authority slot. Use that existing path for optional bounded
@@ -554,8 +568,13 @@ business database.
 
 - Persona: readiness, current/frozen revisions, human CAS edit, review diff;
   stale review refreshes/re-proposes, never forces acceptance.
-- ACTMEM: scoped Pulse/Recap/Work with existing caps; agent Work patch and
-  validated human whole-save are separate capabilities.
+- ACTMEM selected policy: one free-form subject Recap with dedicated full
+  inspect/edit/delete UI and revision conflicts for AI/human edits. Active delete
+  removes Recap/state/projection only and does not imply raw/archive erasure.
+  Existing Work/reconcile/capture compatibility remains planned. Retiring raw
+  context unloads only after the next Recap commits; raw evidence persists.
+  Ordinary edits are not permanent pinning; the human frozen workflow handles
+  “must not be forgotten” without automatic Mission/Dream/persona writes.
 - Memory: explicit backend/destination/scope, canonical/index state, card
   search before exact evidence expansion; no BML DTO relabelling.
 - Evolution: policy, eligibility, watermark/window, active run, workflow

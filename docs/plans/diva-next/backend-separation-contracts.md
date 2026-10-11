@@ -1,5 +1,12 @@
 # DIVA Next contracts — DN-W3 / 2026-10-04
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 ## W3 Go-host contracts
 
 **Proposed interfaces, not currently exported.** The inspected source baseline
@@ -501,7 +508,7 @@ capability. Definitions remain schema/grant/Generation validated.
 Page limit defaults 20, maximum 100, with no hidden-scope totals. Cursor is
 opaque and bound to scope/query/revision; invalidation is explicit. Action
 input <=64 KiB, output <=256 KiB unless a tighter owning domain cap applies.
-Owner ACTMEM caps and Persona projection rules remain unchanged. No generic
+Selected-policy Recap budgets remain experimental and are measured through VIVY admission; historical ACTMEM caps below characterize their original baseline. Persona projection authority remains unchanged. No generic
 unlimited Markdown reader is admitted.
 
 The policy CAS revision is a safe numeric UI revision. Existing RunBinding

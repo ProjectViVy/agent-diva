@@ -1,5 +1,12 @@
 # Agent Diva Architecture Guide
 
+> Current memory-policy authority (2026-10-11): [Unified context pipeline](docs/architecture/memory-policy-alignment.md).
+> The Rust-era structure, memory/backend naming and memory-policy descriptions below
+> are historical baseline material where they conflict with that authority.
+> The current desktop uses Go/Wails and the existing VIVY runtime; use
+> [DIVA Next](docs/plans/diva-next/index.md), the current `justfile` and source pins.
+> Development, commit, lock and documentation rules in AGENTS.md still apply.
+
 **Generated:** 2026-08-07
 **Branch:** agent-diva-pro
 **Purpose:** Exploratory architecture reference. For project rules and processes, see `AGENTS.md`.

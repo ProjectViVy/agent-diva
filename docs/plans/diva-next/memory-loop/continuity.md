@@ -1,5 +1,12 @@
 # 持续修复准入与阻塞处理
 
+> Memory-policy amendment — 2026-10-11: [VIVY #58 / #57 alignment](../../../architecture/memory-policy-alignment.md)
+> governs the selected Recap-only policy, subject scope, editable UI, targeted
+> deletion, deferred tools and backend/policy ownership. Older Pulse/Recap/Work
+> or tool-only ACTMEM descriptions below are superseded for that policy only;
+> WORLD remains tool-only. Pinned baselines, recorded evidence and other gates
+> retain their original meaning. This amendment does not claim implementation.
+
 本文件补充开发开始条件，不修改产品能力、Story 验收依赖、V01–V28 断言或样本门槛。当前状态、负责人和下一动作仍由 README 统一维护。
 
 ## 两种准入条件

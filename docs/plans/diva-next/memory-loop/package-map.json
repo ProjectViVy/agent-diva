@@ -101,7 +101,7 @@
         "vivy:internal/app/app.go",
         "vivy:internal/app/facehost.go",
         "vivy:internal/app/cognitive_origin_test.go",
-        "vivy:sdk/host/v1/host.go"
+        "vivy:internal/app/cognitive_lifecycle_test.go"
       ],
       "new": [
         "vivy:internal/app/memory_loop_fixture_test.go",

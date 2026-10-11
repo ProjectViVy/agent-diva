@@ -1,5 +1,11 @@
 # Deferred backlog archive
 
+> Historical archive, preserved as recorded. The [2026-10-11 policy amendment](docs/architecture/memory-policy-alignment.md)
+> supersedes selected Pulse/Recap/Work/tool-only ACTMEM requirements. PR #5/#46/#48
+> are merged and VIVY `ce33bc8` run 38095646661 passed all four checks;
+> earlier open-PR/CI-failure entries below describe prior checkpoints.
+> Current work is in [TODOLIST](TODOLIST.md); no archived checkbox is promoted.
+
 Archived: 2026-10-10. This preserves the 47 non-current deferred entries and their historical context from the former `TODOLIST.md`. These entries are postponed, not completed or accepted. The current cross-project follow-ups are listed in [`TODOLIST.md`](TODOLIST.md).
 
 ## 最新版本盘点 — 2026-10-10
