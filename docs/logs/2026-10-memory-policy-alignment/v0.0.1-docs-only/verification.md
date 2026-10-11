@@ -27,3 +27,8 @@ Existing upstream VIVY exact commit `ce33bc8776b9f52ab13bed5f2cdaf8ebad01f666`
 run 38095646661 has four successful checks. It is upstream evidence, not a
 claim that this documentation worktree ran product CI or that installed DIVA's
 consumer compatibility and new Recap policy are complete.
+
+Final link-review follow-up: all local hyperlinks in `LAPUTA.md` now resolve.
+Four absent legacy-directory targets are preserved as historical text references.
+`git diff --check` passes. No product/test rerun is necessary for this root-page
+hyperlink-only correction; previous documentation and evidence checks apply.

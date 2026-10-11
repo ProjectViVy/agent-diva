@@ -139,3 +139,10 @@ Work/reconcile/capture compatibility; and DIVA replacement consumer seam.
 New policy/UI implementation and installed Windows/real-model,
 unknown/partial-effect, backend recovery and workspace matrices remain open.
 No Story state, historical acceptance result or candidate pin is promoted.
+
+## Final link-review follow-up
+
+Converted four pre-existing dead `LAPUTA.md` links into explicit historical
+path references. The `docs/architecture/laputa/` directory is absent; references
+are preserved as text, and the current memory-policy link remains usable.
+No historical evidence or original architectural decision is rewritten.

@@ -8,7 +8,7 @@
 > human workflow and one subject-level editable Recap. WORLD stays tool-only.
 
 - 状态：现行入口（2026-08-14）
-- 完整架构：**[`docs/architecture/laputa/`](docs/architecture/laputa/README.md)**
+- 完整架构：**`docs/architecture/laputa/` (historical path; directory absent)**
 
 本文取代 2026-06-12 的 v0.0.6 索引。那份「14 content section + `.laputa/state.json` + Commitment/Preferences/memory_md」**已废**，不得再当设计依据。旧正文只存在于 git 历史。
 
@@ -30,6 +30,6 @@ AutoDream 整理 ACTMEM，人格只按允许表提案。Evolution 只管 Skill�
 
 | 要看什么 | 去哪 |
 | --- | --- |
-| 现行架构全文 | [`docs/architecture/laputa/architecture.md`](docs/architecture/laputa/architecture.md) |
-| 决策原文 | [`docs/architecture/laputa/sources.md`](docs/architecture/laputa/sources.md) |
-| 别再信的旧说法 | [`docs/architecture/laputa/do-not-read-as-current.md`](docs/architecture/laputa/do-not-read-as-current.md) |
+| 现行架构全文 | `docs/architecture/laputa/architecture.md` (historical path; directory absent) |
+| 决策原文 | `docs/architecture/laputa/sources.md` (historical path; directory absent) |
+| 别再信的旧说法 | `docs/architecture/laputa/do-not-read-as-current.md` (historical path; directory absent) |
