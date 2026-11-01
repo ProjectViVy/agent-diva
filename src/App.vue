@@ -59,7 +59,7 @@ onMounted(checkHost);
 }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
-.app-shell { position: relative; isolation: isolate; overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: #fce1d8; }
+.app-shell { position: relative; isolation: isolate; overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: transparent; }
 .app-shell > :not(.atmosphere) { position: relative; }
 main { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
 main::-webkit-scrollbar { width: 10px; }

@@ -43,7 +43,7 @@ onMounted(() => {
 
 <style scoped>
 .atmosphere {
-  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .72;
   background: radial-gradient(ellipse 62% 83% at 5% 15%, rgba(255,250,231,.98), transparent 77%),
     radial-gradient(ellipse 62% 73% at 66% 2%, rgba(247,164,139,.74), transparent 76%),
     radial-gradient(ellipse 59% 74% at 20% 96%, rgba(255,218,140,.85), transparent 84%),
