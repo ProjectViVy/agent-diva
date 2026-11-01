@@ -5,7 +5,6 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 const status = ref("Connecting to the desktop host...");
 const busy = ref(false);
-const maximized = ref(false);
 
 async function checkHost() {
   if (busy.value) return;
@@ -28,8 +27,8 @@ onMounted(checkHost);
 </script>
 
 <template>
-  <div class="app-shell" :class="{ maximized }">
-    <TitleBar @maximized="maximized = $event" />
+  <div class="app-shell">
+    <TitleBar />
   <main>
     <header>PROJECT VIVY <span>DESKTOP</span></header>
     <section aria-labelledby="title">
@@ -58,8 +57,7 @@ onMounted(checkHost);
 }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
-.app-shell { height: 100vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255, 255, 255, .48); border-radius: 18px; background: rgba(245, 245, 239, .72); }
-.app-shell.maximized { border-radius: 0; border-color: transparent; }
+.app-shell { height: 100vh; display: flex; flex-direction: column; background: rgba(245, 245, 239, .72); }
 main { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
 main::-webkit-scrollbar { width: 10px; }
 main::-webkit-scrollbar-track { background: transparent; }

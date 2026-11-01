@@ -3,7 +3,6 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted, ref } from "vue";
 
-const emit = defineEmits<{ maximized: [value: boolean] }>();
 const desktop = isTauri();
 const error = ref("");
 const maximized = ref(false);
@@ -15,12 +14,11 @@ onMounted(async () => {
   try {
     const window = getCurrentWindow();
     const stop = await window.onResized(async () => {
-      try { maximized.value = await window.isMaximized(); emit("maximized", maximized.value); } catch { /* Window may be closing. */ }
+      try { maximized.value = await window.isMaximized(); } catch { /* Window may be closing. */ }
     });
     if (disposed) { stop(); return; }
     unlisten = stop;
     maximized.value = await window.isMaximized();
-    emit("maximized", maximized.value);
   } catch {
     error.value = "Unable to read window state.";
   }
