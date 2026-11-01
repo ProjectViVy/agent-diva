@@ -3,6 +3,7 @@ import { computed, nextTick, onUnmounted, ref } from "vue";
 import TitleBar from "./TitleBar.vue";
 import Atmosphere from "./Atmosphere.vue";
 import SettingsView from "./SettingsView.vue";
+import VoiceMessage from "./VoiceMessage.vue";
 
 type Message = { id: number; text: string } | { id: number; audio: string };
 const messages = ref<Message[]>([]);
@@ -14,6 +15,7 @@ const recording = ref(false);
 const requesting = ref(false);
 const error = ref("");
 const list = ref<HTMLElement | null>(null);
+const input = ref<HTMLTextAreaElement | null>(null);
 const canSend = computed(() => draft.value.trim().length > 0);
 let nextId = 0;
 let stream: MediaStream | undefined;
@@ -32,6 +34,7 @@ function send() {
   if (!text) return;
   messages.value.push({ id: nextId++, text });
   draft.value = "";
+  void nextTick(resizeInput);
   void scrollToLatest();
 }
 function stopTracks() {
@@ -96,7 +99,14 @@ function closeSettings() {
 function toggleMode() {
   endRecording(true);
   voiceMode.value = !voiceMode.value;
+  if (!voiceMode.value) void nextTick(resizeInput);
   error.value = "";
+}
+function resizeInput() {
+  const element = input.value;
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${Math.min(element.scrollHeight, 140)}px`;
 }
 function onKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
@@ -122,7 +132,7 @@ onUnmounted(() => {
         <div v-for="message in messages" :key="message.id" class="message-row">
           <div class="bubble">
             <template v-if="'text' in message">{{ message.text }}</template>
-            <audio v-else :src="message.audio" controls aria-label="播放语音消息"></audio>
+            <VoiceMessage v-else :src="message.audio" />
           </div>
         </div>
       </div>
@@ -135,7 +145,7 @@ onUnmounted(() => {
             <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M6 10h.1M9 10h.1m3 0h.1m3 0h.1m3 0h.1M7 14h10"/></svg>
           </button>
           <button v-if="voiceMode" type="button" class="hold" :class="{ active: recording }" :aria-busy="requesting" @pointerdown.prevent="startRecording" @pointerup="endRecording(false)" @pointercancel="endRecording(true)" @lostpointercapture="held && endRecording(true)" @contextmenu.prevent>{{ requesting ? '正在请求麦克风…' : recording ? '松开发送' : '按住说话' }}</button>
-          <textarea v-else v-model="draft" rows="1" placeholder="说点什么…" aria-label="输入消息" @keydown="onKeydown"></textarea>
+          <textarea v-else ref="input" v-model="draft" @input="resizeInput" rows="1" placeholder="说点什么…" aria-label="输入消息" @keydown="onKeydown"></textarea>
           <button v-if="!voiceMode && canSend" type="button" class="send" @click="send">发送</button>
           <button v-else type="button" class="icon-button add" aria-label="更多功能，暂未开放" title="更多功能，暂未开放" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
         </div>
@@ -154,13 +164,14 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid #ad7382; outli
 .app-shell > :not(.atmosphere) { position: relative; }
 .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 26px clamp(22px, 5vw, 64px); }
-.messages::-webkit-scrollbar { width: 10px; }
-.messages::-webkit-scrollbar-thumb { background: rgba(119, 71, 62, .35); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
-.messages::-webkit-scrollbar-thumb:hover { background-color: rgba(119, 71, 62, .6); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(119, 71, 62, .35); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(119, 71, 62, .6); }
 .empty { color: #a98986; font-size: 13px; text-align: center; margin-top: 18vh; }
 .message-row { display: flex; justify-content: flex-end; margin: 0 0 14px; }
 .bubble { max-width: min(75%, 580px); padding: 11px 15px; border-radius: 16px 16px 4px 16px; background: rgba(255, 250, 246, .82); box-shadow: 0 3px 16px rgba(126, 76, 70, .06); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble audio { display: block; max-width: 100%; height: 36px; }
+
 .connection-note { margin: 0 0 10px 52px; font-size: 11px; color: #896b6c; }
 .composer-wrap { padding: 16px clamp(20px, 5vw, 64px) 28px; }
 .composer { display: flex; align-items: flex-end; gap: 10px; }
@@ -169,7 +180,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid #ad7382; outli
 .icon-button:not(:disabled):hover { background: rgba(255, 250, 246, .7); }
 .icon-button:disabled { opacity: .48; cursor: not-allowed; }
 textarea, .hold { flex: 1; min-width: 0; min-height: 42px; max-height: 140px; border: 1px solid rgba(133, 92, 91, .14); border-radius: 12px; background: rgba(255, 252, 249, .78); color: #533941; }
-textarea { resize: vertical; padding: 11px 14px; line-height: 20px; }
+textarea { resize: none; overflow-y: auto; padding: 11px 14px; line-height: 20px; }
 textarea::placeholder { color: #ae9492; }
 .hold { cursor: pointer; touch-action: none; user-select: none; font-size: 14px; }
 .hold.active { background: #efd0cc; }
