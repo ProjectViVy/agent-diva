@@ -58,14 +58,14 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 </template>
 
 <style scoped>
-.titlebar { height: 48px; flex: 0 0 48px; display: flex; align-items: stretch; position: relative; border-bottom: 1px solid rgba(64, 77, 69, .12); background: rgba(246, 247, 241, .48); user-select: none; }
-.title { flex: 1; display: flex; align-items: center; padding-left: 18px; font-size: 12px; font-weight: 600; color: #59675e; letter-spacing: .02em; }
+.titlebar { height: 48px; flex: 0 0 48px; display: flex; align-items: stretch; position: relative; border-bottom: 1px solid rgba(114, 68, 58, .14); background: rgba(255, 233, 208, .28); user-select: none; }
+.title { flex: 1; display: flex; align-items: center; padding-left: 18px; font-size: 12px; font-weight: 600; color: #80594e; letter-spacing: .02em; }
 .window-controls { display: flex; flex: 0 0 auto; }
-.window-control { width: 46px; height: 100%; padding: 0; border: 0; background: transparent; color: #24332e; display: grid; place-items: center; cursor: pointer; }
+.window-control { width: 46px; height: 100%; padding: 0; border: 0; background: transparent; color: #563b35; display: grid; place-items: center; cursor: pointer; }
 .window-control svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.2; }
-.window-control:hover { background: rgba(42, 57, 48, .1); }
+.window-control:hover { background: rgba(109, 62, 54, .12); }
 .window-control.close:hover { background: #c42b1c; color: white; }
-.window-control:focus-visible { outline: 2px solid #526f60; outline-offset: -3px; }
+.window-control:focus-visible { outline: 2px solid #a8685b; outline-offset: -3px; }
 .window-control:disabled { cursor: default; opacity: .5; }
 .window-error { position: absolute; top: 32px; right: 18px; z-index: 2; padding: 8px 12px; background: #fff; color: #7c2929; border-radius: 6px; font-size: 12px; }
 </style>
