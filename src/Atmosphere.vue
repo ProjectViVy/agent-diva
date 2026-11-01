@@ -29,8 +29,10 @@ onMounted(() => {
     const scale = Math.min(window.devicePixelRatio || 1, 2);
     element.width = Math.max(1, Math.round(bounds.width * scale));
     element.height = Math.max(1, Math.round(bounds.height * scale));
+    context.imageSmoothingEnabled = false;
+    context.setTransform(scale * 2, 0, 0, scale * 2, 0, 0);
     context.fillStyle = pattern;
-    context.fillRect(0, 0, element.width, element.height);
+    context.fillRect(0, 0, bounds.width / 2, bounds.height / 2);
   };
   observer = new ResizeObserver(() => {
     cancelAnimationFrame(frame);
@@ -55,11 +57,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #f8d4aa; }
+.atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #fce1d8; }
 .light { position: absolute; inset: -30%; will-change: transform; }
-.light-one { background: radial-gradient(ellipse at 23% 20%, #ffe6a1 0%, transparent 46%), radial-gradient(ellipse at 83% 72%, #f5a9ad 0%, transparent 48%), radial-gradient(ellipse at 75% 10%, #ffc486 0%, transparent 42%); animation: drift-one 24s ease-in-out infinite alternate; }
-.light-two { background: radial-gradient(ellipse at 16% 85%, rgba(248, 169, 145, .75), transparent 43%), radial-gradient(ellipse at 58% 47%, rgba(255, 231, 169, .72), transparent 48%), radial-gradient(ellipse at 95% 14%, rgba(244, 167, 185, .65), transparent 38%); animation: drift-two 30s ease-in-out infinite alternate; }
-.grain { position: absolute; inset: 0; width: 100%; height: 100%; mix-blend-mode: soft-light; opacity: .55; }
+.light-one { background: radial-gradient(ellipse at 23% 20%, #fff1bf 0%, transparent 46%), radial-gradient(ellipse at 83% 72%, #f5b9cb 0%, transparent 48%), radial-gradient(ellipse at 75% 10%, #ffdfc2 0%, transparent 42%); animation: drift-one 24s ease-in-out infinite alternate; }
+.light-two { background: radial-gradient(ellipse at 16% 85%, rgba(250, 190, 190, .72), transparent 43%), radial-gradient(ellipse at 58% 47%, rgba(255, 242, 201, .78), transparent 48%), radial-gradient(ellipse at 95% 14%, rgba(244, 188, 211, .7), transparent 38%); animation: drift-two 30s ease-in-out infinite alternate; }
+.grain { position: absolute; inset: 0; width: 100%; height: 100%; mix-blend-mode: soft-light; opacity: .62; }
 @keyframes drift-one { from { transform: translate3d(-2%, -2%, 0) scale(1); } to { transform: translate3d(3%, 2%, 0) scale(1.06); } }
 @keyframes drift-two { from { transform: translate3d(2%, 2%, 0) scale(1.04); } to { transform: translate3d(-3%, -2%, 0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .light { animation: none; } }

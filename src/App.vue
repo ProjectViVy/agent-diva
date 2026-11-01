@@ -51,7 +51,7 @@ onMounted(checkHost);
 <style>
 :root {
   font-family: "Segoe UI", sans-serif;
-  color: #563b35;
+  color: #533941;
   background: transparent;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -59,7 +59,7 @@ onMounted(checkHost);
 }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
-.app-shell { position: relative; isolation: isolate; overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: #f8d4aa; }
+.app-shell { position: relative; isolation: isolate; overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: #fce1d8; }
 .app-shell > :not(.atmosphere) { position: relative; }
 main { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
 main::-webkit-scrollbar { width: 10px; }
@@ -67,16 +67,16 @@ main::-webkit-scrollbar-track { background: transparent; }
 main::-webkit-scrollbar-thumb { background: rgba(119, 71, 62, .35); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
 main::-webkit-scrollbar-thumb:hover { background-color: rgba(119, 71, 62, .6); }
 header, footer { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; letter-spacing: .12em; }
-header span, footer { color: #805d54; }
+header span, footer { color: #805b65; }
 section { width: min(100%, 680px); margin: auto 0; padding: 64px 0; }
-.eyebrow { color: #a16655; font-size: 14px; }
+.eyebrow { color: #ab7183; font-size: 14px; }
 h1 { font-size: clamp(48px, 8vw, 88px); font-weight: 500; letter-spacing: -.06em; margin: 12px 0; line-height: 1.1; }
 .intro { font-size: 24px; }
-.note { color: #805d54; max-width: 460px; line-height: 1.7; }
+.note { color: #805b65; max-width: 460px; line-height: 1.7; }
 .host { border-top: 1px solid rgba(126, 78, 65, .22); margin-top: 40px; padding-top: 16px; }
 .host p { font-size: 13px; line-height: 1.6; }
-button { font: inherit; font-size: 14px; padding: 10px 16px; border: 1px solid #87564b; border-radius: 6px; color: #fff; background: #87564b; cursor: pointer; }
-button:hover { background: #6f403b; }
-button:focus-visible { outline: 3px solid #a8685b; outline-offset: 3px; }
+button { font: inherit; font-size: 14px; padding: 10px 16px; border: 1px solid #985e70; border-radius: 6px; color: #fff; background: #985e70; cursor: pointer; }
+button:hover { background: #7c4659; }
+button:focus-visible { outline: 3px solid #b76f87; outline-offset: 3px; }
 button:disabled { opacity: .6; cursor: wait; }
 </style>
