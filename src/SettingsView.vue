@@ -42,18 +42,21 @@ async function backToList() {
       </nav>
       <article class="settings-detail" :aria-labelledby="'settings-detail-title'">
         <button type="button" class="back" @click="backToList">← 返回分类</button>
+        <div :key="selected.id" class="detail-content">
+        <span class="detail-watermark" aria-hidden="true">{{ selected.id === "providers" ? "01" : selected.id === "mcp" ? "02" : "03" }}</span>
         <p class="detail-kicker">{{ selected.subtitle }}</p>
         <h2 id="settings-detail-title" ref="detailHeading" tabindex="-1">{{ selected.label }}</h2>
         <div class="detail-rule"></div>
         <p class="detail-message">{{ selected.description }}</p>
         <p class="detail-note">相关功能将在后续版本提供。</p>
+        </div>
       </article>
     </div>
   </section>
 </template>
 
 <style scoped>
-.settings { flex: 1; min-height: 0; display: flex; flex-direction: column; color: #563b41; }
+.settings { animation: reveal .38s ease-out both; flex: 1; min-height: 0; display: flex; flex-direction: column; color: #563b41; }
 .settings-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px clamp(24px, 5vw, 64px); }
 .overline { font-size: 10px; letter-spacing: .17em; font-weight: 700; color: #9d6f73; }
 .return, .back { border: 0; padding: 8px 0; background: transparent; color: #80545e; font-size: 13px; cursor: pointer; }
@@ -64,11 +67,14 @@ h1, h2 { margin: 0; font-weight: 500; letter-spacing: -.055em; line-height: 1.08
 h1 { font-size: clamp(44px, 6vw, 70px); } h1 span { color: #cc7e85; }
 .nav-caption, .detail-kicker { color: #a77a7b; font-size: 11px; letter-spacing: .12em; margin: 18px 0 30px; }
 .nav-items { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
-.nav-items button { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; padding: 10px 0; color: #a58582; background: transparent; text-align: left; font-size: clamp(19px, 2.1vw, 25px); cursor: pointer; }
-.nav-items button span { opacity: 0; font-size: 15px; }
+.nav-items button { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; padding: 10px 0; color: #a58582; background: transparent; text-align: left; font-size: clamp(19px, 2.1vw, 25px); cursor: pointer; transition: color .22s ease, transform .22s ease; }
+.nav-items button span { opacity: 0; font-size: 15px; transition: opacity .22s ease, transform .22s ease; }
 .nav-items button:hover, .nav-items button.selected { color: #7a3f50; }
-.nav-items button:hover span, .nav-items button.selected span { opacity: 1; }
+.nav-items button:hover span, .nav-items button.selected span { opacity: 1; transform: translate(3px, -3px); }
+.nav-items button:hover { transform: translateX(4px); }
 .settings-detail { min-width: 0; min-height: 0; overflow-y: auto; padding: 27px 0 24px clamp(28px, 5vw, 72px); }
+.detail-content { position: relative; isolation: isolate; animation: detail-in .32s ease-out both; }
+.detail-watermark { position: absolute; z-index: -1; right: 0; top: -34px; font-size: clamp(100px, 16vw, 220px); font-weight: 300; line-height: 1; letter-spacing: -.08em; color: rgba(179, 102, 111, .09); pointer-events: none; user-select: none; }
 .detail-kicker { margin: 0 0 14px; text-transform: uppercase; }
 h2 { font-size: clamp(36px, 4.5vw, 56px); }
 .detail-rule { width: 48px; height: 2px; background: #cd8991; margin: 30px 0; }
@@ -77,6 +83,9 @@ h2 { font-size: clamp(36px, 4.5vw, 56px); }
 .back { display: none; }
 button:focus-visible { outline: 2px solid #ad7382; outline-offset: 4px; }
 h1:focus, h2:focus { outline: none; }
+@keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes detail-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .settings, .detail-content { animation: none; } .nav-items button, .nav-items button span { transition: none; } }
 @media (max-width: 680px) {
   .settings-body { display: block; padding-top: 0; }
   .settings-nav, .settings-detail { height: 100%; padding: 16px 0 24px; border: 0; }
