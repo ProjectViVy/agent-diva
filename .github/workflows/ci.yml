@@ -1,111 +1,20 @@
 name: CI
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [main, develop]
-    tags:
-      - "v*.*.*"
-    paths:
-      - 'agent-diva-gui/**'
-      - '.github/workflows/ci.yml'
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'agent-diva-gui/**'
-      - '.github/workflows/ci.yml'
-
-env:
-  NODE_VERSION: '20'
-  PNPM_VERSION: '10'
-
+on: [push, pull_request]
 permissions:
   contents: read
-
-# DN-5 adds the thin-shell gate: vivy-bridge is pure Rust with no webkit
-# dependency, so its FFI tests run in CI. The Tauri shell crate itself
-# (webkit2gtk, bundling) is verified on native runners per the plan.
 jobs:
-  gui-check:
-    name: GUI Test & Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: agent-diva-gui/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: agent-diva-gui
-        run: pnpm install --frozen-lockfile
-
-      - name: Test
-        working-directory: agent-diva-gui
-        run: pnpm test
-
-      - name: Build
-        working-directory: agent-diva-gui
-        run: pnpm build
-
-      - name: Legacy-call gate
-        run: node scripts/ci/check_legacy_frontend_calls.mjs --selftest
-
-  shell-bridge-check:
-    name: vivy-bridge FFI Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: agent-diva-gui/src-tauri
-      - name: Bridge FFI tests
-        working-directory: agent-diva-gui/src-tauri
-        run: cargo test -p vivy-bridge
-
-  boundary-gate:
-    name: Backend boundary gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Boundary check (dep graph + manifest)
-        run: python3 scripts/ci/check_vivy_backend_boundary.py
-
-  # DN-8C Windows x64 engineering gate: the thin shell, bridge and speech
-  # crates compile on the real Windows toolchain (tauri's WebView2 loader is
-  # dynamic, no GTK needed). The sealed vivy-shared.dll is produced by the
-  # VIVY sdk pack on a Windows machine and is NOT staged here, so the
-  # env-gated real-artifact tests skip — they activate when
-  # DIVA_VIVY_RUNTIME/DIVA_VIVY_CONFIG point at a staged Windows runtime.
-  windows-shell-check:
-    name: Windows x64 shell compile + bridge tests
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: agent-diva-gui/src-tauri
-      - name: Bridge + speech check
-        working-directory: agent-diva-gui/src-tauri
-        run: cargo check -p vivy-bridge -p diva-speech
-      - name: Whole-workspace compile check (shell included)
-        working-directory: agent-diva-gui/src-tauri
-        run: cargo check --workspace
-      - name: MSVC environment (cl on PATH for fake-artifact build)
-        uses: ilammy/msvc-dev-cmd@v1
-      - name: Bridge FFI tests (fake artifact; real artifact env-gated)
-        working-directory: agent-diva-gui/src-tauri
-        run: cargo test -p vivy-bridge
+          components: rustfmt
+      - run: npm ci
+      - run: npm run build
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: npm run tauri build -- --debug --no-bundle

@@ -1,157 +1,28 @@
-# Rust
-# Rust build outputs from the root workspace and nested reference workspaces
-**/target/
-# Accidental cargo message-mode output at repo root
-/build_utf8.json
-/build.json
-**/*.rs.bk
-*.d
-*.rlib
-*.so
-*.dylib
-*.dll
-*.pdb
-
-# IDE & AI tool caches - all ignored by .*/ rule below
-# Only .git/ and .github/ are preserved
-.idea/
-.vscode/
-
-# Ignore all hidden directories (starting with .) except .git and .github
-.*/
-!/.git/
-!/.git/**
-!/.github/
-!/.github/**
-
-# Ignore all directories starting with _
-_*/
-!agent-diva-gui/src/components/persona-memory/__tests__/
-!agent-diva-gui/src/components/persona-memory/__tests__/**
-
-# JS/GUI
-**/node_modules/
-**/.pnpm-store/
-**/.npm/
-**/.npm-cache/
-**/dist/
-**/.turbo/
-**/.next/
-**/.nuxt/
-**/.svelte-kit/
-**/.vite/
-**/.cache/
-**/.parcel-cache/
-**/coverage/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/*
-!build/vivy-sources.lock.json
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.pytest_cache/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# OS
-.DS_Store
-Thumbs.db
-*.DS_Store?
-ehthumbs.db
-# macOS Icon? files (not src/assets/icons)
-/[Ii]con?
-Thumbs.db
-desktop.ini
-
-# Windows command redirect artifacts
-nul
-
-# Environment
-.env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.staging.local
-
-# Test artifacts
-*.profraw
-coverage/
-
-# Nested test workspaces (local experiments)
-tui-test/target/
-tui-test/Cargo.lock
-
-# Documentation build
-target/doc/
-
-# GUI bundle 构建产物（由 prepare_gui_bundle.py 生成）
-**/src-tauri/gen/
-**/src-tauri/resources/bin/
-**/src-tauri/resources/manifests/
-
-# VRM 子包的编译产物（防止 tsc 无 outDir 时污染 src/）
-agent-diva-gui/shared-avatar-protocol/src/*.js
-agent-diva-gui/shared-avatar-protocol/src/*.d.ts
-agent-diva-gui/shared-avatar-protocol/src/*.d.ts.map
-agent-diva-gui/shared-avatar-protocol/src/*.js.map
-agent-diva-gui/avatar-runtime-vrm/demo-dist/
-
-# BMad Builder artifacts
-_bmad/
-_bmad-output/
-
-# Temporary files
-*.tmp
-*.temp
-stderr.txt
-stdout.txt
-*.swp
-*~
-.*.swp
-*.*~
-
-logs/
-!docs/logs/
-!docs/logs/**
-
-# Log files
+# Logs
+logs
 *.log
 npm-debug.log*
+yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# OMC (oh-my-claudecode) session state
-.omc/
+node_modules
+dist
+dist-ssr
+*.local
 
-# Temporary state files
-state/
-!agent-diva-gui/src/state/
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Workspace temporary staging area
-temp/
+.env
+.env.*
+!.env.example

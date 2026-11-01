@@ -1,0 +1,35 @@
+{
+    "$schema":  "https://schema.tauri.app/config/2",
+    "productName":  "Agent Diva",
+    "version":  "0.1.0",
+    "identifier":  "org.projectvivy.agentdiva",
+    "build":  {
+                  "beforeDevCommand":  "npm run dev",
+                  "devUrl":  "http://localhost:1420",
+                  "beforeBuildCommand":  "npm run build",
+                  "frontendDist":  "../dist"
+              },
+    "app":  {
+                "windows":  [
+                                {
+                                    "title":  "Agent Diva",
+                                    "width":  1100,
+                                    "height":  760
+                                }
+                            ],
+                "security":  {
+                                 "csp":  "default-src \u0027self\u0027; connect-src ipc: http://ipc.localhost; img-src \u0027self\u0027 asset: http://asset.localhost data:; style-src \u0027self\u0027 \u0027unsafe-inline\u0027"
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  "all",
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/128x128@2x.png",
+                                "icons/icon.icns",
+                                "icons/icon.ico"
+                            ]
+               }
+}

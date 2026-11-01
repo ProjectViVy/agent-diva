@@ -1,0 +1,24 @@
+{
+    "name":  "agent-diva",
+    "private":  true,
+    "version":  "0.1.0",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite",
+                    "build":  "vue-tsc --noEmit \u0026\u0026 vite build",
+                    "preview":  "vite preview",
+                    "tauri":  "tauri",
+                    "check":  "vue-tsc --noEmit"
+                },
+    "dependencies":  {
+                         "vue":  "^3.5.13",
+                         "@tauri-apps/api":  "^2"
+                     },
+    "devDependencies":  {
+                            "@vitejs/plugin-vue":  "^6.0.7",
+                            "typescript":  "~6.0.3",
+                            "vite":  "^8.0.16",
+                            "vue-tsc":  "^3.3.5",
+                            "@tauri-apps/cli":  "^2"
+                        }
+}

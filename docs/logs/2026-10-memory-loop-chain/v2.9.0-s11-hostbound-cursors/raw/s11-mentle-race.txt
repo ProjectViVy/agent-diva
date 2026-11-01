@@ -1,2 +1,0 @@
-ok  	github.com/dashimaki/mentle/facade	13.832s
-ok  	github.com/dashimaki/mentle/internal/hybrid	1.017s

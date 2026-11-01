@@ -1,3 +1,0 @@
-# Prevent Tauri's Rust watcher from reacting to generated schema churn.
-src-tauri/gen
-src-tauri/gen/**

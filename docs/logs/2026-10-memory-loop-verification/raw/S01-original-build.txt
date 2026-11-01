@@ -1,3 +1,0 @@
-go version failed in /workspace/work/memory-loop/agent-diva:
-Go: Unknown option: version
-
