@@ -105,7 +105,6 @@ onUnmounted(() => {
     <Atmosphere />
     <TitleBar />
     <main class="chat">
-      <div class="chat-heading"><strong>Agent Diva</strong><span>尚未连接 · 当前内容仅在此窗口保留</span></div>
       <div ref="list" class="messages" aria-label="对话内容" aria-live="polite">
         <div v-if="!messages.length" class="empty">在这里开始对话</div>
         <div v-for="message in messages" :key="message.id" class="message-row">
@@ -116,6 +115,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="composer-wrap">
+        <p class="connection-note">尚未连接 · 消息仅在此窗口保留</p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="composer">
           <button type="button" class="icon-button" :aria-label="voiceMode ? '切换到文字输入' : '切换到语音输入'" :title="voiceMode ? '文字输入' : '语音输入'" @click="toggleMode">
@@ -141,9 +141,6 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid #ad7382; outli
 .app-shell { position: relative; isolation: isolate; overflow: hidden; height: 100vh; display: flex; flex-direction: column; background: #fce1d8; }
 .app-shell > :not(.atmosphere) { position: relative; }
 .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.chat-heading { padding: 22px 28px 17px; border-bottom: 1px solid rgba(117, 73, 65, .1); display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.chat-heading strong { font-size: 16px; font-weight: 600; }
-.chat-heading span { font-size: 11px; color: #896b6c; text-align: right; }
 .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 26px clamp(22px, 5vw, 64px); }
 .messages::-webkit-scrollbar { width: 10px; }
 .messages::-webkit-scrollbar-thumb { background: rgba(119, 71, 62, .35); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
@@ -152,6 +149,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid #ad7382; outli
 .message-row { display: flex; justify-content: flex-end; margin: 0 0 14px; }
 .bubble { max-width: min(75%, 580px); padding: 11px 15px; border-radius: 16px 16px 4px 16px; background: rgba(255, 250, 246, .82); box-shadow: 0 3px 16px rgba(126, 76, 70, .06); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .bubble audio { display: block; max-width: 100%; height: 36px; }
+.connection-note { margin: 0 0 10px 52px; font-size: 11px; color: #896b6c; }
 .composer-wrap { padding: 16px clamp(20px, 5vw, 64px) 28px; }
 .composer { display: flex; align-items: flex-end; gap: 10px; }
 .icon-button { flex: 0 0 42px; width: 42px; height: 42px; border: 1px solid rgba(133, 92, 91, .23); border-radius: 50%; background: rgba(255, 250, 246, .38); color: #78555c; display: grid; place-items: center; cursor: pointer; }
@@ -167,5 +165,5 @@ textarea::placeholder { color: #ae9492; }
 .send { height: 42px; min-width: 58px; border: 0; border-radius: 10px; background: #a96f7c; color: #fff; cursor: pointer; }
 .send:hover { background: #925969; }
 .error { margin: 0 0 10px 52px; color: #8a353b; font-size: 12px; }
-@media (max-width: 600px) { .chat-heading { padding: 18px 20px; } .chat-heading span { max-width: 180px; } .composer-wrap { padding-bottom: 20px; } }
+@media (max-width: 600px) { .composer-wrap { padding-bottom: 20px; } }
 </style>

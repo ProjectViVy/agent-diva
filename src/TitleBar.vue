@@ -42,6 +42,8 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 <template>
   <header class="titlebar" data-tauri-drag-region>
     <span class="title" data-tauri-drag-region>Agent Diva</span>
+    <button class="menu-button" type="button" aria-label="菜单，暂未开放" title="菜单，暂未开放" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+    <span class="drag-space" data-tauri-drag-region></span>
     <div class="window-controls" aria-label="Window controls">
       <button class="window-control" type="button" aria-label="Minimize" title="Minimize" :disabled="!desktop" @click="windowAction('minimize')">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg>
@@ -59,7 +61,10 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 
 <style scoped>
 .titlebar { height: 48px; flex: 0 0 48px; display: flex; align-items: stretch; position: relative; border-bottom: 1px solid rgba(114, 68, 58, .14); background: rgba(255, 239, 236, .3); user-select: none; }
-.title { flex: 1; display: flex; align-items: center; padding-left: 18px; font-size: 12px; font-weight: 600; color: #805b65; letter-spacing: .02em; }
+.title { display: flex; align-items: center; padding-left: 18px; font-size: 12px; font-weight: 600; color: #805b65; letter-spacing: .02em; }
+.menu-button { align-self: center; width: 36px; height: 36px; margin-left: 8px; padding: 9px; border: 0; border-radius: 6px; background: transparent; color: #805b65; opacity: .6; cursor: not-allowed; }
+.menu-button svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.drag-space { flex: 1; }
 .window-controls { display: flex; flex: 0 0 auto; }
 .window-control { width: 46px; height: 100%; padding: 0; border: 0; background: transparent; color: #533941; display: grid; place-items: center; cursor: pointer; }
 .window-control svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.2; }
