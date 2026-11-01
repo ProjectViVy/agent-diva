@@ -29,7 +29,6 @@ async function backToList() {
 <template>
   <section id="settings-panel" class="settings" :class="{ 'show-detail': showDetail }" aria-label="设置">
     <div class="settings-top">
-      <span class="overline">AGENT DIVA / SETTINGS</span>
       <button type="button" class="return" @click="emit('close')">← 返回对话</button>
     </div>
     <div class="settings-body">
@@ -57,8 +56,7 @@ async function backToList() {
 
 <style scoped>
 .settings { animation: reveal .38s ease-out both; flex: 1; min-height: 0; display: flex; flex-direction: column; color: #563b41; }
-.settings-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px clamp(24px, 5vw, 64px); }
-.overline { font-size: 10px; letter-spacing: .17em; font-weight: 700; color: #9d6f73; }
+.settings-top { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 20px clamp(24px, 5vw, 64px); }
 .return, .back { border: 0; padding: 8px 0; background: transparent; color: #80545e; font-size: 13px; cursor: pointer; }
 .return:hover, .back:hover { color: #b85f77; }
 .settings-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 33%) minmax(0, 1fr); padding: 12px clamp(24px, 5vw, 64px) 38px; }
