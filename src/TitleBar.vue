@@ -3,6 +3,10 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted, ref } from "vue";
 
+defineProps<{ settingsOpen: boolean }>();
+const emit = defineEmits<{ toggleSettings: [] }>();
+const menuButton = ref<HTMLButtonElement | null>(null);
+defineExpose({ focusMenu: () => menuButton.value?.focus() });
 const desktop = isTauri();
 const error = ref("");
 const maximized = ref(false);
@@ -41,7 +45,7 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 
 <template>
   <header class="titlebar" data-tauri-drag-region>
-    <button class="menu-button" type="button" aria-label="菜单，暂未开放" title="菜单，暂未开放" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+    <button ref="menuButton" class="menu-button" type="button" :aria-label="settingsOpen ? '关闭设置' : '打开设置'" :title="settingsOpen ? '关闭设置' : '打开设置'" :aria-expanded="settingsOpen" aria-controls="settings-panel" @click="emit('toggleSettings')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
     <span class="title" data-tauri-drag-region>Agent Diva</span>
     <span class="drag-space" data-tauri-drag-region></span>
     <div class="window-controls" aria-label="Window controls">
@@ -62,7 +66,9 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 <style scoped>
 .titlebar { height: 48px; flex: 0 0 48px; display: flex; align-items: stretch; position: relative; border-bottom: 1px solid rgba(114, 68, 58, .14); background: rgba(255, 239, 236, .3); user-select: none; }
 .title { display: flex; align-items: center; padding-left: 2px; font-size: 12px; font-weight: 600; color: #805b65; letter-spacing: .02em; }
-.menu-button { align-self: center; width: 36px; height: 36px; margin-left: 10px; padding: 9px; border: 0; border-radius: 6px; background: transparent; color: #805b65; opacity: .6; cursor: not-allowed; }
+.menu-button { align-self: center; width: 36px; height: 36px; margin-left: 10px; padding: 9px; border: 0; border-radius: 6px; background: transparent; color: #805b65; cursor: pointer; }
+.menu-button:hover { background: rgba(109, 62, 54, .12); }
+.menu-button:focus-visible { outline: 2px solid #b76f87; outline-offset: -2px; }
 .menu-button svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .drag-space { flex: 1; }
 .window-controls { display: flex; flex: 0 0 auto; }

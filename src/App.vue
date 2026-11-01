@@ -2,11 +2,14 @@
 import { computed, nextTick, onUnmounted, ref } from "vue";
 import TitleBar from "./TitleBar.vue";
 import Atmosphere from "./Atmosphere.vue";
+import SettingsView from "./SettingsView.vue";
 
 type Message = { id: number; text: string } | { id: number; audio: string };
 const messages = ref<Message[]>([]);
 const draft = ref("");
 const voiceMode = ref(false);
+const settingsOpen = ref(false);
+const titleBar = ref<InstanceType<typeof TitleBar> | null>(null);
 const recording = ref(false);
 const requesting = ref(false);
 const error = ref("");
@@ -82,6 +85,14 @@ function endRecording(cancel = false) {
   if (recorder && recorder.state !== "inactive") recorder.stop();
   else stopTracks();
 }
+function toggleSettings() {
+  if (!settingsOpen.value) endRecording(true);
+  settingsOpen.value = !settingsOpen.value;
+}
+function closeSettings() {
+  settingsOpen.value = false;
+  void nextTick(() => titleBar.value?.focusMenu());
+}
 function toggleMode() {
   endRecording(true);
   voiceMode.value = !voiceMode.value;
@@ -103,8 +114,9 @@ onUnmounted(() => {
 <template>
   <div class="app-shell">
     <Atmosphere />
-    <TitleBar />
-    <main class="chat">
+    <TitleBar ref="titleBar" :settings-open="settingsOpen" @toggle-settings="toggleSettings" />
+    <SettingsView v-if="settingsOpen" @close="closeSettings" />
+    <main v-show="!settingsOpen" class="chat">
       <div ref="list" class="messages" aria-label="对话内容" aria-live="polite">
         <div v-if="!messages.length" class="empty">在这里开始对话</div>
         <div v-for="message in messages" :key="message.id" class="message-row">
