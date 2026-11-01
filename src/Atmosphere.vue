@@ -37,6 +37,7 @@ onMounted(() => {
 <template>
   <div class="atmosphere" aria-hidden="true">
     <div class="flow"></div>
+    <div class="wash"></div>
     <div class="grain" :style="{ backgroundImage: noiseImage }"></div>
   </div>
 </template>
@@ -54,6 +55,7 @@ onMounted(() => {
 .flow::before, .flow::after { content: ""; position: absolute; inset: 0; will-change: transform; }
 .flow::before { background: radial-gradient(ellipse 38% 45% at 24% 36%, rgba(255,249,220,.96), transparent 82%), radial-gradient(ellipse 42% 46% at 75% 55%, rgba(238,130,138,.52), transparent 81%); animation: flow-a 28s ease-in-out infinite alternate; }
 .flow::after { background: radial-gradient(ellipse 39% 47% at 67% 19%, rgba(255,214,175,.7), transparent 83%), radial-gradient(ellipse 37% 41% at 35% 80%, rgba(255,249,220,.96), transparent 81%); animation: flow-b 37s ease-in-out infinite alternate; }
+.wash { position: absolute; inset: 0; background: rgba(255, 252, 249, .84); }
 .grain { position: absolute; inset: -3%; background-repeat: repeat; background-size: 640px 640px; opacity: .82; mix-blend-mode: soft-light; animation: grain-drift 46s ease-in-out infinite alternate; will-change: transform; }
 .grain::after { content: ""; position: absolute; inset: 0; background-image: inherit; background-size: inherit; background-repeat: inherit; opacity: .55; mix-blend-mode: multiply; }
 @keyframes flow-a { from { transform: translate3d(-6%, -4%, 0) rotate(-7deg) scale(1.05); } to { transform: translate3d(8%, 6%, 0) rotate(6deg) scale(1.13); } }
