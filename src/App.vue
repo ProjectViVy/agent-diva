@@ -56,9 +56,13 @@ onMounted(checkHost);
   -webkit-font-smoothing: antialiased;
 }
 * { box-sizing: border-box; }
-body { margin: 0; }
-.app-shell { min-height: 100vh; display: flex; flex-direction: column; background: rgba(245, 245, 239, .72); }
-main { flex: 1; min-height: 0; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
+body { margin: 0; overflow: hidden; }
+.app-shell { height: 100vh; display: flex; flex-direction: column; background: rgba(245, 245, 239, .72); }
+main { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
+main::-webkit-scrollbar { width: 10px; }
+main::-webkit-scrollbar-track { background: transparent; }
+main::-webkit-scrollbar-thumb { background: rgba(78, 103, 88, .35); border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+main::-webkit-scrollbar-thumb:hover { background-color: rgba(65, 90, 75, .6); }
 header, footer { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; letter-spacing: .12em; }
 header span, footer { color: #64726a; }
 section { width: min(100%, 680px); margin: auto 0; padding: 64px 0; }
