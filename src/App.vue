@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import TitleBar from "./TitleBar.vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 const status = ref("Connecting to the desktop host...");
@@ -26,6 +27,8 @@ onMounted(checkHost);
 </script>
 
 <template>
+  <div class="app-shell">
+    <TitleBar />
   <main>
     <header>PROJECT VIVY <span>DESKTOP</span></header>
     <section aria-labelledby="title">
@@ -40,20 +43,22 @@ onMounted(checkHost);
     </section>
     <footer>Tauri + Vue <span>Foundation / 01</span></footer>
   </main>
+  </div>
 </template>
 
 <style>
 :root {
   font-family: "Segoe UI", sans-serif;
   color: #24332e;
-  background: #f5f5ef;
+  background: transparent;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { min-height: 100vh; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; background: rgba(245, 245, 239, .72); }
+main { flex: 1; min-height: 0; padding: clamp(24px, 6vw, 72px); display: flex; flex-direction: column; }
 header, footer { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; letter-spacing: .12em; }
 header span, footer { color: #64726a; }
 section { width: min(100%, 680px); margin: auto 0; padding: 64px 0; }
