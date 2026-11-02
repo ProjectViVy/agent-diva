@@ -21,6 +21,7 @@ export function createRuntime(transport: DesktopTransport) {
   let stop: (() => void)[] = [];
   let installed = false;
   let refresh: Promise<void> | undefined;
+  let refreshEpoch=-1;
   let refreshAgain = false;
   let disposed = false;
   let epoch = 0;
@@ -31,7 +32,7 @@ export function createRuntime(transport: DesktopTransport) {
   function disconnect(error: string) {
     epoch++;
     if (state.live?.text) state.interrupted = state.live.text;
-    state.live = null; state.connected = false; state.error = error;
+    state.live = null; state.connected = false; state.syncing=false; state.error = error;
     for(const waiter of waiting.values())waiter.reject(new Error(error));
     waiting.clear();completions.clear();
     for(const waiter of commitWaiters.values())waiter.reject(new Error(error));commitWaiters.clear();commits.clear();
@@ -90,8 +91,9 @@ export function createRuntime(transport: DesktopTransport) {
   }
   async function synchronize() {
     // Only the saved receipt turns a control into a completed UI action.
-    if (refresh) { refreshAgain=true; return refresh; }
+    if (refresh&&refreshEpoch===epoch) { refreshAgain=true; return refresh; }
     const started=epoch;
+    refreshEpoch=started;
     refresh=(async()=>{
       let retries=0;
       do {
@@ -123,7 +125,7 @@ export function createRuntime(transport: DesktopTransport) {
           throw error;
         }
       } while(refreshAgain && started===epoch);
-    })().catch(error=>{if(started===epoch)state.error=String(error);}).finally(()=>{state.syncing=false;refresh=undefined;});
+    })().catch(error=>{if(started===epoch)state.error=String(error);}).finally(()=>{if(started===epoch){state.syncing=false;refresh=undefined;}});
     return refresh;
   }
   async function connect() {

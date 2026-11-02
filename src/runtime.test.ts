@@ -3,7 +3,7 @@ import { createRuntime, type DesktopTransport } from './runtime';
 import type { Frame, Snapshot } from './generated/protocol';
 
 const snapshot = (watermark = 1): Snapshot => ({ session:'test', assistant:'main',core_version:'test',protocol_version:1,watermark,
-  plugins:[],agents:[],model:{compiled:true,configured:true,ready:true,state:'ready',issue:null},
+  plugins:[],agents:[],shell:{compiled:true,configured:false,ready:false,state:'unavailable',issue:null},model:{compiled:true,configured:true,ready:true,state:'ready',issue:null},
   python:{compiled:false,configured:false,ready:false,state:'unprepared',issue:null},
   memory:{compiled:false,configured:false,ready:false,state:'off',issue:null},revision:0,active_task:null,tasks:[],questions:[],tools:[] });
 function fixture() {
@@ -24,6 +24,16 @@ function fixture() {
   return { transport, emit:(f:Frame)=>{sequence=Math.max(sequence,f.seq);handler(f);} };
 }
 describe('desktop runtime',()=>{
+  it('starts a fresh synchronization when reconnecting before an old request settles',async()=>{
+    const f=fixture();const runtime=createRuntime(f.transport);await runtime.connect();const request=f.transport.request;
+    let finish!:(frame:Frame)=>void;
+    f.transport.request=()=>new Promise(resolve=>{finish=resolve;});
+    const old=runtime.synchronize();runtime.disconnect('old pipe closed');
+    f.transport.request=request;await runtime.connect();
+    expect(runtime.state.connected).toBe(true);expect(runtime.state.syncing).toBe(false);
+    finish({v:1,id:'old',instance:'old',seq:1,type:'reply',data:snapshot(1)});await old;
+    expect(runtime.state.instance).toBe('one');expect(runtime.state.connected).toBe(true);
+  });
   it('retries an expired history cursor without publishing a partial history',async()=>{
     const f=fixture();const original=f.transport.request;let expired=false;
     f.transport.request=async command=>{

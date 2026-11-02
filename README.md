@@ -26,6 +26,7 @@ only inside the Tauri desktop application.
 ```sh
 npm run build
 npm test
+npm run test:artifact
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --manifest-path bridge-tests/Cargo.toml --locked
 npm run tauri build -- --bundles nsis
@@ -78,10 +79,18 @@ and Job Object cleanup after forced host death. Vue runtime and MCP form tests,
 production compilation and synthetic IPC browser checks pass. The browser fixture
 was checked at actual CSS 500x400, 680/681px and 1100x760.
 
-These do not establish native WebView2 layout at 125/150% OS scale, standard-user
-installation/upgrade or hidden Recap/wake behavior. Local native UI automation is
-unavailable. The supplied real gateway checks failed (HTTP send error and exact
-model-not-found respectively); real streaming/tool acceptance remains pending.
+Short-path clean NSIS building, per-user installation, restricted-PATH startup,
+reopening, forced host death, a test 0.1.0-to-0.1.1 upgrade and default uninstall
+passed on the existing Administrator profile. Session/workspace data survived.
+These do not establish native WebView2 layout at 125/150% OS scale, clean
+standard-user installation or hidden Recap/wake behavior. Local native UI
+automation is unavailable; WebView2 was already installed on this test machine.
+
+The authorized Qwen gateway returned the exact model ID `qwen3.8-omni-flash` from
+its model-list endpoint. Native streamed chat with an actual read-tool call and
+committed result passed, as did the explicit text, stream and tool probes. The
+mixed-case ID supplied in the local note returned model-not-found; original files
+were not changed. The separate StepFun endpoint failed HTTP transport here.
 
 ## Layout and scope
 
