@@ -1,19 +1,26 @@
 // @vitest-environment happy-dom
 import {it,expect,vi} from 'vitest';
 const holder=vi.hoisted(()=>({runtime:null as any}));
+const onboard=vi.hoisted(()=>({read:async()=>({completed:true}),complete:vi.fn(async()=>{})}));
 vi.mock('./ipc',()=>({get runtime(){return holder.runtime;}}));
+vi.mock('./onboarding',()=>({readOnboarding:()=>onboard.read(),completeOnboarding:()=>onboard.complete(),resetOnboarding:async()=>{},openPersonaDirectory:async()=>''}));
 const failedError='The model call failed: ProviderResponseError: status 503 Service Unavailable: {"error":{"code":"model_not_found","message":"No available channel for model deepseek-v4.1-flash under group default","type":"new_api_error"}}';
 const defaultTools=[{id:'tool:1',task:'task:1',name:'dream_status',phase:'settled',step:1,output:'{"foreground":"idle"}',truncated:false}];
 const defaultHistory=[{id:'m1',task:'task:1',role:'assistant',text:'你好',reasoning:'先检查渠道。\n再回复用户。',status:'failed',step:2,truncated:false}];
-async function mountApp(debug:boolean,fixture:{history?:any[];tools?:any[]}={}){
+async function mountApp(debug:boolean,fixture:{history?:any[];tools?:any[]}={},options:{completed?:boolean;initialized?:boolean}={}){
  const {reactive}=await import('vue');
  const {debugOutput}=await import('./debug');
  debugOutput.value=debug;
+ onboard.read=async()=>({completed:options.completed??true});
+ onboard.complete.mockClear();
  holder.runtime={state:reactive({connected:true,connecting:false,syncing:false,error:'',directory:'',instance:'core',
   snapshot:{model:{ready:true},questions:[],active_task:null,tools:fixture.tools??defaultTools,
    tasks:[{id:'task:1',request_id:'request-1',status:'failed',generation:0,error:failedError}]},
   history:fixture.history??defaultHistory,pending:[],live:null,interrupted:''}),
-  connect:vi.fn(async()=>{}),dispose:vi.fn(),send:vi.fn(),stop:vi.fn()};
+  connect:vi.fn(async()=>{}),dispose:vi.fn(),send:vi.fn(),stop:vi.fn(),
+  operation:vi.fn(async(command:any)=>command.method==='persona_read'
+   ?{kind:'persona',data:{current:{revision:1,update_id:'u1',directory:'C:/Users/test/.laputa/personas/main',name:'Vivy',initialized:options.initialized??false,text:'',files:[],unpublished:false},history:[]}}
+   :(()=>{throw new Error(`unexpected ${command.method}`);})())};
  const {default:App}=await import('./App.vue');
  const {mount,flushPromises}=await import('@vue/test-utils');
  const w=mount(App as any);await flushPromises();
@@ -38,6 +45,20 @@ it('shows tool records and reasoning when debug output is enabled',async()=>{
  expect(reasoning.exists()).toBe(true);
  expect(reasoning.find('.reasoning-preview').text()).toBe('先检查渠道。');
  expect(reasoning.find('pre').text()).toContain('再回复用户。');
+ w.unmount();
+});
+it('shows first-run onboarding and hides the settings entry',async()=>{
+ const w=await mountApp(false,{},{completed:false});
+ expect(w.find('.onboarding').exists()).toBe(true);
+ expect(w.find('.chat').exists()).toBe(false);
+ expect(w.find('.menu-button').exists()).toBe(false);
+ w.unmount();
+});
+it('records completion instead of guiding an already initialized persona',async()=>{
+ const w=await mountApp(false,{},{completed:false,initialized:true});
+ expect(onboard.complete).toHaveBeenCalledTimes(1);
+ expect(w.find('.onboarding').exists()).toBe(false);
+ expect(w.find('.chat').exists()).toBe(true);
  w.unmount();
 });
 it('shows the reasoning of a tool-calling turn before its tool record',async()=>{

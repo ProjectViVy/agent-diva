@@ -29,7 +29,7 @@ struct Inner {
 mod tests {
     use super::*;
     fn host(root: &std::path::Path) -> Arc<Bridge> {
-        Bridge::new(root.into(), |_, _| Ok(()))
+        Bridge::new(root.into(), root.join("laputa"), |_, _| Ok(()))
     }
     fn until(mut predicate: impl FnMut() -> bool) {
         let end = Instant::now() + Duration::from_secs(10);
@@ -79,7 +79,7 @@ mod tests {
         for setting in ["never", "ask"] {
             let events = Arc::new(Mutex::new(Vec::<Value>::new()));
             let captured = events.clone();
-            let h = Bridge::new(temp.path().into(), move |_, v| {
+            let h = Bridge::new(temp.path().into(), temp.path().join("laputa"), move |_, v| {
                 captured.lock().unwrap().push(v);
                 Ok(())
             });
@@ -221,6 +221,7 @@ mod tests {
 pub struct Bridge {
     events: Box<dyn Fn(&str, Value) -> Result<(), String> + Send + Sync>,
     root: PathBuf,
+    laputa_root: PathBuf,
     inner: Mutex<Inner>,
     redactor: crate::diagnostics::Redactor,
     log_lock: Mutex<()>,
@@ -228,11 +229,13 @@ pub struct Bridge {
 impl Bridge {
     pub fn new(
         root: PathBuf,
+        laputa_root: PathBuf,
         events: impl Fn(&str, Value) -> Result<(), String> + Send + Sync + 'static,
     ) -> Arc<Self> {
         Arc::new(Self {
             events: Box::new(events),
             root,
+            laputa_root,
             redactor: crate::diagnostics::Redactor::environment(),
             log_lock: Mutex::new(()),
             inner: Mutex::new(Inner {
@@ -247,6 +250,11 @@ impl Bridge {
                 error: None,
             }),
         })
+    }
+    pub fn persona_directory(&self) -> Result<PathBuf, String> {
+        let directory = self.laputa_root.join("personas").join("main");
+        fs::create_dir_all(&directory).map_err(|e| format!("create persona directory: {e}"))?;
+        Ok(directory)
     }
     pub fn status(&self) -> Value {
         let inner = self.inner.lock().unwrap();
@@ -327,7 +335,8 @@ impl Bridge {
         }
         command
             .env("RIG_HOME", self.root.join("core-home"))
-            .env("RIG_SESSION", &store.value.session);
+            .env("RIG_SESSION", &store.value.session)
+            .env("LAPUTA_HOME", &self.laputa_root);
         let mut owned =
             OwnedChild::spawn(&mut command).map_err(|e| format!("start bundled core: {e}"))?;
         let mut stdin = owned.child.stdin.take().unwrap();

@@ -6,7 +6,7 @@ const readiness={compiled:true,configured:true,ready:true,state:'ready',issue:nu
 const snapshot:Snapshot={session:'synthetic-session',assistant:'assistant',core_version:'test-fixture',protocol_version:1,watermark:0,plugins:[],agents:[],shell:readiness,model:readiness,python:{...readiness,configured:false,ready:false,state:'unprepared'},memory:{...readiness,configured:false,ready:false,state:'off'},revision:0,active_task:null,tasks:[],questions:[],tools:[{id:'tool:1',task:'task:1',name:'read',phase:'completed',step:1,truncated:false,output:'Long tool output\n'.repeat(60)}]};
 let providers:ProvidersView={presets:[],generation:1,issue:null,protocols:['openai','anthropic'],config:{default_model:'fixture/EXACT/model-id',instances:{fixture:{name:'Synthetic gateway',protocol:'openai',base_url:'http://127.0.0.1:9/v1',credential:{source:'env',name:'SYNTHETIC_ONLY'},models:[{id:'EXACT/model-id',context_window:32768,max_output_tokens:2048,tools:true}]}}}};
 const history:HistoryMessage[]=[{id:'user:1',task:'task:1',role:'user',text:'这是合成 IPC 浏览器测试。',reasoning:'',status:'completed',step:0,truncated:false},{id:'assistant:1',task:'task:1',role:'assistant',text:'Markdown 与长内容测试。\n\n```typescript\n'+('const example = "'+'x'.repeat(180)+'";\n').repeat(8)+'```\n\n<div>Raw HTML is text.</div>',reasoning:'检查合成 IPC 的流式投影。',status:'completed',step:2,truncated:false}];
-const persona={revision:0,updateId:'fixture-0',files:[
+const persona={revision:0,updateId:'fixture-0',name:'Vivy',initialized:true,onboarded:'',files:[
  {name:'MISSION.MD',text:'帮助用户完成软件工作，并如实报告结果。',required:true,auto:false},
  {name:'IDENTITY.MD',text:'Synthetic persona',required:true,auto:true},
  {name:'RELATIONSHIP.MD',text:'与用户保持长期、直接的协作关系。',required:true,auto:true},
@@ -15,7 +15,7 @@ const persona={revision:0,updateId:'fixture-0',files:[
  {name:'DARK.MD',text:'',required:false,auto:true},
 ] as PersonaFileView[],history:[] as PersonaVersionView[]};
 const personaText=()=>persona.files.map(f=>f.text.trim()).filter(Boolean).join('\n\n');
-const personaView=()=>({revision:persona.revision,update_id:persona.updateId,directory:'synthetic://.vivy/laputa/personas/main',text:personaText(),files:persona.files.map(f=>({...f})),unpublished:false});
+const personaView=()=>({revision:persona.revision,update_id:persona.updateId,directory:'synthetic://.laputa/personas/main',name:persona.name,initialized:persona.initialized,text:personaText(),files:persona.files.map(f=>({...f})),unpublished:false});
 const personaResult=():ManagementResult=>({kind:'persona',data:{current:personaView(),history:persona.history.map(h=>({...h}))}});
 function publish(updateId:string,sources:string[]){persona.revision+=1;persona.updateId=updateId;persona.history=[...persona.history,{revision:persona.revision,update_id:updateId,text:personaText(),sources,truncated:false}];return personaResult();}
 function frame(data:Reply):Frame{const f:Frame={v:1,id:'test',instance:'synthetic',seq:++sequence,type:'reply',data:structuredClone(data)};handler(f);return f;}
@@ -29,6 +29,16 @@ async function request(command:Method):Promise<Frame>{switch(command.method){
  case 'skills_read':case 'skills_refresh':return operation({kind:'skills',data:{skills:[]}});
  case 'managed_read':return operation({kind:'managed',data:{current:null,history:[],candidates:[],issue:'Synthetic unprepared environment'}});
  case 'persona_read':return operation(personaResult());
+ case 'persona_initialize':{
+  const {description,update_id,fallback}=command.params;
+  if(persona.onboarded===update_id)return operation({kind:'persona_onboarded',data:{current:personaView(),name:persona.name,fallback}});
+  if(persona.initialized)return {v:1,id:'test',instance:'synthetic',seq:++sequence,type:'error',data:{code:'conflict',message:'a persona is already initialized'}};
+  const name=fallback||!description.trim()?'Lumen':'Nova';
+  persona.name=name;persona.initialized=true;persona.onboarded=update_id;
+  persona.files=persona.files.map(f=>f.name==='IDENTITY.MD'?{...f,text:`我是 ${name}。`}:f);
+  persona.revision+=1;persona.updateId=update_id;persona.history=[...persona.history,{revision:persona.revision,update_id,text:personaText(),sources:['onboarding'],truncated:false}];
+  return operation({kind:'persona_onboarded',data:{current:personaView(),name,fallback}});
+ }
  case 'persona_save_file':{
   const {revision,expected_update_id,update_id,name,text}=command.params;
   if(revision!==persona.revision||expected_update_id!==persona.updateId)return {v:1,id:'test',instance:'synthetic',seq:++sequence,type:'error',data:{code:'conflict',message:'Synthetic persona conflict; reload before saving.'}};

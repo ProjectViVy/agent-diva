@@ -75,14 +75,14 @@ export function createRuntime(transport: DesktopTransport) {
     if (frame.type!=='reply') throw new Error('核心没有返回关联响应');
     return frame.data;
   }
-  async function operation(command:Method):Promise<ManagementResult> {
+  async function operation(command:Method,timeoutMs=120000):Promise<ManagementResult> {
     const frame=await transport.request(command);
     if(frame.type==='error')throw new Error(frame.data.message);
     if(frame.type!=='reply'||!('operation' in frame.data))throw new Error('核心未接受管理操作');
     const key=`${frame.instance}/${frame.data.operation}`;
     let result=completions.get(key);completions.delete(key);
     if(!result)result=await new Promise<ManagementCompleted>((resolve,reject)=>{
-      const timer=setTimeout(()=>{waiting.delete(key);reject(new Error('操作结果尚不确定，请重新读取状态后再操作'));},120000);
+      const timer=setTimeout(()=>{waiting.delete(key);reject(new Error('操作结果尚不确定，请重新读取状态后再操作'));},timeoutMs);
       waiting.set(key,{resolve:r=>{clearTimeout(timer);resolve(r);},reject:e=>{clearTimeout(timer);reject(e);}});
     });
     if(result.error)throw new Error(result.error.message);

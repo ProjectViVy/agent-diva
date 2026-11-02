@@ -5,9 +5,11 @@ import { listen } from "@tauri-apps/api/event";
 import TitleBar from "./TitleBar.vue";
 import Atmosphere from "./Atmosphere.vue";
 import SettingsView from "./SettingsView.vue";
+import OnboardingView from "./OnboardingView.vue";
 import MarkdownText from "./MarkdownText.vue";
 import QuestionCard from "./QuestionCard.vue";
 import { runtime } from "./ipc";
+import { completeOnboarding, readOnboarding } from "./onboarding";
 import { describeFailure } from "./failure";
 import { debugOutput } from "./debug";
 import type { HistoryMessage, ToolInfo } from "./generated/protocol";
@@ -31,6 +33,25 @@ const timeline=computed<Entry[]>(()=>{
  return rows;
 });
 const draft=ref("");const sending=ref(false);const settingsOpen=ref(false);
+const onboardingRequired=ref(false);const onboardingChecking=ref(true);
+async function checkOnboarding(){
+ try{
+  const state=await readOnboarding();
+  if(!state.completed&&runtime.state.connected){
+   try{
+    const result=await runtime.operation({method:'persona_read'});
+    if(result.kind==='persona'&&result.data.current.initialized){
+     await completeOnboarding();onboardingRequired.value=false;return;
+    }
+   }catch{/* an unreadable persona keeps onboarding visible */ }
+  }
+  onboardingRequired.value=!state.completed;
+ }catch{onboardingRequired.value=false;}
+ finally{onboardingChecking.value=false;}
+}
+async function finishOnboarding(){
+ try{await completeOnboarding();}finally{onboardingRequired.value=false;}
+}
 const settings=ref<InstanceType<typeof SettingsView>|null>(null);
 const titleBar=ref<InstanceType<typeof TitleBar>|null>(null);
 const list=ref<HTMLElement|null>(null);const input=ref<HTMLTextAreaElement|null>(null);
@@ -53,11 +74,13 @@ async function toggleSettings(){if(settingsOpen.value&&settings.value&&!await se
 async function closeSettings(){if(settings.value&&!await settings.value.canLeave())return;settingsOpen.value=false;void nextTick(()=>titleBar.value?.focusMenu());}
 function resizeInput(){if(input.value){input.value.style.height='auto';input.value.style.height=`${Math.min(input.value.scrollHeight,140)}px`;}}
 function key(event:KeyboardEvent){if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();void send();}}
-onMounted(async()=>{if(isTauri())unlisten=await listen('open-settings',()=>{settingsOpen.value=true;});await runtime.connect();});
+onMounted(async()=>{if(isTauri())unlisten=await listen('open-settings',()=>{settingsOpen.value=true;});await runtime.connect();await checkOnboarding();});
 onUnmounted(()=>{unlisten?.();runtime.dispose();});
 </script>
 <template>
- <div class="app-shell"><Atmosphere/><TitleBar ref="titleBar" :settings-open="settingsOpen" @toggle-settings="toggleSettings"/>
+ <div class="app-shell"><Atmosphere/><TitleBar v-if="!onboardingChecking" ref="titleBar" :settings-open="settingsOpen" :onboarding="onboardingRequired" @toggle-settings="toggleSettings"/>
+  <OnboardingView v-if="onboardingRequired" @done="finishOnboarding"/>
+  <template v-else-if="!onboardingChecking">
   <SettingsView v-if="settingsOpen" ref="settings" @close="closeSettings"/>
   <main v-show="!settingsOpen" class="chat">
    <div ref="list" class="messages" aria-label="对话内容" @scroll="scrolled">
@@ -83,6 +106,7 @@ onUnmounted(()=>{unlisten?.();runtime.dispose();});
     <div class="composer"><textarea ref="input" v-model="draft" rows="1" placeholder="说点什么…" aria-label="输入消息" @input="resizeInput" @keydown="key"></textarea><button class="send" :disabled="!canSend" @click="send">{{sending?'发送中':'发送'}}</button></div>
    </div>
   </main>
+  </template>
  </div>
 </template>
 <style>

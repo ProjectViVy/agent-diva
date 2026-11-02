@@ -1,5 +1,14 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import { isTauri } from '@tauri-apps/api/core';
 import { debugOutput } from './debug';
+import { resetOnboarding } from './onboarding';
+const resetting=ref(false),error=ref('');
+async function rerunOnboarding(){
+ resetting.value=true;error.value='';
+ try{await resetOnboarding();if(isTauri())location.reload();}
+ catch(e){error.value=String(e);resetting.value=false;}
+}
 </script>
 <template>
   <div class="panel general-panel">
@@ -11,6 +20,14 @@ import { debugOutput } from './debug';
       <button type="button" class="switch" role="switch" :aria-checked="debugOutput" aria-label="调试输出" @click="debugOutput=!debugOutput"><span class="thumb"></span></button>
     </div>
     <p class="hint">{{debugOutput?'已开启：工具与推理记录会在对话中显示。':'已关闭：工具与推理记录不会出现在对话中。'}}</p>
+    <div class="setting onboarding-reset">
+      <div class="setting-copy">
+        <h3>重新运行初始化</h3>
+        <p>清除首次启动完成标记，重新加载窗口后会再次显示供应商与人格引导。已有的人格文件不会被删除。</p>
+      </div>
+      <button type="button" class="reset" :disabled="resetting" @click="rerunOnboarding">{{resetting?'正在重置…':'重新运行'}}</button>
+    </div>
+    <p v-if="error" class="failure" role="alert">{{error}}</p>
   </div>
 </template>
 <style scoped>
@@ -22,4 +39,8 @@ import { debugOutput } from './debug';
 .switch[aria-checked="true"]{background:#b87886;border-color:#b87886}
 .switch[aria-checked="true"] .thumb{transform:translateX(20px)}
 .hint{margin:14px 0 0;font-size:12px;color:#a77a7b}
+.onboarding-reset{margin-top:22px;padding-top:18px}
+.reset{padding:8px 14px;border:1px solid #a96f7c55;border-radius:8px;background:#fff8;color:#784552;font:inherit;font-size:13px;cursor:pointer}
+.reset:disabled{opacity:.5;cursor:default}
+.failure{margin:12px 0 0;font-size:12px;color:#913b48}
 </style>

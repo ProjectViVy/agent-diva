@@ -5,6 +5,8 @@ import PersonaPanel from './PersonaPanel.vue';
 import type {ManagementResult,Method,PersonaFileView,PersonaVersionView} from './generated/protocol';
 const operation=vi.hoisted(()=>vi.fn());
 vi.mock('./ipc',()=>({runtime:{operation}}));
+vi.mock('./onboarding',()=>({openPersonaDirectory:vi.fn(async()=>'C:/Users/test/.laputa/personas/main')}));
+import {openPersonaDirectory} from './onboarding';
 const baseFiles:PersonaFileView[]=[
  {name:'MISSION.MD',text:'Existing mission',required:true,auto:false},
  {name:'IDENTITY.MD',text:'Existing identity',required:true,auto:true},
@@ -16,7 +18,7 @@ const baseFiles:PersonaFileView[]=[
 const history:PersonaVersionView[]=[{revision:1,update_id:'u1',text:'Older persona',sources:['human'],truncated:false}];
 function persona(overrides:Partial<{revision:number;update_id:string;files:PersonaFileView[];unpublished:boolean}>={}):ManagementResult{
  const files=overrides.files??baseFiles.map(f=>({...f}));
- return {kind:'persona',data:{current:{revision:overrides.revision??3,update_id:overrides.update_id??'u3',directory:'C:/workspace/.vivy/laputa/personas/main',text:files.map(f=>f.text.trim()).filter(Boolean).join('\n\n'),files,unpublished:overrides.unpublished??false},history}};
+ return {kind:'persona',data:{current:{revision:overrides.revision??3,update_id:overrides.update_id??'u3',directory:'C:/Users/test/.laputa/personas/main',name:'Vivy',initialized:true,text:files.map(f=>f.text.trim()).filter(Boolean).join('\n\n'),files,unpublished:overrides.unpublished??false},history}};
 }
 function button(wrapper:ReturnType<typeof mount>,text:string){return wrapper.findAll('button').find(b=>b.text()===text);}
 function fileButton(wrapper:ReturnType<typeof mount>,name:string){return wrapper.findAll('.persona-files button').find(b=>b.find('strong').text()===name)!;}
@@ -42,7 +44,15 @@ describe('Laputa core persona panel',()=>{
   expect(text).toContain('使命宣言');
   expect(text).toContain('AutoDream 可改写');
   expect(text).toContain('仅人工');
-  expect(text).toContain('目录：C:/workspace/.vivy/laputa/personas/main');
+  expect(text).toContain('Vivy');
+  expect(text).toContain('角色工作区：C:/Users/test/.laputa/personas/main');
+  wrapper.unmount();
+ });
+ it('opens the current role workspace',async()=>{
+  const wrapper=mount(PersonaPanel);await flushPromises();
+  await button(wrapper,'打开角色工作区')!.trigger('click');
+  await flushPromises();
+  expect(openPersonaDirectory).toHaveBeenCalledTimes(1);
   wrapper.unmount();
  });
  it('saves a single file with revision, update id and fresh update id',async()=>{

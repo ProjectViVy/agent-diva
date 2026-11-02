@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed,nextTick,onMounted,ref,watch} from 'vue';
 import {runtime} from './ipc';
+import {openPersonaDirectory} from './onboarding';
 import type {PersonaView,PersonaVersionView,ManagementResult} from './generated/protocol';
 const hints:Record<string,string>={
  'MISSION.MD':'使命宣言：你为什么存在、长期要完成什么。',
@@ -14,6 +15,14 @@ const protectedFiles=new Set(['MISSION.MD','REDLINE.MD']);
 const current=ref<PersonaView|null>(null),history=ref<PersonaVersionView[]>([]);
 const selected=ref('MISSION.MD'),editing=ref(false),draft=ref(''),baseline=ref('');
 const busy=ref(false),error=ref(''),notice=ref('');
+const opening=ref(false),openError=ref('');
+async function openWorkspace(){
+ if(opening.value)return;
+ opening.value=true;openError.value='';
+ try{await openPersonaDirectory();}
+ catch(e){openError.value=String(e);}
+ finally{opening.value=false;}
+}
 const confirming=ref<{name:string;text:string}|null>(null);
 const confirmDialog=ref<HTMLDialogElement|null>(null);
 let pendingSave:((ok:boolean)=>void)|undefined;
@@ -82,10 +91,14 @@ onMounted(()=>{void load();});
  <p v-if="error" class="failure" role="alert">{{error}}</p>
  <p v-if="notice" class="notice" role="status">{{notice}}</p>
  <p v-if="current?.unpublished" class="notice" role="status">检测到外部修改：新回合已使用磁盘上的当前内容。保存任一文件即可发布为 revision {{current.revision+1}}。</p>
+ <p v-if="current&&!current.initialized" class="notice" role="status">这个人格尚未初始化。完成首次启动引导后会写入名字与使命。</p>
  <div class="persona-intro">
+  <h3 class="persona-name">{{current?.name||'Vivy'}}</h3>
   <p>六个核心人格文件按固定顺序逐字拼接，空文件跳过，整体包在 <code>&lt;persona&gt;</code> 中置于系统提示最前。</p>
   <p><code>MISSION.MD</code> 与 <code>REDLINE.MD</code> 仅由人工维护；AutoDream 只可改写 <code>IDENTITY.MD</code>、<code>RELATIONSHIP.MD</code>、<code>DREAM.MD</code>、<code>DARK.MD</code>。Recap 与 AutoDream 是内部流程，不在此编辑。</p>
-  <small class="path">目录：{{current?.directory||'读取中…'}}</small>
+  <small class="path">角色工作区：{{current?.directory||'读取中…'}}</small>
+  <div class="actions"><button :disabled="busy||opening" @click="openWorkspace">{{opening?'正在打开…':'打开角色工作区'}}</button></div>
+  <p v-if="openError" class="failure" role="alert">{{openError}}</p>
  </div>
  <template v-if="!editing">
   <div class="resource-list persona-files" role="group" aria-label="核心人格文件">
@@ -121,7 +134,7 @@ onMounted(()=>{void load();});
  <dialog ref="confirmDialog" class="confirm" aria-label="确认修改受保护人格文件" @cancel.prevent="cancelConfirm"><div><p>确定修改 {{confirming?.name}}？</p><p class="detail-note">MISSION 与 REDLINE 只由人工维护，AutoDream 不会改写它们。</p><button @click="confirmSave">确认保存</button><button @click="cancelConfirm">取消</button></div></dialog>
 </div></template>
 <style scoped>
-.persona-intro{margin:0 0 18px}.persona-intro p{margin:0 0 6px;color:#6e4c53}.persona-intro code{font-size:12px;background:#a96f7c14;padding:1px 4px;border-radius:4px}
+.persona-intro{margin:0 0 18px}.persona-name{margin:0 0 10px;font-size:24px;font-weight:500;color:#7a3f50}.persona-intro p{margin:0 0 6px;color:#6e4c53}.persona-intro code{font-size:12px;background:#a96f7c14;padding:1px 4px;border-radius:4px}
 .notice{margin:0 0 14px;padding:9px 12px;border-left:3px solid #cd8991;background:#a96f7c12;color:#6e4c53}
 .persona-files button{padding:10px 12px}.file-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.file-line strong{font-weight:600}.file-line em{font-style:normal;font-size:11px;color:#987b7a;white-space:nowrap}
 .resource-detail h3{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.resource-detail h3 small{display:inline}
