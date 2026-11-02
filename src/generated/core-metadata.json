@@ -5,11 +5,11 @@
   "profile": "dev",
   "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
   "cargo_lock_version": 4,
-  "backend_commit": "cc8d15f89a4a2c9d5788333c62b58e07b8ce468b",
+  "backend_commit": "6040884aba7228634e4f535b1605cbba0f120187",
   "rig_commit": "810d7dfd783c59f309892bbfeb1d73dbf65d51b6",
   "files": {
     "Cargo.lock": "198a07bd471a9bf807254e8c2194920fdcd9687aa63fd9b188e8c7cde88aa2db",
-    "diva-core-x86_64-pc-windows-msvc.exe": "609cd4f74dcf31c0af526c864f1896d112291b8f8e55d38a8eda9ca78a460e36",
+    "diva-core-x86_64-pc-windows-msvc.exe": "50a983873ee8e87d71e646e8ebc082ec8ba27cae587e70e59497be6ebf70cff0",
     "examples.json": "b872e5ba22142b1083fd7f5ce22680c37720ba40742efa839ec74139ff04fd65",
     "protocol.ts": "6f9ca78fee9e5869db950255f49dab82e364cfebb42c49678a9a033b31799ee9",
     "recipe.yaml": "0be0376860a88fd55ad330a8ee09a57316ef82f212e90acab80ff0a77b1b854d",
