@@ -61,6 +61,65 @@ mod tests {
     }
     #[test]
     #[ignore = "requires explicit DIVA_TEST_CORE artifact"]
+    fn native_workspace_resources_are_trusted_without_a_question() {
+        let binary = PathBuf::from(std::env::var_os("DIVA_TEST_CORE").unwrap());
+        let temp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("workspace/.rig")).unwrap();
+        fs::create_dir_all(temp.path().join("core-home")).unwrap();
+        fs::write(
+            temp.path().join("core-home/settings.toml"),
+            "[trust]\ndefault='never'\n",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("workspace/.rig/ASSISTANT.md"),
+            "DIVA_TRUST_FIXTURE",
+        )
+        .unwrap();
+        for setting in ["never", "ask"] {
+            let events = Arc::new(Mutex::new(Vec::<Value>::new()));
+            let captured = events.clone();
+            let h = Bridge::new(temp.path().into(), move |_, v| {
+                captured.lock().unwrap().push(v);
+                Ok(())
+            });
+            fs::write(
+                temp.path().join("core-home/settings.toml"),
+                format!("[trust]\ndefault=\"{setting}\"\n"),
+            )
+            .unwrap();
+            h.start_binary(binary.clone()).unwrap();
+            let response = h.request(json!({"method":"prompts_read"})).unwrap();
+            let operation = response["data"]["operation"].clone();
+            until(|| {
+                events.lock().unwrap().iter().any(|e| {
+                    e["type"] == "management_completed" && e["data"]["operation"] == operation
+                })
+            });
+            let result = events
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|e| {
+                    e["type"] == "management_completed" && e["data"]["operation"] == operation
+                })
+                .unwrap()
+                .clone();
+            assert!(
+                result.to_string().contains("DIVA_TRUST_FIXTURE"),
+                "{result}"
+            );
+            let snapshot = h.request(json!({"method":"snapshot"})).unwrap();
+            assert!(
+                snapshot["data"]["questions"].as_array().unwrap().is_empty(),
+                "{snapshot}"
+            );
+            h.shutdown();
+            events.lock().unwrap().clear();
+        }
+    }
+    #[test]
+    #[ignore = "requires explicit DIVA_TEST_CORE artifact"]
     fn native_outbox_failure_crash_reconcile_and_reopen() {
         let binary =
             PathBuf::from(std::env::var_os("DIVA_TEST_CORE").expect("explicit core artifact"));
@@ -249,6 +308,8 @@ impl Bridge {
         let mut command = Command::new(binary);
         command
             .arg("--diva")
+            // Diva owns a fixed workspace; project resources are approved at launch.
+            .arg("--approve")
             .current_dir(self.root.join("workspace"))
             .env("RIG_HOME", self.root.join("core-home"))
             .env("RIG_SESSION", &store.value.session)

@@ -111,3 +111,7 @@ persisted on page open. Existing user defaults are preserved. Configure a key or
 environment reference and save explicitly; default selection follows successful
 credential storage. Addresses and original model IDs remain editable. DeepSeek
 and MiniMax live calls require their own credentials and are not yet verified.
+
+Diva launches its bundled core with `--approve`: resources in the fixed desktop
+workspace are trusted automatically, without a project-trust question. Other
+assistant questions still use the normal question cards.
