@@ -1,17 +1,38 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, ref, watch } from "vue";
+import ProvidersPanel from './ProvidersPanel.vue';
+import RuntimePanel from './RuntimePanel.vue';
+import ManagedPanel from './ManagedPanel.vue';
+import McpPanel from './McpPanel.vue';
+import SkillsPanel from './SkillsPanel.vue';
+import PersonaPanel from './PersonaPanel.vue';
+import RecapPanel from './RecapPanel.vue';
+import TasksPanel from './TasksPanel.vue';
+type Editor={dirty:boolean;save:()=>Promise<boolean>;discard:()=>void};
+const provider=ref<Editor|null>(null);
+const confirm=ref(false);const leaveDialog=ref<HTMLDialogElement|null>(null);
+watch(confirm,async visible=>{await nextTick();if(visible)leaveDialog.value?.showModal();else leaveDialog.value?.close();});let resolveLeave:((leave:boolean)=>void)|undefined;
+async function canLeave(){if(!provider.value?.dirty)return true;confirm.value=true;return new Promise<boolean>(resolve=>{resolveLeave=resolve;});}
+async function decide(action:'save'|'discard'|'stay'){if(action==='save'&&!await provider.value?.save())return;if(action==='discard')provider.value?.discard();confirm.value=false;resolveLeave?.(action!=='stay');}
+defineExpose({canLeave});
 
 const emit = defineEmits<{ close: [] }>();
 const sections = [
-  { id: "providers", label: "供应商", subtitle: "Providers", description: "模型供应商配置尚未接入。" },
-  { id: "mcp", label: "MCP", subtitle: "Model Context Protocol", description: "MCP 连接配置尚未接入。" },
-  { id: "skills", label: "Skill", subtitle: "Skills", description: "Skill 配置尚未接入。" },
+  { id: "providers", label: "供应商", subtitle: "Providers", description: "" },
+  { id: "mcp", label: "连接", subtitle: "MCP", description: "" },
+  { id: "skills", label: "技能", subtitle: "Skills", description: "" },
+  { id: "managed", label: "托管技能", subtitle: "Managed Skills", description: "" },
+  { id: "persona", label: "人格与提示词", subtitle: "Persona / Prompts", description: "" },
+  { id: "recap", label: "回顾", subtitle: "Recap", description: "" },
+  { id: "tasks", label: "任务", subtitle: "Tasks", description: "" },
+  { id: "runtime", label: "运行环境", subtitle: "Runtime", description: "" },
 ] as const;
 const selected = ref<(typeof sections)[number]>(sections[0]);
 const showDetail = ref(false);
 const detailHeading = ref<HTMLElement | null>(null);
 const navHeading = ref<HTMLElement | null>(null);
 async function select(section: (typeof sections)[number]) {
+  if(section.id!==selected.value.id&&!await canLeave())return;
   selected.value = section;
   showDetail.value = true;
   if (window.matchMedia("(max-width: 680px)").matches) {
@@ -42,15 +63,23 @@ async function backToList() {
       <article class="settings-detail" :aria-labelledby="'settings-detail-title'">
         <button type="button" class="back" @click="backToList">← 返回分类</button>
         <div :key="selected.id" class="detail-content">
-        <span class="detail-watermark" aria-hidden="true">{{ selected.id === "providers" ? "01" : selected.id === "mcp" ? "02" : "03" }}</span>
+        <span class="detail-watermark" aria-hidden="true">{{ String(sections.findIndex(s=>s.id===selected.id)+1).padStart(2,'0') }}</span>
         <p class="detail-kicker">{{ selected.subtitle }}</p>
         <h2 id="settings-detail-title" ref="detailHeading" tabindex="-1">{{ selected.label }}</h2>
         <div class="detail-rule"></div>
-        <p class="detail-message">{{ selected.description }}</p>
-        <p class="detail-note">相关功能将在后续版本提供。</p>
+        <ProvidersPanel v-if="selected.id==='providers'" ref="provider"/>
+        <ManagedPanel v-else-if="selected.id==='managed'" ref="provider"/>
+        <McpPanel v-else-if="selected.id==='mcp'" ref="provider"/>
+        <SkillsPanel v-else-if="selected.id==='skills'" ref="provider"/>
+        <PersonaPanel v-else-if="selected.id==='persona'" ref="provider"/>
+        <RecapPanel v-else-if="selected.id==='recap'"/>
+        <TasksPanel v-else-if="selected.id==='tasks'"/>
+        <RuntimePanel v-else/>
+
         </div>
       </article>
     </div>
+    <dialog ref="leaveDialog" class="confirm" aria-label="未保存的编辑" @cancel.prevent="decide('stay')"><div><p>保存当前编辑？</p><button @click="decide('save')">保存</button><button @click="decide('discard')">放弃</button><button @click="decide('stay')">继续编辑</button></div></dialog>
   </section>
 </template>
 
@@ -91,4 +120,12 @@ h1:focus, h2:focus { outline: none; }
   .show-detail .settings-detail { display: block; }
   .back { display: inline-block; margin: 0 0 28px; }
 }
+</style>
+
+<style>
+.panel{min-width:0;font-size:14px;line-height:1.6}.panel button,.confirm button{padding:7px 12px;border:1px solid #a96f7c55;border-radius:7px;background:#fff7;color:#784552;cursor:pointer}.panel button:disabled{opacity:.5;cursor:default}.panel .actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.panel fieldset{border:0;padding:0;min-width:0}.panel label{display:flex;flex-direction:column;gap:5px;margin:12px 0;font-size:12px;color:#80545e}.panel input,.panel select,.panel textarea{min-width:0;max-width:100%;border:1px solid #a96f7c55;border-radius:7px;padding:9px;background:#fff9;color:#533941;font:inherit}.panel .check{flex-direction:row;align-items:center}.panel .failure{color:#913b48;white-space:pre-wrap;overflow-wrap:anywhere}.panel .path{overflow-wrap:anywhere}.panel small{display:block;color:#987b7a}.resource-list{display:flex;flex-direction:column;gap:6px}.resource-list button{text-align:left}.resource-list .selected{border-color:#a96f7c;background:#fff9}.resource-detail,.model-form{margin:18px 0;padding:12px 0;border-bottom:1px solid #a96f7c30}.panel pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.panel dd{margin:6px 0 16px}.confirm{border:0;padding:0;background:transparent;color:#533941;max-width:calc(100% - 32px)}.confirm::backdrop{background:#53394130}.confirm>div{padding:24px;border-radius:14px;background:#fff4ed;box-shadow:0 12px 60px #53394130}.confirm button{margin-right:8px}
+</style>
+
+<style>
+.panel textarea{min-height:140px;max-height:420px;resize:vertical}
 </style>

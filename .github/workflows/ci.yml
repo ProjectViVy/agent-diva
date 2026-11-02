@@ -16,5 +16,6 @@ jobs:
           components: rustfmt
       - run: npm ci
       - run: npm run build
+      - run: npm test
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: npm run tauri build -- --debug --no-bundle
+      - run: cargo test --manifest-path bridge-tests/Cargo.toml --locked

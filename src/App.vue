@@ -1,159 +1,60 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import TitleBar from "./TitleBar.vue";
 import Atmosphere from "./Atmosphere.vue";
 import SettingsView from "./SettingsView.vue";
-import VoiceMessage from "./VoiceMessage.vue";
-
-type Message = { id: number; text: string } | { id: number; audio: string };
-const messages = ref<Message[]>([]);
-const draft = ref("");
-const voiceMode = ref(false);
-const settingsOpen = ref(false);
-const titleBar = ref<InstanceType<typeof TitleBar> | null>(null);
-const recording = ref(false);
-const requesting = ref(false);
-const error = ref("");
-const list = ref<HTMLElement | null>(null);
-const input = ref<HTMLTextAreaElement | null>(null);
-const canSend = computed(() => draft.value.trim().length > 0);
-let nextId = 0;
-let stream: MediaStream | undefined;
-let recorder: MediaRecorder | undefined;
-let held = false;
-let disposed = false;
-let cancelled = false;
-let chunks: Blob[] = [];
-
-async function scrollToLatest() {
-  await nextTick();
-  if (list.value) list.value.scrollTop = list.value.scrollHeight;
+import MarkdownText from "./MarkdownText.vue";
+import QuestionCard from "./QuestionCard.vue";
+import { runtime } from "./ipc";
+const state=runtime.state;
+const draft=ref("");const sending=ref(false);const settingsOpen=ref(false);
+const settings=ref<InstanceType<typeof SettingsView>|null>(null);
+const titleBar=ref<InstanceType<typeof TitleBar>|null>(null);
+const list=ref<HTMLElement|null>(null);const input=ref<HTMLTextAreaElement|null>(null);
+const pinned=ref(true);const newMessages=ref(false);
+let stableDraft:{id:string,text:string}|null=null;let unlisten:(()=>void)|undefined;
+const canSend=computed(()=>!!draft.value.trim()&&state.connected&&state.snapshot?.model.ready&&!sending.value);
+const statusNames:Record<string,string>={queued:'排队中',running:'进行中',waiting:'等待唤醒',suspended:'已中断',completed:'已完成',failed:'失败',cancelled:'已停止',interrupted:'已中断'};
+const status=(value:string)=>statusNames[value]??value;
+async function latest(){await nextTick();if(list.value)list.value.scrollTop=list.value.scrollHeight;newMessages.value=false;}
+function scrolled(){if(list.value)pinned.value=list.value.scrollHeight-list.value.scrollTop-list.value.clientHeight<70;}
+watch(()=>[state.history.length,state.pending.length,state.live?.text,state.snapshot?.questions.length],()=>{if(pinned.value)void latest();else newMessages.value=true;});
+async function send(){
+ if(!canSend.value)return;const text=draft.value.trim();
+ if(stableDraft?.text!==text)stableDraft={id:crypto.randomUUID(),text};
+ sending.value=true;
+ try{await runtime.send(text,stableDraft.id);draft.value='';stableDraft=null;resizeInput();}catch{/* draft and stable retry identity stay visible */}finally{sending.value=false;}
 }
-function send() {
-  const text = draft.value.trim();
-  if (!text) return;
-  messages.value.push({ id: nextId++, text });
-  draft.value = "";
-  void nextTick(resizeInput);
-  void scrollToLatest();
-}
-function stopTracks() {
-  stream?.getTracks().forEach(track => track.stop());
-  stream = undefined;
-}
-async function startRecording(event: PointerEvent) {
-  if (event.button !== 0 || held || recording.value || requesting.value) return;
-  held = true;
-  cancelled = false;
-  error.value = "";
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-    held = false;
-    error.value = "当前环境不支持录音。";
-    return;
-  }
-  requesting.value = true;
-  try {
-    const audio = await navigator.mediaDevices.getUserMedia({ audio: true });
-    if (!held || disposed) { audio.getTracks().forEach(track => track.stop()); return; }
-    stream = audio;
-    chunks = [];
-    const active = new MediaRecorder(audio);
-    recorder = active;
-    active.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-    active.onerror = () => { cancelled = true; error.value = "录音失败，请重试。"; stopTracks(); recording.value = false; };
-    active.onstop = () => {
-      if (!disposed && !cancelled && chunks.length) {
-        const url = URL.createObjectURL(new Blob(chunks, { type: active.mimeType || "audio/webm" }));
-        messages.value.push({ id: nextId++, audio: url });
-        void scrollToLatest();
-      }
-      chunks = [];
-      stopTracks();
-      recorder = undefined;
-      recording.value = false;
-    };
-    active.start();
-    recording.value = true;
-  } catch {
-    stopTracks();
-    error.value = "无法使用麦克风，请检查权限后重试。";
-  } finally {
-    requesting.value = false;
-  }
-}
-function endRecording(cancel = false) {
-  held = false;
-  if (cancel) cancelled = true;
-  if (recorder && recorder.state !== "inactive") recorder.stop();
-  else stopTracks();
-}
-function toggleSettings() {
-  if (!settingsOpen.value) endRecording(true);
-  settingsOpen.value = !settingsOpen.value;
-}
-function closeSettings() {
-  settingsOpen.value = false;
-  void nextTick(() => titleBar.value?.focusMenu());
-}
-function toggleMode() {
-  endRecording(true);
-  voiceMode.value = !voiceMode.value;
-  if (!voiceMode.value) void nextTick(resizeInput);
-  error.value = "";
-}
-function resizeInput() {
-  const element = input.value;
-  if (!element) return;
-  element.style.height = "auto";
-  element.style.height = `${Math.min(element.scrollHeight, 140)}px`;
-}
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-    event.preventDefault();
-    send();
-  }
-}
-onUnmounted(() => {
-  disposed = true;
-  endRecording(true);
-  messages.value.forEach(message => { if ("audio" in message) URL.revokeObjectURL(message.audio); });
-});
+async function toggleSettings(){if(settingsOpen.value&&settings.value&&!await settings.value.canLeave())return;settingsOpen.value=!settingsOpen.value;}
+async function closeSettings(){if(settings.value&&!await settings.value.canLeave())return;settingsOpen.value=false;void nextTick(()=>titleBar.value?.focusMenu());}
+function resizeInput(){if(input.value){input.value.style.height='auto';input.value.style.height=`${Math.min(input.value.scrollHeight,140)}px`;}}
+function key(event:KeyboardEvent){if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();void send();}}
+onMounted(async()=>{if(isTauri())unlisten=await listen('open-settings',()=>{settingsOpen.value=true;});await runtime.connect();});
+onUnmounted(()=>{unlisten?.();runtime.dispose();});
 </script>
-
 <template>
-  <div class="app-shell">
-    <Atmosphere />
-    <TitleBar ref="titleBar" :settings-open="settingsOpen" @toggle-settings="toggleSettings" />
-    <SettingsView v-if="settingsOpen" @close="closeSettings" />
-    <main v-show="!settingsOpen" class="chat">
-      <div ref="list" class="messages" aria-label="对话内容" aria-live="polite">
-        <div v-if="!messages.length" class="empty">在这里开始对话</div>
-        <div v-for="message in messages" :key="message.id" class="message-row">
-          <div class="bubble">
-            <template v-if="'text' in message">{{ message.text }}</template>
-            <VoiceMessage v-else :src="message.audio" />
-          </div>
-        </div>
-      </div>
-      <div class="composer-wrap">
-        <p class="connection-note">尚未连接 · 消息仅在此窗口保留</p>
-        <p v-if="error" class="error" role="alert">{{ error }}</p>
-        <div class="composer">
-          <button type="button" class="icon-button" :aria-label="voiceMode ? '切换到文字输入' : '切换到语音输入'" :title="voiceMode ? '文字输入' : '语音输入'" @click="toggleMode">
-            <svg v-if="!voiceMode" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21m-3 0h6"/></svg>
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M6 10h.1M9 10h.1m3 0h.1m3 0h.1m3 0h.1M7 14h10"/></svg>
-          </button>
-          <button v-if="voiceMode" type="button" class="hold" :class="{ active: recording }" :aria-busy="requesting" @pointerdown.prevent="startRecording" @pointerup="endRecording(false)" @pointercancel="endRecording(true)" @lostpointercapture="held && endRecording(true)" @contextmenu.prevent>{{ requesting ? '正在请求麦克风…' : recording ? '松开发送' : '按住说话' }}</button>
-          <textarea v-else ref="input" v-model="draft" @input="resizeInput" rows="1" placeholder="说点什么…" aria-label="输入消息" @keydown="onKeydown"></textarea>
-          <button v-if="!voiceMode && canSend" type="button" class="send" @click="send">发送</button>
-          <button v-else type="button" class="icon-button add" aria-label="更多功能，暂未开放" title="更多功能，暂未开放" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
-        </div>
-      </div>
-    </main>
-  </div>
+ <div class="app-shell"><Atmosphere/><TitleBar ref="titleBar" :settings-open="settingsOpen" @toggle-settings="toggleSettings"/>
+  <SettingsView v-if="settingsOpen" ref="settings" @close="closeSettings"/>
+  <main v-show="!settingsOpen" class="chat">
+   <div ref="list" class="messages" aria-label="对话内容" @scroll="scrolled">
+    <div v-if="!state.history.length&&!state.pending.length" class="empty">{{state.snapshot?.model.ready?'在这里开始对话':'在设置中配置网关后开始对话'}}</div>
+    <div v-for="message in state.history" :key="message.id" class="message-row" :class="message.role"><div class="bubble"><MarkdownText :text="message.text"/><small>{{status(message.status)}}</small><small v-if="message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
+    <div v-for="message in state.pending" :key="message.request_id" class="message-row user"><div class="bubble"><MarkdownText :text="message.text"/><small>发送中 · 等待持久化确认</small></div></div>
+    <div v-if="state.live?.text" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.live.text"/><small>正在生成</small></div></div>
+    <div v-if="state.interrupted" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.interrupted"/><small>连接中断 · 此片段未确认为最终回复</small></div></div>
+    <details v-for="tool in state.snapshot?.tools" :key="tool.id" class="tool"><summary>{{tool.name}} · {{tool.phase}}</summary><pre>{{tool.output??'尚无已提交结果'}}</pre><small v-if="tool.truncated">长工具结果预览已截断；完整记录保留在核心会话中。</small></details>
+    <QuestionCard v-for="question in state.snapshot?.questions" :key="state.instance+question.id" :question="question"/>
+   </div>
+   <button v-if="newMessages" class="new-message" @click="latest">查看新消息 ↓</button>
+   <div class="composer-wrap"><p class="connection-note">{{state.connecting?'正在连接…':state.connected?'已连接':'已断开'}}<button v-if="!state.connected&&!state.connecting" @click="runtime.connect">重新连接</button><button v-if="state.snapshot?.active_task" @click="runtime.stop().catch(e=>state.error=String(e))">停止</button></p>
+    <p v-if="state.error" class="error" role="alert">{{state.error}}</p>
+    <div class="composer"><textarea ref="input" v-model="draft" rows="1" placeholder="说点什么…" aria-label="输入消息" @input="resizeInput" @keydown="key"></textarea><button class="send" :disabled="!canSend" @click="send">{{sending?'发送中':'发送'}}</button></div>
+   </div>
+  </main>
+ </div>
 </template>
-
 <style>
 :root { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #533941; background: transparent; font-synthesis: none; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
@@ -189,4 +90,8 @@ textarea::placeholder { color: #ae9492; }
 .send:hover { background: #925969; }
 .error { margin: 0 0 10px 52px; color: #8a353b; font-size: 12px; }
 @media (max-width: 600px) { .composer-wrap { padding-bottom: 20px; } }
+</style>
+
+<style scoped>
+.message-row.assistant{justify-content:flex-start}.assistant .bubble{border-radius:16px 16px 16px 4px;background:#fff5;max-width:min(90%,820px)}.bubble{white-space:normal;min-width:0}.bubble small{display:block;margin-top:8px;color:#987b7a;font-size:10px}.connection-note,.error{margin-left:0}.connection-note button{margin-left:12px;border:0;background:transparent;color:#854d60;cursor:pointer}.tool{font-size:12px;border-bottom:1px solid #a96f7c30;padding:8px 0;color:#805b65}.tool pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.new-message{align-self:center;border:0;border-radius:12px;padding:6px 14px;background:#fff9;color:#80545e;cursor:pointer}.send:disabled{opacity:.5;cursor:default}
 </style>

@@ -1,7 +1,9 @@
 # Agent Diva
 
-A fresh desktop foundation built with Tauri 2, Vue 3, TypeScript and Vite.
-The previous Go implementation is preserved on the `go-archive` branch.
+A Windows x64 Tauri/Vue desktop for the independently assembled Diva Rust core.
+It includes durable chat, questions/tools/cancellation, local management and
+close-to-tray hosting. Full release acceptance is still pending; see verification
+limits below. No source checkout or development tools are needed by the installed app.
 
 ## Development
 
@@ -12,6 +14,7 @@ On Windows, install the MSVC C++ build tools and WebView2 runtime.
 
 ```sh
 npm ci
+npm run import-core -- <explicit-core-artifact-directory>
 npm run tauri dev
 ```
 
@@ -22,14 +25,63 @@ only inside the Tauri desktop application.
 
 ```sh
 npm run build
+npm test
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-npm run tauri build -- --debug --no-bundle
-npm run tauri build
+cargo test --manifest-path bridge-tests/Cargo.toml --locked
+npm run tauri build -- --bundles nsis
 ```
 
-The final command creates a release build and platform installers. CI validates
-the frontend and an unbundled Windows debug build; macOS/Linux and release
-installers require separate verification.
+The core artifact must contain the Windows binary, Rust-generated TypeScript,
+protocol examples/version, recipe, Cargo.lock, dependency notices and metadata
+with hashes. Import verifies every file. Native builds fail if the binary or
+contract differs, or the required pinned Rig revision is absent. Never copy a
+backend source tree into this repository. CI runs frontend/bridge checks without
+a core; the separate packaging workflow requires an explicit HTTPS artifact ZIP
+and SHA256 and fails when it cannot obtain a matching artifact.
+
+For native bridge integration tests, set `DIVA_TEST_CORE` to the explicit built
+core executable, then run `cargo test --manifest-path bridge-tests/Cargo.toml --
+--include-ignored`. Use `npm run dev -- --mode test --port 1422` only for the
+synthetic IPC browser fixture; it does not talk to the core or use credentials.
+
+## Installation and use
+
+Run the NSIS installer as the intended Windows user. Installation is per-user.
+WebView2 is required; the installer can download Microsoft's bootstrapper.
+Data lives below `%LOCALAPPDATA%/org.projectvivy.agentdiva/`, separately under
+`core-home`, `workspace`, `desktop-state`, `webview2` and `logs`. Upgrade and
+ordinary uninstall retain this data. Unknown/corrupt state is rejected or shown
+as an error, never silently cleared.
+
+Open Settings → Providers, add an OpenAI/Anthropic-compatible endpoint and the
+endpoint's exact model ID, choose an environment-variable credential reference
+or enter a stored API key, then explicitly save. The key is write-only. Use the
+explicit text/stream/tool test to check that endpoint; a successful local mock
+does not establish real-provider compatibility. Select the default model and
+return to chat. Model identifiers are not rewritten.
+
+Closing the window hides it; the tray provides Show, Settings and Exit. Existing
+Recap/wake work can continue while hidden. Exit allows ten seconds for shutdown,
+then terminates the owned process tree. It does not cancel all durable tasks.
+After a crash use Reconnect; unconfirmed sends are reconciled against committed
+admissions. No task execution is promised after the entire application exits.
+Python, Git Bash and MCP dependencies are optional for basic text chat. Python
+initialization and MCP connections happen only on an explicit action. MCP values
+reference host environment variables; the Python namespace receives only the OS
+environment needed to run, not arbitrary credential variables.
+
+## Verification limits
+
+Offline/native-core tests cover durable admission, conflicts, history, cancellation,
+typed management, outbox write failure, crash/reopen, competing session writers
+and Job Object cleanup after forced host death. Vue runtime and MCP form tests,
+production compilation and synthetic IPC browser checks pass. The browser fixture
+was checked at actual CSS 500x400, 680/681px and 1100x760.
+
+These do not establish native WebView2 layout at 125/150% OS scale, standard-user
+installation/upgrade or hidden Recap/wake behavior. Local native UI automation is
+unavailable. The supplied real gateway checks failed (HTTP send error and exact
+model-not-found respectively); real streaming/tool acceptance remains pending.
 
 ## Layout and scope
 
@@ -37,11 +89,6 @@ installers require separate verification.
 - `src-tauri/`: Rust desktop entry point, commands, capabilities and packaging.
 - `.github/workflows/ci.yml`: Windows build validation.
 
-The welcome screen invokes the read-only Rust `app_info` command and reports
-connection success or failure. Browser preview reports that no native host is
-available. No model provider, credentials, chat runtime, shell execution,
-session persistence or legacy Go code is included. Default icons are the Tauri
-template placeholders.
-
-This repository is independent of the vivy-test experiment. It does not depend
-on that checkout or its data.
+The desktop consumes only the explicitly imported core artifact. Runtime never
+uses the backend checkout, Node, Cargo or the legacy Go implementation. No arbitrary
+process-execution IPC is exposed to the UI. Default icons remain Tauri placeholders.
