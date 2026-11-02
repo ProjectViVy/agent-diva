@@ -68,7 +68,7 @@ onUnmounted(()=>{unlisten?.();runtime.dispose();});
      </template>
      <template v-if="entry.message">
       <details v-if="debugOutput&&entry.message.reasoning" class="reasoning"><summary><span class="thinking-dot"></span><span class="reasoning-label">推理</span><span class="reasoning-preview">{{firstLine(entry.message.reasoning)}}</span></summary><pre>{{entry.message.reasoning}}</pre></details>
-      <div class="message-row" :class="entry.message.role"><div class="bubble"><MarkdownText :text="entry.message.text"/><small>{{status(entry.message.status)}}</small><p v-if="failures[entry.message.task]" class="turn-failure" role="alert"><strong>{{failures[entry.message.task].title}}</strong><span v-if="failures[entry.message.task].detail">：{{failures[entry.message.task].detail}}</span></p><small v-if="entry.message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
+      <div v-if="entry.message.text" class="message-row" :class="entry.message.role"><div class="bubble"><MarkdownText :text="entry.message.text"/><small>{{status(entry.message.status)}}</small><p v-if="failures[entry.message.task]" class="turn-failure" role="alert"><strong>{{failures[entry.message.task].title}}</strong><span v-if="failures[entry.message.task].detail">：{{failures[entry.message.task].detail}}</span></p><small v-if="entry.message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
      </template>
     </template>
     <div v-for="message in state.pending" :key="message.request_id" class="message-row user"><div class="bubble"><MarkdownText :text="message.text"/><small>发送中 · 等待持久化确认</small></div></div>

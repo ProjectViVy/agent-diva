@@ -40,17 +40,19 @@ it('shows tool records and reasoning when debug output is enabled',async()=>{
  expect(reasoning.find('pre').text()).toContain('再回复用户。');
  w.unmount();
 });
-it('places each tool record between the messages whose steps surround it',async()=>{
+it('shows the reasoning of a tool-calling turn before its tool record',async()=>{
  const w=await mountApp(true,{
   tools:[{id:'tool:mid',task:'task:1',name:'bash',phase:'settled',step:2,output:'ok',truncated:false}],
   history:[
    {id:'u1',task:'task:1',role:'user',text:'开始',reasoning:'',status:'running',step:0,truncated:false},
-   {id:'a1',task:'task:1',role:'assistant',text:'先检查目录',reasoning:'先看目录。',status:'running',step:1,truncated:false},
+   {id:'a1',task:'task:1',role:'assistant',text:'',reasoning:'先看目录。',status:'running',step:1,truncated:false},
    {id:'a2',task:'task:1',role:'assistant',text:'已处理完成',reasoning:'目录没问题。',status:'completed',step:3,truncated:false}
   ]});
  const html=w.find('.messages').html();
- expect(html.indexOf('先检查目录')).toBeLessThan(html.indexOf('bash'));
- expect(html.indexOf('bash')).toBeLessThan(html.indexOf('已处理完成'));
+ expect(html.indexOf('先看目录')).toBeLessThan(html.indexOf('bash'));
+ expect(html.indexOf('bash')).toBeLessThan(html.indexOf('目录没问题'));
+ expect(html.indexOf('目录没问题')).toBeLessThan(html.indexOf('已处理完成'));
  expect(w.findAll('.reasoning')).toHaveLength(2);
+ expect(w.findAll('.message-row.assistant')).toHaveLength(1);
  w.unmount();
 });
