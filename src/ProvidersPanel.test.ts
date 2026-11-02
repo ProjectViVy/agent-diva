@@ -21,6 +21,12 @@ it('changes endpoint through the dropdown and clears the unsaved key',async()=>{
  expect((w.find('input[type=url]').element as HTMLInputElement).value).toBe('https://international.test');expect((w.find('input[type=password]').element as HTMLInputElement).value).toBe('');
  await w.find('form').trigger('submit');await flushPromises();expect(holder.runtime.request).not.toHaveBeenCalled();w.unmount();
 });
+it('keeps the configured default model when saving without editing',async()=>{
+ holder.runtime.state.providers.config={instances:{fixture:instance('https://fixture.test')},default_model:'fixture/EXACT/Model'};
+ const w=mount(Panel);await flushPromises();
+ expect(await (w.vm as any).save()).toBe(true);await flushPromises();
+ expect(holder.runtime.state.providers.config.default_model).toBe('fixture/EXACT/Model');expect(holder.runtime.request).not.toHaveBeenCalled();w.unmount();
+});
 it('commits credentials before selecting the exact default model',async()=>{
  holder.runtime.request.mockImplementation(async(c:any)=>({...holder.runtime.state.providers,generation:holder.runtime.state.providers.generation+1,config:c.method==='providers_save'?c.params.config:holder.runtime.state.providers.config}));
  const w=mount(Panel);await flushPromises();await button(w,'配置 DeepSeek').trigger('click');await w.find('input[type=password]').setValue('fixture-key');await w.find('form').trigger('submit');await flushPromises();

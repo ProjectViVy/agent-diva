@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import ProvidersPanel from './ProvidersPanel.vue';
 import { runtime } from './ipc';
 import { openPersonaDirectory } from './onboarding';
-import type { ProbeReport } from './generated/protocol';
+import type { ProbeReport, PythonReport } from './generated/protocol';
 const emit = defineEmits<{ done: [] }>();
-const step = ref<1 | 2 | 3>(1);
+const step = ref<1 | 2 | 3 | 4>(1);
 const providers = ref<{ save(): Promise<boolean> } | null>(null);
 const testing = ref(false);
 const providerError = ref('');
@@ -47,7 +47,7 @@ async function initialize(fallback = false) {
     }, 180000);
     if (result.kind !== 'persona_onboarded') throw new Error('初始化响应无效');
     onboarded.value = { name: result.data.name, directory: result.data.current.directory, fallback: result.data.fallback || fallback, existing: false };
-    step.value = 3;
+    enterWorkspace();
   } catch (error) {
     const message = String(error);
     if (message.includes('already initialized')) await showExisting();
@@ -62,11 +62,90 @@ async function showExisting() {
     if (result.kind !== 'persona') throw new Error('人格响应无效');
     onboarded.value = { name: result.data.current.name, directory: result.data.current.directory, fallback: false, existing: true };
     personaError.value = '';
-    step.value = 3;
+    enterWorkspace();
   } catch (error) {
     personaError.value = String(error);
   }
 }
+const python = ref<PythonReport | null>(null);
+const wantMemory = ref(true);
+const workspaceBusy = ref(false);
+const workspaceSkipped = ref(false);
+const workspaceError = ref('');
+let timer: ReturnType<typeof setTimeout> | undefined;
+let gone = false;
+const memory = computed(() => state.snapshot?.memory ?? null);
+const memoryEnabled = computed(() => memory.value?.state === 'unchecked' || memory.value?.state === 'ready' || memory.value?.state === 'closed');
+const pythonReady = computed(() => python.value?.outcome === 'ready');
+const pythonBusy = computed(() => workspaceBusy.value || !!python.value?.phase);
+const pythonLabel = computed(() => {
+  if (python.value?.phase) return `初始化中（${python.value.phase}）`;
+  switch (python.value?.outcome) {
+    case 'ready': return '已就绪';
+    case 'error': return '初始化失败';
+    case 'not_init': return '未初始化';
+    default: return '正在读取…';
+  }
+});
+const memoryLabel = computed(() => {
+  switch (memory.value?.state) {
+    case 'ready': return '已就绪';
+    case 'unchecked': return '已启用，待初始化';
+    case 'error': return '初始化出错';
+    case 'closed': return '已关闭';
+    case 'off': return '未启用';
+    default: return '正在读取…';
+  }
+});
+const workspaceAction = computed(() => {
+  if (pythonReady.value) return '继续';
+  if (pythonBusy.value) return '正在初始化…';
+  if (workspaceError.value) return '重试初始化';
+  return '初始化工作区';
+});
+function enterWorkspace() {
+  step.value = 3;
+  void readWorkspace();
+}
+async function readWorkspace() {
+  clearTimeout(timer);
+  try {
+    const report = await runtime.request({ method: 'python_read' });
+    if ('outcome' in report) python.value = report;
+  } catch (error) {
+    workspaceError.value = String(error);
+  }
+  if (!gone && python.value?.phase) timer = setTimeout(readWorkspace, 1500);
+}
+async function prepareWorkspace() {
+  if (pythonBusy.value) return;
+  workspaceBusy.value = true; workspaceError.value = ''; workspaceSkipped.value = false;
+  let settled = false;
+  try {
+    const result = await runtime.operation(
+      { method: 'python_prepare', params: { managed: true, memory: wantMemory.value } },
+      2_200_000,
+    );
+    if (result.kind === 'python') python.value = result.data;
+    settled = true;
+  } catch (error) {
+    workspaceError.value = `工作区初始化失败：${String(error)}`;
+  } finally {
+    workspaceBusy.value = false;
+  }
+  if (!settled) await readWorkspace();
+}
+async function cancelWorkspace() {
+  try { await runtime.request({ method: 'python_cancel' }); }
+  catch (error) { workspaceError.value = String(error); }
+  await readWorkspace();
+}
+async function finishWorkspace() {
+  workspaceSkipped.value = !pythonReady.value;
+  await runtime.synchronize().catch(() => {});
+  step.value = 4;
+}
+onUnmounted(() => { gone = true; clearTimeout(timer); });
 const opening = ref(false);
 const openError = ref('');
 async function openWorkspace() {
@@ -86,7 +165,8 @@ async function openWorkspace() {
    <ol class="steps" aria-label="初始化步骤">
     <li :class="{active:step===1,done:step>1}"><span>01</span>连接模型</li>
     <li :class="{active:step===2,done:step>2}"><span>02</span>第一次认识你</li>
-    <li :class="{active:step===3,done:false}"><span>03</span>完成</li>
+    <li :class="{active:step===3,done:step>3}"><span>03</span>准备工作区</li>
+    <li :class="{active:step===4,done:false}"><span>04</span>完成</li>
    </ol>
   </header>
   <p v-if="!state.connected" class="connection" role="status">尚未连接核心。<button :disabled="state.connecting" @click="runtime.connect">{{state.connecting?'正在连接…':'重试连接'}}</button></p>
@@ -121,6 +201,22 @@ async function openWorkspace() {
    </div>
   </section>
 
+  <section v-else-if="step===3" class="card" aria-labelledby="onboarding-workspace-title">
+   <h2 id="onboarding-workspace-title">准备工作区</h2>
+   <p class="note">Python 工作台负责代码执行与技能运行；原生记忆负责长期协作内容。可以现在一起初始化，也可以稍后在设置 → 运行环境中补做。</p>
+   <dl class="result">
+    <dt>Python</dt><dd>{{pythonLabel}}<small v-if="python?.detail">{{python.detail}}</small></dd>
+    <dt>记忆后端</dt><dd>{{memoryLabel}}<small v-if="memory?.issue">{{memory.issue}}</small></dd>
+   </dl>
+   <label v-if="!memoryEnabled" class="prompt inline"><input v-model="wantMemory" type="checkbox" :disabled="pythonBusy"/>启用原生记忆（本地 MemPalace，默认开启）</label>
+   <p v-if="workspaceError" class="failure" role="alert">{{workspaceError}}</p>
+   <div class="actions">
+    <button class="primary" :disabled="pythonBusy" @click="pythonReady?finishWorkspace():prepareWorkspace()">{{workspaceAction}}</button>
+    <button v-if="python?.phase" :disabled="workspaceBusy" @click="cancelWorkspace">取消初始化</button>
+    <button v-else :disabled="workspaceBusy" @click="finishWorkspace">稍后初始化</button>
+   </div>
+  </section>
+
   <section v-else class="card" aria-labelledby="onboarding-done-title">
    <h2 id="onboarding-done-title">认识完成</h2>
    <p class="greeting">{{onboarded?.existing?'这个人格已经存在，无需重新生成。':'从现在起，我叫 '+onboarded?.name+'。'}}</p>
@@ -128,6 +224,8 @@ async function openWorkspace() {
     <dt>名字</dt><dd>{{onboarded?.name}}</dd>
     <dt>角色工作区</dt><dd class="path">{{onboarded?.directory}}</dd>
     <dt>来源</dt><dd>{{onboarded?.existing?'已有的人格':onboarded?.fallback?'内置人格（表述不清，已随机命名）':'模型提取'}}</dd>
+    <dt>Python</dt><dd>{{pythonBusy?'初始化中':pythonReady?'已就绪':workspaceSkipped?'稍后初始化':'未初始化'}}</dd>
+    <dt>记忆后端</dt><dd>{{memoryLabel}}{{workspaceSkipped&&!memoryEnabled?'（稍后初始化）':''}}</dd>
    </dl>
    <p v-if="openError" class="failure" role="alert">{{openError}}</p>
    <div class="actions">
@@ -158,6 +256,8 @@ h1 span{color:#cc7e85}
 .greeting{margin:0 0 14px;font-size:16px;line-height:1.7;color:#6d3f4c}
 .prompt{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#80545e}
 .prompt textarea{min-height:150px;max-height:340px;resize:vertical;border:1px solid #a96f7c55;border-radius:9px;padding:11px 13px;background:#fff9;color:#533941;font:inherit;font-size:14px;line-height:1.65}
+.prompt.inline{flex-direction:row;align-items:center;gap:9px;margin:12px 0 0;font-size:13px;color:#7d5a60;cursor:pointer}
+.prompt.inline input{accent-color:#a96f7c}
 .counter{margin:6px 0 0;text-align:right;font-size:11px;color:#a77a7b}
 .counter.over{color:#913b48}
 .checks{display:flex;flex-direction:column;gap:6px;margin:14px 0 0;padding:0;list-style:none;font-size:12px}
@@ -174,4 +274,5 @@ h1 span{color:#cc7e85}
 .result dt{color:#a77a7b}
 .result dd{margin:0;color:#6d3f4c}
 .result dd.path{overflow-wrap:anywhere}
+.result dd small{display:block;margin-top:3px;color:#987b7a;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
 </style>

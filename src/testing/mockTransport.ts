@@ -1,5 +1,5 @@
 import type {DesktopTransport} from '../runtime';
-import type {Frame,Method,Snapshot,ProvidersView,ManagementResult,Reply,HistoryMessage,PersonaFileView,PersonaVersionView} from '../generated/protocol';
+import type {Frame,Method,Snapshot,ProvidersView,ManagementResult,Reply,HistoryMessage,PersonaFileView,PersonaVersionView,PythonReport} from '../generated/protocol';
 document.title='Diva · synthetic IPC test';
 let handler:(f:Frame)=>void=()=>{},sequence=0;
 const readiness={compiled:true,configured:true,ready:true,state:'ready',issue:null};
@@ -14,6 +14,7 @@ const persona={revision:0,updateId:'fixture-0',name:'Vivy',initialized:true,onbo
  {name:'DREAM.MD',text:'',required:false,auto:true},
  {name:'DARK.MD',text:'',required:false,auto:true},
 ] as PersonaFileView[],history:[] as PersonaVersionView[]};
+let python:PythonReport={outcome:'not_init',phase:null,detail:'Synthetic runtime report',scope:'test'};
 const personaText=()=>persona.files.map(f=>f.text.trim()).filter(Boolean).join('\n\n');
 const personaView=()=>({revision:persona.revision,update_id:persona.updateId,directory:'synthetic://.laputa/personas/main',name:persona.name,initialized:persona.initialized,text:personaText(),files:persona.files.map(f=>({...f})),unpublished:false});
 const personaResult=():ManagementResult=>({kind:'persona',data:{current:personaView(),history:persona.history.map(h=>({...h}))}});
@@ -52,7 +53,15 @@ async function request(command:Method):Promise<Frame>{switch(command.method){
  case 'prompts_read':return operation({kind:'prompts',data:{prompts:['RECAP.md','AUTODREAM.md'].map(name=>({name,source:'default',revision:'fixture',text:'Synthetic prompt'}))}});
  case 'recap_read':return frame({revision:0,summary:'Synthetic committed recap',covered:{},jobs:[],refresh_pending:false,error:null});
  case 'tasks_read':return frame({revision:0,dream_revision:null,wakes:[],dreams:[],jobs:[]});
- case 'python_read':return frame({outcome:'not_init',phase:null,detail:'Synthetic runtime report',scope:'test'});
+ case 'python_read':return frame({...python});
+ case 'python_prepare':{
+  const memory=command.params.memory;
+  python={outcome:'ready',phase:null,detail:memory?'Synthetic Python and memory are ready.':'Synthetic Python is ready. Memory remains off.',scope:memory?'core+memory':'core'};
+  snapshot.python={...readiness,configured:true,ready:true,state:'ready'};
+  snapshot.memory=memory?{...readiness,configured:true,ready:true,state:'ready'}:{...readiness,configured:false,ready:false,state:'off'};
+  return operation({kind:'python',data:{...python}});
+ }
+ case 'python_cancel':return frame({...python});
  default:throw new Error(`Synthetic test does not implement ${command.method}`);
 }}
 const status=async()=>({connected:true,error:null,data_directory:'synthetic-only',outbox:[]});
