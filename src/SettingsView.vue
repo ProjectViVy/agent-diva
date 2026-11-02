@@ -23,7 +23,7 @@ const sections = [
   { id: "mcp", label: "连接", subtitle: "MCP", description: "" },
   { id: "skills", label: "技能", subtitle: "Skills", description: "" },
   { id: "managed", label: "托管技能", subtitle: "Managed Skills", description: "" },
-  { id: "persona", label: "人格与提示词", subtitle: "Persona / Prompts", description: "" },
+  { id: "persona", label: "核心人格", subtitle: "Laputa Persona", description: "" },
   { id: "recap", label: "回顾", subtitle: "Recap", description: "" },
   { id: "tasks", label: "任务", subtitle: "Tasks", description: "" },
   { id: "runtime", label: "运行环境", subtitle: "Runtime", description: "" },
