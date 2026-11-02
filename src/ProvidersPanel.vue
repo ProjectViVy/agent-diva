@@ -29,7 +29,7 @@ function switchVariant(){const v=preset.value?.variants.find(v=>v.id===variant.v
  const name=draft.value.name;draft.value=clone(v.instance);draft.value.name=name;key.value='';needsKey.value=true;
  if(defaultModel.value.startsWith(providerId.value+'/'))defaultModel.value=`${providerId.value}/${v.default_model}`;
 }
-function credential(source:'stored'|'env'|'none'){draft.value.credential=source==='env'?{source,name:''}:{source};}
+function credential(source:'stored'|'env'|'none'){key.value='';draft.value.credential=source==='env'?{source,name:''}:{source};}
 async function load(reload=false){busy.value=true;try{await runtime.providers(reload);}catch(e){error.value=String(e);}finally{busy.value=false;}}
 function discard(){editing.value=false;defaultEditing.value=false;key.value='';}
 async function persist(config:ProvidersConfig){const response=await runtime.request({method:'providers_save',params:{generation:generation.value,config}});if(!('config'in response))throw new Error('供应商响应无效');runtime.state.providers=response;generation.value=response.generation;}
@@ -38,7 +38,7 @@ async function save(){if(busy.value)return false;busy.value=true;error.value='';
  if(editing.value){
   if(!providerId.value)throw new Error('请填写实例 ID');
   if(providerId.value!==selected.value&&providers.value?.config.instances?.[providerId.value])throw new Error('实例 ID 已存在');
-  if(draft.value.credential?.source==='stored'&&!key.value&&(!current.value||needsKey.value))throw new Error('请填写此接入方式的密钥');
+  if(draft.value.credential?.source==='stored'&&!key.value&&(!current.value||needsKey.value||providerId.value!==selected.value))throw new Error('请填写此接入方式的密钥');
   const config=clone(providers.value?.config??{instances:{}});config.instances??={};
   if(selected.value&&selected.value!==providerId.value){delete config.instances[selected.value];if(config.default_model?.startsWith(selected.value+'/'))delete config.default_model;}
   config.instances[providerId.value]=clone(draft.value);
@@ -56,6 +56,7 @@ async function save(){if(busy.value)return false;busy.value=true;error.value='';
 function changeDefault(){defaultModel.value=providers.value?.config.default_model??'';generation.value=providers.value?.generation??0;defaultEditing.value=true;error.value='';}
 async function remove(){busy.value=true;error.value='';try{generation.value=providers.value!.generation;const config=clone(providers.value!.config);delete config.instances![selected.value];if(config.default_model?.startsWith(selected.value+'/')){delete config.default_model;delete config.default_thinking;}await persist(config);await runtime.synchronize();}catch(e){error.value=String(e);}finally{busy.value=false;}}
 async function testConnection(){if(!current.value||!providers.value)return;testing.value=true;error.value='';try{const reference=`${selected.value}/${testModel.value||current.value.models?.[0]?.id||''}`;const r=await runtime.operation({method:'provider_test',params:{generation:providers.value.generation,reference}});if(r.kind==='provider_test')probe.value=r.data;}catch(e){error.value=String(e);}finally{testing.value=false;}}
+function endpointChanged(){variant.value='';needsKey.value=true;key.value='';if(draft.value.credential?.source==='env')draft.value.credential.name='';}
 function addModel(){(draft.value.models??=[]).push({id:'',context_window:32768,max_output_tokens:8192,tools:true});}
 defineExpose({dirty,save,discard});onMounted(()=>load());
 </script>
@@ -74,7 +75,7 @@ defineExpose({dirty,save,discard});onMounted(()=>load());
 <label v-if="preset&&preset.variants.length>1">接入方式<select v-model="variant" @change="switchVariant"><option value="">自定义地址</option><option v-for="v in preset.variants" :key="v.id" :value="v.id">{{v.name}}</option></select></label>
 <label>凭据来源<select :value="draft.credential?.source" @change="credential(($event.target as HTMLSelectElement).value as 'stored'|'env'|'none')"><option value="stored">本地密钥</option><option value="env">环境变量</option><option v-if="!preset" value="none">无需凭据</option></select></label>
 <label v-if="draft.credential?.source==='stored'">API 密钥<input v-model="key" type="password" autocomplete="new-password" :placeholder="current&&!needsKey?'留空保留已有密钥':'请输入对应接入方式的密钥'"/></label><label v-if="draft.credential?.source==='env'">环境变量名<input v-model="draft.credential.name" required/></label>
-<details><summary>高级设置</summary><label>名称<input v-model="draft.name"/></label><label v-if="!preset">协议<select v-model="draft.protocol"><option v-for="p in providers?.protocols" :key="p" :value="p">{{p}}</option></select></label><label>API endpoint<input v-model="draft.base_url" type="url" required @input="variant='';needsKey=true;key=''"/></label>
+<details><summary>高级设置</summary><label>名称<input v-model="draft.name"/></label><label v-if="!preset">协议<select v-model="draft.protocol"><option v-for="p in providers?.protocols" :key="p" :value="p">{{p}}</option></select></label><label>API endpoint<input v-model="draft.base_url" type="url" required @input="endpointChanged"/></label>
 <div v-for="(m,index) in draft.models" :key="index" class="model-form"><label>原始 model ID<input v-model="m.id" required/></label><label>上下文窗口<input v-model.number="m.context_window" type="number" min="1"/></label><label>单次输出上限<input v-model.number="m.max_output_tokens" type="number" min="1"/></label><label class="check"><input v-model="m.tools" type="checkbox"/>工具调用</label><button type="button" @click="draft.models?.splice(index,1)">移除模型</button></div><button type="button" @click="addModel">添加模型</button></details></template>
 <label>默认聊天模型<select v-model="defaultModel"><option value="">暂不设置</option><option v-for="m in modelOptions" :key="m.value" :value="m.value">{{m.label}}</option></select></label>
 <div class="actions"><button type="submit">{{busy?'保存中…':'保存'}}</button><button type="button" @click="discard">放弃编辑</button></div>
