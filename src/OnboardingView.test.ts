@@ -104,4 +104,17 @@ describe('first-run onboarding',()=>{
   expect(wrapper.text()).toContain('Vivy');
   wrapper.unmount();
  });
+ it('shows the existing persona when the built-in fallback is refused',async()=>{
+  const operation=vi.fn(async(command:Method)=>{
+   if(command.method==='provider_test')return passing;
+   if(command.method==='persona_initialize')throw new Error('a persona is already initialized');
+   if(command.method==='persona_read')return {kind:'persona',data:{current:view('Vivy'),history:[]}};
+   throw new Error(`unexpected ${command.method}`);
+  });
+  const wrapper=await reachPersona(operation);
+  await button(wrapper,'使用内置人格')!.trigger('click');await flushPromises();
+  expect(wrapper.text()).toContain('这个人格已经存在');
+  expect(wrapper.text()).toContain('Vivy');
+  wrapper.unmount();
+ });
 });

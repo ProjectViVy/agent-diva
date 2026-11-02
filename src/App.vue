@@ -37,7 +37,7 @@ const onboardingRequired=ref(false);const onboardingChecking=ref(true);
 async function checkOnboarding(){
  try{
   const state=await readOnboarding();
-  if(!state.completed&&runtime.state.connected){
+  if(!state.completed&&!state.forced&&runtime.state.connected){
    try{
     const result=await runtime.operation({method:'persona_read'});
     if(result.kind==='persona'&&result.data.current.initialized){

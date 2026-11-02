@@ -50,7 +50,7 @@ async function initialize(fallback = false) {
     step.value = 3;
   } catch (error) {
     const message = String(error);
-    if (!fallback && message.includes('already initialized')) await showExisting();
+    if (message.includes('already initialized')) await showExisting();
     else personaError.value = message;
   } finally {
     working.value = false;

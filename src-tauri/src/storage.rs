@@ -108,6 +108,8 @@ impl Store {
 pub struct OnboardingState {
     pub schema: u32,
     pub completed: bool,
+    #[serde(default)]
+    pub forced: bool,
 }
 
 pub struct OnboardingStore {
@@ -132,18 +134,33 @@ impl OnboardingStore {
             Err(e) if e.kind() == io::ErrorKind::NotFound => OnboardingState {
                 schema: 1,
                 completed: false,
+                forced: false,
             },
             Err(e) => return Err(e),
         };
         Ok(Self { path, value })
     }
     pub fn set_completed(&mut self, completed: bool) -> io::Result<()> {
-        if self.value.completed == completed {
+        if self.value.completed == completed && !self.value.forced {
             return Ok(());
         }
         let next = OnboardingState {
             schema: 1,
             completed,
+            forced: false,
+        };
+        atomic_write(&self.path, &serde_json::to_vec(&next)?)?;
+        self.value = next;
+        Ok(())
+    }
+    pub fn reset(&mut self) -> io::Result<()> {
+        if !self.value.completed && self.value.forced {
+            return Ok(());
+        }
+        let next = OnboardingState {
+            schema: 1,
+            completed: false,
+            forced: true,
         };
         atomic_write(&self.path, &serde_json::to_vec(&next)?)?;
         self.value = next;
@@ -244,11 +261,33 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut store = OnboardingStore::open(root.path()).unwrap();
         assert!(!store.value.completed);
+        assert!(!store.value.forced);
         store.set_completed(true).unwrap();
-        assert!(OnboardingStore::open(root.path()).unwrap().value.completed);
+        let reopened = OnboardingStore::open(root.path()).unwrap();
+        assert!(reopened.value.completed);
+        assert!(!reopened.value.forced);
         let mut reopened = OnboardingStore::open(root.path()).unwrap();
-        reopened.set_completed(false).unwrap();
-        assert!(!OnboardingStore::open(root.path()).unwrap().value.completed);
+        reopened.reset().unwrap();
+        let reset = OnboardingStore::open(root.path()).unwrap();
+        assert!(!reset.value.completed);
+        assert!(reset.value.forced);
+        let mut reset = OnboardingStore::open(root.path()).unwrap();
+        reset.set_completed(true).unwrap();
+        let completed = OnboardingStore::open(root.path()).unwrap();
+        assert!(completed.value.completed);
+        assert!(!completed.value.forced);
+    }
+    #[test]
+    fn onboarding_reads_state_without_the_forced_field() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(
+            root.path().join("onboarding.json"),
+            r#"{"schema":1,"completed":true}"#,
+        )
+        .unwrap();
+        let store = OnboardingStore::open(root.path()).unwrap();
+        assert!(store.value.completed);
+        assert!(!store.value.forced);
     }
     #[test]
     fn onboarding_refuses_corruption_and_unknown_schema_without_replacement() {

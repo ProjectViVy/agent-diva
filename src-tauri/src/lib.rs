@@ -50,7 +50,7 @@ fn onboarding_read(
     state: tauri::State<'_, Mutex<storage::OnboardingStore>>,
 ) -> Result<Value, String> {
     let store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
-    Ok(json!({ "completed": store.value.completed }))
+    Ok(json!({ "completed": store.value.completed, "forced": store.value.forced }))
 }
 #[tauri::command]
 fn onboarding_complete(
@@ -58,15 +58,15 @@ fn onboarding_complete(
 ) -> Result<Value, String> {
     let mut store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
     store.set_completed(true).map_err(|e| e.to_string())?;
-    Ok(json!({ "completed": true }))
+    Ok(json!({ "completed": true, "forced": false }))
 }
 #[tauri::command]
 fn onboarding_reset(
     state: tauri::State<'_, Mutex<storage::OnboardingStore>>,
 ) -> Result<Value, String> {
     let mut store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
-    store.set_completed(false).map_err(|e| e.to_string())?;
-    Ok(json!({ "completed": false }))
+    store.reset().map_err(|e| e.to_string())?;
+    Ok(json!({ "completed": false, "forced": true }))
 }
 #[tauri::command]
 fn open_persona_directory(state: tauri::State<'_, Arc<Bridge>>) -> Result<String, String> {
