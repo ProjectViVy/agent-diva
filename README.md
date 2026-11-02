@@ -101,3 +101,13 @@ were not changed. The separate StepFun endpoint failed HTTP transport here.
 The desktop consumes only the explicitly imported core artifact. Runtime never
 uses the backend checkout, Node, Cargo or the legacy Go implementation. No arbitrary
 process-execution IPC is exposed to the UI. Default icons remain Tauri placeholders.
+
+## Curated provider setup
+
+Providers includes DeepSeek (initial selection: `deepseek-flash`), MiniMax and
+Alibaba Bailian. Bailian offers China standard, international standard and China
+Coding Plan in a dropdown. Presets are supplied by the imported Rust core, not
+persisted on page open. Existing user defaults are preserved. Configure a key or
+environment reference and save explicitly; default selection follows successful
+credential storage. Addresses and original model IDs remain editable. DeepSeek
+and MiniMax live calls require their own credentials and are not yet verified.
