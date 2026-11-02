@@ -78,7 +78,7 @@ describe('desktop runtime',()=>{
   });
   it('never converts provisional streaming text into a completed message on disconnect',async()=>{
     const f=fixture();const runtime=createRuntime(f.transport);await runtime.connect();
-    f.emit({v:1,instance:'one',seq:3,id:null,type:'live',data:{task:'task:1',text:'unfinished'}});
+    f.emit({v:1,instance:'one',seq:3,id:null,type:'live',data:{task:'task:1',text:'unfinished',reasoning:''}});
     runtime.disconnect('core died');
     expect(runtime.state.history).toEqual([]);
     expect(runtime.state.interrupted).toBe('unfinished');

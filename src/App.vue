@@ -9,6 +9,7 @@ import MarkdownText from "./MarkdownText.vue";
 import QuestionCard from "./QuestionCard.vue";
 import { runtime } from "./ipc";
 import { describeFailure } from "./failure";
+import { debugOutput } from "./debug";
 const state=runtime.state;
 const failures=computed(()=>Object.fromEntries((state.snapshot?.tasks??[]).flatMap(task=>task.error?[[task.id,describeFailure(task.error)]]:[])));
 const draft=ref("");const sending=ref(false);const settingsOpen=ref(false);
@@ -22,7 +23,8 @@ const statusNames:Record<string,string>={queued:'排队中',running:'进行中',
 const status=(value:string)=>statusNames[value]??value;
 async function latest(){await nextTick();if(list.value)list.value.scrollTop=list.value.scrollHeight;newMessages.value=false;}
 function scrolled(){if(list.value)pinned.value=list.value.scrollHeight-list.value.scrollTop-list.value.clientHeight<70;}
-watch(()=>[state.history.length,state.pending.length,state.live?.text,state.snapshot?.questions.length],()=>{if(pinned.value)void latest();else newMessages.value=true;});
+watch(()=>[state.history.length,state.pending.length,state.live?.text,state.live?.reasoning,state.snapshot?.questions.length],()=>{if(pinned.value)void latest();else newMessages.value=true;});
+function firstLine(text:string|null|undefined){if(!text)return '';const line=text.split('\n').map(l=>l.trim()).find(Boolean)??'';return line.length>120?`${line.slice(0,119)}…`:line;}
 async function send(){
  if(!canSend.value)return;const text=draft.value.trim();
  if(stableDraft?.text!==text)stableDraft={id:crypto.randomUUID(),text};
@@ -42,11 +44,19 @@ onUnmounted(()=>{unlisten?.();runtime.dispose();});
   <main v-show="!settingsOpen" class="chat">
    <div ref="list" class="messages" aria-label="对话内容" @scroll="scrolled">
     <div v-if="!state.history.length&&!state.pending.length" class="empty">{{state.snapshot?.model.ready?'在这里开始对话':'在设置中配置网关后开始对话'}}</div>
-    <div v-for="message in state.history" :key="message.id" class="message-row" :class="message.role"><div class="bubble"><MarkdownText :text="message.text"/><small>{{status(message.status)}}</small><p v-if="failures[message.task]" class="turn-failure" role="alert"><strong>{{failures[message.task].title}}</strong><span v-if="failures[message.task].detail">：{{failures[message.task].detail}}</span></p><small v-if="message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
+    <template v-for="message in state.history" :key="message.id">
+     <details v-if="debugOutput&&message.reasoning" class="reasoning"><summary><span class="thinking-dot"></span><span class="reasoning-label">推理</span><span class="reasoning-preview">{{firstLine(message.reasoning)}}</span></summary><pre>{{message.reasoning}}</pre></details>
+     <div class="message-row" :class="message.role"><div class="bubble"><MarkdownText :text="message.text"/><small>{{status(message.status)}}</small><p v-if="failures[message.task]" class="turn-failure" role="alert"><strong>{{failures[message.task].title}}</strong><span v-if="failures[message.task].detail">：{{failures[message.task].detail}}</span></p><small v-if="message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
+    </template>
     <div v-for="message in state.pending" :key="message.request_id" class="message-row user"><div class="bubble"><MarkdownText :text="message.text"/><small>发送中 · 等待持久化确认</small></div></div>
+    <details v-if="debugOutput&&state.live?.reasoning" class="reasoning" open><summary><span class="thinking-dot running"></span><span class="reasoning-label">推理中</span><span class="reasoning-preview">{{firstLine(state.live.reasoning)}}</span></summary><pre>{{state.live.reasoning}}</pre></details>
     <div v-if="state.live?.text" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.live.text"/><small>正在生成</small></div></div>
     <div v-if="state.interrupted" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.interrupted"/><small>连接中断 · 此片段未确认为最终回复</small></div></div>
-    <details v-for="tool in state.snapshot?.tools" :key="tool.id" class="tool"><summary>{{tool.name}} · {{tool.phase}}</summary><pre>{{tool.output??'尚无已提交结果'}}</pre><small v-if="tool.truncated">长工具结果预览已截断；完整记录保留在核心会话中。</small></details>
+    <section v-if="debugOutput" class="debug-records" aria-label="调试记录">
+     <h4>工具调用</h4>
+     <details v-for="tool in state.snapshot?.tools" :key="tool.id" class="tool" :class="tool.phase"><summary><span class="tool-state" aria-hidden="true"></span><span class="tool-name">{{tool.name}}</span><span class="tool-phase">{{tool.phase}}</span><span v-if="firstLine(tool.output)" class="tool-line">{{firstLine(tool.output)}}</span></summary><pre>{{tool.output??'尚无已提交结果'}}</pre><small v-if="tool.truncated">长工具结果预览已截断；完整记录保留在核心会话中。</small></details>
+     <p v-if="!state.snapshot?.tools.length" class="debug-empty">暂无工具调用记录。</p>
+    </section>
     <QuestionCard v-for="question in state.snapshot?.questions" :key="state.instance+question.id" :question="question"/>
    </div>
    <button v-if="newMessages" class="new-message" @click="latest">查看新消息 ↓</button>
@@ -95,5 +105,7 @@ textarea::placeholder { color: #ae9492; }
 </style>
 
 <style scoped>
-.message-row.assistant{justify-content:flex-start}.assistant .bubble{border-radius:16px 16px 16px 4px;background:#fff5;max-width:min(90%,820px)}.bubble{white-space:normal;min-width:0}.bubble small{display:block;margin-top:8px;color:#987b7a;font-size:10px}.turn-failure{margin:8px 0 0;padding:7px 10px;border-radius:7px;background:#f7dcd8;color:#8a353b;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.turn-failure strong{font-weight:600}.connection-note,.error{margin-left:0}.connection-note button{margin-left:12px;border:0;background:transparent;color:#854d60;cursor:pointer}.tool{font-size:12px;border-bottom:1px solid #a96f7c30;padding:8px 0;color:#805b65}.tool pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.new-message{align-self:center;border:0;border-radius:12px;padding:6px 14px;background:#fff9;color:#80545e;cursor:pointer}.send:disabled{opacity:.5;cursor:default}
+.message-row.assistant{justify-content:flex-start}.assistant .bubble{border-radius:16px 16px 16px 4px;background:#fff5;max-width:min(90%,820px)}.bubble{white-space:normal;min-width:0}.bubble small{display:block;margin-top:8px;color:#987b7a;font-size:10px}.turn-failure{margin:8px 0 0;padding:7px 10px;border-radius:7px;background:#f7dcd8;color:#8a353b;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.turn-failure strong{font-weight:600}.connection-note,.error{margin-left:0}.connection-note button{margin-left:12px;border:0;background:transparent;color:#854d60;cursor:pointer}.new-message{align-self:center;border:0;border-radius:12px;padding:6px 14px;background:#fff9;color:#80545e;cursor:pointer}.send:disabled{opacity:.5;cursor:default}
+.debug-records{margin:18px 0;padding:12px 14px;border:1px dashed #a96f7c45;border-radius:10px;background:rgba(255,247,244,.55)}.debug-records h4{margin:0 0 6px;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#a77a7b}.debug-empty{margin:6px 0 0;font-size:12px;color:#a77a7b}.tool{font-size:12px;border-bottom:1px solid #a96f7c30;color:#805b65}.tool:last-of-type{border-bottom:0}.tool summary{display:flex;align-items:center;gap:8px;min-height:24px;padding:4px 0;overflow:hidden;list-style:none;cursor:pointer}.tool summary::-webkit-details-marker{display:none}.tool summary::before{content:'';flex:0 0 auto;width:5px;height:5px;border-right:1.4px solid currentColor;border-bottom:1.4px solid currentColor;transform:rotate(-45deg);opacity:.7;transition:transform .15s ease}.tool[open] summary::before{transform:rotate(45deg)}.tool-state{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:#c9a59e}.tool.settled .tool-state{background:#9fbfa8}.tool.prepared .tool-state,.tool.dispatched .tool-state{background:#d8a657}.tool-name{flex:0 0 auto;color:#6d3f4c}.tool-phase{flex:0 0 auto;font-size:11px;color:#a77a7b}.tool-line{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:8px;border-left:1px solid #a96f7c40;color:#987b7a}.tool pre{margin:6px 0 4px;padding:9px 11px;border-radius:8px;background:rgba(255,250,247,.7);max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.reasoning{max-width:min(90%,820px);margin:0 0 8px;font-size:12px;color:#8a6a70}.reasoning summary{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;padding:5px 10px;border:1px solid #a96f7c35;border-radius:999px;background:rgba(255,246,242,.6);color:#805b65;list-style:none;cursor:pointer}.reasoning summary::-webkit-details-marker{display:none}.reasoning-label{flex:0 0 auto;color:#7a4f5b}.reasoning-preview{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a77a7b}.thinking-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#c58f99;box-shadow:0 0 0 2px rgba(197,143,153,.18)}.thinking-dot.running{animation:thinking 1.1s ease-in-out infinite}.reasoning pre{margin:6px 0 0;padding:9px 12px;border-left:2px solid #d6a5ad;border-radius:0 8px 8px 0;background:rgba(255,247,244,.6);max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.65;color:#7e5f66}@keyframes thinking{0%,100%{opacity:.45;transform:scale(.9)}50%{opacity:1;transform:scale(1)}}@media (prefers-reduced-motion: reduce){.thinking-dot.running{animation:none}}
 </style>
