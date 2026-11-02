@@ -8,7 +8,9 @@ import SettingsView from "./SettingsView.vue";
 import MarkdownText from "./MarkdownText.vue";
 import QuestionCard from "./QuestionCard.vue";
 import { runtime } from "./ipc";
+import { describeFailure } from "./failure";
 const state=runtime.state;
+const failures=computed(()=>Object.fromEntries((state.snapshot?.tasks??[]).flatMap(task=>task.error?[[task.id,describeFailure(task.error)]]:[])));
 const draft=ref("");const sending=ref(false);const settingsOpen=ref(false);
 const settings=ref<InstanceType<typeof SettingsView>|null>(null);
 const titleBar=ref<InstanceType<typeof TitleBar>|null>(null);
@@ -40,7 +42,7 @@ onUnmounted(()=>{unlisten?.();runtime.dispose();});
   <main v-show="!settingsOpen" class="chat">
    <div ref="list" class="messages" aria-label="对话内容" @scroll="scrolled">
     <div v-if="!state.history.length&&!state.pending.length" class="empty">{{state.snapshot?.model.ready?'在这里开始对话':'在设置中配置网关后开始对话'}}</div>
-    <div v-for="message in state.history" :key="message.id" class="message-row" :class="message.role"><div class="bubble"><MarkdownText :text="message.text"/><small>{{status(message.status)}}</small><small v-if="message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
+    <div v-for="message in state.history" :key="message.id" class="message-row" :class="message.role"><div class="bubble"><MarkdownText :text="message.text"/><small>{{status(message.status)}}</small><p v-if="failures[message.task]" class="turn-failure" role="alert"><strong>{{failures[message.task].title}}</strong><span v-if="failures[message.task].detail">：{{failures[message.task].detail}}</span></p><small v-if="message.truncated">长内容预览已截断；完整记录保留在核心会话中。</small></div></div>
     <div v-for="message in state.pending" :key="message.request_id" class="message-row user"><div class="bubble"><MarkdownText :text="message.text"/><small>发送中 · 等待持久化确认</small></div></div>
     <div v-if="state.live?.text" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.live.text"/><small>正在生成</small></div></div>
     <div v-if="state.interrupted" class="message-row assistant"><div class="bubble"><MarkdownText :text="state.interrupted"/><small>连接中断 · 此片段未确认为最终回复</small></div></div>
@@ -93,5 +95,5 @@ textarea::placeholder { color: #ae9492; }
 </style>
 
 <style scoped>
-.message-row.assistant{justify-content:flex-start}.assistant .bubble{border-radius:16px 16px 16px 4px;background:#fff5;max-width:min(90%,820px)}.bubble{white-space:normal;min-width:0}.bubble small{display:block;margin-top:8px;color:#987b7a;font-size:10px}.connection-note,.error{margin-left:0}.connection-note button{margin-left:12px;border:0;background:transparent;color:#854d60;cursor:pointer}.tool{font-size:12px;border-bottom:1px solid #a96f7c30;padding:8px 0;color:#805b65}.tool pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.new-message{align-self:center;border:0;border-radius:12px;padding:6px 14px;background:#fff9;color:#80545e;cursor:pointer}.send:disabled{opacity:.5;cursor:default}
+.message-row.assistant{justify-content:flex-start}.assistant .bubble{border-radius:16px 16px 16px 4px;background:#fff5;max-width:min(90%,820px)}.bubble{white-space:normal;min-width:0}.bubble small{display:block;margin-top:8px;color:#987b7a;font-size:10px}.turn-failure{margin:8px 0 0;padding:7px 10px;border-radius:7px;background:#f7dcd8;color:#8a353b;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.turn-failure strong{font-weight:600}.connection-note,.error{margin-left:0}.connection-note button{margin-left:12px;border:0;background:transparent;color:#854d60;cursor:pointer}.tool{font-size:12px;border-bottom:1px solid #a96f7c30;padding:8px 0;color:#805b65}.tool pre{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.new-message{align-self:center;border:0;border-radius:12px;padding:6px 14px;background:#fff9;color:#80545e;cursor:pointer}.send:disabled{opacity:.5;cursor:default}
 </style>
