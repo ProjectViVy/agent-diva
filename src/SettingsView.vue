@@ -8,6 +8,7 @@ import SkillsPanel from './SkillsPanel.vue';
 import PersonaPanel from './PersonaPanel.vue';
 import RecapPanel from './RecapPanel.vue';
 import TasksPanel from './TasksPanel.vue';
+import GeneralPanel from './GeneralPanel.vue';
 type Editor={dirty:boolean;save:()=>Promise<boolean>;discard:()=>void};
 const provider=ref<Editor|null>(null);
 const confirm=ref(false);const leaveDialog=ref<HTMLDialogElement|null>(null);
@@ -22,10 +23,11 @@ const sections = [
   { id: "mcp", label: "连接", subtitle: "MCP", description: "" },
   { id: "skills", label: "技能", subtitle: "Skills", description: "" },
   { id: "managed", label: "托管技能", subtitle: "Managed Skills", description: "" },
-  { id: "persona", label: "人格与提示词", subtitle: "Persona / Prompts", description: "" },
+  { id: "persona", label: "核心人格", subtitle: "Laputa Persona", description: "" },
   { id: "recap", label: "回顾", subtitle: "Recap", description: "" },
   { id: "tasks", label: "任务", subtitle: "Tasks", description: "" },
   { id: "runtime", label: "运行环境", subtitle: "Runtime", description: "" },
+  { id: "general", label: "通用", subtitle: "General", description: "" },
 ] as const;
 const selected = ref<(typeof sections)[number]>(sections[0]);
 const showDetail = ref(false);
@@ -74,7 +76,8 @@ async function backToList() {
         <PersonaPanel v-else-if="selected.id==='persona'" ref="provider"/>
         <RecapPanel v-else-if="selected.id==='recap'"/>
         <TasksPanel v-else-if="selected.id==='tasks'"/>
-        <RuntimePanel v-else/>
+        <RuntimePanel v-else-if="selected.id==='runtime'"/>
+        <GeneralPanel v-else/>
 
         </div>
       </article>

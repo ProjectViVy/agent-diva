@@ -3,8 +3,11 @@ mod diagnostics;
 mod process;
 mod storage;
 use bridge::Bridge;
-use serde_json::Value;
-use std::sync::Arc;
+use serde_json::{Value, json};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use tauri::{Emitter, Manager};
 
 #[tauri::command]
@@ -42,6 +45,58 @@ fn core_status(state: tauri::State<'_, Arc<Bridge>>) -> Value {
 fn core_diagnostics(state: tauri::State<'_, Arc<Bridge>>) -> Result<String, String> {
     state.diagnostics()
 }
+#[tauri::command]
+fn onboarding_read(
+    state: tauri::State<'_, Mutex<storage::OnboardingStore>>,
+) -> Result<Value, String> {
+    let store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
+    Ok(json!({ "completed": store.value.completed, "forced": store.value.forced }))
+}
+#[tauri::command]
+fn onboarding_complete(
+    state: tauri::State<'_, Mutex<storage::OnboardingStore>>,
+) -> Result<Value, String> {
+    let mut store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
+    store.set_completed(true).map_err(|e| e.to_string())?;
+    Ok(json!({ "completed": true, "forced": false }))
+}
+#[tauri::command]
+fn onboarding_reset(
+    state: tauri::State<'_, Mutex<storage::OnboardingStore>>,
+) -> Result<Value, String> {
+    let mut store = state.lock().map_err(|_| "onboarding state lock poisoned")?;
+    store.reset().map_err(|e| e.to_string())?;
+    Ok(json!({ "completed": false, "forced": true }))
+}
+#[tauri::command]
+fn open_persona_directory(state: tauri::State<'_, Arc<Bridge>>) -> Result<String, String> {
+    let directory = state.persona_directory()?;
+    open_directory(&directory)?;
+    Ok(directory.to_string_lossy().into_owned())
+}
+fn open_directory(directory: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    let mut command = std::process::Command::new("explorer.exe");
+    #[cfg(target_os = "macos")]
+    let mut command = std::process::Command::new("open");
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = std::process::Command::new("xdg-open");
+    command
+        .arg(directory)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("open persona directory: {e}"))
+}
+fn laputa_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    // Must match vivy-laputa's root_from: LAPUTA_HOME, else the user home.
+    if let Some(path) = std::env::var_os("LAPUTA_HOME").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(path));
+    }
+    app.path()
+        .home_dir()
+        .map(|home| home.join(".laputa"))
+        .map_err(|e| format!("resolve home directory: {e}"))
+}
 
 pub fn run() {
     let app = tauri::Builder::default()
@@ -53,13 +108,21 @@ pub fn run() {
             core_request,
             core_submit,
             core_status,
-            core_diagnostics
+            core_diagnostics,
+            onboarding_read,
+            onboarding_complete,
+            onboarding_reset,
+            open_persona_directory
         ])
         .setup(|app| {
             let root = app.path().app_local_data_dir()?;
             std::fs::create_dir_all(root.join("webview2"))?;
+            let laputa = laputa_root(app.handle()).map_err(std::io::Error::other)?;
+            let onboarding = storage::OnboardingStore::open(&root.join("desktop-state"))
+                .map_err(|e| std::io::Error::other(format!("onboarding state: {e}")))?;
+            app.manage(Mutex::new(onboarding));
             let events = app.handle().clone();
-            let bridge = Bridge::new(root.clone(), move |name, value| {
+            let bridge = Bridge::new(root.clone(), laputa, move |name, value| {
                 events.emit(name, value).map_err(|e| e.to_string())
             });
             app.manage(bridge);

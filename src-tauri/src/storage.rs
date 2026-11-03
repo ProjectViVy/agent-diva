@@ -103,6 +103,70 @@ impl Store {
         Ok(())
     }
 }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OnboardingState {
+    pub schema: u32,
+    pub completed: bool,
+    #[serde(default)]
+    pub forced: bool,
+}
+
+pub struct OnboardingStore {
+    pub path: PathBuf,
+    pub value: OnboardingState,
+}
+impl OnboardingStore {
+    pub fn open(directory: &Path) -> io::Result<Self> {
+        fs::create_dir_all(directory)?;
+        let path = directory.join("onboarding.json");
+        let value = match fs::read(&path) {
+            Ok(bytes) => {
+                let state: OnboardingState =
+                    serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+                if state.schema != 1 {
+                    return Err(io::Error::other(
+                        "unsupported onboarding state; retained original file",
+                    ));
+                }
+                state
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => OnboardingState {
+                schema: 1,
+                completed: false,
+                forced: false,
+            },
+            Err(e) => return Err(e),
+        };
+        Ok(Self { path, value })
+    }
+    pub fn set_completed(&mut self, completed: bool) -> io::Result<()> {
+        if self.value.completed == completed && !self.value.forced {
+            return Ok(());
+        }
+        let next = OnboardingState {
+            schema: 1,
+            completed,
+            forced: false,
+        };
+        atomic_write(&self.path, &serde_json::to_vec(&next)?)?;
+        self.value = next;
+        Ok(())
+    }
+    pub fn reset(&mut self) -> io::Result<()> {
+        if !self.value.completed && self.value.forced {
+            return Ok(());
+        }
+        let next = OnboardingState {
+            schema: 1,
+            completed: false,
+            forced: true,
+        };
+        atomic_write(&self.path, &serde_json::to_vec(&next)?)?;
+        self.value = next;
+        Ok(())
+    }
+}
 fn valid_session(value: &str) -> bool {
     value.split_once('-').is_some_and(|(a, b)| {
         !a.is_empty()
@@ -188,6 +252,51 @@ mod tests {
             assert!(Store::open(root.path()).is_err());
             assert_eq!(
                 fs::read_to_string(root.path().join("state.json")).unwrap(),
+                text
+            );
+        }
+    }
+    #[test]
+    fn onboarding_starts_incomplete_and_persists_both_directions() {
+        let root = tempfile::tempdir().unwrap();
+        let mut store = OnboardingStore::open(root.path()).unwrap();
+        assert!(!store.value.completed);
+        assert!(!store.value.forced);
+        store.set_completed(true).unwrap();
+        let reopened = OnboardingStore::open(root.path()).unwrap();
+        assert!(reopened.value.completed);
+        assert!(!reopened.value.forced);
+        let mut reopened = OnboardingStore::open(root.path()).unwrap();
+        reopened.reset().unwrap();
+        let reset = OnboardingStore::open(root.path()).unwrap();
+        assert!(!reset.value.completed);
+        assert!(reset.value.forced);
+        let mut reset = OnboardingStore::open(root.path()).unwrap();
+        reset.set_completed(true).unwrap();
+        let completed = OnboardingStore::open(root.path()).unwrap();
+        assert!(completed.value.completed);
+        assert!(!completed.value.forced);
+    }
+    #[test]
+    fn onboarding_reads_state_without_the_forced_field() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(
+            root.path().join("onboarding.json"),
+            r#"{"schema":1,"completed":true}"#,
+        )
+        .unwrap();
+        let store = OnboardingStore::open(root.path()).unwrap();
+        assert!(store.value.completed);
+        assert!(!store.value.forced);
+    }
+    #[test]
+    fn onboarding_refuses_corruption_and_unknown_schema_without_replacement() {
+        let root = tempfile::tempdir().unwrap();
+        for text in ["{broken", r#"{"schema":2,"completed":true}"#] {
+            fs::write(root.path().join("onboarding.json"), text).unwrap();
+            assert!(OnboardingStore::open(root.path()).is_err());
+            assert_eq!(
+                fs::read_to_string(root.path().join("onboarding.json")).unwrap(),
                 text
             );
         }

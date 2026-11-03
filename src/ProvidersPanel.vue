@@ -49,7 +49,9 @@ async function save(){if(busy.value)return false;busy.value=true;error.value='';
   needsKey.value=false;
  }
  const config=clone(providers.value!.config);
- if(config.default_model!==(defaultModel.value||undefined)){config.default_model=defaultModel.value||undefined;delete config.default_thinking;await persist(config);}
+ // A plain save (for example the onboarding button) must not clear the default
+ // model when the default picker was never opened.
+ if((editing.value||defaultEditing.value)&&config.default_model!==(defaultModel.value||undefined)){config.default_model=defaultModel.value||undefined;delete config.default_thinking;await persist(config);}
  discard();await runtime.synchronize();return true;
  }catch(e){error.value=(partial?'配置已部分保存，默认选择尚未完成。':'')+String(e);return false;}finally{busy.value=false;}
 }

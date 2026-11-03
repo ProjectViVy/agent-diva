@@ -6,7 +6,7 @@ const logs=ref('');async function readLogs(){try{logs.value=await diagnostics();
 const s=runtime.state;
 const python=ref<PythonReport|null>(null),busy=ref(false),error=ref('');let timer:ReturnType<typeof setTimeout>|undefined;let gone=false;
 async function read(){try{const r=await runtime.request({method:'python_read'});if('outcome' in r)python.value=r;}catch(e){error.value=String(e);}if(!gone&&python.value?.phase)timer=setTimeout(read,1500);}
-async function prepare(){busy.value=true;error.value='';try{const job=runtime.operation({method:'python_prepare',params:{managed:true}});timer=setTimeout(read,200);const r=await job;if(r.kind==='python')python.value=r.data;}catch(e){error.value=String(e);}finally{busy.value=false;}}
+async function prepare(){busy.value=true;error.value='';try{const job=runtime.operation({method:'python_prepare',params:{managed:true,memory:false}});timer=setTimeout(read,200);const r=await job;if(r.kind==='python')python.value=r.data;}catch(e){error.value=String(e);}finally{busy.value=false;}}
 async function cancel(){try{await runtime.request({method:'python_cancel'});await read();}catch(e){error.value=String(e);}}
 onMounted(read);onUnmounted(()=>{gone=true;clearTimeout(timer);});
 </script>

@@ -3,7 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onMounted, onUnmounted, ref } from "vue";
 
-defineProps<{ settingsOpen: boolean }>();
+defineProps<{ settingsOpen: boolean; onboarding?: boolean }>();
 const emit = defineEmits<{ toggleSettings: [] }>();
 const menuButton = ref<HTMLButtonElement | null>(null);
 defineExpose({ focusMenu: () => menuButton.value?.focus() });
@@ -45,7 +45,7 @@ async function windowAction(action: "close" | "minimize" | "maximize") {
 
 <template>
   <header class="titlebar" data-tauri-drag-region>
-    <button ref="menuButton" class="menu-button" type="button" :aria-label="settingsOpen ? '关闭设置' : '打开设置'" :title="settingsOpen ? '关闭设置' : '打开设置'" :aria-expanded="settingsOpen" aria-controls="settings-panel" @click="emit('toggleSettings')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+    <button v-if="!onboarding" ref="menuButton" class="menu-button" type="button" :aria-label="settingsOpen ? '关闭设置' : '打开设置'" :title="settingsOpen ? '关闭设置' : '打开设置'" :aria-expanded="settingsOpen" aria-controls="settings-panel" @click="emit('toggleSettings')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
     <span class="title" data-tauri-drag-region>Agent Diva</span>
     <span class="drag-space" data-tauri-drag-region></span>
     <div class="window-controls" aria-label="Window controls">
