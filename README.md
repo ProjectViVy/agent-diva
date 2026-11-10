@@ -1,27 +1,54 @@
 # Agent Diva
 
-A Windows x64 Tauri/Vue desktop for the independently assembled Diva Rust core.
-It includes durable chat, questions/tools/cancellation, local management and
-close-to-tray hosting. Full release acceptance is still pending; see verification
-limits below. No source checkout or development tools are needed by the installed app.
+<img src="https://raw.githubusercontent.com/ProjectViVy/agent-diva/c565bb245cc920258d7f8c7fcd9544fbba545af7/docs/resources/diva.png" alt="Agent Diva illustration" align="right" width="300" />
 
-## Development
+[简体中文](README.zh-CN.md) · [Project documentation](https://projectvivy.github.io/agent-diva-docs/) · QQ group 788599177
 
-Install Node.js 24 LTS, npm, stable Rust, and the Tauri platform prerequisites:
-https://v2.tauri.app/start/prerequisites/
+Agent Diva is a Windows x64 desktop AI assistant from Project ViVy. Its Tauri and Vue app runs an independently built Diva Rust core and provides streaming chat, persistent local sessions, and a workspace for tools, skills, and persona.
 
-On Windows, install the MSVC C++ build tools and WebView2 runtime.
+The name comes from [Vivy: Fluorite Eye’s Song](https://en.wikipedia.org/wiki/Vivy:_Fluorite_Eye%27s_Song). **Agent** refers to the executor before self-awareness, and **Diva** is the singer at the center of the stage. The project grew out of the original Agent Diva Rust workspace and its nanobot-inspired agent loop.
+
+<br clear="both" />
+
+## Quick start
+
+1. Run the Windows x64 NSIS installer under your own account. You can [build the installer](#validate-and-package) with a matching core artifact. Installation is per-user. WebView2 is required and the installer can download Microsoft’s bootstrapper. The installed app includes the core.
+2. On first launch, choose a provider, enter its API key or environment-variable reference, and save. Continue after the text, streaming, and tool checks pass.
+3. Describe the assistant you want or select the built-in persona. You can edit its files later under **Settings → Laputa Persona**.
+4. Initialize the Python workspace and optional local MemPalace memory, or defer setup to **Settings → Runtime**. Select **Start chatting** to open the conversation.
+
+For an existing installation, use **Settings → Providers** to edit OpenAI- or Anthropic-compatible endpoints or select a default model. Enter the exact model ID advertised by the endpoint. API keys entered in the app are write-only. Curated provider choices include DeepSeek, MiniMax, and Alibaba Bailian. Bailian offers China standard, international standard, and China Coding Plan variants.
+
+## What you can do
+
+- Stream responses, inspect tool calls and results, answer questions from the assistant, cancel a turn, and reopen saved sessions.
+- Manage local skills, managed skills, MCP connections, and the six core persona files in Settings. Recap and Tasks also have dedicated panels.
+- Initialize Python and connect MCP servers explicitly. MCP configuration can reference host environment variables. The Python process receives a restricted OS environment.
+- Close the window to hide it in the tray. The tray offers Show, Settings, and Exit. Existing Recap and wake work can continue while the app is running in the tray. Exit gives the core ten seconds to shut down before terminating its owned process tree. Use **Reconnect** after a crash to reconcile unconfirmed sends with saved submissions.
+
+The bundled core starts with `--approve` to trust resources in the fixed desktop workspace. Other assistant questions appear in the chat.
+
+Desktop data is stored under `%LOCALAPPDATA%/org.projectvivy.agentdiva/`, with separate `core-home`, `workspace`, `desktop-state`, `webview2`, and `logs` directories. Ordinary upgrades and uninstall retain that data.
+
+## Develop from source
+
+Install Node.js 24 LTS (24.15.0 or later within the 24.x line), npm, stable Rust, the MSVC C++ build tools, and WebView2. See the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```sh
+git clone https://github.com/ProjectViVy/agent-diva.git
+cd agent-diva
 npm ci
-npm run import-core -- <explicit-core-artifact-directory>
+npm run import-core -- "<path-to-extracted-core-artifact>"
 npm run tauri dev
 ```
 
-For a browser-only preview, run `npm run dev`. Native host calls are available
-only inside the Tauri desktop application.
+Use a matching Windows x64 core artifact from the core build. Pass the extracted directory containing `metadata.json`. The importer verifies hashes and the pinned Rig revision. The artifact includes the core executable, Rust-generated TypeScript, protocol examples and version, the build recipe, Cargo.lock, and dependency notices. The Vue UI calls the Tauri host through IPC. The host launches the packaged core and exchanges JSON frames over its standard input and output.
 
-## Validation and packaging
+Run `npm run dev` for a browser-only frontend preview. For synthetic IPC, use `npm run dev -- --mode test --port 1422`. The fixture runs with simulated core responses and needs no credentials.
+
+## Validate and package
+
+The [CI workflow](.github/workflows/ci.yml) runs the following checks without a core executable.
 
 ```sh
 npm run build
@@ -29,89 +56,25 @@ npm test
 npm run test:artifact
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --manifest-path bridge-tests/Cargo.toml --locked
-npm run tauri build -- --bundles nsis
 ```
 
-The core artifact must contain the Windows binary, Rust-generated TypeScript,
-protocol examples/version, recipe, Cargo.lock, dependency notices and metadata
-with hashes. Import verifies every file. Native builds fail if the binary or
-contract differs, or the required pinned Rig revision is absent. Never copy a
-backend source tree into this repository. CI runs frontend/bridge checks without
-a core; the separate packaging workflow requires an explicit HTTPS artifact ZIP
-and SHA256 and fails when it cannot obtain a matching artifact.
+To exercise the bridge with a real core, set `DIVA_TEST_CORE` to the matching executable and run `cargo test --manifest-path bridge-tests/Cargo.toml --locked -- --include-ignored`.
 
-For native bridge integration tests, set `DIVA_TEST_CORE` to the explicit built
-core executable, then run `cargo test --manifest-path bridge-tests/Cargo.toml --
---include-ignored`. Use `npm run dev -- --mode test --port 1422` only for the
-synthetic IPC browser fixture; it does not talk to the core or use credentials.
+After importing the core, run `npm run tauri build -- --bundles nsis`. The installer appears under `src-tauri/target/release/bundle/nsis/`. The [packaging workflow](.github/workflows/package.yml) accepts an explicit HTTPS URL for the core ZIP and its SHA-256 checksum.
 
-## Installation and use
+Full release acceptance is pending. Upstream verified per-user installation, startup with a restricted PATH, crash recovery, and data retention across an upgrade and uninstall on an existing Administrator profile. Clean standard-user installation, native WebView2 layout at 125% and 150% display scaling, and Recap/wake behavior while hidden still need release verification. Provider compatibility depends on the endpoint and model you test.
 
-Run the NSIS installer as the intended Windows user. Installation is per-user.
-WebView2 is required; the installer can download Microsoft's bootstrapper.
-Data lives below `%LOCALAPPDATA%/org.projectvivy.agentdiva/`, separately under
-`core-home`, `workspace`, `desktop-state`, `webview2` and `logs`. Upgrade and
-ordinary uninstall retain this data. Unknown/corrupt state is rejected or shown
-as an error, never silently cleared.
+See the [upstream verification record](https://github.com/ProjectViVy/agent-diva/blob/8468ca94eb95d3e4e3dc493c6419a4b47431dd63/README.md#verification-limits) for the tested environments and endpoints.
 
-Open Settings → Providers, add an OpenAI/Anthropic-compatible endpoint and the
-endpoint's exact model ID, choose an environment-variable credential reference
-or enter a stored API key, then explicitly save. The key is write-only. Use the
-explicit text/stream/tool test to check that endpoint; a successful local mock
-does not establish real-provider compatibility. Select the default model and
-return to chat. Model identifiers are not rewritten.
+## Repository layout
 
-Closing the window hides it; the tray provides Show, Settings and Exit. Existing
-Recap/wake work can continue while hidden. Exit allows ten seconds for shutdown,
-then terminates the owned process tree. It does not cancel all durable tasks.
-After a crash use Reconnect; unconfirmed sends are reconciled against committed
-admissions. No task execution is promised after the entire application exits.
-Python, Git Bash and MCP dependencies are optional for basic text chat. Python
-initialization and MCP connections happen only on an explicit action. MCP values
-reference host environment variables; the Python namespace receives only the OS
-environment needed to run, not arbitrary credential variables.
+| Path | Contents |
+| --- | --- |
+| [`src/`](src/) | Vue desktop UI, host connection state, and generated protocol |
+| [`src-tauri/`](src-tauri/) | Rust desktop host, core process supervision, local state, and NSIS configuration |
+| [`scripts/`](scripts/) | Core artifact import and verification |
+| [`bridge-tests/`](bridge-tests/) | Rust bridge tests with optional native core coverage |
 
-## Verification limits
+## Legacy workspace
 
-Offline/native-core tests cover durable admission, conflicts, history, cancellation,
-typed management, outbox write failure, crash/reopen, competing session writers
-and Job Object cleanup after forced host death. Vue runtime and MCP form tests,
-production compilation and synthetic IPC browser checks pass. The browser fixture
-was checked at actual CSS 500x400, 680/681px and 1100x760.
-
-Short-path clean NSIS building, per-user installation, restricted-PATH startup,
-reopening, forced host death, a test 0.1.0-to-0.1.1 upgrade and default uninstall
-passed on the existing Administrator profile. Session/workspace data survived.
-These do not establish native WebView2 layout at 125/150% OS scale, clean
-standard-user installation or hidden Recap/wake behavior. Local native UI
-automation is unavailable; WebView2 was already installed on this test machine.
-
-The authorized Qwen gateway returned the exact model ID `qwen3.8-omni-flash` from
-its model-list endpoint. Native streamed chat with an actual read-tool call and
-committed result passed, as did the explicit text, stream and tool probes. The
-mixed-case ID supplied in the local note returned model-not-found; original files
-were not changed. The separate StepFun endpoint failed HTTP transport here.
-
-## Layout and scope
-
-- `src/`: Vue application and native host connection state.
-- `src-tauri/`: Rust desktop entry point, commands, capabilities and packaging.
-- `.github/workflows/ci.yml`: Windows build validation.
-
-The desktop consumes only the explicitly imported core artifact. Runtime never
-uses the backend checkout, Node, Cargo or the legacy Go implementation. No arbitrary
-process-execution IPC is exposed to the UI. Default icons remain Tauri placeholders.
-
-## Curated provider setup
-
-Providers includes DeepSeek (initial selection: `deepseek-flash`), MiniMax and
-Alibaba Bailian. Bailian offers China standard, international standard and China
-Coding Plan in a dropdown. Presets are supplied by the imported Rust core, not
-persisted on page open. Existing user defaults are preserved. Configure a key or
-environment reference and save explicitly; default selection follows successful
-credential storage. Addresses and original model IDs remain editable. DeepSeek
-and MiniMax live calls require their own credentials and are not yet verified.
-
-Diva launches its bundled core with `--approve`: resources in the fixed desktop
-workspace are trusted automatically, without a project-trust question. Other
-assistant questions still use the normal question cards.
+The multi-crate Rust workspace, gateway channels, CLI/TUI, and their configuration and build instructions are documented in the [legacy English README](https://github.com/ProjectViVy/agent-diva/blob/dev/README.md) and [legacy Chinese README](https://github.com/ProjectViVy/agent-diva/blob/dev/README.zh-CN.md) on `dev`. See the [legacy workspace’s MIT license](https://github.com/ProjectViVy/agent-diva/blob/dev/LICENSE).
